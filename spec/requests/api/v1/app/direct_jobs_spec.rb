@@ -60,6 +60,42 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title")).to eq("Summon the build consul")
   end
 
+  it "accepts an explicit planned execution override for direct Jobs" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Fix Xcode project",
+      prompt: "The mobile app needs an Xcode project repair.",
+      planned_execution: {
+        project_label: "iOS App",
+        target_label: "//ios:app",
+        capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(Job.order(:created_at).last.planned_execution_json).to include(
+      "project_label" => "iOS App",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "operator"
+    )
+  end
+
+  it "rejects ambiguous direct Jobs without an explicit primary placement" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Fix iOS and Windows installers",
+      prompt: "Update the Xcode project and the Windows MSBuild installer."
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("mutually incompatible")
+  end
+
   it "returns the direct job form options for the signed-in user" do
     sign_in_as(user)
     user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
