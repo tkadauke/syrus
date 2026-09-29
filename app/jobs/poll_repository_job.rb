@@ -30,8 +30,12 @@ class PollRepositoryJob < ApplicationJob
 
     with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: force, retry_args: [ repository_id ], retry_kwargs: { force: force }) do
       client = GithubClient.for(repository: repository, user: repository.user)
-      issues = list_labeled_issues(client, repository, since: incremental_since)
-      closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
+      listed_issues = list_labeled_issues(client, repository, since: incremental_since)
+      retried_issues = retry_quarantined_issues(client, repository, listed_issues: listed_issues, at: poll_started_at)
+      issues = open_issues_for_ingestion(listed_issues + retried_issues)
+      closed_issues = unique_issues_by_number(
+        list_labeled_issues(client, repository, state: "closed", since: incremental_since) + closed_issues_for_resolution(retried_issues)
+      )
       prior_jobs_by_issue_number = latest_jobs_by_issue_number(repository, issues)
       linked_lookup_candidates = linked_open_pr_lookup_issue_numbers(issues, prior_jobs_by_issue_number)
       linked_lookup_issue_numbers = linked_lookup_candidates.first(LINKED_OPEN_PR_LOOKUP_LIMIT)
@@ -41,16 +45,19 @@ class PollRepositoryJob < ApplicationJob
 
       stats = Hash.new(0)
       issues.each do |issue|
-        stats[ingest_with_quarantine(
+        result = ingest_with_quarantine(
           issue,
           repository,
           prior_jobs_by_issue_number: prior_jobs_by_issue_number,
           linked_open_prs: linked_open_prs,
           linked_lookup_numbers: linked_lookup_numbers,
           linked_lookup_overflow_numbers: linked_lookup_overflow_numbers
-        )] += 1
+        )
+        stats[result] += 1
+        repository.clear_poll_issue_error!(issue_number: issue.number) unless %i[ quarantined deferred ].include?(result)
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
+      clear_closed_poll_issue_errors!(repository, closed_issues)
       InputSources::PendingWorkWakeup.call(repository)
       update_untagged_open_issue_count!(repository, client)
 
@@ -62,7 +69,7 @@ class PollRepositoryJob < ApplicationJob
         )
       end
       success_at = linked_lookup_overflow_numbers.any? ? nil : poll_started_at
-      repository.mark_poll_success!(at: success_at, clear_issue_errors: stats[:quarantined].zero?)
+      repository.mark_poll_success!(at: success_at, clear_issue_errors: false)
     end
   rescue Octokit::TooManyRequests
     raise
@@ -110,6 +117,37 @@ class PollRepositoryJob < ApplicationJob
       client.issues_with_label(repository.slug, repository.trigger_label, state: state, since: since)
     else
       client.issues_with_label(repository.slug, repository.trigger_label, state: state)
+    end
+  end
+
+  def retry_quarantined_issues(client, repository, listed_issues:, at:)
+    listed_numbers = Array(listed_issues).map(&:number).compact.index_with(true)
+    retry_numbers = repository.poll_issue_numbers_due_for_retry(at: at).reject { |number| listed_numbers[number] }
+    return [] if retry_numbers.empty?
+
+    retry_numbers.filter_map do |number|
+      client.fetch_issue(repository.slug, number)
+    rescue Octokit::NotFound
+      repository.clear_poll_issue_error!(issue_number: number)
+      nil
+    end
+  end
+
+  def open_issues_for_ingestion(issues)
+    unique_issues_by_number(Array(issues).select { |issue| issue.state.to_s != "closed" })
+  end
+
+  def closed_issues_for_resolution(issues)
+    unique_issues_by_number(Array(issues).select { |issue| issue.state.to_s == "closed" })
+  end
+
+  def unique_issues_by_number(issues)
+    Array(issues).reverse.index_by(&:number).values.reverse
+  end
+
+  def clear_closed_poll_issue_errors!(repository, issues)
+    Array(issues).each do |issue|
+      repository.clear_poll_issue_error!(issue_number: issue.number)
     end
   end
 

@@ -385,6 +385,10 @@ export type RepositoryPollIssueError = {
   error_class: string
   error_message: string
   recorded_at: string
+  failure_count?: number
+  retry_limit?: number
+  retry_exhausted?: boolean
+  next_retry_at?: string | null
 }
 
 export type RepositoryDeliveryTrack = {
