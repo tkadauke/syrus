@@ -61,6 +61,14 @@ export function CheckIcon(props: IconProps) {
 /* Feature-pillar icons ---------------------------------------------------- */
 export function FeatureIcon({ id, ...props }: IconProps & { id: string }) {
   switch (id) {
+    case "walkthrough":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...base} {...props}>
+          <rect x="3" y="5" width="18" height="12" rx="2" />
+          <path d="m10 9 5 2.8-5 2.8V9Z" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
+      );
     case "keys":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...base} {...props}>
@@ -114,6 +122,14 @@ export function FeatureIcon({ id, ...props }: IconProps & { id: string }) {
 /* Entry-point icons ------------------------------------------------------- */
 export function EntryIcon({ id, ...props }: IconProps & { id: string }) {
   switch (id) {
+    case "walkthrough":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...base} {...props}>
+          <rect x="3" y="6" width="14" height="10" rx="2" />
+          <path d="m17 10 4-2.5v7L17 12" />
+          <path d="M7 20h7" />
+        </svg>
+      );
     case "issue":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...base} {...props}>

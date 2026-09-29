@@ -17,9 +17,10 @@ const cols: { title: string; links: FooterLink[] }[] = [
     title: "Get started",
     links: [
       { label: "Download", href: "/download" },
+      { label: "Watch demo", href: "/#walkthrough-demo" },
       { label: "Docs", href: "/docs" },
       { label: "GitHub repository", href: site.repositoryUrl, external: true },
-      { label: "Request a demo", href: "/#demo" },
+      { label: "Guided help", href: "/#demo" },
     ],
   },
 ];

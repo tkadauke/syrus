@@ -26,11 +26,11 @@ export const site = {
 } as const;
 
 export const hero = {
-  eyebrow: "Built for product & project owners",
-  titleLead: "Ship more of your roadmap.",
-  titleAccent: "Without losing sight of a thing.",
+  eyebrow: "Self-hosted AI coding agents for developers",
+  titleLead: "Run coding agents on your repos.",
+  titleAccent: "Keep every PR under control.",
   subtitle:
-    "Syrus lets product, project, and application owners put AI to work from goal to merged pull request — turning conversations into tracked epics and tickets, running many changes on your codebase at once, and keeping a human review on every merge. You ship more each sprint, you see exactly what's being built and what it cost, and the guardrails keep AI's speed from becoming AI's mess.",
+    "Syrus is the open-source, self-hosted automation harness for turning issues, chats, and video walkthroughs into tracked pull requests. Developers keep the repo, credentials, checks, transcripts, review policy, and merge queue in their own infrastructure, while product and project owners get the visibility they need without turning AI work into a black box.",
 } as const;
 
 // The human + AI team workflow — who does what, start to finish.
@@ -73,8 +73,14 @@ export const workflowSteps = [
   },
 ] as const;
 
-// The product pillars — framed for the owner who wants leverage with control.
+// The product pillars — framed for teams that want leverage with control.
 export const features = [
+  {
+    id: "walkthrough",
+    title: "Show, don't type",
+    body: "Record a narrated screen walkthrough from chat, or drop in a webm, mp4, or mov. Syrus analyzes the video, extracts the issues and desired behavior, and turns the result into the same proposal-to-Job flow as issues and chat.",
+    href: "/docs/video-walkthroughs",
+  },
   {
     id: "leverage",
     title: "Multiply your output",
@@ -103,7 +109,7 @@ export const features = [
   {
     id: "keys",
     title: "Stay in control, on your terms",
-    body: "Self-hosted on your infrastructure, and your code goes only to the model provider you choose — Claude or Codex, on your own credentials. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub.",
+    body: "Self-hosted on your infrastructure, and your code goes only to the plugin-backed model provider you choose, on your own credentials. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub.",
   },
 ] as const;
 
@@ -125,6 +131,11 @@ export const entryPoints = [
     body: "A failing check kicks off a bounded, automatic repair attempt.",
   },
   {
+    id: "walkthrough",
+    title: "Video walkthrough",
+    body: "Record your screen with narration from chat. Syrus extracts issues, desired behavior, and screenshots before the agent proposes the work.",
+  },
+  {
     id: "direct",
     title: "Chat or direct prompt",
     body: "A confirmed chat proposal or a direct prompt from your team, no ticket needed — chores, experiments, urgent work.",
@@ -142,8 +153,8 @@ export const entryPoints = [
 ] as const;
 
 export const infraPoints = [
-  "More shipped each sprint, no new hires",
+  "MIT open source and self-hosted on your infrastructure",
   "Human review and approval on every change — your policy",
   "Full transcript, diff, and cost record for every run",
-  "Self-hosted — one-command Docker install, Kubernetes when you scale",
+  "One-command Docker install, Kubernetes when you scale",
 ] as const;

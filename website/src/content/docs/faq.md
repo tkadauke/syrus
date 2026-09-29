@@ -5,6 +5,23 @@ description: Frequently-asked questions about Syrus.
 
 # FAQ
 
+## Does Syrus compete with coding agents?
+
+No. We don't compete with coding agents, we orchestrate them.
+
+Coding agents -- single-purpose tools that take a prompt and try to
+produce a change -- are engines that execute a task. They read a prompt,
+work in a repository, and try to produce a change.
+
+Syrus is the orchestration layer around that work. It decides what runs,
+in what order, against which repository, through which checks and review
+gates, and under which landing policy. Claude, Codex, Muse, and
+Antigravity are interchangeable provider plugins under that
+workflow instead of the workflow boundary itself.
+
+The question is not "which agent wins?" It is who owns the queue,
+credentials, transcripts, retries, review policy, and final merge path.
+
 ## How is Syrus different from Devin?
 
 Devin is a hosted coding-agent product. Syrus is self-hosted,
@@ -49,11 +66,53 @@ Syrus is not trying to beat GitHub on native platform integration. It is
 for teams that want the issue-to-PR loop while still owning deployment,
 credentials, data retention, and model choice.
 
+## How is Syrus different from OpenAI Codex cloud?
+
+[OpenAI describes Codex](https://help.openai.com/en/articles/11390924)
+as a cloud-based software engineering agent that connects to GitHub and
+runs tasks in the cloud. Syrus can use Codex as one provider, but Syrus
+itself is the orchestration layer: it polls issues and PRs, creates Jobs
+and Workflows, owns branches and retries, records transcripts and diffs,
+and can route work to Claude, Codex, Muse, or Antigravity.
+
+Choose Codex cloud when you want OpenAI to run the agent environment for
+you. Choose Syrus when you want self-hosted control over the workflow
+engine, credentials, audit trail, provider selection, and merge-train
+policy.
+
+## How is Syrus different from Google Jules?
+
+[Google describes Jules](https://jules.google/docs/faq/) as an
+autonomous coding agent that integrates with GitHub and works on tasks
+asynchronously. Jules is the agent product. Syrus is the harness around
+agent products: it keeps the durable Job, Workflow, Step, and Run records,
+handles issue polling, PR feedback, CI-failure follow-up, scheduled work,
+rebases, and merge trains.
+
+Syrus is a better fit when the important decision is not only which agent
+writes the patch, but who owns the queue, branch lifecycle, transcript
+retention, retry behavior, and landing policy. Jules may be the simpler
+choice when you specifically want Google's hosted coding-agent workflow.
+
+## How is Syrus different from Factory Droids?
+
+[Factory describes Droids](https://docs.factory.ai/) as AI assistants and
+cloud sessions for development workflows such as triage, code review, QA,
+documentation, and incident response. Syrus is narrower and more
+infrastructure-shaped: it is an open-source, self-hosted issue-to-PR
+harness for repositories, with deterministic workflow records, provider
+adapters, PR follow-up, and merge trains.
+
+Factory is aimed at a broad hosted agent-native development platform.
+Syrus is aimed at teams that want to operate the automation themselves,
+keep GitHub as the review system of record, and make agent choice a
+replaceable adapter rather than the platform boundary.
+
 ## What does Syrus cost?
 
 Syrus itself is free and MIT-licensed. Your real cost is the model bill:
-Anthropic for Claude runs, OpenAI for Codex runs, or whatever provider a
-future adapter uses.
+Anthropic for Claude runs, OpenAI for Codex runs, Meta for Muse runs, and
+Google/Gemini for Antigravity runs.
 
 You also pay your own infrastructure cost. For a small team, that can be
 a Docker Compose box. For a production deployment, it is your database,
@@ -76,10 +135,10 @@ PRs like you would review work from a human contributor.
 
 ## Can I use a model other than Claude?
 
-Yes. Syrus has provider abstractions and supports Codex in addition to
-Claude. Users choose a default provider for Jobs and future chats; repositories
-can override Job provider selection, and retry actions can use any provider the
-user has configured.
+Yes. Syrus has plugin-backed provider adapters for Claude, Codex, Muse,
+and Antigravity. Users choose a default provider for Jobs and future
+chats; repositories can override Job provider selection, and retry actions can
+use any provider the user has configured.
 
 Community providers are possible as long as they can fit the same shape:
 run in a workspace, stream logs, return a result, and let Syrus capture

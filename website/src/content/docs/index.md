@@ -21,6 +21,7 @@ recipes needed to run Syrus without reading the Rails source.
 | --- | --- |
 | Understand the product in a few minutes | [What is Syrus?](/docs/what-is-syrus) |
 | Decide whether Syrus is the right fit | [Why use Syrus?](/docs/why-use-syrus) |
+| See Syrus's self-built PR record | [Dogfooding](/docs/dogfooding) |
 | Get to a first successful PR | [Getting Started](/docs/getting-started) |
 | Choose a deployment path | [Deployment](/docs/deployment) |
 
@@ -30,6 +31,9 @@ recipes needed to run Syrus without reading the Rails source.
   trigger kinds, and state machines.
 - [Workflows](/docs/workflows): the built-in pipelines for issues, PR
   feedback, CI failures, retries, rebases, direct Jobs, and landing.
+- [Video Walkthroughs](/docs/video-walkthroughs): record your screen with
+  narration, let Syrus extract the issues and desired behavior, and turn the
+  analysis into Jobs.
 - [Landing Code](/docs/landing): approved Jobs, Epic merge trains, bundles,
   final graders, branch repair, and queue blockers.
 - [Tests and Graders](/docs/tests-and-graders): review/landing/CI phases,

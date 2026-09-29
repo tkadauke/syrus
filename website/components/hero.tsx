@@ -10,9 +10,9 @@ import { hero, site } from "../lib/site";
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const chips = [
-  "More shipped per sprint",
+  "MIT open source",
+  "Self-hosted on your infra",
   "Human review on every merge",
-  "Epics, tickets & cost, fully tracked",
 ];
 
 export function Hero({
@@ -100,12 +100,12 @@ export function Hero({
           >
             <DownloadCTA size="lg" />
             <ButtonLink
-              href="/#demo"
+              href="/#walkthrough-demo"
               variant="secondary"
               size="lg"
               className="w-full sm:w-auto"
             >
-              Request a demo
+              Watch the product demo
               <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </ButtonLink>
           </motion.div>
@@ -121,6 +121,28 @@ export function Hero({
               </span>
             ))}
           </motion.div>
+
+          <motion.a
+            variants={item}
+            href="/docs/dogfooding"
+            className="group mx-auto mt-8 grid max-w-2xl gap-4 rounded-2xl border border-clay/35 bg-[color-mix(in_oklab,var(--color-ink-soft)_78%,transparent)] p-4 text-left shadow-[0_24px_70px_-48px_var(--accent-shadow)] transition-all duration-200 hover:-translate-y-0.5 hover:border-clay/60 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center sm:p-5"
+          >
+            <span className="text-center text-5xl font-semibold tracking-[-0.02em] clay-text sm:text-left">
+              95.1%
+            </span>
+            <span>
+              <span className="block font-mono text-[0.72rem] uppercase tracking-[0.16em] text-clay-bright">
+                Built through its own PR loop
+              </span>
+              <span className="mt-2 block text-sm leading-relaxed text-cream-dim sm:text-[0.95rem]">
+                of Syrus's merged pull requests were written by Syrus itself.
+                <span className="ml-1 text-cream transition-colors group-hover:text-clay-bright">
+                  Read the receipts
+                  <ArrowRight className="ml-1 inline size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </span>
+              </span>
+            </span>
+          </motion.a>
         </motion.div>
 
         {/* product shot */}

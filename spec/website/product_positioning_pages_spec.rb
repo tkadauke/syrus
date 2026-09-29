@@ -10,6 +10,7 @@ RSpec.describe "website product positioning pages" do
   let(:site_copy) { read_website("lib/site.ts") }
   let(:demo) { read_website("components/demo.tsx") }
   let(:download_page) { read_website("src/app/download/page.tsx") }
+  let(:faq) { read_website("src/content/docs/faq.md") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
 
   it "links the explanatory sections from the home navigation" do
@@ -33,8 +34,20 @@ RSpec.describe "website product positioning pages" do
   it "helps visitors decide whether Syrus fits their workflow" do
     expect(normalized_copy).to include("Self-hosted on your infrastructure")
     expect(normalized_copy).to include("GitHub")
-    expect(normalized_copy).to include("Claude or Codex")
-    expect(demo).to include("Request a demo")
+    expect(normalized_copy).to include("plugin-backed model provider you choose")
+    expect(demo).to include("Request guided help")
     expect(download_page).to include("Download Syrus")
+  end
+
+  it "frames coding agents as engines Syrus orchestrates" do
+    normalized_faq = faq.gsub(/\s+/, " ")
+
+    expect(normalized_faq).to include("We don't compete with coding agents, we orchestrate them.")
+    expect(normalized_faq).to include("Coding agents -- single-purpose tools that take a prompt and try to produce a change -- are engines that execute a task.")
+    expect(normalized_faq).to include("Claude, Codex, Muse, and Antigravity are interchangeable provider plugins")
+    expect(normalized_faq).not_to include("| Claude Code Action |")
+    expect(normalized_faq).not_to include("GitHub Copilot Coding Agent, OpenAI Codex cloud, and Google Jules are engines")
+    expect(normalized_faq).not_to include("or another adapter")
+    expect(normalized_faq).not_to include("whatever provider another adapter uses")
   end
 end
