@@ -1358,26 +1358,6 @@ export function UnifiedDiffTable({
 
   let hunkIndex = -1
 
-  function handleLineTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
-    if (!isMobileViewport) return
-    if (hasActiveTextSelection()) return
-    if (closestInteractiveElement(event.target)) return
-
-    event.preventDefault()
-    event.stopPropagation()
-    onCommentLine?.(selection)
-  }
-
-  function handleTokenTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
-    if (!isMobileViewport) return false
-    if (hasActiveTextSelection()) return false
-
-    event.preventDefault()
-    event.stopPropagation()
-    onCommentLine?.(selection)
-    return true
-  }
-
   const scrollClass = lineWrapping === "scroll"
     ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
     : "w-full min-w-0 max-w-full overflow-x-hidden"
@@ -1461,14 +1441,8 @@ export function UnifiedDiffTable({
     if (!isComposingHere) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950`}>
-        <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
-          <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
-          <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
-            <CloseIcon className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5`}>
+        <div className="space-y-2">
           <textarea
             aria-label={t("diff_review_composer.comment")}
             autoFocus
@@ -1545,7 +1519,6 @@ export function UnifiedDiffTable({
                     line={line}
                     lineAnchorKey={lineAnchorKey}
                     onCommentLine={onCommentLine}
-                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
                     onToggleHighlightToken={toggleHighlight}
                     reviewSettings={reviewSettings}
                     showLineNumbers={showLineNumbers}
@@ -1581,25 +1554,20 @@ export function UnifiedDiffTable({
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
               <tr
-                className={`group ${diffLineClass(line.kind)} ${canComment ? "max-md:cursor-pointer" : ""}`}
+                className={`group ${diffLineClass(line.kind)}`}
                 data-coverage={annotation}
                 data-diff-anchor={lineAnchorKey || undefined}
                 data-diff-kind={line.kind}
-                onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
                 {hideSeparateOldLineGutter || !showLineNumbers ? null : (
                   <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-                    {commentSide === "old" && canComment ? (
-                      <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" />
-                    ) : null}
-                    {line.oldLine ?? ""}
+                    {commentSide === "old" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.oldLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : (line.oldLine ?? "")}
                   </td>
                 )}
                 {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
                   {commentSide === "new" && canComment ? (
-                    <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" />
-                  ) : null}
-                  {collapseUnifiedGutters ? (line.newLine ?? line.oldLine ?? "") : (line.newLine ?? "")}
+                    <GutterCommentButton file={file} line={line} lineNumber={collapseUnifiedGutters ? (line.newLine ?? line.oldLine ?? "") : (line.newLine ?? "")} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" />
+                  ) : (collapseUnifiedGutters ? (line.newLine ?? line.oldLine ?? "") : (line.newLine ?? ""))}
                 </td> : null}
                 <td className={`${diffMarkerClass(line.kind)} ${diffDensityClasses(reviewSettings).marker}`}>{line.marker}</td>
                 <td className={`${codeCellClass} ${diffCoverageBorderClass(annotation)}`}>
@@ -1607,7 +1575,6 @@ export function UnifiedDiffTable({
                     code={reviewDisplayCode(line.code, reviewSettings)}
                     highlightedToken={activeHighlight}
                     kind={line.kind}
-                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
                     onToggleHighlightToken={toggleHighlight}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
@@ -1631,17 +1598,6 @@ export function UnifiedDiffTable({
 
 function isAddedFileDiff(file: ReviewableDiffFile) {
   return file.status === "added" || Boolean(file.patch && /^new file mode /m.test(file.patch))
-}
-
-function closestInteractiveElement(target: EventTarget | null) {
-  return target instanceof Element
-    ? target.closest("button, a, input, textarea, select, summary, [role='button'], [contenteditable='true']")
-    : null
-}
-
-function hasActiveTextSelection() {
-  const selection = typeof window === "undefined" ? null : window.getSelection?.()
-  return Boolean(selection && !selection.isCollapsed && selection.toString().length > 0)
 }
 
 export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
@@ -1678,14 +1634,12 @@ function DiffCode({
   code,
   highlightedToken,
   kind,
-  onMobileTokenTap,
   onToggleHighlightToken,
   tokens
 }: {
   code: string
   highlightedToken?: string | null
   kind: DiffLineKind
-  onMobileTokenTap?: (event: MouseEvent<HTMLElement>) => boolean
   onToggleHighlightToken: (token: string) => void
   tokens?: ThemedToken[]
 }) {
@@ -1702,10 +1656,7 @@ function DiffCode({
                 className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
                 data-diff-highlight-token
                 key={wordIndex}
-                onClick={(event) => {
-                  if (onMobileTokenTap?.(event)) return
-                  onToggleHighlightToken(word.text)
-                }}
+                onClick={() => onToggleHighlightToken(word.text)}
                 style={{ color: shikiToken.color }}
               >
                 {word.text}
@@ -1725,10 +1676,7 @@ function DiffCode({
           className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
           data-diff-highlight-token
           key={index}
-          onClick={(event) => {
-            if (onMobileTokenTap?.(event)) return
-            onToggleHighlightToken(token.text)
-          }}
+          onClick={() => onToggleHighlightToken(token.text)}
         >
           {token.text}
         </span>
@@ -1747,7 +1695,6 @@ function SplitDiffRow({
   line,
   lineAnchorKey,
   onCommentLine,
-  onMobileTokenTap,
   onToggleHighlightToken,
   reviewSettings,
   showLineNumbers,
@@ -1761,7 +1708,6 @@ function SplitDiffRow({
   line: DiffLine
   lineAnchorKey?: string | null
   onCommentLine?: (selection: DiffLineSelection) => void
-  onMobileTokenTap?: (event: MouseEvent<HTMLElement>) => boolean
   onToggleHighlightToken: (token: string) => void
   reviewSettings: ReviewDiffSettings
   showLineNumbers: boolean
@@ -1779,8 +1725,7 @@ function SplitDiffRow({
       data-diff-split-row="true"
     >
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : null}
-        {line.oldLine ?? ""}
+        {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.oldLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : (line.oldLine ?? "")}
       </td> : null}
       <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
         {oldCode ? (
@@ -1788,15 +1733,13 @@ function SplitDiffRow({
             code={oldCode}
             highlightedToken={highlightedToken}
             kind={line.kind}
-            onMobileTokenTap={line.kind === "delete" ? onMobileTokenTap : undefined}
             onToggleHighlightToken={onToggleHighlightToken}
             tokens={tokens}
           />
         ) : null}
       </td>
       {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : null}
-        {line.newLine ?? ""}
+        {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.newLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : (line.newLine ?? "")}
       </td> : null}
       <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
         {newCode ? (
@@ -1804,7 +1747,6 @@ function SplitDiffRow({
             code={newCode}
             highlightedToken={highlightedToken}
             kind={line.kind}
-            onMobileTokenTap={line.kind !== "delete" ? onMobileTokenTap : undefined}
             onToggleHighlightToken={onToggleHighlightToken}
             tokens={tokens}
           />
@@ -1950,12 +1892,14 @@ function HunkContextButton({ direction, lineCount, loading, onClick }: { directi
 function GutterCommentButton({
   file,
   line,
+  lineNumber,
   onCommentLine,
   reviewSettings,
   side
 }: {
   file: ReviewableDiffFile
   line: DiffLine
+  lineNumber: number | string
   onCommentLine?: (selection: DiffLineSelection) => void
   reviewSettings: ReviewDiffSettings
   side: "old" | "new"
@@ -1963,11 +1907,17 @@ function GutterCommentButton({
   return (
     <button
       aria-label={`Comment on ${file.path}:${side}:${line.newLine ?? line.oldLine}`}
-      className={`absolute left-0.5 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-brand leading-none text-on-brand opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100 ${diffDensityClasses(reviewSettings).commentButton}`}
+      className="relative block h-full w-full text-right"
       onClick={() => onCommentLine?.({ file, line, side })}
       type="button"
     >
-      +
+      <span
+        aria-hidden="true"
+        className={`absolute left-0.5 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-brand leading-none text-on-brand opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100 ${diffDensityClasses(reviewSettings).commentButton}`}
+      >
+        +
+      </span>
+      <span>{lineNumber}</span>
     </button>
   )
 }

@@ -145,8 +145,9 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByRole("table")[0]).toHaveClass("text-2xs")
     expect(getCodeCellText("new")).toHaveClass("py-0", "leading-[14px]")
     expect(getCodeCellText("new")).not.toHaveClass("py-0.5")
-    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-3", "w-3", "text-[9px]")
-    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-4", "w-4")
+    const compactCommentAffordance = screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" }).querySelector("[aria-hidden='true']")
+    expect(compactCommentAffordance).toHaveClass("h-3", "w-3", "text-[9px]")
+    expect(compactCommentAffordance).not.toHaveClass("h-4", "w-4")
     expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-1", "text-2xs")
 
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
@@ -157,8 +158,9 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByRole("table")[0]).toHaveClass("text-xs")
     expect(getCodeCellText("new")).toHaveClass("py-0.5")
     expect(getCodeCellText("new")).not.toHaveClass("py-0")
-    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).toHaveClass("h-4", "w-4", "text-2xs")
-    expect(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" })).not.toHaveClass("h-3", "w-3")
+    const comfortableCommentAffordance = screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" }).querySelector("[aria-hidden='true']")
+    expect(comfortableCommentAffordance).toHaveClass("h-4", "w-4", "text-2xs")
+    expect(comfortableCommentAffordance).not.toHaveClass("h-3", "w-3")
     expect(screen.getByTitle("app/models/job.rb")).toHaveClass("py-2", "text-xs")
   })
 
@@ -603,7 +605,7 @@ describe("ReviewableDiff", () => {
     expect(onCancelComposing).toHaveBeenCalled()
   })
 
-  it("opens the comment composer full screen on mobile, like the workflow transcript panel", () => {
+  it("keeps the comment composer inline on mobile", () => {
     const onCancelComposing = vi.fn()
 
     render(
@@ -619,10 +621,10 @@ describe("ReviewableDiff", () => {
     )
 
     const composer = screen.getByTestId("diff-review-composer")
-    const overlay = within(composer).getByLabelText("Comment").closest("div.max-md\\:fixed")
-    expect(overlay).toHaveClass("max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]")
+    const panel = within(composer).getByLabelText("Comment").closest("td")?.firstElementChild
+    expect(panel).not.toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]")
 
-    fireEvent.click(within(composer).getByRole("button", { name: "Close comment form" }))
+    fireEvent.click(within(composer).getByRole("button", { name: "Cancel" }))
     expect(onCancelComposing).toHaveBeenCalled()
   })
 
@@ -818,7 +820,7 @@ describe("ReviewableDiff", () => {
     expect(addedRows[0]?.querySelector("td")?.textContent).toBe("1")
   })
 
-  it("opens a line comment when tapping a code token on mobile", () => {
+  it("only opens a line comment from the line number on mobile", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -831,13 +833,17 @@ describe("ReviewableDiff", () => {
 
       fireEvent.click(getCodeToken("new"))
 
+      expect(onCommentLine).not.toHaveBeenCalled()
+      expect(getCodeToken("new")).toHaveClass("bg-warning-surface")
+
+      fireEvent.click(screen.getByRole("button", { name: "Comment on app/models/job.rb:new:1" }))
+
       expect(onCommentLine).toHaveBeenCalledTimes(1)
       expect(onCommentLine).toHaveBeenCalledWith({
         file: files[0],
         line: expect.objectContaining({ code: "new", kind: "add", newLine: 1, oldLine: null }),
         side: "new"
       })
-      expect(screen.queryByText(/Highlighting/)).not.toBeInTheDocument()
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")
