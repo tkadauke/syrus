@@ -140,6 +140,44 @@ RSpec.describe TargetGraph::Compiler do
       )
     end
 
+    it "compiles project hints and executable target capability requirements" do
+      write(".syrus.yml", <<~YAML)
+        project:
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+            runtimes: [ios_simulator]
+        prepare:
+          - bundle install
+        targets:
+          - name: ios-build
+            kind: builder
+            run: xcodebuild build
+            capabilities:
+              os: macos
+              toolchains: [xcode]
+        grade:
+          - name: backend
+            run: bin/rspec
+            capabilities:
+              os: linux
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.capabilities.to_h).to eq(
+        "os" => [ "macos" ],
+        "toolchains" => [ "xcode" ],
+        "runtimes" => [ "ios_simulator" ]
+      )
+      expect(graph.target(TargetGraph::Label.parse("//:prepare")).capabilities.to_h).to include("os" => [ "macos" ])
+      expect(graph.target(TargetGraph::Label.parse("//:ios-build")).capabilities.to_h).to eq(
+        "os" => [ "macos" ],
+        "toolchains" => [ "xcode" ]
+      )
+      expect(graph.target(TargetGraph::Label.parse("//:grade/backend")).capabilities.to_h).to eq("os" => [ "linux" ])
+    end
+
     it "does not compile a formatter target for the plugin-default opt-in (formatters: [])" do
       write(".syrus.yml", "formatters: []\n")
 
@@ -663,6 +701,8 @@ RSpec.describe TargetGraph::Compiler do
             phases: [review, landing]
             required: true
             timeout_minutes: 20
+            capabilities:
+              os: linux
           - name: syrus-preview
             kind: prepare
             run: npm run preview:setup
@@ -678,6 +718,7 @@ RSpec.describe TargetGraph::Compiler do
       expect(bundle.phases).to eq(%w[review landing])
       expect(bundle.required).to be(true)
       expect(bundle.timeout_minutes).to eq(20)
+      expect(bundle.capabilities.to_h).to eq("os" => [ "linux" ])
       expect(bundle.metadata["syrus_overlay"]).to contain_exactly(
         include(
           "owner_config_path" => "frontend/.syrus.yml",
@@ -685,7 +726,8 @@ RSpec.describe TargetGraph::Compiler do
           "applied" => {
             "phases" => %w[review landing],
             "required" => true,
-            "timeout_minutes" => 20
+            "timeout_minutes" => 20,
+            "capabilities" => { "os" => [ "linux" ] }
           }
         )
       )

@@ -213,11 +213,23 @@ iOS example:
 
 ```yaml
 # apps/ios/.syrus.yml
+project:
+  id: ios
+  label: iOS App
+  capabilities:
+    os: macos
+    toolchains: [xcode]
+    runtimes: [ios_simulator]
+
 grade:
   # Graph declaration for this project. Keep the executable xcodebuild wrapper
   # in root validation until nested grader execution lands.
   - name: swift-tests
     run: xcodebuild test -scheme MobileApp -destination 'platform=iOS Simulator,name=iPhone 15'
+    capabilities:
+      os: macos
+      toolchains: [xcode]
+      runtimes: [ios_simulator]
     phases: [landing, ci]
     timeout_minutes: 30
 

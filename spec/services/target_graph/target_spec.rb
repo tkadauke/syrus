@@ -47,6 +47,17 @@ RSpec.describe TargetGraph::Target do
       expect(target).to be_executable
     end
 
+    it "stores execution capability requirements" do
+      capabilities = TargetGraph::ExecutionCapabilities.new(os: [ "linux" ], toolchains: [ "ruby" ])
+      target = described_class.new(label: label, kind: "grader", project_id: "cli", capabilities: capabilities)
+
+      expect(target.capabilities).to eq(capabilities)
+      expect(target.capabilities.to_h).to eq(
+        "os" => [ "linux" ],
+        "toolchains" => [ "ruby" ]
+      )
+    end
+
     it "accepts the reserved builder kind even though no compiler produces it yet" do
       target = described_class.new(label: label, kind: "builder", project_id: "cli")
 

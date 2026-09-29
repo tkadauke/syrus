@@ -216,7 +216,8 @@ class TargetGraph
         preview: config&.preview,
         visual_review: config&.visual_review,
         adversarial_review: config&.adversarial_review,
-        coverage: config&.coverage
+        coverage: config&.coverage,
+        capabilities: declared&.capabilities
       )
     end
 
@@ -328,7 +329,8 @@ class TargetGraph
             preview: preview || existing.preview,
             visual_review: visual_review || existing.visual_review,
             adversarial_review: adversarial_review || existing.adversarial_review,
-            coverage: coverage || existing.coverage
+            coverage: coverage || existing.coverage,
+            capabilities: declared_project&.capabilities || existing.capabilities
           )
         )
         return
@@ -344,7 +346,8 @@ class TargetGraph
           preview: preview,
           visual_review: visual_review,
           adversarial_review: adversarial_review,
-          coverage: coverage
+          coverage: coverage,
+          capabilities: declared_project&.capabilities
         )
       )
     end
@@ -546,6 +549,7 @@ class TargetGraph
           project_id: project_id,
           command: commands.join(" && "),
           owner_config_path: config_path,
+          capabilities: syrus_config.project&.capabilities,
           metadata: { "commands" => commands }
         ),
         declaration: "legacy prepare"
@@ -569,6 +573,7 @@ class TargetGraph
             required: target.required,
             timeout_minutes: target.timeout_minutes,
             owner_config_path: config_path,
+            capabilities: target.capabilities,
             metadata: target.metadata.merge(explicit_target_metadata(target))
           ),
           declaration: "explicit targets: #{target.name.inspect}"
@@ -644,6 +649,7 @@ class TargetGraph
             required: grader.required,
             timeout_minutes: positive_timeout(grader.timeout_minutes),
             owner_config_path: config_path,
+            capabilities: grader.capabilities,
             metadata: {
               "description" => grader.description,
               "display_name" => grader.display_name,
@@ -697,11 +703,13 @@ class TargetGraph
       applied["phases"] = overlay.phases if overlay.phases.any?
       applied["required"] = true if overlay.required
       applied["timeout_minutes"] = overlay.timeout_minutes if overlay.timeout_minutes
+      applied["capabilities"] = overlay.capabilities.to_h if overlay.capabilities
 
       base.with(
         phases: applied.fetch("phases", base.phases),
         required: applied.fetch("required", base.required),
         timeout_minutes: applied.fetch("timeout_minutes", base.timeout_minutes),
+        capabilities: overlay.capabilities || base.capabilities,
         metadata: base.metadata.merge(
           "syrus_overlay" => Array(base.metadata["syrus_overlay"]) + [
             {
