@@ -84,12 +84,13 @@ serve many concurrent runs/chats, so it cannot reuse that pattern — ENV and
 any daemon-wide "current run"/"current chat" attribute would leak across
 concurrent dispatches.
 
-Generated MCP configs are agent-visible, so stdio entries must not carry
-instance secrets. `AgentSidecarEnvironment` forwards only non-secret boot
-hints (Rails env, data root, Bundler path, host/storage bucket names, and
-the per-invocation ids above). It deliberately excludes `RAILS_MASTER_KEY`,
-Active Record encryption keys, database credentials, S3 secret keys, and
-shared service bearer tokens.
+Generated MCP configs are agent-visible. Persistent transport keeps workflow
+stdio-only CLIs on `bin/syrus-mcp-proxy`, whose env carries only the daemon URL
+plus a short-lived invocation token. The legacy direct `bin/syrus-mcp-sidecar`
+fallback is different: it boots Rails as a child process, so it receives the
+worker boot env needed for MySQL, Active Record encryption, and S3-backed
+production boots. Shared service bearer tokens that are not needed for Rails
+boot stay out of that direct-sidecar env.
 
 For agent CLIs that only support stdio MCP, the configured command is
 `bin/syrus-mcp-proxy` when workflow persistent transport is selected. The

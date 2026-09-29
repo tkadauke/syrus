@@ -286,7 +286,7 @@ RSpec.describe CodexInvocation do
       ENV.replace(saved)
     end
 
-    it "writes a Codex config.toml for the Syrus MCP sidecar without serializing secret env keys" do
+    it "writes a Codex config.toml for the direct Rails MCP sidecar with boot env" do
       Dir.mktmpdir do |home|
         invocation = described_class.new(
           "/tmp/wkt",
@@ -312,9 +312,30 @@ RSpec.describe CodexInvocation do
         expect(config).to include("tool_timeout_sec = 120")
         expect(config).to include('[mcp_servers.syrus-mcp-sidecar.env]')
         expect(config).to include('RAILS_ENV = "test"')
+        expect(config).to include('RAILS_MASTER_KEY = "secret"')
+        expect(captured[:cmd].join(" ")).not_to include("RAILS_MASTER_KEY")
+      end
+    end
+
+    it "keeps proxy MCP config secret-free" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new(
+          "/tmp/wkt",
+          prompt: "P",
+          api_key: "sk-test",
+          codex_home: home,
+          mcp_server: {
+            command: "/app/bin/syrus-mcp-proxy",
+            args: [],
+            env: { "PATH" => "/usr/bin", "RAILS_MASTER_KEY" => "secret" }
+          }
+        )
+        capture_popen(invocation)
+
+        config = File.read(File.join(home, "config.toml"))
+        expect(config).to include('PATH = "/usr/bin"')
         expect(config).not_to include("RAILS_MASTER_KEY")
         expect(config).not_to include("secret")
-        expect(captured[:cmd].join(" ")).not_to include("RAILS_MASTER_KEY")
       end
     end
 
