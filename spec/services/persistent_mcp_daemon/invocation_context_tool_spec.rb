@@ -60,6 +60,20 @@ RSpec.describe PersistentMcpDaemon::InvocationContextTool do
     )
   end
 
+  it "keeps dispatching run tools after the token timestamp expires while the run is active" do
+    run = Factories.job(repository: repository).initial_run
+    token = travel_to(10.minutes.ago) do
+      McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "claude", expires_in: 5.minutes)
+    end
+    run.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+
+    result = call_tool(token)
+    payload = tool_payload(result)
+
+    expect(result["isError"]).to be_falsey
+    expect(payload).to include("ok" => true, "surface" => "run", "run_id" => run.id)
+  end
+
   it "reconstructs the chat session's McpToolContext over the real MCP dispatch path" do
     chat_session = ChatSession.create!(user: user, repository: repository)
     token = McpInvocationContext.issue_for_chat(chat_session, worker_id: worker_id, tier: "deferred", provider: "codex")

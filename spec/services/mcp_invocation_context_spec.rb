@@ -123,10 +123,29 @@ RSpec.describe McpInvocationContext do
 
     it "rejects an expired token" do
       token = travel_to(1.hour.ago) { described_class.issue_for_run(run, worker_id: worker_id, expires_in: 5.minutes) }
+      run.update_columns(state: "failed", finished_at: 55.minutes.ago)
 
       expect(Rails.logger).to receive(:warn).with(a_string_matching(/Expired/))
       expect { described_class.resolve(token, worker_id: worker_id) }
         .to raise_error(described_class::Expired)
+    end
+
+    it "accepts an expired token while its run is still active" do
+      token = travel_to(10.minutes.ago) { described_class.issue_for_run(run, worker_id: worker_id, expires_in: 5.minutes) }
+      run.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+
+      resolved = described_class.resolve(token, worker_id: worker_id)
+
+      expect(resolved.tool_context.run).to eq(run)
+    end
+
+    it "rejects a terminal run token even before its timestamp expires" do
+      token = described_class.issue_for_run(run, worker_id: worker_id, expires_in: 5.minutes)
+      run.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/Expired/))
+      expect { described_class.resolve(token, worker_id: worker_id) }
+        .to raise_error(described_class::Expired, /run #{run.id} ended/)
     end
 
     it "accepts a token that has not yet expired" do
