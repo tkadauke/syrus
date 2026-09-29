@@ -9,14 +9,14 @@ description: Frequently-asked questions about Syrus.
 
 No. We don't compete with coding agents, we orchestrate them.
 
-Coding agents such as Claude Code Action, GitHub Copilot Coding Agent,
-OpenAI Codex cloud, and Google Jules are engines that execute a task.
-They read a prompt, work in a repository, and try to produce a change.
+Coding agents -- single-purpose tools that take a prompt and try to
+produce a change -- are engines that execute a task. They read a prompt,
+work in a repository, and try to produce a change.
 
 Syrus is the orchestration layer around that work. It decides what runs,
 in what order, against which repository, through which checks and review
-gates, and under which landing policy. Claude, Codex, Antigravity, Muse,
-or another provider adapter can be interchangeable plugins under that
+gates, and under which landing policy. Claude, Codex, Muse, and
+Antigravity are interchangeable provider plugins under that
 workflow instead of the workflow boundary itself.
 
 The question is not "which agent wins?" It is who owns the queue,
