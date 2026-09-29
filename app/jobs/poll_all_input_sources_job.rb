@@ -6,14 +6,15 @@ class PollAllInputSourcesJob < ApplicationJob
   def perform
     return if AppSetting.polling_paused?
 
-    InputSource
+    source_ids = InputSource
       .where(polling_enabled: true)
       .joins(:repository)
       .merge(Repository.active)
-      .find_each do |source|
-        next unless source.provider_enabled?
-
-        PollInputSourceJob.perform_later(source.id)
+      .find_each
+      .filter_map do |source|
+        source.id if source.provider_enabled?
       end
+
+    PollInputSourceJob.perform_later_missing_simple_args(source_ids.map { |id| [ id ] })
   end
 end
