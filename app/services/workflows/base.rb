@@ -73,7 +73,14 @@ module Workflows
     # `failed_checks` + `head_sha`. Handlers compose their prompts
     # from these at run time, so the polling job (or controller)
     # doesn't need to know prompt internals.
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil, model: nil, effort_level: nil)
+    def self.instantiate(
+      job:,
+      artifacts: nil,
+      agent_provider: nil,
+      model: nil,
+      effort_level: nil,
+      planned_execution_requirements: nil
+    )
       chain_template = steps_for(job)
       raise "no steps declared for #{name}" if chain_template.nil? || chain_template.empty?
 
@@ -134,7 +141,8 @@ module Workflows
           model: model.presence || resolved_candidate.model,
           effort_level: effort_level.presence || resolved_candidate.effort_level,
           chain_template: resolution.graph,
-          artifacts: effective_artifacts
+          artifacts: effective_artifacts,
+          **planned_execution_workflow_attributes(job, planned_execution_requirements)
         )
         steps = materialize_steps!(wf, effective_chain_template)
         # Wire next_step_id top-down so each step points to its
@@ -150,6 +158,16 @@ module Workflows
 
     def self.steps_for(_job)
       step_kinds
+    end
+
+    def self.planned_execution_workflow_attributes(job, requirements = nil)
+      requirement = requirements || PlannedExecutionRequirement.from_record(job)
+      {
+        planned_execution_project_label: requirement.project_label,
+        planned_execution_target_label: requirement.target_label,
+        planned_execution_capabilities: requirement.capabilities,
+        planned_execution_source: requirement.source
+      }
     end
 
     def self.prepare_skipped_for?(job)

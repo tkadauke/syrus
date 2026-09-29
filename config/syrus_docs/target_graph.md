@@ -90,6 +90,15 @@ project:
     runtimes: [ios_simulator]
 ```
 
+Before a Job's first Workflow is launched, Syrus persists the planned primary
+execution requirements it will use for pinned implementation work. The stored
+plan includes the selected project or target label when one is known, the
+normalized capability requirements, and whether the plan was inferred,
+explicitly requested, or defaulted. Each Workflow snapshots those Job-level
+requirements at creation time, so later `.syrus.yml` changes do not silently
+move an in-flight workflow to a different worker class. Jobs and Workflows
+without a stored plan are treated as ordinary Linux/default execution.
+
 Target-level capabilities are executable requirements. They apply to the
 target that carries them, whether it is an explicit `builder`/`grader`/`prepare`
 target or a legacy grader compiled into `//package:grade/name`:
