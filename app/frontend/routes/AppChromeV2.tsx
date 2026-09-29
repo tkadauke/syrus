@@ -57,6 +57,9 @@ const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS = "fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS = "border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+const SIDEBAR_SEGMENTED_NAV_CLASS = "inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900"
+const SETTINGS_TRIGGER_BASE_CLASS = "flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800"
+const COLOR_THEME_TRIGGER_CLASS = "flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-surface-raised"
 const MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
@@ -1701,7 +1704,7 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   ]
 
   return (
-    <nav aria-label={t("nav:dashboard_sections_aria")} className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
+    <nav aria-label={t("nav:dashboard_sections_aria")} className={SIDEBAR_SEGMENTED_NAV_CLASS}>
       {subjects.map((subject) => (
         <Link
           className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
@@ -1734,7 +1737,7 @@ function SettingsPopup({ collapsed, csrfToken, onCloseDrawer, prefix, showTeamPr
         aria-label={collapsed ? user.email_address : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800 ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
+        className={`${SETTINGS_TRIGGER_BASE_CLASS} ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
@@ -1816,7 +1819,7 @@ function ColorThemePicker() {
       <button
         aria-expanded={expanded}
         aria-label={t("nav:color_theme_current", { name: current.name })}
-        className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+        className={COLOR_THEME_TRIGGER_CLASS}
         onClick={() => setExpanded((value) => !value)}
         type="button"
       >
