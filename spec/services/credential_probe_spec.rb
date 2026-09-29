@@ -57,19 +57,28 @@ RSpec.describe CredentialProbe do
         )
     end
 
-    it "is ok when an unsaved token carries every required scope" do
-      stub_user("ghp_unsaved", scopes: "repo, workflow")
+    it "is ok when an unsaved classic token carries repository access without workflow" do
+      stub_user("ghp_unsaved", scopes: "repo")
 
-      result = described_class.github_token(token: "ghp_unsaved", required_scopes: %w[ repo workflow ])
+      result = described_class.github_token(token: "ghp_unsaved", required_scopes: %w[ repo ])
 
       expect(result.ok).to be true
       expect(result.details).to include(login: "ada", missing_scopes: [])
     end
 
+    it "accepts public_repo as classic repository access" do
+      stub_user("ghp_unsaved", scopes: "public_repo")
+
+      result = described_class.github_token(token: "ghp_unsaved", required_scopes: %w[ repo ])
+
+      expect(result.ok).to be true
+      expect(result.details).to include(login: "ada", scopes: %w[public_repo], missing_scopes: [])
+    end
+
     it "does not accept a fine-grained token until repository workflow-file and Checks access are probed" do
       stub_user("github_pat_unsaved", scopes: "")
 
-      result = described_class.github_token(token: "github_pat_unsaved", required_scopes: %w[ repo workflow ])
+      result = described_class.github_token(token: "github_pat_unsaved", required_scopes: %w[ repo ])
 
       expect(result.ok).to be false
       expect(result.message).to eq("Fine-grained token authenticated as ada. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.")
@@ -115,7 +124,7 @@ RSpec.describe CredentialProbe do
 
       result = described_class.github_token(
         token: "github_pat_unsaved",
-        required_scopes: %w[ repo workflow ],
+        required_scopes: %w[ repo ],
         probe_repository: "acme/widgets"
       )
 
@@ -148,7 +157,7 @@ RSpec.describe CredentialProbe do
 
       result = described_class.github_token(
         token: "github_pat_unsaved",
-        required_scopes: %w[ repo workflow ],
+        required_scopes: %w[ repo ],
         probe_repository: "acme/widgets"
       )
 
@@ -180,7 +189,7 @@ RSpec.describe CredentialProbe do
 
       result = described_class.github_token(
         token: "github_pat_unsaved",
-        required_scopes: %w[ repo workflow ],
+        required_scopes: %w[ repo ],
         probe_repository: "acme/widgets"
       )
 
@@ -193,15 +202,16 @@ RSpec.describe CredentialProbe do
       expect(delete_ref).to have_been_requested
     end
 
-    it "is not ok and names the missing scope when under-scoped" do
-      stub_user("ghp_partial", scopes: "repo")
+    it "is not ok and names the missing repository scope when under-scoped" do
+      stub_user("ghp_partial", scopes: "")
 
-      result = described_class.github_token(token: "ghp_partial", required_scopes: %w[ repo workflow ])
+      result = described_class.github_token(token: "ghp_partial", required_scopes: %w[ repo ])
 
       expect(result.ok).to be false
-      expect(result.message).to include("missing the workflow scope")
-      expect(result.message).to include("classic token with repo and workflow scopes")
-      expect(result.details).to include(login: "ada", missing_scopes: %w[ workflow ])
+      expect(result.message).to include("missing the repo scope")
+      expect(result.message).to include("classic token with repo for private repositories or public_repo for public repositories")
+      expect(result.message).to include("add workflow only if agents must edit GitHub Actions workflow files")
+      expect(result.details).to include(login: "ada", missing_scopes: %w[ repo ])
     end
 
     it "is not ok with a helpful message when GitHub rejects the token" do
@@ -209,7 +219,7 @@ RSpec.describe CredentialProbe do
         .with(headers: { "Authorization" => "token ghp_bad" })
         .to_return(status: 401, body: { message: "Bad credentials" }.to_json, headers: { "Content-Type" => "application/json" })
 
-      result = described_class.github_token(token: "ghp_bad", required_scopes: %w[ repo workflow ])
+      result = described_class.github_token(token: "ghp_bad", required_scopes: %w[ repo ])
 
       expect(result.ok).to be false
       expect(result.message).to include("GitHub rejected this token")
@@ -217,7 +227,7 @@ RSpec.describe CredentialProbe do
     end
 
     it "refuses a blank token without calling GitHub" do
-      result = described_class.github_token(token: "  ", required_scopes: %w[ repo workflow ])
+      result = described_class.github_token(token: "  ", required_scopes: %w[ repo ])
 
       expect(result.ok).to be false
       expect(result.message).to eq("Paste a token to test it.")

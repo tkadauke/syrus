@@ -61,15 +61,15 @@ describe("GithubTokenModal", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope. Use a classic token with repo and workflow scopes, or a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
-      details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
+      message: "Token authenticated as octocat, but it is missing the repo scope. Use a classic token with repo for private repositories or public_repo for public repositories; add workflow only if agents must edit GitHub Actions workflow files through the PAT. Or use a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
+      details: { login: "octocat", scopes: [], missing_scopes: ["repo"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })
     renderModal()
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_partial" } })
 
-    await waitFor(() => expect(screen.getByText(/missing the workflow scope/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/missing the repo scope/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })
 
