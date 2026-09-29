@@ -31,6 +31,20 @@ RSpec.describe ImplementationCapabilityEscalation do
     graph
   end
 
+  def add_windows_target(graph)
+    graph.add_target(
+      TargetGraph::Target.new(
+        label: TargetGraph::Label.parse("//windows:grade/package"),
+        kind: "grader",
+        project_id: "repo",
+        source_scope: [ "windows/**/*" ],
+        command: "msbuild",
+        capabilities: TargetGraph::ExecutionCapabilities.new(os: "windows", arch: [ "x64" ])
+      )
+    )
+    graph
+  end
+
   it "reports escalation when a Linux-planned implementation touches a Mac-only target" do
     workflow.update!(
       planned_execution_capabilities: { "os" => [ "linux" ] },
@@ -65,5 +79,32 @@ RSpec.describe ImplementationCapabilityEscalation do
 
     expect(result).not_to be_escalated
     expect(result.most_constrained_target.fetch("target_label")).to eq("//ios:grade/ui")
+  end
+
+  it "reports an equal-weight target mismatch even when the first max target is satisfied" do
+    workflow.update!(
+      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_source: "inferred"
+    )
+    graph = add_windows_target(graph_with_targets)
+
+    result = described_class.call(
+      workflow: workflow,
+      graph: graph,
+      changed_files: [ "ios/App/View.swift", "windows/App/App.sln" ]
+    )
+
+    expect(result).to be_escalated
+    expect(result.most_constrained_targets.map { |target| target.fetch("target_label") }).to contain_exactly(
+      "//ios:grade/ui",
+      "//windows:grade/package"
+    )
+    expect(result.mismatched_targets.map { |target| target.fetch("target_label") })
+      .to eq([ "//windows:grade/package" ])
+    expect(result.required_capabilities).to eq("os" => [ "windows" ], "arch" => [ "x64" ])
+    expect(result.mismatches).to include(
+      include("target_label" => "//windows:grade/package", "dimension" => "os", "missing" => [ "windows" ]),
+      include("target_label" => "//windows:grade/package", "dimension" => "arch", "missing" => [ "x64" ])
+    )
   end
 end
