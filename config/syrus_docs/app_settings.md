@@ -94,7 +94,7 @@ Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across 
 
 **Type:** integer · **Default:** 10 · `0` = unlimited
 
-Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses `Run#cost_usd`, including Syrus-estimated token pricing when a supported provider/model reports token usage without a dollar cost, and chat spend uses each chat session's daily cost counter.
+Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage.
 
 ## GitHub App
 
