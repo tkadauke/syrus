@@ -83,6 +83,13 @@ Schema:
 | `preview` | Mapping | Commands and metadata used by the preview action and visual review |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
 
+Project and target capabilities are normalized when Syrus plans primary
+execution placement. Jobs store the planned project or target label when known,
+the capability requirements, and whether the placement was inferred, explicitly
+requested, or defaulted. Each Workflow snapshots that plan when it is created,
+so later `.syrus.yml` edits do not move work that is already in flight. Jobs
+without a stored plan use the ordinary Linux/default execution class.
+
 ### `prepare`
 
 `prepare` commands run from the workspace root under `bash -c`, so

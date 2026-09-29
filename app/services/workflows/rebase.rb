@@ -20,7 +20,15 @@ module Workflows
 
     def self.queue_name = :merges
 
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil, branch_name: nil)
+    def self.instantiate(
+      job:,
+      artifacts: nil,
+      agent_provider: nil,
+      pr: nil,
+      base_branch: nil,
+      branch_name: nil,
+      planned_execution_requirements: nil
+    )
       super(
         job: job,
         artifacts: RebaseTarget.artifacts(
@@ -29,7 +37,8 @@ module Workflows
           base_branch: base_branch,
           branch_name: branch_name.presence || job.branch_name
         ),
-        agent_provider: agent_provider
+        agent_provider: agent_provider,
+        planned_execution_requirements: planned_execution_requirements
       )
     end
 

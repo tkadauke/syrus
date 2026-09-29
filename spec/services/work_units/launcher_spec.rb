@@ -52,6 +52,75 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
+  it "snapshots planned execution requirements from the job onto the initial workflow" do
+    job.update!(
+      planned_execution_project_label: "iOS",
+      planned_execution_target_label: "//ios:app",
+      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_source: "inferred"
+    )
+
+    workflow = described_class.instantiate(kind: "initial", job: job)
+
+    expect(workflow.planned_execution_json).to eq(
+      "project_label" => "iOS",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "inferred"
+    )
+  end
+
+  it "preserves planned execution requirements for follow-up workflows" do
+    job.update!(
+      planned_execution_project_label: "Windows",
+      planned_execution_target_label: "//desktop:grade/windows",
+      planned_execution_capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      planned_execution_source: "explicit"
+    )
+
+    chat_feedback = described_class.instantiate(kind: "chat_feedback", job: job, artifacts: { "chat_feedback" => "Please adjust." })
+    chat_feedback.work_unit.mark_terminal!("cancelled")
+    retry_workflow = described_class.instantiate(kind: "retry", job: job)
+    retry_workflow.work_unit.mark_terminal!("cancelled")
+    rebase = described_class.instantiate(kind: "rebase", job: job, base_branch: "main")
+
+    [ chat_feedback, retry_workflow, rebase ].each do |workflow|
+      expect(workflow.planned_execution_json).to eq(job.planned_execution_json)
+    end
+  end
+
+  it "allows an explicit workflow launch override without changing the job plan" do
+    job.update!(
+      planned_execution_capabilities: { "os" => [ "linux" ] },
+      planned_execution_source: "defaulted"
+    )
+
+    workflow = described_class.instantiate(
+      kind: "manual_agentic_run",
+      job: job,
+      artifacts: { "manual_agentic_run_instructions" => "Check Windows packaging." },
+      planned_execution_requirements: {
+        project_label: "Windows",
+        target_label: "//desktop:package",
+        capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+        source: "explicit"
+      }
+    )
+
+    expect(workflow.planned_execution_json).to eq(
+      "project_label" => "Windows",
+      "target_label" => "//desktop:package",
+      "capabilities" => { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      "source" => "explicit"
+    )
+    expect(job.reload.planned_execution_json).to eq(
+      "project_label" => nil,
+      "target_label" => nil,
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
+  end
+
   it "refreshes default-backed workflow providers before WorkUnit gates run" do
     user.update!(agent_provider: "claude", codex_api_key: "ck-test")
     job.update!(agent_provider: "claude", job_provider_setting: "default")

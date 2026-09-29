@@ -6,11 +6,19 @@ module Workflows
 
     def self.queue_name = :merges
 
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil)
+    def self.instantiate(
+      job:,
+      artifacts: nil,
+      agent_provider: nil,
+      pr: nil,
+      base_branch: nil,
+      planned_execution_requirements: nil
+    )
       super(
         job: job,
         artifacts: StackRebasePlan.artifacts_for(job: job, artifacts: artifacts, pr: pr, base_branch: base_branch),
-        agent_provider: agent_provider
+        agent_provider: agent_provider,
+        planned_execution_requirements: planned_execution_requirements
       )
     end
 
