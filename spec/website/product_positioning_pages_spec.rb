@@ -43,8 +43,9 @@ RSpec.describe "website product positioning pages" do
     normalized_faq = faq.gsub(/\s+/, " ")
 
     expect(normalized_faq).to include("We don't compete with coding agents, we orchestrate them.")
-    expect(normalized_faq).to include("Coding agents such as Claude Code Action, GitHub Copilot Coding Agent, OpenAI Codex cloud, and Google Jules are engines that execute a task.")
-    expect(normalized_faq).to include("Claude, Codex, Antigravity, Muse, or another provider adapter can be interchangeable plugins")
+    expect(normalized_faq).to include("Coding agents -- single-purpose tools that take a prompt and try to produce a change -- are engines that execute a task.")
+    expect(normalized_faq).to include("Claude, Codex, Muse, and Antigravity are interchangeable provider plugins")
     expect(normalized_faq).not_to include("| Claude Code Action |")
+    expect(normalized_faq).not_to include("GitHub Copilot Coding Agent, OpenAI Codex cloud, and Google Jules are engines")
   end
 end
