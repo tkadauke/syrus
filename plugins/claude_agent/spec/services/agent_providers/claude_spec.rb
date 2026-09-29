@@ -158,6 +158,13 @@ RSpec.describe AgentProviders::Claude do
       expect(server["alwaysLoad"]).to be(true)
       expect(server["env"]).to include(
         "RAILS_ENV" => "production",
+        "RAILS_MASTER_KEY" => "deadbeef",
+        "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY" => "primary",
+        "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY" => "deterministic",
+        "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT" => "salt",
+        "SECRET_KEY_BASE" => "secretsecret",
+        "DATABASE_URL" => "sqlite3:///home/rails/.syrus/db/production.sqlite3",
+        "SYRUS_DATABASE_PASSWORD" => "swordfish",
         # Docker Compose local mode runs production against SQLite files under
         # SYRUS_DATA_ROOT. Without these, the sidecar falls back to MySQL and
         # dies before replying to the MCP initialize request.
@@ -180,18 +187,11 @@ RSpec.describe AgentProviders::Claude do
         # MCP initialize handshake.
         "S3_BUCKET" => "syrus-attachments",
         "S3_ENDPOINT" => "http://minio.minio.svc.cluster.local:9000",
-        "S3_REGION" => "us-east-1"
+        "S3_REGION" => "us-east-1",
+        "S3_ACCESS_KEY_ID" => "ak",
+        "S3_SECRET_ACCESS_KEY" => "sk"
       )
       expect(server["env"]).not_to include(
-        "RAILS_MASTER_KEY",
-        "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY",
-        "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY",
-        "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT",
-        "SECRET_KEY_BASE",
-        "DATABASE_URL",
-        "SYRUS_DATABASE_PASSWORD",
-        "S3_ACCESS_KEY_ID",
-        "S3_SECRET_ACCESS_KEY",
         "SYRUS_GIT_MIRROR_TOKEN"
       )
     end

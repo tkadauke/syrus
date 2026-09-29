@@ -1331,7 +1331,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
   const showAgentMetadataInline = agentic || diagnosticRun
   const agentMetadataLine = (
     <>
-      {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
+      {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {run.cost_usd == null ? "-" : formatCurrency(run.cost_usd)}
     </>
   )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
