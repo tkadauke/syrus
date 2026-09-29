@@ -17,6 +17,10 @@ RSpec.describe AppApi::ReadinessChecks do
     described_class.new(user).as_json.fetch(:checks).find { |check| check[:key] == "github_app" }
   end
 
+  def alert_delivery_check_for(user)
+    described_class.new(user).as_json.fetch(:checks).find { |check| check[:key] == "alert_delivery" }
+  end
+
   before do
     AppSetting.current.update!(polling_paused: false, runs_paused: false)
     allow(Rails.env).to receive(:production?).and_return(true)
@@ -45,6 +49,46 @@ RSpec.describe AppApi::ReadinessChecks do
       message: "Rails is running, but Active Record encryption is not configured in the web environment.",
       remediation: "Set RAILS_MASTER_KEY or provide ACTIVE_RECORD_ENCRYPTION_* environment variables on every web and worker process."
     )
+  end
+
+  it "reports retrying alert deliveries as degraded" do
+    user = Factories.user
+    SystemAlertNotification.create!(
+      dismissal_key: "codex_usage:1:exhausted",
+      alert_id: "codex_usage:1",
+      severity: "alarm",
+      title: "Codex usage limit has been reached.",
+      delivery_attempts: 1,
+      next_attempt_at: 1.minute.from_now,
+      delivery_error_class: "RuntimeError",
+      delivery_error_message: "alert webhook returned HTTP 503"
+    )
+
+    expect(alert_delivery_check_for(user)).to include(
+      status: "warning",
+      message: "1 system alert delivery failed and will be retried.",
+      optional: true
+    )
+  end
+
+  it "reports dead-lettered alert deliveries as readiness failures" do
+    user = Factories.user
+    SystemAlertNotification.create!(
+      dismissal_key: "codex_usage:1:exhausted",
+      alert_id: "codex_usage:1",
+      severity: "alarm",
+      title: "Codex usage limit has been reached.",
+      delivery_attempts: SystemAlertDelivery::MAX_DELIVERY_ATTEMPTS,
+      dead_lettered_at: Time.current,
+      delivery_error_class: "RuntimeError",
+      delivery_error_message: "alert webhook returned HTTP 503"
+    )
+
+    expect(alert_delivery_check_for(user)).to include(
+      status: "error",
+      message: "1 failed system alert delivery needs operator attention."
+    )
+    expect(described_class.new(user).as_json.fetch(:status)).to eq("error")
   end
 
   describe "GitHub App check" do
