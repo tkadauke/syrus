@@ -1825,7 +1825,7 @@ describe("App", () => {
       expect(sidebarScrollPane?.parentElement).toHaveClass("flex", "h-full", "flex-col")
       expect(accountTrigger.closest(".border-t")).toHaveClass("shrink-0")
       expect(recentNav.parentElement).not.toHaveClass("overflow-y-auto")
-      expect(screen.getByRole("button", { name: "New Chat" }).parentElement).toHaveClass("sticky", "top-0")
+      expect(screen.getByRole("button", { name: "New Chat" }).closest(".sticky")).toHaveClass("sticky", "top-0")
       const headers = within(recentNav).getAllByRole("heading").map((heading) => heading.textContent)
       expect(headers).toEqual(["acme/roads", "General", "acme/widgets"])
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/2")
