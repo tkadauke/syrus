@@ -36,7 +36,7 @@ module Api
               groups_has_more: groups_payload.fetch(:has_more),
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
-              repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
+              repositories: PerformanceLogging.phase("chats_index.repositories") { chat_repository_scope.map { |repository| repository_json(repository) } }
             }
           }
         end
@@ -100,6 +100,11 @@ module Api
           chat_params = params[:chat]
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_provider)
             render_error("validation_failed", "Chat provider must be switched through the switch_provider endpoint.", status: :unprocessable_content)
+            return
+          end
+
+          if chat_params.respond_to?(:key?) && chat_params.key?(:repository_id)
+            update_chat_repository(chat_session, chat_params[:repository_id])
             return
           end
 
@@ -237,10 +242,11 @@ module Api
 
         def new
           repository = most_recent_chat_repository
-          repository ||= Current.user.repositories.active.order(:owner, :name).first
+          repository ||= chat_repository_scope.first
 
           render json: {
             default_repository_id: repository&.id,
+            repositories: chat_repository_scope.map { |repo| repository_json(repo) },
             effective_chat_provider: Current.user.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
             chat_provider_options: chat_provider_options(nil)
@@ -1863,6 +1869,26 @@ module Api
             id: repository.id,
             slug: repository.slug
           }
+        end
+
+        def chat_repository_scope
+          Repository.accessible_to(Current.user).active.order(:owner, :name)
+        end
+
+        def update_chat_repository(chat_session, repository_id)
+          if chat_session.messages.exists?
+            render_error("validation_failed", "Repository can only be changed before the first message.", status: :unprocessable_content)
+            return
+          end
+
+          repository = repository_id.to_s.strip.presence ? chat_repository_scope.find(repository_id) : nil
+
+          ChatSession.transaction do
+            chat_session.repository_attachments.destroy_all
+            chat_session.chat_attachments.create!(attachable: repository) if repository
+          end
+
+          render json: chat_payload(chat_session.reload, message: "Chat repository updated.")
         end
 
         def available_chat_models_for(chat_session)

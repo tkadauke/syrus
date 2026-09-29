@@ -11,7 +11,7 @@ import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, fetchNewChat, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateChatRepository, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatRepository, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -144,6 +144,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
+  const newChatForm = payload.messages.length === 0 && payload.pending_actions.length === 0 && !agentActive
+  const [newChatRepositoryId, setNewChatRepositoryId] = useState(() => payload.chat.repository ? String(payload.chat.repository.id) : "")
   const queuedMessages = payload.queued_messages || []
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
@@ -152,6 +154,24 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // computed dynamically per chat rather than hardcoded, since repo-local
   // skills vary per repo. No repository attached means no skill commands.
   const repositoryId = payload.chat.repository?.id
+  const newChatRepositories = useQuery({
+    queryKey: [ "chats", "new" ],
+    queryFn: fetchNewChat,
+    enabled: newChatForm,
+    staleTime: 30_000
+  })
+  const updateRepository = useMutation({
+    mutationFn: (nextRepositoryId: string) => updateChatRepository(chatId, nextRepositoryId || null),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat)
+      onNotice(null)
+    },
+    onError: (error) => {
+      setNewChatRepositoryId(payload.chat.repository ? String(payload.chat.repository.id) : "")
+      onNotice(errorMessage(error, t("repository_update_error")))
+    }
+  })
   const repositorySkills = useQuery({
     queryKey: [ "repositories", String(repositoryId), "skills" ],
     queryFn: () => fetchRepositorySkills(String(repositoryId)),
@@ -212,6 +232,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setComposerHistory(readComposerHistory(chatId))
     setHistoryMode(null)
   }, [chatId])
+
+  useEffect(() => {
+    setNewChatRepositoryId(payload.chat.repository ? String(payload.chat.repository.id) : "")
+  }, [chatId, payload.chat.repository])
 
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
@@ -307,7 +331,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
-      if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "", chatProvider: payload.chat.effective_chat_provider ?? payload.chat.chat_provider })
+      if (action.kind === "new") return createChat({ repositoryId: newChatForm ? newChatRepositoryId : (payload.chat.repository ? String(payload.chat.repository.id) : ""), text: "", chatProvider: payload.chat.effective_chat_provider ?? payload.chat.chat_provider })
       if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
@@ -1852,6 +1876,23 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             </span>
           </div>
         ) : null}
+        {newChatForm ? (
+          <div className="mb-2 flex min-w-0 items-center">
+            <NewChatRepositorySelector
+              currentRepository={payload.chat.repository}
+              enabled
+              isLoading={newChatRepositories.isLoading}
+              isPending={updateRepository.isPending}
+              isError={newChatRepositories.isError || updateRepository.isError}
+              repositories={newChatRepositories.data?.repositories ?? []}
+              selectedRepositoryId={newChatRepositoryId}
+              onChange={(nextRepositoryId) => {
+                setNewChatRepositoryId(nextRepositoryId)
+                updateRepository.mutate(nextRepositoryId)
+              }}
+            />
+          </div>
+        ) : null}
         <div className="relative">
           <textarea
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
@@ -2438,6 +2479,119 @@ function blobToBase64(blob: Blob) {
 // so this file's design-system class-string ratchet doesn't ratchet up.
 const TOOLBAR_DROPDOWN_PANEL_CLASS = "absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
 const TOOLBAR_DROPDOWN_ERROR_CLASS = "absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300"
+
+function NewChatRepositorySelector({ currentRepository, enabled, isError, isLoading, isPending, repositories, selectedRepositoryId, onChange }: { currentRepository: ChatRepository | null; enabled: boolean; isError: boolean; isLoading: boolean; isPending: boolean; repositories: ChatRepository[]; selectedRepositoryId: string; onChange: (repositoryId: string) => void }) {
+  const { t } = useT("chat")
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const repositoryOptions = useMemo(() => {
+    const options = [...repositories]
+    if (currentRepository && !options.some((repository) => repository.id === currentRepository.id)) options.unshift(currentRepository)
+    return options
+  }, [currentRepository, repositories])
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  if (!enabled) return null
+
+  const selectedRepository = repositoryOptions.find((repository) => String(repository.id) === selectedRepositoryId) || null
+  const selectedLabel = selectedRepository?.slug ?? t("new_chat_no_repository")
+  const disabled = isLoading || isPending
+
+  return (
+    <div className="relative flex min-w-0 items-center">
+      <Button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("new_chat_repository_label")}
+        className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[8.5rem] sm:max-w-[12rem]`}
+        data-open={dropdownOpen ? "true" : "false"}
+        disabled={disabled}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        size="sm"
+        title={selectedRepository ? t("new_chat_attached_repository", { repository: selectedRepository.slug }) : t("new_chat_no_repository")}
+        variant="secondary"
+      >
+        <span className="min-w-0 truncate">{selectedLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </Button>
+      {selectedRepository ? (
+        <button
+          aria-label={t("new_chat_remove_repository")}
+          className={`${COMPOSER_ICON_BUTTON_CLASS} ${COMPOSER_BUTTON_HOVER_CLASS} -ml-1 text-gray-500 disabled:text-gray-300 dark:text-gray-400 dark:disabled:text-gray-600`}
+          disabled={disabled}
+          onClick={() => onChange("")}
+          title={t("new_chat_remove_repository")}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      ) : null}
+      {dropdownOpen ? (
+        <div
+          className={`${TOOLBAR_DROPDOWN_PANEL_CLASS} w-64 max-w-[calc(100vw-2rem)]`}
+          ref={dropdownRef}
+          role="listbox"
+        >
+          <button
+            aria-selected={selectedRepositoryId === ""}
+            className={`flex w-full items-center px-3 py-2 text-left text-sm ${
+              selectedRepositoryId === ""
+                ? "bg-brand/10 font-medium text-brand"
+                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            }`}
+            onClick={() => {
+              onChange("")
+              setDropdownOpen(false)
+            }}
+            role="option"
+            type="button"
+          >
+            {t("new_chat_no_repository")}
+          </button>
+          {repositoryOptions.map((repository) => (
+            <button
+              aria-selected={String(repository.id) === selectedRepositoryId}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${
+                String(repository.id) === selectedRepositoryId
+                  ? "bg-brand/10 font-medium text-brand"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+              key={repository.id}
+              onClick={() => {
+                onChange(String(repository.id))
+                setDropdownOpen(false)
+              }}
+              role="option"
+              type="button"
+            >
+              <span className="truncate">{repository.slug}</span>
+            </button>
+          ))}
+        </div>
+      ) : isError ? (
+        <div className={TOOLBAR_DROPDOWN_ERROR_CLASS}>
+          {t("repository_update_error")}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 // Only offered on an unstarted chat (no messages yet): once the first message
 // is sent, the provider is pinned and chat settings display it read-only, so

@@ -53,10 +53,25 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body).to include(
         "default_repository_id" => newer_repo.id,
+        "repositories" => [
+          include("id" => older_repo.id, "slug" => "acme/aardvark"),
+          include("id" => newer_repo.id, "slug" => "acme/zebra")
+        ],
         "effective_chat_provider" => "claude",
         "effective_chat_provider_label" => "Claude",
         "chat_provider_options" => include(include("value" => "claude", "label" => "Claude", "configured" => true))
       )
+    end
+
+    it "includes repositories available through membership" do
+      sign_in_as(user)
+      member_repo = Factories.repository(user: Factories.user, owner: "member", name: "widgets")
+      RepositoryMembership.create!(repository: member_repo, user: user, role: "write")
+
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["repositories"]).to include(include("id" => member_repo.id, "slug" => "member/widgets"))
     end
 
     it "falls back to alphabetical-first active repository when no chat session has a repository" do
@@ -6564,6 +6579,44 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }.not_to change(ChatSession, :count)
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  describe "PATCH /api/v1/app/chats/:id repository_id" do
+    it "changes the repository attachment before the first message" do
+      sign_in_as(user)
+      replacement = Factories.repository(user: user, owner: "acme", name: "replacement")
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { repository_id: replacement.id } }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "repository")).to include("id" => replacement.id, "slug" => "acme/replacement")
+      expect(chat.reload.attached_repositories).to contain_exactly(replacement)
+    end
+
+    it "clears the repository attachment before the first message" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { repository_id: "" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "repository")).to be_nil
+      expect(chat.reload.attached_repositories).to be_empty
+    end
+
+    it "does not change the repository after the first message" do
+      sign_in_as(user)
+      replacement = Factories.repository(user: user, owner: "acme", name: "replacement")
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.messages.create!(role: "user", content: { "text" => "Start" }, sender_user_id: user.id)
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { repository_id: replacement.id } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Repository can only be changed before the first message.")
+      expect(chat.reload.repository).to eq(repository)
+    end
   end
 
   describe "POST /api/v1/app/chats/:id/switch_provider" do

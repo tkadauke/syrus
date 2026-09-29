@@ -6849,6 +6849,97 @@ describe("chat provider selector in toolbar", () => {
   })
 })
 
+describe("new chat repository selector in composer", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockMobileViewport()
+  })
+
+  const repositories = [
+    { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+    { id: 4, slug: "acme/api", repository_path: "/repositories/4" }
+  ]
+
+  function landingPayload(repository: { id: number; slug: string; repository_path?: string } | null = repositories[0]) {
+    return chatPayload({
+      messages: [],
+      chat: {
+        repository,
+        chat_provider: "claude",
+        chat_provider_options: [
+          { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" }
+        ]
+      }
+    })
+  }
+
+  it("renders on the blank composer and can clear the attached repository with the x button", async () => {
+    const clearedPayload = landingPayload(null)
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/new") return Promise.resolve(jsonResponse({ default_repository_id: 3, repositories }))
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(jsonResponse(clearedPayload))
+      return Promise.resolve(jsonResponse(landingPayload()))
+    })
+
+    renderRoute()
+
+    const selector = await screen.findByRole("button", { name: "Repository for new chat" })
+    expect(selector).toHaveTextContent("acme/widgets")
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(Boolean(selector.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove repository from new chat" }))
+
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      )
+      expect(patchCalls).toHaveLength(1)
+      expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { repository_id: "" } })
+    })
+    expect(await screen.findByRole("button", { name: "Repository for new chat" })).toHaveTextContent("No repository")
+  })
+
+  it("offers all accessible repositories plus no repository on the blank composer", async () => {
+    const switchedPayload = landingPayload(repositories[1])
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/new") return Promise.resolve(jsonResponse({ default_repository_id: 3, repositories }))
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(jsonResponse(switchedPayload))
+      return Promise.resolve(jsonResponse(landingPayload()))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Repository for new chat" }))
+
+    const listbox = screen.getByRole("listbox")
+    expect(within(listbox).getByRole("option", { name: "No repository" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "acme/widgets" })).toBeInTheDocument()
+    fireEvent.click(within(listbox).getByRole("option", { name: "acme/api" }))
+
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      )
+      expect(patchCalls).toHaveLength(1)
+      expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { repository_id: "4" } })
+    })
+    expect(await screen.findByRole("button", { name: "Repository for new chat" })).toHaveTextContent("acme/api")
+  })
+
+  it("does not render once the chat has messages", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Repository for new chat" })).not.toBeInTheDocument()
+  })
+})
+
 describe("LocalDaemonBanner", () => {
   beforeEach(() => {
     window.localStorage.clear()

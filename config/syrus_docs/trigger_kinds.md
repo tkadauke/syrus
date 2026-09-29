@@ -145,7 +145,7 @@ Addresses review feedback, produces revision-scoped commit copy, optionally refr
 
 **Step chain:** Same as `pr_comment`.
 
-Structurally identical to `pr_comment` but triggered from the chat interface rather than a GitHub review comment. When chat feedback originated from a pending PR comment, the source comment is tied to the workflow and becomes retryable from the pending-feedback panel if handling fails before success.
+Structurally identical to `pr_comment` but triggered from the chat interface rather than a GitHub review comment. Confirmed feedback is rejected only when another `chat_feedback` workflow is already queued or running for the Job; unrelated active work such as visual review leaves the feedback workflow queued behind the active Job lock. When chat feedback originated from a pending PR comment, the source comment is tied to the workflow and becomes retryable from the pending-feedback panel if handling fails before success.
 
 ## ci_failure
 

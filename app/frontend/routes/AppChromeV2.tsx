@@ -27,6 +27,7 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { Select } from "../components/Select"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -56,6 +57,9 @@ const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 const SETTINGS_POPUP_MENU_CLASS = "absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS = "fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full"
 const HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS = "border border-white/80 bg-gray-950 text-white shadow-lg ring-1 ring-gray-950/20 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+const SIDEBAR_SEGMENTED_NAV_CLASS = "inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900"
+const SETTINGS_TRIGGER_BASE_CLASS = "flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800"
+const COLOR_THEME_TRIGGER_CLASS = "flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-surface-raised"
 const MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
@@ -268,7 +272,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         return
       }
 
-      const newChat = await fetchNewChat()
+      const newChat = await queryClient.fetchQuery({
+        queryKey: ["chats", "new"],
+        queryFn: fetchNewChat,
+        staleTime: 30_000
+      })
       const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
       const defaultProvider = defaultNewChatProvider(newChat, configuredProviders)
       const selectedRepositoryId = useDefaultRepository ? newChat.default_repository_id : repositoryId
@@ -1170,17 +1178,7 @@ function SidebarContent({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
-          <Button
-            aria-label={collapsed ? t("nav:new_chat") : undefined}
-            className={collapsed ? "h-9 w-9 px-0" : "w-full"}
-            disabled={!user || startingChat}
-            onClick={() => onStartChat()}
-            size={collapsed ? "icon" : undefined}
-            title={collapsed ? t("nav:new_chat") : undefined}
-          >
-            <PlusIcon />
-            {collapsed ? null : <span>{t("nav:new_chat")}</span>}
-          </Button>
+          <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
           {showTeamProfile ? (
             <Button
               aria-label={collapsed ? t("nav:new_group_chat") : undefined}
@@ -1268,6 +1266,82 @@ type SidebarNavItem = {
   smartFolderApiPath?: string | null
   smartFolderSubject?: string | null
   smartFolderAllLink?: boolean
+}
+
+type NewChatRepositorySelection = "default" | number | null
+
+export function NewChatLauncher({ collapsed, disabled, onStartChat }: { collapsed: boolean; disabled: boolean; onStartChat: (repositoryId?: number | null) => void }) {
+  const { t } = useTranslation("nav")
+  const newChat = useQuery({
+    queryKey: ["chats", "new"],
+    queryFn: fetchNewChat,
+    enabled: !collapsed && !disabled,
+    staleTime: 30_000
+  })
+  const [selection, setSelection] = useState<NewChatRepositorySelection>("default")
+  const repositories = newChat.data?.repositories ?? []
+  const selectedRepositoryId = selection === "default" ? newChat.data?.default_repository_id ?? null : selection
+  const selectedRepository = repositories.find((repository) => repository.id === selectedRepositoryId) ?? null
+  const selectValue = selectedRepositoryId == null ? "none" : String(selectedRepositoryId)
+  const startRepositoryId = selection === "default" ? undefined : selection
+
+  if (collapsed) {
+    return (
+      <Button
+        aria-label={t("nav:new_chat")}
+        className="h-9 w-9 px-0"
+        disabled={disabled}
+        onClick={() => onStartChat()}
+        size="icon"
+        title={t("nav:new_chat")}
+      >
+        <PlusIcon />
+      </Button>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <Button
+        className="w-full"
+        disabled={disabled}
+        onClick={() => onStartChat(startRepositoryId)}
+      >
+        <PlusIcon />
+        <span>{t("nav:new_chat")}</span>
+      </Button>
+      <div className="flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-950">
+        <label className="sr-only" htmlFor="new-chat-repository-select">{t("nav:new_chat_repository_label")}</label>
+        <Select
+          className="min-h-8 min-w-0 flex-1 px-1 text-xs"
+          disabled={disabled || newChat.isPending}
+          fullWidth={false}
+          id="new-chat-repository-select"
+          onChange={(event) => setSelection(event.target.value === "none" ? null : Number(event.target.value))}
+          value={selectValue}
+        >
+          <option value="none">{t("nav:new_chat_no_repository")}</option>
+          {repositories.map((repository) => (
+            <option key={repository.id} value={repository.id}>{repository.slug}</option>
+          ))}
+        </Select>
+        {selectedRepository ? (
+          <span className="sr-only">{t("nav:new_chat_attached_repository", { repository: selectedRepository.slug })}</span>
+        ) : null}
+        {selectedRepositoryId == null ? null : (
+          <button
+            aria-label={t("nav:new_chat_remove_repository")}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+            onClick={() => setSelection(null)}
+            title={t("nav:new_chat_remove_repository")}
+            type="button"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function itemHasSubnav(item: SidebarNavItem, dashboardSubnavEnabled = true) {
@@ -1630,7 +1704,7 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   ]
 
   return (
-    <nav aria-label={t("nav:dashboard_sections_aria")} className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
+    <nav aria-label={t("nav:dashboard_sections_aria")} className={SIDEBAR_SEGMENTED_NAV_CLASS}>
       {subjects.map((subject) => (
         <Link
           className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
@@ -1663,7 +1737,7 @@ function SettingsPopup({ collapsed, csrfToken, onCloseDrawer, prefix, showTeamPr
         aria-label={collapsed ? user.email_address : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800 ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
+        className={`${SETTINGS_TRIGGER_BASE_CLASS} ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
@@ -1745,7 +1819,7 @@ function ColorThemePicker() {
       <button
         aria-expanded={expanded}
         aria-label={t("nav:color_theme_current", { name: current.name })}
-        className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+        className={COLOR_THEME_TRIGGER_CLASS}
         onClick={() => setExpanded((value) => !value)}
         type="button"
       >

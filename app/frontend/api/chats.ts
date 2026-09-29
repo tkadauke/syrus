@@ -590,7 +590,7 @@ export type CreateChatInput = {
   // Tool Card Catalog's "Discuss this card" flow) omits this entirely, the
   // same way createEmptyChat already treats a missing repository as valid
   // -- the backend's repository_from_params returns nil when absent.
-  repositoryId?: string
+  repositoryId?: string | number | null
   text: string
   attachments?: ChatMessageAttachmentInput[]
   chatProvider?: string | null
@@ -598,6 +598,7 @@ export type CreateChatInput = {
 
 export type NewChatPayload = {
   default_repository_id: number | null
+  repositories: ChatRepository[]
   effective_chat_provider?: string | null
   effective_chat_provider_label?: string | null
   chat_provider_options?: ChatProviderOption[]
@@ -1091,7 +1092,7 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
-    ...(values.repositoryId ? { repository_id: values.repositoryId } : {}),
+    ...(values.repositoryId == null || values.repositoryId === "" ? {} : { repository_id: values.repositoryId }),
     ...(values.chatProvider ? { chat_provider: values.chatProvider } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
@@ -1150,6 +1151,10 @@ export function renameChat(path: string, title: string) {
 
 export function updateChatPinned(id: number | string, pinned: boolean) {
   return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
+}
+
+export function updateChatRepository(id: number | string, repositoryId: string | number | null) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
 }
 
 export function switchChatProvider(path: string, chatProvider: string) {
