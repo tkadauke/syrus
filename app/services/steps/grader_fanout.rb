@@ -57,6 +57,7 @@ module Steps
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
+      record_implementation_capability_escalation!(matching_files)
       selections = selections_for(plan.graders, matching_files)
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
@@ -468,6 +469,35 @@ module Steps
       normalized = Array(files).map(&:to_s).sort
       workflow.set_artifact!("grade_plan_changed_files", normalized)
       workflow.set_artifact!("grade_plan_changed_files_fingerprint", LandingValidationCache.changed_files_fingerprint(normalized))
+    end
+
+    def record_implementation_capability_escalation!(matching_files)
+      result = ImplementationCapabilityEscalation.call(
+        workflow: workflow,
+        graph: target_graph,
+        changed_files: matching_files
+      )
+      return unless result.escalated?
+      return if implementation_capability_escalation_recorded?(result)
+
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: ImplementationCapabilityEscalation::KIND,
+        severity: "high",
+        title: result.warning_title,
+        evidence: result.evidence,
+        suggested_prompt: result.suggested_prompt
+      )
+      target_label = result.most_constrained_target.fetch("target_label")
+      log("[grader_fanout] warning: implementation capability escalation detected for #{target_label}")
+    end
+
+    def implementation_capability_escalation_recorded?(result)
+      target_label = result.most_constrained_target.fetch("target_label")
+      workflow.workflow_warnings.where(kind: ImplementationCapabilityEscalation::KIND).any? do |warning|
+        warning.evidence.to_h.dig("most_constrained_target", "target_label") == target_label
+      end
     end
 
     def reusable_success(grader_fingerprint)

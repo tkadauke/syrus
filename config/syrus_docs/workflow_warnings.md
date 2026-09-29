@@ -97,6 +97,24 @@ idempotent environment setup and should never modify tracked source files.
 Like the grader consumer above, this never fails the grader Step or the
 workflow.
 
+## Implementation capability escalation
+
+`Steps::GraderFanout` records a `kind:
+"implementation_capability_escalation"` warning when the actual changed files
+affect a target whose capabilities are stricter than the Workflow's planned
+primary implementation capabilities. The evidence includes the planned
+capabilities, the most constrained affected target, the required capabilities,
+dimension-level mismatches, and the affected target capability set.
+
+This warning is a post-hoc safety net. Planning should still choose a
+conservative primary worker before implementation starts: mixed iOS plus
+backend work should run the implementation on a Mac/Xcode-capable worker, even
+though backend graders may later run on Linux. Syrus does not silently migrate a
+mutable workspace across platforms; the remediation path is to retry or
+continue through an explicit checkpoint/handoff on a capable worker, split the
+work by platform, or dismiss the warning only when platform-specific graders
+fully validate the change.
+
 ## Skipped target CI failures
 
 `PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when
