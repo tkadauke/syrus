@@ -211,7 +211,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_223533) do
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
     t.datetime "updated_at", null: false
-    t.integer "user_daily_spend_budget_usd", default: 10, null: false
+    t.integer "user_daily_spend_budget_usd", default: 0, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
     t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
