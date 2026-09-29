@@ -430,9 +430,11 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
       expect {
         described_class.perform_now(repository.id)
-      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false, transient_retry_attempt: 1)
 
       repository.reload
+      expect(repository.last_poll_status).to eq("failed")
+      expect(repository.last_poll_error).to include("Octokit::TooManyRequests")
       expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
       expect(repository.poll_issue_errors).to eq([])
       expect(Job.where(repository: repository).pluck(:issue_number)).to be_empty
@@ -901,22 +903,89 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
       expect {
         described_class.perform_now(repository.id)
-      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false, transient_retry_attempt: 1)
 
       repository.reload
-      expect(repository.last_poll_status).to be_nil
+      expect(repository.last_poll_status).to eq("failed")
+      expect(repository.last_poll_error).to include("Octokit::TooManyRequests")
       expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
     end
 
-    it "retries transient GitHub failures without failing the poll" do
+    it "does not re-enqueue sustained GitHub rate limits after the retry bound" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(repository.id, transient_retry_attempt: described_class::MAX_TRANSIENT_GITHUB_RETRIES)
+      }.not_to have_enqueued_job(described_class)
+
+      repository.reload
+      expect(repository.last_poll_status).to eq("failed")
+      expect(repository.last_poll_error).to include("Octokit::TooManyRequests")
+    end
+
+    it "marks transient GitHub failures as failed while retrying" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_raise(Faraday::TimeoutError, "execution expired")
 
       expect {
         described_class.perform_now(repository.id)
-      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false, transient_retry_attempt: 1)
 
-      expect(repository.reload.last_poll_status).to be_nil
+      repository.reload
+      expect(repository.last_poll_status).to eq("failed")
+      expect(repository.last_poll_error).to include("execution expired")
+    end
+
+    it "uses Retry-After headers when scheduling transient retries" do
+      error = Octokit::TooManyRequests.new(response_headers: { "retry-after" => "120" })
+
+      freeze_time do
+        retry_at = described_class.new.send(:transient_github_retry_at, error, repository: repository, attempt: 1, wait_until: nil)
+
+        expect(retry_at).to eq(2.minutes.from_now)
+      end
+    end
+
+    it "does not schedule before Retry-After when reset headers are earlier" do
+      freeze_time do
+        error = Octokit::TooManyRequests.new(
+          response_headers: {
+            "retry-after" => "120",
+            "x-ratelimit-reset" => 30.seconds.from_now.to_i.to_s
+          }
+        )
+
+        retry_at = described_class.new.send(:transient_github_retry_at, error, repository: repository, attempt: 1, wait_until: nil)
+
+        expect(retry_at).to eq(2.minutes.from_now)
+      end
+    end
+
+    it "recovers after transient GitHub failures without operator intervention" do
+      calls = 0
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        calls += 1
+        raise Faraday::TimeoutError, "execution expired" if calls <= 2
+
+        state == "closed" ? [] : []
+      end
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false, transient_retry_attempt: 1)
+      expect(repository.reload.last_poll_status).to eq("failed")
+
+      expect {
+        described_class.perform_now(repository.id, transient_retry_attempt: 1)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false, transient_retry_attempt: 2)
+      expect(repository.reload.last_poll_status).to eq("failed")
+
+      described_class.perform_now(repository.id, transient_retry_attempt: 2)
+
+      repository.reload
+      expect(repository.last_poll_status).to eq("ok")
+      expect(repository.last_poll_error).to be_nil
     end
 
     it "does not update poll status when the repository is archived (no poll ran)" do
