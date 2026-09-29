@@ -59,6 +59,9 @@ RSpec.describe "App API target graph inspection", type: :request do
 
   let(:graph_yaml) do
     <<~YAML
+      project:
+        capabilities:
+          os: linux
       targets:
         - name: app
           kind: library
@@ -67,6 +70,9 @@ RSpec.describe "App API target graph inspection", type: :request do
           kind: builder
           run: npm run build
           sources: ["app/frontend/**/*"]
+          capabilities:
+            os: linux
+            toolchains: [node]
       grade:
         - name: tests
           run: bin/rspec
@@ -89,13 +95,16 @@ RSpec.describe "App API target graph inspection", type: :request do
       expect(body["repository"]).to include("id" => repository.id, "slug" => "acme/widgets", "default_branch" => "main")
       expect(body["source"]).to eq("scope" => "repository", "ref" => "main")
       expect(body["tabs"]).to include(include("key" => "target_graph", "path" => "/repositories/#{repository.id}/target_graph"))
-      expect(body["projects"]).to contain_exactly(include("id" => "repo", "target_count" => 4))
+      expect(body["projects"]).to contain_exactly(include("id" => "repo", "target_count" => 4, "capabilities" => { "os" => [ "linux" ] }))
       expect(body["page"]).to include("offset" => 1, "limit" => 2, "total" => 4, "next_offset" => 3)
       expect(body["targets"].map { |target| target["label"] }).to eq([ "//:assets", "//:grade/tests" ])
       expect(body["targets"].find { |target| target["label"] == "//:assets" }).to include(
         "kind" => "builder",
         "executable" => true,
-        "executable_metadata" => include("command" => "npm run build")
+        "executable_metadata" => include(
+          "command" => "npm run build",
+          "capabilities" => { "os" => [ "linux" ], "toolchains" => [ "node" ] }
+        )
       )
       tests = body["targets"].find { |target| target["label"] == "//:grade/tests" }
       expect(tests["dependencies"]).to include("//:app", "//:assets")

@@ -11,7 +11,7 @@ class TargetGraph
   # it.
   Target = Data.define(
     :label, :kind, :project_id, :source_scope, :command, :dependencies,
-    :phases, :required, :timeout_minutes, :owner_config_path, :metadata
+    :phases, :required, :timeout_minutes, :owner_config_path, :metadata, :capabilities
   ) do
     # `builder` targets are compiled from explicit `targets:` declarations and
     # can be warmed opportunistically on main by `builder_fanout`.
@@ -24,7 +24,7 @@ class TargetGraph
     def initialize(
       label:, kind:, project_id:,
       source_scope: [], command: nil, dependencies: [], phases: [],
-      required: false, timeout_minutes: nil, owner_config_path: nil, metadata: {}
+      required: false, timeout_minutes: nil, owner_config_path: nil, metadata: {}, capabilities: nil
     )
       raise ArgumentError, "label must be a TargetGraph::Label" unless label.is_a?(TargetGraph::Label)
       raise ArgumentError, "kind #{kind.inspect} must be one of #{KINDS.join(', ')}" unless KINDS.include?(kind.to_s)
@@ -46,6 +46,9 @@ class TargetGraph
       raise ArgumentError, "project_id must not be blank" if project_id.empty?
 
       raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
+      unless capabilities.nil? || capabilities.is_a?(TargetGraph::ExecutionCapabilities)
+        raise ArgumentError, "capabilities must be a TargetGraph::ExecutionCapabilities"
+      end
 
       super(
         label: label,
@@ -58,7 +61,8 @@ class TargetGraph
         required: !!required,
         timeout_minutes: timeout_minutes,
         owner_config_path: owner_config_path&.to_s,
-        metadata: metadata
+        metadata: metadata,
+        capabilities: capabilities
       )
     end
 

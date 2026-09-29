@@ -140,6 +140,44 @@ RSpec.describe TargetGraph::Compiler do
       )
     end
 
+    it "compiles project hints and executable target capability requirements" do
+      write(".syrus.yml", <<~YAML)
+        project:
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+            runtimes: [ios_simulator]
+        prepare:
+          - bundle install
+        targets:
+          - name: ios-build
+            kind: builder
+            run: xcodebuild build
+            capabilities:
+              os: macos
+              toolchains: [xcode]
+        grade:
+          - name: backend
+            run: bin/rspec
+            capabilities:
+              os: linux
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.capabilities.to_h).to eq(
+        "os" => [ "macos" ],
+        "toolchains" => [ "xcode" ],
+        "runtimes" => [ "ios_simulator" ]
+      )
+      expect(graph.target(TargetGraph::Label.parse("//:prepare")).capabilities.to_h).to include("os" => [ "macos" ])
+      expect(graph.target(TargetGraph::Label.parse("//:ios-build")).capabilities.to_h).to eq(
+        "os" => [ "macos" ],
+        "toolchains" => [ "xcode" ]
+      )
+      expect(graph.target(TargetGraph::Label.parse("//:grade/backend")).capabilities.to_h).to eq("os" => [ "linux" ])
+    end
+
     it "does not compile a formatter target for the plugin-default opt-in (formatters: [])" do
       write(".syrus.yml", "formatters: []\n")
 
@@ -623,7 +661,12 @@ RSpec.describe TargetGraph::Compiler do
       provider = fake_build_graph_provider(
         TargetGraph::Import.new(
           projects: [
-            TargetGraph::Project.new(id: "frontend", label: "Frontend", path: "frontend")
+            TargetGraph::Project.new(
+              id: "frontend",
+              label: "Frontend",
+              path: "frontend",
+              capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
+            )
           ],
           targets: [
             TargetGraph::Target.new(
@@ -631,7 +674,8 @@ RSpec.describe TargetGraph::Compiler do
               kind: "builder",
               project_id: "frontend",
               source_scope: [ "frontend/src/**/*.ts" ],
-              dependencies: [ TargetGraph::Label.parse("//frontend:lib") ]
+              dependencies: [ TargetGraph::Label.parse("//frontend:lib") ],
+              capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
             ),
             TargetGraph::Target.new(
               label: TargetGraph::Label.parse("//frontend:lib"),
@@ -658,11 +702,17 @@ RSpec.describe TargetGraph::Compiler do
             description: Validates the imported frontend bundle target.
       YAML
       write("frontend/.syrus.yml", <<~YAML)
+        project:
+          id: frontend
+          capabilities:
+            toolchains: [node]
         targets:
           - name: bundle
             phases: [review, landing]
             required: true
             timeout_minutes: 20
+            capabilities:
+              toolchains: [node]
           - name: syrus-preview
             kind: prepare
             run: npm run preview:setup
@@ -671,6 +721,12 @@ RSpec.describe TargetGraph::Compiler do
 
       graph = described_class.compile(@dir)
 
+      frontend = graph.project("frontend")
+      expect(frontend.capabilities.to_h).to eq(
+        "os" => [ "linux" ],
+        "toolchains" => [ "node" ]
+      )
+
       bundle = graph.target(TargetGraph::Label.parse("//frontend:bundle"))
       expect(bundle.kind).to eq("builder")
       expect(bundle.source_scope).to eq([ "frontend/src/**/*.ts" ])
@@ -678,6 +734,10 @@ RSpec.describe TargetGraph::Compiler do
       expect(bundle.phases).to eq(%w[review landing])
       expect(bundle.required).to be(true)
       expect(bundle.timeout_minutes).to eq(20)
+      expect(bundle.capabilities.to_h).to eq(
+        "os" => [ "linux" ],
+        "toolchains" => [ "node" ]
+      )
       expect(bundle.metadata["syrus_overlay"]).to contain_exactly(
         include(
           "owner_config_path" => "frontend/.syrus.yml",
@@ -685,7 +745,8 @@ RSpec.describe TargetGraph::Compiler do
           "applied" => {
             "phases" => %w[review landing],
             "required" => true,
-            "timeout_minutes" => 20
+            "timeout_minutes" => 20,
+            "capabilities" => { "toolchains" => [ "node" ] }
           }
         )
       )
@@ -736,6 +797,43 @@ RSpec.describe TargetGraph::Compiler do
         expect(error.message).to include("//app:lib")
         expect(error.message).to include('explicit targets: "lib"')
         expect(error.message).to include("imported build-system target")
+      end
+    end
+
+    it "raises a clear error when imported target capabilities conflict with an overlay" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "app", label: "App", path: "app")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//app:test"),
+              kind: "grader",
+              project_id: "app",
+              capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
+            )
+          ]
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+      YAML
+      write("app/.syrus.yml", <<~YAML)
+        targets:
+          - name: test
+            kind: grader
+            capabilities:
+              os: macos
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//app:test")
+        expect(error.message).to include("app/.syrus.yml")
+        expect(error.message).to include("imported values [\"linux\"] conflict with overlay values [\"macos\"]")
       end
     end
 

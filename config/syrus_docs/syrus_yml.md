@@ -75,7 +75,7 @@ the rest of the tree.
 
 | Section | Root `.syrus.yml` | Nested `.syrus.yml` |
 |---|---|---|
-| `project:` | Names the implicit root project; `id` must stay `repo` and `path` must stay empty. | Names the nested project; `id`, `label`, `kind`, and `path` can override directory-derived metadata. |
+| `project:` | Names the implicit root project; `id` must stay `repo` and `path` must stay empty. May declare implementation `capabilities`. | Names the nested project; `id`, `label`, `kind`, `path`, and implementation `capabilities` can override directory-derived metadata. |
 | `prepare:` | Automatic workflow setup baseline. Also compiles to `//:prepare`. | Compiles to a project prepare target such as `//apps/web:prepare`; runs only through target prepare paths. |
 | `formatters:` | Legacy formatter config and formatter targets. | Project formatter targets with relative file scopes; target-aware runtime is still staged. |
 | `generated:` | Legacy generator config and generator targets. | Project generator targets with relative source/output scopes; target-aware runtime is still staged. |
@@ -89,6 +89,56 @@ the rest of the tree.
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
 | `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
 | `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
+
+### capabilities
+
+`capabilities:` describes the host/toolchain constraints needed to execute
+implementation work or an executable target. It is separate from workspace
+placement policy: capabilities choose an eligible worker/backend; placement
+policy describes how source is materialized.
+
+Supported dimensions are `os`, `arch`, `toolchains`, `runtimes`, and
+free-form `features`. Each dimension accepts either one string or an array.
+Values are normalized to lowercase and must be token-like (`letters`, `digits`,
+`_`, `.`, `+`, `-`). `any` can be used alone but cannot be combined with
+specific values.
+
+Use project-level capabilities as implementation hints:
+
+```yaml
+project:
+  id: ios
+  label: iOS App
+  capabilities:
+    os: macos
+    toolchains: [xcode]
+    runtimes: [ios_simulator]
+```
+
+Use target-level capabilities on executable target declarations or legacy
+grader steps:
+
+```yaml
+targets:
+  - name: ios-build
+    kind: builder
+    run: xcodebuild build -scheme MobileApp
+    capabilities:
+      os: macos
+      toolchains: [xcode]
+
+grade:
+  - name: backend
+    run: bin/rspec
+    capabilities:
+      os: linux
+```
+
+Invalid capability maps fail parsing with the owning field path, such as
+`project.capabilities.os` or `grade.steps[0].capabilities.toolchains`.
+Imported build-system graph providers may also supply capabilities; `.syrus.yml`
+overlays can add them to imported targets without redefining the imported
+graph structure.
 
 ## prepare
 
@@ -233,6 +283,7 @@ most once per workflow workspace.
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
+| `capabilities` | no | — | Execution requirements for this grader target: `os`, `arch`, `toolchains`, `runtimes`, and/or `features` |
 
 There are two grader declaration families:
 
