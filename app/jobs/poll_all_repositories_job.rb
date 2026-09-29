@@ -5,8 +5,8 @@ class PollAllRepositoriesJob < ApplicationJob
 
   def perform
     return if AppSetting.polling_paused?
-    Repository.active.where(polling_enabled: true).find_each do |repository|
-      PollRepositoryJob.perform_later(repository.id)
-    end
+
+    repository_ids = Repository.active.where(polling_enabled: true).ids
+    PollRepositoryJob.perform_later_missing_simple_args(repository_ids.map { |id| [ id ] })
   end
 end

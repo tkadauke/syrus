@@ -10,10 +10,9 @@ class PollAllHotfixSyncsJob < ApplicationJob
   def perform
     return if AppSetting.polling_paused?
 
-    Repository.active.find_each do |repository|
-      next unless DeliveryPolicy.for(repository: repository).hotfix_sync_enabled?
-
-      PollHotfixSyncJob.perform_later(repository.id)
+    repository_ids = Repository.active.find_each.filter_map do |repository|
+      repository.id if DeliveryPolicy.for(repository: repository).hotfix_sync_enabled?
     end
+    PollHotfixSyncJob.perform_later_missing_simple_args(repository_ids.map { |id| [ id ] })
   end
 end
