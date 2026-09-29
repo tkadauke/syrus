@@ -1814,12 +1814,13 @@ artifacts; rejecting or cancelling it leaves the Job untouched.
 
 One-shot chat wakeups are `ChatWakeup` rows owned by the chat session
 and user. `schedule_wakeup` creates a pending wakeup and enqueues
-`ChatWakeupFireJob` for `fire_at`; `list_wakeups` and `cancel_wakeup`
-operate only on pending wakeups for the current session. When the fire
-job runs, `ChatSession::WakeupTurn` appends a user-role message tagged
-with `requested_by: "wakeup"` and the wakeup id, marks the wakeup fired,
-and enqueues `ChatTurnJob` so the follow-up stays in the same
-transcript.
+`ChatWakeupFireJob` for `fire_at`; callers provide either a short
+relative `delay_minutes` value or an absolute UTC ISO 8601 `fire_at`
+timestamp. `list_wakeups` and `cancel_wakeup` operate only on pending
+wakeups for the current session. When the fire job runs,
+`ChatSession::WakeupTurn` appends a user-role message tagged with
+`requested_by: "wakeup"` and the wakeup id, marks the wakeup fired, and
+enqueues `ChatTurnJob` so the follow-up stays in the same transcript.
 
 Small metadata edits that do not schedule work, such as `update_job`,
 apply immediately after repository-scoped authorization. The tool can

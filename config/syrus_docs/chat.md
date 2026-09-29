@@ -350,9 +350,12 @@ approves an implemented Job for landing through `POST /api/v1/app/jobs/:id/appro
 It accepts `JOB-123`, `job-123`, or `123`; without an ID it opens the Job picker
 filtered to `implemented` Jobs.
 
-Skill commands, such as `/canvas`, `/feedback`, and `/propose`, are sent through
-the normal chat message path so the agent can interpret them and call the
-matching MCP tools.
+Skill commands, such as `/canvas`, `/feedback`, `/propose`, and `/remind`, are
+sent through the normal chat message path so the agent can interpret them and
+call the matching MCP tools. `/remind` routes to `schedule_wakeup`: the agent
+uses `delay_minutes` for short relative reminders within 24 hours, or `fire_at`
+with an absolute UTC ISO 8601 timestamp for specific dates/times and longer
+one-shot reminders.
 
 ## Coding Mode existing-Job takeover
 
