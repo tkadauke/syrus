@@ -6,6 +6,7 @@ class SystemAlertNotification < ApplicationRecord
   scope :undelivered, -> { where(delivered_at: nil) }
   scope :dead_lettered, -> { undelivered.where.not(dead_lettered_at: nil) }
   scope :retrying, -> { undelivered.where(dead_lettered_at: nil).where("delivery_attempts > 0") }
+  scope :retry_due, ->(now = Time.current) { retrying.where("next_attempt_at IS NULL OR next_attempt_at <= ?", now) }
 
   def delivered?
     delivered_at.present?
