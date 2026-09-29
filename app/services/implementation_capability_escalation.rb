@@ -7,6 +7,8 @@ class ImplementationCapabilityEscalation
     :planned_capabilities,
     :required_capabilities,
     :most_constrained_target,
+    :most_constrained_targets,
+    :mismatched_targets,
     :mismatches,
     :affected_targets
   ) do
@@ -19,6 +21,8 @@ class ImplementationCapabilityEscalation
         "planned_capabilities" => planned_capabilities,
         "required_capabilities" => required_capabilities,
         "most_constrained_target" => target_evidence(most_constrained_target),
+        "most_constrained_targets" => most_constrained_targets.map { |entry| target_evidence(entry) },
+        "mismatched_targets" => mismatched_targets.map { |entry| target_evidence(entry) },
         "mismatches" => mismatches,
         "affected_targets" => affected_targets.map { |entry| target_evidence(entry) }
       }.compact
@@ -63,17 +67,21 @@ class ImplementationCapabilityEscalation
 
   def call
     affected = affected_capability_targets
-    most_constrained = most_constrained_target(affected)
-    return no_escalation(affected) unless most_constrained
+    constrained = most_constrained_targets(affected)
+    return no_escalation(affected) if constrained.empty?
 
+    mismatched = mismatched_targets(constrained)
+    most_constrained = mismatched.first || constrained.first
     required = most_constrained.fetch("capabilities", {})
-    mismatches = capability_mismatches(planned_capabilities, required)
+    mismatches = mismatches_for(mismatched)
 
     Result.new(
-      escalated?: mismatches.any?,
+      escalated?: mismatched.any?,
       planned_capabilities: planned_capabilities,
       required_capabilities: required,
       most_constrained_target: most_constrained,
+      most_constrained_targets: constrained,
+      mismatched_targets: mismatched,
       mismatches: mismatches,
       affected_targets: affected
     )
@@ -93,6 +101,8 @@ class ImplementationCapabilityEscalation
       planned_capabilities: planned_capabilities,
       required_capabilities: {},
       most_constrained_target: nil,
+      most_constrained_targets: [],
+      mismatched_targets: [],
       mismatches: [],
       affected_targets: affected
     )
@@ -121,13 +131,31 @@ class ImplementationCapabilityEscalation
     }
   end
 
-  def most_constrained_target(targets)
-    targets.max_by { |target| capability_weight(target.fetch("capabilities", {})) }
+  def most_constrained_targets(targets)
+    max_weight = targets.map { |target| capability_weight(target.fetch("capabilities", {})) }.max
+    return [] unless max_weight
+
+    targets.select { |target| capability_weight(target.fetch("capabilities", {})) == max_weight }
   end
 
   def capability_weight(capabilities)
     TargetGraph::ExecutionCapabilities::DIMENSIONS.sum do |dimension|
       Array(capabilities[dimension]).size
+    end
+  end
+
+  def mismatched_targets(targets)
+    targets.filter_map do |target|
+      mismatches = capability_mismatches(planned_capabilities, target.fetch("capabilities", {}))
+      next if mismatches.empty?
+
+      target.merge("mismatches" => mismatches)
+    end
+  end
+
+  def mismatches_for(targets)
+    targets.flat_map do |target|
+      target.fetch("mismatches").map { |mismatch| mismatch.merge("target_label" => target.fetch("target_label")) }
     end
   end
 
