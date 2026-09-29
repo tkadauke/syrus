@@ -888,6 +888,8 @@
     "scope_checks": "— read, for CI failure detection",
     "step3_heading": "3. Paste the token",
     "input_label": "GitHub personal access token",
+    "repository_probe_label": "Repository to validate fine-grained access",
+    "repository_probe_help": "Required for fine-grained tokens. Syrus creates and deletes a temporary branch to prove workflow-file write access before saving.",
     "saving": "Saving…",
     "save_continue": "Save and continue",
     "checking_token": "Checking token…",

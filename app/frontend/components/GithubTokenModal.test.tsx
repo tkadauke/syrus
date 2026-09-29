@@ -24,7 +24,7 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Fine-grained token authenticated as octocat. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true } }
+const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files on acme/widgets as octocat.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true } }
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
@@ -42,6 +42,7 @@ describe("GithubTokenModal", () => {
     expect(screen.getByText("Pull requests")).toBeInTheDocument()
     expect(screen.getByText("Workflows")).toBeInTheDocument()
     expect(screen.getByText("Checks")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("owner/repo")).toBeInTheDocument()
   })
 
   it("tests the token on paste and shows a green check, enabling save", async () => {
@@ -50,8 +51,9 @@ describe("GithubTokenModal", () => {
 
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
+    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
 
-    await waitFor(() => expect(screen.getByText(/Fine-grained token authenticated as octocat/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Fine-grained token can write workflow files/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
   })
 
@@ -91,6 +93,7 @@ describe("GithubTokenModal", () => {
     renderModal({ onClose })
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
+    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
     await waitFor(() => expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }))
 

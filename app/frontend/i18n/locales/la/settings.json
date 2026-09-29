@@ -888,6 +888,8 @@
     "scope_checks": "— legere, ad defectus CI deprehendendos",
     "step3_heading": "3. Tesseram inserere",
     "input_label": "Tessera personalis GitHub",
+    "repository_probe_label": "Repositorium ad accessum subtiliter definitum probandum",
+    "repository_probe_help": "Necessarium tesseris subtiliter definitis. Syrus ramum temporarium creat et delet ut accessum scribendi ad tabulas workflow ante servandum probet.",
     "saving": "Servans…",
     "save_continue": "Servare et continuare",
     "checking_token": "Tesseram verificans…",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { saveGithubToken, testGithubToken, type CredentialTestResult } from "../../api/credentials"
 import { useDebouncedProbe, type ProbeState } from "../../hooks/useDebouncedProbe"
@@ -9,13 +9,6 @@ import { Input } from "../Input"
 
 const TOKEN_SETTINGS_URL = "https://github.com/settings/personal-access-tokens/new"
 
-// Module-level so the probe function stays referentially stable for
-// useDebouncedProbe's dependency list.
-async function probeGithubToken(token: string): Promise<CredentialTestResult> {
-  const payload = await testGithubToken(token)
-  return payload.credential_test
-}
-
 // The guided GitHub PAT experience: numbered steps (open settings, pick the
 // least-privilege repository permissions, paste), a debounced live probe of the UNSAVED
 // token, and a save that stays disabled until the probe comes back green.
@@ -25,6 +18,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [token, setToken] = useState("")
+  const [probeRepository, setProbeRepository] = useState("")
   const [saveError, setSaveError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // While the desktop shell's backend update has the containers down, the
@@ -33,7 +27,13 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
   // form; typed state survives (the component stays mounted) and the form
   // returns when the outage clears.
   const backendOutage = useBackendOutage()
-  const test = useDebouncedProbe(token, probeGithubToken, { errorFallback: t('github_token.verify_error') })
+  const probeGithubToken = useCallback(async (value: string): Promise<CredentialTestResult> => {
+    const [githubToken, repository = ""] = value.split("\n", 2)
+    const payload = await testGithubToken(githubToken, repository)
+    return payload.credential_test
+  }, [])
+  const probeInput = token.trim().length > 0 ? `${token}\n${probeRepository}` : ""
+  const test = useDebouncedProbe(probeInput, probeGithubToken, { errorFallback: t('github_token.verify_error') })
 
   useEffect(() => {
     if (autoFocus && !backendOutage) inputRef.current?.focus()
@@ -115,6 +115,20 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
               type="password"
               value={token}
             />
+          </label>
+          <label className="mt-3 block">
+            <span className="block text-xs font-medium text-gray-700 dark:text-gray-300">{t('github_token.repository_probe_label')}</span>
+            <Input
+              autoComplete="off"
+              className="mt-1 font-mono"
+              name="github_probe_repository"
+              onChange={(event) => setProbeRepository(event.target.value)}
+              placeholder="owner/repo"
+              spellCheck={false}
+              type="text"
+              value={probeRepository}
+            />
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('github_token.repository_probe_help')}</span>
           </label>
           <TokenStatus test={test} />
         </li>

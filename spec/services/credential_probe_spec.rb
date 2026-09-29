@@ -66,18 +66,19 @@ RSpec.describe CredentialProbe do
       expect(result.details).to include(login: "ada", missing_scopes: [])
     end
 
-    it "accepts an authenticated fine-grained token with explicit repository permission guidance" do
+    it "does not accept a fine-grained token until repository workflow-file access is probed" do
       stub_user("github_pat_unsaved", scopes: "")
 
       result = described_class.github_token(token: "github_pat_unsaved", required_scopes: %w[ repo workflow ])
 
-      expect(result.ok).to be true
-      expect(result.message).to eq("Fine-grained token authenticated as ada. Select the repositories Syrus will manage and grant Contents, Pull requests, and Workflows read/write plus Checks read.")
+      expect(result.ok).to be false
+      expect(result.message).to eq("Fine-grained token authenticated as ada. Enter a repository slug so Syrus can verify repository write and GitHub Actions workflow-file access before saving.")
       expect(result.details).to include(
         login: "ada",
         scopes: [],
         missing_scopes: [],
         fine_grained: true,
+        needs_repository_probe: true,
         required_repository_permissions: {
           contents: "write",
           pull_requests: "write",
@@ -85,6 +86,76 @@ RSpec.describe CredentialProbe do
           checks: "read"
         }
       )
+    end
+
+    it "accepts a fine-grained token after probing workflow-file write access on the repository" do
+      allow(SecureRandom).to receive(:hex).with(8).and_return("abc123ef")
+      stub_user("github_pat_unsaved", scopes: "")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .with(headers: { "Authorization" => "token github_pat_unsaved" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { default_branch: "main" }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main")
+        .with(headers: { "Authorization" => "token github_pat_unsaved" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { object: { sha: "base123" } }.to_json)
+      create_ref = stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
+        .with(
+          headers: { "Authorization" => "token github_pat_unsaved" },
+          body: { ref: "refs/heads/syrus-token-probe-abc123ef", sha: "base123" }.to_json
+        )
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: {}.to_json)
+      create_workflow = stub_request(:put, "https://api.github.com/repos/acme/widgets/contents/.github/workflows/syrus-token-probe.yml")
+        .with(headers: { "Authorization" => "token github_pat_unsaved" })
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: {}.to_json)
+      delete_ref = stub_request(:delete, "https://api.github.com/repos/acme/widgets/git/refs/heads/syrus-token-probe-abc123ef")
+        .with(headers: { "Authorization" => "token github_pat_unsaved" })
+        .to_return(status: 204, body: "")
+
+      result = described_class.github_token(
+        token: "github_pat_unsaved",
+        required_scopes: %w[ repo workflow ],
+        probe_repository: "acme/widgets"
+      )
+
+      expect(result.ok).to be true
+      expect(result.message).to eq("Fine-grained token can write workflow files on acme/widgets as ada.")
+      expect(result.details).to include(
+        login: "ada",
+        fine_grained: true,
+        probed_repository: "acme/widgets",
+        workflow_file_write: true
+      )
+      expect(create_ref).to have_been_requested
+      expect(create_workflow).to have_been_requested
+      expect(delete_ref).to have_been_requested
+    end
+
+    it "cleans up the probe branch when the workflow-file write is forbidden" do
+      allow(SecureRandom).to receive(:hex).with(8).and_return("abc123ef")
+      stub_user("github_pat_unsaved", scopes: "")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { default_branch: "main" }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { object: { sha: "base123" } }.to_json)
+      stub_request(:post, "https://api.github.com/repos/acme/widgets/git/refs")
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: {}.to_json)
+      stub_request(:put, "https://api.github.com/repos/acme/widgets/contents/.github/workflows/syrus-token-probe.yml")
+        .to_return(status: 403, headers: { "Content-Type" => "application/json" }, body: { message: "Resource not accessible by personal access token" }.to_json)
+      delete_ref = stub_request(:delete, "https://api.github.com/repos/acme/widgets/git/refs/heads/syrus-token-probe-abc123ef")
+        .to_return(status: 204, body: "")
+
+      result = described_class.github_token(
+        token: "github_pat_unsaved",
+        required_scopes: %w[ repo workflow ],
+        probe_repository: "acme/widgets"
+      )
+
+      expect(result.ok).to be false
+      expect(result.message).to include("refused the workflow-file write probe")
+      expect(result.details).to include(
+        probed_repository: "acme/widgets",
+        missing_repository_permissions: %w[contents:write workflows:write]
+      )
+      expect(delete_ref).to have_been_requested
     end
 
     it "is not ok and names the missing scope when under-scoped" do

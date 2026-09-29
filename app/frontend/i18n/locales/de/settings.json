@@ -888,6 +888,8 @@
     "scope_checks": "— Lesen, für CI-Fehlererkennung",
     "step3_heading": "3. Token einfügen",
     "input_label": "Persönlicher GitHub-Zugriffstoken",
+    "repository_probe_label": "Repository zur Prüfung des fein abgestuften Zugriffs",
+    "repository_probe_help": "Für fein abgestufte Tokens erforderlich. Syrus erstellt und löscht einen temporären Branch, um Schreibzugriff auf Workflow-Dateien vor dem Speichern zu prüfen.",
     "saving": "Wird gespeichert…",
     "save_continue": "Speichern und fortfahren",
     "checking_token": "Token wird überprüft…",
