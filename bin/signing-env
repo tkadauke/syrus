@@ -5,8 +5,7 @@
 # Mirrors the ~/.config/syrus/ghcr-token convention (bin/docker-image-lib):
 # secrets live in a chmod-600 file under ~/.config/syrus/, never in the
 # repo or shell history, and CI and a human running bin/release-desktop by
-# hand use the exact same env var names either way (docs/releasing.md,
-# docs/windows-signing.md).
+# hand use the exact same env var names either way (docs/releasing.md).
 
 # macOS signing + notarization. Reads ~/.config/syrus/mac-signing.env
 # (CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY_ID, APPLE_API_ISSUER — the
@@ -72,35 +71,6 @@ syrus_signing_check_mac_cert_type() {
       } >&2
       ;;
   esac
-}
-
-# Windows signing (Azure Artifact Signing). electron-builder's
-# win.azureSignOptions shells out to the Windows-only Invoke-TrustedSigning
-# PowerShell module, so there is no working local-signing path from macOS
-# or Linux — a Windows cross-build done on this Mac stays unsigned no
-# matter what's in this file (see "Local signing" in docs/windows-signing.md).
-# This loader exists so the identical ~/.config/syrus/windows-signing.env
-# file (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
-# AZURE_SIGN_ENDPOINT, AZURE_SIGN_ACCOUNT_NAME, AZURE_SIGN_CERT_PROFILE,
-# AZURE_SIGN_PUBLISHER_NAME) works unmodified if this script ever runs on
-# an actual Windows host (Git Bash/WSL). It's a deliberate no-op everywhere
-# else, guarded on uname so it never fires on macOS/Linux.
-syrus_load_windows_signing_env() {
-  case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) ;;
-    *) return 0 ;;
-  esac
-
-  local env_file="$HOME/.config/syrus/windows-signing.env"
-  [ -f "$env_file" ] || return 0
-
-  syrus_signing_warn_permissive "$env_file"
-  set -a
-  # shellcheck disable=SC1090
-  source "$env_file"
-  set +a
-
-  echo "== Loaded local Windows signing credentials from $env_file =="
 }
 
 syrus_signing_warn_permissive() {

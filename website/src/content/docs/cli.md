@@ -28,11 +28,8 @@ time from **Preferences → Local checkout → Add Claude Code skill**. A
 **Reinstall CLI** button lives in the same place for the rare case the
 automatic install failed.
 
-- **macOS** installs to `~/.local/bin/syrus`; if that isn't on your
-  `PATH`, the app shows the one-line export to add.
-- **Windows** installs to `%LocalAppData%\Syrus\bin\syrus.exe` and adds
-  that directory to your user `PATH` automatically — open a **new**
-  terminal to pick it up.
+On macOS, the app installs to `~/.local/bin/syrus`; if that isn't on your
+`PATH`, it shows the one-line export to add.
 
 ## Build
 

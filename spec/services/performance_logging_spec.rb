@@ -358,6 +358,32 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "records metadata added inside a slow phase block" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot).and_return(
+      io_pressure_some: 3.5
+    )
+
+    metadata = { capture_host_pressure: true, count: 0 }
+    described_class.phase("chat_workspace.sweep", metadata) do
+      metadata[:count] = 4
+      metadata[:bytes_freed] = 2048
+    end
+
+    event = described_class::Store.recent.first
+    expect(event).to include(
+      "phase" => "chat_workspace.sweep",
+      "metadata" => {
+        "count" => "4",
+        "bytes_freed" => "2048",
+        "io_pressure_some" => "3.5"
+      }
+    )
+    expect(event.fetch("metadata")).not_to have_key("capture_host_pressure")
+  end
+
   it "records nested phase SQL as parent total and child self" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

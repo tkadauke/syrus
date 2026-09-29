@@ -34,7 +34,7 @@ release (`release.yml` → `publish-website`).
 ## How it works
 
 - **Downloads** point at GitHub's stable latest-release permalinks
-  (`releases/latest/download/Syrus.dmg` and `Syrus-Setup.exe`), so they always
+  (`releases/latest/download/Syrus.dmg`), so they always
   serve the newest release with no rebuild. The version + file sizes shown on
   `/download` are display-only, baked into `lib/release.json` by
   `npm run sync-release` (the workflow runs it each build).

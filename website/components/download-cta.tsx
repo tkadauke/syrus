@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ButtonLink } from "./button";
-import { AppleIcon, WindowsIcon, DownloadIcon } from "./icons";
+import { AppleIcon, DownloadIcon } from "./icons";
 import { downloadFor } from "../lib/release";
 
-export type OS = "mac" | "windows" | "mobile" | "other";
+export type OS = "mac" | "mobile" | "other";
 
 /** Detect the visitor's OS on the client (null until mounted). */
 export function useDetectedOS(): OS | null {
@@ -15,9 +15,7 @@ export function useDetectedOS(): OS | null {
     setOs(
       /Android|iPhone|iPad|iPod/i.test(ua)
         ? "mobile"
-        : /Windows|Win32|Win64|WOW64/i.test(ua)
-          ? "windows"
-          : /Macintosh|Mac OS X/i.test(ua)
+        : /Macintosh|Mac OS X/i.test(ua)
             ? "mac"
             : "other",
     );
@@ -33,12 +31,6 @@ function target(os: OS | null) {
       href: downloadFor("mac")!.url,
       label: "Download for Mac",
       Icon: AppleIcon,
-    };
-  if (os === "windows")
-    return {
-      href: downloadFor("windows")!.url,
-      label: "Download for Windows",
-      Icon: WindowsIcon,
     };
   // null (pre-detect), mobile, or unknown → send to the full options page.
   return { href: "/download", label: "Download", Icon: DownloadIcon };
@@ -60,7 +52,7 @@ export function DownloadButton() {
 export function DownloadCTA({ size = "lg" }: { size?: "md" | "lg" }) {
   const os = useDetectedOS();
   const { href, label, Icon } = target(os);
-  const specific = os === "mac" || os === "windows";
+  const specific = os === "mac";
 
   return (
     <div className="flex flex-col items-stretch gap-1.5 sm:items-start">

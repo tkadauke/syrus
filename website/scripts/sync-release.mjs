@@ -27,7 +27,7 @@ function readCommittedRelease() {
   if (data.version !== null && typeof data.version !== "string") {
     throw new Error("release metadata version must be a string or null");
   }
-  for (const key of ["mac", "windows"]) {
+  for (const key of ["mac"]) {
     const platform = data[key];
     if (typeof platform !== "object" || platform === null) {
       throw new Error(`release metadata ${key} must be an object`);
@@ -68,11 +68,10 @@ try {
   const data = {
     version,
     mac: { size: sizeOf("Syrus.dmg") },
-    windows: { size: sizeOf("Syrus-Setup.exe") },
   };
   writeFileSync(out, JSON.stringify(data, null, 2) + "\n");
   console.log(
-    `sync-release: wrote v${version} (mac ${data.mac.size}, win ${data.windows.size})`,
+    `sync-release: wrote v${version} (mac ${data.mac.size})`,
   );
 } catch (err) {
   let keep = "?";

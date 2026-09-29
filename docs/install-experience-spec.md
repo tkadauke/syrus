@@ -4,9 +4,8 @@ The authoritative map of every way Syrus arrives on a machine, what each
 path installs, and what stays true afterwards. When a flow changes, this
 file changes in the same PR — it is the contract the onboarding, updater,
 CLI, and skill code implement. Sibling docs: `desktop-auth-plan.md` (why
-tokens work the way they do), `windows-desktop-plan.md` (Windows port
-history), `cli-desktop-plan.md` (CLI distribution history),
-`releasing.md` (how artifacts are produced).
+tokens work the way they do), `cli-desktop-plan.md` (CLI distribution
+history), `releasing.md` (how artifacts are produced).
 
 ## The batteries-included principle
 
@@ -39,24 +38,20 @@ Invariants (each mapped to its enforcement below):
 | # | Path | Platform | What runs |
 |---|------|----------|-----------|
 | E1 | DMG download → double-click Syrus in the image | macOS | self-installs to `/Applications` (`~/Applications` without admin rights; asks before replacing an existing install), relaunches, onboarding |
-| E2 | NSIS `Syrus-Setup*.exe` one-click | Windows | installs to `%LocalAppData%\Programs\syrus-desktop`, launches, onboarding |
-| E3 | App auto-update (electron-updater) | both | new app version relaunches; backend pin + CLI freshness checks run |
-| E4 | Repo clone + `install.sh --docker` / `bin/setup` | dev/ops | CLI via `bin/setup` (optionally `--install-cli`); no app |
+| E2 | App auto-update (electron-updater) | macOS | new app version relaunches; backend pin + CLI freshness checks run |
+| E3 | Repo clone + `install.sh --docker` / `bin/setup` | dev/ops | CLI via `bin/setup` (optionally `--install-cli`); no app |
 
 E5 (a standalone `curl \| sh` one-liner, no local clone) does **not** exist
 today and nothing on the website links to one — see Known non-goals below.
 
-## First-run onboarding (E1/E2), state by state
+## First-run onboarding (E1), state by state
 
 Welcome → choose:
 
 - **Install locally** → precheck (in order): adopt a healthy foreign
-  Syrus on the port → guided runtime acquisition (macOS: OrbStack;
-  Windows: one-click elevated WSL 2 install when WSL is absent, then
-  Docker Desktop; both note that a Windows restart resumes the flow on
-  relaunch — precheck re-derives everything) → adopt-existing data
-  volume (encryption-key guard) → port conflict → `install.sh` /
-  `install.ps1` over the NDJSON machine interface → done.
+  Syrus on the port → guided runtime acquisition (OrbStack) →
+  adopt-existing data volume (encryption-key guard) → port conflict →
+  `install.sh` over the NDJSON machine interface → done.
 - **Connect to existing** → URL-only form with an honest live probe
   (green = a Syrus answered; port guidance only on failure) → done.
 
@@ -66,9 +61,8 @@ the first account) → token provisioning writes `~/.syrus/credentials`
 
 **CLI (I1):** installed silently by the app at launch — no dialog, no
 choice, exactly like the backend assets. macOS: `~/.local/bin/syrus`.
-Windows: `%LocalAppData%\Syrus\bin\syrus.exe` + per-user PATH registry
-entry. Failure is non-fatal and self-heals on the next launch; the tray
-shows its install banner only if the CLI is genuinely absent afterwards.
+Failure is non-fatal and self-heals on the next launch; the tray shows its
+install banner only if the CLI is genuinely absent afterwards.
 
 **Skill (I4):** after onboarding completes and credentials exist, IF
 `~/.claude` or `~/.codex` exists and the skill was never offered → one
@@ -79,7 +73,7 @@ runs `syrus skill install`. Also available any time from Preferences.
 
 | Piece | Mechanism | Cadence |
 |-------|-----------|---------|
-| App | electron-updater (GitHub feed; NSIS/Squirrel) | checked ~6h, applied on restart |
+| App | electron-updater (GitHub feed via Squirrel.Mac) | checked ~6h, applied on restart |
 | Backend image | manifest pin in app resources → update offer re-runs the bundled installer | next launch after app update |
 | CLI | content-hash check of bundled vs installed binary → silent reinstall | **every launch** (I2) |
 | Skill | re-written by the CLI reinstall when previously installed | rides CLI updates |
@@ -105,10 +99,6 @@ runs `syrus skill install`. Also available any time from Preferences.
   version command, and a hash can't lie about dev builds; hashing two
   ~20 MB files at launch costs milliseconds and only on mismatch does
   any work happen.
-- **Windows CLI home is outside the NSIS `$INSTDIR`** so app updates
-  (which replace that directory wholesale) can't delete it; the launch
-  check would resurrect it anyway, but surviving is cleaner than
-  resurrecting.
 - **Skill detection is directory-based** (`~/.claude`, `~/.codex`), not
   PATH-based: GUI apps see a minimal PATH on macOS, and the config dir
   is what the skill actually integrates with.

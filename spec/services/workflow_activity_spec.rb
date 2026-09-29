@@ -22,7 +22,6 @@ RSpec.describe WorkflowActivity do
     described_class.synchronously do
       described_class.workflow_created!(workflow)
       workflow.start!
-      workflow.save!
       described_class.workflow_state_changed!(workflow)
       run.start!
       run.save!
@@ -42,10 +41,10 @@ RSpec.describe WorkflowActivity do
 
     described_class.synchronously do
       workflow.start!
-      workflow.save!
+      described_class.workflow_state_changed!(workflow)
       workflow.failure_reason = "pr_publication_missing_after_success"
       workflow.fail!
-      workflow.save!
+      described_class.workflow_state_changed!(workflow)
     end
 
     event = WorkflowActivityEvent.find_by!(event_type: "workflow_finished", workflow_id: workflow.id)

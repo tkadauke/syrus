@@ -137,12 +137,9 @@ npm --prefix "$ROOT/desktop" run build:main
 
 clean_desktop_package_output
 
-# Loads ~/.config/syrus/mac-signing.env (and its Windows counterpart, which
-# is a no-op unless this happens to run on an actual Windows host) — see
-# bin/signing-env. Absent those files, this produces the same unsigned
-# local build as before.
+# Loads ~/.config/syrus/mac-signing.env — see bin/signing-env. Absent that
+# file, this produces the same unsigned local build as before.
 syrus_load_mac_signing_env
-syrus_load_windows_signing_env
 
 echo "== Packaging desktop app =="
 (
@@ -154,7 +151,7 @@ while IFS= read -r -d '' artifact; do
   cp "$artifact" "$OUT_DIR/"
 done < <(
   find "$ROOT/desktop/out" -maxdepth 1 -type f \
-    \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' \) \
+    \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' \) \
     -name "*$BUILD_VERSION*" \
     -print0
 )

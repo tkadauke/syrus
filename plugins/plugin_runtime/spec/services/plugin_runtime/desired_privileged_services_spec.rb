@@ -52,4 +52,16 @@ RSpec.describe PluginRuntime::DesiredPrivilegedServices do
 
     expect(described_class.all).to be_empty
   end
+
+  # Same container-fight guard as generic services, after the privileged
+  # allowlist has admitted the manifest.
+  it "keeps the first claim when two allowlisted plugins claim one privileged service name" do
+    stub_const("#{described_class}::FIRST_PARTY_PRIVILEGED_PLUGINS", %w[tailscale tailscale_peer])
+    with_manifests(
+      manifest("tailscale", enabled: true, provides: { described_class::POINT => implementer }),
+      manifest("tailscale_peer", enabled: true, provides: { described_class::POINT => implementer })
+    )
+
+    expect(described_class.all.map(&:plugin)).to eq([ "tailscale" ])
+  end
 end

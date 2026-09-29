@@ -1,5 +1,5 @@
 # One manual, atomic release for everything Syrus ships: the CLI, the macOS
-# and Windows desktop apps, and the backend Docker image. See docs/releasing.md
+# desktop app, and the backend Docker image. See docs/releasing.md
 # for the runbook and docs/release-troubleshooting.md when a run goes red.
 #
 # The shape (and the why behind it):
@@ -9,7 +9,7 @@
 #   `major` requires choosing it explicitly; `minor` is the default.
 #
 # - ATOMIC. Nothing is user-visible until the very end. The shared build spine
-#   (image, cli, mac, windows — the reusable `_build-app.yml` module) produces
+#   (image, cli, mac — the reusable `_build-app.yml` module) produces
 #   STAGED artifacts and pushes only a *versioned* backend image tag — never
 #   `:latest`. Only the final `publish` job creates the git tag, the GitHub
 #   Release, moves the image `:latest` pointer, and (stub) kicks the website. If
@@ -21,8 +21,8 @@
 #   shippable component lives ONCE in `_build-app.yml`, shared with the Test
 #   build pipeline (test-build.yml), so the two can never drift.
 #
-# - dry_run does a FULL rehearsal — image built + integration-tested, apps
-#   SIGNED + notarized / Azure-signed, cli cross-compiled — and stages every
+# - dry_run does a FULL rehearsal — image built + integration-tested, app
+#   SIGNED + notarized, cli cross-compiled — and stages every
 #   artifact for inspection, but publishes nothing (no tag, no release, no
 #   image push, no :latest move). dry_run gates only PUBLISH (threaded to the
 #   module as push_image); the build jobs are identical to a real release, so
@@ -30,9 +30,9 @@
 #   no separate signing-test workflow.
 #
 # - Signing is REQUIRED (dry or real): an unsigned macOS build is
-#   Gatekeeper-blocked and breaks Squirrel.Mac auto-update; an unsigned Windows
-#   build never ships. Credential PREFLIGHTS (in the module) fail in seconds so
-#   a bad secret does not waste a 20-minute build.
+#   Gatekeeper-blocked and breaks Squirrel.Mac auto-update. Credential PREFLIGHTS
+#   (in the module) fail in seconds so a bad secret does not waste a 20-minute
+#   build.
 #
 # - Attacker-influenceable values (the version, the bump) reach `run:` bodies
 #   only through `env:`, never inline `${{ }}` interpolation.
@@ -151,7 +151,7 @@ jobs:
   # Build + sign every shippable component through the SHARED reusable module.
   # Release parameters: the versioned image tag (no extra tag), the release
   # buildcache prefix, the auto-update feed staged, 7-day artifact retention,
-  # integration tests always on, Windows always built. `push_image` is gated on
+  # integration tests always on. `push_image` is gated on
   # a real run (a dry run builds + integration-tests both arches but pushes
   # nothing). Its jobs run as part of THIS graph, so `publish: needs: build`
   # waits for the whole spine. secrets: inherit hands the module every signing
@@ -172,7 +172,6 @@ jobs:
       artifact_prefix: staged
       artifact_retention_days: 7
       run_integration_tests: true
-      build_windows: true
       channel: stable
     secrets: inherit
 
