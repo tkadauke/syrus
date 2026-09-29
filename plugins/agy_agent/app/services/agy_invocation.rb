@@ -221,7 +221,7 @@ class AgyInvocation
         {
           command: server.fetch(:command),
           args: Array(server[:args]),
-          env: AgentSidecarEnvironment.filter(server.fetch(:env, {}))
+          env: AgentSidecarEnvironment.filter_for_agent_config(server)
         }
       end
     }
@@ -246,7 +246,7 @@ class AgyInvocation
       {
         command: server.fetch(:command),
         args: Array(server[:args]),
-        env: AgentSidecarEnvironment.filter(server.fetch(:env, {}))
+        env: AgentSidecarEnvironment.filter_for_agent_config(server)
       }
     end
   end

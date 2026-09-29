@@ -1467,7 +1467,7 @@ describe("WorkflowsTab", () => {
                   finished_at: null,
                   created_at: "2026-08-25T12:00:00Z",
                   updated_at: "2026-08-25T12:00:00Z",
-                  cost_usd: 0,
+                  cost_usd: null,
                   input_tokens: 0,
                   output_tokens: 0,
                   agent_diff_present: false,
@@ -1505,6 +1505,8 @@ describe("WorkflowsTab", () => {
     // Debug metadata stays reachable inside the (collapsed) disclosure rather
     // than being deleted outright.
     expect(details).toHaveTextContent("claude")
+    expect(details).toHaveTextContent(" -")
+    expect(details).not.toHaveTextContent("$0.00")
     expect(details.querySelector("button")).toHaveTextContent("Transcript")
     // ...and the Transcript action is not duplicated as a top-level button.
     expect(screen.getAllByRole("button", { name: "Transcript" })).toHaveLength(1)

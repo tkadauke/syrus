@@ -174,7 +174,7 @@ module AgentProviders
     end
 
     def sidecar_env
-      AgentSidecarEnvironment.build
+      AgentSidecarEnvironment.build_boot
     end
 
     def sidecar_command

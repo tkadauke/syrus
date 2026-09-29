@@ -36,6 +36,7 @@ class AgentSidecarEnvironment
     RETENTION_ARCHIVE_S3_ENDPOINT
     RETENTION_ARCHIVE_S3_REGION
   ].freeze
+  BOOT_ENV_FORWARD = (SAFE_ENV_FORWARD + SECRET_ENV_KEYS).freeze
 
   class << self
     def build(extra: {}, env: ENV)
@@ -45,8 +46,22 @@ class AgentSidecarEnvironment
       filter(forwarded.merge(extra.compact))
     end
 
+    def build_boot(extra: {}, env: ENV)
+      forwarded = env.slice(*BOOT_ENV_FORWARD).compact
+      forwarded["SYRUS_DATA_ROOT"] ||= WorkflowWorkspace.data_root.to_s
+      pin_rubygems_to_bundle_path(forwarded)
+      forwarded.merge(extra.compact)
+    end
+
     def filter(env)
       env.to_h.compact.except(*SECRET_ENV_KEYS)
+    end
+
+    def filter_for_agent_config(server)
+      server = server.to_h
+      env = server[:env] || server["env"] || {}
+      command = server[:command] || server["command"]
+      direct_sidecar_command?(command) ? env.to_h.compact : filter(env)
     end
 
     def unsafe_key?(key)
@@ -54,6 +69,10 @@ class AgentSidecarEnvironment
     end
 
     private
+
+    def direct_sidecar_command?(command)
+      File.basename(command.to_s) == "syrus-mcp-sidecar"
+    end
 
     def pin_rubygems_to_bundle_path(forwarded)
       bundle_path = forwarded["BUNDLE_PATH"].presence
