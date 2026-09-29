@@ -481,7 +481,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unknown_credential")
   end
 
-  it "tests an unsaved GitHub token with the required classic PAT scopes" do
+  it "tests an unsaved GitHub token with the required classic PAT repository scope" do
     sign_in_as(user)
     result = CredentialProbe::Result.new(
       credential: "github_token",
@@ -490,7 +490,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       details: { login: "ada", scopes: [], missing_scopes: [] }
     )
     expect(CredentialProbe).to receive(:github_token)
-      .with(token: "ghp_pasted", required_scopes: %w[ repo workflow ], probe_repository: "acme/widgets")
+      .with(token: "ghp_pasted", required_scopes: %w[ repo ], probe_repository: "acme/widgets")
       .and_return(result)
 
     post "/api/v1/app/credentials/test_github_token", params: { github_token: "ghp_pasted", probe_repository: "acme/widgets" }

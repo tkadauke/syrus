@@ -79,15 +79,15 @@ describe("GithubTokenStep", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the workflow scope.",
-      details: { login: "octocat", scopes: ["repo"], missing_scopes: ["workflow"] }
+      message: "Token authenticated as octocat, but it is missing the repo scope.",
+      details: { login: "octocat", scopes: [], missing_scopes: ["repo"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })
     renderStep()
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_partial" } })
 
-    const line = await screen.findByText(/missing the workflow scope/)
+    const line = await screen.findByText(/missing the repo scope/)
     expect(line.closest("p")).toHaveClass("text-warning-text")
     expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
   })

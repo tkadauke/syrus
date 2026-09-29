@@ -13,6 +13,7 @@ class CredentialProbe
   TIMEOUT_SECONDS = 30
   MAX_OUTPUT_BYTES = 4_000
   REDACTED = "[redacted]".freeze
+  CLASSIC_REPOSITORY_SCOPE_ALTERNATIVES = %w[repo public_repo].freeze
 
   def self.call(user:, credential:)
     new(user: user, credential: credential).call
@@ -41,7 +42,7 @@ class CredentialProbe
     scopes = headers.fetch("x-oauth-scopes", "").to_s.split(",").map(&:strip).compact_blank
     required_scopes = required_scopes.map(&:to_s)
     fine_grained_pat = scopes.empty? && token.start_with?("github_pat_")
-    missing = required_scopes - scopes
+    missing = missing_required_scopes(required_scopes, scopes)
 
     if fine_grained_pat
       return fine_grained_repository_required(github_user, scopes) if probe_repository.blank?
@@ -53,7 +54,8 @@ class CredentialProbe
         credential: "github_token",
         ok: false,
         message: "Token authenticated as #{github_user.login}, but it is missing the #{missing.join(" and ")} #{label}. " \
-                 "Use a classic token with repo and workflow scopes, or a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
+                 "Use a classic token with repo for private repositories or public_repo for public repositories; add workflow only if agents must edit GitHub Actions workflow files through the PAT. " \
+                 "Or use a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
         details: { login: github_user.login, scopes: scopes, missing_scopes: missing }
       )
     else
@@ -181,7 +183,16 @@ class CredentialProbe
     }
   end
 
-  private_class_method :fine_grained_repository_required, :fine_grained_repository_probe, :fine_grained_details
+  def self.missing_required_scopes(required_scopes, scopes)
+    required_scopes.filter_map do |required_scope|
+      next if required_scope == "repo" && (scopes & CLASSIC_REPOSITORY_SCOPE_ALTERNATIVES).any?
+      next if scopes.include?(required_scope)
+
+      required_scope
+    end
+  end
+
+  private_class_method :fine_grained_repository_required, :fine_grained_repository_probe, :fine_grained_details, :missing_required_scopes
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github
