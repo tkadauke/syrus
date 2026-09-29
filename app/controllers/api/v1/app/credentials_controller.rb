@@ -9,7 +9,7 @@ module Api
         # classic OAuth scopes here; CredentialProbe accepts that shape with an
         # explicit fine-grained-permissions message instead of calling it a
         # broadly valid token.
-        GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
+        GITHUB_REQUIRED_SCOPES = %w[ repo ].freeze
 
         def show
           render json: credentials_payload(Current.user)
