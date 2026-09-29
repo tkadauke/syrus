@@ -60,7 +60,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
 
   if (backendOutage) {
     return (
-      <p className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+      <p className="rounded border border-border bg-surface-raised px-3 py-2 text-sm text-text-secondary">
         {t('backend_updating')}
       </p>
     )
@@ -68,40 +68,40 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
 
   return (
     <form className="space-y-5" onSubmit={submit}>
-      <ol className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+      <ol className="space-y-4 text-sm text-text-secondary">
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step1_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">{t('github_token.step1_description')}</p>
+          <p className="font-medium text-text-primary">{t('github_token.step1_heading')}</p>
+          <p className="mt-1 text-text-secondary">{t('github_token.step1_description')}</p>
           <a className="mt-2 inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white" href={TOKEN_SETTINGS_URL} rel="noreferrer" target="_blank">
             {t('github_token.step1_link')} <span aria-hidden="true">↗</span>
           </a>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step2_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
+          <p className="font-medium text-text-primary">{t('github_token.step2_heading')}</p>
+          <p className="mt-1 text-text-secondary">
             {t('github_token.step2_description')}
           </p>
           <ul className="mt-2 space-y-1">
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Contents</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_repo')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Contents</code>
+              <span className="text-text-secondary">{t('github_token.scope_repo')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Pull requests</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_workflow')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Pull requests</code>
+              <span className="text-text-secondary">{t('github_token.scope_workflow')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Workflows</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_actions_workflows')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Workflows</code>
+              <span className="text-text-secondary">{t('github_token.scope_actions_workflows')}</span>
             </li>
             <li className="flex items-center gap-2">
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">Checks</code>
-              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_checks')}</span>
+              <code className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-primary">Checks</code>
+              <span className="text-text-secondary">{t('github_token.scope_checks')}</span>
             </li>
           </ul>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step3_heading')}</p>
+          <p className="font-medium text-text-primary">{t('github_token.step3_heading')}</p>
           <label className="mt-2 block">
             <span className="sr-only">{t('github_token.input_label')}</span>
             <Input
@@ -117,7 +117,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
             />
           </label>
           <label className="mt-3 block">
-            <span className="block text-xs font-medium text-gray-700 dark:text-gray-300">{t('github_token.repository_probe_label')}</span>
+            <span className="block text-xs font-medium text-text-primary">{t('github_token.repository_probe_label')}</span>
             <Input
               autoComplete="off"
               className="mt-1 font-mono"
@@ -128,7 +128,7 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
               type="text"
               value={probeRepository}
             />
-            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('github_token.repository_probe_help')}</span>
+            <span className="mt-1 block text-xs text-text-muted">{t('github_token.repository_probe_help')}</span>
           </label>
           <TokenStatus test={test} />
         </li>
