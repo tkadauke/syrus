@@ -18,6 +18,8 @@ class Repository < ApplicationRecord
   # already-broken ci_health to "inconclusive". See main_health_poll_outage?.
   MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD = 3
   MAX_POLL_ISSUE_ERRORS = 20
+  POLL_ISSUE_RETRY_LIMIT = 3
+  POLL_ISSUE_RETRY_BACKOFF = 15.minutes
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -175,17 +177,58 @@ class Repository < ApplicationRecord
     assign_attributes(last_poll_status: "failed", last_poll_error: message)
   end
 
+  def poll_issue_numbers_due_for_retry(at: Time.current)
+    Array(poll_issue_errors).filter_map do |entry|
+      next unless poll_issue_retry_due?(entry, at: at)
+
+      entry["issue_number"].to_i
+    end.compact.uniq
+  end
+
   def record_poll_issue_error!(issue_number:, issue_title:, error:)
+    existing_errors = Array(poll_issue_errors)
+    previous_error = existing_errors.find { |entry| entry["issue_number"].to_i == issue_number.to_i }
+    failure_count = previous_error.to_h.fetch("failure_count", 0).to_i + 1
+    retry_exhausted = failure_count >= POLL_ISSUE_RETRY_LIMIT
     entry = {
       "issue_number" => issue_number,
       "issue_title" => issue_title.to_s,
       "error_class" => error.class.name,
       "error_message" => error.message.to_s,
-      "recorded_at" => Time.current.iso8601
+      "recorded_at" => Time.current.iso8601,
+      "failure_count" => failure_count,
+      "retry_limit" => POLL_ISSUE_RETRY_LIMIT,
+      "retry_exhausted" => retry_exhausted,
+      "next_retry_at" => retry_exhausted ? nil : (Time.current + POLL_ISSUE_RETRY_BACKOFF).iso8601
     }
-    next_errors = [ entry, *Array(poll_issue_errors) ].first(MAX_POLL_ISSUE_ERRORS)
+    next_errors = [ entry, *existing_errors.reject { |existing| existing["issue_number"].to_i == issue_number.to_i } ].first(MAX_POLL_ISSUE_ERRORS)
     update_columns(poll_issue_errors: next_errors)
     assign_attributes(poll_issue_errors: next_errors)
+  end
+
+  def clear_poll_issue_error!(issue_number:)
+    next_errors = Array(poll_issue_errors).reject { |entry| entry["issue_number"].to_i == issue_number.to_i }
+    return if next_errors == Array(poll_issue_errors)
+
+    update_columns(poll_issue_errors: next_errors)
+    assign_attributes(poll_issue_errors: next_errors)
+  end
+
+  def poll_issue_retry_due?(entry, at:)
+    return false if entry["issue_number"].blank?
+    return false if entry.fetch("failure_count", 0).to_i >= POLL_ISSUE_RETRY_LIMIT
+
+    retry_at = poll_issue_next_retry_at(entry)
+    retry_at.blank? || retry_at <= at
+  end
+
+  def poll_issue_next_retry_at(entry)
+    value = entry["next_retry_at"]
+    return if value.blank?
+
+    Time.zone.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 
   # workflow-engine-v3 C0. The profile answers the posture questions that had
