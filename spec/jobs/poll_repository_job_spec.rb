@@ -388,6 +388,114 @@ RSpec.describe PollRepositoryJob, :ci_only do
       )
     end
 
+    it "retries a quarantined issue on a later poll and clears its error after clean ingestion" do
+      poison = issue(number: 43)
+      first_poll = true
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        next [] if state == "closed"
+
+        if first_poll
+          first_poll = false
+          [ poison ]
+        else
+          []
+        end
+      end
+      allow_any_instance_of(GithubClient).to receive(:fetch_issue)
+        .with(repository.slug, 43)
+        .and_return(poison)
+
+      fail_next_create = true
+      allow(Job).to receive(:create!).and_wrap_original do |original, attrs|
+        if attrs[:issue_number] == 43 && fail_next_create
+          fail_next_create = false
+          invalid = Job.new(attrs)
+          invalid.errors.add(:base, "temporary ingest failure")
+          raise ActiveRecord::RecordInvalid.new(invalid)
+        end
+
+        original.call(attrs)
+      end
+
+      described_class.perform_now(repository.id)
+
+      error = repository.reload.poll_issue_errors.sole
+      expect(error).to include(
+        "issue_number" => 43,
+        "failure_count" => 1,
+        "retry_exhausted" => false
+      )
+
+      error["next_retry_at"] = 1.minute.ago.iso8601
+      repository.update_columns(poll_issue_errors: [ error ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change { Job.where(repository: repository, issue_number: 43).count }.from(0).to(1)
+
+      expect(repository.reload.poll_issue_errors).to eq([])
+    end
+
+    it "keeps unresolved poll issue errors after a later clean poll" do
+      repository.update_columns(
+        poll_issue_errors: [
+          {
+            "issue_number" => 43,
+            "issue_title" => "Issue 43",
+            "error_class" => "ActiveRecord::RecordInvalid",
+            "error_message" => "temporary ingest failure",
+            "recorded_at" => 1.minute.ago.iso8601,
+            "failure_count" => 1,
+            "retry_limit" => Repository::POLL_ISSUE_RETRY_LIMIT,
+            "retry_exhausted" => false,
+            "next_retry_at" => 15.minutes.from_now.iso8601
+          }
+        ]
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([])
+
+      described_class.perform_now(repository.id)
+
+      expect(repository.reload.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 43,
+          "error_message" => "temporary ingest failure"
+        )
+      )
+    end
+
+    it "leaves an exhausted quarantined issue visible without retrying it again" do
+      repository.update_columns(
+        poll_issue_errors: [
+          {
+            "issue_number" => 43,
+            "issue_title" => "Issue 43",
+            "error_class" => "ActiveRecord::RecordInvalid",
+            "error_message" => "persistent ingest failure",
+            "recorded_at" => 1.minute.ago.iso8601,
+            "failure_count" => Repository::POLL_ISSUE_RETRY_LIMIT,
+            "retry_limit" => Repository::POLL_ISSUE_RETRY_LIMIT,
+            "retry_exhausted" => true,
+            "next_retry_at" => nil
+          }
+        ]
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([])
+      expect_any_instance_of(GithubClient).not_to receive(:fetch_issue)
+
+      described_class.perform_now(repository.id)
+
+      expect(repository.reload.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 43,
+          "retry_exhausted" => true,
+          "error_message" => "persistent ingest failure"
+        )
+      )
+    end
+
     it "leaves the watermark unchanged when a poll is killed before the batch is fully processed" do
       previous_watermark = 2.hours.ago
       repository.update_columns(last_poll_started_at: previous_watermark)
