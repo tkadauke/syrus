@@ -22,8 +22,7 @@ test("signed-in admin sees the instance-wide spend rollup on Spending Insights",
   // implement/summarize/test_plan Run chain against demo/syrus-preview,
   // trigger_kind "initial", agent_provider "codex" -- exercising the repo,
   // trigger kind, and provider rollups the issue asks for.
-  const repositoryBreakdown = page.getByRole("region", { name: "By Repository" })
-  const repositoryRow = repositoryBreakdown.locator("tr").filter({ has: page.getByRole("link", { name: "demo/syrus-preview" }) })
+  const repositoryRow = page.getByRole("row", { name: /^demo\/syrus-preview\s+1\s+\$0\.13\s+\$0\.13$/ })
   await expect(repositoryRow).toBeVisible()
   await expect(repositoryRow.getByText("$0.13").first()).toBeVisible()
 
@@ -32,11 +31,9 @@ test("signed-in admin sees the instance-wide spend rollup on Spending Insights",
   // repository in the instance, so assert that the seeded Runs land in the
   // Initial row and that it is costed -- the amount itself belongs to
   // whatever else the database holds.
-  const triggerBreakdown = page.getByRole("region", { name: "By Trigger kind" })
-  const initialRow = triggerBreakdown.locator("tr").filter({ hasText: "Initial" })
+  const initialRow = page.getByRole("row", { name: /^Initial\s+\d+\s+\$\d+\.\d{2}\s+\$\d+\.\d{2}$/ })
   await expect(initialRow).toBeVisible()
   await expect(initialRow.getByText(/^\$\d+\.\d{2}$/).first()).toBeVisible()
 
-  const topRuns = page.getByRole("region", { name: "Top runs" })
-  await expect(topRuns.getByText("Initial / codex").first()).toBeVisible()
+  await expect(main.getByText("Initial / codex").first()).toBeVisible()
 })

@@ -116,7 +116,7 @@ export type JobRecord = {
   retry_state?: JobRetryState
   approved_at: string | null
   approved_via: string | null
-  creator_user: JobUserReference
+  creator_user?: JobUserReference | null
   created_by_current_user: boolean
   owner_user_id: number | null
   owner_user: JobOwnerUser | null
