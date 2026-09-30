@@ -160,6 +160,12 @@ namespace :e2e do
     cancelled_job = Job.find_by(repository: demo_repo, issue_title: "Coordinate scheduled task rollout")
     cancelled_job&.update_columns(state: "queued", closure_reason: nil, finished_at: nil)
 
+    implemented_job = Job.find_by(repository: demo_repo, issue_title: "Inspect preview dashboard states")
+    implemented_job&.runs&.includes(:step)&.find_each do |run|
+      cost = run.step&.kind.in?(%w[implement summarize test_plan]) ? 0.0421 : nil
+      run.update_columns(cost_usd: cost, created_at: Time.current, updated_at: Time.current)
+    end
+
     DiffReviewComment.where(job: demo_repo.jobs).destroy_all
 
     invite_email = "invited-e2e@syrus.local"

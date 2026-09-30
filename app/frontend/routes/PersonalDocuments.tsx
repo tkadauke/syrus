@@ -203,9 +203,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         </DataTable.Header>
         <DataTable.Body>
           {visibleDocuments.length === 0 ? (
-            <DataTable.Row>
-              <DataTable.Empty colSpan={columns.length}>{t('personal_documents.empty')}</DataTable.Empty>
-            </DataTable.Row>
+            <DataTable.Empty colSpan={columns.length}>{t('personal_documents.empty')}</DataTable.Empty>
           ) : visibleDocuments.map((document) => (
             <DataTable.Row key={document.id}>
               <DataTableColumnCells columns={columns} order={preferences.order} row={document} />

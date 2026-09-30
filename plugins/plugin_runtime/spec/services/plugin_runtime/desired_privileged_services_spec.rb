@@ -8,8 +8,8 @@ RSpec.describe PluginRuntime::DesiredPrivilegedServices do
     end
   end
 
-  def manifest(name, enabled:, provides: {})
-    double("manifest", name: name, enabled?: enabled, provides: provides)
+  def manifest(name, enabled:, provides: {}, depends_on: [])
+    double("manifest", name: name, enabled?: enabled, provides: provides, depends_on: depends_on)
   end
 
   def with_manifests(*manifests)
@@ -36,6 +36,15 @@ RSpec.describe PluginRuntime::DesiredPrivilegedServices do
 
   it "leaves out privileged services of disabled plugins" do
     with_manifests(manifest("tailscale", enabled: false, provides: { described_class::POINT => implementer }))
+
+    expect(described_class.all).to be_empty
+  end
+
+  it "leaves out privileged services when a hard dependency is disabled" do
+    with_manifests(
+      manifest("plugin_runtime", enabled: false),
+      manifest("tailscale", enabled: true, depends_on: [ "plugin_runtime" ], provides: { described_class::POINT => implementer })
+    )
 
     expect(described_class.all).to be_empty
   end

@@ -201,9 +201,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
         </DataTable.Header>
         <DataTable.Body>
           {visibleTags.length === 0 ? (
-            <DataTable.Row>
-              <DataTable.Empty colSpan={columns.length}>{t('tags.empty')}</DataTable.Empty>
-            </DataTable.Row>
+            <DataTable.Empty colSpan={columns.length}>{t('tags.empty')}</DataTable.Empty>
           ) : visibleTags.map((tag) => (
             <TagTableRow columns={columns} key={tag.id} onNotice={onNotice} order={preferences.order} palette={palette} tag={tag} />
           ))}

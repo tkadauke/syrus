@@ -24,7 +24,7 @@ module PluginRuntime
     Entry = Data.define(:name, :plugin, :provider)
 
     def self.all
-      entries = Syrus::PluginRegistry.all_plugins.select(&:enabled?).flat_map do |manifest|
+      entries = eligible_manifests.flat_map do |manifest|
         next [] unless FIRST_PARTY_PRIVILEGED_PLUGINS.include?(manifest.name)
 
         Array(manifest.provides[POINT] || manifest.provides[POINT.to_sym]).filter_map do |ref|
@@ -32,6 +32,14 @@ module PluginRuntime
         end
       end
       deduplicate(entries)
+    end
+
+    def self.eligible_manifests
+      manifests = Syrus::PluginRegistry.all_plugins
+      enabled_names = manifests.select(&:enabled?).map(&:name).to_set
+      manifests.select do |manifest|
+        manifest.enabled? && Array(manifest.depends_on).all? { |dependency| enabled_names.include?(dependency) }
+      end
     end
 
     def self.entry_for(plugin, ref)

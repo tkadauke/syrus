@@ -14,8 +14,7 @@ class RunProcessParallelism
   end
 
   def self.effective_memory_limit_bytes
-    limits = [ cgroup_v2_memory_limit, cgroup_v1_memory_limit, proc_memory_total ].compact
-    limits.min
+    cgroup_v2_memory_limit || effective_cgroup_v1_memory_limit || proc_memory_total
   end
 
   def self.current_memory_bytes
@@ -100,6 +99,14 @@ class RunProcessParallelism
     positive_bytes(File.read("/sys/fs/cgroup/memory/memory.limit_in_bytes").strip)
   rescue Errno::ENOENT, Errno::EACCES
     nil
+  end
+
+  def self.effective_cgroup_v1_memory_limit
+    limit = cgroup_v1_memory_limit
+    physical = proc_memory_total
+    return physical if limit && physical && limit > physical
+
+    limit
   end
 
   def self.cgroup_v2_memory_working_set

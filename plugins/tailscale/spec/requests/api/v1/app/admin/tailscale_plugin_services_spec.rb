@@ -21,7 +21,7 @@ RSpec.describe "API: admin plugin services for Tailscale", type: :request do
 
   before do
     PluginRecord.find_or_create_by!(name: "plugin_runtime").update!(enabled: true)
-    PluginRecord.find_by!(name: "tailscale").update!(enabled: true)
+    PluginRecord.find_or_create_by!(name: "tailscale").update!(enabled: true)
     allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "auth_key").and_return("tskey-auth-abc123")
     allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "hostname").and_return(nil)
     allow(Syrus::PluginSettings).to receive(:get).with("tailscale", "exit_node").and_return(false)

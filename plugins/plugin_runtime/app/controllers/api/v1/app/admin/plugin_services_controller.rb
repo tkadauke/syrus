@@ -8,6 +8,8 @@ module Api
           before_action :require_plugin_runtime, except: :index
 
           def index
+            return render_plugin_runtime_disabled if !::PluginRuntime.enabled? && ::PluginRuntime::Configuration.current.managed?
+
             render json: ::PluginRuntime::AdminPayload.new.as_json
           end
 
@@ -72,6 +74,10 @@ module Api
           def require_plugin_runtime
             return if ::PluginRuntime.enabled?
 
+            render_plugin_runtime_disabled
+          end
+
+          def render_plugin_runtime_disabled
             render_error("plugin_disabled", "Plugin Runtime is disabled.", status: :not_found)
           end
         end
