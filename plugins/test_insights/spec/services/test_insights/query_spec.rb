@@ -208,6 +208,7 @@ RSpec.describe TestInsights::Query do
       create_case!(identity: identity, status: "failed", created_at: 2.minutes.ago)
       create_case!(identity: identity, status: "passed", created_at: 1.minute.ago)
     end
+    allow(TestInsights::TestCase).to receive(:scored_created_index_hint).and_return(" /* scored-created-index */")
 
     test_case_selects = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
@@ -232,6 +233,7 @@ RSpec.describe TestInsights::Query do
     # way, so a global count silently turns into a tripwire for code that has
     # nothing to do with this query's batching.
     expect(test_case_selects.count { |sql| sql.include?("syrus_recent_rank") }).to eq(1)
+    expect(test_case_selects.join("\n")).to include("scored-created-index")
     latest_case_selects = test_case_selects.reject { |sql| sql.include?("syrus_recent_rank") }
     expect(latest_case_selects.count { |sql| sql.include?("UNION ALL") && sql.include?("ORDER BY") && sql.include?("LIMIT") }).to eq(1)
     expect(latest_case_selects).not_to include(match(/ROW_NUMBER\(\) OVER/i))

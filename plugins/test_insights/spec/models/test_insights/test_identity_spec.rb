@@ -88,6 +88,8 @@ RSpec.describe TestInsights::TestIdentity do
         create_test_case!(identity, status: "failed", created_at: (10 - index).minutes.ago)
         create_test_case!(identity, status: "passed", created_at: (5 - index).minutes.ago)
       end
+      allow(TestInsights::TestCase).to receive(:scored_created_index_hint).and_return(" /* scored-created-index */")
+      allow(TestInsights::TestCase).to receive(:scored_status_created_index_hint).and_return(" /* scored-status-created-index */")
 
       test_case_selects = []
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
@@ -100,6 +102,8 @@ RSpec.describe TestInsights::TestIdentity do
       ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
       expect(test_case_selects.size).to be <= 3
+      expect(test_case_selects.join("\n")).to include("scored-created-index")
+      expect(test_case_selects.join("\n")).to include("scored-status-created-index")
       expect(identities.first.reload).to have_attributes(
         last_status: "passed",
         last_duration_ms: 123
