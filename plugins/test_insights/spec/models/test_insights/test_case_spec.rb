@@ -484,6 +484,25 @@ RSpec.describe TestInsights::TestCase do
       expect(data[:total_count]).to eq(2)
     end
 
+    it "builds identity-backed batch history through the scored-created index hint seam" do
+      old_case = create_case(name: "hinted", suite_name: "S", status: "passed")
+      identity = TestInsights::TestIdentity.ensure_for_cases!(repository: repo, cases: [ old_case ]).values.first
+      TestInsights::TestCase.where(name: "hinted", suite_name: "S").update_all(test_identity_id: identity.id)
+      allow(described_class).to receive(:scored_created_index_hint).and_return(" /* scored-created-index */")
+
+      selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        selects << sql if sql.include?("syrus_flakiness_rank")
+      end
+
+      described_class.batch_flakiness(repo, [ build_case(name: "hinted", suite_name: "S", test_identity_id: identity.id) ])
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+      expect(selects.join("\n")).to include("scored-created-index")
+    end
+
     it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do
       # Same collision as history_scope_for's regression spec above, but through the
       # batch path: an unlinked test case (`tc`, no test_identity_id) must not pull in
