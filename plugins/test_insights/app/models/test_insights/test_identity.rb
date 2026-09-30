@@ -167,6 +167,7 @@ module TestInsights
       ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
         maxima = PerformanceLogging.phase("test_insights.latest_status_times", identity_count: slice.size) do
           TestCase
+            .from("#{TestCase.quoted_table_name}#{TestCase.scored_status_created_index_hint}")
             .where(test_identity_id: slice, status: %w[failed error passed])
             .scored
             .group(:test_identity_id, :status)

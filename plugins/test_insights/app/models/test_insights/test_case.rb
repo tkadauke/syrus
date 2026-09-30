@@ -6,6 +6,8 @@ module TestInsights
     FLAKINESS_LOOKBACK = 20
     CLASSIFICATION_SCORED = "scored".freeze
     CLASSIFICATION_WIP_REPAIR_FAILURE = "wip_repair_failure".freeze
+    SCORED_CREATED_INDEX = "idx_test_cases_identity_scored_created_id".freeze
+    SCORED_STATUS_CREATED_INDEX = "idx_test_cases_identity_scored_status_created".freeze
 
     # test_insight_cases.name/suite_name/file_path and their test_insight_identities
     # counterparts are plain `t.string` columns (MySQL VARCHAR(255)). RSpec's full
@@ -199,7 +201,8 @@ module TestInsights
       return {} if cases_by_identity_id.empty?
 
       recent = PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
-        ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
+        ranked_cases = from("#{quoted_table_name}#{scored_created_index_hint}")
+          .where(test_identity_id: cases_by_identity_id.keys)
           .scored
           .select(
             "test_insight_cases.test_identity_id",
@@ -226,6 +229,20 @@ module TestInsights
       end
 
       result
+    end
+
+    def self.scored_created_index_hint
+      mysql_index_hint(SCORED_CREATED_INDEX)
+    end
+
+    def self.scored_status_created_index_hint
+      mysql_index_hint(SCORED_STATUS_CREATED_INDEX)
+    end
+
+    def self.mysql_index_hint(index_name)
+      return "" unless connection.adapter_name.match?(/mysql/i)
+
+      " FORCE INDEX (#{index_name})"
     end
 
     def self.flakiness_for_history(history)
