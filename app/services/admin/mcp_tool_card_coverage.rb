@@ -20,7 +20,6 @@ module Admin
       "assign_job_to_epic" => "generic",
       "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
-      "force_rebase" => "generic",
       "get_spending" => "deferred",
       "get_walkthrough_analysis" => "deferred",
       "manual_agentic_run" => "generic",

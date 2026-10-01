@@ -60,7 +60,7 @@ export function ToolFailureSummaryCard({ context, config }: { context: ToolCardC
 
       <dl className="grid gap-2 sm:grid-cols-2">
         <Row label="Attempted" value={config.attempted(context)} />
-        <Row label="Recovery" value={config.recovery} />
+        <WrappingDetail label="Recovery" value={config.recovery} />
         {errorClass ? <Row label="Error class" value={errorClass} /> : null}
       </dl>
 
@@ -81,6 +81,17 @@ export function ToolFailureSummaryCard({ context, config }: { context: ToolCardC
         }, null, 2)}</pre>
       </Disclosure>
     </CardShell>
+  )
+}
+
+function WrappingDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="break-words text-xs text-text-secondary" title={value}>
+        {value}
+      </div>
+    </div>
   )
 }
 
