@@ -4,25 +4,28 @@ module CognitiveReview
 
     def self.review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
       notes = notes_for(job: job, version: version, base_sha: base_sha, head_sha: head_sha)
-      return {} if notes.empty?
+      return {} if notes.empty? && version.blank?
 
+      rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes)
       open_notes = notes.select(&:open?)
-      return { ranges: {}, panels: [], counts: [ open_count(open_notes) ] } if open_notes.empty?
-
       {
-        ranges: ranges_for(open_notes),
-        panels: panels_for(open_notes),
-        counts: [ open_count(open_notes) ]
+        ranges: open_notes.empty? ? {} : ranges_for(open_notes),
+        panels: panels_for(open_notes, rollup),
+        counts: counts_for(rollup)
       }
     end
 
-    def self.open_count(notes)
-      {
-        id: "cognitive_review.open",
-        label: "Cognitive review",
-        value: notes.size,
-        tone: "warning"
-      }
+    def self.counts_for(rollup)
+      [
+        count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
+        count_payload("cognitive_review.open", "Open debt", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
+        count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
+        count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
+      ]
+    end
+
+    def self.count_payload(id, label, value, tone)
+      { id: id, label: label, value: value, tone: tone }
     end
 
     def self.notes_for(job:, version:, base_sha:, head_sha:)
@@ -65,20 +68,27 @@ module CognitiveReview
       end
     end
 
-    def self.panels_for(notes)
+    def self.panels_for(notes, rollup)
       [
         {
           id: "cognitive_review.summary",
           component: "cognitive_review/note_panel",
-          title: "Cognitive review",
-          body: "#{notes.size} note#{'s' unless notes.one?} flagged for operator attention.",
-          tone: "warning",
+          title: "Cognitive review debt",
+          body: panel_body(rollup),
+          tone: rollup.open_unhandled_count.positive? ? "warning" : "success",
           props: {
             notes: notes.map { |note| note_props(note) },
+            rollup: rollup.as_json,
             total: notes.size
           }
         }
       ]
+    end
+
+    def self.panel_body(rollup)
+      return "No PR-level cognitive review debt was flagged for this diff version." if rollup.zero_note_state?
+
+      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} handled, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
     end
 
     def self.note_props(note)

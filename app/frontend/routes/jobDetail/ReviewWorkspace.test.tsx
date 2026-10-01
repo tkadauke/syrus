@@ -206,6 +206,15 @@ describe("ReviewWorkspace", () => {
               component: "cognitive_review/note_panel",
               props: {
                 total: 1,
+                rollup: {
+                  total_flagged_ranges: 1,
+                  open_unhandled_count: 1,
+                  acknowledged_count: 0,
+                  discussed_count: 0,
+                  dismissed_count: 0,
+                  handled_count: 0,
+                  zero_note_state: false
+                },
                 notes: [
                   {
                     note_id: 7,
@@ -225,7 +234,12 @@ describe("ReviewWorkspace", () => {
             }
           ],
           actions: [],
-          counts: [{ id: "cognitive_review.open", label: "Cognitive review", value: 1, tone: "warning" }]
+          counts: [
+            { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
+            { id: "cognitive_review.open", label: "Open debt", value: 1, tone: "warning" },
+            { id: "cognitive_review.handled", label: "Handled", value: 0, tone: "success" },
+            { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
+          ]
         }
       })
     )
@@ -234,6 +248,10 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     expect(await screen.findByText("Cognitive review")).toBeInTheDocument()
+    expect(screen.getByText("Open debt: 1")).toBeInTheDocument()
+    expect(screen.getByText("1 open, 0 handled (0 acknowledged, 0 discussed), 0 dismissed.")).toBeInTheDocument()
+    expect(screen.getByText("Flagged")).toBeInTheDocument()
+    expect(screen.getByText("Handled")).toBeInTheDocument()
     expect(await screen.findByText("Agent note")).toBeInTheDocument()
     expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')

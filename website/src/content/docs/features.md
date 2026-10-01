@@ -279,6 +279,21 @@ rounds run, restrict visual review to specific changed files, and record seed
 notes (demo login, a record to look for) so the reviewer can reach an
 authenticated or populated view of the app instead of a blank one.
 
+## Cognitive Review
+
+The bundled `cognitive_review` plugin is disabled by default. When enabled,
+Syrus runs a best-effort agentic pass after implementation-style workflows and
+asks it to flag changed diff ranges that deserve operator attention. Open
+notes appear in the Job review tab as warning-tinted ranges and plugin-owned
+side-panel cards.
+
+The review tab also shows a PR-level cognitive review debt rollup for the
+selected diff version: total flagged ranges, open/unhandled notes, handled
+notes, dismissed notes, and a zero-note state when the reviewer submitted no
+ranges. Acknowledged or discussed notes count as handled. Unflagged changed
+lines are treated as having no PR-level cognitive review debt; repository-wide
+cognitive coverage or historical attention-debt metrics are separate concerns.
+
 ## Deploy
 
 Repositories can configure a shell command Syrus runs to actually deploy the
@@ -1269,6 +1284,9 @@ disableability, category, extension point classes, and basic author/source
 metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
+Disabled bundled plugins with their own operator docs, such as Cognitive
+Review, withhold their routes and extension-point providers while retaining
+previously written plugin records for when they are re-enabled.
 The list uses the same chip-based filter bar as other admin list pages: a
 Category chip filters by the plugin category taxonomy (language, agent
 provider, input source, MCP tool set, and the rest), and a Search chip
