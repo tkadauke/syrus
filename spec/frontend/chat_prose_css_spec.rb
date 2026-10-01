@@ -19,13 +19,28 @@ RSpec.describe "chat prose CSS" do
 
   it "lets markdown tables fill prose width before horizontal scrolling" do
     table_rule = css[/\.chat-prose table \{[^}]+\}/]
+    balanced_rule = css[/\.chat-prose \.chat-prose-table--balanced \{[^}]+\}/]
+    wide_rule = css[/\.chat-prose \.chat-prose-table--wide \{[^}]+\}/]
     wrapper_rule = css[/\.chat-prose-table-wrap \{[^}]+\}/]
 
     expect(table_rule).to include("width: 100%")
     expect(table_rule).to include("max-width: 100%")
     expect(table_rule).not_to include("width: max-content")
+    expect(balanced_rule).to include("table-layout: fixed")
+    expect(wide_rule).to include("width: max-content")
+    expect(wide_rule).to include("min-width: 100%")
     expect(wrapper_rule).to include("min-width: 0")
     expect(wrapper_rule).to include("overflow-x: auto")
+  end
+
+  it "does not force balanced markdown table cells to viewport-relative minimum widths" do
+    cell_rule = css[/\.chat-prose th, \.chat-prose td \{[^}]+\}/]
+    wide_cell_rule = css[/\.chat-prose \.chat-prose-table--wide th,\n\.chat-prose \.chat-prose-table--wide td \{[^}]+\}/]
+
+    expect(cell_rule).not_to include("min-width")
+    expect(css).not_to include(".chat-prose th:first-child")
+    expect(css).not_to include(".chat-prose td:first-child")
+    expect(wide_cell_rule).to include("min-width: min(8rem, 40vw)")
   end
 
   it "keeps wide markdown blocks from expanding the viewport" do

@@ -387,17 +387,30 @@
   max-width: 100%;
   font-size: 0.85em;
 }
+.chat-prose .chat-prose-table--balanced {
+  table-layout: fixed;
+}
+.chat-prose .chat-prose-table--wide {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+}
+.chat-prose .chat-prose-table__col {
+  width: var(--chat-table-column-width);
+}
 .chat-prose th, .chat-prose td {
   border: 1px solid #d1d5db;
   padding: 0.375rem 0.6rem;
   text-align: left;
   vertical-align: top;
-  min-width: min(8rem, 40vw);
   max-width: 42rem;
   overflow-wrap: break-word;
   word-break: normal;
 }
-.chat-prose th:first-child, .chat-prose td:first-child { min-width: min(10rem, 42vw); }
+.chat-prose .chat-prose-table--wide th,
+.chat-prose .chat-prose-table--wide td {
+  min-width: min(8rem, 40vw);
+}
 .chat-prose-table-wrap {
   min-width: 0;
   width: 100%;
