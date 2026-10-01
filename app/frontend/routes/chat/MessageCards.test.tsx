@@ -1073,7 +1073,7 @@ describe("tool result rendering", () => {
           display_label: "Read job",
           progress_label: "Reading",
           raw_payload: { job_id: 4048 },
-          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, branch_name: "syrus/direct-148" } }),
+          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, repository_slug: "tkadauke/syrus", branch_name: "syrus/direct-148" } }),
           result_error: false,
           result_kind: "record",
           result_summary: "1 Job"
@@ -1097,7 +1097,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "PR #12" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/12")
     expect(screen.getByText("syrus/direct-148")).toBeInTheDocument()
     expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
   })
