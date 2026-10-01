@@ -425,6 +425,8 @@ describe("JobDetailView", () => {
       },
       job: {
         ...baseJob(),
+        state: "queued",
+        summary_state: "queued",
         pr_checks: {
           state: "failing",
           sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
@@ -1216,6 +1218,7 @@ describe("JobDetailView", () => {
 
     renderJobDetail(
       jobPayload({
+        job: { ...baseJob(), state: "queued", summary_state: "queued" },
         dependencies: [parsedDependency, manualDependency],
         unsatisfied_dependencies: [parsedDependency, manualDependency]
       })
@@ -1297,7 +1300,7 @@ describe("JobDetailView", () => {
 
     renderJobDetail(
       jobPayload({
-        job: { ...baseJob(), epic_id: 18 },
+        job: { ...baseJob(), state: "queued", summary_state: "queued", epic_id: 18 },
         epic: {
           id: 18,
           number: 18,
@@ -1314,6 +1317,80 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Blocked on:")).toBeInTheDocument()
     expect(screen.getByText(/waiting on the Epic's dependency order/)).toBeInTheDocument()
     expect(screen.queryByText(/once that PR merges/)).not.toBeInTheDocument()
+  })
+
+  it("hides same-epic dependency blockers while the job is actively implementing", () => {
+    const dependency = {
+      id: 12,
+      source: "parsed",
+      manual: false,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 5762,
+        kind: "issue",
+        state: "implemented",
+        summary_state: "implemented",
+        epic_id: 18,
+        repository_slug: "tkadauke/syrus",
+        issue_number: 5762,
+        issue_title: "Add overview briefing base",
+        branch_name: "syrus/issue-5762",
+        pr_number: 5762,
+        job_path: "/jobs/5762"
+      }
+    }
+
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "running", summary_state: "running", epic_id: 18 },
+        dependencies: [dependency],
+        unsatisfied_dependencies: [dependency]
+      })
+    )
+
+    expect(screen.queryByText("Blocked on:")).not.toBeInTheDocument()
+    expect(screen.queryByText(/waiting on the Epic's dependency order/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Override and force-run" })).not.toBeInTheDocument()
+  })
+
+  it("hides same-epic dependency blockers once the job is implemented", () => {
+    const dependency = {
+      id: 12,
+      source: "parsed",
+      manual: false,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 5762,
+        kind: "issue",
+        state: "implemented",
+        summary_state: "implemented",
+        epic_id: 18,
+        repository_slug: "tkadauke/syrus",
+        issue_number: 5762,
+        issue_title: "Add overview briefing base",
+        branch_name: "syrus/issue-5762",
+        pr_number: 5762,
+        job_path: "/jobs/5762"
+      }
+    }
+
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented", epic_id: 18 },
+        dependencies: [dependency],
+        unsatisfied_dependencies: [dependency]
+      })
+    )
+
+    expect(screen.queryByText("Blocked on:")).not.toBeInTheDocument()
+    expect(screen.queryByText(/waiting on the Epic's dependency order/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Override and force-run" })).not.toBeInTheDocument()
   })
 
   it("renders epic dependency rows with a link to the epic and a remove button", () => {
@@ -1339,6 +1416,7 @@ describe("JobDetailView", () => {
 
     renderJobDetail(
       jobPayload({
+        job: { ...baseJob(), state: "queued", summary_state: "queued" },
         dependencies: [epicDependency],
         unsatisfied_dependencies: [epicDependency],
         epic_dependency_target_options: []
