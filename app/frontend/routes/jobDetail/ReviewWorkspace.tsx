@@ -137,6 +137,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         files: historicalVersion.data.files,
         truncated: historicalVersion.data.truncated,
         diff_error: historicalVersion.data.diff_error,
+        review_annotations: historicalVersion.data.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS,
         version: historicalVersion.data
       }
     }
