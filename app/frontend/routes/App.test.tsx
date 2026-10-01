@@ -12811,46 +12811,22 @@ describe("App", () => {
     }
   })
 
-  it("lets the new-chat form clear the default repository before creating a chat", async () => {
+  it("keeps repository selection out of the sidebar new-chat launcher", async () => {
     const startChat = vi.fn()
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify({
-          default_repository_id: 3,
-          repositories: [
-            { id: 3, slug: "acme/widgets" },
-            { id: 4, slug: "acme/roads" }
-          ],
-          effective_chat_provider: "claude",
-          effective_chat_provider_label: "Claude",
-          chat_provider_options: [{ value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" }]
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
 
-      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NewChatLauncher collapsed={false} disabled={false} onStartChat={startChat} />
+      </QueryClientProvider>
+    )
 
-    try {
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <NewChatLauncher collapsed={false} disabled={false} onStartChat={startChat} />
-        </QueryClientProvider>
-      )
+    expect(screen.queryByRole("combobox", { name: "Repository for new chat" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
 
-      const repositorySelect = await screen.findByRole("combobox", { name: "Repository for new chat" }) as HTMLSelectElement
-      await waitFor(() => expect(repositorySelect.value).toBe("3"))
-      expect(within(repositorySelect).getByRole("option", { name: "acme/widgets" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
 
-      fireEvent.click(screen.getByRole("button", { name: "Remove repository from new chat" }))
-      expect(repositorySelect.value).toBe("none")
-
-      fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-
-      expect(startChat).toHaveBeenCalledWith(null)
-    } finally {
-      fetchSpy.mockRestore()
-    }
+    expect(startChat).toHaveBeenCalledTimes(1)
+    expect(startChat).toHaveBeenCalledWith()
   })
 
   it("confirms clear before deleting chat history", async () => {
