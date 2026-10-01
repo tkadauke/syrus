@@ -1145,7 +1145,7 @@ describe("JobDetailView", () => {
     mockReviewWorkspaceRequests()
     renderJobDetail(jobPayload(), { activeTab: "review" })
 
-    const sidebarHeading = await screen.findByText("Diff comments")
+    const sidebarHeading = await screen.findByText("Review conversation")
     const sidebarSection = sidebarHeading.closest("section") as HTMLElement
     expect(sidebarSection).toBeInTheDocument()
 
