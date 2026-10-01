@@ -33,6 +33,14 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("settings", "signups_open")).to be true
+    expect(body.dig("settings", "metadata").map { |definition| definition["key"] }).to include(
+      "adversarial_review_rounds",
+      "main_branch_breakage_policy",
+      "merge_train_max_size",
+      "report_issue_repo_slug",
+      "chat_coding_workspace_budget_mb",
+      "telegram_bot_handle"
+    )
     secrets = body.dig("settings", "clearable_secrets")
     telegram = secrets.find { |s| s["key"] == "telegram_bot_token" }
     expect(telegram).to include("key" => "telegram_bot_token", "label" => "Telegram bot token", "set" => false)
@@ -52,6 +60,14 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
         "category" => "Instance operations",
         "min" => 0,
         "zero_means" => a_string_including("No per-user USD spend budget")
+      ),
+      include(
+        "key" => "main_branch_breakage_policy",
+        "type" => "string",
+        "default" => "strict",
+        "category" => "Workflow behavior",
+        "admin_editable" => true,
+        "options" => AppSetting::MAIN_BRANCH_BREAKAGE_POLICIES
       )
     )
   end
@@ -89,6 +105,75 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.signups_open).to be true
     expect(parse_body["message"]).to eq("Settings updated.")
+  end
+
+  it "exposes and updates operator-facing workflow and landing policy settings" do
+    sign_in_as(admin)
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: {
+        grade_max_iterations: 4,
+        adversarial_review_rounds: 2,
+        max_job_failures: 6,
+        rebase_failure_cooldown_minutes: 15,
+        main_branch_breakage_policy: "isolate_unrelated_failures",
+        merge_train_max_size: 12,
+        main_concern_report_threshold: 3,
+        report_issue_repo_slug: "acme/syrus",
+        chat_coding_workspace_budget_mb: 4096,
+        telegram_bot_handle: "acme_syrus_bot"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    setting = AppSetting.current.reload
+    expect(setting.grade_max_iterations).to eq(4)
+    expect(setting.adversarial_review_rounds).to eq(2)
+    expect(setting.max_job_failures).to eq(6)
+    expect(setting.rebase_failure_cooldown_minutes).to eq(15)
+    expect(setting.main_branch_breakage_policy).to eq("isolate_unrelated_failures")
+    expect(setting.merge_train_max_size).to eq(12)
+    expect(setting.main_concern_report_threshold).to eq(3)
+    expect(setting.report_issue_repo_slug).to eq("acme/syrus")
+    expect(setting.chat_coding_workspace_budget_mb).to eq(4096)
+    expect(setting.telegram_bot_handle).to eq("acme_syrus_bot")
+    expect(parse_body.dig("settings", "main_branch_breakage_policy")).to eq("isolate_unrelated_failures")
+  end
+
+  it "rejects invalid enum-valued operator settings without persisting free text" do
+    sign_in_as(admin)
+    AppSetting.current.update!(main_branch_breakage_policy: "strict", workflow_admission_policy: "whole_workflow")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: {
+        main_branch_breakage_policy: "whatever",
+        workflow_admission_policy: "also_whatever"
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    setting = AppSetting.current.reload
+    expect(setting.main_branch_breakage_policy).to eq("strict")
+    expect(setting.workflow_admission_policy).to eq("whole_workflow")
+  end
+
+  it "rejects zero for hard-cap policy settings instead of storing a misleading disabled value" do
+    sign_in_as(admin)
+    AppSetting.current.update!(max_job_failures: 3, merge_train_max_size: 20)
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: {
+        max_job_failures: 0,
+        merge_train_max_size: 0
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    setting = AppSetting.current.reload
+    expect(setting.max_job_failures).to eq(3)
+    expect(setting.merge_train_max_size).to eq(20)
   end
 
   it "exposes and updates the walkthrough-video storage settings" do
@@ -179,6 +264,34 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.rebase_failure_cooldown_minutes).to eq(15)
+  end
+
+  it "exposes and updates the main-branch breakage policy" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/settings"
+    expect(parse_body.dig("settings", "main_branch_breakage_policy")).to eq("strict")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { main_branch_breakage_policy: "isolate_unrelated_failures" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.main_branch_breakage_policy).to eq("isolate_unrelated_failures")
+    expect(parse_body.dig("settings", "main_branch_breakage_policy")).to eq("isolate_unrelated_failures")
+  end
+
+  it "rejects an invalid main-branch breakage policy without persisting it" do
+    sign_in_as(admin)
+    AppSetting.current.update!(main_branch_breakage_policy: "strict")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { main_branch_breakage_policy: "land_everything" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(AppSetting.current.reload.main_branch_breakage_policy).to eq("strict")
   end
 
   it "exposes, audits, and wakes work when workflow admission control changes" do

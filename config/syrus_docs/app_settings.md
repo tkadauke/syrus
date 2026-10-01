@@ -4,6 +4,11 @@
 
 Typed metadata for these fields lives in `AppSettingRegistry`. Defaults, validation ranges, categories, operational meaning, and special `0` semantics should be changed there first so model validations, admin API metadata, and this reference stay aligned.
 
+Reachability and scope decisions are recorded in
+[`app_setting_scope_audit.md`](app_setting_scope_audit.md). Use that audit when
+deciding whether a new setting belongs in `AppSetting`, on `Repository`, or as
+an instance-wide default with a future per-repository override.
+
 ## Workflow behavior
 
 ### grade_max_iterations
@@ -24,7 +29,7 @@ flag controlling it — only a repository's `.syrus.yml` can override it — see
 
 ### max_job_failures
 
-**Type:** integer · **Default:** 3
+**Type:** integer · **Default:** 3 · **Min:** 1
 
 Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used as the retry budget ceiling for Job auto-close after repeated failures.
 
@@ -33,6 +38,29 @@ Consecutive failure threshold. When a ScheduledTask accumulates this many consec
 **Type:** integer · **Default:** 2 · **Min:** 1
 
 Minimum number of repeated broken-main reports before the aggregator surfaces a main-branch concern.
+
+### main_branch_breakage_policy
+
+**Type:** string (`strict` or `isolate_unrelated_failures`) · **Default:** `strict`
+
+Controls whether a broken default branch pauses unrelated landing across the
+instance. `strict` is the default: when main-branch health transitions to
+`broken`, Syrus sets `repository.landing_paused` and landing-queue candidates
+for that repository wait behind `landing_paused_main_broken`.
+
+`isolate_unrelated_failures` keeps unrelated work moving while main is broken.
+It also lets `grader_collect` pass required-grader failures that are proven to
+be inherited from broken main. It does not change how main health is derived:
+`Repository#main_health` is `broken` when either `ci_health` or
+`grader_health` is broken, so one never-passing CI check is enough to put main
+in the broken state.
+
+Changing this policy does not clear an existing repository pause. The pause is
+set and cleared by `MainHealthChangedService` on health transitions; if an
+operator switches from `strict` to `isolate_unrelated_failures` after landing
+is already paused, use the repository health page's **Resume landing** action
+(`repositories#resume_landing`) to clear `repository.landing_paused` and wake
+the landing queue.
 
 ## Landing queue
 
@@ -44,7 +72,7 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 
 ### merge_train_max_size
 
-**Type:** integer · **Default:** 20
+**Type:** integer · **Default:** 20 · **Min:** 1
 
 Maximum number of PRs that can participate in a single merge train. `merge_train_assemble` rejects the train if the member count exceeds this limit.
 

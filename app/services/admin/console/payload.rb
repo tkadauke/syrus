@@ -80,6 +80,9 @@ module Admin
       def update_flag!(attrs)
         action = attrs.delete(:action)
         source = attrs.delete(:source)
+        undeclared = attrs.keys - AppSettingRegistry.admin_console_keys
+        raise ArgumentError, "Setting is not declared for the admin console: #{undeclared.join(", ")}" if undeclared.any?
+
         AppSetting.current.update!(attrs)
         AdminAction.log!(user: actor, action: action, params: { source: source })
         show.merge(ok: true)
@@ -87,14 +90,7 @@ module Admin
 
       def settings_payload
         settings = AppSetting.current
-        {
-          polling_paused: settings.polling_paused,
-          runs_paused: settings.runs_paused,
-          signups_open: settings.signups_open,
-          max_job_failures: settings.max_job_failures,
-          grade_max_iterations: settings.grade_max_iterations,
-          merge_train_enabled: settings.merge_train_enabled
-        }
+        AppSettingRegistry.admin_console_keys.index_with { |key| settings.public_send(key) }
       end
 
       def users_payload

@@ -4,9 +4,6 @@ import { reapStaleRuns } from "./adminQueue"
 export type ConsoleSettings = {
   polling_paused: boolean
   runs_paused: boolean
-  signups_open: boolean
-  max_job_failures: number
-  grade_max_iterations: number
   merge_train_enabled: boolean
 }
 
