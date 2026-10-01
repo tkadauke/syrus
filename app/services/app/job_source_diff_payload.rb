@@ -46,7 +46,8 @@ module App
           truncated: truncated,
           diff_error: nil,
           version: version_json(version),
-          versions: diff_versions_json
+          versions: diff_versions_json,
+          review_annotations: review_annotations_json(version: version, base_sha: base, head_sha: head, files: files)
         )
     rescue => e
       if @job.branch_name.present? && !explicit_selection?
@@ -55,7 +56,7 @@ module App
       end
 
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json)
+        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json, review_annotations: empty_review_annotations_json)
     end
 
     private
@@ -131,12 +132,14 @@ module App
 
     def fixture_payload
       fixture = preview_fixture.deep_symbolize_keys
+      base_sha = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
+      head_sha = fixture[:head_sha].presence || fixture[:head_ref]
       version = fixture_diff_review_version(fixture)
       base_payload(
         base_ref: fixture[:base_ref],
         head_ref: fixture[:head_ref],
-        base_sha: fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref],
-        head_sha: fixture[:head_sha].presence || fixture[:head_ref],
+        base_sha: base_sha,
+        head_sha: head_sha,
         branch_commits: fixture.fetch(:branch_commits, []),
         merge_base_sha: fixture[:merge_base_sha]
       ).merge(
@@ -144,7 +147,8 @@ module App
         truncated: false,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json
+        versions: diff_versions_json,
+        review_annotations: review_annotations_json(version: version, base_sha: base_sha, head_sha: head_sha, files: Array(fixture[:files]))
       )
     end
 
@@ -155,7 +159,8 @@ module App
           truncated: false,
           diff_error: "GitHub token not configured. Add one in Settings to browse source.",
           version: nil,
-          versions: diff_versions_json
+          versions: diff_versions_json,
+          review_annotations: empty_review_annotations_json
         )
     end
 
@@ -175,7 +180,8 @@ module App
         truncated: version.truncated,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json
+        versions: diff_versions_json,
+        review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot))
       )
     end
 
@@ -187,7 +193,8 @@ module App
           truncated: false,
           diff_error: nil,
           version: nil,
-          versions: diff_versions_json
+          versions: diff_versions_json,
+          review_annotations: empty_review_annotations_json
         )
     end
 
@@ -412,6 +419,21 @@ module App
 
     def comments_count_by_version
       @comments_count_by_version ||= @job.diff_review_comments.group(:diff_review_version_id).count
+    end
+
+    def review_annotations_json(version:, base_sha:, head_sha:, files:)
+      App::DiffReviewAnnotationsPayload.build(
+        job: @job,
+        user: @user,
+        version: version,
+        base_sha: base_sha,
+        head_sha: head_sha,
+        files: files.map { |file| file.respond_to?(:with_indifferent_access) ? file.with_indifferent_access : file }
+      )
+    end
+
+    def empty_review_annotations_json
+      App::DiffReviewAnnotationsPayload::EMPTY_PAYLOAD.deep_dup
     end
   end
 end
