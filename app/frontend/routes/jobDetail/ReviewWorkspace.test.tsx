@@ -95,7 +95,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
 
     const composer = screen.getByTestId("diff-review-composer")
-    const sidebar = screen.getByText("Diff comments").closest("section") as HTMLElement
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     expect(sidebar.contains(composer)).toBe(false)
     expect(within(composer).getByLabelText("Comment")).toBeInTheDocument()
 
@@ -150,7 +150,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    expect(await screen.findByText("Review notes")).toBeInTheDocument()
+    expect(await screen.findByText("Review conversation")).toBeInTheDocument()
     expect(screen.getByText("Open: 1")).toBeInTheDocument()
     expect(screen.getByText("Review note detail")).toBeInTheDocument()
     expect(screen.getByText("Provider supplied note copy.")).toBeInTheDocument()
@@ -202,9 +202,10 @@ describe("ReviewWorkspace", () => {
           },
           panels: [
             {
-              id: "cognitive_review.summary",
+              id: "cognitive_review.note.7",
               component: "cognitive_review/note_panel",
               props: {
+                hide_header: true,
                 total: 1,
                 notes: [
                   {
@@ -233,7 +234,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    expect(await screen.findByText("Review Notes")).toBeInTheDocument()
+    expect(await screen.findByText("Review Notes: 1")).toBeInTheDocument()
     expect(await screen.findByText("Agent note")).toBeInTheDocument()
     expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
@@ -688,7 +689,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    const sidebarSection = await screen.findByText("Diff comments")
+    const sidebarSection = await screen.findByText("Review conversation")
     const stickyWrapper = sidebarSection.closest("section")?.parentElement
     expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
   })
@@ -699,8 +700,8 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
-    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+    await screen.findByText("Review conversation")
+    const separator = screen.getByRole("separator", { name: "Resize review conversation" })
     expect(separator).toHaveAttribute("aria-valuenow", "384")
     expect(separator).toHaveClass("h-screen", "lg:sticky", "lg:top-0")
     expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "384px" })
@@ -713,8 +714,8 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
-    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+    await screen.findByText("Review conversation")
+    const separator = screen.getByRole("separator", { name: "Resize review conversation" })
 
     fireEvent.click(separator)
 
@@ -736,9 +737,9 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
+    await screen.findByText("Review conversation")
     expect(screen.getByTestId("review-comments-panel")).toHaveStyle({ width: "512px" })
-    expect(screen.getByRole("separator", { name: "Resize diff comments" })).toHaveAttribute("aria-valuenow", "512")
+    expect(screen.getByRole("separator", { name: "Resize review conversation" })).toHaveAttribute("aria-valuenow", "512")
   })
 
   it("resizes from the splitter and snaps the comments panel collapsed below the threshold", async () => {
@@ -747,8 +748,8 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
-    const separator = screen.getByRole("separator", { name: "Resize diff comments" })
+    await screen.findByText("Review conversation")
+    const separator = screen.getByRole("separator", { name: "Resize review conversation" })
 
     fireEvent.mouseDown(separator, { clientX: 1000 })
     fireEvent.mouseMove(window, { clientX: 900 })
@@ -799,9 +800,9 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
+    await screen.findByText("Review conversation")
     vi.useFakeTimers()
-    fireEvent.click(screen.getByRole("separator", { name: "Resize diff comments" }))
+    fireEvent.click(screen.getByRole("separator", { name: "Resize review conversation" }))
 
     const rail = screen.getByTestId("review-comments-rail")
     expect(within(rail).getByText("v1")).toBeInTheDocument()
@@ -828,7 +829,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    const sidebarSection = await screen.findByText("Diff comments")
+    const sidebarSection = await screen.findByText("Review conversation")
     const stickyWrapper = sidebarSection.closest("section")?.parentElement
     expect(stickyWrapper).toHaveClass("min-w-0")
   })
@@ -889,11 +890,67 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Looks great overall.")
-    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    const sidebar = within(screen.getByText("Review conversation").closest("section") as HTMLElement)
     expect(sidebar.getAllByText("Please add a regression spec.").length).toBeGreaterThan(0)
     expect(sidebar.getByText("Looks great overall.")).toBeInTheDocument()
     expect(sidebar.getByText("Whole-review comment")).toBeInTheDocument()
     expect(sidebar.getByRole("button", { name: "Edit" })).toBeInTheDocument()
+  })
+
+  it("mixes review notes and comments in one version group ordered by diff position", async () => {
+    const lineComment = comment({ id: 1, new_line: 2, anchor_key: "right::2", body: "Human comment after the first note." })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {
+            "app/models/user.rb": [
+              {
+                id: "cognitive_review_note:7",
+                component: "cognitive_review/note_marker",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "First review note",
+                body: "Agent-authored note before the comment."
+              }
+            ],
+            "app/models/run.rb": [
+              {
+                id: "cognitive_review_note:8",
+                component: "cognitive_review/note_marker",
+                path: "app/models/run.rb",
+                side: "new",
+                start_line: 5,
+                end_line: 5,
+                title: "Second review note",
+                body: "Agent-authored note in the next file."
+              }
+            ]
+          },
+          panels: [
+            reviewNotePanel({ noteId: 7, title: "First review note", explanation: "Agent-authored note before the comment.", path: "app/models/user.rb", startLine: 1 }),
+            reviewNotePanel({ noteId: 8, title: "Second review note", explanation: "Agent-authored note in the next file.", path: "app/models/run.rb", startLine: 5 })
+          ],
+          actions: [],
+          counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 2, tone: "warning" }]
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([lineComment]))
+
+    renderWorkspace()
+
+    await screen.findByText("First review note")
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const sidebarText = sidebar.textContent || ""
+
+    expect(within(sidebar).getByText("Review Notes: 2")).toBeInTheDocument()
+    expect(sidebarText.indexOf("First review note")).toBeLessThan(sidebarText.indexOf("Human comment after the first note."))
+    expect(sidebarText.indexOf("Human comment after the first note.")).toBeLessThan(sidebarText.indexOf("Second review note"))
+    expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:8"]')).toBeInTheDocument()
   })
 
   it("shows code-anchored comments in the sidebar without a sidebar edit affordance, and edits them inline in the diff", async () => {
@@ -904,7 +961,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findAllByText("Please add a regression spec.")
-    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    const sidebar = within(screen.getByText("Review conversation").closest("section") as HTMLElement)
     expect(sidebar.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
     expect(sidebar.getByRole("button", { name: "View in diff" })).toBeInTheDocument()
 
@@ -932,9 +989,9 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Diff comments")
-    await waitFor(() => expect(screen.queryByText("No diff comments.")).not.toBeInTheDocument())
-    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    await screen.findByText("Review conversation")
+    await waitFor(() => expect(screen.queryByText("No review notes or comments.")).not.toBeInTheDocument())
+    const sidebar = within(screen.getByText("Review conversation").closest("section") as HTMLElement)
     expect(sidebar.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument()
     expect(sidebar.getByText("-old")).toBeInTheDocument()
     expect(sidebar.getByText("+new")).toHaveClass("ring-brand")
@@ -2135,14 +2192,103 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Comment on the current version.")
-    const sidebar = screen.getByText("Diff comments").closest("section") as HTMLElement
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     expect(within(sidebar).getByText("Comment on an earlier version.")).toBeInTheDocument()
 
     const sidebarText = sidebar.textContent || ""
     expect(sidebarText.indexOf("Initial implementation")).toBeLessThan(sidebarText.indexOf("Repair"))
     expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
   })
+
+  it("groups review notes and comments by version while keeping each version ordered", async () => {
+    const oldComment = comment({
+      id: 31,
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+      body: "Earlier version comment."
+    })
+    const currentComment = comment({
+      id: 32,
+      diff_review_version_id: 200,
+      diff_review_version: version({ id: 200, version_index: 2, label: "Repair", run_id: 22 }),
+      new_line: 2,
+      anchor_key: "right::2",
+      body: "Current version human comment."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 200, version_index: 2, label: "Repair", run_id: 22 }),
+        versions: [
+          version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11, comments_count: 1 }),
+          version({ id: 200, version_index: 2, label: "Repair", run_id: 22, comments_count: 1 })
+        ],
+        review_annotations: {
+          annotations: {},
+          ranges: {},
+          panels: [
+            reviewNotePanel({
+              noteId: 9,
+              title: "Current version review note",
+              explanation: "The note comes before the current comment.",
+              path: "app/models/user.rb",
+              startLine: 1
+            })
+          ],
+          actions: [],
+          counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 1, tone: "warning" }]
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([currentComment, oldComment], 200))
+
+    renderWorkspace()
+
+    await screen.findByText("Current version review note")
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const sidebarText = sidebar.textContent || ""
+
+    expect(sidebarText.indexOf("Initial implementation")).toBeLessThan(sidebarText.indexOf("Repair"))
+    expect(sidebarText.indexOf("Current version review note")).toBeLessThan(sidebarText.indexOf("Current version human comment."))
+    expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
+  })
 })
+
+function reviewNotePanel({
+  explanation,
+  noteId,
+  path,
+  startLine,
+  title
+}: {
+  explanation: string
+  noteId: number
+  path: string
+  startLine: number
+  title: string
+}): JobSourceDiffPayload["review_annotations"]["panels"][number] {
+  return {
+    id: `cognitive_review.note.${noteId}`,
+    component: "cognitive_review/note_panel",
+    title,
+    body: explanation,
+    props: {
+      hide_header: true,
+      total: 1,
+      notes: [
+        {
+          note_id: noteId,
+          job_id: 42,
+          path,
+          side: "new",
+          start_line: startLine,
+          end_line: startLine,
+          title,
+          explanation
+        }
+      ]
+    }
+  }
+}
 
 function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPayload {
   return {

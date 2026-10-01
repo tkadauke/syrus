@@ -72,19 +72,20 @@ module CognitiveReview
     end
 
     def self.panels_for(notes, comments_by_note_id: {})
-      [
+      notes.map do |note|
         {
-          id: "cognitive_review.summary",
+          id: "cognitive_review.note.#{note.id}",
           component: "cognitive_review/note_panel",
-          title: "Review Notes",
-          body: "#{notes.size} note#{'s' unless notes.one?} flagged for operator attention.",
+          title: note.title,
+          body: note.explanation,
           tone: "warning",
           props: {
-            notes: notes.map { |note| note_props(note, matching_comments: comments_by_note_id[note.id] || []) },
-            total: notes.size
+            hide_header: true,
+            notes: [ note_props(note, matching_comments: comments_by_note_id[note.id] || []) ],
+            total: 1
           }
         }
-      ]
+      end
     end
 
     def self.note_props(note, matching_comments: [])

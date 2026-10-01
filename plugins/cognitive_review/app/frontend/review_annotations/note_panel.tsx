@@ -23,6 +23,7 @@ type CognitiveReviewNote = {
 }
 
 type NotePanelProps = {
+  hide_header?: boolean
   notes?: CognitiveReviewNote[]
   total?: number
 }
@@ -45,15 +46,16 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
   const props = (item.props ?? {}) as NotePanelProps
   const notes = Array.isArray(props.notes) ? props.notes : []
   const total = typeof props.total === "number" ? props.total : notes.length
+  const hideHeader = props.hide_header === true
   const visibleNotes = notes.slice(0, VISIBLE_NOTE_LIMIT)
   const hiddenCount = Math.max(0, total - visibleNotes.length)
 
   return (
     <div className="space-y-3">
-      <div>
+      {hideHeader ? null : <div>
         <div className="text-sm font-semibold text-text-primary">{t("panel.title")}</div>
         <p className="mt-1 text-xs text-text-secondary">{t("panel.summary", { count: total })}</p>
-      </div>
+      </div>}
       <div className="space-y-3">
         {visibleNotes.map((note) => (
           <CognitiveReviewNoteCard key={note.note_id} note={note} />
