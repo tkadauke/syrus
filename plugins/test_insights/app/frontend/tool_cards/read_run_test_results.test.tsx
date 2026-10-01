@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import readRunTestResultsToolCard from "./read_run_test_results"
 
@@ -31,22 +31,30 @@ const testRun = {
 }
 
 describe("read_run_test_results tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(readRunTestResultsToolCard.toolName).toBe("read_run_test_results")
   })
 
   it("summarizes the collapsed row with the run id and failure counts", () => {
-    const parsedResult = { job_id: 10, job_slug: "JOB-10", run_id: 200, grader_name: "jest", test_runs: [testRun] }
+    const parsedResult = { job_id: 10, job_slug: "JOB-10", workflow_id: 30, run_id: 200, grader_name: "jest", test_runs: [testRun] }
 
     expect(readRunTestResultsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("RUN-200: 0 failed of 4 across 1 grader")
   })
 
   it("renders the run reference and suite totals", () => {
-    const parsedResult = { job_id: 10, job_slug: "JOB-10", run_id: 200, grader_name: "jest", test_runs: [testRun] }
+    const parsedResult = { job_id: 10, job_slug: "JOB-10", workflow_id: 30, run_id: 200, grader_name: "jest", test_runs: [testRun] }
     render(<>{readRunTestResultsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("RUN-200")).toBeInTheDocument()
-    expect(screen.getByText("JOB-10")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-200" })).toHaveAttribute("href", "/jobs/10?tab=workflows#workflow-30")
+    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/jobs/10")
+    fireEvent.click(screen.getByRole("button", { name: "Copy RUN-200 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("RUN-200")
     expect(screen.getByText("4 passed · 0 failed · 0 errors · 0 skipped")).toBeInTheDocument()
   })
 

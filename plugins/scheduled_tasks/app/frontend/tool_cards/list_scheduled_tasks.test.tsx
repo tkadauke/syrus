@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listScheduledTasksToolCard from "./list_scheduled_tasks"
 
@@ -47,6 +47,12 @@ const oneShotTask = {
 }
 
 describe("list_scheduled_tasks tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(listScheduledTasksToolCard.toolName).toBe("list_scheduled_tasks")
   })
@@ -65,6 +71,8 @@ describe("list_scheduled_tasks tool card", () => {
     render(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [cronTask, oneShotTask] } }))}</>)
 
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Copy #12 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("#12")
     expect(screen.getByText("scheduled")).toBeInTheDocument()
     expect(screen.getByText("cron")).toBeInTheDocument()
     expect(screen.getByText("Runs daily at 3:00 AM UTC")).toBeInTheDocument()

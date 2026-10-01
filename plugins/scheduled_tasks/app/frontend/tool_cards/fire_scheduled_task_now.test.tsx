@@ -44,7 +44,9 @@ describe("fire_scheduled_task_now tool card", () => {
   it("renders without confirm or reject controls", () => {
     render(<>{fireScheduledTaskNowToolCard.renderExpanded(context({ parsedResult: pendingAction }))}</>)
 
-    expect(screen.queryAllByRole("button")).toHaveLength(0)
+    expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy #501 to clipboard" })).toBeInTheDocument()
   })
 
   it("renders from pending_confirmation_id alone when pending_action_id is absent", () => {

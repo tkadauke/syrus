@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
-import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { CardShell, displayValue, EntityReference, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Plugin-owned tool card for schedule_recurring (the pending-action tool-card work).
 //
@@ -59,7 +59,10 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {card.explanation ? <div className="text-gray-700 dark:text-gray-300">{card.explanation}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label={t("tool_pending_confirmation")} value={`#${card.confirmationId}`} />
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_pending_confirmation")}</div>
+          <EntityReference kind="artifact" slug={`#${card.confirmationId}`} />
+        </div>
         {card.nextFireAt ? <Row label={t("tool_first_fire")} value={card.nextFireAt} /> : null}
       </dl>
       <div className="text-gray-500 dark:text-gray-400">{t("tool_schedule_pending_confirmation")}</div>

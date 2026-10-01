@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue } from "@app/routes/chat/toolCardUi"
 import { parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 type DesignDocSection = {
@@ -36,11 +36,6 @@ function sectionsResult(context: ToolCardContext): ListDesignDocSections | null 
   return { summary, sections: parsed.sections.map(parseSection).filter((section): section is DesignDocSection => section !== null) }
 }
 
-function docHref(docRef: string): string | null {
-  const match = docRef.match(/(\d+)\s*$/)
-  return match ? `/design_docs/${match[1]}` : null
-}
-
 function collapsedSummary(context: ToolCardContext) {
   const result = sectionsResult(context)
   if (!result) return null
@@ -52,16 +47,12 @@ function renderExpanded(context: ToolCardContext) {
   const result = sectionsResult(context)
   if (!result) return null
 
-  const href = docHref(result.summary.docRef)
+  const docId = result.summary.docRef.match(/(\d+)\s*$/)?.[1]
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {href ? (
-          <InternalLink href={href}>{result.summary.docRef}</InternalLink>
-        ) : (
-          <span className="font-mono font-semibold text-text-primary">{result.summary.docRef}</span>
-        )}
+        <EntityReference id={docId} kind="design_doc" label={result.summary.docRef} slug={result.summary.docRef} wrap="nowrap" />
         <Badge>{t("tool_sections")}</Badge>
       </div>
       <div className="text-sm font-medium text-text-primary">{result.summary.title}</div>
