@@ -1613,6 +1613,43 @@ export function UnifiedDiffTable({
     )
   }
 
+  function renderReviewAnnotationRow(reviewNotes: DiffReviewAnnotation[], splitRow: boolean) {
+    if (reviewNotes.length === 0) return null
+
+    const panel = (
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-3 bg-warning-bg/55 dark:bg-warning-bg/25`}>
+        {reviewNotes.map((note, index) => {
+          const inlineNote = reviewAnnotationInlineItem(note)
+          return (
+            <div key={String(note.id ?? index)}>
+              {renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote))}
+            </div>
+          )
+        })}
+      </div>
+    )
+
+    if (splitRow) {
+      return (
+        <tr className="font-sans bg-warning-bg/35 dark:bg-warning-bg/20" data-testid="diff-review-annotation">
+          <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan}>
+            {panel}
+          </td>
+        </tr>
+      )
+    }
+
+    return (
+      <tr className="font-sans bg-warning-bg/35 dark:bg-warning-bg/20" data-testid="diff-review-annotation">
+        <td className="border-r border-warning-border/60" colSpan={gutterColSpan} />
+        <td className={`text-warning-text ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={showReviewNotes ? 3 : 2}>
+          {panel}
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
       <table
@@ -1646,6 +1683,7 @@ export function UnifiedDiffTable({
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
+            const inlineReviewNotes = reviewNotesStartingOnLine(line, reviewAnnotations, reviewAnnotationRanges)
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
             const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
             const highlightedReviewNote = Boolean(highlightedReviewAnnotationId && reviewNoteIdsForLine.includes(highlightedReviewAnnotationId))
@@ -1680,6 +1718,7 @@ export function UnifiedDiffTable({
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
+                  {renderReviewAnnotationRow(inlineReviewNotes, true)}
                   {renderThreadRow(threads, true)}
                   {renderComposerRow(isComposingHere, true)}
                 </Fragment>
@@ -1702,6 +1741,7 @@ export function UnifiedDiffTable({
                       />
                     </td>
                   </tr>
+                  {renderReviewAnnotationRow(inlineReviewNotes, true)}
                   {renderThreadRow(threads, true)}
                   {renderComposerRow(isComposingHere, true)}
                 </Fragment>
@@ -1749,6 +1789,7 @@ export function UnifiedDiffTable({
                     </td>
                   ) : null}
                   <td className={`${diffMarkerClass(line.kind)} ${diffDensityClasses(reviewSettings).marker}`}>{line.marker}</td>
+                  {/* eslint-disable-next-line design-system/no-raw-table-classes */}
                   <td className={`${codeCellClass} ${diffCoverageBorderClass(annotation)}`}>
                     <DiffCode
                       code={reviewDisplayCode(line.code, reviewSettings)}
@@ -1758,6 +1799,7 @@ export function UnifiedDiffTable({
                       tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                     />
                   </td>
+                  {/* eslint-disable-next-line design-system/no-raw-table-classes */}
                   <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
                     {annotation === "covered" ? (
                       <span className="text-emerald-600 dark:text-emerald-400">✓</span>
@@ -1767,6 +1809,7 @@ export function UnifiedDiffTable({
                   </td>
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
                 </tr>
+                {renderReviewAnnotationRow(inlineReviewNotes, false)}
                 {renderThreadRow(threads, false)}
                 {renderComposerRow(isComposingHere, false)}
               </Fragment>
@@ -1994,10 +2037,35 @@ function ReviewNotesCell({ reviewNotes, reviewSettings }: { reviewNotes: DiffRev
       data-diff-review-annotation-ids={reviewNoteIds(reviewNotes).join(" ")}
     >
       {reviewNotes.length === 1
-        ? renderPluginReviewAnnotation(reviewNotes[0]!, reviewNotesFallbackMarker(1, title))
+        ? renderPluginReviewAnnotation(reviewAnnotationMarkerItem(reviewNotes[0]!), reviewNotesFallbackMarker(1, title))
         : reviewNotesFallbackMarker(reviewNotes.length, title)}
     </td>
   )
+}
+
+function reviewAnnotationMarkerItem(note: DiffReviewAnnotation) {
+  return note.marker_component ? { ...note, component: note.marker_component } : note
+}
+
+function reviewAnnotationInlineItem(note: DiffReviewAnnotation) {
+  return note.inline_component ? { ...note, component: note.inline_component } : note
+}
+
+function reviewAnnotationFallbackPanel(note: DiffReviewAnnotation) {
+  return (
+    <div className={`rounded border p-3 text-sm ${reviewAnnotationToneClass(note.tone)}`}>
+      {note.title ? <div className="font-medium">{note.title}</div> : null}
+      {note.body ? <p className="mt-1 whitespace-pre-wrap text-text-secondary">{note.body}</p> : null}
+    </div>
+  )
+}
+
+function reviewAnnotationToneClass(tone: string | null | undefined) {
+  if (tone === "danger") return "border-danger-border bg-danger-bg text-danger-text"
+  if (tone === "warning") return "border-warning-border bg-warning-bg text-warning-text"
+  if (tone === "success") return "border-success-border bg-success-bg text-success-text"
+  if (tone === "info") return "border-info-border bg-info-bg text-info-text"
+  return "border-border bg-surface text-text-primary"
 }
 
 function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
@@ -2067,9 +2135,24 @@ function reviewNotesForLine(
   return legacyNotes.concat(rangeNotes)
 }
 
+function reviewNotesStartingOnLine(
+  line: DiffLine,
+  reviewAnnotations: Record<string, DiffReviewAnnotation[]> | undefined,
+  reviewAnnotationRanges: DiffReviewAnnotationRange[] | undefined
+) {
+  const legacyNotes = line.newLine != null ? (reviewAnnotations?.[String(line.newLine)] ?? []) : []
+  const rangeNotes = (reviewAnnotationRanges ?? []).filter((note) => rangeAnnotationStartsOnLine(note, line))
+  return legacyNotes.concat(rangeNotes)
+}
+
 function rangeAnnotationMatchesLine(note: DiffReviewAnnotationRange, line: DiffLine) {
   const lineNumber = note.side === "old" ? line.oldLine : line.newLine
   return lineNumber != null && lineNumber >= note.start_line && lineNumber <= note.end_line
+}
+
+function rangeAnnotationStartsOnLine(note: DiffReviewAnnotationRange, line: DiffLine) {
+  const lineNumber = note.side === "old" ? line.oldLine : line.newLine
+  return lineNumber === note.start_line
 }
 
 function SplitDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {

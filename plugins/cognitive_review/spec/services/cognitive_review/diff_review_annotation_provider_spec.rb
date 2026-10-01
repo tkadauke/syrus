@@ -40,6 +40,8 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       hash_including(
         id: "cognitive_review_note:#{note.id}",
         component: "cognitive_review/note_marker",
+        marker_component: "cognitive_review/note_marker",
+        inline_component: "cognitive_review/note_panel",
         path: "app/models/job.rb",
         side: "new",
         start_line: 4,
