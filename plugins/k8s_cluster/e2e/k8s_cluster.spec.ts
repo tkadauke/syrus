@@ -258,7 +258,7 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByText("Showing partial results — the server capped this list.")).toBeVisible()
 
   // Clicking a workload row opens the same drawer with the full object YAML.
-  await page.getByRole("cell", { name: "web-6f8d9c-abc12" }).click()
+  await page.getByRole("button", { name: "web-6f8d9c-abc12" }).click()
   await expect(page.getByRole("dialog", { name: "Pods default/web-6f8d9c-abc12" })).toBeVisible()
   await expect(page.getByText("kind: Pod")).toBeVisible()
   await expect(page.getByText("Read-only — values cannot be edited here.")).toBeVisible()
@@ -308,7 +308,7 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByRole("cell", { name: "control-plane" })).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 
-  await page.getByRole("cell", { name: "node-1" }).click()
+  await page.getByRole("button", { name: "node-1" }).click()
   await expect(page.getByRole("dialog", { name: "Nodes node-1" })).toBeVisible()
   await expect(page.getByText("kind: Node")).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
