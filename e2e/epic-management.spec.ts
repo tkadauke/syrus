@@ -24,13 +24,15 @@ test("creates an Epic with child Jobs from the UI and lists them on the Epic det
 
   await page.goto(`/epics/${epicId}`)
   await expect(page.getByRole("heading", { level: 1 })).toContainText(epicTitle)
+
+  await openEpicTab(page, JOBS_TAB)
   await expect(page.getByRole("link", { name: jobATitle })).toBeVisible()
   await expect(page.getByRole("link", { name: jobBTitle })).toBeVisible()
   await expect(page.getByText("2 Jobs")).toBeVisible()
 
-  // The Epic detail page's dependency graph section covers dependencies on
-  // other Epics/external Jobs -- these two freshly created, unchained child
-  // Jobs shouldn't produce any of those.
+  // The dependency graph covers dependencies on other Epics/external Jobs --
+  // these two freshly created, unchained child Jobs shouldn't produce any.
+  await openEpicTab(page, "Dependencies")
   await expect(page.getByText("No external dependencies")).toBeVisible()
 })
 
@@ -96,8 +98,18 @@ async function createEpic(page: Page, title: string, description: string): Promi
   return idFromUrl(page)
 }
 
+// The Epic detail page is tabbed (Overview / Jobs (N) / Dependencies /
+// History), so content that used to sit on one scrolling page has to be
+// selected first. The tabs are buttons, not links.
+async function openEpicTab(page: Page, name: RegExp | string) {
+  await page.getByRole("button", { name }).click()
+}
+
+const JOBS_TAB = /^Jobs \(\d+\)$/
+
 async function addChildJob(page: Page, epicId: number, title: string, prompt: string): Promise<number> {
   await page.goto(`/epics/${epicId}`)
+  await openEpicTab(page, JOBS_TAB)
   await page.getByRole("link", { name: "+ Add Job" }).click()
   await expect(page.getByText("This job will be added to")).toBeVisible()
 
