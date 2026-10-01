@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import showPreviewToolCard from "./show_preview"
 
@@ -14,6 +14,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("show_preview tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(showPreviewToolCard.toolName).toBe("show_preview")
   })
@@ -37,6 +43,8 @@ describe("show_preview tool card", () => {
     render(<>{showPreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Panel #7")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Copy 7 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("7")
     expect(screen.getAllByText("open").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Landing page").length).toBeGreaterThan(0)
     expect(screen.getAllByText("index.html").length).toBeGreaterThan(0)

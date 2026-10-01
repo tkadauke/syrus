@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import compareTestRuntimeToolCard from "./compare_test_runtime"
 
@@ -13,8 +13,8 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   }
 }
 
-const baseline = { type: "run", label: "baseline", run_id: 100, run_slug: "RUN-100", job_id: 5, job_slug: "JOB-5" }
-const comparison = { type: "run", label: "comparison", run_id: 101, run_slug: "RUN-101", job_id: 5, job_slug: "JOB-5" }
+const baseline = { type: "run", label: "baseline", run_id: 100, run_slug: "RUN-100", job_id: 5, job_slug: "JOB-5", workflow_id: 9 }
+const comparison = { type: "run", label: "comparison", run_id: 101, run_slug: "RUN-101", job_id: 5, job_slug: "JOB-5", workflow_id: 10 }
 
 const regressedTest = {
   test: { id: 42, suite_name: "FooSpec", name: "regressed test", file_path: "spec/foo_spec.rb", links: { app_path: "/repositories/1?tab=tests&test_id=42" } },
@@ -31,6 +31,12 @@ const improvedTest = {
 }
 
 describe("compare_test_runtime tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(compareTestRuntimeToolCard.toolName).toBe("compare_test_runtime")
   })
@@ -45,8 +51,12 @@ describe("compare_test_runtime tool card", () => {
     const parsedResult = { grader_name: "rspec", baseline, comparison, tests: [regressedTest] }
     render(<>{compareTestRuntimeToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("baseline: RUN-100")).toBeInTheDocument()
-    expect(screen.getByText("comparison: RUN-101")).toBeInTheDocument()
+    expect(screen.getByText("baseline:")).toBeInTheDocument()
+    expect(screen.getByText("comparison:")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-100" })).toHaveAttribute("href", "/jobs/5?tab=workflows#workflow-9")
+    expect(screen.getByRole("link", { name: "RUN-101" })).toHaveAttribute("href", "/jobs/5?tab=workflows#workflow-10")
+    fireEvent.click(screen.getByRole("button", { name: "Copy RUN-100 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("RUN-100")
     expect(screen.getByRole("link", { name: "regressed test" })).toHaveAttribute("href", "/repositories/1?tab=tests&test_id=42")
     expect(screen.getByText("1.00s / 1.20s")).toBeInTheDocument()
     expect(screen.getByText("1.50s / 1.80s")).toBeInTheDocument()
