@@ -43,10 +43,6 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("test_plan").required_mcp_tools).to eq(%w[submit_test_plan])
     end
 
-    it "returns submit_review_plan for review_plan" do
-      expect(described_class.fetch("review_plan").required_mcp_tools).to eq(%w[submit_review_plan])
-    end
-
     it "returns submit_job_metadata for refresh_job_metadata" do
       expect(described_class.fetch("refresh_job_metadata").required_mcp_tools).to eq(%w[submit_job_metadata])
     end
@@ -70,10 +66,6 @@ RSpec.describe Step::Kind do
   describe "fail_policy" do
     it "returns :advance for grader (advances past failure to let siblings run)" do
       expect(described_class.fetch("grader").fail_policy).to eq(:advance)
-    end
-
-    it "returns :advance for review_plan (best-effort — never fails the workflow)" do
-      expect(described_class.fetch("review_plan").fail_policy).to eq(:advance)
     end
 
     it "returns :advance for format and generate (deterministic, never fail the workflow — the handlers themselves never raise either)" do
@@ -119,10 +111,6 @@ RSpec.describe Step::Kind do
   describe "skip_if_artifact" do
     it "returns 'test_plan' for test_plan (skipped when artifact already present)" do
       expect(described_class.fetch("test_plan").skip_if_artifact).to eq("test_plan")
-    end
-
-    it "returns 'review_plan' for review_plan (skipped when artifact already present)" do
-      expect(described_class.fetch("review_plan").skip_if_artifact).to eq("review_plan")
     end
 
     it "returns nil for all other step kinds" do

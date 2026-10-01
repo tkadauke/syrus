@@ -602,7 +602,6 @@
     "syrus_yml_generated": "Generierte Schritte",
     "syrus_yml_visual_review": "Visuelle Prüfung",
     "syrus_yml_adversarial_review": "Adversarial Review",
-    "syrus_yml_review_plan": "Review-Plan",
     "syrus_yml_coverage": "Coverage",
     "syrus_yml_delivery_tracks": "Delivery-Tracks",
     "syrus_yml_aria": ".syrus.yml-Konfiguration",

@@ -25,7 +25,6 @@ class RunPreAdmissionSkip
   private
 
   POLICIES = {
-    "review_plan" => "RunPreAdmissionSkip::ReviewPlan",
     "visual_review" => "RunPreAdmissionSkip::VisualReview"
   }.freeze
 
@@ -76,21 +75,6 @@ class RunPreAdmissionSkip
 
     def pass
       Result.new(skip: false, reason: nil, message: nil, artifacts: {})
-    end
-  end
-
-  class ReviewPlan < Base
-    def call
-      config_path = workspace_path.join(SyrusYml::CONFIG_FILE)
-      return skip("review_plan_not_configured", "[review_plan] not configured in .syrus.yml - skipping") unless config_path.exist?
-
-      if SyrusYml.load_repo(workspace_path).review_plan
-        pass
-      else
-        skip("review_plan_not_configured", "[review_plan] not configured in .syrus.yml - skipping")
-      end
-    rescue SyrusYml::ParseError => e
-      skip("review_plan_parse_error", "[review_plan] .syrus.yml parse error: #{e.message}")
     end
   end
 

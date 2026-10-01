@@ -337,7 +337,6 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
     [t("repository.syrus_yml_generated"), String(summary.generated_steps_count)],
     [t("repository.syrus_yml_visual_review"), visualReviewModeLabel(summary.visual_review_mode, t)],
     [t("repository.syrus_yml_adversarial_review"), summary.adversarial_review_rounds == null ? t("repository.syrus_yml_not_configured") : t("repository.syrus_yml_rounds", { count: summary.adversarial_review_rounds })],
-    [t("repository.syrus_yml_review_plan"), summary.review_plan_enabled ? t("repository.syrus_yml_enabled") : t("repository.syrus_yml_disabled")],
     [t("repository.syrus_yml_coverage"), summary.coverage_configured ? t("repository.syrus_yml_configured") : t("repository.syrus_yml_not_configured")],
     [t("repository.syrus_yml_delivery_tracks"), String(summary.delivery_tracks_count)]
   ] : [

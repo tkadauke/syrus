@@ -753,16 +753,13 @@ RSpec.describe RetryFailedStepEnqueuer do
     summarize = Step.create!(workflow: workflow, kind: "summarize", position: 2)
     test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 3)
     pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 4)
-    review_plan = Step.create!(workflow: workflow, kind: "review_plan", position: 5)
     prepare.update!(next_step_id: summarize.id)
     summarize.update!(next_step_id: test_plan.id)
     test_plan.update!(next_step_id: pr_open.id)
-    pr_open.update!(next_step_id: review_plan.id)
     prepare.update_columns(state: "succeeded", started_at: 29.minutes.ago, finished_at: 28.minutes.ago)
     summarize.update_columns(state: "succeeded", started_at: 3.minutes.ago, finished_at: 2.minutes.ago)
     test_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago, cancellation_reason: "stale failure cascade")
     pr_open.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
-    review_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
 
     result = described_class.call(workflow: workflow)
 
@@ -772,7 +769,6 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(test_plan.reload).to be_queued
     expect(test_plan.cancellation_reason).to be_nil
     expect(pr_open.reload).to be_queued
-    expect(review_plan.reload).to be_queued
     expect(result.run.step).to eq(test_plan)
   end
 

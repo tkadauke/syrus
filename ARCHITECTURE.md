@@ -915,7 +915,7 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan` |
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open` |
 | `pr_comment` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
 | `chat_feedback` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
@@ -927,7 +927,7 @@ Current Workflow chains:
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
 | `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 | `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
-| `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open → review_plan` (no PR yet) |
+| `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open` (no PR yet) |
 | `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
 | `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
 | `external_pr_ingest` | same-repo: `prepare → retry_until(repair: landing_fix, check: grader_fanout → grader_collect) → push`; fork: `prepare → grader_fanout → grader_collect` |
@@ -952,7 +952,7 @@ Workflows reuse downloaded runtimes.
 
 Agentic Steps (`implement`, `adversarial_review`, `visual_review`,
 `respond`, `analyze_and_fix`, rebase repair, landing repair,
-`local_mode_handoff_fix`, summarize, test_plan, review_plan, and manual)
+`local_mode_handoff_fix`, summarize, test_plan, and manual)
 invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
@@ -1226,8 +1226,6 @@ What happens to a single labeled issue, from label to merge:
      with reviewer-facing checks; `pr_open` appends them to the PR body.
    - `pr_open` pushes the branch and opens the PR (using Workflow
      artifacts first, then `PrSummarizer`, then templated copy).
-   - If `.syrus.yml` opts into `review_plan: true`, a best-effort
-     `review_plan` Step posts reviewer guidance as a PR comment.
    - Workflow transitions to `succeeded`; Job moves to `implemented`.
 6. **PR is now open**. From this point:
    - `PollPullRequestJob` watches every 5 min for new review comments
@@ -1595,10 +1593,6 @@ agent at it over stdio. Today's tool surface:
   test steps on Workflow artifacts and appends an audit `JobLog` line.
   `pr_open` reads this artifact and adds a Test Plan section to initial
   PR bodies, headed by a copy-pasteable `syrus checkout JOB-<id>` command.
-- `submit_review_plan(items:, summary:)` — records focused reviewer
-  guidance for the optional `review_plan` Step. The Step formats the
-  artifact and posts/upserts a marked PR comment; it is best-effort and
-  never fails the parent Workflow.
 - `submit_adversarial_review(critique:, verdict:)` — records one
   adversarial review iteration on Workflow artifacts. The
   `adversarial_review` Step requires this tool call; the stored
@@ -2337,7 +2331,7 @@ These belong to `ROADMAP.md`; only their current status is recorded:
 - **Agent-authored graders.** Today configured command graders from
   `.syrus.yml` are first-class Workflow Steps, visual review is a
   first-class optional agent QA Step, and the initial Workflow can
-  collect an agent-authored reviewer test plan and review-plan comment.
+  collect an agent-authored reviewer test plan.
   Fully general agent-authored grading remains roadmap.
 - **Global rate limiting.** Today only Solid Queue's per-key
   concurrency: per-repo polling, per-Job PR/rebase polling, per-Job

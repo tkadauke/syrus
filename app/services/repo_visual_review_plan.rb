@@ -5,7 +5,7 @@
 #
 # Thin adapter over RepoDefaultBranchSyrusYml, which owns the actual GitHub
 # fetch and SyrusYml parse (shared with RepoAdversarialReviewPlan,
-# RepoGradeLoopPlan, RepoReviewPlanPlan, and RepoCoveragePlanReader so
+# RepoGradeLoopPlan, and RepoCoveragePlanReader so
 # Workflows::Base resolves the repository's default-branch config once per
 # workflow instantiation instead of each plan fetching it independently).
 require "tmpdir"
