@@ -36,7 +36,7 @@ Emergency land skips only Syrus's own automation gates:
 - configured Syrus graders
 - adversarial review
 - visual review
-- summarize/test-plan/review-plan workflow steps
+- summarize/test-plan workflow steps
 - landing queue admission and landing graders
 
 It does not skip GitHub or repository mechanics:

@@ -553,7 +553,6 @@ module Api
               generated_steps_count: 0,
               visual_review_mode: "unavailable",
               adversarial_review_rounds: nil,
-              review_plan_enabled: false,
               coverage_configured: false,
               delivery_tracks_count: 0
             }
@@ -571,7 +570,6 @@ module Api
             generated_steps_count: config.generated.is_a?(Array) ? config.generated.size : 0,
             visual_review_mode: visual_review_mode(config.visual_review),
             adversarial_review_rounds: config.adversarial_review&.rounds,
-            review_plan_enabled: !!config.review_plan,
             coverage_configured: config.coverage.present?,
             delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0
           }

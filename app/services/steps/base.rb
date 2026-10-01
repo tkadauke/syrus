@@ -483,7 +483,7 @@ module Steps
 
     # Most recent successful Run among this Workflow's Steps of the given
     # kind(s), in Step order — used by downstream metadata-only steps
-    # (summarize, summarize_amend, test_plan, review_plan) to find the
+    # (summarize, summarize_amend, test_plan) to find the
     # upstream agentic session/diff/head SHA they resume from or verify against.
     def latest_succeeded_run_for(kinds)
       workflow.steps.where(kind: kinds)
