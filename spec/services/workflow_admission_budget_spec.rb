@@ -90,7 +90,7 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def seed_low_cost_profiles(except: [], attributed: false)
-    %w[prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
+    %w[prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open].each do |step_kind|
       next if except.include?(step_kind)
 
       if attributed

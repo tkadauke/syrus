@@ -421,9 +421,9 @@ RSpec.describe Steps::Base, :ci_only do
               payload_type: "mcp.tool.result",
               payload: {
                 server: "syrus-mcp-sidecar",
-                tool: "submit_review_plan",
+                tool: "submit_legacy_note",
                 result: { ok: true },
-                call_id: "call_review_plan"
+                call_id: "call_legacy_note"
               }
             },
             { record_type: "event", payload_type: "run.terminal.completed", payload: { outcome: "success" } }
@@ -433,10 +433,10 @@ RSpec.describe Steps::Base, :ci_only do
       end
       allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
 
-      handler.send(:run_agent, prompt: "review plan", required_mcp_tools: %w[submit_review_plan])
+      handler.send(:run_agent, prompt: "legacy note", required_mcp_tools: %w[submit_legacy_note])
 
       chunks = run.job_logs.order(:sequence).pluck(:chunk)
-      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_review_plan.*available_count=0.*mcp_tool_called=true.*session_id=muse-session-1/))
+      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_legacy_note.*available_count=0.*mcp_tool_called=true.*session_id=muse-session-1/))
     end
 
     it "threads disallowed_tools through to the adapter" do

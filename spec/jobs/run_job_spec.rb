@@ -1054,29 +1054,6 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run, kind: "system", chunk: "compute host admission deferred before prepare: local_worker_pressure_critical").count).to eq(1)
     end
 
-    it "skips an unconfigured review_plan before host admission under critical worker pressure" do
-      job = job_with_single_run(step_kind: "review_plan")
-      wf = job.workflows.last
-      step = wf.first_step
-      run = step.runs.first
-      initialize_workspace_repo(wf)
-      record_critical_worker_pressure!
-      expect(RunHostAdmission).not_to receive(:call)
-
-      expect {
-        RunJob.perform_now(run.id)
-      }.not_to have_enqueued_job(RunJob)
-
-      expect(run.reload).to be_succeeded
-      expect(step.reload).to be_succeeded
-      expect(step.details).to include(
-        "skipped" => true,
-        "skip_reason" => "review_plan_not_configured"
-      )
-      expect(wf.reload.artifact("run_host_admission")).to be_nil
-      expect(JobLog.where(run: run).pluck(:chunk).grep(/compute host admission deferred/)).to be_empty
-    end
-
     it "skips a no-match visual_review prefilter before host admission under critical worker pressure" do
       job = job_with_single_run(step_kind: "visual_review")
       wf = job.workflows.last

@@ -7,7 +7,7 @@
 # metadata first, heuristic fallback second."
 #
 # An HTML comment, invisible in GitHub's rendered PR body — same idiom as
-# `PrStackFooter`/`ReviewPlanFormatter`/`PrCostFooter` markers, chosen over a
+# `PrStackFooter`/`PrCostFooter` markers, chosen over a
 # visible line so it doesn't clutter a PR body meant for human review.
 # Commit trailers are a documented alternative structured-metadata location
 # in the plan; not implemented here — the PR body marker alone is enough to

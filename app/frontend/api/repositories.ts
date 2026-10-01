@@ -305,7 +305,6 @@ export type RepositorySyrusYmlSummary = {
   generated_steps_count: number
   visual_review_mode: string
   adversarial_review_rounds: number | null
-  review_plan_enabled: boolean
   coverage_configured: boolean
   delivery_tracks_count: number
 }

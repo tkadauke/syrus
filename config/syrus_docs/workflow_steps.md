@@ -260,8 +260,8 @@ home, and writes
 envelope into `ClaudeTranscript`, so
 `Steps::Base#log_mcp_required_tool_health` sees available/called tools the same
 way it does for Claude and Codex. If a required workflow tool such as
-`submit_summary`, `submit_test_plan`, `submit_review_plan`,
-`submit_adversarial_review`, or `submit_visual_review` is absent from Muse's
+`submit_summary`, `submit_test_plan`, `submit_adversarial_review`, or
+`submit_visual_review` is absent from Muse's
 reported MCP inventory, the invocation sets `agent_outcome=mcp_sidecar_failed`
 and asks the running process to stop instead of waiting for the normal agent
 timeout.
@@ -543,7 +543,7 @@ resolves `RepoGradeLoopPlan` (via `.from_syrus_yml` for `initial`/`retry`,
 which fetch the repository's default-branch `.syrus.yml` through GitHub once
 per workflow instantiation via `RepoDefaultBranchSyrusYml` and share the
 parsed config across `RepoAdversarialReviewPlan`/`RepoVisualReviewPlan`/
-`RepoGradeLoopPlan`/`RepoReviewPlanPlan` instead of each plan fetching it
+`RepoGradeLoopPlan` instead of each plan fetching it
 independently; other call sites still resolve it standalone via
 `RepoGradeLoopPlan.for_job(job)`) before the workspace is cloned, to decide
 whether the repository's `.syrus.yml` actually configures `formatters:`,
@@ -952,23 +952,6 @@ stale output. Two properties make that choice workable:
   `remote_sha` the divergence recorded. Only a `published` checkpoint holding
   exactly that commit qualifies; anything else falls back to the previous
   "retry from the current PR branch instead" message.
-
-### review_plan
-
-Agentic, but best-effort — never fails the parent Job/Workflow. Optional
-step, opt-in via `.syrus.yml` `review_plan: true` (see [`syrus_yml.md`](syrus_yml.md)). Materialized only when
-`RepoReviewPlanPlan` resolves the repository as opted in (read pre-clone,
-the same way the adversarial/visual review plans are) — a repository that
-hasn't configured it gets no `review_plan` Step in its chain at all, rather
-than one that runs and self-skips. When materialized, runs after `pr_open`
-in chains that end with `initial_pr_finish_steps`. Resumes the agent from the last successful
-`implement` session and asks it to call `submit_review_plan` with a handful
-of specific, high-signal "pay attention to X because Y" points anchored at
-`file`/`line`. On success, formats the artifact and posts (or upserts) a PR
-comment; an empty item list posts nothing. Any failure anywhere in the step
-— agent error, missing tool call, MCP sidecar unavailable, GitHub API error
-— is logged and swallowed rather than raised. See
-[`review_plan.md`](review_plan.md) for the full feature reference.
 
 ## Push and rebase steps
 

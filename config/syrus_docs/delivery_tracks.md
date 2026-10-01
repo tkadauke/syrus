@@ -298,7 +298,7 @@ Story 10 (docs/plans/complete/delivery-tracks-and-promotion.md): not every exter
 
 ### Classification: structured metadata first, heuristics second
 
-`PrProvenanceMarker` (`app/services/pr_provenance_marker.rb`) is an HTML-comment marker (`<!-- syrus-provenance:kind=...;job_id=... -->`, invisible in GitHub's rendered PR body — same idiom as `PrStackFooter`/`ReviewPlanFormatter`) that `Steps::PromotionPublish` and `Steps::UpstreamExportPublish` now stamp into their own PR bodies (`syrus_promotion`/`syrus_job_export` respectively). `PrProvenanceClassifier` reads it back first — a `Job` id and kind resolved this way is authoritative regardless of branch naming. Commit trailers are a documented alternative structured-metadata location in the plan; not implemented — the PR body marker alone makes every Syrus-authored ref-movement PR self-describing, and heuristics cover PRs Syrus itself didn't author.
+`PrProvenanceMarker` (`app/services/pr_provenance_marker.rb`) is an HTML-comment marker (`<!-- syrus-provenance:kind=...;job_id=... -->`, invisible in GitHub's rendered PR body — same idiom as `PrStackFooter`) that `Steps::PromotionPublish` and `Steps::UpstreamExportPublish` now stamp into their own PR bodies (`syrus_promotion`/`syrus_job_export` respectively). `PrProvenanceClassifier` reads it back first — a `Job` id and kind resolved this way is authoritative regardless of branch naming. Commit trailers are a documented alternative structured-metadata location in the plan; not implemented — the PR body marker alone makes every Syrus-authored ref-movement PR self-describing, and heuristics cover PRs Syrus itself didn't author.
 
 When no marker is present (or classification found none Syrus recognizes), heuristics apply in order:
 

@@ -603,18 +603,17 @@ review behavior.
 
 ## review_plan
 
-Enables an optional self-review pass after the PR is opened: the same agent
-that implemented the change looks back over its own diff and posts a
-"pay attention to X because Y" PR comment pointing at specific file/line
-locations.
+Retired compatibility key. Older repositories may still contain this bare
+boolean:
 
 ```yaml
 review_plan: true
 ```
 
-A bare boolean scalar — not a nested block. Omitting the key, or setting it
-to `false`, leaves review plan disabled (the default). See
-[`review_plan.md`](review_plan.md) for the full feature reference.
+Syrus still parses the key so old `.syrus.yml` files remain harmless, but it
+does not materialize a `review_plan` workflow step or expose a
+`submit_review_plan` MCP tool. New review-note behavior is supplied by plugins
+through the post-implementation review extension point.
 
 ## coverage
 

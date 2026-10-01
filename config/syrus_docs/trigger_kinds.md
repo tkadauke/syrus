@@ -302,7 +302,7 @@ captured integration branch.
 
 **When it fires:** An operator confirms the handoff after a Coding Mode chat session commits changes.
 
-**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan`
+**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open`
 
 Reviews and validates the chat agent's committed work before opening a PR.
 There is no bare leading agentic step — the chat coding session already
@@ -312,9 +312,7 @@ it repairs a review's `needs_work` verdict and/or a required grader failure
 with a fresh workflow-agent turn. The `adversarial_review` loop only appears
 when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the
 `visual_review` loop only appears when `visual_review.enabled` is true (per
-`.syrus.yml`, which defaults to on instance-wide); `review_plan` only
-appears when the repository has opted in via `.syrus.yml` `review_plan: true`
-— same conditional-materialization rules as `initial`/`retry`. Because the
+`.syrus.yml`, which defaults to on instance-wide). Because the
 reviewers have no `implement`/`respond` step to read a diff off of, both
 `Steps::AdversarialReview` and `Steps::VisualReview` fall back to a fresh
 `git diff` against the default branch when the chain has no step of that kind.
