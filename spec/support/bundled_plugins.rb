@@ -19,6 +19,9 @@ RSpec.configure do |config|
     # replaced the schema. Enable the providers only after that maintenance
     # finishes; doing it in an initializer creates rows that db:prepare can
     # immediately erase, leaving every registry-backed validation disabled.
+    # all_plugins materializes missing PluginRecord rows from the boot snapshot.
+    Syrus::PluginRegistry.all_plugins
+
     %w[claude_agent codex_agent agy_agent].each do |plugin_name|
       record = PluginRecord.find_or_create_by!(name: plugin_name)
       record.update!(enabled: true) unless record.enabled?
