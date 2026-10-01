@@ -369,6 +369,103 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByLabelText("Line wrapping")).toBeInTheDocument()
   })
 
+  it("does not show the metric gutter selector when no metric candidates exist", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    expect(screen.queryByLabelText("Metric gutter")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument()
+  })
+
+  it("shows a metric gutter selector when review metrics are available", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCognitiveReviewRisk())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    const selector = screen.getByLabelText("Metric gutter")
+
+    expect(selector).toHaveValue("cognitive_review.risk")
+    expect(within(selector).getByRole("option", { name: "Off" })).toBeInTheDocument()
+    expect(within(selector).getByRole("option", { name: "Review-note risk" })).toBeInTheDocument()
+    expect(screen.getAllByTestId("diff-metric-gutter-cell").length).toBeGreaterThan(0)
+  })
+
+  it("hides the metric gutter when disabled from the selector", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        review_diff_settings: {
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          metric_gutter: "off"
+        }
+      })
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCognitiveReviewRisk())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    expect(screen.getAllByTestId("diff-metric-gutter-cell").length).toBeGreaterThan(0)
+
+    fireEvent.change(screen.getByLabelText("Metric gutter"), { target: { value: "off" } })
+
+    await waitFor(() => expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/review_diff_settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ review_diff_settings: { metric_gutter: "off" } })
+      })
+    )
+  })
+
+  it("toggles the selected metric gutter with a keyboard shortcut and lists it in help", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        review_diff_settings: {
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          metric_gutter: "off"
+        }
+      })
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCognitiveReviewRisk())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    function Harness({ helpOpen }: { helpOpen: boolean }) {
+      return (
+        <ShortcutsProvider>
+          <QueryClientProvider client={client}>
+            <ReviewWorkspace payload={jobPayload()} />
+            <ShortcutsHelpModal onClose={() => {}} open={helpOpen} />
+          </QueryClientProvider>
+        </ShortcutsProvider>
+      )
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const { rerender } = render(<Harness helpOpen={false} />)
+
+    await screen.findByText("Implementation review")
+    fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "G" })
+
+    await waitFor(() => expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument())
+
+    rerender(<Harness helpOpen />)
+
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
+    expect(within(dialog).getByText("Toggle metric gutter")).toBeInTheDocument()
+    expect(within(dialog).getByText("Alt + Shift + G")).toBeInTheDocument()
+  })
+
   it("persists review diff shortcut changes and applies them to the visible diff immediately", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
       ok: true,
@@ -2412,6 +2509,31 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     ],
     ...overrides
   }
+}
+
+function sourceDiffPayloadWithCognitiveReviewRisk(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPayload {
+  return sourceDiffPayload({
+    review_annotations: {
+      annotations: {},
+      ranges: {
+        "app/models/user.rb": [
+          {
+            id: "cognitive_review_note:7",
+            path: "app/models/user.rb",
+            side: "new",
+            start_line: 1,
+            end_line: 1,
+            title: "Inspect this branch",
+            body: "The provider flagged this range."
+          }
+        ]
+      },
+      panels: [],
+      actions: [],
+      counts: [{ id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" }]
+    },
+    ...overrides
+  })
 }
 
 function orderedRangeVersions(): NonNullable<JobSourceDiffPayload["version"]>[] {
