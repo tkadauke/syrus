@@ -57,13 +57,14 @@ module CognitiveReview
 
           normalized = normalize_notes(notes)
           return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
+          version = DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: run.workflow_id)
+          return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
+
           if normalized.empty?
+            CognitiveReview::Artifact.append!(run: run, notes: [], diff_review_version: version)
             Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: 0 note(s)")
             return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 review note(s)." } ])
           end
-
-          version = DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: run.workflow_id)
-          return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
 
           saved_notes = normalized.map do |note|
             CognitiveReview::Note.upsert_from_submission!(
@@ -72,6 +73,7 @@ module CognitiveReview
               attributes: note.merge("source_metadata" => source_metadata(run: run, version: version))
             )
           end
+          CognitiveReview::Artifact.append!(run: run, notes: normalized, diff_review_version: version)
           Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: #{saved_notes.size} note(s)")
 
           MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} review note(s)." } ])

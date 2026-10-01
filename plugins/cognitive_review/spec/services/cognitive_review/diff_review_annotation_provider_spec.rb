@@ -57,15 +57,27 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
     expect(payload[:panels]).to contain_exactly(
       hash_including(
-        id: "cognitive_review.note.#{note.id}",
+        id: "cognitive_review.summary",
         component: "cognitive_review/note_panel",
-        title: "Check lifecycle",
-        body: "This range changes lifecycle behavior.",
-        props: hash_including(hide_header: true, notes: [ hash_including(note_id: note.id) ], total: 1)
+        title: "Review Notes",
+        props: hash_including(
+          notes: [ hash_including(note_id: note.id) ],
+          rollup: hash_including(
+            total_flagged_ranges: 1,
+            open_unhandled_count: 1,
+            handled_count: 0,
+            dismissed_count: 0,
+            zero_note_state: false
+          ),
+          total: 1
+        )
       )
     )
     expect(payload[:counts]).to contain_exactly(
-      hash_including(id: "cognitive_review.open", label: "Review Notes", value: 1)
+      hash_including(id: "cognitive_review.total", value: 1),
+      hash_including(id: "cognitive_review.open", value: 1, tone: "warning"),
+      hash_including(id: "cognitive_review.handled", value: 0),
+      hash_including(id: "cognitive_review.dismissed", value: 0)
     )
   end
 
@@ -212,6 +224,34 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       state: "acknowledged",
       source_metadata: {}
     )
+    discussed = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 5,
+      end_line: 5,
+      title: "Discussed note",
+      explanation: "Discussed already.",
+      state: "discussed",
+      source_metadata: {}
+    )
+    CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 6,
+      end_line: 6,
+      title: "Dismissed note",
+      explanation: "Dismissed separately from handled.",
+      state: "dismissed",
+      source_metadata: {}
+    )
 
     payload = described_class.review_annotations(
       job: job,
@@ -224,8 +264,55 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
 
     expect(payload[:ranges]).to eq({})
     expect(payload[:counts]).to contain_exactly(
-      hash_including(id: "cognitive_review.open", label: "Review Notes", value: 0)
+      hash_including(id: "cognitive_review.total", value: 3),
+      hash_including(id: "cognitive_review.open", value: 0, tone: "success"),
+      hash_including(id: "cognitive_review.handled", value: 2),
+      hash_including(id: "cognitive_review.dismissed", value: 1)
     )
+    expect(payload.dig(:panels, 0, :props, :rollup)).to include(
+      total_flagged_ranges: 3,
+      open_unhandled_count: 0,
+      acknowledged_count: 1,
+      discussed_count: 1,
+      dismissed_count: 1,
+      handled_count: 2,
+      zero_note_state: false
+    )
+    expect(discussed).to be_handled
+  end
+
+  it "surfaces a zero-note no-debt status for a reviewed diff version with no notes" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    CognitiveReview::Artifact.append!(run: run, notes: [], diff_review_version: version)
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload[:ranges]).to eq({})
+    expect(payload[:counts]).to contain_exactly(
+      hash_including(id: "cognitive_review.total", value: 0),
+      hash_including(id: "cognitive_review.open", value: 0, tone: "success"),
+      hash_including(id: "cognitive_review.handled", value: 0),
+      hash_including(id: "cognitive_review.dismissed", value: 0)
+    )
+    expect(payload.dig(:panels, 0, :body)).to eq("No PR-level review-note debt was flagged for this diff version.")
+    expect(payload.dig(:panels, 0, :props, :rollup)).to include(submitted: true, zero_note_state: true)
   end
   it "counts user comments on covered note ranges as handled review-note debt" do
     job = Factories.job_with_run
@@ -274,8 +361,10 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload[:ranges]).to eq({})
-    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload.dig(:ranges, note.path)).to contain_exactly(
+      hash_including(id: "cognitive_review_note:#{note.id}", props: hash_including(handled_by_comment: true))
+    )
+    expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 0))
   end
 
   it "keeps notes open when user comments miss the covered range" do

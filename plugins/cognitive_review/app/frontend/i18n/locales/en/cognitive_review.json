@@ -22,9 +22,17 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
+    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed), {{dismissed}} dismissed.",
     "summary": "{{count}} open review note",
     "summary_one": "{{count}} open review note",
     "summary_other": "{{count}} open review notes",
-    "title": "Review Notes"
+    "title": "Review Notes",
+    "zero_summary": "No PR-level review-note debt was flagged for this diff version."
+  },
+  "rollup": {
+    "dismissed": "Dismissed",
+    "handled": "Handled",
+    "open": "Open",
+    "total": "Flagged"
   }
 }

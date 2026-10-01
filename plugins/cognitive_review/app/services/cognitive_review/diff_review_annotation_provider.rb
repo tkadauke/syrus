@@ -11,25 +11,25 @@ module CognitiveReview
       all_notes = notes_for_sidebar(job: job)
       notes = notes_for(all_notes, version: version, base_sha: base_sha, head_sha: head_sha)
       sidebar_notes = CognitiveReview::Note.open_for_pr_debt(all_notes)
-      return {} if notes.empty? && sidebar_notes.empty?
+      rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes)
+      return {} if sidebar_notes.empty? && !rollup.submitted?
 
       open_notes = CognitiveReview::Note.open_for_pr_debt(notes)
       comments_by_note_id = matching_comments_by_note_id(open_notes)
-
       sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes)
 
       payload = {
-        sidebar_panels: panels_for(sidebar_notes, comments_by_note_id: sidebar_comments_by_note_id),
+        sidebar_panels: note_panels_for(sidebar_notes, comments_by_note_id: sidebar_comments_by_note_id),
         sidebar_counts: [ open_count(sidebar_notes) ],
-        counts: [ open_count(open_notes) ]
+        counts: counts_for(rollup)
       }
 
-      return payload.merge(ranges: {}, panels: []) if open_notes.empty?
+      return payload.merge(ranges: {}, panels: rollup.submitted? ? summary_panels_for(open_notes, rollup, comments_by_note_id: comments_by_note_id) : []) if open_notes.empty?
 
       {
         **payload,
         ranges: ranges_for(open_notes, comments_by_note_id: comments_by_note_id),
-        panels: panels_for(open_notes, comments_by_note_id: comments_by_note_id)
+        panels: summary_panels_for(open_notes, rollup, comments_by_note_id: comments_by_note_id)
       }
     end
 
@@ -40,6 +40,19 @@ module CognitiveReview
         value: notes.size,
         tone: "warning"
       }
+    end
+
+    def self.counts_for(rollup)
+      [
+        count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
+        count_payload("cognitive_review.open", "Open debt", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
+        count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
+        count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
+      ]
+    end
+
+    def self.count_payload(id, label, value, tone)
+      { id: id, label: label, value: value, tone: tone }
     end
 
     def self.notes_for(notes, version:, base_sha:, head_sha:)
@@ -84,7 +97,7 @@ module CognitiveReview
       end
     end
 
-    def self.panels_for(notes, comments_by_note_id: {})
+    def self.note_panels_for(notes, comments_by_note_id: {})
       notes.map do |note|
         {
           id: "cognitive_review.note.#{note.id}",
@@ -101,6 +114,29 @@ module CognitiveReview
           }
         }
       end
+    end
+
+    def self.summary_panels_for(notes, rollup, comments_by_note_id: {})
+      [
+        {
+          id: "cognitive_review.summary",
+          component: "cognitive_review/note_panel",
+          title: "Review Notes",
+          body: panel_body(rollup),
+          tone: rollup.open_unhandled_count.positive? ? "warning" : "success",
+          props: {
+            notes: notes.map { |note| note_props(note, matching_comments: comments_by_note_id[note.id] || []) },
+            rollup: rollup.as_json,
+            total: notes.size
+          }
+        }
+      ]
+    end
+
+    def self.panel_body(rollup)
+      return "No PR-level review-note debt was flagged for this diff version." if rollup.zero_note_state?
+
+      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} handled, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
     end
 
     def self.note_props(note, matching_comments: [])

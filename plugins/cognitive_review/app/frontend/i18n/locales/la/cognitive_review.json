@@ -22,9 +22,17 @@
   },
   "panel": {
     "hidden_count": "{{count}} plures notae in diff patent.",
+    "rollup_summary": "{{open}} apertae, {{handled}} tractatae ({{acknowledged}} agnitae, {{discussed}} disputatae), {{dismissed}} remotae.",
     "summary": "{{count}} nota recensionis aperta",
     "summary_one": "{{count}} nota recensionis aperta",
     "summary_other": "{{count}} notae recensionis apertae",
-    "title": "Notae recensionis"
+    "title": "Notae recensionis",
+    "zero_summary": "Nullum debitum notarum recensionis ad hanc versionem diff signatum est."
+  },
+  "rollup": {
+    "dismissed": "Remotae",
+    "handled": "Tractatae",
+    "open": "Apertae",
+    "total": "Signatae"
   }
 }

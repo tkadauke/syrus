@@ -5,7 +5,7 @@ module CognitiveReview
     self.table_name = "cognitive_review_notes"
 
     SIDES = %w[new old].freeze
-    STATES = %w[open acknowledged discussed].freeze
+    STATES = %w[open acknowledged discussed dismissed].freeze
     PRIORITIES = %w[low medium high].freeze
     COMMENT_SIDE_BY_NOTE_SIDE = {
       "new" => "right",
@@ -56,6 +56,7 @@ module CognitiveReview
     scope :for_state, ->(state) { where(state: state) if state.present? }
     scope :open_debt, -> { where(state: "open") }
     scope :handled, -> { where(state: %w[acknowledged discussed]) }
+    scope :dismissed, -> { where(state: "dismissed") }
 
     def self.review_comments_for(notes)
       note_records = Array(notes)
@@ -150,7 +151,7 @@ module CognitiveReview
     end
 
     def open? = state == "open"
-    def handled? = state != "open"
+    def handled? = %w[acknowledged discussed].include?(state)
     def open_for_pr_debt?(review_comments:) = open? && !covered_by_user_comment?(review_comments)
     def handled_for_pr_debt?(review_comments:) = handled? || covered_by_user_comment?(review_comments)
 
