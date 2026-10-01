@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
@@ -38,7 +38,6 @@ import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
-import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
 
 type ReviewAnnotationFocusDetail = {
   annotationId?: string
@@ -149,6 +148,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     }
     return sourceDiff.data
   }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
+  const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -159,6 +159,10 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     commentSurfaces: REVIEW_COMMENT_SURFACES,
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
+    reviewAnnotationActions: activeReviewAnnotations.actions,
+    reviewAnnotationCounts: activeReviewAnnotations.counts,
+    reviewAnnotationPanels: activeReviewAnnotations.panels,
+    reviewFilePaths: activeDiff?.files.map((file) => file.path) ?? [],
     supportsGlobalComments: true,
     surface: SURFACE,
     versions
@@ -308,8 +312,6 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
-  const activeReviewAnnotations = activeDiff.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
-
   return (
     <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
       <div className="min-w-0 space-y-4 lg:flex-1">
@@ -439,7 +441,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         data-testid="review-comments-panel"
         style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
       >
-        {isDesktopSplit && commentsSplitter.collapsed ? null : <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />}
+        {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
       </div>
       {isDesktopSplit && commentsSplitter.collapsed ? (
         <ReviewCommentsCollapsedRail
@@ -457,7 +459,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           onMouseLeave={closeCommentsPeek}
           style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
         >
-          <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />
+          {feedback.panel}
         </div>
       ) : null}
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
@@ -471,53 +473,6 @@ const EMPTY_REVIEW_ANNOTATIONS: DiffReviewAnnotationsPayload = {
   panels: [],
   actions: [],
   counts: []
-}
-
-function ReviewSidePanel({ annotations, feedbackPanel }: { annotations: DiffReviewAnnotationsPayload; feedbackPanel: ReactNode }) {
-  const { t } = useT("jobs")
-  const hasPluginContent = annotations.counts.length > 0 || annotations.panels.length > 0 || annotations.actions.length > 0
-  if (!hasPluginContent) return <>{feedbackPanel}</>
-
-  return (
-    <div className="space-y-4">
-      <Section.Root>
-        <SectionHeading>{t("review_annotations_title")}</SectionHeading>
-        {annotations.counts.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {annotations.counts.map((count, index) => (
-              <span className={`rounded border px-2 py-1 text-xs font-medium ${reviewAnnotationToneClass(count.tone)}`} key={String(count.id ?? index)}>
-                {count.label ? `${count.label}: ` : null}
-                {count.value ?? 0}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {annotations.panels.length > 0 ? (
-          <div className="mt-3 space-y-3">
-            {annotations.panels.map((panel, index) => (
-              <ReviewAnnotationCard item={panel} key={String(panel.id ?? index)} />
-            ))}
-          </div>
-        ) : null}
-        {annotations.actions.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {annotations.actions.map((action, index) => (
-              <ReviewAnnotationActionButton action={action} key={String(action.id ?? index)} />
-            ))}
-          </div>
-        ) : null}
-      </Section.Root>
-      {feedbackPanel}
-    </div>
-  )
-}
-
-function reviewAnnotationToneClass(tone: string | null | undefined) {
-  if (tone === "danger") return "border-danger-border bg-danger-bg text-danger-text"
-  if (tone === "warning") return "border-warning-border bg-warning-bg text-warning-text"
-  if (tone === "success") return "border-success-border bg-success-bg text-success-text"
-  if (tone === "info") return "border-info-border bg-info-bg text-info-text"
-  return "border-border bg-surface-raised text-text-primary"
 }
 
 function ReviewCommentsSplitterHandle({
