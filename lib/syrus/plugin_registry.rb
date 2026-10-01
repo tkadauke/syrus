@@ -27,6 +27,8 @@ module Syrus
       grade_detector
       grader_type
       review_criteria_provider
+      post_implementation_review_provider
+      diff_review_annotation_provider
       autofix_command
       dependency_audit_command
       affected_test_analyzer
@@ -77,6 +79,8 @@ module Syrus
       grade_detector:          -> { Syrus::Plugin::GradeDetector },
       grader_type:             -> { Syrus::Plugin::GraderType },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
+      post_implementation_review_provider: -> { Syrus::Plugin::PostImplementationReviewProvider },
+      diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
       affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
