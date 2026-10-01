@@ -14,10 +14,13 @@ export type AdminSettingMetadata = {
   operational_meaning: string
   min?: number
   max?: number
+  options?: string[]
   zero_means?: string
   admin_editable: boolean
   secret: boolean
 }
+
+export type MainBranchBreakagePolicy = "strict" | "isolate_unrelated_failures"
 
 export type AdminSettingsPayload = {
   settings: {
@@ -28,6 +31,7 @@ export type AdminSettingsPayload = {
     proactive_rebase_commit_threshold: number
     show_work_unit_debug: boolean
     rebase_failure_cooldown_minutes: number
+    main_branch_breakage_policy: MainBranchBreakagePolicy
     workflow_admission_control_enabled: boolean
     workflow_admission_policy: "whole_workflow" | "phase_aware"
     workflow_admission_control_changed_at: string | null
@@ -50,6 +54,7 @@ export type AdminSettingsUpdate = {
   proactive_rebase_commit_threshold?: number
   show_work_unit_debug?: boolean
   rebase_failure_cooldown_minutes?: number
+  main_branch_breakage_policy?: MainBranchBreakagePolicy
   workflow_admission_control_enabled?: boolean
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
   telegram_bot_token?: string

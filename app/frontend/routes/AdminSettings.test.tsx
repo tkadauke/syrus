@@ -21,6 +21,9 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      main_branch_breakage_policy: "strict",
+      workflow_admission_control_enabled: true,
+      workflow_admission_policy: "whole_workflow",
       video_retention_days: 7,
       video_storage_budget_mb: 2048,
       video_storage_budget_bytes: 2147483648,
@@ -233,6 +236,33 @@ describe("AdminSettings Discord section", () => {
 
     const section = await discordSection()
     expect(section.getByRole("button", { name: "Start polling" })).toBeDisabled()
+  })
+})
+
+describe("AdminSettings main branch breakage policy", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders and submits the policy as a constrained select", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+
+    const select = await screen.findByLabelText("Main branch breakage policy")
+    expect(select).toHaveValue("strict")
+    fireEvent.change(select, { target: { value: "isolate_unrelated_failures" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining("\"main_branch_breakage_policy\":\"isolate_unrelated_failures\"")
+      }))
+    })
   })
 })
 

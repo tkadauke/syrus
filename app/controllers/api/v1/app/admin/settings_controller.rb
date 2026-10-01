@@ -51,6 +51,7 @@ module Api
                 proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
                 show_work_unit_debug: setting.show_work_unit_debug,
                 rebase_failure_cooldown_minutes: setting.rebase_failure_cooldown_minutes,
+                main_branch_breakage_policy: setting.main_branch_breakage_policy,
                 workflow_admission_control_enabled: setting.workflow_admission_control_enabled,
                 workflow_admission_policy: setting.workflow_admission_policy,
                 workflow_admission_control_changed_at: setting.workflow_admission_control_changed_at&.iso8601,
