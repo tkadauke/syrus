@@ -42,14 +42,16 @@ tool name and `/cognitive_review_notes` routes remain accepted for
 compatibility, but new callers should use the review-note names.
 
 In the Job review tab, open notes render as warning-tinted diff ranges for the
-displayed diff version and as agent-authored review-note cards in the unified
-Review conversation side panel. The side panel shows the open-note count across
-review versions, interleaves review notes with user comments by version and
-code position, and offers `Acknowledge` and `Discuss` actions. Hovering or
-focusing a note card highlights its covered line range in the displayed diff
-when that version is selected. `Acknowledge` marks the note handled without
-adding a reply; `Discuss` stores an operator discussion entry and marks the
-note handled once that discussion exists.
+displayed diff version, compact review-note markers in the diff gutter, and a
+full agent-authored review-note card inline at the first line of the covered
+range. The same note also appears in the unified Review conversation side
+panel. The side panel shows the open-note count across review versions,
+interleaves review notes with user comments by version and code position, and
+offers `Acknowledge` and `Discuss` actions. Hovering or focusing a note card
+highlights its covered line range in the displayed diff when that version is
+selected. `Acknowledge` marks the note handled without adding a reply; `Discuss`
+stores an operator discussion entry and marks the note handled once that
+discussion exists.
 
 ## API
 
