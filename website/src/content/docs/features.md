@@ -1299,8 +1299,8 @@ disableability, category, extension point classes, and basic author/source
 metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
-Disabled bundled plugins with their own operator docs, such as Cognitive
-Review, withhold their routes and extension-point providers while retaining
+Disabled bundled plugins with their own operator docs, such as Review Notes,
+withhold their routes and extension-point providers while retaining
 previously written plugin records for when they are re-enabled.
 The list uses the same chip-based filter bar as other admin list pages: a
 Category chip filters by the plugin category taxonomy (language, agent
