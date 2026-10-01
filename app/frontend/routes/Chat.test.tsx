@@ -310,6 +310,19 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(screen.getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
   })
 
+  it("removes the message-list frame on mobile while preserving the desktop split frame", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch()
+
+    renderRoute()
+
+    const stream = await screen.findByTestId("chat-message-stream")
+    const frame = stream.parentElement?.parentElement
+    expect(frame).not.toBeNull()
+    expect(frame).toHaveClass("rounded-none", "border-0", "xl:rounded-t", "xl:border", "xl:border-b-0")
+    expect(frame).not.toHaveClass("rounded-t", "border", "border-b-0", "sm:rounded-t", "sm:border")
+  })
+
   it("renders the mobile tab-strip layout between the 1024px app breakpoint and its own wider split breakpoint", async () => {
     mockViewportWidth(CHAT_WORKSPACE_SPLIT_MIN_WIDTH - 1)
     mockChatRouteFetch()
