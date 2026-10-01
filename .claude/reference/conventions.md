@@ -236,6 +236,19 @@
   `bin/deploy`, `bin/publish-image`, and `bin/compose-up`.
   `SYRUS_DOCKER_REGISTRY_CACHE=1` opts local compose/publish builds into the
   registry BuildKit cache, and `SYRUS_DOCKER_CACHE_REF` overrides the cache tag.
+  `bin/deploy` prunes the previous deploy's SHA tags **before** building as
+  well as after, and runs `syrus_docker_require_free_space` as a preflight
+  (`SYRUS_DOCKER_MIN_BUILD_FREE_GB`, default 20, matching
+  `SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE`'s target). Both exist because the
+  post-build prune only runs after every build, push and verify succeeds: a
+  deploy that dies partway leaves its own ~16GB worker-dev image and the
+  previous deploy's behind, two failures fill a 100GB Colima volume, and the
+  next deploy dies on ENOSPC extracting a layer inside the native-toolchain
+  smoke check — running out of disk prevents the cleanup that would free the
+  disk. Free space is measured inside the daemon (`DockerRootDir`), not on the
+  host, because on Colima/Lima or any remote context the host's free space is
+  unrelated; a preflight that cannot measure reports and continues rather than
+  blocking a deploy.
   For desktop-app iteration against unpublished backend changes, `bin/build-local-image`
   builds `syrus-backend:dev-<sha>` from the working tree; stage it into the DMG
   with `SYRUS_BACKEND_IMAGE=<ref> npm --prefix desktop run build`. The

@@ -255,6 +255,67 @@ syrus_docker_prune_build_cache_since() {
     --min-free-space "${min_free_space}" >/dev/null || true
 }
 
+# Fail fast when the Docker data volume cannot hold a build, instead of
+# discovering it as an opaque layer-extract error.
+#
+# A deploy that runs out of disk reports it from wherever the write happened
+# to land -- in practice `apply layer error ... write
+# /var/lib/containerd/.../libruby-static.a: no space left on device`, thrown
+# by a `docker run` inside the native-toolchain smoke check, twenty minutes
+# into the build. Nothing in that message says "disk", and the build spine
+# has already been rebuilt by then.
+#
+# Checked against the daemon's own filesystem rather than the host's: on
+# Colima/Lima, Docker Desktop, or any remote context the host's free space is
+# unrelated to the VM's. Reports and continues when it cannot read the
+# daemon's root -- a preflight that cannot measure must not block a deploy.
+syrus_docker_require_free_space() {
+  local required_gb avail_gb docker_root
+
+  # Matches SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE's 20gb target below, so
+  # the space the post-build prune tries to leave free is the same figure the
+  # next deploy's preflight demands. Picking a different number here would
+  # mean a successful deploy could leave the volume in a state its own
+  # preflight rejects. The observed failure had <1GB free, so this is a wide
+  # margin rather than a tight bound.
+  required_gb="${SYRUS_DOCKER_MIN_BUILD_FREE_GB:-20}"
+
+  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  if [ -z "$docker_root" ]; then
+    echo "→ disk preflight: skipped (could not read the daemon's root directory)"
+    return 0
+  fi
+
+  # `df -k` rather than `-BG`/`-h`: POSIX, and the only form busybox (Alpine)
+  # and GNU coreutils agree on. Converting 1K blocks to GiB in awk keeps the
+  # arithmetic out of the shell and avoids parsing a unit suffix.
+  avail_gb="$(docker run --rm -v /:/host:ro alpine:3 \
+      sh -c "df -k /host${docker_root} 2>/dev/null | awk 'NR==2 {print int(\$4/1048576)}'" \
+      2>/dev/null || true)"
+
+  case "$avail_gb" in
+    ''|*[!0-9]*)
+      echo "→ disk preflight: skipped (could not measure free space on ${docker_root})"
+      return 0
+      ;;
+  esac
+
+  if [ "$avail_gb" -lt "$required_gb" ]; then
+    echo "✗ Docker has ${avail_gb}GB free on ${docker_root}; this build needs about ${required_gb}GB." >&2
+    echo "  The backend image alone is ~16GB extracted, and the build needs working room on top." >&2
+    echo "" >&2
+    echo "  Reclaim space (none of these touch volumes or the running stack):" >&2
+    echo "    docker builder prune -f                  # BuildKit cache" >&2
+    echo "    docker image ls                          # then remove stale SHA tags" >&2
+    echo "" >&2
+    echo "  Or grow the VM, e.g.: colima stop && colima start --disk 150" >&2
+    echo "  Or override the threshold: SYRUS_DOCKER_MIN_BUILD_FREE_GB=${avail_gb}" >&2
+    return 1
+  fi
+
+  echo "→ disk preflight: ${avail_gb}GB free on ${docker_root} (need ~${required_gb}GB)"
+}
+
 syrus_docker_prune_old_repo_tags() {
   local current_tag="${1:?usage: syrus_docker_prune_old_repo_tags CURRENT_TAG REPO...}"
   shift

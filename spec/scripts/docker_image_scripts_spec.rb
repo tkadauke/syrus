@@ -21,6 +21,42 @@ RSpec.describe "Docker image scripts" do
     expect(helper).to include("syrus_docker_buildx_image()")
   end
 
+  # The post-build prune only runs after every build, push and verify has
+  # succeeded, so a deploy that dies partway leaves its own ~16GB worker-dev
+  # image AND the previous deploy's behind. Two failures fill a 100GB volume,
+  # and the next deploy then dies on ENOSPC extracting a layer inside the
+  # native-toolchain smoke check -- running out of disk prevents the cleanup
+  # that would free the disk. Pruning before the build breaks that ratchet.
+  it "reclaims the previous deploy's tags before building, not only after" do
+    build_block = deploy[/if \[ "\$SKIP_BUILD" = false \]; then.*?\nelse/m]
+    expect(build_block).not_to be_nil
+
+    prunes = build_block.scan(/syrus_docker_prune_old_repo_tags/)
+    expect(prunes.size).to eq(2), "expected a pre-build and a post-build prune"
+
+    first_build = build_block.index("syrus_docker_build_image app")
+    expect(build_block.index("syrus_docker_prune_old_repo_tags")).to be < first_build
+  end
+
+  it "fails fast when the daemon volume cannot hold a build" do
+    expect(helper).to include("syrus_docker_require_free_space()")
+    # Measured inside the daemon: on Colima/Lima or any remote context the
+    # host's free space is unrelated to the VM's.
+    expect(helper).to include("DockerRootDir")
+    # `df -k` is the only form busybox and GNU coreutils agree on; `-BG`
+    # silently misreported under Alpine's busybox.
+    expect(helper).to include("df -k")
+    expect(helper).not_to include("df -BG")
+    # A preflight that cannot measure must not block a deploy.
+    expect(helper).to match(/could not read the daemon's root directory/)
+    expect(helper).to match(/could not measure free space/)
+    # Same figure the post-build prune targets, so a successful deploy never
+    # leaves the volume in a state its own preflight rejects.
+    expect(helper).to include("SYRUS_DOCKER_MIN_BUILD_FREE_GB:-20")
+    expect(helper).to include("SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE:-20gb")
+    expect(deploy).to include("syrus_docker_require_free_space")
+  end
+
   it "lets local compose builds opt into the shared registry cache" do
     # The base build (with its registry-cache branches) lives in the shared
     # lib now — compose-up calls it and keeps its historical cache-write

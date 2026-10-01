@@ -130,6 +130,23 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "→ ${REGISTRY} login"
   syrus_ghcr_login "$GHCR_USER" "$GHCR_TOKEN"
 
+  # Reclaim the PREVIOUS deploy's tags before building, not only after.
+  #
+  # The post-build prune at the bottom of this block only runs once every
+  # build, push and verify has succeeded -- so a deploy that dies partway
+  # leaves its own images AND the previous deploy's behind. Each
+  # worker-dev image is ~16GB, so two failed deploys fill a 100GB Colima
+  # volume, and the next deploy then fails on ENOSPC while extracting a
+  # layer deep inside the native-toolchain smoke check. That is a ratchet:
+  # running out of disk is what prevents the cleanup that would have freed
+  # the disk.
+  #
+  # Pruning here is safe because the helper never touches `:latest` or the
+  # tag being built -- only other SHAs, which are already in GHCR and
+  # re-pullable.
+  syrus_docker_prune_old_repo_tags "$SHA" "$REGISTRY" "$WORKER_DEV_REGISTRY" ${PLUGIN_REGISTRIES[@]+"${PLUGIN_REGISTRIES[@]}"}
+  syrus_docker_require_free_space
+
   echo "→ ${REGISTRY}:${SHA} build (linux/amd64, target=app)"
   syrus_docker_build_image app "$SHA" \
     --platform linux/amd64 \
