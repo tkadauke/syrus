@@ -1,0 +1,31 @@
+{
+  "actions": {
+    "acknowledge": "Acknowledge",
+    "acknowledging": "Acknowledging...",
+    "cancel": "Cancel",
+    "discuss": "Discuss",
+    "discussing": "Discussing...",
+    "discussion_body": "Discussion note",
+    "error": "Could not update this cognitive note.",
+    "save_discussion": "Save discussion",
+    "view_range": "View range"
+  },
+  "note": {
+    "agent_authored": "Agent note",
+    "confidence": "{{confidence}}% confidence",
+    "fallback_title": "Cognitive review note",
+    "priority": "{{priority}} priority",
+    "range": "{{path}} {{side}} lines {{start}}-{{end}}",
+    "side": {
+      "new": "new",
+      "old": "old"
+    }
+  },
+  "panel": {
+    "hidden_count": "{{count}} more notes are available in the diff.",
+    "summary": "{{count}} open cognitive review note",
+    "summary_one": "{{count}} open cognitive review note",
+    "summary_other": "{{count}} open cognitive review notes",
+    "title": "Cognitive review"
+  }
+}

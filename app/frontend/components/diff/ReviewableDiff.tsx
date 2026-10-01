@@ -12,6 +12,7 @@ import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import type { DiffReviewAnnotation, DiffReviewAnnotationRange } from "../../api/jobs"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
+import { renderPluginReviewAnnotation } from "../../pluginReviewAnnotations"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
@@ -1637,6 +1638,8 @@ export function UnifiedDiffTable({
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
+            const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
+            const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
             const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
@@ -1660,6 +1663,8 @@ export function UnifiedDiffTable({
                     onToggleHighlightToken={toggleHighlight}
                     reviewSettings={reviewSettings}
                     reviewNotes={reviewNotes}
+                    reviewNoteIds={reviewNoteIdsForLine}
+                    reviewNoteRowClass={reviewNoteRowClass}
                     showReviewNotes={showReviewNotes}
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
@@ -1672,7 +1677,7 @@ export function UnifiedDiffTable({
             if (splitView) {
               return (
                 <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-                  <tr className={`group ${diffLineClass(line.kind)}`} data-diff-kind={line.kind}>
+                  <tr className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`} data-diff-kind={line.kind}>
                     <td
                       className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).codeCell}`}
                       colSpan={splitInlineColSpan}
@@ -1694,10 +1699,11 @@ export function UnifiedDiffTable({
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
                 <tr
-                  className={`group ${diffLineClass(line.kind)}`}
+                  className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`}
                   data-coverage={annotation}
                   data-diff-anchor={lineAnchorKey || undefined}
                   data-diff-kind={line.kind}
+                  data-diff-review-annotation-ids={reviewNoteIdsForLine.length > 0 ? reviewNoteIdsForLine.join(" ") : undefined}
                 >
                   {hideSeparateOldLineGutter || !showLineNumbers ? null : (
                     <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
@@ -1873,6 +1879,8 @@ function SplitDiffRow({
   onToggleHighlightToken,
   reviewSettings,
   reviewNotes,
+  reviewNoteIds,
+  reviewNoteRowClass,
   showReviewNotes,
   showLineNumbers,
   tokens
@@ -1888,6 +1896,8 @@ function SplitDiffRow({
   onToggleHighlightToken: (token: string) => void
   reviewSettings: ReviewDiffSettings
   reviewNotes?: DiffReviewAnnotation[]
+  reviewNoteIds: string[]
+  reviewNoteRowClass: string
   showReviewNotes: boolean
   showLineNumbers: boolean
   tokens?: ThemedToken[]
@@ -1897,10 +1907,11 @@ function SplitDiffRow({
 
   return (
     <tr
-      className={`group ${diffLineClass(line.kind)}`}
+      className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`}
       data-coverage={annotation}
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}
+      data-diff-review-annotation-ids={reviewNoteIds.length > 0 ? reviewNoteIds.join(" ") : undefined}
       data-diff-split-row="true"
     >
       {showLineNumbers ? (
@@ -1965,14 +1976,33 @@ function ReviewNotesCell({ reviewNotes, reviewSettings }: { reviewNotes: DiffRev
     .filter(Boolean)
     .join("\n")
   return (
-    <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-      <span
-        className="inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-warning-bg px-1 text-[10px] font-semibold text-warning-text"
-        title={title || undefined}
-      >
-        {reviewNotes.length}
-      </span>
+    <td
+      className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}
+      data-diff-review-annotation-ids={reviewNoteIds(reviewNotes).join(" ")}
+    >
+      {reviewNotes.length === 1
+        ? renderPluginReviewAnnotation(reviewNotes[0]!, reviewNotesFallbackMarker(1, title))
+        : reviewNotesFallbackMarker(reviewNotes.length, title)}
     </td>
+  )
+}
+
+function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
+  return reviewNotes
+    .map((note) => note.id)
+    .filter((id): id is string | number => id !== undefined && id !== null)
+    .map(String)
+}
+
+function reviewNotesFallbackMarker(count: number, title: string) {
+  return (
+    <span
+      className="inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-warning-bg px-1 text-[10px] font-semibold text-warning-text ring-1 ring-inset ring-warning-border"
+      data-diff-review-annotation-marker="true"
+      title={title || undefined}
+    >
+      {count}
+    </span>
   )
 }
 
