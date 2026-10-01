@@ -1264,6 +1264,7 @@ export type DiffReviewVersionPayload = DiffReviewVersion & {
   default_ref: string
   files: JobSourceDiffPayload["files"]
   diff_error: string | null
+  review_annotations?: DiffReviewAnnotationsPayload
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
