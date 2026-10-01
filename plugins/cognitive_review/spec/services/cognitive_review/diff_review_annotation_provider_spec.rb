@@ -46,6 +46,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       )
     )
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+    expect(payload[:counts]).to contain_exactly(hash_including(label: "Review Notes"))
   end
 
   it "does not fall back to stale notes from an unrelated diff version" do
@@ -94,7 +95,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload).to eq({})
   end
 
-  it "counts acknowledged and discussed notes as handled rather than unresolved debt" do
+  it "counts acknowledged and discussed notes as handled rather than unresolved review-note debt" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
