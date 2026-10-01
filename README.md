@@ -1,111 +1,82 @@
 # Syrus
 
+**95% of Syrus's merged pull requests were written by Syrus itself.**
+[Read the methodology](https://syrus-ai.dev/docs/dogfooding) behind the
+merged-PR claim.
+
+[![Syrus product screencast showing a video walkthrough becoming a tracked Job](website/public/media/walkthrough-recording.png)](https://syrus-ai.dev/#walkthrough-demo)
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-2f855a.svg)](LICENSE)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker%20Compose-b6492e.svg)](https://syrus-ai.dev/docs/deployment/docker-compose)
+[![Docs](https://img.shields.io/badge/docs-syrus--ai.dev-334155.svg)](https://syrus-ai.dev/docs)
+
+[Watch the product screencast](https://syrus-ai.dev/#walkthrough-demo) or
+open the direct video:
+[WebM](https://raw.githubusercontent.com/tkadauke/syrus/main/website/public/media/syrus-product-screencast.webm) ·
+[MP4](https://raw.githubusercontent.com/tkadauke/syrus/main/website/public/media/syrus-product-screencast.mp4).
+
 > *Bis dat qui cito dat.*
 > He gives twice who gives quickly. — Publilius Syrus
 
-**Syrus lets a team put coding agents to work on a shared codebase —
-conversationally, concurrently, and under one reviewed workflow.**
-
-You describe what you want in a Syrus chat — a feature, a refactor, a whole
-initiative — and Syrus turns the conversation into work. It breaks large
-changes into **Epics** (a stack of smaller, ordered pieces), runs coding
-agents (Claude or Codex) to implement each one, and lands the result as
-reviewed pull requests. You do the reviewing; Syrus does everything between
-the idea and the merge.
-
-**Why not just run Claude or Codex yourself?** A single agent can't safely
-work a repository the way a team needs to. Syrus runs **many changes at once
-on the same codebase** — even changes that touch the same files — without
-corrupting it: every change gets an isolated workspace, Syrus rebases them
-against each other automatically, and it ships them as **stacked pull
-requests** that review and land cleanly in order.
-
-And it imposes the **same production-grade workflow on every change** —
-branch, prepare, implement, run your graders, write a test plan, open a PR,
-rebase, land — so the process is deterministic instead of whatever the agent
-improvises on a given run. That means consistent results, fewer tokens burned
-on the agent re-deriving what to do next, and a hard guardrail: **nothing
-reaches your main branch without a human review.**
-
-Syrus is multi-user and self-hosted. It tracks who asked for what, what every
-agent did, and what it cost — running on your own infrastructure, pointed at
-your own repositories, using your own GitHub and Claude/Codex credentials.
+Syrus is an open-source, self-hosted automation harness for developers: turn
+issues, chats, and video walkthroughs into tracked pull requests while keeping
+your repositories, credentials, checks, transcripts, review policy, and merge
+queue under your control. It runs coding agents in isolated workspaces,
+rebases dependent work, opens reviewed PRs, and records the full workflow so a
+team can run many agent-authored changes against the same codebase without
+turning the process into a black box.
 
 ---
 
-## Install
+## Quickstart
 
-There are two things to run: the **Syrus backend** (the app itself) and,
-optionally, a **client** to drive it (the desktop app or the CLI). The
-easiest path installs all of it for you.
-
-### Desktop app — the easy path (macOS; Windows in beta)
-
-The desktop app installs and manages a local Syrus backend for you (or
-connects to one your team already runs), puts the full web UI in a native
-window, and adds a menu-bar inbox. It's batteries-included: it also installs
-the `syrus` CLI and keeps it updated, and you sign in with your email and
-password — no API keys to copy.
-
-**macOS** — one universal download for both Apple Silicon and Intel:
-**[Syrus.dmg](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**.
-Open it and double-click Syrus in the disk image — it installs itself to
-Applications and launches; the first-run setup handles the Docker backend. No
-terminal required.
-
-That link always points at the newest signed build; you can also browse every
-release and its checksums on the
-[Releases page](https://github.com/tkadauke/syrus/releases).
-
-**Windows** is in beta. It installs and runs Syrus the same way (on Docker
-Desktop, with a guided WSL 2 setup). Signed installers land on the
-[releases page](https://github.com/tkadauke/syrus/releases) once code
-signing goes live; until then, build it from source (see
-[the desktop docs](website/src/content/docs/desktop.md)).
-
-Full details: **[desktop app docs](website/src/content/docs/desktop.md)**.
-
-### Run the backend yourself (Docker, no desktop app)
-
-To run Syrus on a server, or without the desktop app, clone the repo and run
-the Docker installer. It installs a container runtime if you don't have one,
-generates secrets, pulls the prebuilt image, and starts the stack:
+The fastest developer/self-hoster path is Docker Compose. On a fresh machine,
+start with the [Docker Compose guide](https://syrus-ai.dev/docs/deployment/docker-compose)
+to install a container runtime and verify Compose is available. Once Docker
+Compose is ready, clone the repo and let the installer start the web app and
+worker:
 
 ```bash
-git clone git@github.com:tkadauke/syrus.git    # no SSH key? gh repo clone tkadauke/syrus
+git clone https://github.com/tkadauke/syrus.git
 cd syrus
 ./install.sh --docker
 ```
 
-Open **http://localhost:3000**. The first account you create becomes the
-admin, and a first-run wizard walks you through GitHub credentials, the
-agent (Claude or Codex), your first repository, and a guided chat to land
-your first change. Your data lives in a Docker volume and survives restarts.
+Open **http://localhost:3000**. The first account becomes the admin, then the
+first-run wizard walks through GitHub credentials, agent credentials, a
+repository, and a guided chat that lands the first pull request. The installer
+pulls the public `ghcr.io/tkadauke/syrus-backend` image, generates local
+secrets, and stores data in Docker volumes.
 
-No Ruby, Node, or Go required — the image (`ghcr.io/tkadauke/syrus-backend`)
-is public. See [Docker Compose deployment](website/src/content/docs/deployment/docker-compose.md)
-for pinning versions, adding OS packages, and building the image yourself,
-and [the deployment docs](website/src/content/docs/deployment/) for
-Kubernetes.
+Prefer a no-terminal local app? Download the signed macOS desktop app:
+**[Syrus.dmg](https://github.com/tkadauke/syrus/releases/latest/download/Syrus.dmg)**.
+It drives the same Docker install, bundles the web UI in a native window, and
+keeps the `syrus` CLI current.
 
-### The `syrus` CLI (for terminals and servers)
+Docs:
+[Getting started](https://syrus-ai.dev/docs/getting-started) ·
+[Docker Compose](https://syrus-ai.dev/docs/deployment/docker-compose) ·
+[Desktop app](https://syrus-ai.dev/docs/desktop) ·
+[Deployment](https://syrus-ai.dev/docs/deployment)
 
-Desktop app users already have the CLI — it's installed and kept current
-automatically. On a server or a machine without the app, download the
-archive for your platform from the
+### The `syrus` CLI
+
+Desktop app users already have the CLI: it is installed, updated, and signed
+in automatically. On Linux servers or CI machines, download the archive for
+your platform from the
 [Releases page](https://github.com/tkadauke/syrus/releases):
 
 ```bash
-# Apple Silicon macOS shown; pick the matching OS/arch and version.
-curl -LO https://github.com/tkadauke/syrus/releases/download/v0.4.0/syrus_v0.4.0_darwin_arm64.tar.gz
-tar -xzf syrus_v0.4.0_darwin_arm64.tar.gz
-install -d ~/.local/bin && install syrus_v0.4.0_darwin_arm64/syrus ~/.local/bin/syrus
+# Linux arm64 shown; pick the matching release and architecture.
+curl -LO https://github.com/tkadauke/syrus/releases/download/v0.4.0/syrus_v0.4.0_linux_arm64.tar.gz
+tar -xzf syrus_v0.4.0_linux_arm64.tar.gz
+install -d ~/.local/bin && install syrus_v0.4.0_linux_arm64/syrus ~/.local/bin/syrus
 
 syrus login   # enter your instance URL + an API token from the web UI's Credentials page
 ```
 
 Run `syrus` with no arguments for terminal chat, or `syrus inbox` to review
-work. Full reference: [CLI docs](website/src/content/docs/cli.md).
+work. Full reference: [CLI docs](https://syrus-ai.dev/docs/cli).
 
 ---
 
@@ -143,8 +114,8 @@ webhooks to configure.
 ## For developers and operators
 
 Everything below is for running Syrus from source, hacking on it, or
-deploying it to production. If you just want to *use* Syrus, the Install
-section above is all you need.
+deploying it to production. If you just want to *use* Syrus, the Quickstart
+above is all you need.
 
 ### Run from source (macOS, bare metal)
 
@@ -235,7 +206,7 @@ scoped to your Syrus repositories with Contents, Pull requests, and Workflows
 read/write plus Checks read, or a classic PAT with `repo` + `workflow`) and the
 GitHub App, the agent, a repository, and a guided first Epic. The
 **Configure agent** step handles installed agent-provider plugins such as
-Claude, Codex, and Antigravity.
+Claude, Codex, Antigravity, and Muse.
 
 ### Handy commands
 
@@ -277,8 +248,8 @@ npm --prefix desktop run build     # packaged app in desktop/out
 ```
 
 Maintainers cut releases from CI — **Actions → "Release"**, pick a version
-bump, and the pipeline builds, signs, and publishes the CLI, both desktop
-apps, and the backend image atomically (see [`docs/releasing.md`](docs/releasing.md)).
+bump, and the pipeline builds, signs, and publishes the CLI, the macOS desktop
+app, and the backend image atomically (see [`docs/releasing.md`](docs/releasing.md)).
 The `bin/release*` scripts are local build/verify tools only:
 
 ```bash
