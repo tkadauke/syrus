@@ -12,7 +12,8 @@ class ReviewDiffSettings
     "line_numbers" => true,
     "file_list" => true,
     "file_list_layout" => "flat",
-    "file_sort" => "original"
+    "file_sort" => "original",
+    "metric_gutter" => "cognitive_review.risk"
   }.freeze
 
   VALUES = {
@@ -25,6 +26,7 @@ class ReviewDiffSettings
     "file_sort" => %w[original alphabetical change_size]
   }.freeze
   BOOLEAN_KEYS = %w[syntax_highlighting visible_whitespace line_numbers file_list].freeze
+  STRING_KEYS = %w[metric_gutter].freeze
   NUMERIC_RANGES = {
     "tab_width" => (2..8),
     "context_lines" => (5..200)
@@ -40,6 +42,9 @@ class ReviewDiffSettings
         hash[normalized_key] = normalized_value if values.include?(normalized_value)
       elsif BOOLEAN_KEYS.include?(normalized_key)
         hash[normalized_key] = ActiveModel::Type::Boolean.new.cast(setting)
+      elsif STRING_KEYS.include?(normalized_key)
+        normalized_value = setting.to_s
+        hash[normalized_key] = normalized_value if normalized_value.match?(/\A[a-z0-9_.-]{1,80}\z/)
       elsif (range = NUMERIC_RANGES[normalized_key])
         normalized_value = setting.to_i
         hash[normalized_key] = normalized_value if range.cover?(normalized_value)
