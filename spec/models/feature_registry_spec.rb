@@ -32,6 +32,13 @@ RSpec.describe FeatureRegistry do
     )
   end
 
+  it "does not hide default-on feature flags from the admin feature UI" do
+    default_on_slugs = described_class.declarations.select(&:default_enabled).map(&:slug)
+    hidden_default_on_slugs = Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS & default_on_slugs
+
+    expect(hidden_default_on_slugs).to be_empty
+  end
+
   it "uses description as operational meaning unless explicitly declared" do
     declaration = described_class.declarations.find { |feature| feature.operational_meaning.blank? } ||
                   described_class.declarations.first
