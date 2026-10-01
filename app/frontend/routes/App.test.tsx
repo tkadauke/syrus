@@ -7890,30 +7890,47 @@ describe("App", () => {
 
   it("renders the app settings route from the app admin settings API and updates settings", async () => {
     const baseSettings = {
+      signups_open: false,
+      grade_max_iterations: 5,
+      adversarial_review_rounds: 0,
+      max_job_failures: 3,
+      merge_train_max_size: 20,
+      main_concern_report_threshold: 2,
+      main_branch_breakage_policy: "strict",
+      report_issue_repo_slug: "tkadauke/syrus",
       video_retention_days: 7,
       video_storage_budget_mb: 2048,
+      telegram_bot_handle: null,
       max_concurrent_agent_runs: 3,
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
-      main_branch_breakage_policy: "strict",
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       workflow_admission_control_changed_at: null,
       workflow_admission_control_changed_by: null,
+      chat_coding_workspace_budget_mb: 0,
       clearable_secrets: []
     }
     const submittedSettings = {
       signups_open: true,
+      grade_max_iterations: 5,
+      adversarial_review_rounds: 0,
+      max_job_failures: 3,
+      merge_train_max_size: 20,
+      main_concern_report_threshold: 2,
+      main_branch_breakage_policy: "strict",
+      report_issue_repo_slug: "tkadauke/syrus",
       video_retention_days: 7,
       video_storage_budget_mb: 2048,
+      telegram_bot_handle: "",
       max_concurrent_agent_runs: 3,
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
-      main_branch_breakage_policy: "strict",
       workflow_admission_control_enabled: true,
-      workflow_admission_policy: "whole_workflow"
+      workflow_admission_policy: "whole_workflow",
+      chat_coding_workspace_budget_mb: 0
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -7932,7 +7949,7 @@ describe("App", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            settings: { ...baseSettings, signups_open: false }
+            settings: baseSettings
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         )
