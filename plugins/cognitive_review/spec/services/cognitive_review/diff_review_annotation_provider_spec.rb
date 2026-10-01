@@ -66,6 +66,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
             total_flagged_ranges: 1,
             open_unhandled_count: 1,
             handled_count: 0,
+            user_commented_count: 0,
             dismissed_count: 0,
             zero_note_state: false
           ),
@@ -81,7 +82,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
   end
 
-  it "omits same-range human-comment-handled notes from open review annotations" do
+  it "counts same-range human comments as handled review-note debt" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
@@ -137,8 +138,12 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
 
     expect(payload[:ranges]).to eq({})
-    expect(payload[:panels]).to eq([])
-    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload.dig(:panels, 0, :props, :rollup)).to include(
+      total_flagged_ranges: 1,
+      open_unhandled_count: 0,
+      handled_count: 1,
+      user_commented_count: 1
+    )
   end
 
   it "keeps older-version notes out of active inline annotations while exposing them to the sidebar" do
@@ -197,10 +202,11 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
   end
 
-  it "counts acknowledged and discussed notes as handled rather than unresolved review-note debt" do
+  it "counts acknowledged, discussed, and user-commented notes as handled rather than unresolved debt" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
+    user = Factories.user
     version = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
@@ -251,6 +257,31 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       state: "dismissed",
       source_metadata: {}
     )
+    covered = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 7,
+      end_line: 9,
+      title: "User-commented note",
+      explanation: "A regular review comment covers this note.",
+      state: "open",
+      source_metadata: {}
+    )
+    job.diff_review_comments.create!(
+      user: user,
+      diff_review_version: version,
+      surface: "job_diff",
+      anchor_kind: "line",
+      path: covered.path,
+      side: "right",
+      new_line: 8,
+      body: "Operator feedback already covers this range.",
+      state: "submitted"
+    )
 
     payload = described_class.review_annotations(
       job: job,
@@ -263,18 +294,19 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
 
     expect(payload[:ranges]).to eq({})
     expect(payload[:counts]).to contain_exactly(
-      hash_including(id: "cognitive_review.total", value: 3),
+      hash_including(id: "cognitive_review.total", value: 4),
       hash_including(id: "cognitive_review.open", value: 0, tone: "success"),
-      hash_including(id: "cognitive_review.handled", value: 2),
+      hash_including(id: "cognitive_review.handled", value: 3),
       hash_including(id: "cognitive_review.dismissed", value: 1)
     )
     expect(payload.dig(:panels, 0, :props, :rollup)).to include(
-      total_flagged_ranges: 3,
+      total_flagged_ranges: 4,
       open_unhandled_count: 0,
       acknowledged_count: 1,
       discussed_count: 1,
+      user_commented_count: 1,
       dismissed_count: 1,
-      handled_count: 2,
+      handled_count: 3,
       zero_note_state: false
     )
     expect(discussed).to be_handled
@@ -361,10 +393,9 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload.dig(:ranges, note.path)).to contain_exactly(
-      hash_including(id: "cognitive_review_note:#{note.id}", props: hash_including(handled_by_comment: true))
-    )
+    expect(payload[:ranges]).to eq({})
     expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload.dig(:panels, 0, :props, :rollup)).to include(user_commented_count: 1, handled_count: 1)
   end
 
   it "keeps notes open when user comments miss the covered range" do

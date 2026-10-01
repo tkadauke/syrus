@@ -14,7 +14,7 @@ module CognitiveReview
       rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes)
       return {} if sidebar_notes.empty? && !rollup.submitted?
 
-      open_notes = CognitiveReview::Note.open_for_pr_debt(notes)
+      open_notes = notes.select { |note| note.open? && !rollup.user_commented?(note) }
       comments_by_note_id = matching_comments_by_note_id(open_notes)
       sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes)
 
@@ -45,7 +45,7 @@ module CognitiveReview
     def self.counts_for(rollup)
       [
         count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
-        count_payload("cognitive_review.open", "Open debt", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
+        count_payload("cognitive_review.open", "Open notes", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
         count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
         count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
       ]

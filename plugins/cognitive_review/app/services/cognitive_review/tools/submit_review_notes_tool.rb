@@ -12,7 +12,7 @@ module CognitiveReview
 
       description <<~DESC
         Submit review notes for changed diff ranges after an implementation workflow.
-        Each note should read like concise review guidance and explain why that range is shaped the way it is.
+        Each note should identify the file/range and explain why that range deserves operator attention.
         Submit an empty notes array when the diff has no attention-worthy ranges.
       DESC
 
