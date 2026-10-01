@@ -61,6 +61,13 @@ RSpec.describe App::JobSourceDiffPayload do
       patch: "@@ -1 +1 @@\n-old\n+new",
       is_image: false
     )
+    expect(payload[:review_annotations]).to eq(
+      annotations: {},
+      ranges: {},
+      panels: [],
+      actions: [],
+      counts: []
+    )
     expect(payload[:version]).to include(
       version_index: 1,
       base_sha: "aabbccdd1234567",
@@ -76,6 +83,61 @@ RSpec.describe App::JobSourceDiffPayload do
       "deletions" => 1,
       "patch" => "@@ -1 +1 @@\n-old\n+new"
     )
+  end
+
+  it "normalizes enabled plugin diff review annotation contributions" do
+    provider = Class.new do
+      include Syrus::Plugin::DiffReviewAnnotationProvider
+
+      def self.review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
+        {
+          annotations: {
+            "app/models/user.rb" => {
+              "1" => [
+                { id: "note-1", title: "Interesting range", body: "Review this branch.", tone: "warning" }
+              ]
+            }
+          },
+          ranges: {
+            "app/models/user.rb" => [
+              { id: "range-1", side: "old", start_line: 1, end_line: 2, title: "Deleted range" },
+              { id: "range-2", side: "new", line: "3", title: "One line shorthand" }
+            ]
+          },
+          panels: [ { id: "panel-1", title: "Review notes", body: "1 note" } ],
+          actions: [ { id: "action-1", label: "Acknowledge", href: "/ack" } ],
+          counts: [ { id: "open", label: "Open", value: 1 } ]
+        }
+      end
+    end
+    Syrus::PluginRegistry.register(name: "annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
+      files: [
+        { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
+      ],
+      truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload.dig(:review_annotations, :annotations, "app/models/user.rb", "1")).to contain_exactly(
+      "id" => "note-1",
+      "title" => "Interesting range",
+      "body" => "Review this branch.",
+      "tone" => "warning"
+    )
+    expect(payload.dig(:review_annotations, :ranges, "app/models/user.rb")).to contain_exactly(
+      { "id" => "range-1", "side" => "old", "start_line" => 1, "end_line" => 2, "title" => "Deleted range" },
+      { "id" => "range-2", "side" => "new", "line" => "3", "title" => "One line shorthand", "start_line" => 3, "end_line" => 3 }
+    )
+    expect(payload.dig(:review_annotations, :panels)).to contain_exactly("id" => "panel-1", "title" => "Review notes", "body" => "1 note")
+    expect(payload.dig(:review_annotations, :actions)).to contain_exactly("id" => "action-1", "label" => "Acknowledge", "href" => "/ack")
+    expect(payload.dig(:review_annotations, :counts)).to contain_exactly("id" => "open", "label" => "Open", "value" => 1)
+  ensure
+    Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
   end
 
   # GitHub lists at most 300 files per comparison. The viewer always showed
