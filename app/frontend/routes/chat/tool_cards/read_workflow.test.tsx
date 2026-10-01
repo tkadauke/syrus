@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import readWorkflowToolCard from "./read_workflow"
 
@@ -14,6 +14,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("read_workflow tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(readWorkflowToolCard.toolName).toBe("read_workflow")
   })
@@ -58,14 +64,19 @@ describe("read_workflow tool card", () => {
     expect(screen.getByText("initial")).toBeInTheDocument()
     expect(screen.getByText("claude")).toBeInTheDocument()
     expect(screen.getByText("$1.7500")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WF-25606" })).toHaveAttribute("href", "/jobs/4221?tab=workflows#workflow-25606")
+    expect(screen.getByRole("link", { name: "JOB-4221" })).toHaveAttribute("href", "/jobs/4221")
     expect(screen.getByText("Implementing tool cards")).toBeInTheDocument()
     expect(screen.getByText("implement")).toBeInTheDocument()
     expect(screen.getAllByText("succeeded")).toHaveLength(2)
-    expect(screen.getByText("RUN-9")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-9" })).toHaveAttribute("href", "/jobs/4221?tab=workflows#workflow-25606")
     expect(screen.getByText("success")).toBeInTheDocument()
     expect(screen.getByText("$0.4200")).toBeInTheDocument()
     expect(screen.getByText("changed the code")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Copy WF-25606 to clipboard" }))
+    fireEvent.click(screen.getByRole("button", { name: "Copy RUN-9 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("WF-25606")
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("RUN-9")
   })
 
   it("omits optional sections when fields are missing", () => {

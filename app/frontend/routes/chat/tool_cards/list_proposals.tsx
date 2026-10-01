@@ -57,3 +57,24 @@ const listProposalsToolCard: ToolCardRenderer = {
 }
 
 export default listProposalsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "mixed_proposals",
+    label: "Mixed proposal states",
+    parsedResult: {
+      proposals: [
+        { slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" },
+        { slug: "tier-2-cards", title: "Tier 2 Custom Tool Cards", kind: "epic", state: "withdrawn" }
+      ]
+    }
+  },
+  {
+    id: "no_proposals",
+    label: "No proposals",
+    description: "Empty result set -- the card renders EmptyState instead of a bare table header.",
+    parsedResult: { proposals: [] }
+  }
+]

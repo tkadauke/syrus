@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { displayValue, EmptyState } from "../toolCardUi"
+import { displayValue, EmptyState, EntityReference } from "../toolCardUi"
 
 // Core-owned tool card for list_repositories (the tool-card work).
 type RepositoryRow = { id: string; slug: string; defaultBranch: string | null; epicDependencyPolicy: string | null }
@@ -68,7 +68,9 @@ function renderExpanded(context: ToolCardContext) {
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
             {result.rows.map((row) => (
               <tr key={row.id}>
-                <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">{row.slug}</td>
+                <td className="whitespace-nowrap px-2 py-1">
+                  <EntityReference kind="repository" repositoryId={row.id} repositorySlug={row.slug} />
+                </td>
                 <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.defaultBranch || "—"}</td>
                 <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.epicDependencyPolicy || "—"}</td>
               </tr>
@@ -90,3 +92,25 @@ const listRepositoriesToolCard: ToolCardRenderer = {
 }
 
 export default listRepositoriesToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "repositories_with_links",
+    label: "Repositories with links",
+    parsedResult: {
+      repositories: [
+        { id: 1, slug: "tkadauke/syrus", owner: "tkadauke", name: "syrus", default_branch: "main", epic_dependency_policy: "linear" },
+        { id: 2, slug: "acme/widget-app", owner: "acme", name: "widget-app", default_branch: "trunk", epic_dependency_policy: "independent" }
+      ],
+      pagination: { page: 1, per_page: 20, total_count: 2, total_pages: 1, has_next_page: false }
+    }
+  },
+  {
+    id: "no_repositories",
+    label: "No repositories",
+    description: "Empty result set -- the card renders EmptyState instead of a bare table header.",
+    parsedResult: { repositories: [], pagination: { page: 1, per_page: 20, total_count: 0, total_pages: 0, has_next_page: false } }
+  }
+]

@@ -173,7 +173,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   pull_request: { label: (reference) => {
     const id = compactEntityValue(reference.id)
     return id ? `PR #${id}` : null
-  }, href: (reference) => displayValue(reference.prUrl) },
+  }, href: (reference) => displayValue(reference.prUrl), copyValue: slugCopyValue },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }

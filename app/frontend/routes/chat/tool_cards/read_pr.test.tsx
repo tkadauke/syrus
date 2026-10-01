@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import readPrToolCard from "./read_pr"
 
@@ -14,6 +14,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("read_pr tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(readPrToolCard.toolName).toBe("read_pr")
   })
@@ -39,6 +45,8 @@ describe("read_pr tool card", () => {
 
     const link = screen.getByRole("link", { name: "PR #7" })
     expect(link).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/7")
+    fireEvent.click(screen.getByRole("button", { name: "Copy PR #7 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("PR #7")
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
     expect(screen.getByText("Adds custom cards.")).toBeInTheDocument()
     expect(screen.getByText("open")).toBeInTheDocument()
@@ -67,6 +75,7 @@ describe("read_pr tool card", () => {
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument()
     expect(screen.getAllByText("PR #7").length).toBeGreaterThan(0)
+    expect(screen.getByRole("button", { name: "Copy PR #7 to clipboard" })).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (missing pr object)", () => {
