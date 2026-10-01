@@ -2463,9 +2463,10 @@ describe("JobDetailRoute", () => {
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
 
     const notices = await screen.findByRole("region", { name: "Job notices" })
-    expect(notices).toHaveClass("mx-4", "sm:mx-0")
-    expect(within(notices).getByText("Notice 1 of 2")).toBeInTheDocument()
-    expect(within(notices).getByRole("button", { name: "Next notice" })).toBeInTheDocument()
+    expect(notices).not.toHaveClass("mx-4")
+    const noticeControls = within(notices).getByText("Notice 1 of 2").parentElement
+    expect(noticeControls).toHaveClass("mx-4", "sm:mx-0")
+    expect(within(noticeControls as HTMLElement).getByRole("button", { name: "Next notice" })).toBeInTheDocument()
     expect(summaryTab.closest("main")).toBe(main)
   })
 
