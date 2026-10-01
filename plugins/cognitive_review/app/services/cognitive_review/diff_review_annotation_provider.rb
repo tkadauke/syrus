@@ -19,7 +19,7 @@ module CognitiveReview
     def self.open_count(notes)
       {
         id: "cognitive_review.open",
-        label: "Cognitive review",
+        label: "Review Notes",
         value: notes.size,
         tone: "warning"
       }
@@ -66,7 +66,7 @@ module CognitiveReview
       [
         {
           id: "cognitive_review.summary",
-          title: "Cognitive review",
+          title: "Review Notes",
           body: "#{notes.size} note#{'s' unless notes.one?} flagged for operator attention.",
           tone: "warning"
         }

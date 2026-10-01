@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "App API cognitive review notes", type: :request do
+RSpec.describe "App API review notes", type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job_with_run(user: user, repository: repo, step_attrs: { kind: "post_implementation_review" }) }
@@ -24,7 +24,8 @@ RSpec.describe "App API cognitive review notes", type: :request do
   end
 
   def parse_body = JSON.parse(response.body)
-  def notes_path(record = job) = "/api/v1/app/jobs/#{record.id}/cognitive_review_notes"
+  def notes_path(record = job) = "/api/v1/app/jobs/#{record.id}/review_notes"
+  def legacy_notes_path(record = job) = "/api/v1/app/jobs/#{record.id}/cognitive_review_notes"
   def note_path(note, record = job) = "#{notes_path(record)}/#{note.id}"
 
   def create_note(**attrs)
@@ -82,7 +83,16 @@ RSpec.describe "App API cognitive review notes", type: :request do
     expect(parse_body["notes"].size).to eq(1)
   end
 
-  it "acknowledges an open note as handled debt" do
+  it "keeps the legacy cognitive review notes route as an alias" do
+    create_note
+
+    get legacy_notes_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["notes"].size).to eq(1)
+  end
+
+  it "acknowledges an open note as handled review-note debt" do
     note = create_note
 
     post "#{note_path(note)}/acknowledge"
@@ -92,7 +102,7 @@ RSpec.describe "App API cognitive review notes", type: :request do
     expect(parse_body).to include("unresolved_count" => 0, "handled_count" => 1)
   end
 
-  it "starts discussion and records the operator message" do
+  it "starts discussion and records the operator message as a handled note range" do
     note = create_note
 
     post "#{note_path(note)}/discussion_entries", params: { body: "Let's inspect this edge.", metadata: { source: "review_tab" } }, as: :json
