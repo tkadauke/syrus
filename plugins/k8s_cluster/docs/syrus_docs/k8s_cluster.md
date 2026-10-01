@@ -381,6 +381,14 @@ Every tool call takes a `cluster_id` param and every read wraps the matching
 `CronJobs`, `Overview`) - no separate agentic-only code path, so the agent
 sees exactly what the browsing UI sees.
 
+Chat transcripts render these read-only results through plugin-owned tool
+cards instead of generic JSON. Workload cards show readiness, desired/current
+counts, selectors, rollout/condition signals, and warning counts; network
+cards show ports, endpoint readiness, hosts, TLS/class metadata, and missing
+target warnings; pod-log cards keep the raw result available while showing a
+searchable preview. Secret cards only render server-redacted metadata and key
+names, never secret data values.
+
 **Gating is per-cluster, not per-repository or admin-only.** There is no
 framework hook to resolve an individual tool call's params from
 `available_for?`/`available_for_context?` - those are only checked once, at

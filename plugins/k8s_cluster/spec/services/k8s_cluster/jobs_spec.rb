@@ -10,8 +10,13 @@ RSpec.describe K8sCluster::Jobs do
   def job(name: "migrate")
     {
       "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
-      "spec" => { "completions" => 1, "parallelism" => 1 },
-      "status" => { "active" => 1, "succeeded" => 0, "failed" => 0 }
+      "spec" => { "completions" => 1, "parallelism" => 1, "selector" => { "matchLabels" => { "job-name" => "migrate" } } },
+      "status" => {
+        "active" => 1,
+        "succeeded" => 0,
+        "failed" => 0,
+        "conditions" => [ { "type" => "Running", "status" => "True", "reason" => "PodsActive", "lastTransitionTime" => "2026-01-01T00:05:00Z" } ]
+      }
     }
   end
 
@@ -28,6 +33,10 @@ RSpec.describe K8sCluster::Jobs do
       expect(row[:active_count]).to eq(1)
       expect(row[:succeeded]).to eq(0)
       expect(row[:failed]).to eq(0)
+      expect(row[:selector]).to eq("job-name" => "migrate")
+      expect(row[:conditions]).to eq([
+        { type: "Running", status: "True", reason: "PodsActive", last_transition_time: "2026-01-01T00:05:00Z" }
+      ])
     end
 
     it "lists across all namespaces when none is given" do

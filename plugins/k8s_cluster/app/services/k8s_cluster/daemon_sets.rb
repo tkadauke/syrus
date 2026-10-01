@@ -31,8 +31,21 @@ module K8sCluster
         current_number_scheduled: integer(item.dig("status", "currentNumberScheduled")).to_i,
         number_ready: integer(item.dig("status", "numberReady")).to_i,
         number_available: integer(item.dig("status", "numberAvailable")).to_i,
+        selector: item.dig("spec", "selector", "matchLabels") || {},
+        conditions: recent_conditions(item),
         created_at: item.dig("metadata", "creationTimestamp")
       }
+    end
+
+    def recent_conditions(item)
+      (item.dig("status", "conditions") || []).last(3).map do |condition|
+        {
+          type: condition["type"],
+          status: condition["status"],
+          reason: condition["reason"],
+          last_transition_time: condition["lastTransitionTime"]
+        }
+      end
     end
   end
 end

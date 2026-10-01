@@ -1,13 +1,23 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import configMapsToolCard from "./k8s_cluster_configmaps"
+import cronJobsToolCard from "./k8s_cluster_cronjobs"
+import daemonSetsToolCard from "./k8s_cluster_daemonsets"
+import deploymentsToolCard from "./k8s_cluster_deployments"
 import eventsToolCard, { examples as eventExamples } from "./k8s_cluster_events"
+import ingressesToolCard from "./k8s_cluster_ingresses"
+import jobsToolCard from "./k8s_cluster_jobs"
 import listClustersToolCard from "./k8s_cluster_list_clusters"
 import namespacesToolCard from "./k8s_cluster_namespaces"
 import nodesToolCard from "./k8s_cluster_nodes"
 import overviewToolCard from "./k8s_cluster_overview"
+import podLogsToolCard from "./k8s_cluster_pod_logs"
 import podsToolCard from "./k8s_cluster_pods"
 import pvcsToolCard from "./k8s_cluster_pvcs"
+import secretsToolCard, { examples as secretExamples } from "./k8s_cluster_secrets"
+import servicesToolCard from "./k8s_cluster_services"
+import statefulSetsToolCard from "./k8s_cluster_statefulsets"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -29,7 +39,17 @@ describe("Kubernetes cluster tool cards", () => {
       "k8s_cluster_nodes",
       "k8s_cluster_pods",
       "k8s_cluster_pvcs",
-      "k8s_cluster_events"
+      "k8s_cluster_events",
+      "k8s_cluster_deployments",
+      "k8s_cluster_statefulsets",
+      "k8s_cluster_daemonsets",
+      "k8s_cluster_jobs",
+      "k8s_cluster_cronjobs",
+      "k8s_cluster_services",
+      "k8s_cluster_ingresses",
+      "k8s_cluster_configmaps",
+      "k8s_cluster_pod_logs",
+      "k8s_cluster_secrets"
     ].forEach((toolName) => {
       expect(pluginToolCardRendererFor(toolName)).not.toBeNull()
     })
@@ -40,6 +60,7 @@ describe("Kubernetes cluster tool cards", () => {
 
     expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "k8s_cluster" })
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
+    expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
   })
 
   it("summarizes cluster inventory with resource counts and warning status", () => {
@@ -138,6 +159,104 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("metrics.k8s.io is not available")).toBeInTheDocument()
     expect(screen.getAllByText("125m").length).toBeGreaterThan(0)
     expect(screen.getAllByText("256.0 MB").length).toBeGreaterThan(0)
+  })
+
+  it("renders workload cards with readiness, selectors, rollout counts, and recent conditions", () => {
+    render(
+      <>
+        {deploymentsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_deployments",
+          parsedResult: { available: true, deployments: [{ namespace: "default", name: "web", replicas: 3, ready_replicas: 2, available_replicas: 2, updated_replicas: 3, selector: { app: "web" }, conditions: [{ type: "Available", status: "False", reason: "MinimumReplicasUnavailable" }], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {statefulSetsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_statefulsets",
+          parsedResult: { available: true, stateful_sets: [{ namespace: "default", name: "postgres", replicas: 2, ready_replicas: 2, current_replicas: 2, updated_replicas: 2, selector: { app: "postgres" }, conditions: [{ type: "Ready", status: "True" }], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {daemonSetsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_daemonsets",
+          parsedResult: { available: true, daemon_sets: [{ namespace: "kube-system", name: "agent", desired_number_scheduled: 4, current_number_scheduled: 4, number_ready: 3, number_available: 3, selector: { app: "agent" }, conditions: [{ type: "Available", status: "False" }], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {jobsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_jobs",
+          parsedResult: { available: true, jobs: [{ namespace: "default", name: "migrate", completions: 1, parallelism: 1, active_count: 0, succeeded: 0, failed: 1, selector: { "job-name": "migrate" }, conditions: [{ type: "Failed", status: "True" }], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {cronJobsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_cronjobs",
+          parsedResult: { available: true, cron_jobs: [{ namespace: "default", name: "nightly", schedule: "0 2 * * *", suspended: true, active_count: 0, last_schedule_time: "2026-09-30T02:00:00Z", created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+      </>
+    )
+
+    expect(deploymentsToolCard.collapsedSummary?.(context({
+      toolName: "k8s_cluster_deployments",
+      parsedResult: { available: true, deployments: [{ replicas: 3, ready_replicas: 2 }] }
+    }))).toBe("Cluster 7 · 1 deployments · 1 warning")
+    expect(screen.getAllByRole("columnheader", { name: "Selector" }).length).toBeGreaterThan(0)
+    expect(screen.getByText("app=web")).toBeInTheDocument()
+    expect(screen.getByText("Available:False:MinimumReplicasUnavailable")).toBeInTheDocument()
+    expect(screen.getByText("0/1")).toBeInTheDocument()
+    expect(screen.getByText("0 2 * * *")).toBeInTheDocument()
+  })
+
+  it("renders services and ingresses with ports, endpoint warnings, hosts, TLS, and backend metadata", () => {
+    render(
+      <>
+        {servicesToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_services",
+          parsedResult: { available: true, services: [{ namespace: "default", name: "web", type: "ClusterIP", cluster_ip: "10.0.0.10", ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }], selector: { app: "web" }, ready_addresses: 0, not_ready_addresses: 0, missing_target_warning: true, created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {ingressesToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_ingresses",
+          parsedResult: { available: true, ingresses: [{ namespace: "default", name: "web", ingress_class: "nginx", hosts: ["app.example.test"], rules: [{ host: "app.example.test", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }], tls_hosts: ["app.example.test"], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+      </>
+    )
+
+    expect(screen.getByText("80/TCP -> 8080")).toBeInTheDocument()
+    expect(screen.getByText("No ready targets")).toBeInTheDocument()
+    expect(screen.getAllByText("app.example.test").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText("web:80")).toBeInTheDocument()
+    expect(screen.getByText("nginx")).toBeInTheDocument()
+  })
+
+  it("renders config and secret metadata without exposing secret values", () => {
+    render(
+      <>
+        {configMapsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_configmaps",
+          parsedResult: { available: true, config_maps: [{ namespace: "default", name: "web-config", key_count: 2, key_names: ["LOG_LEVEL", "PUBLIC_URL"], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+        {secretsToolCard.renderExpanded(context({
+          toolName: "k8s_cluster_secrets",
+          parsedResult: { available: true, secrets: [{ namespace: "default", name: "web-secret", type: "Opaque", key_count: 2, key_names: ["API_TOKEN", "DATABASE_URL"], created_at: "2026-09-01T00:00:00Z" }] }
+        }))}
+      </>
+    )
+
+    expect(screen.getByText("LOG_LEVEL, PUBLIC_URL")).toBeInTheDocument()
+    expect(screen.getByText("API_TOKEN, DATABASE_URL")).toBeInTheDocument()
+    expect(screen.queryByText("super-secret-value")).not.toBeInTheDocument()
+  })
+
+  it("renders pod logs with searchable truncated preview metadata", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "web-1", container: "web" },
+      parsedResult: {
+        available: true,
+        pod: "web-1",
+        namespace: "default",
+        container: "web",
+        log: "2026-09-30T12:00:00Z boot complete\n2026-09-30T12:00:01Z request complete"
+      }
+    })
+
+    expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 1 log lines")
+    render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
+    expect(screen.getByText("web-1")).toBeInTheDocument()
+    expect(screen.getByText(/boot complete/)).toBeInTheDocument()
   })
 
   it("renders empty and error cases as friendly card bodies", () => {
