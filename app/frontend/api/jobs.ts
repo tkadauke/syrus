@@ -1201,6 +1201,8 @@ export type DiffReviewAnnotation = {
   body?: string | null
   tone?: "default" | "info" | "warning" | "danger" | "success" | string
   component?: string | null
+  inline_component?: string | null
+  marker_component?: string | null
   path?: string | null
   props?: Record<string, unknown>
   actions?: DiffReviewAnnotationAction[]

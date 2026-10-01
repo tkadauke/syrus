@@ -12,7 +12,7 @@ import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import type { DiffReviewAnnotation, DiffReviewAnnotationRange } from "../../api/jobs"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { renderPluginReviewAnnotation } from "../../pluginReviewAnnotations"
+import { renderPluginReviewAnnotation, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
@@ -1379,6 +1379,7 @@ function isDiffCodeLine(kind: DiffLine["kind"]) {
   return kind === "add" || kind === "delete" || kind === "context"
 }
 
+/* eslint-disable design-system/no-raw-table-classes */
 export function UnifiedDiffTable({
   annotations,
   comments,
@@ -1613,6 +1614,38 @@ export function UnifiedDiffTable({
     )
   }
 
+  function renderReviewNotesRow(reviewNotes: DiffReviewAnnotation[], splitRow: boolean) {
+    if (reviewNotes.length === 0) return null
+
+    const panel = (
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-warning-bg/45 dark:bg-warning-bg/20`} data-testid="diff-review-note-inline">
+        {reviewNotes.map((note, index) => (
+          <ReviewAnnotationCard item={annotationForInline(note)} key={String(note.id ?? index)} />
+        ))}
+      </div>
+    )
+
+    if (splitRow) {
+      return (
+        <tr className="bg-warning-bg/35 font-sans dark:bg-warning-bg/20" data-testid="diff-review-note-row">
+          <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-warning-text`} colSpan={splitInlineColSpan}>
+            {panel}
+          </td>
+        </tr>
+      )
+    }
+
+    return (
+      <tr className="bg-warning-bg/35 font-sans dark:bg-warning-bg/20" data-testid="diff-review-note-row">
+        <td className="border-r border-warning-border" colSpan={gutterColSpan} />
+        <td className={`text-warning-text ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+        <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-warning-text`} colSpan={showReviewNotes ? 3 : 2}>
+          {panel}
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
       <table
@@ -1646,6 +1679,7 @@ export function UnifiedDiffTable({
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
+            const inlineReviewNotes = reviewNotesStartingOnLine(line, reviewNotes)
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
             const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
             const highlightedReviewNote = Boolean(highlightedReviewAnnotationId && reviewNoteIdsForLine.includes(highlightedReviewAnnotationId))
@@ -1680,6 +1714,7 @@ export function UnifiedDiffTable({
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
+                  {renderReviewNotesRow(inlineReviewNotes, true)}
                   {renderThreadRow(threads, true)}
                   {renderComposerRow(isComposingHere, true)}
                 </Fragment>
@@ -1702,6 +1737,7 @@ export function UnifiedDiffTable({
                       />
                     </td>
                   </tr>
+                  {renderReviewNotesRow(inlineReviewNotes, true)}
                   {renderThreadRow(threads, true)}
                   {renderComposerRow(isComposingHere, true)}
                 </Fragment>
@@ -1767,6 +1803,7 @@ export function UnifiedDiffTable({
                   </td>
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
                 </tr>
+                {renderReviewNotesRow(inlineReviewNotes, false)}
                 {renderThreadRow(threads, false)}
                 {renderComposerRow(isComposingHere, false)}
               </Fragment>
@@ -1877,7 +1914,6 @@ function DiffCode({
   )
 }
 
-/* eslint-disable design-system/no-raw-table-classes */
 function SplitDiffRow({
   annotation,
   canComment,
@@ -1994,10 +2030,18 @@ function ReviewNotesCell({ reviewNotes, reviewSettings }: { reviewNotes: DiffRev
       data-diff-review-annotation-ids={reviewNoteIds(reviewNotes).join(" ")}
     >
       {reviewNotes.length === 1
-        ? renderPluginReviewAnnotation(reviewNotes[0]!, reviewNotesFallbackMarker(1, title))
+        ? renderPluginReviewAnnotation(annotationForMarker(reviewNotes[0]!), reviewNotesFallbackMarker(1, title))
         : reviewNotesFallbackMarker(reviewNotes.length, title)}
     </td>
   )
+}
+
+function annotationForInline(annotation: DiffReviewAnnotation): DiffReviewAnnotation {
+  return { ...annotation, component: annotation.inline_component ?? null }
+}
+
+function annotationForMarker(annotation: DiffReviewAnnotation): DiffReviewAnnotation {
+  return annotation.marker_component ? { ...annotation, component: annotation.marker_component } : annotation
 }
 
 function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
@@ -2070,6 +2114,18 @@ function reviewNotesForLine(
 function rangeAnnotationMatchesLine(note: DiffReviewAnnotationRange, line: DiffLine) {
   const lineNumber = note.side === "old" ? line.oldLine : line.newLine
   return lineNumber != null && lineNumber >= note.start_line && lineNumber <= note.end_line
+}
+
+function reviewNotesStartingOnLine(line: DiffLine, reviewNotes: DiffReviewAnnotation[]) {
+  return reviewNotes.filter((note) => {
+    if (!isReviewAnnotationRange(note)) return true
+    const lineNumber = note.side === "old" ? line.oldLine : line.newLine
+    return lineNumber === note.start_line
+  })
+}
+
+function isReviewAnnotationRange(note: DiffReviewAnnotation): note is DiffReviewAnnotationRange {
+  return "start_line" in note && "end_line" in note && "side" in note
 }
 
 function SplitDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {

@@ -45,11 +45,19 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
         start_line: 4,
         end_line: 6,
         title: "Check lifecycle",
+        inline_component: "cognitive_review/note_panel",
+        marker_component: "cognitive_review/note_marker",
         props: hash_including(
-          note_id: note.id,
-          job_id: job.id,
-          path: "app/models/job.rb",
-          explanation: "This range changes lifecycle behavior."
+          hide_header: true,
+          notes: [
+            hash_including(
+              note_id: note.id,
+              job_id: job.id,
+              path: "app/models/job.rb",
+              explanation: "This range changes lifecycle behavior."
+            )
+          ],
+          total: 1
         )
       )
     )
