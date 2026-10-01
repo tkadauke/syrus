@@ -52,6 +52,14 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
         "category" => "Instance operations",
         "min" => 0,
         "zero_means" => a_string_including("No per-user USD spend budget")
+      ),
+      include(
+        "key" => "main_branch_breakage_policy",
+        "type" => "string",
+        "default" => "strict",
+        "category" => "Workflow behavior",
+        "admin_editable" => true,
+        "options" => AppSetting::MAIN_BRANCH_BREAKAGE_POLICIES
       )
     )
   end
@@ -179,6 +187,34 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.rebase_failure_cooldown_minutes).to eq(15)
+  end
+
+  it "exposes and updates the main-branch breakage policy" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/settings"
+    expect(parse_body.dig("settings", "main_branch_breakage_policy")).to eq("strict")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { main_branch_breakage_policy: "isolate_unrelated_failures" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.main_branch_breakage_policy).to eq("isolate_unrelated_failures")
+    expect(parse_body.dig("settings", "main_branch_breakage_policy")).to eq("isolate_unrelated_failures")
+  end
+
+  it "rejects an invalid main-branch breakage policy without persisting it" do
+    sign_in_as(admin)
+    AppSetting.current.update!(main_branch_breakage_policy: "strict")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { main_branch_breakage_policy: "land_everything" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(AppSetting.current.reload.main_branch_breakage_policy).to eq("strict")
   end
 
   it "exposes, audits, and wakes work when workflow admission control changes" do

@@ -38,6 +38,7 @@ class AppSettingRegistry
         min: min,
         max: max,
         zero_means: zero_means,
+        options: AppSettingRegistry.options_for(key),
         admin_editable: admin_editable,
         secret: secret
       }.compact
@@ -294,7 +295,7 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Main-branch breakage policy: 'strict' pauses unrelated work when main is broken; 'isolate_unrelated_failures' keeps work moving and lets grader_collect pass failures proven to be inherited from broken main.",
       zero_means: nil,
-      admin_editable: false,
+      admin_editable: true,
       secret: false
     ),
     Definition.new(
@@ -529,6 +530,13 @@ class AppSettingRegistry
 
   def self.boolean_key?(key)
     definitions.index_by(&:key)[key.to_sym]&.boolean? || false
+  end
+
+  def self.options_for(key)
+    {
+      workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES,
+      main_branch_breakage_policy: AppSetting::MAIN_BRANCH_BREAKAGE_POLICIES
+    }[key.to_sym]
   end
 
   def self.metadata_for(keys = definitions.map(&:key))
