@@ -1,6 +1,10 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
+// The post-enable assertion below asks for 60s, which the default 30s *test*
+// budget made unreachable -- the test died at 30s whatever the assertion said.
+test.slow()
+
 const MACRO_PATH = "/api/v1/app/admin/worker_timeline/macro"
 const WORKFLOW_PATH = "/api/v1/app/admin/worker_timeline/workflow"
 
@@ -144,11 +148,12 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page. A cold dev-mode render of this app can
-    // take the better part of a minute, so wait for the load itself and then
-    // give the card room to come back.
     await page.waitForLoadState("load")
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
+    // Enabling navigates to the plugin's own page (/admin/plugins/<name>); it
+    // does not reload the list. So the card locator above cannot resolve any
+    // more -- assert on the page we actually land on. `pluginCard` is not used
+    // past this block.
+    await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
   }
 
   await page.goto("/worker_timeline")

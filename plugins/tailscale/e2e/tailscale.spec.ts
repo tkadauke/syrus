@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
+// Enabling a plugin reloads the page, and a cold dev-mode re-render can take
+// most of a minute -- which is why the post-enable assertion below asks for 60s.
+// That request was unreachable without this: the default *test* budget is 30s,
+// so the test was killed at 30s no matter what timeout the assertion carried.
+// Only CI ever saw it, because the plugin is already enabled on a developer's
+// instance and the whole enable branch is skipped.
+test.slow()
+
 test("Tailscale admin page reports the unconfigured state when no tailnet is available", async ({ page }) => {
   await signInAsDemo(page)
 
@@ -15,11 +23,12 @@ test("Tailscale admin page reports the unconfigured state when no tailnet is ava
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page. A cold dev-mode render of this app can
-    // take the better part of a minute, so wait for the load itself and then
-    // give the card room to come back.
     await page.waitForLoadState("load")
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
+    // Enabling navigates to the plugin's own page (/admin/plugins/<name>); it
+    // does not reload the list. So the card locator above cannot resolve any
+    // more -- assert on the page we actually land on. `pluginCard` is not used
+    // past this block.
+    await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
   }
 
   // No real tailscaled daemon and no TS_AUTHKEY are available in this dev

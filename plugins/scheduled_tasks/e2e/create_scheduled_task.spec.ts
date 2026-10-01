@@ -6,7 +6,10 @@ test("signed-in user can create a scheduled task", async ({ page }) => {
 
   await page.goto("/scheduled_tasks/new")
 
-  await page.getByLabel("Repository").selectOption({ label: "demo/syrus-preview" })
+  // Exact: the sidebar's new-chat repository selector also matches a loose
+  // "Repository" label (plus its "Remove repository from new chat" button), so
+  // a non-exact match resolves to three elements and fails strict mode.
+  await page.getByLabel("Repository", { exact: true }).selectOption({ label: "demo/syrus-preview" })
   await page.getByRole("button", { name: "Continue", exact: true }).click()
 
   const name = `E2E smoke ${Date.now()}`

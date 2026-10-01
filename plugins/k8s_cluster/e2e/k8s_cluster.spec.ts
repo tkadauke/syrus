@@ -2,6 +2,10 @@ import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
+// The post-enable assertion below asks for 60s, which the default 30s *test*
+// budget made unreachable -- the test died at 30s whatever the assertion said.
+test.slow()
+
 const GENERATED_AT = "2026-01-01T00:00:00Z"
 
 const KUBECONFIG = `apiVersion: v1
@@ -181,20 +185,28 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   const enableButton = pluginCard.getByRole("button", { name: "Enable" })
   if (await enableButton.isVisible()) {
     await enableButton.click()
-    // Enabling reloads the whole page. A cold dev-mode render of this app can
-    // take the better part of a minute, so wait for the load itself and then
-    // give the card room to come back.
     await page.waitForLoadState("load")
-    await expect(pluginCard.getByRole("button", { name: "Disable" })).toBeVisible({ timeout: 60_000 })
+    // Enabling navigates to the plugin's own page (/admin/plugins/<name>); it
+    // does not reload the list. So the card locator above cannot resolve any
+    // more -- assert on the page we actually land on. `pluginCard` is not used
+    // past this block.
+    await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible({ timeout: 60_000 })
   }
 
   await page.goto("/k8s_clusters")
   await expect(page.getByRole("heading", { name: "Kubernetes Clusters" })).toBeVisible()
   await expectNativePluginSurface(page, "Kubernetes Clusters")
 
-  await page.getByLabel("Label", { exact: true }).fill(clusterLabel)
-  await page.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)
+  // Registration lives in a dialog now, not inline on the page: "Add cluster"
+  // is the trigger that opens it, and the dialog carries a second button with
+  // the same name to submit. Click the trigger while it is still the only one,
+  // then scope the fields and the submit to the dialog so the duplicate name
+  // cannot go ambiguous.
   await page.getByRole("button", { name: "Add cluster", exact: true }).click()
+  const addClusterDialog = page.getByRole("dialog")
+  await addClusterDialog.getByLabel("Label", { exact: true }).fill(clusterLabel)
+  await addClusterDialog.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)
+  await addClusterDialog.getByRole("button", { name: "Add cluster", exact: true }).click()
 
   const clusterRow = page.getByRole("row", { name: new RegExp(clusterLabel) })
   await expect(clusterRow).toBeVisible()
@@ -213,7 +225,10 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 
   // Namespaces listed on the overview tab open the read-only detail drawer.
-  await page.getByRole("cell", { name: "default" }).click()
+  // The namespace name is a button inside the cell, so clicking the cell itself
+  // never fires its handler. Click the button, as ClusterBrowser's own component
+  // test does.
+  await page.getByRole("button", { name: "default", exact: true }).click()
   await expect(page.getByRole("dialog", { name: "Namespaces default" })).toBeVisible()
   await expect(page.getByText("kind: Namespace")).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
@@ -249,7 +264,13 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await page.getByRole("button", { name: "Close details" }).click()
   await expect(page.getByRole("dialog")).toHaveCount(0)
 
-  const namespacePicker = page.getByRole("button", { name: "Namespace" })
+  // The Workloads table has a "Namespace" column whose header is also a button
+  // with that exact name, so name alone is ambiguous here. Match the toolbar
+  // dropdown specifically: those carry aria-haspopup="listbox" (the
+  // button+listbox pattern the UI conventions require for these pickers).
+  const namespacePicker = page
+    .getByRole("button", { name: "Namespace", exact: true })
+    .and(page.locator("[aria-haspopup='listbox']"))
   await expect(namespacePicker).toBeVisible()
   await namespacePicker.click()
   await expect(page.getByRole("option", { name: "default" })).toBeVisible()
@@ -297,8 +318,11 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   // separate agentic MCP tool set, never the web browser.
   await page.getByRole("button", { name: "Back to clusters" }).click()
   await clusterRow.getByRole("button", { name: "Edit" }).click()
-  await clusterRow.getByLabel("Allow write actions").check()
-  await clusterRow.getByRole("button", { name: "Save", exact: true }).click()
+  // Editing opens a dialog, same as registration above -- the fields are not
+  // inline in the row any more.
+  const editClusterDialog = page.getByRole("dialog")
+  await editClusterDialog.getByLabel("Allow write actions").check()
+  await editClusterDialog.getByRole("button", { name: "Save", exact: true }).click()
   await expect(clusterRow.getByText("Read-write")).toBeVisible()
 
   await clusterRow.getByRole("button", { name: "Browse" }).click()
