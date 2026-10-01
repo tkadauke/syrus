@@ -38,6 +38,9 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const crossChatBridge = crossChatBridgeSystemMessage(message, text)
   if (crossChatBridge) return crossChatBridge
 
+  const wakeupAutomation = wakeupAutomationFromContent(message.content, text)
+  if (wakeupAutomation) return wakeupAutomation
+
   const providerError = providerErrorFromContent(message.content)
   if (providerError) return providerError
 
@@ -79,9 +82,8 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
 }
 
 // The outbound (sender-side) and hop-limit closure-notice system messages
-// ChatSession::CrossChatMessage posts. The inbound (target-side) message is a
-// separate case -- it renders as a normal "user" bubble, since WakeupTurn
-// gives it role: "user" -- see the cross-chat badge in MessageCards.tsx.
+// ChatSession::CrossChatMessage posts. The inbound (target-side) message keeps
+// its existing relayed-chat bubble treatment.
 export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: string): ChatSystemMessage | null {
   const bridge = message.cross_chat_bridge
   if (!bridge || bridge.direction === "inbound") return null
@@ -96,6 +98,13 @@ export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: str
     body: text,
     cta: { label: crossChatBridgeLinkLabel(bridge), path: `/chats/${bridge.counterpart_chat_session_id}` }
   }
+}
+
+export function wakeupAutomationFromContent(content: unknown, text: string): ChatSystemMessage | null {
+  const record = contentRecord(content)
+  if (record?.requested_by !== "wakeup") return null
+
+  return { tone: "neutral", label: "Automation", body: text || stringValue(record.text) || "Scheduled wakeup fired." }
 }
 
 // Mirrors the inbound badge's i18n `cross_chat_bridge_link` fallback
