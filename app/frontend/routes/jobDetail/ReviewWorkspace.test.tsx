@@ -236,13 +236,13 @@ describe("ReviewWorkspace", () => {
 
     expect(await screen.findByText("Review Notes: 1")).toBeInTheDocument()
     expect(await screen.findByText("Agent note")).toBeInTheDocument()
-    expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
+    expect(screen.getAllByText("The provider flagged this range.").length).toBeGreaterThan(1)
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
 
     expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
-    const noteCard = screen.getByText("Inspect this branch").closest("article")!
-    const rangeButton = screen.getByText("app/models/user.rb new lines 1-1")
+    const noteCard = document.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    const rangeButton = screen.getAllByText("app/models/user.rb new lines 1-1")[0]!
     const highlightedGutter = () => document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')
 
     fireEvent.mouseEnter(noteCard)
@@ -942,7 +942,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("First review note")
+    await waitFor(() => expect(screen.getAllByText("First review note").length).toBeGreaterThan(1))
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     const sidebarText = sidebar.textContent || ""
 
@@ -951,6 +951,10 @@ describe("ReviewWorkspace", () => {
     expect(sidebarText.indexOf("Human comment after the first note.")).toBeLessThan(sidebarText.indexOf("Second review note"))
     expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')).toBeInTheDocument()
     expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:8"]')).toBeInTheDocument()
+    const diffViewer = within(screen.getByTestId("agent-diff-viewer"))
+    expect(diffViewer.getByText("First review note")).toBeInTheDocument()
+    expect(diffViewer.getByText("Second review note")).toBeInTheDocument()
+    expect(diffViewer.getByText("Agent-authored note before the comment.")).toBeInTheDocument()
   })
 
   it("shows code-anchored comments in the sidebar without a sidebar edit affordance, and edits them inline in the diff", async () => {
@@ -1330,7 +1334,7 @@ describe("ReviewWorkspace", () => {
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
     expect(screen.queryByText("Latest review note")).not.toBeInTheDocument()
-    expect(screen.getByText("Historical review note")).toBeInTheDocument()
+    expect(screen.getAllByText("Historical review note").length).toBeGreaterThan(1)
     expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 
@@ -2276,7 +2280,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Current version review note")
+    await waitFor(() => expect(screen.getAllByText("Current version review note").length).toBeGreaterThan(1))
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     const sidebarText = sidebar.textContent || ""
 
@@ -2287,6 +2291,9 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getByText("Review Notes: 2")).toBeInTheDocument()
     expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:9"]')).toBeInTheDocument()
     expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:8"]')).not.toBeInTheDocument()
+    const diffViewer = within(screen.getByTestId("agent-diff-viewer"))
+    expect(diffViewer.getByText("Current version review note")).toBeInTheDocument()
+    expect(diffViewer.queryByText("Earlier version review note")).not.toBeInTheDocument()
     expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
   })
 })

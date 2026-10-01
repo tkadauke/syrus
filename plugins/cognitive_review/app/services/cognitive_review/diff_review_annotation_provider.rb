@@ -66,6 +66,8 @@ module CognitiveReview
         ranges[path] << {
           id: "cognitive_review_note:#{note.id}",
           component: "cognitive_review/note_marker",
+          inline_component: "cognitive_review/note_panel",
+          marker_component: "cognitive_review/note_marker",
           path: path,
           side: note.side,
           start_line: note.start_line,
@@ -77,7 +79,11 @@ module CognitiveReview
           confidence: note.confidence&.to_f,
           state: note.state,
           priority: note.priority,
-          props: note_props(note, matching_comments: comments_by_note_id[note.id] || [])
+          props: {
+            hide_header: true,
+            notes: [ note_props(note, matching_comments: comments_by_note_id[note.id] || []) ],
+            total: 1
+          }
         }.compact
       end
     end
