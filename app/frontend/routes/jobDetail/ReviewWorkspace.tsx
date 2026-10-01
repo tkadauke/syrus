@@ -52,6 +52,7 @@ type ReviewAnnotationHighlightDetail = {
 }
 
 const SURFACE = "job_review_workspace"
+const REVIEW_COMMENT_SURFACES = [SURFACE, "job_source_diff"]
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
 const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
 const REVIEW_COMMENTS_DEFAULT_WIDTH = 384
@@ -155,6 +156,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     headRef: activeDiff?.head_ref,
     includeAllVersions: true,
     jobId,
+    commentSurfaces: REVIEW_COMMENT_SURFACES,
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
     supportsGlobalComments: true,
