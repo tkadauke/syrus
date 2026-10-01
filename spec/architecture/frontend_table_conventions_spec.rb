@@ -77,6 +77,7 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/dashboard/EpicWorkflowTables.tsx#root2" => "dashboard workflow table uses dashboard preference controls for sort and column reorder",
     "app/frontend/routes/dashboard/JobsTable.tsx#root1" => "dashboard job table uses dashboard preference controls for sort and column reorder",
     "plugins/agent_insights/app/frontend/agentInsightToolCard.tsx#root1" => "compact chat tool-card result summary",
+    "plugins/k8s_cluster/app/frontend/kubernetesToolCard.tsx#root1" => "compact chat tool-card result summary",
     "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx#root1" => "schema-detail column table has database-defined columns",
     "plugins/plugin_runtime/app/frontend/routes/AdminPluginServices.tsx#root1" => "service-detail diagnostic table is shaped by the selected service",
     "plugins/scheduled_tasks/app/frontend/routes/CronTemplates.tsx#root1" => "cron template detail applied-tasks subtable",
