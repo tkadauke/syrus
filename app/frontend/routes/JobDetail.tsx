@@ -98,7 +98,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
-import { Notice, Page, Section } from "../components/ui"
+import { Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
 import {
   jobNavigationHref,
   navigationIndex,
@@ -1487,6 +1487,7 @@ function JobSummaryNotices({
   const activeIndex = Math.min(currentIndex, Math.max(notices.length - 1, 0))
   const notice = notices[activeIndex]
   const hasMultiple = notices.length > 1
+  const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
   useEffect(() => {
     if (currentIndex >= notices.length) {
@@ -1497,7 +1498,7 @@ function JobSummaryNotices({
   if (!notice) return null
 
   return (
-    <section aria-label={t("summary_notices")} className="space-y-2">
+    <section aria-label={t("summary_notices")} className={`space-y-2 ${marginGutterRestore}`}>
       {hasMultiple ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary">
           <span className="font-medium">{t("summary_notice_position", { index: activeIndex + 1, count: notices.length })}</span>
