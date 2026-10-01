@@ -870,8 +870,8 @@ Core normalizes these optional keys:
 
 | Key | Shape | Rendered as |
 |---|---|---|
-| `annotations` | `{ "path.rb" => { "12" => [{ id:, title:, body:, tone:, component:, props:, actions: }] } }` | Compact markers on matching new-line diff rows; shorthand for simple new-side notes |
-| `ranges` | `{ "path.rb" => [{ side: "old"|"new", start_line:, end_line:, id:, title:, body:, tone:, component:, props:, actions: }] }` | Compact markers on matching old- or new-side diff rows, including multi-line ranges |
+| `annotations` | `{ "path.rb" => { "12" => [{ id:, title:, body:, tone:, component:, marker_component:, inline_component:, props:, actions: }] } }` | Compact markers on matching new-line diff rows, plus an inline panel on the annotated row when an inline component or fallback body is present; shorthand for simple new-side notes |
+| `ranges` | `{ "path.rb" => [{ side: "old"|"new", start_line:, end_line:, id:, title:, body:, tone:, component:, marker_component:, inline_component:, props:, actions: }] }` | Compact markers on every matching old- or new-side diff row, including multi-line ranges, plus an inline panel at the first covered line |
 | `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel for the currently displayed diff version |
 | `sidebar_panels` | `[{ id:, diff_review_version_id:, title:, body:, component:, props: }]` | Cards in the review side panel across review versions; the host groups them with comments by `diff_review_version_id` |
 | `actions` | `[{ id:, label:, href:, method:, component:, props: }]` | Side-panel actions |
@@ -882,6 +882,13 @@ If a payload entry names `component: "plugin_name/Component"`, the frontend
 looks for `plugins/<plugin_name>/app/frontend/review_annotations/Component.tsx`
 and passes the item as a prop. Entries without a plugin component use core's
 generic card/action/line-marker rendering.
+
+Diff-row annotation entries may split the renderer used in each placement:
+`marker_component` renders the compact marker in the review-note gutter, while
+`inline_component` renders the full inline panel in the diff body at the
+annotated line or the start of the covered range. When either field is absent,
+the host falls back to `component` for that placement, and then to generic
+marker/card rendering.
 
 **One class per tool.** The entrypoint is a single class, but internally each
 non-trivial tool is its own `MCP::Tool` subclass in its own file — the same
