@@ -173,6 +173,14 @@ describe("EpicDetail", () => {
     expect(screen.getByText("Old title")).toBeInTheDocument()
   })
 
+  it("exposes an Add Job link in the header before switching to the Jobs tab", () => {
+    renderDetail(detailPayload())
+
+    const link = screen.getByRole("link", { name: "+ Add Job" })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute("href", "/jobs/new?repository_id=1&epic_id=3")
+  })
+
   it("shows the Epic's own state when no child Job is landing", () => {
     renderDetail(detailPayload({ state: "in_progress", landing: false }))
 
