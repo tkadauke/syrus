@@ -23,9 +23,17 @@
   },
   "panel": {
     "hidden_count": "{{count}} weitere Notizen sind im Diff verfugbar.",
+    "rollup_summary": "{{open}} offen, {{handled}} erledigt ({{acknowledged}} bestatigt, {{discussed}} besprochen), {{dismissed}} verworfen.",
     "summary": "{{count}} offene kognitive Review-Notiz",
     "summary_one": "{{count}} offene kognitive Review-Notiz",
     "summary_other": "{{count}} offene kognitive Review-Notizen",
-    "title": "Kognitive Review"
+    "title": "Kognitive Review",
+    "zero_summary": "Fur diese Diff-Version wurde keine PR-kognitive Review-Schuld markiert."
+  },
+  "rollup": {
+    "dismissed": "Verworfen",
+    "handled": "Erledigt",
+    "open": "Offen",
+    "total": "Markiert"
   }
 }

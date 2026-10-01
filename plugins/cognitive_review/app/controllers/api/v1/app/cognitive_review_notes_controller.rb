@@ -80,12 +80,14 @@ module Api
 
         def notes_payload(job:, notes:, version:, discussion_entry: nil)
           note_records = notes.to_a
+          rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version)
           {
             job_id: job.id,
             diff_review_version_id: version&.id,
             latest_version_id: job.diff_review_versions.latest_first.first&.id,
-            unresolved_count: CognitiveReview::Note.where(job: job, diff_review_version: version).open_debt.count,
-            handled_count: CognitiveReview::Note.where(job: job, diff_review_version: version).handled.count,
+            unresolved_count: rollup.open_unhandled_count,
+            handled_count: rollup.handled_count,
+            debt_rollup: rollup.as_json,
             notes: note_records.map { |note| note_json(note) },
             by_path: by_path(note_records),
             discussion_entry: discussion_entry && discussion_entry_json(discussion_entry)

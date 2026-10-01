@@ -64,6 +64,13 @@ RSpec.describe "App API cognitive review notes", type: :request do
     body = parse_body
     expect(body["diff_review_version_id"]).to eq(version.id)
     expect(body["notes"].map { |note| note["id"] }).to eq([ old_note.id ])
+    expect(body["debt_rollup"]).to include(
+      "total_flagged_ranges" => 1,
+      "open_unhandled_count" => 1,
+      "handled_count" => 0,
+      "dismissed_count" => 0,
+      "zero_note_state" => false
+    )
     expect(body.dig("by_path", "app/models/widget.rb", "new:12-14").first).to include(
       "id" => old_note.id,
       "state" => "open"
@@ -90,6 +97,12 @@ RSpec.describe "App API cognitive review notes", type: :request do
     expect(response).to have_http_status(:ok)
     expect(note.reload).to have_attributes(state: "acknowledged", acknowledged_by_user: user)
     expect(parse_body).to include("unresolved_count" => 0, "handled_count" => 1)
+    expect(parse_body["debt_rollup"]).to include(
+      "open_unhandled_count" => 0,
+      "acknowledged_count" => 1,
+      "discussed_count" => 0,
+      "handled_count" => 1
+    )
   end
 
   it "starts discussion and records the operator message" do
@@ -101,6 +114,39 @@ RSpec.describe "App API cognitive review notes", type: :request do
     expect(note.reload).to have_attributes(state: "discussed", discussion_started_by_user: user, last_discussed_by_user: user)
     expect(note.discussion_entries.last).to have_attributes(user: user, body: "Let's inspect this edge.")
     expect(parse_body.dig("discussion_entry", "metadata")).to eq("source" => "review_tab")
+    expect(parse_body["debt_rollup"]).to include(
+      "open_unhandled_count" => 0,
+      "acknowledged_count" => 0,
+      "discussed_count" => 1,
+      "handled_count" => 1
+    )
+  end
+
+  it "returns a zero-note no-debt rollup when no ranges were flagged" do
+    CognitiveReview::Artifact.append!(run: run, notes: [], diff_review_version: version)
+
+    get notes_path, params: { diff_review_version_id: version.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["debt_rollup"]).to include(
+      "total_flagged_ranges" => 0,
+      "open_unhandled_count" => 0,
+      "handled_count" => 0,
+      "dismissed_count" => 0,
+      "submitted" => true,
+      "zero_note_state" => true
+    )
+  end
+
+  it "does not report zero-note no-debt without a submitted review result" do
+    get notes_path, params: { diff_review_version_id: version.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["debt_rollup"]).to include(
+      "total_flagged_ranges" => 0,
+      "submitted" => false,
+      "zero_note_state" => false
+    )
   end
 
   it "blocks read-tier repository members from acknowledging notes" do

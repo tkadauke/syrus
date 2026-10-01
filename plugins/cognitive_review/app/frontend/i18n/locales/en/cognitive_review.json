@@ -23,9 +23,17 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
+    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed), {{dismissed}} dismissed.",
     "summary": "{{count}} open cognitive review note",
     "summary_one": "{{count}} open cognitive review note",
     "summary_other": "{{count}} open cognitive review notes",
-    "title": "Cognitive review"
+    "title": "Cognitive review",
+    "zero_summary": "No PR-level cognitive review debt was flagged for this diff version."
+  },
+  "rollup": {
+    "dismissed": "Dismissed",
+    "handled": "Handled",
+    "open": "Open",
+    "total": "Flagged"
   }
 }
