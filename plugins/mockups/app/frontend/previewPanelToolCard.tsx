@@ -1,7 +1,7 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { DescriptionList, Text } from "@app/components/ui"
 import i18n from "i18next"
-import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { isPlainObject } from "@app/toolCardParsing"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
@@ -63,7 +63,7 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: panel.panelId })}</span>
+        <EntityReference kind="artifact" label={t("tool_panel_number", { id: panel.panelId })} slug={panel.panelId} wrap="nowrap" />
         {panel.state ? <StatePill state={panel.state} /> : null}
         {panel.versionId ? <Badge>v{panel.versionId}</Badge> : null}
       </div>
@@ -128,7 +128,7 @@ export function PreviewFileOpCard({ action, op }: { action: string; op: PreviewF
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{action}</Badge>
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: op.panelId })}</span>
+        <EntityReference kind="artifact" label={t("tool_panel_number", { id: op.panelId })} slug={op.panelId} wrap="nowrap" />
       </div>
       <Row label={t("tool_path")} value={op.path} />
       {op.replacements != null ? <Row label={t("tool_replacements")} value={String(op.replacements)} /> : null}

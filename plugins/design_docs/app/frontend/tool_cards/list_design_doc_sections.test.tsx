@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listDesignDocSectionsToolCard from "./list_design_doc_sections"
 
@@ -27,6 +27,12 @@ const payload = {
 }
 
 describe("list_design_doc_sections tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(listDesignDocSectionsToolCard.toolName).toBe("list_design_doc_sections")
   })
@@ -38,7 +44,9 @@ describe("list_design_doc_sections tool card", () => {
   it("renders the outline with heading levels and offsets", () => {
     render(<>{listDesignDocSectionsToolCard.renderExpanded(context({ parsedResult: payload }))}</>)
 
-    expect(screen.getByText("DOC-34")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "DOC-34" })).toHaveAttribute("href", "/design_docs/34")
+    fireEvent.click(screen.getByRole("button", { name: "Copy DOC-34 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("DOC-34")
     expect(screen.getAllByText("Operator Briefing")).toHaveLength(2)
     expect(screen.getByText("H1")).toBeInTheDocument()
     expect(screen.getByText("Attention Debt")).toBeInTheDocument()
