@@ -426,6 +426,44 @@ grade:
     focused_timeout_minutes: 20
     ci_timeout_minutes: 20
 
+  - name: e2e
+    description: |
+      Playwright end-to-end suite. GitHub Actions has always run this and
+      Syrus never did, which is why it rotted: a red e2e makes `ci_health`
+      broken, so it blocked landing through main-branch health while being
+      invisible to the agent that was supposed to fix it -- consequences
+      without feedback. It stayed red for over a week across more than a
+      dozen specs before anyone looked.
+
+      `phases: [ci]` is deliberately narrow. LandingGraderPlan maps that phase
+      to exactly `ci_failure`, `main_grader`, and `main_branch_repair`: the
+      agent repairing a red check (which may *be* this one), the job that sets
+      `grader_health`, and the job opened to fix a broken default branch. It is
+      not in `review` or `landing`, so no implement/review iteration and no
+      landing attempt pays for a browser run. Revisit `landing` only once the
+      flake rate is known -- a flaky grader there fails real landings.
+
+      E2E_ISOLATE gives the run its own port and refuses to reuse another
+      run's server; without it, concurrent grader Runs on one worker would
+      quietly grade each other's checkouts. See bin/test-e2e.
+    run: E2E_ISOLATE=1 bin/test-e2e
+    phases: [ci]
+    when_files_changed:
+      - "app/frontend/**"
+      - "app/views/**"
+      - "app/controllers/**"
+      - "app/models/**"
+      - "config/routes.rb"
+      - "e2e/**"
+      - "plugins/*/e2e/**"
+      - "plugins/*/app/frontend/**"
+      - "playwright.config.ts"
+      - "lib/tasks/e2e.rake"
+      - "db/seeds.rb"
+      - "package.json"
+      - "package-lock.json"
+    timeout_minutes: 25
+
 coverage:
   sources:
     - artifact: coverage/lcov.info

@@ -61,7 +61,12 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL ? undefined : {
     command: `PORT=${port} bin/syrus-preview-dev`,
     url: `http://127.0.0.1:${port}/up`,
-    reuseExistingServer: !process.env.CI,
+    // Reuse is a local convenience only. Under E2E_ISOLATE (graders) it is a
+    // correctness hazard: the port is host-global, so a second run on the same
+    // worker would silently adopt the first run's server and grade one
+    // checkout's specs against another checkout's app -- a confident wrong
+    // answer, which is worse than a port clash.
+    reuseExistingServer: !process.env.CI && !process.env.E2E_ISOLATE,
     // Every spec signs in, from one address, and there are far more than the
     // ten attempts per three minutes the credential endpoints allow. Without
     // this the suite throttles itself: the first handful pass and the rest

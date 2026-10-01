@@ -65,7 +65,28 @@ fi
 # developer does not, and specs that enable a plugin passed locally (already
 # enabled) while failing in CI (enabled from scratch) -- invisible until someone
 # read the CI log.
+
+# E2E_ISOLATE is for callers that may run concurrently with another copy of this
+# suite on the same host -- a Syrus grader, where several workflows' Runs share
+# a worker. Everything else is already per-caller there, because each workflow
+# grades in its own workspace: its own checkout, its own `storage/`, its own
+# built assets. The listening port is the exception, being host-global: at the
+# default 3101 playwright's reuseExistingServer would have the second run adopt
+# the first one's server and grade this checkout's specs against that
+# checkout's app -- a confident wrong answer rather than a clash. So take a
+# kernel-assigned free port; playwright.config.ts refuses to reuse a server
+# under this flag.
 #
+# Note this does not make two runs inside ONE checkout concurrent-safe, and is
+# not trying to: bin/syrus-preview-dev rebuilds app/assets/builds/*, which is
+# shared per checkout, so the second server fails to start. Separate workspaces
+# are what make the grader case safe; the port is the only piece they miss.
+if [ -n "${E2E_ISOLATE:-}" ] && [ -z "${E2E_PORT:-}" ] && [ -z "${E2E_BASE_URL:-}" ]; then
+  E2E_PORT="$(ruby -rsocket -e 'server = TCPServer.new("127.0.0.1", 0); print server.addr[1]; server.close')"
+  export E2E_PORT
+  echo "[test-e2e] Isolated run on port ${E2E_PORT}."
+fi
+
 # Deleting these before each run is what makes "ephemeral" true rather than
 # aspirational, and it is safe precisely because they are ours: the prefix is
 # only ever set here. Exported so Playwright's webServer (bin/syrus-preview-dev)
