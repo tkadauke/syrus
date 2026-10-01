@@ -9372,13 +9372,14 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).every((el) => el.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
-    expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
-    expect(screen.getByRole("menuitem", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByText("columns")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Jobs (1)" }))
+    expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    fireEvent.click(screen.getByRole("button", { name: "Dependencies" }))
     expect(screen.getByText("(1 epic dep, 0 job blockers)")).toBeInTheDocument()
     expect(screen.getByText("Dependency graph").closest("details")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
-    expect(screen.getByText("Survey forum")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    expect(screen.getByRole("menuitem", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
     expect(screen.getByText("1 Closed")).toBeInTheDocument()
 
@@ -9429,6 +9430,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
+    fireEvent.click(await screen.findByRole("button", { name: "Dependencies" }))
     expect(await screen.findByRole("heading", { name: "Dependencies" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Deliver marble" })).toHaveAttribute("href", "/app-shell/epics/6")
     expect(screen.getByText("Done")).toBeInTheDocument()
@@ -9483,6 +9485,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
+    fireEvent.click(await screen.findByRole("button", { name: "Dependencies" }))
     await waitFor(() => expect(screen.getAllByText("None")).toHaveLength(2))
 
     fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "Cycle" } })
