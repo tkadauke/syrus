@@ -47,6 +47,10 @@ type ReviewAnnotationFocusDetail = {
   side?: "old" | "new"
 }
 
+type ReviewAnnotationHighlightDetail = {
+  annotationId?: string | null
+}
+
 const SURFACE = "job_review_workspace"
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
 const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
@@ -91,6 +95,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
+  const [highlightedReviewAnnotationId, setHighlightedReviewAnnotationId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [commentsPeekOpen, setCommentsPeekOpen] = useState(false)
   const commentsPeekOpenTimerRef = useRef<number | null>(null)
@@ -217,6 +222,16 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
 
     window.addEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
     return () => window.removeEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
+  }, [])
+
+  useEffect(() => {
+    function highlightReviewAnnotation(event: Event) {
+      const detail = (event as CustomEvent<ReviewAnnotationHighlightDetail>).detail
+      setHighlightedReviewAnnotationId(detail?.annotationId || null)
+    }
+
+    window.addEventListener("syrus:highlight-review-annotation", highlightReviewAnnotation)
+    return () => window.removeEventListener("syrus:highlight-review-annotation", highlightReviewAnnotation)
   }, [])
 
   function focusPendingComment(pendingCommentFocus: DiffReviewComment) {
@@ -392,6 +407,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             reviewSettings={reviewSettings}
             reviewAnnotations={activeReviewAnnotations.annotations}
             reviewAnnotationRanges={activeReviewAnnotations.ranges}
+            highlightedReviewAnnotationId={highlightedReviewAnnotationId}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders

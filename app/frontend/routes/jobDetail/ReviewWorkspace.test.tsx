@@ -158,7 +158,7 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByTitle("Inspect this branch")).toHaveTextContent("1")
   })
 
-  it("renders cognitive review note cards through the plugin extension point and acknowledges notes", async () => {
+  it("renders review note cards through the plugin extension point, highlights ranges from the sidebar, and acknowledges notes", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
       ok: true,
       headers: new Headers({ "content-type": "application/json" }),
@@ -225,7 +225,7 @@ describe("ReviewWorkspace", () => {
             }
           ],
           actions: [],
-          counts: [{ id: "cognitive_review.open", label: "Cognitive review", value: 1, tone: "warning" }]
+          counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 1, tone: "warning" }]
         }
       })
     )
@@ -233,13 +233,18 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    expect(await screen.findByText("Cognitive review")).toBeInTheDocument()
+    expect(await screen.findByText("Review Notes")).toBeInTheDocument()
     expect(await screen.findByText("Agent note")).toBeInTheDocument()
     expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
 
-    fireEvent.click(screen.getByRole("button", { name: "View range" }))
+    expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
+    fireEvent.mouseEnter(screen.getByText("Inspect this branch").closest("article")!)
+    await waitFor(() => {
+      expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByText("app/models/user.rb new lines 1-1"))
     expect(highlightedRow?.scrollIntoView).toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))

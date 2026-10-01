@@ -117,6 +117,7 @@ export type ReviewableDiffProps = {
   reviewSettings?: ReviewDiffSettings
   reviewAnnotations?: Record<string, Record<string, DiffReviewAnnotation[]>> | null
   reviewAnnotationRanges?: Record<string, DiffReviewAnnotationRange[]> | null
+  highlightedReviewAnnotationId?: string | null
   wordHighlighting?: boolean
 }
 
@@ -304,6 +305,7 @@ export function ReviewableDiff({
   reviewSettings,
   reviewAnnotations,
   reviewAnnotationRanges,
+  highlightedReviewAnnotationId,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
@@ -595,6 +597,7 @@ export function ReviewableDiff({
           reviewSettings={effectiveReviewSettings}
           reviewAnnotations={reviewAnnotations?.[file.path]}
           reviewAnnotationRanges={reviewAnnotationRanges?.[file.path]}
+          highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           selected={selectedPath === file.path}
           showFilesPopupTrigger={changedFilesPopup}
           showHeader={showHeader}
@@ -1038,6 +1041,7 @@ function DiffFileSection({
   reviewSettings,
   reviewAnnotations,
   reviewAnnotationRanges,
+  highlightedReviewAnnotationId,
   selected,
   showFilesPopupTrigger,
   showHeader,
@@ -1074,6 +1078,7 @@ function DiffFileSection({
   reviewSettings: ReviewDiffSettings
   reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
   reviewAnnotationRanges?: DiffReviewAnnotationRange[]
+  highlightedReviewAnnotationId?: string | null
   selected: boolean
   showFilesPopupTrigger?: boolean
   showHeader: boolean
@@ -1249,6 +1254,7 @@ function DiffFileSection({
           reviewSettings={reviewSettings}
           reviewAnnotations={reviewAnnotations}
           reviewAnnotationRanges={reviewAnnotationRanges}
+          highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           tokenCache={cacheEntry.tokensByHunk}
         />
       ) : file.is_image && renderImageDiff ? (
@@ -1402,6 +1408,7 @@ export function UnifiedDiffTable({
   reviewSettings = DEFAULT_REVIEW_DIFF_SETTINGS,
   reviewAnnotations,
   reviewAnnotationRanges,
+  highlightedReviewAnnotationId,
   testId,
   tokenCache: tokenCacheProp
 }: {
@@ -1433,6 +1440,7 @@ export function UnifiedDiffTable({
   reviewSettings?: ReviewDiffSettings
   reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
   reviewAnnotationRanges?: DiffReviewAnnotationRange[]
+  highlightedReviewAnnotationId?: string | null
   testId?: string
   // Optional external Shiki-token cache keyed by hunk id (see
   // useHighlightedDiffLines) -- DiffFileSection passes its per-file cache
@@ -1640,6 +1648,8 @@ export function UnifiedDiffTable({
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
             const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
+            const highlightedReviewNote = Boolean(highlightedReviewAnnotationId && reviewNoteIdsForLine.includes(highlightedReviewAnnotationId))
+            const highlightedGutterClass = highlightedReviewNote ? "ring-2 ring-inset ring-warning-border bg-warning-bg text-warning-text" : ""
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
             const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
@@ -1665,6 +1675,7 @@ export function UnifiedDiffTable({
                     reviewNotes={reviewNotes}
                     reviewNoteIds={reviewNoteIdsForLine}
                     reviewNoteRowClass={reviewNoteRowClass}
+                    highlightedGutterClass={highlightedGutterClass}
                     showReviewNotes={showReviewNotes}
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
@@ -1706,7 +1717,7 @@ export function UnifiedDiffTable({
                   data-diff-review-annotation-ids={reviewNoteIdsForLine.length > 0 ? reviewNoteIdsForLine.join(" ") : undefined}
                 >
                   {hideSeparateOldLineGutter || !showLineNumbers ? null : (
-                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter} ${highlightedGutterClass}`}>
                       {commentSide === "old" && canComment ? (
                         <GutterCommentButton
                           file={file}
@@ -1722,7 +1733,7 @@ export function UnifiedDiffTable({
                     </td>
                   )}
                   {showLineNumbers ? (
-                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter} ${highlightedGutterClass}`}>
                       {visibleLineNumberCommentSide && canComment ? (
                         <GutterCommentButton
                           file={file}
@@ -1881,6 +1892,7 @@ function SplitDiffRow({
   reviewNotes,
   reviewNoteIds,
   reviewNoteRowClass,
+  highlightedGutterClass,
   showReviewNotes,
   showLineNumbers,
   tokens
@@ -1898,6 +1910,7 @@ function SplitDiffRow({
   reviewNotes?: DiffReviewAnnotation[]
   reviewNoteIds: string[]
   reviewNoteRowClass: string
+  highlightedGutterClass: string
   showReviewNotes: boolean
   showLineNumbers: boolean
   tokens?: ThemedToken[]
@@ -1915,7 +1928,7 @@ function SplitDiffRow({
       data-diff-split-row="true"
     >
       {showLineNumbers ? (
-        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter} ${highlightedGutterClass}`}>
           {line.kind === "delete" && canComment ? (
             <GutterCommentButton
               file={file}
@@ -1936,7 +1949,7 @@ function SplitDiffRow({
         ) : null}
       </td>
       {showLineNumbers ? (
-        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter} ${highlightedGutterClass}`}>
           {line.kind === "add" && canComment ? (
             <GutterCommentButton
               file={file}
