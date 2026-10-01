@@ -39,21 +39,7 @@ module Api
           def settings_payload
             setting = AppSetting.current
             {
-              settings: {
-                signups_open: setting.signups_open,
-                # Walkthrough-video media management — analysis + screenshots
-                # always persist; these bound only the stored video blobs.
-                video_retention_days: setting.video_retention_days,
-                video_storage_budget_mb: setting.video_storage_budget_mb,
-                # Global cap on concurrent agent Runs across all worker pods.
-                # 0 = unlimited (bounded only by per-pod JOB_CONCURRENCY).
-                max_concurrent_agent_runs: setting.max_concurrent_agent_runs,
-                proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
-                show_work_unit_debug: setting.show_work_unit_debug,
-                rebase_failure_cooldown_minutes: setting.rebase_failure_cooldown_minutes,
-                main_branch_breakage_policy: setting.main_branch_breakage_policy,
-                workflow_admission_control_enabled: setting.workflow_admission_control_enabled,
-                workflow_admission_policy: setting.workflow_admission_policy,
+              settings: AppSettingRegistry.non_secret_admin_settings_keys.index_with { |key| setting.public_send(key) }.merge(
                 workflow_admission_control_changed_at: setting.workflow_admission_control_changed_at&.iso8601,
                 workflow_admission_control_changed_by: setting.workflow_admission_control_changed_by_user&.then { |user|
                   {
@@ -62,7 +48,7 @@ module Api
                     display_name: user.display_name
                   }
                 },
-                metadata: AppSettingRegistry.metadata_for(AppSettingRegistry.admin_editable_keys),
+                metadata: AppSettingRegistry.metadata_for(AppSettingRegistry.admin_settings_keys),
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,
@@ -70,13 +56,12 @@ module Api
                     set: setting.public_send(key).present?
                   }
                 end
-              }
+              )
             }
           end
 
           def settings_params
-            permitted_settings = (AppSettingRegistry.admin_editable_keys +
-                                 [ :rebase_failure_cooldown_minutes, :workflow_admission_control_enabled, :workflow_admission_policy ]).uniq +
+            permitted_settings = AppSettingRegistry.admin_settings_keys +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params
@@ -88,7 +73,7 @@ module Api
           # signups_open is a boolean (false must survive the blank-reject);
           # everything else is only applied when a value is actually sent.
           def booleanish?(key)
-            AppSettingRegistry.boolean_key?(key) || key == "workflow_admission_control_enabled"
+            AppSettingRegistry.boolean_key?(key)
           end
 
           def audit_workflow_admission_control_change!(setting)

@@ -130,6 +130,19 @@ RSpec.describe AppSetting do
     expect(setting.errors[:adversarial_review_rounds]).to include("must be greater than or equal to 0")
   end
 
+  it "rejects zero for failure and merge-train thresholds that are used as hard caps" do
+    expect(AppSettingRegistry.fetch(:max_job_failures).min).to eq(1)
+    expect(AppSettingRegistry.fetch(:merge_train_max_size).min).to eq(1)
+
+    setting = AppSetting.current
+    setting.max_job_failures = 0
+    setting.merge_train_max_size = 0
+
+    expect(setting).not_to be_valid
+    expect(setting.errors[:max_job_failures]).to include("must be greater than or equal to 1")
+    expect(setting.errors[:merge_train_max_size]).to include("must be greater than or equal to 1")
+  end
+
   it ".video_retention_days returns the column value (default 7)" do
     expect(AppSetting.video_retention_days).to eq(7)
 
