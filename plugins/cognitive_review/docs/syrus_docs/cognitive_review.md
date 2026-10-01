@@ -41,6 +41,13 @@ changed lines do not create debt. The legacy `submit_cognitive_review_notes`
 tool name and `/cognitive_review_notes` routes remain accepted for
 compatibility, but new callers should use the review-note names.
 
+In the Job review tab, open notes render as warning-tinted diff ranges and as
+agent-authored cognitive-note cards in the review side panel. The side panel
+shows the open-note count, lets operators jump to the flagged range, and
+offers `Acknowledge` and `Discuss` actions. `Acknowledge` marks the note
+handled without adding a reply; `Discuss` stores an operator discussion entry
+and marks the note handled once that discussion exists.
+
 ## API
 
 When the plugin is enabled, these app API routes are available under the same

@@ -1191,6 +1191,7 @@ export type DiffReviewAnnotationAction = {
   href?: string | null
   method?: string | null
   component?: string | null
+  title?: string | null
   props?: Record<string, unknown>
 }
 
@@ -1200,6 +1201,7 @@ export type DiffReviewAnnotation = {
   body?: string | null
   tone?: "default" | "info" | "warning" | "danger" | "success" | string
   component?: string | null
+  path?: string | null
   props?: Record<string, unknown>
   actions?: DiffReviewAnnotationAction[]
 }

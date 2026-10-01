@@ -158,6 +158,98 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByTitle("Inspect this branch")).toHaveTextContent("1")
   })
 
+  it("renders cognitive review note cards through the plugin extension point and acknowledges notes", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        job_id: 42,
+        unresolved_count: 0,
+        handled_count: 1,
+        notes: [{ id: 7, state: "acknowledged", discussion_entries: [] }]
+      })
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {
+            "app/models/user.rb": [
+              {
+                id: "cognitive_review_note:7",
+                component: "cognitive_review/note_marker",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Inspect this branch",
+                body: "The provider flagged this range.",
+                props: {
+                  note_id: 7,
+                  job_id: 42,
+                  path: "app/models/user.rb",
+                  side: "new",
+                  start_line: 1,
+                  end_line: 1,
+                  title: "Inspect this branch",
+                  explanation: "The provider flagged this range.",
+                  priority: "high",
+                  confidence: 0.82,
+                  reason_codes: ["state"]
+                }
+              }
+            ]
+          },
+          panels: [
+            {
+              id: "cognitive_review.summary",
+              component: "cognitive_review/note_panel",
+              props: {
+                total: 1,
+                notes: [
+                  {
+                    note_id: 7,
+                    job_id: 42,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 1,
+                    title: "Inspect this branch",
+                    explanation: "The provider flagged this range.",
+                    priority: "high",
+                    confidence: 0.82,
+                    reason_codes: ["state"]
+                  }
+                ]
+              }
+            }
+          ],
+          actions: [],
+          counts: [{ id: "cognitive_review.open", label: "Cognitive review", value: 1, tone: "warning" }]
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    expect(await screen.findByText("Cognitive review")).toBeInTheDocument()
+    expect(await screen.findByText("Agent note")).toBeInTheDocument()
+    expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
+    const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
+    expect(highlightedRow).toHaveClass("bg-warning-bg/35")
+
+    fireEvent.click(screen.getByRole("button", { name: "View range" }))
+    expect(highlightedRow?.scrollIntoView).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/cognitive_review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
+    })
+    await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
+  })
+
   it("renders every changed file's diff without an internal max-height and navigates via the changed-files popup", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
