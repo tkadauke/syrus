@@ -875,7 +875,7 @@ Core normalizes these optional keys:
 | `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel for the currently displayed diff version |
 | `sidebar_panels` | `[{ id:, diff_review_version_id:, title:, body:, component:, props: }]` | Cards in the review side panel across review versions; the host groups them with comments by `diff_review_version_id` |
 | `actions` | `[{ id:, label:, href:, method:, component:, props: }]` | Side-panel actions |
-| `counts` | `[{ id:, label:, value:, tone: }]` | Count badges for the currently displayed diff version |
+| `counts` | `[{ id:, label:, value:, tone: }]` | Count badges for the currently displayed diff version; `cognitive_review.*` counts also enable the fixed right-side review-note risk metric gutter in the diff |
 | `sidebar_counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges across review versions |
 
 If a payload entry names `component: "plugin_name/Component"`, the frontend
@@ -889,6 +889,11 @@ Diff-row annotation entries may split the renderer used in each placement:
 annotated line or the start of the covered range. When either field is absent,
 the host falls back to `component` for that placement, and then to generic
 marker/card rendering.
+
+The diff renderer's right-side metric gutter is intentionally generic: core
+registers the cognitive-review risk metric from the annotation payload today,
+and future per-line metrics can register additional line metric providers
+without replacing the diff table or the sticky gutter host.
 
 **One class per tool.** The entrypoint is a single class, but internally each
 non-trivial tool is its own `MCP::Tool` subclass in its own file — the same

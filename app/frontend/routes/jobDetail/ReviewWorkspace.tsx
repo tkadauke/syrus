@@ -414,6 +414,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             )}
             reviewSettings={reviewSettings}
             reviewAnnotations={activeReviewAnnotations.annotations}
+            reviewAnnotationCounts={activeReviewAnnotations.counts}
             reviewAnnotationRanges={activeReviewAnnotations.ranges}
             highlightedReviewAnnotationId={highlightedReviewAnnotationId}
             scroll="natural"
