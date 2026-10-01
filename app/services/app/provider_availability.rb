@@ -4,6 +4,7 @@ module App
     DISPLAY_EVIDENCE_SCAN_LIMIT = 50
     USAGE_LIMIT_EVIDENCE_SCAN_LIMIT = 100
     AUTH_ERROR_WINDOW = 7.days
+    LATEST_PROVIDER_RUN_INDEX = "idx_runs_provider_latest_finished"
     @cache_mutex = Mutex.new
     @process_cache = {}
 
@@ -433,7 +434,7 @@ module App
       scope = provider_run_scope
       return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
 
-      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (idx_runs_user_provider_state_recent)"))
+      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (#{LATEST_PROVIDER_RUN_INDEX})"))
     end
 
     def usage_limit?(run, text)

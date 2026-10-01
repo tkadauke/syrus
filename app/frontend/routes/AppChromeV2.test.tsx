@@ -831,7 +831,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).toHaveBeenCalledTimes(1)
+    expect(fetchNewChat).not.toHaveBeenCalled()
   })
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
@@ -904,6 +904,8 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
     })
+    expect(screen.queryByRole("combobox", { name: "Repository for new chat" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
@@ -2358,7 +2360,7 @@ describe("chat row mode icons", () => {
     expect(screen.queryByTestId("mode-icon-local")).not.toBeInTheDocument()
   })
 
-  it("wraps status dots in a group-hover:hidden container so they hide when the action menu appears", async () => {
+  it("keeps status dots in a reserved slot that becomes invisible when the action menu appears", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
       groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
@@ -2368,7 +2370,9 @@ describe("chat row mode icons", () => {
 
     await screen.findByText("Active chat")
     const activityMarker = screen.getByTitle("Chat turn active")
-    expect(activityMarker.parentElement?.className).toContain("group-hover:hidden")
+    const markerSlot = activityMarker.closest("[data-testid='recent-chat-marker-slot']")
+    expect(markerSlot).toHaveClass("h-6", "min-w-6", "group-hover/recent-chat:invisible")
+    expect(markerSlot).not.toHaveClass("hidden")
   })
 })
 

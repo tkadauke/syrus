@@ -640,6 +640,66 @@ describe("RecentChatsSidebar goal marker", () => {
   })
 })
 
+describe("RecentChatsSidebar action and marker slot", () => {
+  it("uses the same fixed-width slot for section controls, markers, and row actions", () => {
+    renderSidebar([], {
+      groups: [
+        chatGroup({
+          key: "repository-7",
+          label: "acme/widgets",
+          repository_id: 7,
+          group_by: "repository",
+          group_value: "7",
+          chats: [
+            chatNav({
+              id: 1,
+              title: "Busy unread chat",
+              active_goal: chatGoal(),
+              coding_checkout_uncommitted: true,
+              pending_proposal_count: 1,
+              scratchpad_items_count: 1,
+              turn_in_flight: true,
+              unread: true
+            })
+          ]
+        })
+      ],
+      onStartChat: vi.fn()
+    })
+
+    const headerSlots = screen.getAllByTestId("recent-chat-header-action-slot")
+    const markerSlot = screen.getByTestId("recent-chat-marker-slot")
+    const actionSlot = screen.getByTestId("recent-chat-action-slot")
+
+    expect(headerSlots.length).toBeGreaterThanOrEqual(2)
+    headerSlots.forEach((slot) => expect(slot).toHaveClass("h-6", "w-6", "items-center", "justify-center"))
+    expect(headerSlots.find((slot) => within(slot).queryByRole("button", { name: "New chat in acme/widgets" }))?.closest("h2")).toHaveClass("pr-2")
+    expect(markerSlot).toHaveClass("h-6", "min-w-6", "items-center", "justify-end", "pr-[0.3125rem]")
+    expect(actionSlot).toHaveClass("right-2", "top-1/2", "-translate-y-1/2")
+    expect(actionSlot.querySelector("button")).toHaveClass("h-6", "w-6")
+    expect(screen.getByTitle("Chat turn active")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
+    expect(screen.getByTitle("Active goal")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
+    expect(markerSlot.firstElementChild).toHaveClass("flex", "items-center", "gap-1")
+    expect(markerSlot.firstElementChild).not.toHaveClass("absolute")
+  })
+
+  it("replaces markers with the actions button while the row menu is open", () => {
+    renderSidebar([chatNav({ id: 7, title: "Roadmap sync", active_goal: chatGoal(), unread: true })])
+
+    const markerSlot = screen.getByTestId("recent-chat-marker-slot")
+    const trigger = screen.getByRole("button", { name: "Chat actions for Roadmap sync" })
+
+    expect(markerSlot).not.toHaveClass("invisible")
+    expect(markerSlot.closest("a")).toBe(screen.getByRole("link", { name: "Roadmap sync" }))
+
+    fireEvent.click(trigger)
+
+    expect(markerSlot).toHaveClass("invisible")
+    expect(markerSlot).not.toHaveClass("hidden")
+    expect(trigger).toHaveClass("opacity-100")
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+  })
+})
 
 describe("RecentChatsSidebar drag-over blink and navigate", () => {
   beforeEach(() => vi.useFakeTimers())

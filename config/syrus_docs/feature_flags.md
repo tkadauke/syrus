@@ -4,6 +4,12 @@ Syrus uses feature flags to gate experimental and operational behaviors. Flags a
 
 All flags are typed booleans. Most default to `false` (disabled); `epicless_job_bundling`, `coding_mode`, and `persistent_mcp_sidecar` default to `true` (enabled) — all are code-complete, well-tested, and gated by product/security choice rather than incompleteness. `local_mode` defaults to `false`: it opens an exec bridge onto the operator's own machine, which is too consequential for a Labs-default-on toggle on a fresh install even though the feature itself is mature. `visual_review` no longer has an instance-wide Feature flag at all (see its own section below) — it is unconditionally on by default, controllable only per repository via `.syrus.yml`. An instance that explicitly turned a still-flagged feature on or off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from `default` for a brand-new `Feature` row, never overwriting an existing operator override when the YAML default changes. Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
 
+## Hidden flags
+
+No feature flags are currently hidden from Admin → Features. `Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS` is reserved only for declared-but-unfinished flags that must remain console-only while they are unsafe or misleading as self-hoster-facing toggles.
+
+A hidden flag must default to `false`. The moment a flag is code-complete enough to default on, or otherwise becomes an operator-supported escape hatch, remove it from `ALWAYS_HIDDEN_SLUGS` in the same change. The feature registry spec enforces this by rejecting any slug that is both hidden and declared `default: true` in `config/features.yml`; hidden-and-off remains valid for unfinished work.
+
 ## chat_speech_to_text
 
 **Category:** Labs
@@ -223,13 +229,11 @@ On a successful claim, the report routes through `Observability::EventJobFiler` 
 
 ## persistent_mcp_sidecar
 
-**Category:** Labs · **On by default · hidden from the Admin → Features Labs list**
-
-Deliberately excluded from the visible Labs feature list a self-hoster browses in Admin → Features (`Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS`). The flag is still fully functional and toggleable via Rails console (see "Enabling" below); it just isn't discoverable as a toggle.
+**Category:** Labs · **On by default**
 
 Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, built on `Puma::Server`) that boots once per worker, holds an in-memory `MCP::Server`, and serves `/healthz` plus a stateless `/mcp` HTTP transport bound to loopback only (`SYRUS_PERSISTENT_MCP_HOST`, default `127.0.0.1`; `SYRUS_PERSISTENT_MCP_PORT`, default `4805`). The goal is to avoid re-spawning a fresh stdio MCP sidecar process for every chat turn or workflow Run.
 
-`ChatMcpTransportSelector` and `WorkflowMcpTransportSelector` each independently decide whether to route to the daemon (`:persistent`) or fall back to the existing per-run/per-turn stdio sidecar (`:stdio`); routing to the daemon requires the flag enabled, a passing daemon health check, and the daemon advertising the relevant capability. Claude can use HTTP MCP directly; stdio-only workflow agent CLIs use `bin/syrus-mcp-proxy`, which forwards to the daemon with a short-lived invocation token instead of booting Rails with worker secrets in the agent process. On the chat side persistent transport is currently restricted to the Claude provider (Codex chat sessions have no persistent HTTP MCP wiring); the resulting transport decision and reason are recorded on the chat's `artifacts["mcp_transport"]` for diagnostics. No `AppSetting`/DB column controls this flag; when disabled, every agent context keeps using the default per-run/per-session stdio sidecars unchanged. On by default.
+`ChatMcpTransportSelector` and `WorkflowMcpTransportSelector` each independently decide whether to route to the daemon (`:persistent`) or fall back to the existing per-run/per-turn stdio sidecar (`:stdio`); routing to the daemon requires the flag enabled, a passing daemon health check, and the daemon advertising the relevant capability. Claude can use HTTP MCP directly; stdio-only workflow and chat agent CLIs use `bin/syrus-mcp-proxy`, which forwards to the daemon with a short-lived invocation token instead of booting Rails with worker secrets in the agent process. The resulting transport decision and reason are recorded on workflow step details or the chat's `artifacts["mcp_transport"]` for diagnostics. No `AppSetting`/DB column controls this flag; when disabled, every agent context keeps using the default per-run/per-session stdio sidecars unchanged. On by default.
 
 ## emergency_land
 

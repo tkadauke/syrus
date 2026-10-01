@@ -9372,13 +9372,14 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).every((el) => el.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
-    expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
-    expect(screen.getByRole("menuitem", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByText("columns")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Jobs (1)" }))
+    expect(screen.getByRole("link", { name: "Survey forum" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    fireEvent.click(screen.getByRole("button", { name: "Dependencies" }))
     expect(screen.getByText("(1 epic dep, 0 job blockers)")).toBeInTheDocument()
     expect(screen.getByText("Dependency graph").closest("details")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
-    expect(screen.getByText("Survey forum")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    expect(screen.getByRole("menuitem", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
     expect(screen.getByText("1 Closed")).toBeInTheDocument()
 
@@ -9429,6 +9430,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
+    fireEvent.click(await screen.findByRole("button", { name: "Dependencies" }))
     expect(await screen.findByRole("heading", { name: "Dependencies" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Deliver marble" })).toHaveAttribute("href", "/app-shell/epics/6")
     expect(screen.getByText("Done")).toBeInTheDocument()
@@ -9483,6 +9485,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
+    fireEvent.click(await screen.findByRole("button", { name: "Dependencies" }))
     await waitFor(() => expect(screen.getAllByText("None")).toHaveLength(2))
 
     fireEvent.change(screen.getByLabelText("Add dependency"), { target: { value: "Cycle" } })
@@ -12811,46 +12814,22 @@ describe("App", () => {
     }
   })
 
-  it("lets the new-chat form clear the default repository before creating a chat", async () => {
+  it("keeps repository selection out of the sidebar new-chat launcher", async () => {
     const startChat = vi.fn()
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/new") {
-        return Promise.resolve(new Response(JSON.stringify({
-          default_repository_id: 3,
-          repositories: [
-            { id: 3, slug: "acme/widgets" },
-            { id: 4, slug: "acme/roads" }
-          ],
-          effective_chat_provider: "claude",
-          effective_chat_provider_label: "Claude",
-          chat_provider_options: [{ value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" }]
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
 
-      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NewChatLauncher collapsed={false} disabled={false} onStartChat={startChat} />
+      </QueryClientProvider>
+    )
 
-    try {
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <NewChatLauncher collapsed={false} disabled={false} onStartChat={startChat} />
-        </QueryClientProvider>
-      )
+    expect(screen.queryByRole("combobox", { name: "Repository for new chat" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
 
-      const repositorySelect = await screen.findByRole("combobox", { name: "Repository for new chat" }) as HTMLSelectElement
-      await waitFor(() => expect(repositorySelect.value).toBe("3"))
-      expect(within(repositorySelect).getByRole("option", { name: "acme/widgets" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
 
-      fireEvent.click(screen.getByRole("button", { name: "Remove repository from new chat" }))
-      expect(repositorySelect.value).toBe("none")
-
-      fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
-
-      expect(startChat).toHaveBeenCalledWith(null)
-    } finally {
-      fetchSpy.mockRestore()
-    }
+    expect(startChat).toHaveBeenCalledTimes(1)
+    expect(startChat).toHaveBeenCalledWith()
   })
 
   it("confirms clear before deleting chat history", async () => {

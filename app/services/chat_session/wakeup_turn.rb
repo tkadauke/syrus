@@ -33,6 +33,6 @@ class ChatSession::WakeupTurn
   private
 
   def message_role(content)
-    content["scoped_event_wakeup"] == true ? "system" : "user"
+    content["requested_by"] == "cross_chat" ? "user" : "system"
   end
 end

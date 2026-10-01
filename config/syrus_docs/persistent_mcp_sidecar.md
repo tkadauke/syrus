@@ -8,11 +8,10 @@ under load.
 
 `persistent_mcp_sidecar` is a labs feature (default on) gating a
 worker-local daemon that boots Rails once and stays up, instead of once per
-run or chat turn. It is deliberately excluded from the visible Labs feature
-list in Admin → Features (`ALWAYS_HIDDEN_SLUGS` in
-`Api::V1::App::Admin::FeaturesController`) because it is infrastructure, not
-an operator-facing product toggle. It remains fully functional and toggleable
-via Rails console (see "Enabling" below). `WorkflowMcpTransportSelector` and
+run or chat turn. The flag is visible in Admin → Features and is also
+toggleable via Rails console (see "Toggling" below), so operators can turn it
+off without shelling into a worker when they need to fall back to per-run
+stdio sidecars. `WorkflowMcpTransportSelector` and
 `ChatMcpTransportSelector` each decide, per workflow agent invocation or chat
 turn respectively, whether to route that invocation's MCP traffic to this
 daemon instead of spawning the usual stdio sidecar -- see "Workflow transport
@@ -21,10 +20,10 @@ independent: the daemon's `CAPABILITIES` advertises both
 `CHAT_TOOLS_CAPABILITY` and `WORKFLOW_TOOLS_CAPABILITY`, and each selector
 picks `:persistent` once the daemon is healthy.
 
-## Enabling
+## Toggling
 
 ```ruby
-Feature.find_by(slug: 'persistent_mcp_sidecar').update(enabled: true)
+Feature.find_by(slug: 'persistent_mcp_sidecar').update(enabled: false)
 ```
 
 With the feature disabled, `PersistentMcpDaemon#start` raises immediately
@@ -84,19 +83,20 @@ serve many concurrent runs/chats, so it cannot reuse that pattern — ENV and
 any daemon-wide "current run"/"current chat" attribute would leak across
 concurrent dispatches.
 
-Generated MCP configs are agent-visible. Persistent transport keeps workflow
-stdio-only CLIs on `bin/syrus-mcp-proxy`, whose env carries only the daemon URL
-plus a short-lived invocation token. The legacy direct `bin/syrus-mcp-sidecar`
-fallback is different: it boots Rails as a child process, so it receives the
-worker boot env needed for MySQL, Active Record encryption, and S3-backed
-production boots. Shared service bearer tokens that are not needed for Rails
-boot stay out of that direct-sidecar env.
+Generated MCP configs are agent-visible. Persistent transport keeps stdio-only
+workflow and chat CLIs on `bin/syrus-mcp-proxy`, whose env carries only the
+daemon URL plus a short-lived invocation token. The legacy direct
+`bin/syrus-mcp-sidecar` / `bin/syrus-chat-sidecar` fallback is different: it
+boots Rails as a child process, so it receives the worker boot env needed for
+MySQL, Active Record encryption, and S3-backed production boots. Shared service
+bearer tokens that are not needed for Rails boot stay out of that
+direct-sidecar env.
 
 For agent CLIs that only support stdio MCP, the configured command is
-`bin/syrus-mcp-proxy` when workflow persistent transport is selected. The
-proxy does not boot Rails and receives only the daemon URL plus a short-lived
-signed invocation token. Rails/database/storage secrets stay in the
-worker-owned persistent daemon process.
+`bin/syrus-mcp-proxy` when persistent transport is selected. The proxy does not
+boot Rails and receives only the daemon URL plus a short-lived signed invocation
+token. Rails/database/storage secrets stay in the worker-owned persistent
+daemon process.
 
 `McpInvocationContext` is a short-lived signed context envelope instead:
 `.issue_for_run` / `.issue_for_chat` mint a token (via
@@ -173,21 +173,15 @@ a different capability (`PersistentMcpDaemon::CHAT_TOOLS_CAPABILITY`,
 safe, or vice versa — `PersistentMcpDaemon::CAPABILITIES` advertises both
 surfaces. Reasons mirror the workflow selector's (`feature_disabled`,
 `daemon_unreachable: ...`, `daemon_unhealthy: ...`,
-`daemon_incompatible: ...`), plus:
-
-- `provider_unsupported: ...` — chat providers other than Claude currently
-  read every configured entry as a stdio server, so an `http`-type entry would
-  crash them or be ignored. `ChatTurnJob` downgrades any `:persistent`
-  decision to `:stdio` with this reason before building config when the turn's
-  chat provider isn't Claude. Workflow providers do not use this downgrade:
-  stdio-only workflow CLIs use `bin/syrus-mcp-proxy`.
-- `nil` (persistent, no fallback) — `ChatTurnJob` builds `http`-type
-  `mcpServers` entries for BOTH the essential and deferred config keys
-  (`"syrus-chat-sidecar"` / `"syrus-chat-deferred-sidecar"`, same names as
-  stdio mode, same reason as workflow: resumed sessions derive MCP tool
-  prefixes from the config key), each carrying its own
-  `McpInvocationContext.issue_for_chat` token so the daemon can tell which
-  tier a given call belongs to.
+`daemon_incompatible: ...`), with no provider-specific downgrade: chat
+providers that support HTTP MCP directly get HTTP entries, and stdio-only chat
+providers get `bin/syrus-mcp-proxy` entries for the same daemon. For a
+persistent decision (`reason: nil`), `ChatTurnJob` builds entries for BOTH the
+essential and deferred config keys (`"syrus-chat-sidecar"` /
+`"syrus-chat-deferred-sidecar"`, same names as stdio mode, same reason as
+workflow: resumed sessions derive MCP tool prefixes from the config key). Each
+entry carries its own `McpInvocationContext.issue_for_chat` token so the daemon
+can tell which tier a given call belongs to.
 
 **Diagnostics**: every non-`nil` decision is recorded on
 `ChatSession#artifact("mcp_transport")` (via `ChatSession#set_artifact!`, the

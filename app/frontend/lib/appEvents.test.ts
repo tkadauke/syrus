@@ -461,6 +461,36 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
+  it("updates chat state without crashing when cached chat details are missing the nested chat record", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], {
+      ...chatPayload([message(1, "user", "old")]),
+      chat: undefined
+    } as unknown as ChatPayload)
+
+    expect(() => applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "invalidate_messages",
+        turn_in_flight: false,
+        agent_busy: true,
+        stop_requested_at: "2026-05-30T12:00:00Z",
+        queued_messages: []
+      }
+    })).not.toThrow()
+
+    const updated = queryClient.getQueryData<ChatPayload>(["chats", "9", ""])
+    expect(updated?.turn_in_flight).toBe(false)
+    expect(updated?.agent_busy).toBe(true)
+    expect(updated?.chat).toBeUndefined()
+
+    vi.runOnlyPendingTimers()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
   it("invalidates chat queries for queued pending action updates", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()

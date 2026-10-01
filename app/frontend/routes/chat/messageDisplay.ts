@@ -24,6 +24,7 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
     !isProposalOutcomeSystemMessage(item) &&
     !isGoalContinuationSystemMessage(item) &&
     !isCrossChatBridgeSystemMessage(item) &&
+    !isWakeupAutomationSystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
   )
 }
@@ -34,6 +35,10 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
 // even though their tone would otherwise classify as low priority.
 export function isCrossChatBridgeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
   return Boolean(item.cross_chat_bridge)
+}
+
+export function isWakeupAutomationSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
+  return contentRecord(item.content)?.requested_by === "wakeup"
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {

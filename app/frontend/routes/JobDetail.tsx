@@ -111,6 +111,16 @@ import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 
+const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set([
+  "running",
+  "coding",
+  "implemented",
+  "approved",
+  "landing",
+  "closed",
+  "no_change_needed"
+])
+
 export function JobDetailRoute() {
   const { t } = useT("jobs")
   const params = useParams()
@@ -798,7 +808,7 @@ function SummaryTab({
   // required, but a payload without it crashes the whole Summary tab through
   // the route error boundary rather than just hiding one panel.
   const typedArtifacts = payload.typed_artifacts ?? []
-  const showUnsatisfiedDependencies = payload.job.state !== "landing" && payload.unsatisfied_dependencies.length > 0
+  const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
@@ -1906,6 +1916,8 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
 function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
+  const hasSameEpicDependency =
+    payload.job.epic_id != null && payload.unsatisfied_dependencies.some((dependency) => dependency.depends_on_job?.epic_id === payload.job.epic_id)
   return (
     <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1919,7 +1931,9 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
               </span>
             ))}
           </span>
-          <span className="ml-1">{count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}</span>
+          <span className="ml-1">
+            {hasSameEpicDependency ? t("blocked_auto_start_same_epic") : count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}
+          </span>
         </div>
         {payload.actions.can_override_dependencies ? (
           <CommandButton

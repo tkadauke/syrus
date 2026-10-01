@@ -212,7 +212,7 @@ These are rules, not preferences. A move that cannot satisfy them is not ready.
    injects the association in `config.to_prepare`.
 4. **No circular dependencies between plugins.** The dependency graph is a DAG.
    `Admin::PluginDependencyGraph#cycles` / `#acyclic?` detect violations
-   statically (JOB-4127); wiring that into runtime plugin health is G11.
+   statically; wiring that into runtime plugin health is G11.
 5. **A plugin is its own feature flag.** Plugins do not define feature flags.
    Enabled means the behavior is on. A plugin may *read* a globally defined
    flag, but must not require one to exist.
@@ -240,17 +240,17 @@ These are rules, not preferences. A move that cannot satisfy them is not ready.
 
 ### The boundary, and how it is enforced
 
-**JOB-4127 / PR #3120 (in flight, not yet merged)** builds most of this. It adds
-`Admin::PluginSourceBoundaryAudit`, a static source-tree audit that checks four
-things: manifest dependencies resolve, the dependency graph is acyclic,
-core does not reference plugins, and plugin-to-plugin references are covered by
-declared transitive dependencies. It also adds `bin/plugin-boundary-audit`, a
-manual runner that physically removes a plugin plus its transitive dependents in
-a temporary copy, strips the matching Gemfile path entries, and runs a smoke
-command — the stronger check, kept out of default CI because it is expensive.
+The static plugin-boundary audit adds `Admin::PluginSourceBoundaryAudit`, which
+checks four things: manifest dependencies resolve, the dependency graph is
+acyclic, core does not reference plugins, and plugin-to-plugin references are
+covered by declared transitive dependencies. The manual
+`bin/plugin-boundary-audit` runner physically removes a plugin plus its
+transitive dependents in a temporary copy, strips the matching Gemfile path
+entries, and runs a smoke command — the stronger check, kept out of default CI
+because it is expensive.
 
-The same PR fixes the violations this plan previously listed, using deferred
-string resolution rather than guards:
+The audit work fixed the violations this plan previously listed, using
+deferred string resolution rather than guards:
 
 ```ruby
 "ClaudeAgent::SessionPaths".safe_constantize   # app/models/provider_session.rb
@@ -641,9 +641,10 @@ as an association.
 
 ### G11. Dependency resolution and plugin health
 
-JOB-4127 covers the **static** half of this: `PluginDependencyGraph#cycles`
-and `#acyclic?` detect cycles, and `PluginSourceBoundaryAudit` reports missing
-manifest dependencies, in a spec that runs against the source tree.
+The source-tree audit covers the **static** half of this:
+`PluginDependencyGraph#cycles` and `#acyclic?` detect cycles, and
+`PluginSourceBoundaryAudit` reports missing manifest dependencies in a spec that
+runs against the source tree.
 
 What remains is the **runtime** half. `depends_on` is still a name-existence
 assertion checked once at boot: `validate_dependencies!` raises,

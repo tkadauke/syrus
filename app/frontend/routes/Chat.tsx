@@ -1338,7 +1338,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       ) : null}
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
       {!landing ? <AttachedCodingJobStrip payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      <div className={`relative min-h-0 overflow-hidden rounded-t border border-b-0 border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
+      <div className={`relative min-h-0 overflow-hidden rounded-none border-0 border-gray-200 bg-white transition-all duration-500 ease-out xl:rounded-t xl:border xl:border-b-0 dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
         {showUsageOverlay ? <UsageOverlay payload={payload} /> : null}

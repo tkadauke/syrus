@@ -48,12 +48,71 @@ RSpec.describe App::ProviderAvailability do
     run
   end
 
-  it "forces the state-aware latest-provider-run index on MySQL" do
+  it "forces the recency-aware latest-provider-run index on MySQL" do
     availability = described_class.new(user: user, provider: "codex", now: now)
 
     allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
 
-    expect(availability.send(:provider_run_scope_for_latest).to_sql).to include("FORCE INDEX (idx_runs_user_provider_state_recent)")
+    sql = availability.send(:provider_run_scope_for_latest).to_sql
+    expect(sql).to include("FORCE INDEX (idx_runs_provider_latest_finished)")
+    expect(sql).not_to include("idx_runs_user_provider_state_recent")
+  end
+
+  it "finds the latest finished terminal provider run among skewed active and null-finished rows" do
+    other_user = Factories.user
+
+    create_provider_run = lambda do |owner:, provider:, state:, finished_at:, updated_at: nil|
+      job = Factories.job_record(
+        repository: Factories.repository(user: owner),
+        user: owner,
+        agent_provider: provider
+      )
+      effective_updated_at = updated_at || finished_at || now
+      Run.create!(
+        job: job,
+        user: owner,
+        trigger_kind: "initial",
+        state: state,
+        agent_provider: provider,
+        finished_at: finished_at,
+        updated_at: effective_updated_at
+      )
+    end
+
+    25.times do |index|
+      create_provider_run.call(
+        owner: user,
+        provider: "codex",
+        state: index.even? ? "queued" : "running",
+        finished_at: nil,
+        updated_at: now + index.minutes
+      )
+    end
+    create_provider_run.call(owner: user, provider: "claude", state: "failed", finished_at: now + 10.minutes)
+    create_provider_run.call(owner: other_user, provider: "codex", state: "failed", finished_at: now + 11.minutes)
+    create_provider_run.call(owner: user, provider: "codex", state: "cancelled", finished_at: now + 9.minutes)
+    older_failed = create_provider_run.call(owner: user, provider: "codex", state: "failed", finished_at: now + 1.minute)
+    latest_succeeded = create_provider_run.call(
+      owner: user,
+      provider: "codex",
+      state: "succeeded",
+      finished_at: now + 2.minutes,
+      updated_at: now + 3.minutes
+    )
+    same_finished_older_update = create_provider_run.call(
+      owner: user,
+      provider: "codex",
+      state: "failed",
+      finished_at: now + 2.minutes,
+      updated_at: now + 2.minutes
+    )
+
+    availability = described_class.new(user: user, provider: "codex", now: now)
+    latest_run = availability.send(:latest_terminal_provider_run)
+
+    expect(latest_run).to eq(latest_succeeded)
+    expect(latest_run).not_to eq(older_failed)
+    expect(latest_run).not_to eq(same_finished_older_update)
   end
 
   it "marks only the exhausted provider for the current user" do

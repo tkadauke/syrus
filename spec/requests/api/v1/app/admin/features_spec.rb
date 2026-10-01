@@ -74,10 +74,11 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     ])
   end
 
-  it "always omits persistent_mcp_sidecar from the visible Labs feature list" do
+  it "omits always-hidden flags from the visible feature list" do
     sign_in_as(admin)
+    stub_const("Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS", %w[unfinished_daemon].freeze)
     allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
-      { slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", description: "Worker-local daemon skeleton.", default_enabled: false }
+      { slug: "unfinished_daemon", category: "Labs", name: "Unfinished daemon", description: "Still under construction.", default_enabled: false }
     ])
 
     get "/api/v1/app/admin/features"
@@ -85,20 +86,65 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     expect(response).to have_http_status(:ok)
     slugs = parse_body["categories"].flat_map { |category| category["features"].map { |feature| feature["slug"] } }
     expect(slugs).to include("new_dashboard", "fast_queue")
-    expect(slugs).not_to include("persistent_mcp_sidecar")
+    expect(slugs).not_to include("unfinished_daemon")
   end
 
-  it "refuses to update the hidden persistent_mcp_sidecar flag through this endpoint" do
+  it "refuses to update always-hidden flags through this endpoint" do
     sign_in_as(admin)
-    Feature.create!(slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", enabled: false)
+    stub_const("Api::V1::App::Admin::FeaturesController::ALWAYS_HIDDEN_SLUGS", %w[unfinished_daemon].freeze)
+    Feature.create!(slug: "unfinished_daemon", category: "Labs", name: "Unfinished daemon", enabled: false)
     allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
-      { slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", description: "Worker-local daemon skeleton.", default_enabled: false }
+      { slug: "unfinished_daemon", category: "Labs", name: "Unfinished daemon", description: "Still under construction.", default_enabled: false }
     ])
 
-    patch "/api/v1/app/admin/features/persistent_mcp_sidecar", params: { feature: { enabled: true } }
+    patch "/api/v1/app/admin/features/unfinished_daemon", params: { feature: { enabled: true } }
 
     expect(response).to have_http_status(:not_found)
+    expect(Feature.find_by!(slug: "unfinished_daemon")).not_to be_enabled
+  end
+
+  it "includes persistent_mcp_sidecar in the visible Labs feature list" do
+    sign_in_as(admin)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
+      {
+        slug: "persistent_mcp_sidecar",
+        category: "Labs",
+        name: "Persistent MCP sidecar",
+        description: "Enables a worker-local persistent MCP sidecar daemon.",
+        default_enabled: true,
+        name_i18n_key: "features.slugs.persistent_mcp_sidecar.name",
+        description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
+      }
+    ])
+
+    get "/api/v1/app/admin/features"
+
+    expect(response).to have_http_status(:ok)
+    labs_features = parse_body["categories"].find { |category| category["category"] == "Labs" }["features"]
+    expect(labs_features).to include(
+      a_hash_including(
+        "slug" => "persistent_mcp_sidecar",
+        "name" => "Persistent MCP sidecar",
+        "description" => "Enables a worker-local persistent MCP sidecar daemon.",
+        "enabled" => true,
+        "name_i18n_key" => "features.slugs.persistent_mcp_sidecar.name",
+        "description_i18n_key" => "features.slugs.persistent_mcp_sidecar.description"
+      )
+    )
+  end
+
+  it "updates persistent_mcp_sidecar through this endpoint" do
+    sign_in_as(admin)
+    Feature.create!(slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", enabled: true)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
+      { slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", description: "Enables a worker-local persistent MCP sidecar daemon.", default_enabled: true }
+    ])
+
+    patch "/api/v1/app/admin/features/persistent_mcp_sidecar", params: { feature: { enabled: false } }
+
+    expect(response).to have_http_status(:ok)
     expect(Feature.find_by!(slug: "persistent_mcp_sidecar")).not_to be_enabled
+    expect(parse_body["feature"]).to include("slug" => "persistent_mcp_sidecar", "enabled" => false)
   end
 
   it "updates a declared feature" do

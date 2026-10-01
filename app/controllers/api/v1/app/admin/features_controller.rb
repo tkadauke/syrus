@@ -8,7 +8,7 @@ module Api
           # this controller's own `update` action: these are unfinished or
           # otherwise not meant to be discoverable as a self-hoster-facing
           # toggle yet.
-          ALWAYS_HIDDEN_SLUGS = %w[persistent_mcp_sidecar].freeze
+          ALWAYS_HIDDEN_SLUGS = [].freeze
 
           def index
             render json: features_payload

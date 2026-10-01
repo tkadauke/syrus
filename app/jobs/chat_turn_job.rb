@@ -483,21 +483,41 @@ class ChatTurnJob < ApplicationJob
     }
   end
 
-  # Points claude at PersistentMcpDaemon's HTTP transport instead of spawning
-  # a stdio subprocess. The signed McpInvocationContext token travels as a
-  # header (claude builds the JSON-RPC body itself, so there's no config
-  # surface to set `_meta` directly) -- the daemon bridges the header into
-  # `_meta` on its side (see PersistentMcpDaemon#inject_invocation_context).
-  # Codex chat never reaches this path (see #chat_mcp_transport_decision):
-  # ChatProviders::Codex#mcp_servers_for reads every configured entry as a
-  # stdio server (`.fetch("command")`), so an http-type entry would crash it.
+  # Providers that can speak HTTP MCP directly get PersistentMcpDaemon's HTTP
+  # endpoint. Stdio-only providers get bin/syrus-mcp-proxy, a secret-free bridge
+  # to the same daemon, instead of spawning the Rails sidecar process under the
+  # agent's scrubbed environment.
   def persistent_chat_server_config(decision, tier:, always_load:)
+    return persistent_chat_http_server_config(decision, tier: tier, always_load: always_load) if persistent_http_transport_supported?
+
+    persistent_chat_proxy_server_config(decision, tier: tier, always_load: always_load)
+  end
+
+  def persistent_chat_http_server_config(decision, tier:, always_load:)
     {
       type: "http",
       url: persistent_chat_mcp_url,
       headers: { PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => mint_chat_invocation_context_token(decision, tier: tier) },
       alwaysLoad: always_load
     }
+  end
+
+  def persistent_chat_proxy_server_config(decision, tier:, always_load:)
+    {
+      type: "stdio",
+      command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+      args: [],
+      env: persistent_chat_proxy_env(decision, tier: tier),
+      alwaysLoad: always_load
+    }
+  end
+
+  def persistent_chat_proxy_env(decision, tier:)
+    {
+      "SYRUS_MCP_PROXY_URL" => persistent_chat_mcp_url,
+      "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => mint_chat_invocation_context_token(decision, tier: tier),
+      "PATH" => ENV["PATH"]
+    }.compact
   end
 
   def persistent_chat_mcp_url
@@ -527,24 +547,14 @@ class ChatTurnJob < ApplicationJob
     return nil unless Feature.persistent_mcp_sidecar_enabled?
 
     decision = ChatMcpTransportSelector.select
-    decision = provider_unsupported_decision(provider) if decision.persistent? && !persistent_transport_supported?(provider)
     log_chat_mcp_transport_decision!(decision)
     decision
   end
 
-  # Only Claude chat sessions have persistent (http) MCP transport wiring --
-  # see ChatProviders::Claude#invoke vs. ChatProviders::Codex#mcp_servers_for
-  # above.
-  def persistent_transport_supported?(provider)
-    provider.provider == "claude"
-  end
-
-  def provider_unsupported_decision(provider)
-    ChatMcpTransportSelector::Decision.new(
-      transport: :stdio,
-      reason: "provider_unsupported: #{provider.provider} has no persistent MCP HTTP transport wiring yet",
-      daemon_identity: nil
-    )
+  # Only Claude chat sessions have direct HTTP MCP transport wiring. Other
+  # providers still use the persistent daemon through bin/syrus-mcp-proxy.
+  def persistent_http_transport_supported?
+    @chat.effective_chat_provider == "claude"
   end
 
   # Records where existing chat diagnostics already surface it: the chat's

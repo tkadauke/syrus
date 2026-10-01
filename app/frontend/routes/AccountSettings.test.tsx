@@ -247,6 +247,35 @@ describe("AccountSettings form primitives", () => {
     expect(fallback).toHaveAttribute("aria-describedby", help.id)
   })
 
+  it("cross-links agent settings to chat credentials and repository overrides", async () => {
+    renderRoute(credentialsPayload(), <AgentSettingsRoute />)
+
+    await screen.findByLabelText("Agent provider")
+    expect(screen.getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/credentials")
+    expect(screen.getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/repositories")
+    expect(screen.getByText(/default agent provider for new Jobs/i).closest("p")).toHaveTextContent(
+      "This is the default agent provider for new Jobs. It's separate from your chat provider in Credentials and from per-repository overrides under Repositories."
+    )
+  })
+
+  it("cross-links chat credentials to default agent settings and repository overrides", async () => {
+    const base = credentialsPayload()
+    renderRoute(credentialsPayload({
+      options: {
+        ...base.options,
+        chat_providers: ["claude"],
+        chat_provider_labels: { claude: "Claude" }
+      }
+    }), <CredentialsRoute />)
+
+    await screen.findByLabelText("Chat provider")
+    expect(screen.getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/settings/agent")
+    expect(screen.getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/repositories")
+    expect(screen.getByText(/separate from the default Job agent provider/i).closest("p")).toHaveTextContent(
+      "This is separate from the default Job agent provider in Agent Settings and from per-repository overrides under Repositories."
+    )
+  })
+
   it("associates preference labels with select controls", async () => {
     renderRoute(credentialsPayload(), <PreferencesRoute />)
 

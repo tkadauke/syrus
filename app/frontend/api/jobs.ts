@@ -132,6 +132,7 @@ export type JobRecord = {
   landing_blocker_override_requested_by?: JobUserReference | null
   origin?: JobOrigin | null
   goal_provenance?: GoalProvenance | null
+  epic_id?: number | null
   total_cost_usd: number | null
   billed_runs_count: number
   source_chat: JobSourceChat | null
@@ -372,6 +373,7 @@ export type JobDependencyTarget = {
   kind: string
   state: string
   summary_state: string
+  epic_id?: number | null
   repository_slug: string
   issue_number: number | null
   issue_title: string | null

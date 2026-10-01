@@ -177,6 +177,12 @@ function ChatProviderPanel({ payload, onNotice, prefix }: { payload: Credentials
         <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/settings/agent", prefix)}>
           {t('nav.agent_settings')}
         </Link>
+        {" "}
+        {t('credential_cards.chat_provider_see_also_middle')}{" "}
+        <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/repositories", prefix)}>
+          {t('repositories.heading')}
+        </Link>
+        {t('credential_cards.chat_provider_see_also_suffix')}
       </p>
     </section>
   )
@@ -300,6 +306,11 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
               {t('account_settings.agent_provider_see_also')}{" "}
               <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
                 {t('nav.credentials')}
+              </Link>
+              {" "}
+              {t('account_settings.agent_provider_see_also_middle')}{" "}
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix("/repositories", prefix)}>
+                {t('repositories.heading')}
               </Link>
               {t('account_settings.agent_provider_see_also_suffix')}
             </Form.HelpText>

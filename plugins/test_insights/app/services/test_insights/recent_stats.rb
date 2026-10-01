@@ -15,6 +15,7 @@ module TestInsights
 
       rows = PerformanceLogging.phase("test_insights.recent_stats", identity_count: ids.size) do
         ranked_cases = TestCase
+          .from("#{TestCase.quoted_table_name}#{TestCase.scored_created_index_hint}")
           .where(test_identity_id: ids)
           .scored
           .select(
