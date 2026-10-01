@@ -1,0 +1,9 @@
+project:
+  id: cognitive_review
+  label: "cognitive_review plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
