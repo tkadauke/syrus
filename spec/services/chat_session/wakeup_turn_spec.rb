@@ -38,7 +38,7 @@ RSpec.describe ChatSession::WakeupTurn do
     expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, message.id).on_queue("chat")
   end
 
-  it "keeps ordinary scheduled wakeups as visible user messages" do
+  it "keeps ordinary scheduled wakeups as visible automation messages" do
     ordinary_wakeup = ChatWakeup.create!(
       chat_session: chat_session,
       user: user,
@@ -49,12 +49,38 @@ RSpec.describe ChatSession::WakeupTurn do
 
     message = described_class.new(ordinary_wakeup).run
 
-    expect(message).to have_attributes(role: "user", chat_session: chat_session)
+    expect(message).to have_attributes(role: "system", chat_session: chat_session)
     expect(message.content).to include(
       "text" => "Remind me to check the release.",
       "requested_by" => "wakeup",
       "wakeup_id" => ordinary_wakeup.id
     )
     expect(chat_session.reload).to be_turn_in_flight
+    expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, message.id).on_queue("chat")
+  end
+
+  it "preserves the existing cross-chat relay role and provenance" do
+    cross_chat_wakeup = ChatWakeup.create!(
+      chat_session: chat_session,
+      user: user,
+      prompt: "Please check this from another chat.",
+      fire_at: 5.minutes.from_now,
+      metadata: {
+        "requested_by" => "cross_chat",
+        "origin_chat_session_id" => 123,
+        "thread_id" => 456
+      }
+    )
+
+    message = described_class.new(cross_chat_wakeup).run
+
+    expect(message).to have_attributes(role: "user", chat_session: chat_session)
+    expect(message.content).to include(
+      "text" => "Please check this from another chat.",
+      "requested_by" => "cross_chat",
+      "wakeup_id" => cross_chat_wakeup.id,
+      "origin_chat_session_id" => 123,
+      "thread_id" => 456
+    )
   end
 end
