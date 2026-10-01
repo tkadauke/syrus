@@ -1,6 +1,6 @@
 module CiRepair
   class CheckRefresh
-    Result = Data.define(:job, :head_sha, :base_sha, :state, :detail, :refreshed_at) do
+    Result = Data.define(:job, :head_sha, :base_sha, :previous_state, :state, :detail, :refreshed_at) do
       def failed_checks
         Array(detail[:failed_checks] || detail["failed_checks"])
       end
@@ -9,11 +9,28 @@ module CiRepair
         failed_checks.map do |check|
           {
             name: check[:name] || check["name"],
+            provider: check[:provider] || check["provider"] || check[:app_slug] || check["app_slug"],
             conclusion: check[:conclusion] || check["conclusion"],
             details_url: check[:html_url] || check["html_url"] || check[:details_url] || check["details_url"] || check[:url] || check["url"],
             summary: check[:summary] || check["summary"]
           }.compact
         end
+      end
+
+      def refreshed_check_summaries
+        Array(detail[:completed_checks] || detail["completed_checks"]).map do |check|
+          {
+            name: check[:name] || check["name"],
+            provider: check[:provider] || check["provider"] || check[:app_slug] || check["app_slug"],
+            conclusion: check[:conclusion] || check["conclusion"],
+            details_url: check[:html_url] || check["html_url"] || check[:details_url] || check["details_url"] || check[:url] || check["url"],
+            summary: check[:summary] || check["summary"]
+          }.compact
+        end
+      end
+
+      def refreshed_providers
+        refreshed_check_summaries.filter_map { |check| check[:provider] }.uniq
       end
 
       def payload
@@ -23,8 +40,11 @@ module CiRepair
           pr_number: job.pr_number || job.external_pr_number,
           head_sha: head_sha,
           base_sha: base_sha,
+          previous_pr_checks_state: previous_state,
           pr_checks_state: state,
           pr_checks_checked_at: refreshed_at&.iso8601,
+          refreshed_providers: refreshed_providers,
+          refreshed_checks: refreshed_check_summaries,
           failing_checks: failed_check_summaries
         }
       end
@@ -47,6 +67,7 @@ module CiRepair
       detail = client.check_runs_detail_for(pr_repository.slug, head_sha)
       refreshed_at = Time.current
       state = state_for(detail)
+      previous_state = @job.pr_checks_state
       @job.update_columns(
         pr_checks_sha: head_sha,
         pr_checks_base_sha: base_sha,
@@ -55,7 +76,7 @@ module CiRepair
         pr_checks_failing_names: Job.failing_check_names_from(detail)
       )
 
-      Result.new(job: @job.reload, head_sha: head_sha, base_sha: base_sha, state: state, detail: detail, refreshed_at: refreshed_at)
+      Result.new(job: @job.reload, head_sha: head_sha, base_sha: base_sha, previous_state: previous_state, state: state, detail: detail, refreshed_at: refreshed_at)
     end
 
     private

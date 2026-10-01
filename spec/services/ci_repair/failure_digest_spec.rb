@@ -8,6 +8,7 @@ RSpec.describe CiRepair::FailureDigest do
       job: job,
       head_sha: "abc1234567890",
       base_sha: "base1234567890",
+      previous_state: "pending",
       state: state,
       detail: { failed_checks: failed_checks },
       refreshed_at: Time.current

@@ -27,7 +27,6 @@ module Admin
       "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
       "read_walkthrough_frame" => "deferred",
-      "refresh_pr_checks" => "generic",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic"
     }.freeze
