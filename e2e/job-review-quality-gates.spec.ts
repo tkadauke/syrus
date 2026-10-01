@@ -15,7 +15,10 @@ async function openImplementedDemoJob(page: Page) {
 async function openReviewTab(page: Page) {
   await page.getByRole("button", { name: "Review", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Implementation review" })).toBeVisible()
-  await expect(page.getByText(/changed files/)).toBeVisible()
+  // The file-count summary under the heading. Anchored and count-agnostic: the
+  // label is pluralized ("1 file" / "2 files"), so a literal match on either
+  // form would break whenever the seeded diff's file count changes.
+  await expect(page.getByText(/^\d+ files?$/)).toBeVisible()
   await expect(page.getByText("app/services/dashboard_payload.rb").first()).toBeVisible()
   await expect(page.getByText("app/frontend/routes/Dashboard.tsx").first()).toBeVisible()
   await expect(page.getByText("needs_attention_count").first()).toBeVisible()

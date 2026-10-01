@@ -87,7 +87,9 @@ async function createEpic(page: Page, title: string, description: string): Promi
   await page.goto("/epics/new")
   await page.getByLabel("Title").fill(title)
   await page.getByLabel("Description").fill(description)
-  await page.getByLabel(/repository/i).selectOption({ label: "demo/syrus-preview" })
+  // Exact, not /repository/i -- see the same note in job-creation.spec.ts: the
+  // sidebar's new-chat repository selector would otherwise make this ambiguous.
+  await page.getByLabel("Repository", { exact: true }).selectOption({ label: "demo/syrus-preview" })
   await page.getByRole("button", { name: "Create Epic", exact: true }).click()
 
   await page.waitForURL(/\/epics\/\d+$/)

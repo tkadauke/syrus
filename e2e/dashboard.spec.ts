@@ -33,12 +33,17 @@ test("switches between the epics, jobs, and workflows dashboard sub-views", asyn
   await expect(page.getByRole("link", { name: "Inspect preview dashboard states", exact: true })).toBeVisible()
   await expect(page.getByRole("link", { name: "Document preview seed guidance", exact: true })).toBeVisible()
 
-  // The "Workflows" sub-view has no such default preset (it isn't a job
-  // subject), so the seeded Workflow/Step/Run chains from db/seeds.rb show
-  // up directly -- one per seeded Job title in the "Job" column.
+  // The "Workflows" sub-view has smart folders too ("Running", "Stuck", "Just
+  // failed"), and which one is selected persists per user -- so, exactly like
+  // the Jobs sub-view above, pick "All workflows" explicitly instead of
+  // inheriting whatever another spec last left selected.
   await page.goto("/dashboard/workflows")
-  await expect(page.getByRole("link", { name: "Inspect preview dashboard states", exact: true }).first()).toBeVisible()
-  await expect(page.getByRole("link", { name: "Repair seeded background workflow", exact: true }).first()).toBeVisible()
+  await page.getByRole("link", { name: "All workflows" }).click()
+  // Not `exact` here, unlike the Jobs sub-view above: these rows label their
+  // link with the workflow slug followed by the Job title, so the accessible
+  // name is "<slug> <title>" and an exact match on the title alone fails.
+  await expect(page.getByRole("link", { name: "Inspect preview dashboard states" }).first()).toBeVisible()
+  await expect(page.getByRole("link", { name: "Repair seeded background workflow" }).first()).toBeVisible()
 })
 
 test("shows the system readiness panel for a user who has not finished setup", async ({ page }) => {
