@@ -53,6 +53,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/cognitive_review
+  specs:
+    cognitive_review (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/design_docs
   specs:
     design_docs (0.1.0)
@@ -849,6 +855,7 @@ DEPENDENCIES
   capybara
   claude_agent!
   codex_agent!
+  cognitive_review!
   commonmarker
   debug
   design_docs!
@@ -970,6 +977,7 @@ CHECKSUMS
   cbor (0.5.10.3) sha256=c3aa1d0c7e9bbffe8de4bed554f588d7926c62276ffe2dd7fabb65bae801d28a
   claude_agent (0.1.0)
   codex_agent (0.1.0)
+  cognitive_review (0.1.0)
   commonmarker (2.10.0) sha256=1884529957bf59bcd4f19fcc29e931f2042760ced273353e8010a20fe4ae68cb
   commonmarker (2.10.0-aarch64-linux) sha256=eeb167dea203dee066eb0dd99b3fd2deb526c8b5e7297ad385f7a5d60f869478
   commonmarker (2.10.0-aarch64-linux-musl) sha256=e95d9e87ea6306e21ffa11855a7bb55518538143b23a227fe3bb00b41873ce25
