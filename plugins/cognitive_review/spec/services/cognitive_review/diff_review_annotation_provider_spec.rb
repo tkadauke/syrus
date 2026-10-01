@@ -255,4 +255,58 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload.dig(:ranges, note.path)).to contain_exactly(hash_including(id: "cognitive_review_note:#{note.id}"))
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
   end
+
+  it "uses preloaded discussion entries when rendering note props" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    user = Factories.user
+    2.times do |index|
+      note = CognitiveReview::Note.create!(
+        job: job,
+        workflow: workflow,
+        run: run,
+        diff_review_version: version,
+        path: "app/models/job_#{index}.rb",
+        side: "new",
+        start_line: 4,
+        end_line: 4,
+        title: "Open note #{index}",
+        explanation: "Still open, but with discussion history.",
+        source_metadata: {}
+      )
+      CognitiveReview::DiscussionEntry.create!(note: note, user: user, body: "Earlier operator context #{index}")
+    end
+
+    discussion_selects = []
+    subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      discussion_selects << sql if sql.match?(/\ASELECT\b/i) && sql.include?("cognitive_review_discussion_entries")
+    end
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload.dig(:panels, 0, :props, :notes).flat_map { |note| note[:discussion_entries] }.map { |entry| entry[:body] }).to contain_exactly(
+      "Earlier operator context 0",
+      "Earlier operator context 1"
+    )
+    expect(discussion_selects.size).to eq(1)
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+  end
 end

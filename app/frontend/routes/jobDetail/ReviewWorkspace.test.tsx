@@ -1186,7 +1186,14 @@ describe("ReviewWorkspace", () => {
           status: "modified",
           patch: "@@ -1 +1 @@\n+all-changes"
         }
-      ]
+      ],
+      review_annotations: {
+        annotations: {},
+        ranges: {},
+        panels: [{ id: "latest-panel", title: "Latest review note", body: "This belongs to the all-changes diff." }],
+        actions: [],
+        counts: [{ id: "latest-count", label: "Latest", value: 1 }]
+      }
     })
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(latest)
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
@@ -1202,7 +1209,16 @@ describe("ReviewWorkspace", () => {
           status: "modified",
           patch: "@@ -1 +1 @@\n+repair-only"
         }
-      ]
+      ],
+      review_annotations: {
+        annotations: {},
+        ranges: {
+          "db/migrate/repair.rb": [{ id: "historical-note", side: "new", start_line: 1, end_line: 1, title: "Historical review note" }]
+        },
+        panels: [{ id: "historical-panel", title: "Historical review note", body: "This belongs to the selected version." }],
+        actions: [],
+        counts: [{ id: "historical-count", label: "Historical", value: 1 }]
+      }
     })
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
@@ -1227,6 +1243,9 @@ describe("ReviewWorkspace", () => {
     expect(await screen.findByTitle("db/migrate/repair.rb")).toBeInTheDocument()
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
+    expect(screen.queryByText("Latest review note")).not.toBeInTheDocument()
+    expect(screen.getByText("Historical review note")).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 
   it("does not default to an empty legacy All changes version when real versions exist", async () => {
