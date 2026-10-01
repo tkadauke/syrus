@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ChatCrossChatBridge, ChatMessageItem, ChatRenderItem } from "../../api/chats"
 import { isLowPrioritySystemMessage } from "./messageDisplay"
-import { crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage } from "./systemMessages"
+import { crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage, wakeupAutomationFromContent } from "./systemMessages"
 
 function systemText(text: string): ChatMessageItem {
   return {
@@ -187,6 +187,44 @@ describe("crossChatBridgeSystemMessage", () => {
     const renderItem: ChatRenderItem = { ...message, system: systemMessage(message) ?? undefined }
 
     expect(isLowPrioritySystemMessage(renderItem)).toBe(false)
+  })
+})
+
+describe("wakeupAutomationFromContent", () => {
+  it("renders wakeup-authored turns as automation system messages", () => {
+    const result = wakeupAutomationFromContent(
+      {
+        text: "Remind me to check the release.",
+        requested_by: "wakeup",
+        wakeup_id: 7
+      },
+      "Remind me to check the release."
+    )
+
+    expect(result).toEqual({
+      tone: "neutral",
+      label: "Automation",
+      body: "Remind me to check the release."
+    })
+  })
+
+  it("keeps wakeup automation visible even though the tone is neutral", () => {
+    const message = systemMessageItem({
+      text: "Remind me to check the release.",
+      content: {
+        text: "Remind me to check the release.",
+        requested_by: "wakeup",
+        wakeup_id: 7
+      }
+    })
+    const renderItem: ChatRenderItem = { ...message, system: systemMessage(message) ?? undefined }
+
+    expect(systemMessage(message)).toMatchObject({ label: "Automation" })
+    expect(isLowPrioritySystemMessage(renderItem)).toBe(false)
+  })
+
+  it("ignores non-wakeup automation markers", () => {
+    expect(wakeupAutomationFromContent({ text: "hi", requested_by: "scheduled_message" }, "hi")).toBeNull()
   })
 })
 

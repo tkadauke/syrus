@@ -878,6 +878,31 @@ RSpec.describe App::ChatMessagePayload do
     end
   end
 
+  describe "wakeup automation messages" do
+    it "serializes ordinary fired wakeups as system messages with wakeup provenance" do
+      wakeup = ChatWakeup.create!(
+        chat_session: chat,
+        user: user,
+        prompt: "Remind me to check the release.",
+        fire_at: 5.minutes.from_now,
+        metadata: {}
+      )
+      message = ChatSession::WakeupTurn.new(wakeup).run
+
+      payload = described_class.messages([ message ], repository: repository).first
+
+      expect(payload).to include(
+        role: "system",
+        text: "Remind me to check the release."
+      )
+      expect(payload.fetch(:content)).to include(
+        "requested_by" => "wakeup",
+        "wakeup_id" => wakeup.id
+      )
+      expect(payload.fetch(:sender_user)).to be_nil
+    end
+  end
+
   describe ".job_status_proposal_json" do
     it "builds a compact card shape for a pending Job proposal" do
       proposal = chat.proposals.create!(slug: "pending-job", title: "Pending job", body: "Work.", kind: "job")
