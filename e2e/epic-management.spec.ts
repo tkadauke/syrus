@@ -30,8 +30,9 @@ test("creates an Epic with child Jobs from the UI and lists them on the Epic det
   await expect(page.getByRole("link", { name: jobBTitle })).toBeVisible()
   await expect(page.getByText("2 Jobs")).toBeVisible()
 
-  // The dependency graph covers dependencies on other Epics/external Jobs --
-  // these two freshly created, unchained child Jobs shouldn't produce any.
+  // The Epic detail page's dependency graph section covers dependencies on
+  // other Epics/external Jobs -- these two freshly created, unchained child
+  // Jobs shouldn't produce any of those.
   await openEpicTab(page, "Dependencies")
   await expect(page.getByText("No external dependencies")).toBeVisible()
 })

@@ -80,6 +80,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const { t } = useT("epics")
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
+  const newJobPath = `/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [activeTab, setActiveTab] = useState<EpicDetailTab>("overview")
   const { confirm, dialog } = useConfirm()
@@ -173,9 +174,14 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               </Button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={buttonClasses(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>
-                {t("edit")}
-              </Link>
+              <>
+                <Link className={buttonClasses(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>
+                  {t("edit")}
+                </Link>
+                <Link className={buttonClasses("secondary")} to={withRoutePrefix(newJobPath, prefix)}>
+                  {t("add_job")}
+                </Link>
+              </>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
@@ -234,12 +240,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
       {activeTab === "jobs" ? (
         <div className="min-w-0">
-          <JobsSection
-            epicRepositorySlug={payload.epic.repository.slug}
-            jobs={payload.jobs}
-            newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
-            prefix={prefix}
-          />
+          <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={newJobPath} prefix={prefix} />
         </div>
       ) : null}
 
