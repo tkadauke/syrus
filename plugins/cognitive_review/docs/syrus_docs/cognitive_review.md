@@ -63,6 +63,8 @@ Job permissions used by the review tab:
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/acknowledge`
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/discussion_entries`
 
+The older `/cognitive_review_notes` routes remain accepted as aliases.
+
 Read-tier repository members can list and read notes. Acknowledgement and
 discussion require the Job owner, a write-tier repository member, or an admin.
 Disabled plugin routes return the standard `plugin_disabled` error.
