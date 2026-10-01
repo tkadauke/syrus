@@ -65,8 +65,10 @@ RSpec.describe App::JobSourceDiffPayload do
       annotations: {},
       ranges: {},
       panels: [],
+      sidebar_panels: [],
       actions: [],
-      counts: []
+      counts: [],
+      sidebar_counts: []
     )
     expect(payload[:version]).to include(
       version_index: 1,
@@ -105,8 +107,10 @@ RSpec.describe App::JobSourceDiffPayload do
             ]
           },
           panels: [ { id: "panel-1", title: "Review notes", body: "1 note" } ],
+          sidebar_panels: [ { id: "sidebar-panel-1", diff_review_version_id: version.id, title: "All review notes" } ],
           actions: [ { id: "action-1", label: "Acknowledge", href: "/ack" } ],
-          counts: [ { id: "open", label: "Open", value: 1 } ]
+          counts: [ { id: "open", label: "Open", value: 1 } ],
+          sidebar_counts: [ { id: "all_open", label: "Review Notes", value: 2 } ]
         }
       end
     end
@@ -134,8 +138,14 @@ RSpec.describe App::JobSourceDiffPayload do
       { "id" => "range-2", "side" => "new", "line" => "3", "title" => "One line shorthand", "start_line" => 3, "end_line" => 3 }
     )
     expect(payload.dig(:review_annotations, :panels)).to contain_exactly("id" => "panel-1", "title" => "Review notes", "body" => "1 note")
+    expect(payload.dig(:review_annotations, :sidebar_panels)).to contain_exactly(
+      "id" => "sidebar-panel-1",
+      "diff_review_version_id" => payload.dig(:version, :id),
+      "title" => "All review notes"
+    )
     expect(payload.dig(:review_annotations, :actions)).to contain_exactly("id" => "action-1", "label" => "Acknowledge", "href" => "/ack")
     expect(payload.dig(:review_annotations, :counts)).to contain_exactly("id" => "open", "label" => "Open", "value" => 1)
+    expect(payload.dig(:review_annotations, :sidebar_counts)).to contain_exactly("id" => "all_open", "label" => "Review Notes", "value" => 2)
   ensure
     Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
   end
