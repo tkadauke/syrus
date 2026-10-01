@@ -10,7 +10,7 @@ module CognitiveReview
       MAX_TEXT_LENGTH = 1_000
 
       description <<~DESC
-        Submit cognitive review notes for changed diff ranges after an implementation workflow.
+        Submit review notes for changed diff ranges after an implementation workflow.
         Each note should identify the file/range and explain why that range deserves operator attention.
         Submit an empty notes array when the diff has no attention-worthy ranges.
       DESC
@@ -58,7 +58,7 @@ module CognitiveReview
           if normalized.empty?
             CognitiveReview::Artifact.append!(run: run, notes: [], diff_review_version: version)
             Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: 0 note(s)")
-            return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 cognitive review note(s)." } ])
+            return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 review note(s)." } ])
           end
 
           saved_notes = normalized.map do |note|
@@ -71,7 +71,7 @@ module CognitiveReview
           CognitiveReview::Artifact.append!(run: run, notes: normalized, diff_review_version: version)
           Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: #{saved_notes.size} note(s)")
 
-          MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} cognitive review note(s)." } ])
+          MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} review note(s)." } ])
         rescue ArgumentError, ActiveRecord::RecordInvalid => e
           Mcp::Tools.invalid(e.message)
         rescue StandardError => e

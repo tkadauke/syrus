@@ -23,7 +23,7 @@ module CognitiveReview
         memory_context(job),
         diff_context(job: job, workflow: workflow, run: run),
         <<~PROMPT.strip
-          Perform a cognitive review of the final implementation diff for #{job.repository.slug}.
+          Prepare review guidance for the final implementation diff for #{job.repository.slug}.
 
           Flag only changed diff ranges that are likely to create operator attention debt.
           Prefer no note over filler. The strongest notes usually concern design constraints,

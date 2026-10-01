@@ -31,6 +31,7 @@ type NotePanelProps = {
     handled_count?: number
     open_unhandled_count?: number
     total_flagged_ranges?: number
+    user_commented_count?: number
     zero_note_state?: boolean
   }
   total?: number
@@ -99,7 +100,8 @@ function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["ro
       discussed: rollup.discussed_count ?? 0,
       dismissed: rollup.dismissed_count ?? 0,
       handled: rollup.handled_count ?? 0,
-      open: rollup.open_unhandled_count ?? 0
+      open: rollup.open_unhandled_count ?? 0,
+      user_commented: rollup.user_commented_count ?? 0
     })
   }
   return t("panel.summary", { count: total })

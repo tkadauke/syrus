@@ -6,14 +6,14 @@
     "discuss": "Discuss",
     "discussing": "Discussing...",
     "discussion_body": "Discussion note",
-    "error": "Could not update this cognitive note.",
+    "error": "Could not update this review note.",
     "save_discussion": "Save discussion",
     "view_range": "View range"
   },
   "note": {
     "agent_authored": "Agent note",
     "confidence": "{{confidence}}% confidence",
-    "fallback_title": "Cognitive review note",
+    "fallback_title": "Review note",
     "priority": "{{priority}} priority",
     "range": "{{path}} {{side}} lines {{start}}-{{end}}",
     "side": {
@@ -23,12 +23,12 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
-    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed), {{dismissed}} dismissed.",
-    "summary": "{{count}} open cognitive review note",
-    "summary_one": "{{count}} open cognitive review note",
-    "summary_other": "{{count}} open cognitive review notes",
-    "title": "Cognitive review",
-    "zero_summary": "No PR-level cognitive review debt was flagged for this diff version."
+    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
+    "summary": "{{count}} open review note",
+    "summary_one": "{{count}} open review note",
+    "summary_other": "{{count}} open review notes",
+    "title": "Review Notes",
+    "zero_summary": "No PR-level review-note debt was flagged for this diff version."
   },
   "rollup": {
     "dismissed": "Dismissed",

@@ -158,7 +158,7 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByTitle("Inspect this branch")).toHaveTextContent("1")
   })
 
-  it("renders cognitive review note cards through the plugin extension point and acknowledges notes", async () => {
+  it("renders review note cards through the plugin extension point and acknowledges notes", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
       ok: true,
       headers: new Headers({ "content-type": "application/json" }),
@@ -211,6 +211,7 @@ describe("ReviewWorkspace", () => {
                   open_unhandled_count: 1,
                   acknowledged_count: 0,
                   discussed_count: 0,
+                  user_commented_count: 0,
                   dismissed_count: 0,
                   handled_count: 0,
                   zero_note_state: false
@@ -236,7 +237,7 @@ describe("ReviewWorkspace", () => {
           actions: [],
           counts: [
             { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
-            { id: "cognitive_review.open", label: "Open debt", value: 1, tone: "warning" },
+            { id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" },
             { id: "cognitive_review.handled", label: "Handled", value: 0, tone: "success" },
             { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
           ]
@@ -247,9 +248,9 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    expect(await screen.findByText("Cognitive review")).toBeInTheDocument()
-    expect(screen.getByText("Open debt: 1")).toBeInTheDocument()
-    expect(screen.getByText("1 open, 0 handled (0 acknowledged, 0 discussed), 0 dismissed.")).toBeInTheDocument()
+    expect(await screen.findByText("Review Notes")).toBeInTheDocument()
+    expect(screen.getByText("Open notes: 1")).toBeInTheDocument()
+    expect(screen.getByText("1 open, 0 handled (0 acknowledged, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
     expect(screen.getByText("Flagged")).toBeInTheDocument()
     expect(screen.getByText("Handled")).toBeInTheDocument()
     expect(await screen.findByText("Agent note")).toBeInTheDocument()

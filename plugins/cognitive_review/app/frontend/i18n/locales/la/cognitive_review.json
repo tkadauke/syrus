@@ -6,14 +6,14 @@
     "discuss": "Disputa",
     "discussing": "Disputatur...",
     "discussion_body": "Nota disputationis",
-    "error": "Haec nota cognitiva renovari non potuit.",
+    "error": "Haec nota recognitionis renovari non potuit.",
     "save_discussion": "Disputationem serva",
     "view_range": "Intervallum vide"
   },
   "note": {
     "agent_authored": "Nota agentis",
     "confidence": "{{confidence}}% fiducia",
-    "fallback_title": "Nota recognitionis cognitivae",
+    "fallback_title": "Nota recognitionis",
     "priority": "Prioritas {{priority}}",
     "range": "{{path}} {{side}} versus {{start}}-{{end}}",
     "side": {
@@ -23,12 +23,12 @@
   },
   "panel": {
     "hidden_count": "{{count}} plures notae in diff patent.",
-    "rollup_summary": "{{open}} apertae, {{handled}} tractatae ({{acknowledged}} agnitae, {{discussed}} disputatae), {{dismissed}} remotae.",
-    "summary": "{{count}} nota recognitionis cognitivae aperta",
-    "summary_one": "{{count}} nota recognitionis cognitivae aperta",
-    "summary_other": "{{count}} notae recognitionis cognitivae apertae",
-    "title": "Recognitio cognitiva",
-    "zero_summary": "Nullum debitum recognitionis cognitivae ad hanc versionem diff signatum est."
+    "rollup_summary": "{{open}} apertae, {{handled}} tractatae ({{acknowledged}} agnitae, {{discussed}} disputatae, {{user_commented}} commentatae), {{dismissed}} remotae.",
+    "summary": "{{count}} nota recognitionis aperta",
+    "summary_one": "{{count}} nota recognitionis aperta",
+    "summary_other": "{{count}} notae recognitionis apertae",
+    "title": "Notae Recognitionis",
+    "zero_summary": "Nullum debitum notarum recognitionis ad hanc versionem diff signatum est."
   },
   "rollup": {
     "dismissed": "Remotae",

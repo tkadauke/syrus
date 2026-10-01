@@ -38,7 +38,7 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
 
     prompt = described_class.prompt_sections(job: job, workflow: workflow, run: run).join("\n\n")
 
-    expect(prompt).to include("Perform a cognitive review of the final implementation diff for acme/widgets.")
+    expect(prompt).to include("Prepare review guidance for the final implementation diff for acme/widgets.")
     expect(prompt).to include("Base/head: base-sha...head-sha")
     expect(prompt).to include("app/models/work_unit.rb (modified, +8/-2)")
     expect(prompt).to include("db/migrate/20261001010101_add_queue_state.rb (added, +42/-0)")
@@ -79,7 +79,7 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
     expect(prompt).to include("rely on the Job prompt, repository context, and final diff")
   end
 
-  it "requires the cognitive review submission tool" do
+  it "requires the review note submission tool" do
     expect(described_class.required_mcp_tools(job: job, workflow: workflow, run: run))
       .to eq([ "submit_cognitive_review_notes" ])
   end

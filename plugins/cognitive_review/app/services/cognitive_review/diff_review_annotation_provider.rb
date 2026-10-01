@@ -9,7 +9,7 @@ module CognitiveReview
       rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes)
       return {} unless rollup.submitted?
 
-      open_notes = notes.select(&:open?)
+      open_notes = notes.select { |note| note.open? && !rollup.user_commented?(note) }
       {
         ranges: open_notes.empty? ? {} : ranges_for(open_notes),
         panels: panels_for(open_notes, rollup),
@@ -20,7 +20,7 @@ module CognitiveReview
     def self.counts_for(rollup)
       [
         count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
-        count_payload("cognitive_review.open", "Open debt", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
+        count_payload("cognitive_review.open", "Open notes", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
         count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
         count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
       ]
@@ -75,7 +75,7 @@ module CognitiveReview
         {
           id: "cognitive_review.summary",
           component: "cognitive_review/note_panel",
-          title: "Cognitive review debt",
+          title: "Review Notes",
           body: panel_body(rollup),
           tone: rollup.open_unhandled_count.positive? ? "warning" : "success",
           props: {
@@ -88,7 +88,7 @@ module CognitiveReview
     end
 
     def self.panel_body(rollup)
-      return "No PR-level cognitive review debt was flagged for this diff version." if rollup.zero_note_state?
+      return "No PR-level review-note debt was flagged for this diff version." if rollup.zero_note_state?
 
       "#{rollup.open_unhandled_count} open, #{rollup.handled_count} handled, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
     end
