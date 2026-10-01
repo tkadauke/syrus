@@ -412,7 +412,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
 
           return (
             <section className="space-y-1" key={section.key}>
-              <h2 className="flex min-w-0 items-center gap-1">
+              <h2 className="flex min-w-0 items-center gap-1 pr-2">
                 <button
                   aria-expanded={!collapsed}
                   className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
@@ -482,7 +482,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span
-                          className={`${RECENT_CHAT_ACTION_SLOT_CLASS} group-focus-within/recent-chat:hidden group-hover/recent-chat:hidden ${openActionChatId === chat.id ? "hidden" : ""}`}
+                          className={`${RECENT_CHAT_ACTION_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
                         >
                           <span className="absolute right-[0.3125rem] top-1/2 flex -translate-y-1/2 items-center gap-1">

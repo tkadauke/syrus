@@ -673,6 +673,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
 
     expect(headerSlots.length).toBeGreaterThanOrEqual(2)
     headerSlots.forEach((slot) => expect(slot).toHaveClass("h-6", "w-6", "items-center", "justify-center"))
+    expect(headerSlots.find((slot) => within(slot).queryByRole("button", { name: "New chat in acme/widgets" }))?.closest("h2")).toHaveClass("pr-2")
     expect(markerSlot).toHaveClass("h-6", "w-6", "items-center", "justify-center")
     expect(actionSlot).toHaveClass("right-2", "top-1/2", "-translate-y-1/2")
     expect(actionSlot.querySelector("button")).toHaveClass("h-6", "w-6")
@@ -687,11 +688,13 @@ describe("RecentChatsSidebar action and marker slot", () => {
     const markerSlot = screen.getByTestId("recent-chat-marker-slot")
     const trigger = screen.getByRole("button", { name: "Chat actions for Roadmap sync" })
 
-    expect(markerSlot).not.toHaveClass("hidden")
+    expect(markerSlot).not.toHaveClass("invisible")
+    expect(markerSlot.closest("a")).toBe(screen.getByRole("link", { name: "Roadmap sync" }))
 
     fireEvent.click(trigger)
 
-    expect(markerSlot).toHaveClass("hidden")
+    expect(markerSlot).toHaveClass("invisible")
+    expect(markerSlot).not.toHaveClass("hidden")
     expect(trigger).toHaveClass("opacity-100")
     expect(trigger).toHaveAttribute("aria-expanded", "true")
   })
