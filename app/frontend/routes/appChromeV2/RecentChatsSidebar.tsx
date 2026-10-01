@@ -51,6 +51,7 @@ const SIDEBAR_DIVIDER_CLASS = "my-1 border-t border-border"
 const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-surface-subtle hover:text-text-primary"
 const RECENT_CHATS_ICON_BUTTON_CLASS = "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded p-0 text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
 const RECENT_CHAT_ACTION_SLOT_CLASS = "relative flex h-6 w-6 shrink-0 items-center justify-center"
+const RECENT_CHAT_MARKER_SLOT_CLASS = "relative flex h-6 min-w-6 shrink-0 items-center justify-end pr-[0.3125rem]"
 const RECENT_CHAT_MARKER_CELL_CLASS = "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
@@ -482,10 +483,10 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span
-                          className={`${RECENT_CHAT_ACTION_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
                         >
-                          <span className="absolute right-[0.3125rem] top-1/2 flex -translate-y-1/2 items-center gap-1">
+                          <span className="flex items-center gap-1">
                             <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
                             {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
                               <span

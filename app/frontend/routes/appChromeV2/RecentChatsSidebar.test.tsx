@@ -674,12 +674,13 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(headerSlots.length).toBeGreaterThanOrEqual(2)
     headerSlots.forEach((slot) => expect(slot).toHaveClass("h-6", "w-6", "items-center", "justify-center"))
     expect(headerSlots.find((slot) => within(slot).queryByRole("button", { name: "New chat in acme/widgets" }))?.closest("h2")).toHaveClass("pr-2")
-    expect(markerSlot).toHaveClass("h-6", "w-6", "items-center", "justify-center")
+    expect(markerSlot).toHaveClass("h-6", "min-w-6", "items-center", "justify-end", "pr-[0.3125rem]")
     expect(actionSlot).toHaveClass("right-2", "top-1/2", "-translate-y-1/2")
     expect(actionSlot.querySelector("button")).toHaveClass("h-6", "w-6")
     expect(screen.getByTitle("Chat turn active")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
     expect(screen.getByTitle("Active goal")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
-    expect(markerSlot.firstElementChild).toHaveClass("right-[0.3125rem]")
+    expect(markerSlot.firstElementChild).toHaveClass("flex", "items-center", "gap-1")
+    expect(markerSlot.firstElementChild).not.toHaveClass("absolute")
   })
 
   it("replaces markers with the actions button while the row menu is open", () => {
