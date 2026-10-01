@@ -292,7 +292,7 @@ rounds run, restrict visual review to specific changed files, and record seed
 notes (demo login, a record to look for) so the reviewer can reach an
 authenticated or populated view of the app instead of a blank one.
 
-## Cognitive Review
+## Review Notes
 
 The bundled `cognitive_review` plugin is disabled by default. When enabled,
 Syrus runs a best-effort agentic pass after implementation-style workflows and
@@ -304,10 +304,10 @@ The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unhandled notes, handled
 notes, dismissed notes, and a zero-note state when the reviewer submitted no
 ranges. A diff version with no notes and no submitted review marker is not
-presented as no debt. Acknowledged or discussed notes count as handled.
-Unflagged changed lines are treated as having no PR-level review-note
-debt; repository-wide cognitive coverage or historical attention-debt metrics
-are separate concerns.
+presented as no debt. Acknowledged notes, discussed notes, and covered ranges
+with operator diff comments count as handled. Unflagged changed lines are
+treated as having no PR-level review-note debt; repository-wide cognitive
+coverage or historical attention-debt metrics are separate concerns.
 
 ## Deploy
 

@@ -7,7 +7,8 @@
     "discussing": "Discussing...",
     "discussion_body": "Discussion note",
     "error": "Could not update this review note.",
-    "save_discussion": "Save discussion"
+    "save_discussion": "Save discussion",
+    "view_range": "View range"
   },
   "note": {
     "agent_authored": "Agent note",
@@ -22,7 +23,7 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
-    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed), {{dismissed}} dismissed.",
+    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
     "summary": "{{count}} open review note",
     "summary_one": "{{count}} open review note",
     "summary_other": "{{count}} open review notes",

@@ -111,6 +111,7 @@ RSpec.describe "App API review notes", type: :request do
       "open_unhandled_count" => 0,
       "acknowledged_count" => 1,
       "discussed_count" => 0,
+      "user_commented_count" => 0,
       "handled_count" => 1
     )
   end
@@ -128,6 +129,32 @@ RSpec.describe "App API review notes", type: :request do
       "open_unhandled_count" => 0,
       "acknowledged_count" => 0,
       "discussed_count" => 1,
+      "user_commented_count" => 0,
+      "handled_count" => 1
+    )
+  end
+
+  it "counts operator diff comments on covered ranges as handled" do
+    note = create_note
+    job.diff_review_comments.create!(
+      user: user,
+      diff_review_version: version,
+      surface: "job_diff",
+      anchor_kind: "line",
+      path: note.path,
+      side: "right",
+      new_line: 13,
+      body: "This regular review comment covers the note.",
+      state: "draft"
+    )
+
+    get notes_path, params: { diff_review_version_id: version.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("unresolved_count" => 0, "handled_count" => 1)
+    expect(parse_body["debt_rollup"]).to include(
+      "open_unhandled_count" => 0,
+      "user_commented_count" => 1,
       "handled_count" => 1
     )
   end
@@ -142,6 +169,7 @@ RSpec.describe "App API review notes", type: :request do
       "total_flagged_ranges" => 0,
       "open_unhandled_count" => 0,
       "handled_count" => 0,
+      "user_commented_count" => 0,
       "dismissed_count" => 0,
       "submitted" => true,
       "zero_note_state" => true
