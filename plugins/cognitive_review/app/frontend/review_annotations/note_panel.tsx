@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, type FocusEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
 import { useT } from "@app/hooks/useT"
@@ -96,8 +96,30 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
     )
   }
 
+  function highlightRange(active: boolean) {
+    window.dispatchEvent(
+      new CustomEvent("syrus:highlight-review-annotation", {
+        detail: {
+          annotationId: active ? annotationId : null
+        }
+      })
+    )
+  }
+
+  function clearHighlightOnBlur(event: FocusEvent<HTMLElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    highlightRange(false)
+  }
+
   return (
-    <article className="rounded border border-warning-border bg-warning-bg/45 p-3 text-sm text-text-primary" data-cognitive-review-note-id={note.note_id}>
+    <article
+      className="rounded border border-warning-border bg-warning-bg/45 p-3 text-sm text-text-primary focus-within:ring-2 focus-within:ring-warning-border"
+      data-cognitive-review-note-id={note.note_id}
+      onBlur={clearHighlightOnBlur}
+      onFocus={() => highlightRange(true)}
+      onMouseEnter={() => highlightRange(true)}
+      onMouseLeave={() => highlightRange(false)}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium">{title}</div>
@@ -128,9 +150,6 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={focusRange} size="sm" variant="secondary">
-          {t("actions.view_range")}
-        </Button>
         <Button disabled={acknowledge.isPending || discuss.isPending} onClick={() => acknowledge.mutate()} size="sm" variant="secondary">
           {acknowledge.isPending ? t("actions.acknowledging") : t("actions.acknowledge")}
         </Button>

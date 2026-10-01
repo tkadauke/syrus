@@ -62,6 +62,74 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
   end
 
+  it "exposes same-range human comments as handling state for open notes" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 6,
+      title: "Check lifecycle",
+      explanation: "This range changes lifecycle behavior.",
+      source_metadata: {}
+    )
+    matching_comment = job.diff_review_comments.create!(
+      user: job.user,
+      diff_review_version: version,
+      surface: "job_review_workspace",
+      path: "app/models/job.rb",
+      side: "right",
+      new_line: 5,
+      body: "I checked this range.",
+      state: "draft"
+    )
+    job.diff_review_comments.create!(
+      user: job.user,
+      diff_review_version: version,
+      surface: "job_review_workspace",
+      path: "app/models/job.rb",
+      side: "right",
+      new_line: 9,
+      body: "Different range.",
+      state: "draft"
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    props = payload.dig(:ranges, "app/models/job.rb").first.fetch(:props)
+    expect(props).to include(
+      handled_by_comment: true,
+      handled_by_comment_count: 1,
+      handled_by_comment_ids: [ matching_comment.id ],
+      note_id: note.id
+    )
+    expect(payload.dig(:panels, 0, :props, :notes, 0)).to include(
+      handled_by_comment: true,
+      handled_by_comment_ids: [ matching_comment.id ]
+    )
+  end
+
   it "does not fall back to stale notes from an unrelated diff version" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
@@ -145,7 +213,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
 
     expect(payload[:ranges]).to eq({})
-    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", label: "Review Notes", value: 0))
   end
 
   it "uses preloaded discussion entries when rendering note props" do
