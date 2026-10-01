@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, EmptyState, numberValue } from "../toolCardUi"
+import { Badge, displayValue, EmptyState, EntityReference, numberValue } from "../toolCardUi"
 
 type ArtifactRow = {
   type: string
@@ -70,7 +70,7 @@ export function ArtifactListCard({ rows }: { rows: ArtifactRow[] }) {
           {rows.map((row) => (
             <tr key={row.type}>
               <td className="max-w-56 px-2 py-1">
-                <span className="font-mono text-gray-800 dark:text-gray-200" title={row.type}>{row.type}</span>
+                <EntityReference id={row.type} kind="artifact" />
               </td>
               <td className="max-w-56 truncate px-2 py-1 text-gray-700 dark:text-gray-300" title={row.title || undefined}>
                 {row.title || <span className="text-gray-400">-</span>}
@@ -79,7 +79,7 @@ export function ArtifactListCard({ rows }: { rows: ArtifactRow[] }) {
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{formatBytes(row.byteSize) || <span className="text-gray-400">-</span>}</td>
               <td className="whitespace-nowrap px-2 py-1">
                 <div className="flex flex-wrap gap-1">
-                  {row.runId ? <Badge>RUN-{row.runId}</Badge> : null}
+                  {row.runId ? <Badge><EntityReference id={row.runId} kind="run" /></Badge> : null}
                   {row.stepId ? <Badge>STEP-{row.stepId}</Badge> : null}
                   {!row.runId && !row.stepId ? <span className="text-gray-400">-</span> : null}
                 </div>

@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, StatePill } from "../toolCardUi"
 import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for propose_epic_with_jobs (the pending-action tool-card work).
@@ -12,6 +12,7 @@ type ChildProposalRow = { slug: string; state: string; targetRepo: string | null
 type EpicWithJobsOutcome = {
   slug: string
   state: string
+  targetEpicId: string | null
   targetEpicLabel: string | null
   dependencyCount: number
   childProposals: ChildProposalRow[]
@@ -51,6 +52,7 @@ function parseEpicWithJobs(context: ToolCardContext): EpicWithJobsOutcome | null
   return {
     slug,
     state,
+    targetEpicId: isPlainObject(parsed.target_epic) ? displayValue(parsed.target_epic.id) : null,
     targetEpicLabel: isPlainObject(parsed.target_epic) ? displayValue(parsed.target_epic.label) : null,
     dependencyCount: Array.isArray(parsed.depends_on_proposal_slugs) ? parsed.depends_on_proposal_slugs.length : 0,
     childProposals: childProposalRows(parsed.child_jobs)
@@ -78,11 +80,15 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Epic</Badge>
         <StatePill state={outcome.state} />
-        <span className="font-mono text-gray-500 dark:text-gray-400">{outcome.slug}</span>
+        <EntityReference kind="proposal" slug={outcome.slug} />
       </div>
       {outcome.targetEpicLabel || outcome.dependencyCount > 0 ? (
         <div className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
-          {outcome.targetEpicLabel ? <span>Target epic: <span className="font-mono">{outcome.targetEpicLabel}</span></span> : null}
+          {outcome.targetEpicLabel ? (
+            <span>
+              Target epic: {outcome.targetEpicId ? <EntityReference id={outcome.targetEpicId} kind="epic" label={outcome.targetEpicLabel} slug={outcome.targetEpicLabel} /> : outcome.targetEpicLabel}
+            </span>
+          ) : null}
           {outcome.dependencyCount > 0 ? <Badge>{outcome.dependencyCount} dependenc{outcome.dependencyCount === 1 ? "y" : "ies"}</Badge> : null}
         </div>
       ) : null}
@@ -94,7 +100,7 @@ function renderExpanded(context: ToolCardContext) {
           <ul className="mt-1 space-y-1">
             {outcome.childProposals.map((child) => (
               <li className="flex flex-wrap items-center gap-2" key={child.slug}>
-                <span className="font-mono text-gray-700 dark:text-gray-300">{child.slug}</span>
+                <EntityReference kind="proposal" slug={child.slug} />
                 <StatePill state={child.state} />
                 {child.targetRepo ? <span className="text-gray-500 dark:text-gray-400">{child.targetRepo}</span> : null}
                 {child.providerSetting && child.providerSetting !== "default" ? (

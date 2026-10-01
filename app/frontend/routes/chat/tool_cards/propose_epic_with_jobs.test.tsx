@@ -41,10 +41,10 @@ describe("propose_epic_with_jobs tool card", () => {
 
     render(<>{proposeEpicWithJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "the pending-action tool-card work" })).toHaveAttribute("href", "/epics/292")
     expect(screen.getByText("1 dependency")).toBeInTheDocument()
-    expect(screen.getByText("core-proposal-cards")).toBeInTheDocument()
-    expect(screen.getByText("core-schedule-cards")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy core-proposal-cards to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy core-schedule-cards to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("confirmed").length).toBeGreaterThan(0)
     expect(screen.getByText("proposed")).toBeInTheDocument()
   })

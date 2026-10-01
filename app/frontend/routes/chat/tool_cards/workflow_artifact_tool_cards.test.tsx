@@ -65,7 +65,7 @@ describe("workflow artifact tool cards", () => {
     expect(screen.getByText("Homepage after fix")).toBeInTheDocument()
     expect(screen.getByText("image/png")).toBeInTheDocument()
     expect(screen.getByText("200.0 KB")).toBeInTheDocument()
-    expect(screen.getByText("RUN-144524")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy RUN-144524 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("STEP-223959")).toBeInTheDocument()
     expect(screen.getByText("rails_schema_erd")).toBeInTheDocument()
     expect(screen.getByText("Schema ERD")).toBeInTheDocument()
