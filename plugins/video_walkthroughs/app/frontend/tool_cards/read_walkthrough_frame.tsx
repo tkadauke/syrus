@@ -27,7 +27,20 @@ type WalkthroughFrameCard = {
   message: string | null
 }
 
-const ONE_PIXEL_JPEG = "/9j/4AAQSkZJRgABAQAAAQABAAD/2w=="
+const EXAMPLE_FRAME_IMAGE = [
+  "data:image/svg+xml;utf8,",
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+      <rect width="320" height="180" fill="#f8fafc"/>
+      <rect x="18" y="18" width="284" height="144" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+      <rect x="38" y="42" width="122" height="16" rx="3" fill="#cbd5e1"/>
+      <rect x="38" y="70" width="244" height="34" rx="4" fill="#fee2e2" stroke="#ef4444"/>
+      <text x="52" y="92" fill="#991b1b" font-family="Arial, sans-serif" font-size="15" font-weight="700">Checkout error</text>
+      <rect x="38" y="122" width="92" height="24" rx="4" fill="#2563eb"/>
+      <text x="61" y="139" fill="#ffffff" font-family="Arial, sans-serif" font-size="12" font-weight="700">Save</text>
+    </svg>
+  `)
+].join("")
 
 function contentBlocks(value: unknown): unknown[] {
   if (Array.isArray(value)) return value
@@ -61,7 +74,11 @@ function parseCard(context: ToolCardContext): WalkthroughFrameCard | null {
   return {
     status: context.resultError || errorFlag(payload) ? "error" : image ? "success" : "missing",
     walkthroughId: displayValue(input.walkthrough_id) || displayValue(payload?.walkthrough_id) || displayValue(nested(payload, "walkthrough", "id")),
-    walkthroughName: displayValue(payload?.walkthrough_name) || displayValue(payload?.title) || displayValue(nested(payload, "walkthrough", "title")) || displayValue(nested(payload, "walkthrough", "name")),
+    walkthroughName:
+      displayValue(payload?.walkthrough_name) ||
+      displayValue(payload?.title) ||
+      displayValue(nested(payload, "walkthrough", "title")) ||
+      displayValue(nested(payload, "walkthrough", "name")),
     timestamp: timestampLabel(input, payload),
     range: rangeLabel(payload),
     frameIndex: displayValue(payload?.frame_index) || displayValue(payload?.index) || displayValue(payload?.frame_number),
@@ -94,7 +111,10 @@ function WalkthroughFrameCardBody({ card }: { card: WalkthroughFrameCard }) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough frame</Badge>
-        <StatePill state={card.status === "success" ? "captured" : card.status === "missing" ? "missing" : "failed"} tone={card.status === "success" ? "success" : card.status === "missing" ? "warning" : "failure"} />
+        <StatePill
+          state={card.status === "success" ? "captured" : card.status === "missing" ? "missing" : "failed"}
+          tone={card.status === "success" ? "success" : card.status === "missing" ? "warning" : "failure"}
+        />
       </div>
       {card.message ? <div className="text-sm text-danger-text">{card.message}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
@@ -186,18 +206,13 @@ function imageFromContent(value: unknown): FrameImage | null {
 
 function imageFromPayload(payload: Record<string, unknown> | null): FrameImage | null {
   if (!payload) return null
-  const candidates = [
-    payload.image,
-    payload.thumbnail,
-    payload.frame_image,
-    payload.frame,
-    payload
-  ]
+  const candidates = [payload.image, payload.thumbnail, payload.frame_image, payload.frame, payload]
 
   for (const candidate of candidates) {
     if (!isPlainObject(candidate)) continue
     const directUrl = displayValue(candidate.image_url) || displayValue(candidate.thumbnail_url) || displayValue(candidate.url) || displayValue(candidate.src)
-    const data = displayValue(candidate.data) || displayValue(candidate.image_base64) || displayValue(candidate.thumbnail_base64) || displayValue(candidate.base64)
+    const data =
+      displayValue(candidate.data) || displayValue(candidate.image_base64) || displayValue(candidate.thumbnail_base64) || displayValue(candidate.base64)
     const mimeType = displayValue(candidate.mimeType) || displayValue(candidate.mime_type) || displayValue(candidate.content_type) || "image/jpeg"
     const src = directUrl || (data ? dataUrl(data, mimeType) : null)
     if (!src) continue
@@ -304,7 +319,7 @@ export const examples: ToolCardExample[] = [
       timestamp: "01:12",
       range: { start: "01:10", end: "01:15" },
       frame_index: 2160,
-      image: { data: ONE_PIXEL_JPEG, mimeType: "image/jpeg", label: "Checkout regression at 01:12" },
+      image: { src: EXAMPLE_FRAME_IMAGE, mimeType: "image/svg+xml", label: "Checkout regression at 01:12" },
       transcript: "The save button is clicked and an error toast appears.",
       context: "The frame captures the toast text beside the checkout form.",
       links: [{ label: "Source video", url: "/api/v1/app/video_walkthroughs/42" }]
