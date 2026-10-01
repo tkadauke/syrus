@@ -37,7 +37,7 @@ describe("read_pr tool card", () => {
 
     render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    const link = screen.getByRole("link", { name: "#7" })
+    const link = screen.getByRole("link", { name: "PR #7" })
     expect(link).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/7")
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
     expect(screen.getByText("Adds custom cards.")).toBeInTheDocument()
@@ -66,7 +66,7 @@ describe("read_pr tool card", () => {
     render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument()
-    expect(screen.getByText("#7")).toBeInTheDocument()
+    expect(screen.getAllByText("PR #7").length).toBeGreaterThan(0)
   })
 
   it("falls back to null for a malformed payload (missing pr object)", () => {
