@@ -25,6 +25,15 @@ type CognitiveReviewNote = {
 type NotePanelProps = {
   hide_header?: boolean
   notes?: CognitiveReviewNote[]
+  rollup?: {
+    acknowledged_count?: number
+    discussed_count?: number
+    dismissed_count?: number
+    handled_count?: number
+    open_unhandled_count?: number
+    total_flagged_ranges?: number
+    zero_note_state?: boolean
+  }
   total?: number
 }
 type NotePanelItemProps = NotePanelProps & Partial<CognitiveReviewNote>
@@ -46,22 +55,26 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
   const { t } = useT("cognitive_review")
   const props = (item.props ?? {}) as NotePanelItemProps
   const notes = Array.isArray(props.notes) ? props.notes : isCognitiveReviewNote(props) ? [props] : []
-  const total = typeof props.total === "number" ? props.total : notes.length
+  const rollup = props.rollup
+  const total = typeof rollup?.total_flagged_ranges === "number" ? rollup.total_flagged_ranges : typeof props.total === "number" ? props.total : notes.length
   const hideHeader = props.hide_header === true
   const visibleNotes = notes.slice(0, VISIBLE_NOTE_LIMIT)
-  const hiddenCount = Math.max(0, total - visibleNotes.length)
+  const hiddenCount = Math.max(0, notes.length - visibleNotes.length)
 
   return (
     <div className="space-y-3">
       {hideHeader ? null : <div>
         <div className="text-sm font-semibold text-text-primary">{t("panel.title")}</div>
-        <p className="mt-1 text-xs text-text-secondary">{t("panel.summary", { count: total })}</p>
+        <p className="mt-1 text-xs text-text-secondary">{summaryText(t, rollup, total)}</p>
       </div>}
-      <div className="space-y-3">
-        {visibleNotes.map((note) => (
-          <CognitiveReviewNoteCard key={note.note_id} note={note} />
-        ))}
-      </div>
+      {rollup ? <RollupGrid rollup={rollup} /> : null}
+      {visibleNotes.length > 0 ? (
+        <div className="space-y-3">
+          {visibleNotes.map((note) => (
+            <CognitiveReviewNoteCard key={note.note_id} note={note} />
+          ))}
+        </div>
+      ) : null}
       {hiddenCount > 0 ? <p className="text-xs text-text-muted">{t("panel.hidden_count", { count: hiddenCount })}</p> : null}
     </div>
   )
@@ -69,6 +82,42 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
 
 function isCognitiveReviewNote(props: NotePanelItemProps): props is CognitiveReviewNote {
   return typeof props.note_id === "number" && typeof props.job_id === "number" && typeof props.path === "string"
+}
+
+function RollupGrid({ rollup }: { rollup: NonNullable<NotePanelProps["rollup"]> }) {
+  const { t } = useT("cognitive_review")
+  const cells = [
+    { key: "total", label: t("rollup.total"), value: rollup.total_flagged_ranges ?? 0 },
+    { key: "open", label: t("rollup.open"), value: rollup.open_unhandled_count ?? 0 },
+    { key: "handled", label: t("rollup.handled"), value: rollup.handled_count ?? 0 },
+    { key: "dismissed", label: t("rollup.dismissed"), value: rollup.dismissed_count ?? 0 }
+  ]
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {cells.map((cell) => (
+        <div className="rounded border border-border bg-surface px-2 py-1.5" key={cell.key}>
+          <div className="text-2xs font-semibold uppercase text-text-muted">{cell.label}</div>
+          <div className="text-sm font-semibold text-text-primary">{cell.value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["rollup"], total: number) {
+  if (rollup?.zero_note_state) return t("panel.zero_summary")
+  if (rollup) {
+    return t("panel.rollup_summary", {
+      acknowledged: rollup.acknowledged_count ?? 0,
+      count: total,
+      discussed: rollup.discussed_count ?? 0,
+      dismissed: rollup.dismissed_count ?? 0,
+      handled: rollup.handled_count ?? 0,
+      open: rollup.open_unhandled_count ?? 0
+    })
+  }
+  return t("panel.summary", { count: total })
 }
 
 function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {

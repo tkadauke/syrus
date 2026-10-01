@@ -38,6 +38,15 @@ RSpec.describe CognitiveReview::Engine do
     expect(manifest.depends_on).to be_empty
   end
 
+  it "documents admin-facing plugin behavior in its metadata" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "cognitive_review" }
+
+    expect(manifest.description).to include("Job review tab")
+    expect(manifest.long_description).to include("PR-level review-note debt")
+    expect(manifest.long_description).to include("Disabling the plugin withholds")
+    expect(manifest.long_description).to include("acknowledged, discussed, dismissed")
+  end
+
   it "includes the required provider interface modules" do
     expect(CognitiveReview::PostImplementationReviewProvider.ancestors).to include(Syrus::Plugin::PostImplementationReviewProvider)
     expect(CognitiveReview::DiffReviewAnnotationProvider.ancestors).to include(Syrus::Plugin::DiffReviewAnnotationProvider)

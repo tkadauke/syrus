@@ -34,6 +34,16 @@ RSpec.describe CognitiveReview::Note, type: :model do
     }.merge(attrs))
   end
 
+  it "allows dismissed notes while keeping handled scoped to acknowledged and discussed notes" do
+    dismissed = build_note(state: "dismissed")
+    dismissed.save!
+
+    expect(dismissed).to be_valid
+    expect(dismissed).not_to be_handled
+    expect(described_class.handled).not_to include(dismissed)
+    expect(described_class.dismissed).to include(dismissed)
+  end
+
   it "derives side-aware new ranges from the submitted range" do
     note = build_note
 
