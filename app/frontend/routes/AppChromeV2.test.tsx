@@ -831,7 +831,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).toHaveBeenCalledTimes(1)
+    expect(fetchNewChat).not.toHaveBeenCalled()
   })
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
@@ -904,6 +904,8 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
     })
+    expect(screen.queryByRole("combobox", { name: "Repository for new chat" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
