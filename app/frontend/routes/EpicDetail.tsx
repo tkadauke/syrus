@@ -47,8 +47,10 @@ import { TopoDepGraph } from "../components/TopoDepGraph"
 import { EpicDeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { createEpicJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../lib/jobNavigationContext"
 import { Page } from "../components/ui"
+import { UnderlineTabs } from "../components/Tabs"
 
 type EpicCommand = { kind: "state"; transition: EpicStateTransition } | { kind: "start" } | { kind: "archive" } | { kind: "claim" } | { kind: "unclaim" }
+type EpicDetailTab = "overview" | "jobs" | "dependencies" | "history"
 
 export function EpicDetailRoute() {
   const { t } = useT("epics")
@@ -79,6 +81,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [activeTab, setActiveTab] = useState<EpicDetailTab>("overview")
   const { confirm, dialog } = useConfirm()
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
@@ -206,36 +209,82 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {dialog}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
-        <div className="min-w-0 space-y-6">
-          {payload.epic.description.trim() ? (
-            <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <SectionHeading>{t("description")}</SectionHeading>
-              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
-            </section>
-          ) : null}
+      <EpicTabNav active={activeTab} jobsCount={payload.jobs.length} onSelect={setActiveTab} />
+
+      {activeTab === "overview" ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
+          <div className="min-w-0">
+            {payload.epic.description.trim() ? (
+              <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <SectionHeading>{t("description")}</SectionHeading>
+                <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
+              </section>
+            ) : (
+              <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <SectionHeading>{t("description")}</SectionHeading>
+                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("empty_value")}</p>
+              </section>
+            )}
+          </div>
+          <div className="min-w-0">
+            <DetailsPanel deploymentStages={payload.deployment_stages} epic={payload.epic} jobs={payload.jobs} prefix={prefix} />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "jobs" ? (
+        <div className="min-w-0">
           <JobsSection
             epicRepositorySlug={payload.epic.repository.slug}
             jobs={payload.jobs}
             newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
             prefix={prefix}
           />
-          <DependencyGraph graph={payload.graph} />
-          <HistorySection versions={payload.versions || []} />
         </div>
+      ) : null}
 
-        <div className="min-w-0 space-y-6">
-          <DependenciesSection
-            command={dependencyCommand}
-            currentEpicId={payload.epic.id}
-            dependencies={payload.dependencies}
-            dependents={payload.dependents}
-            prefix={prefix}
-          />
-          <DetailsPanel deploymentStages={payload.deployment_stages} epic={payload.epic} jobs={payload.jobs} prefix={prefix} />
+      {activeTab === "dependencies" ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
+          <div className="min-w-0">
+            <DependencyGraph graph={payload.graph} />
+          </div>
+          <div className="min-w-0">
+            <DependenciesSection
+              command={dependencyCommand}
+              currentEpicId={payload.epic.id}
+              dependencies={payload.dependencies}
+              dependents={payload.dependents}
+              prefix={prefix}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {activeTab === "history" ? <HistorySection versions={payload.versions || []} /> : null}
     </>
+  )
+}
+
+function EpicTabNav({ active, jobsCount, onSelect }: { active: EpicDetailTab; jobsCount: number; onSelect: (tab: EpicDetailTab) => void }) {
+  const { t } = useT("epics")
+  const tabs: Array<{ id: EpicDetailTab; label: string }> = [
+    { id: "overview", label: t("tab_overview") },
+    { id: "jobs", label: t("tab_jobs", { count: jobsCount }) },
+    { id: "dependencies", label: t("tab_dependencies") },
+    { id: "history", label: t("tab_history") }
+  ]
+
+  return (
+    <UnderlineTabs
+      activeKey={active}
+      activeClassName="border-brand text-brand"
+      ariaLabel={t("tabs_label")}
+      className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700"
+      inactiveClassName="border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+      itemClassName="px-4 py-3 text-sm"
+      items={tabs.map((tab) => ({ key: tab.id, label: tab.label }))}
+      onSelect={onSelect}
+    />
   )
 }
 

@@ -117,8 +117,60 @@ describe("EpicDetail", () => {
     expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
     expect(header).not.toHaveClass("flex", "justify-between")
 
+    fireEvent.click(screen.getByRole("button", { name: "Jobs (1)" }))
     const jobsSection = screen.getByRole("heading", { name: "Jobs" }).closest("section")
     expect(jobsSection).not.toHaveClass("px-4", "sm:px-0")
+  })
+
+  it("organizes peer Epic workspaces behind shared underline tabs", () => {
+    const payload = detailPayload({ description: "Coordinate the rollout across the child jobs." })
+    payload.jobs = [job("open")]
+    payload.graph = {
+      empty: false,
+      node_count: 2,
+      epic_dependency_count: 1,
+      job_blocker_count: 0,
+      initially_open: true,
+      nodes: [
+        { id: "epic_3", kind: "epic", label: "EPIC-3 Onboarding", state: "ready", epic_id: null, url: "/epics/3", is_focal: true },
+        { id: "epic_4", kind: "epic", label: "EPIC-4 Follow-up", state: "ready", epic_id: null, url: "/epics/4", is_focal: false }
+      ],
+      edges: [{ from_id: "epic_3", to_id: "epic_4" }]
+    }
+    payload.versions = [
+      {
+        id: 1,
+        actor: { id: 2, email_address: "operator@example.com" },
+        created_at: "2026-07-30T12:00:00Z",
+        title_before: "Old title",
+        title_after: "Onboarding",
+        description_before: null,
+        description_after: null
+      }
+    ]
+
+    renderDetail(payload)
+
+    const tabs = screen.getByRole("navigation", { name: "Epic sections" })
+    expect(within(tabs).getByRole("button", { name: "Overview" })).toHaveClass("border-brand")
+    expect(within(tabs).getByRole("button", { name: "Jobs (1)" })).toBeInTheDocument()
+    expect(within(tabs).getByRole("button", { name: "Dependencies" })).toBeInTheDocument()
+    expect(within(tabs).getByRole("button", { name: "History" })).toBeInTheDocument()
+    expect(screen.getByText("Coordinate the rollout across the child jobs.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Jobs" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(tabs).getByRole("button", { name: "Jobs (1)" }))
+    expect(within(tabs).getByRole("button", { name: "Jobs (1)" })).toHaveClass("border-brand")
+    expect(screen.getByRole("heading", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Details" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(tabs).getByRole("button", { name: "Dependencies" }))
+    expect(screen.getByText("Dependency graph")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Dependencies" })).toBeInTheDocument()
+
+    fireEvent.click(within(tabs).getByRole("button", { name: "History" }))
+    expect(within(tabs).getByRole("button", { name: "History" })).toHaveClass("border-brand")
+    expect(screen.getByText("Old title")).toBeInTheDocument()
   })
 
   it("shows the Epic's own state when no child Job is landing", () => {
@@ -335,6 +387,7 @@ describe("EpicDetail dependency graph", () => {
 
     renderDetail(payload)
 
+    fireEvent.click(screen.getByRole("button", { name: "Dependencies" }))
     expect(screen.getByLabelText("Dependency graph scroll region")).toHaveClass("overflow-x-auto")
   })
 })
