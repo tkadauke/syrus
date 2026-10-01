@@ -6,14 +6,13 @@
     "discuss": "Besprechen",
     "discussing": "Wird besprochen...",
     "discussion_body": "Diskussionsnotiz",
-    "error": "Diese kognitive Notiz konnte nicht aktualisiert werden.",
-    "save_discussion": "Diskussion speichern",
-    "view_range": "Bereich anzeigen"
+    "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
+    "save_discussion": "Diskussion speichern"
   },
   "note": {
     "agent_authored": "Agentennotiz",
     "confidence": "{{confidence}}% Vertrauen",
-    "fallback_title": "Kognitive Review-Notiz",
+    "fallback_title": "Review-Notiz",
     "priority": "Prioritat {{priority}}",
     "range": "{{path}} {{side}} Zeilen {{start}}-{{end}}",
     "side": {
@@ -23,9 +22,9 @@
   },
   "panel": {
     "hidden_count": "{{count}} weitere Notizen sind im Diff verfugbar.",
-    "summary": "{{count}} offene kognitive Review-Notiz",
-    "summary_one": "{{count}} offene kognitive Review-Notiz",
-    "summary_other": "{{count}} offene kognitive Review-Notizen",
-    "title": "Kognitive Review"
+    "summary": "{{count}} offene Review-Notiz",
+    "summary_one": "{{count}} offene Review-Notiz",
+    "summary_other": "{{count}} offene Review-Notizen",
+    "title": "Review-Notizen"
   }
 }
