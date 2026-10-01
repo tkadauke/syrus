@@ -55,19 +55,19 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
     expect(payload[:panels]).to contain_exactly(
       hash_including(
+        id: "cognitive_review.note.#{note.id}",
         component: "cognitive_review/note_panel",
-        props: hash_including(notes: [ hash_including(note_id: note.id) ], total: 1)
+        title: "Check lifecycle",
+        body: "This range changes lifecycle behavior.",
+        props: hash_including(hide_header: true, notes: [ hash_including(note_id: note.id) ], total: 1)
       )
     )
     expect(payload[:counts]).to contain_exactly(
       hash_including(id: "cognitive_review.open", label: "Review Notes", value: 1)
     )
-    expect(payload[:panels]).to contain_exactly(
-      hash_including(id: "cognitive_review.summary", title: "Review Notes")
-    )
   end
 
-  it "exposes same-range human comments as handling state for open notes" do
+  it "omits same-range human-comment-handled notes from open review annotations" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
@@ -92,7 +92,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       explanation: "This range changes lifecycle behavior.",
       source_metadata: {}
     )
-    matching_comment = job.diff_review_comments.create!(
+    job.diff_review_comments.create!(
       user: job.user,
       diff_review_version: version,
       surface: "job_review_workspace",
@@ -122,17 +122,9 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    props = payload.dig(:ranges, "app/models/job.rb").first.fetch(:props)
-    expect(props).to include(
-      handled_by_comment: true,
-      handled_by_comment_count: 1,
-      handled_by_comment_ids: [ matching_comment.id ],
-      note_id: note.id
-    )
-    expect(payload.dig(:panels, 0, :props, :notes, 0)).to include(
-      handled_by_comment: true,
-      handled_by_comment_ids: [ matching_comment.id ]
-    )
+    expect(payload[:ranges]).to eq({})
+    expect(payload[:panels]).to eq([])
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
   end
 
   it "does not fall back to stale notes from an unrelated diff version" do
@@ -369,7 +361,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload.dig(:panels, 0, :props, :notes).flat_map { |note| note[:discussion_entries] }.map { |entry| entry[:body] }).to contain_exactly(
+    expect(payload.fetch(:panels).flat_map { |panel| panel.dig(:props, :notes) }.flat_map { |note| note[:discussion_entries] }.map { |entry| entry[:body] }).to contain_exactly(
       "Earlier operator context 0",
       "Earlier operator context 1"
     )

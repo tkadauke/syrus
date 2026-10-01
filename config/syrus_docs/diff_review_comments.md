@@ -150,18 +150,21 @@ scroll box); a per-file sticky header exposes a "Files" button that opens an
 on-demand popup listing every changed file with additions/deletions/comment
 counts, selecting one scrolls the page to that file's section. The "Review
 artifacts" panel starts collapsed (summary stays visible) and expands on
-demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
-column: it scrolls with the page until its top reaches the top of the
-viewport, then pins there with its own internal scroll, and lists every
-comment for the surface (line-anchored and whole-review), grouped into
-per-`DiffReviewVersion` sections ordered by `version_index`. Each section
-header reuses the same richer version-label formatting as the version
-selector (`collapsedLabel`/`metadataSummary`, exported from
+demand. The right-hand "Review conversation" sidebar is a sticky,
+viewport-height column: it scrolls with the page until its top reaches the top
+of the viewport, then pins there with its own internal scroll, and lists every
+comment for the surface (line-anchored and whole-review). Plugin-provided
+review-note cards share the same surface rather than rendering in a separate
+sidebar panel. Items are grouped into per-`DiffReviewVersion` sections ordered
+by `version_index`, and within a version comments and review-note cards are
+ordered by their path/line position in the displayed diff. Each section header
+reuses the same richer version-label formatting as the version selector
+(`collapsedLabel`/`metadataSummary`, exported from
 `DiffReviewVersionSelector.tsx` — version index, workflow/run, date, trigger
-kind, label) rather than a bare "v1" tag, and the section matching the
-version currently displayed in the diff gets a "Currently viewing" pill;
-every other section is wrapped in a subtle warning-toned surface so older
-feedback reads as historical without needing a per-comment badge.
+kind, label) rather than a bare "v1" tag, and the section matching the version
+currently displayed in the diff gets a "Currently viewing" pill; every other
+section is wrapped in a subtle warning-toned surface so older feedback reads
+as historical without needing a per-comment badge.
 
 Both writing and editing a line-anchored (code) comment happen inline, at
 their anchor in the diff, not in the sidebar — clicking the gutter "+" opens a
