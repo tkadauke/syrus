@@ -55,11 +55,41 @@ if [ ! -d /opt/ms-playwright ] && ! browsers_installed; then
   npx playwright install chromium chromium-headless-shell
 fi
 
+# Run against an ephemeral database of our own, never the developer's.
+#
+# This suite used to share `storage/development.sqlite3` with `bin/dev`, which
+# cost us twice. It left permanent litter behind -- every run adds Jobs, Epics,
+# workflows and registered clusters that later runs then trip over, and the
+# specs had grown workarounds for exactly that. Worse, state the suite mutates
+# is sticky, so results diverged from CI: CI gets a fresh database and a
+# developer does not, and specs that enable a plugin passed locally (already
+# enabled) while failing in CI (enabled from scratch) -- invisible until someone
+# read the CI log.
+#
+# Deleting these before each run is what makes "ephemeral" true rather than
+# aspirational, and it is safe precisely because they are ours: the prefix is
+# only ever set here. Exported so Playwright's webServer (bin/syrus-preview-dev)
+# inherits it and the app serves the same database the seed just built.
+if [ -z "${E2E_BASE_URL:-}" ]; then
+  export SYRUS_DEV_DB_PREFIX="${SYRUS_DEV_DB_PREFIX:-e2e}"
+  export SEARCH_DATABASE_PATH="${SEARCH_DATABASE_PATH:-storage/${SYRUS_DEV_DB_PREFIX}_search.sqlite3}"
+fi
+
 # The specs sign in as deterministic local users and assert on seeded preview
 # rows. `e2e:seed` wraps db:seed, adds the auth/onboarding fixtures, and resets
 # the invitation-token account so repeated local runs stay deterministic.
 if [ -z "${E2E_BASE_URL:-}" ] && [ "${E2E_SKIP_SEED:-0}" != "1" ]; then
-  echo "[test-e2e] Preparing local database and E2E fixtures."
+  if [ "${E2E_KEEP_DB:-0}" = "1" ]; then
+    echo "[test-e2e] Reusing the existing ${SYRUS_DEV_DB_PREFIX} database (E2E_KEEP_DB=1)."
+  else
+    echo "[test-e2e] Discarding any previous ${SYRUS_DEV_DB_PREFIX} database."
+    rm -f "storage/${SYRUS_DEV_DB_PREFIX}".sqlite3* \
+          "storage/${SYRUS_DEV_DB_PREFIX}"_cache.sqlite3* \
+          "storage/${SYRUS_DEV_DB_PREFIX}"_queue.sqlite3* \
+          "storage/${SYRUS_DEV_DB_PREFIX}"_cable.sqlite3* \
+          "storage/${SYRUS_DEV_DB_PREFIX}"_search.sqlite3*
+  fi
+  echo "[test-e2e] Preparing the ${SYRUS_DEV_DB_PREFIX} database and E2E fixtures."
   bin/rails db:prepare e2e:seed
 fi
 

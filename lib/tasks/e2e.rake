@@ -127,6 +127,15 @@ namespace :e2e do
     # terminal spec finds the Terminal plugin already enabled and fails
     # asserting the disabled state it starts from. Put every plugin back to
     # the default its manifest declares.
+    #
+    # This used to be a comment with no code under it, and the gap was not
+    # visible locally: a developer's instance has the plugins enabled already,
+    # so every spec's "enable my plugin first" branch is skipped and passes.
+    # CI starts from manifest defaults, takes that branch, and was the only
+    # place those specs ran at all -- so five of them failed there while passing
+    # locally. Resetting here makes a local run reproduce CI.
+    PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
+
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the
     # previous run's specs left behind -- the Landing queue folder, a Queue

@@ -10,21 +10,27 @@ default: &default
   pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
   timeout: 5000
 
+# The E2E suite runs the app in the development *environment* (it needs the
+# dev-mode asset pipeline), but it must not run against the developer's own
+# data. SYRUS_DEV_DB_PREFIX lets `bin/test-e2e` point the whole development
+# database set at its own throwaway files, which it deletes before every run.
+# Unset -- the normal case -- this is exactly the old `storage/development*`.
+<% dev_db = ENV.fetch("SYRUS_DEV_DB_PREFIX", "development") %>
 development:
   primary:
     <<: *default
-    database: storage/development.sqlite3
+    database: storage/<%= dev_db %>.sqlite3
   cache:
     <<: *default
-    database: storage/development_cache.sqlite3
+    database: storage/<%= dev_db %>_cache.sqlite3
     migrations_paths: db/cache_migrate
   queue:
     <<: *default
-    database: storage/development_queue.sqlite3
+    database: storage/<%= dev_db %>_queue.sqlite3
     migrations_paths: db/queue_migrate
   cable:
     <<: *default
-    database: storage/development_cable.sqlite3
+    database: storage/<%= dev_db %>_cable.sqlite3
     migrations_paths: db/cable_migrate
   search:
     <<: *default
