@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState, type FocusEvent } from "react"
+import { useRef, useState, type FocusEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
 import { useT } from "@app/hooks/useT"
@@ -61,6 +61,9 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
   const queryClient = useQueryClient()
   const [discussionBody, setDiscussionBody] = useState("")
   const [discussionOpen, setDiscussionOpen] = useState(false)
+  const hoveredRef = useRef(false)
+  const focusedRef = useRef(false)
+  const highlightConditionRefs = { focus: focusedRef, hover: hoveredRef }
   const annotationId = `cognitive_review_note:${note.note_id}`
   const title = note.title || note.summary || t("note.fallback_title")
   const rangeLabel = t("note.range", {
@@ -106,9 +109,14 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
     )
   }
 
+  function setHighlightCondition(kind: "focus" | "hover", active: boolean) {
+    highlightConditionRefs[kind].current = active
+    highlightRange(focusedRef.current || hoveredRef.current)
+  }
+
   function clearHighlightOnBlur(event: FocusEvent<HTMLElement>) {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    highlightRange(false)
+    setHighlightCondition("focus", false)
   }
 
   return (
@@ -116,9 +124,9 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
       className="rounded border border-warning-border bg-warning-bg/45 p-3 text-sm text-text-primary focus-within:ring-2 focus-within:ring-warning-border"
       data-cognitive-review-note-id={note.note_id}
       onBlur={clearHighlightOnBlur}
-      onFocus={() => highlightRange(true)}
-      onMouseEnter={() => highlightRange(true)}
-      onMouseLeave={() => highlightRange(false)}
+      onFocus={() => setHighlightCondition("focus", true)}
+      onMouseEnter={() => setHighlightCondition("hover", true)}
+      onMouseLeave={() => setHighlightCondition("hover", false)}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

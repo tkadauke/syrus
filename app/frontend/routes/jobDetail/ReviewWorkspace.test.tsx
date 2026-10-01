@@ -240,11 +240,35 @@ describe("ReviewWorkspace", () => {
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
 
     expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
-    fireEvent.mouseEnter(screen.getByText("Inspect this branch").closest("article")!)
+    const noteCard = screen.getByText("Inspect this branch").closest("article")!
+    const rangeButton = screen.getByText("app/models/user.rb new lines 1-1")
+    const highlightedGutter = () => document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')
+
+    fireEvent.mouseEnter(noteCard)
     await waitFor(() => {
-      expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')).toBeInTheDocument()
+      expect(highlightedGutter()).toBeInTheDocument()
     })
-    fireEvent.click(screen.getByText("app/models/user.rb new lines 1-1"))
+    fireEvent.focus(rangeButton)
+    fireEvent.mouseLeave(noteCard)
+    expect(highlightedGutter()).toBeInTheDocument()
+    fireEvent.blur(rangeButton, { relatedTarget: null })
+    await waitFor(() => {
+      expect(highlightedGutter()).not.toBeInTheDocument()
+    })
+
+    fireEvent.focus(rangeButton)
+    await waitFor(() => {
+      expect(highlightedGutter()).toBeInTheDocument()
+    })
+    fireEvent.mouseEnter(noteCard)
+    fireEvent.blur(rangeButton, { relatedTarget: null })
+    expect(highlightedGutter()).toBeInTheDocument()
+    fireEvent.mouseLeave(noteCard)
+    await waitFor(() => {
+      expect(highlightedGutter()).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(rangeButton)
     expect(highlightedRow?.scrollIntoView).toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))
