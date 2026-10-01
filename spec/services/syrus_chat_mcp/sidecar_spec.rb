@@ -117,8 +117,8 @@ RSpec.describe Mcp::Sidecar do
       coding_tool_names = described_class.chat_tool_names(coding_session, tier: :essential)
       planning_tool_names = described_class.chat_tool_names(chat_session, tier: :essential)
 
-      expect(coding_tool_names).to include("reset_workspace", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
-      expect(planning_tool_names).not_to include("reset_workspace", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
+      expect(coding_tool_names).to include("reset_workspace", "cancel_coding_checkout", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
+      expect(planning_tool_names).not_to include("reset_workspace", "cancel_coding_checkout", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
     end
 
     it "hides coding tools in Coding Mode when the feature flag is off" do
@@ -128,7 +128,7 @@ RSpec.describe Mcp::Sidecar do
 
       tool_names = described_class.chat_tool_names(coding_session, tier: :essential)
 
-      expect(tool_names).not_to include("reset_workspace", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
+      expect(tool_names).not_to include("reset_workspace", "cancel_coding_checkout", "complete_implement_step", "open_in_coding_mode", "submit_coding_changes")
     end
 
     it "advertises specialty tools via the deferred tools/list" do

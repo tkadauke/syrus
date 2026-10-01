@@ -183,6 +183,7 @@ class McpToolRegistry
         chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true),
         chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true),
         chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        chat(Mcp::Tools::CancelCodingCheckoutTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::CompleteImplementStepTool,
           feature_flags_by_role: {
             AgentRole::CHAT_CODING => :coding_mode,

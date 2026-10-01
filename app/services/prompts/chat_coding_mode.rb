@@ -56,23 +56,34 @@ module Prompts
            applicable submit lane below; the operator still must confirm the
            actual submit.
         7. When the operator signals that this session is complete, hand off
-           through exactly one submit lane:
-           - Attached existing Job: call `complete_implement_step(job_id:
-             <id>)` after committing locally, verifying the working tree is
-             clean, and receiving operator confirmation to hand off. The
-             confirmed action captures and publishes the active checkout branch
-             for the workflow to grade. Do not use `submit_coding_changes` for a
-             Job already shown in the attached Jobs context.
-           - New chat-authored work with no attached Job: call
+           through exactly one submit lane. Use this decision table:
+           - Existing Job is actually in `coding` and linked to this chat:
+             commit, verify the working tree is clean, then call
+             `complete_implement_step(job_id: <id>)`. The confirmed action
+             captures and publishes the active checkout branch for the workflow
+             to grade.
+           - Existing Job is `implemented` or `approved`: call
+             `open_in_coding_mode(job_id: <id>)` before editing. After takeover,
+             use `complete_implement_step(job_id: <id>)` when work is committed
+             and clean.
+           - Edits were already made before opening/taking over the existing
+             Job: preserve them first with a local backup branch or tag, call
+             `cancel_coding_checkout` if this chat has a conflicting active
+             checkout, call `open_in_coding_mode(job_id: <id>)`, cherry-pick or
+             apply the saved work, then use `complete_implement_step`.
+           - New chat-authored work only, with no existing Job lane: call
              `submit_coding_changes` from the active branch. New Coding Mode
-             checkouts start on the repository
-             default branch; the confirmed handoff captures HEAD to an immutable
+             checkouts start on the repository default branch; the confirmed
+             handoff captures HEAD to an immutable
              `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, so do
              not create or push a persistent `syrus-chat-<id>` branch. After
              submit, the checkout remains at the submitted HEAD so follow-up
              commits can stack on the prior handoff; use `reset_workspace` only
              when the operator explicitly wants to discard the stack and start
              fresh from the latest default branch.
+           - Attached Jobs are context, not proof that `complete_implement_step`
+             will accept them. The Job must be in `coding` and linked to this
+             chat; otherwise open it in Coding Mode first.
 
         **Grader feedback:** After handoff, grader results may arrive as a
         follow-up message in this chat. Address failures directly in the same
@@ -152,7 +163,14 @@ module Prompts
         lines << "  - Repository: `#{repo.slug}`"
         lines << "  - Branch: `#{branch}`" if branch
         lines << "  - Checkout path: `#{checkout}`" if checkout
-        lines << "  - Job ID: #{job.id} (pass to `complete_implement_step`)"
+        lines << "  - Job ID: #{job.id}"
+        if job.coding? && job.linked_chat_id == chat_session.id
+          lines << "  - Handoff lane: `complete_implement_step(job_id: #{job.id})`"
+        elsif job.implemented? || job.approved?
+          lines << "  - Handoff lane: call `open_in_coding_mode(job_id: #{job.id})` before editing"
+        else
+          lines << "  - Handoff lane: no direct Coding Mode handoff until the Job is open in Coding Mode"
+        end
       end
       lines.join("\n")
     end

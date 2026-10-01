@@ -30,7 +30,7 @@ RSpec.describe Prompts::ChatCodingMode do
 
   subject(:prompt) { described_class.new(chat_session: chat_session).to_s }
 
-  it "directs attached existing Jobs to complete_implement_step only" do
+  it "directs linked coding Jobs to complete_implement_step only" do
     job = Factories.job_record(
       user: user,
       repository: repository,
@@ -40,18 +40,41 @@ RSpec.describe Prompts::ChatCodingMode do
     )
     job.update_columns(linked_chat_id: chat_session.id)
 
-    expect(prompt).to include("Attached existing Job: call `complete_implement_step")
-    expect(prompt).to include("after committing locally")
-    expect(prompt).to include("verifying the working tree is")
+    expect(prompt).to include("Existing Job is actually in `coding` and linked to this chat")
+    expect(prompt).to include("commit, verify the working tree is clean")
+    expect(prompt).to include("Verify the working tree is clean")
     expect(prompt).to include("captures and publishes the active checkout branch")
-    expect(prompt).to match(/Do not use\s+`submit_coding_changes`\s+for a\s+Job already/)
-    expect(prompt).to include("Job ID: #{job.id} (pass to `complete_implement_step`)")
+    expect(prompt).to include("Attached Jobs are context, not proof")
+    expect(prompt).to include("Handoff lane: `complete_implement_step(job_id: #{job.id})`")
     expect(prompt).not_to include("git push origin HEAD:<job-branch>")
     expect(prompt).not_to include("after pushing the Job branch")
   end
 
+  it "tells agents to open implemented or approved Jobs before editing" do
+    implemented = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      issue_title: "Repair aqueduct flow",
+      branch_name: "syrus/job-42"
+    )
+    chat_session.chat_attachments.create!(attachable: implemented)
+
+    expect(prompt).to include("Existing Job is `implemented` or `approved`: call")
+    expect(prompt).to include("`open_in_coding_mode(job_id: <id>)` before editing")
+    expect(prompt).to include("Handoff lane: call `open_in_coding_mode(job_id: #{implemented.id})` before editing")
+  end
+
+  it "includes the recovery recipe for edits made before takeover" do
+    expect(prompt).to include("Edits were already made before opening/taking over the existing")
+    expect(prompt).to include("preserve them first with a local backup branch or tag")
+    expect(prompt).to include("`cancel_coding_checkout`")
+    expect(prompt).to include("cherry-pick or")
+    expect(prompt).to include("then use `complete_implement_step`")
+  end
+
   it "directs new chat-authored work with no attached Job to submit_coding_changes" do
-    expect(prompt).to include("New chat-authored work with no attached Job: call")
+    expect(prompt).to include("New chat-authored work only")
     expect(prompt).to include("`submit_coding_changes` from the active branch")
     expect(prompt).to include("captures HEAD to an immutable")
     expect(prompt).to match(/do not create or\s+push a persistent branch/)

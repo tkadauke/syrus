@@ -1353,6 +1353,9 @@ RSpec.describe ChatWorkspace, :ci_only do
         default_branch: "main",
         dirty: true,
         committed_ahead_count: 1,
+        linked_coding_job: nil,
+        active_checkout_job: nil,
+        valid_next_handoff_lanes: [ "submit_coding_changes" ],
         destructive_reset_required: true
       )
       expect(status[:head_sha]).to be_present

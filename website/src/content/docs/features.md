@@ -167,18 +167,31 @@ or an active coding checkout for different work, and a Job already linked to a
 different chat cannot be claimed. Taken-over Jobs stay in the `coding` state
 while the chat owns implementation. Canceling the chat checkout detaches the
 Job in the same backend operation: Syrus discards the coding checkout, clears
-the chat link, and returns the taken-over Job to `implemented`. Fresh
-chat-authored Coding Mode Jobs keep their existing cancel semantics rather
-than being converted into taken-over Jobs.
+the chat link, and returns the taken-over Job to `implemented`. The
+`cancel_coding_checkout` chat tool exposes that detach primitive to agents; it
+does not preserve, migrate, or apply local code changes, so agents should save
+work to a local backup branch or tag first when they need to recover commits.
+Fresh chat-authored Coding Mode Jobs keep their existing cancel semantics
+rather than being converted into taken-over Jobs.
 
 The `reset_workspace` chat tool is available for abandoned experiments or for
 starting a new unrelated task from the latest default branch: without
 confirmation it only reports the checkout path, current branch/ref, dirty state,
-commits ahead of the default branch, and prep status. When called with explicit
-discard confirmation, it resets the checkout to the repository default branch
-tip, clears uncommitted work and local-only commits, records the submit lineage
-as fresh-main, and queues preparation again. After that reset, the next
-`submit_coding_changes` starts a new independent handoff stack.
+commits ahead of the default branch, linked coding Job if any, valid handoff
+lanes, and prep status. This is a status/fresh-main reset tool, not the
+takeover detach path. When called with explicit discard confirmation, it resets
+the checkout to the repository default branch tip, clears uncommitted work and
+local-only commits, records the submit lineage as fresh-main, and queues
+preparation again. After that reset, the next `submit_coding_changes` starts a
+new independent handoff stack.
+
+If an agent commits work before opening an existing Job in Coding Mode, the
+recovery path is to preserve the current commits locally, detach any conflicting
+active checkout, open the existing Job with `open_in_coding_mode`, apply the
+saved commits onto that Job branch, then hand off with
+`complete_implement_step`. `submit_coding_changes` is for new chat-authored
+work; it refuses branches that already belong to a Syrus Job because accepting
+one would create a new Job rather than update the existing one.
 
 Coding Mode chats also get a set of generic `runtime_*` tools for working
 with a live Runtime Session — a dev server, browser, or other running

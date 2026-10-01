@@ -30,6 +30,7 @@ module Admin
       "k8s_cluster_secrets" => "generic",
       "k8s_cluster_statefulsets" => "generic",
       "manual_agentic_run" => "generic",
+      "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
       "read_walkthrough_frame" => "deferred",
       "refresh_pr_checks" => "generic",
