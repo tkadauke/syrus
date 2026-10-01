@@ -6,13 +6,14 @@ module App
       new(job: job).index
     end
 
-    def self.show(version:)
-      new(job: version.job, version: version).show
+    def self.show(version:, user:)
+      new(job: version.job, version: version, user: user).show
     end
 
-    def initialize(job:, version: nil)
+    def initialize(job:, version: nil, user: nil)
       @job = job
       @version = version
+      @user = user
     end
 
     def index
@@ -28,7 +29,8 @@ module App
         job_id: @job.id,
         default_ref: @job.repository.default_branch,
         files: Array(@version.files_snapshot).map { |file| file_json(file) },
-        diff_error: nil
+        diff_error: nil,
+        review_annotations: review_annotations_json
       )
     end
 
@@ -109,6 +111,17 @@ module App
 
     def image_file?(path)
       IMAGE_EXTENSIONS.include?(File.extname(path.to_s).downcase)
+    end
+
+    def review_annotations_json
+      App::DiffReviewAnnotationsPayload.build(
+        job: @job,
+        user: @user,
+        version: @version,
+        base_sha: @version.base_sha,
+        head_sha: @version.head_sha,
+        files: Array(@version.files_snapshot).map { |file| file.respond_to?(:with_indifferent_access) ? file.with_indifferent_access : file }
+      )
     end
   end
 end

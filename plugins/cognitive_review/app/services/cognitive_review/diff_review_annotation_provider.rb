@@ -96,7 +96,7 @@ module CognitiveReview
         confidence: note.confidence&.to_f,
         priority: note.priority,
         state: note.state,
-        discussion_entries: note.discussion_entries.ordered.map do |entry|
+        discussion_entries: discussion_entries_for(note).map do |entry|
           {
             id: entry.id,
             body: entry.body,
@@ -104,6 +104,14 @@ module CognitiveReview
           }
         end
       }.compact
+    end
+
+    def self.discussion_entries_for(note)
+      if note.association(:discussion_entries).loaded?
+        note.discussion_entries.sort_by { |entry| [ entry.created_at || Time.zone.at(0), entry.id || 0 ] }
+      else
+        note.discussion_entries.ordered.to_a
+      end
     end
   end
 end
