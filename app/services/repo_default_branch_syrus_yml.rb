@@ -2,7 +2,7 @@
 # through RepositoryContent at workflow-instantiation time (before the
 # workflow workspace is cloned). Centralizes the read and SyrusYml parse that
 # RepoAdversarialReviewPlan, RepoVisualReviewPlan, RepoGradeLoopPlan,
-# RepoReviewPlanPlan, and RepoCoveragePlanReader each used to duplicate --
+# and RepoCoveragePlanReader each used to duplicate --
 # each doing its own independent GitHub round-trip for the identical file at
 # the identical ref. Workflows::Base resolves this once per workflow
 # instantiation and threads the Result through each Repo*Plan.from_syrus_yml

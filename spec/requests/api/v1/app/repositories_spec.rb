@@ -844,7 +844,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "generated_steps_count" => 1,
       "visual_review_mode" => "instance default",
       "adversarial_review_rounds" => 2,
-      "review_plan_enabled" => true,
       "coverage_configured" => true,
       "delivery_tracks_count" => 2
     )

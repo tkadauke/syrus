@@ -3,7 +3,6 @@ class RunCheckpointResume
     summarize
     test_plan
     pr_open
-    review_plan
     coverage_analyze
     coverage_pr_comment
     summarize_amend
