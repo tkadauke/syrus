@@ -23,6 +23,11 @@ type K8sToolName =
   | "k8s_cluster_configmaps"
   | "k8s_cluster_pod_logs"
   | "k8s_cluster_secrets"
+type K8sActionToolName =
+  | "k8s_cluster_restart_rollout"
+  | "k8s_cluster_scale_deployment"
+  | "k8s_cluster_delete_pod"
+  | "k8s_cluster_set_node_cordon"
 
 type K8sRow = Record<string, unknown>
 type Column = { key: string; label: string; render?: (row: K8sRow) => string | ReactNode; tone?: (row: K8sRow) => "success" | "warning" | "failure" | "neutral" | "info" }
@@ -39,6 +44,24 @@ type ParsedCard = {
 }
 type OverviewSection = { available: boolean; items: K8sRow[]; totalCpuMillicores: number; totalMemoryBytes: number; message: string | null; reason: string | null }
 type OverviewCard = { nodes: OverviewSection; pods: OverviewSection }
+type ActionKind = "restart_rollout" | "scale_deployment" | "delete_pod" | "set_node_cordon"
+type ActionErrorKind = "permission" | "missing_resource" | "validation" | "api"
+type ParsedActionCard = {
+  kind: ActionKind
+  actionLabel: string
+  target: string
+  scope: string
+  resultState: "succeeded" | "no_op" | "failed"
+  requestedChange: string
+  previousState: string | null
+  currentState: string | null
+  reason: string | null
+  audit: string | null
+  generatedAt: string | null
+  followUpChecks: string[]
+  errorKind: ActionErrorKind | null
+  errorMessage: string | null
+}
 
 const TOOL_KINDS: Record<K8sToolName, CardKind> = {
   k8s_cluster_overview: "overview",
@@ -62,6 +85,13 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 
 const ROW_LIMIT = 100
 
+const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
+  k8s_cluster_restart_rollout: "restart_rollout",
+  k8s_cluster_scale_deployment: "scale_deployment",
+  k8s_cluster_delete_pod: "delete_pod",
+  k8s_cluster_set_node_cordon: "set_node_cordon"
+}
+
 function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`k8s_cluster:${key}`, options)
 }
@@ -72,6 +102,57 @@ export function kubernetesToolCard(toolName: K8sToolName): ToolCardRenderer {
     collapsedSummary,
     renderExpanded
   }
+}
+
+export function kubernetesActionToolCard(toolName: K8sActionToolName): ToolCardRenderer {
+  return {
+    toolName,
+    collapsedSummary: collapsedActionSummary,
+    renderExpanded: renderExpandedAction
+  }
+}
+
+function collapsedActionSummary(context: ToolCardContext) {
+  const card = parseActionCard(context)
+  if (!card) return null
+
+  return t("action_card_summary", {
+    action: card.actionLabel,
+    target: card.target,
+    scope: card.scope,
+    state: actionStateLabel(card.resultState, card.errorKind)
+  })
+}
+
+function renderExpandedAction(context: ToolCardContext) {
+  const card = parseActionCard(context)
+  if (!card) return null
+
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatePill state={actionStateLabel(card.resultState, card.errorKind)} tone={actionStateTone(card)} />
+        <span className="text-xs font-medium text-text-primary">{card.actionLabel}</span>
+        <span className="font-mono text-xs text-text-muted">{card.target}</span>
+      </div>
+      {card.errorMessage ? <Notice tone="danger" title={actionErrorTitle(card.errorKind)}>{card.errorMessage}</Notice> : null}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <DetailRow label={t("action_card_scope")} value={card.scope} />
+        <DetailRow label={t("action_card_requested_change")} value={card.requestedChange} />
+        <DetailRow label={t("action_card_previous_state")} value={card.previousState || t("action_card_not_available")} />
+        <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
+        <DetailRow label={t("action_card_reason")} value={card.reason || t("action_card_reason_not_provided")} />
+        <DetailRow label={t("action_card_audit")} value={card.audit || t("action_card_audit_recorded")} />
+      </div>
+      {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_follow_up_checks")}</div>
+        <ul className="list-disc space-y-1 pl-4 text-xs text-text-secondary">
+          {card.followUpChecks.map((check) => <li key={check}>{check}</li>)}
+        </ul>
+      </div>
+    </CardShell>
+  )
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -159,6 +240,141 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
     warningCount: warningCount(kind, rows),
     errorMessage: null
   }
+}
+
+function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
+  const kind = ACTION_KINDS[context.toolName as K8sActionToolName]
+  if (!kind) return null
+
+  const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const errorMessage = parseErrorMessage(context)
+  const before = isPlainObject(parsed.before) ? parsed.before : {}
+  const after = isPlainObject(parsed.after) ? parsed.after : {}
+  const input = context.input || {}
+  const target = actionTarget(kind, parsed, input)
+  const errorKind = errorMessage ? classifyActionError(errorMessage) : null
+  const resultState = errorMessage ? "failed" : actionNoOp(kind, before, after) ? "no_op" : "succeeded"
+
+  return {
+    kind,
+    actionLabel: actionLabel(kind, input),
+    target,
+    scope: actionScopeLabel(kind, context, parsed),
+    resultState,
+    requestedChange: requestedChange(kind, input, parsed),
+    previousState: previousState(kind, before),
+    currentState: currentState(kind, after),
+    reason: displayValue(input.reason) || displayValue(parsed.reason) || displayValue(parsed.audit_reason),
+    audit: displayValue(parsed.audit_id) || displayValue(parsed.audit_url) || displayValue(parsed.audit),
+    generatedAt: displayValue(parsed.generated_at),
+    followUpChecks: followUpChecks(kind, parsed, input, resultState, errorKind),
+    errorKind,
+    errorMessage
+  }
+}
+
+function actionTarget(kind: ActionKind, parsed: Record<string, unknown>, input: Record<string, unknown>) {
+  const name = displayValue(parsed.deployment) || displayValue(parsed.pod) || displayValue(parsed.node) || displayValue(input.name) || "-"
+  const namespace = displayValue(parsed.namespace) || displayValue(input.namespace)
+  if (kind === "set_node_cordon") return t("action_card_target_node", { name })
+  if (kind === "delete_pod") return t("action_card_target_pod", { namespace: namespace || "-", name })
+  return t("action_card_target_deployment", { namespace: namespace || "-", name })
+}
+
+function actionScopeLabel(kind: ActionKind, context: ToolCardContext, parsed: Record<string, unknown>) {
+  const input = context.input || {}
+  const cluster = displayValue(input.cluster_id)
+  const namespace = displayValue(parsed.namespace) || displayValue(input.namespace)
+  if (kind === "set_node_cordon") return cluster ? t("tool_card_scope_cluster", { cluster }) : t("tool_card_scope_all_clusters")
+  if (cluster && namespace) return t("tool_card_scope_cluster_namespace", { cluster, namespace })
+  if (cluster) return t("tool_card_scope_cluster", { cluster })
+  return t("tool_card_scope_all_clusters")
+}
+
+function actionLabel(kind: ActionKind, input: Record<string, unknown>) {
+  if (kind === "restart_rollout") return t("action_restart_rollout")
+  if (kind === "scale_deployment") return t("action_scale_deployment")
+  if (kind === "delete_pod") return t("action_delete_pod")
+  return input.cordoned === false ? t("action_uncordon_node") : t("action_cordon_node")
+}
+
+function requestedChange(kind: ActionKind, input: Record<string, unknown>, parsed: Record<string, unknown>) {
+  if (kind === "restart_rollout") return t("action_requested_restart_rollout")
+  if (kind === "scale_deployment") return t("action_requested_scale", { replicas: displayValue(input.replicas) || displayValue((isPlainObject(parsed.after) ? parsed.after : {}).replicas) || "-" })
+  if (kind === "delete_pod") return t("action_requested_delete_pod")
+  const cordoned = input.cordoned === false ? false : (isPlainObject(parsed.after) ? parsed.after.unschedulable === true : input.cordoned === true)
+  return cordoned ? t("action_requested_cordon") : t("action_requested_uncordon")
+}
+
+function previousState(kind: ActionKind, before: Record<string, unknown>) {
+  if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(before.restarted_at) || t("action_card_none") })
+  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(before.replicas) || "0" })
+  if (kind === "delete_pod") return t("action_state_pod_phase", { value: displayValue(before.phase) || t("action_card_unknown") })
+  if ("unschedulable" in before) return before.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
+  return null
+}
+
+function currentState(kind: ActionKind, after: Record<string, unknown>) {
+  if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(after.restarted_at) || t("action_card_none") })
+  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(after.replicas) || "0" })
+  if (kind === "delete_pod") return after.deleted === true ? t("action_state_deleted") : null
+  if ("unschedulable" in after) return after.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
+  return null
+}
+
+function actionNoOp(kind: ActionKind, before: Record<string, unknown>, after: Record<string, unknown>) {
+  if (kind === "restart_rollout") return "restarted_at" in before && "restarted_at" in after && before.restarted_at === after.restarted_at
+  if (kind === "scale_deployment") return "replicas" in before && "replicas" in after && before.replicas === after.replicas
+  if (kind === "delete_pod") return after.deleted === false
+  if (kind === "set_node_cordon") return before.unschedulable === after.unschedulable
+  return false
+}
+
+function classifyActionError(message: string): ActionErrorKind {
+  const normalized = message.toLowerCase()
+  if (/(permission|forbidden|unauthorized|agentic access is disabled|write access is disabled|rbac)/.test(normalized)) return "permission"
+  if (/(not found|was not found|404)/.test(normalized)) return "missing_resource"
+  if (/(must be|required|invalid|non-negative|validation)/.test(normalized)) return "validation"
+  return "api"
+}
+
+function actionStateLabel(state: ParsedActionCard["resultState"], errorKind: ActionErrorKind | null) {
+  if (state === "succeeded") return t("action_state_succeeded")
+  if (state === "no_op") return t("action_state_no_op")
+  if (errorKind === "permission") return t("action_failure_permission")
+  if (errorKind === "missing_resource") return t("action_failure_missing_resource")
+  if (errorKind === "validation") return t("action_failure_validation")
+  return t("action_failure_api")
+}
+
+function actionStateTone(card: ParsedActionCard) {
+  if (card.resultState === "succeeded") return "success"
+  if (card.resultState === "no_op") return "info"
+  if (card.errorKind === "validation" || card.errorKind === "permission") return "warning"
+  return "failure"
+}
+
+function actionErrorTitle(kind: ActionErrorKind | null) {
+  if (kind === "permission") return t("action_error_permission_title")
+  if (kind === "missing_resource") return t("action_error_missing_resource_title")
+  if (kind === "validation") return t("action_error_validation_title")
+  return t("action_error_api_title")
+}
+
+function followUpChecks(kind: ActionKind, parsed: Record<string, unknown>, input: Record<string, unknown>, state: ParsedActionCard["resultState"], errorKind: ActionErrorKind | null) {
+  if (state === "failed") {
+    if (errorKind === "permission") return [t("action_followup_permission"), t("action_followup_list_clusters")]
+    if (errorKind === "missing_resource") return [t("action_followup_refresh_resource"), t("action_followup_check_namespace")]
+    if (errorKind === "validation") return [t("action_followup_fix_request"), t("action_followup_retry")]
+    return [t("action_followup_api_health"), t("action_followup_events")]
+  }
+
+  if (kind === "restart_rollout") return [t("action_followup_rollout_status"), t("action_followup_deployment_pods")]
+  if (kind === "scale_deployment") return [t("action_followup_deployment_ready"), t("action_followup_deployment_events")]
+  if (kind === "delete_pod") return [t("action_followup_pod_recreated"), t("action_followup_pod_events")]
+
+  const cordoned = input.cordoned === false ? false : (isPlainObject(parsed.after) ? parsed.after.unschedulable === true : input.cordoned === true)
+  return cordoned ? [t("action_followup_node_unschedulable"), t("action_followup_pending_pods")] : [t("action_followup_node_schedulable"), t("action_followup_pending_pods")]
 }
 
 function parseErrorMessage(context: ToolCardContext) {
@@ -658,6 +874,69 @@ export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExamp
     { id: "empty", label: "Empty result", input, parsedResult: examplePayload(kind, "empty") },
     { id: "error", label: "Error result", input, resultBody: "Error: Kubernetes cluster not found", resultError: true }
   ]
+}
+
+export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): ToolCardExample[] {
+  const kind = ACTION_KINDS[toolName]
+  return [
+    { id: "successful_action", label: "Successful action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "success") },
+    { id: "no_op", label: "No-op action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "noop") },
+    { id: "validation_failure", label: "Validation failure", input: actionExampleInput(kind, "validation"), resultBody: "Error: replicas must be a non-negative integer", resultError: true },
+    { id: "api_failure", label: "API failure", input: actionExampleInput(kind), resultBody: "Error: Kubeclient::HttpError: apiserver timed out", resultError: true },
+    { id: "permission_denied", label: "Permission denied", input: actionExampleInput(kind), resultBody: "Error: Write access is disabled for Kubernetes cluster 7. Enable write access in K8s Cluster connection settings.", resultError: true }
+  ]
+}
+
+function actionExampleInput(kind: ActionKind, variant: "success" | "validation" = "success") {
+  if (kind === "restart_rollout") return { cluster_id: 7, namespace: "default", name: "web", reason: "Refresh config after secret rotation" }
+  if (kind === "scale_deployment") return { cluster_id: 7, namespace: "default", name: "web", replicas: variant === "validation" ? -1 : 5, reason: "Scale for morning traffic" }
+  if (kind === "delete_pod") return { cluster_id: 7, namespace: "default", name: "web-7d9b", reason: "Force reschedule after repeated readiness failures" }
+  return { cluster_id: 7, name: "node-1", cordoned: true, reason: "Drain window preparation" }
+}
+
+function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
+  const generated_at = "2026-09-30T12:00:00Z"
+  if (kind === "restart_rollout") {
+    return {
+      available: true,
+      generated_at,
+      deployment: "web",
+      namespace: "default",
+      before: { restarted_at: variant === "noop" ? "2026-09-30T11:00:00Z" : null },
+      after: { restarted_at: "2026-09-30T11:00:00Z" },
+      audit_id: "k8s-audit-123"
+    }
+  }
+  if (kind === "scale_deployment") {
+    return {
+      available: true,
+      generated_at,
+      deployment: "web",
+      namespace: "default",
+      before: { replicas: variant === "noop" ? 5 : 2 },
+      after: { replicas: 5 },
+      audit_id: "k8s-audit-123"
+    }
+  }
+  if (kind === "delete_pod") {
+    return {
+      available: true,
+      generated_at,
+      pod: "web-7d9b",
+      namespace: "default",
+      before: { phase: variant === "noop" ? "Succeeded" : "Running" },
+      after: { deleted: variant !== "noop" },
+      audit_id: "k8s-audit-123"
+    }
+  }
+  return {
+    available: true,
+    generated_at,
+    node: "node-1",
+    before: { unschedulable: variant === "noop" },
+    after: { unschedulable: true },
+    audit_id: "k8s-audit-123"
+  }
 }
 
 function examplePayload(kind: CardKind, variant: "healthy" | "warning" | "empty") {
