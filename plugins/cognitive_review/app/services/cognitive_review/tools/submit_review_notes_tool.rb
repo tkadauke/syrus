@@ -3,7 +3,7 @@ require "mcp"
 
 module CognitiveReview
   module Tools
-    class SubmitCognitiveReviewNotesTool < MCP::Tool
+    class SubmitReviewNotesTool < MCP::Tool
       tool_name "submit_review_notes"
       LEGACY_TOOL_NAMES = %w[submit_cognitive_review_notes].freeze
 
@@ -12,7 +12,7 @@ module CognitiveReview
 
       description <<~DESC
         Submit review notes for changed diff ranges after an implementation workflow.
-        Each note should identify the file/range and explain why that range deserves operator attention.
+        Each note should read like concise review guidance and explain why that range is shaped the way it is.
         Submit an empty notes array when the diff has no attention-worthy ranges.
       DESC
 
@@ -78,7 +78,7 @@ module CognitiveReview
         rescue ArgumentError, ActiveRecord::RecordInvalid => e
           Mcp::Tools.invalid(e.message)
         rescue StandardError => e
-          Rails.logger.error("[CognitiveReview::Tools::SubmitCognitiveReviewNotesTool] #{e.class}: #{e.message}")
+          Rails.logger.error("[CognitiveReview::Tools::SubmitReviewNotesTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
         end
 

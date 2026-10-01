@@ -23,22 +23,25 @@ module CognitiveReview
         memory_context(job),
         diff_context(job: job, workflow: workflow, run: run),
         <<~PROMPT.strip
-          Prepare review notes for the final implementation diff for #{job.repository.slug}.
+          Review the final implementation diff for #{job.repository.slug} and submit high-signal Review Notes.
 
-          Flag only changed diff ranges that are likely to create operator attention debt.
-          Prefer no note over filler. The strongest notes usually concern design constraints,
-          lifecycle or state-machine choices, concurrency or race assumptions, queue behavior,
-          safety boundaries, migrations or data concerns, missing verification, tricky tests,
-          subtle UI decisions, surprising tradeoffs, or operator-memory-guided interests.
+          Produce comment-like review notes only for changed diff ranges that are likely
+          to interest the operator. Use Agent Memory when available to choose ranges the
+          operator is likely to care about. Prefer no note over filler. The strongest
+          notes usually concern design constraints, lifecycle or state-machine choices,
+          concurrency or race assumptions, queue behavior, safety boundaries, migrations
+          or data concerns, missing verification, tricky tests, subtle UI decisions,
+          surprising tradeoffs, or other operator-memory-guided interests.
 
-          Submit your result with submit_cognitive_review_notes. If no ranges deserve
-          attention, call it with an empty notes array. Do not edit files.
+          Explanations should be concise review guidance explaining why the code is the
+          way it is, not a generic checklist. Submit your result with submit_review_notes.
+          If no ranges deserve attention, call it with an empty notes array. Do not edit files.
         PROMPT
       ].compact_blank
     end
 
     def self.required_mcp_tools(job:, workflow:, run:)
-      [ Tools::SubmitCognitiveReviewNotesTool.tool_name ]
+      [ Tools::SubmitReviewNotesTool.tool_name ]
     end
 
     def self.memory_context(job)
