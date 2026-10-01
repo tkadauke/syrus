@@ -31,16 +31,28 @@ RSpec.describe AppSettingRegistry do
 
   it "declares the current admin settings payload metadata" do
     expect(described_class.admin_editable_keys).to eq([
+      :grade_max_iterations,
+      :adversarial_review_rounds,
+      :max_job_failures,
+      :rebase_failure_cooldown_minutes,
+      :merge_train_max_size,
       :signups_open,
+      :telegram_bot_handle,
       :telegram_bot_token,
       :discord_bot_token,
+      :report_issue_repo_slug,
       :max_concurrent_agent_runs,
       :user_daily_spend_budget_usd,
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
+      :workflow_admission_control_enabled,
+      :workflow_admission_policy,
+      :main_branch_breakage_policy,
       :video_retention_days,
       :video_storage_budget_mb,
+      :chat_coding_workspace_budget_mb,
       :retention_available_space_override_gb,
+      :main_concern_report_threshold,
       *RetentionPolicyRegistry.definitions.map(&:setting_key),
       *RetentionPolicyRegistry.archive_app_setting_definitions.map(&:key)
     ])
@@ -54,9 +66,20 @@ RSpec.describe AppSettingRegistry do
         operational_meaning: "Commits-behind threshold that triggers proactive PR rebase maintenance while mergeability is still clean.",
         min: 1,
         admin_editable: true,
-        secret: false
+        secret: false,
+        surface: "admin_settings"
       }
     ])
+  end
+
+  it "declares every setting reachable from an admin surface" do
+    expect(described_class.admin_settings_keys).to match_array(described_class.admin_editable_keys)
+    expect(described_class.admin_console_keys).to contain_exactly(
+      :merge_train_enabled,
+      :polling_paused,
+      :runs_paused
+    )
+    expect(described_class.admin_settings_keys & described_class.admin_console_keys).to be_empty
   end
 
   it "folds RetentionPolicyRegistry entries in as admin-editable integer settings with a 0=infinite floor" do

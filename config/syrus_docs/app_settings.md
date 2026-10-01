@@ -4,6 +4,11 @@
 
 Typed metadata for these fields lives in `AppSettingRegistry`. Defaults, validation ranges, categories, operational meaning, and special `0` semantics should be changed there first so model validations, admin API metadata, and this reference stay aligned.
 
+Reachability and scope decisions are recorded in
+[`app_setting_scope_audit.md`](app_setting_scope_audit.md). Use that audit when
+deciding whether a new setting belongs in `AppSetting`, on `Repository`, or as
+an instance-wide default with a future per-repository override.
+
 ## Workflow behavior
 
 ### grade_max_iterations
