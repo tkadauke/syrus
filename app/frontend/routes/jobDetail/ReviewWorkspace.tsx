@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
@@ -29,7 +29,7 @@ import {
   type ReviewDiffSettingsPayload
 } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
-import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
+import { ReviewableDiff, diffLineMetricProvidersForReview, type DiffLineMetricProvider, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useResizableSplitter } from "../chat/useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
@@ -69,8 +69,9 @@ const REVIEW_COMMENTS_SPLITTER_CLASS =
 const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS = "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
 const REVIEW_COMMENTS_RAIL_CLASS = "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
 
-export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
+export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
+  const { t: commonT } = useT("common")
   const jobId = payload.job.id
   const sourceDiff = useQuery({
     queryKey: ["jobs", String(jobId), "review_source_diff"],
@@ -163,10 +164,19 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
   const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
-  const diffMetricCandidates = diffMetricCandidatesForReview(activeReviewAnnotations, t)
+  const diffMetricProviders = useMemo(
+    () => diffLineMetricProvidersForReview(activeReviewAnnotations.counts, commonT, diffLineMetricProviders),
+    [activeReviewAnnotations.counts, commonT, diffLineMetricProviders]
+  )
+  const diffMetricCandidates = diffMetricProviders.map(metricCandidateFromProvider)
   const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
+  const lastEnabledMetricGutterIdRef = useRef(activeMetricGutterId === "off" ? (diffMetricCandidates[0]?.id ?? "off") : activeMetricGutterId)
   const metricGutterMutation = useReviewDiffSettingsMutation(reviewSettings)
   useReviewDiffSettingsShortcuts(reviewSettings)
+
+  useEffect(() => {
+    if (activeMetricGutterId !== "off") lastEnabledMetricGutterIdRef.current = activeMetricGutterId
+  }, [activeMetricGutterId])
 
   useEffect(() => {
     if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
@@ -307,6 +317,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         <ReviewMetricGutterShortcut
           activeMetricGutterId={activeMetricGutterId}
           candidates={diffMetricCandidates}
+          lastEnabledMetricGutterIdRef={lastEnabledMetricGutterIdRef}
           onToggle={(metricGutter) => metricGutterMutation.mutate({ metric_gutter: metricGutter })}
         />
       ) : null}
@@ -431,6 +442,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
               reviewAnnotationCounts={activeReviewAnnotations.counts}
               reviewAnnotationRanges={activeReviewAnnotations.ranges}
               activeDiffLineMetricProviderId={activeMetricGutterId}
+              diffLineMetricProviders={diffLineMetricProviders}
               scroll="natural"
               selectedPath={selectedPath}
               showFileHeaders
@@ -746,10 +758,12 @@ function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
 function ReviewMetricGutterShortcut({
   activeMetricGutterId,
   candidates,
+  lastEnabledMetricGutterIdRef,
   onToggle
 }: {
   activeMetricGutterId: string
   candidates: DiffMetricCandidate[]
+  lastEnabledMetricGutterIdRef: RefObject<string>
   onToggle: (metricGutter: string) => void
 }) {
   const { t } = useT("jobs")
@@ -757,7 +771,11 @@ function ReviewMetricGutterShortcut({
   useOptionalShortcut(
     "alt+shift+g",
     () => {
-      onToggle(activeMetricGutterId === "off" ? candidates[0]!.id : "off")
+      const fallbackCandidate = candidates[0]!.id
+      const rememberedMetricGutterId = lastEnabledMetricGutterIdRef.current
+      const lastEnabledMetricGutterId =
+        rememberedMetricGutterId && candidates.some((candidate) => candidate.id === rememberedMetricGutterId) ? rememberedMetricGutterId : fallbackCandidate
+      onToggle(activeMetricGutterId === "off" ? lastEnabledMetricGutterId : "off")
     },
     {
       description: t("review_shortcut_toggle_metric_gutter"),
@@ -768,13 +786,8 @@ function ReviewMetricGutterShortcut({
   return null
 }
 
-function diffMetricCandidatesForReview(
-  annotations: DiffReviewAnnotationsPayload,
-  t: (key: string, options?: Record<string, unknown>) => string
-): DiffMetricCandidate[] {
-  const hasCognitiveReviewDebtData = annotations.counts.some((count) => String(count.id ?? "").startsWith("cognitive_review."))
-  if (!hasCognitiveReviewDebtData) return []
-  return [{ id: "cognitive_review.risk", label: t("review_metric_cognitive_review_risk") }]
+function metricCandidateFromProvider(provider: DiffLineMetricProvider): DiffMetricCandidate {
+  return { id: provider.id, label: provider.label }
 }
 
 function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCandidate[]) {

@@ -382,7 +382,7 @@ export function ReviewableDiff({
   const remainingFileCount = renderFiles.length - visibleFiles.length
   const showHeader = showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")
   const effectiveDiffLineMetricProviders = useMemo(() => {
-    const providers = [...cognitiveReviewRiskMetricProviders(reviewAnnotationCounts, t), ...(diffLineMetricProviders ?? [])]
+    const providers = diffLineMetricProvidersForReview(reviewAnnotationCounts, t, diffLineMetricProviders)
     if (activeDiffLineMetricProviderId === "off") return []
     if (activeDiffLineMetricProviderId) return providers.filter((provider) => provider.id === activeDiffLineMetricProviderId)
     return providers
@@ -2082,6 +2082,14 @@ function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
 function metricsForLine(providers: DiffLineMetricProvider[], context: DiffLineMetricContext) {
   if (!isDiffCodeLine(context.line.kind)) return []
   return providers.map((provider) => provider.metricForLine(context)).filter((metric): metric is DiffLineMetric => Boolean(metric))
+}
+
+export function diffLineMetricProvidersForReview(
+  counts: DiffReviewAnnotationCount[] | null | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  providers: DiffLineMetricProvider[] | null | undefined = []
+) {
+  return [...cognitiveReviewRiskMetricProviders(counts, t), ...(providers ?? [])]
 }
 
 function cognitiveReviewRiskMetricProviders(

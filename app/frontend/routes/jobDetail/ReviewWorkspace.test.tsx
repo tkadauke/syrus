@@ -6,6 +6,7 @@ import * as performanceMarkers from "../../lib/performanceMarkers"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ShortcutsHelpModal } from "../../components/ShortcutsHelpModal"
 import { ShortcutsProvider } from "../../contexts/ShortcutsContext"
+import type { DiffLineMetricProvider } from "../../components/diff/ReviewableDiff"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 
 stubVirtualizerMeasurements()
@@ -72,16 +73,23 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function renderWorkspace(payload = jobPayload()) {
+function renderWorkspace(payload = jobPayload(), options: { diffLineMetricProviders?: DiffLineMetricProvider[] } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const result = render(
     <ShortcutsProvider>
       <QueryClientProvider client={client}>
-        <ReviewWorkspace payload={payload} />
+        <ReviewWorkspace diffLineMetricProviders={options.diffLineMetricProviders} payload={payload} />
       </QueryClientProvider>
     </ShortcutsProvider>
   )
   return { client, ...result }
+}
+
+const coverageMetricProvider: DiffLineMetricProvider = {
+  id: "coverage.pr",
+  label: "PR coverage",
+  metricForLine: ({ line }) =>
+    line.kind === "add" ? { id: "coverage.pr", label: "PR coverage", tone: "warning", title: `Coverage pending on ${line.newLine}` } : null
 }
 
 describe("ReviewWorkspace", () => {
@@ -357,6 +365,21 @@ describe("ReviewWorkspace", () => {
     expect(screen.getAllByTestId("diff-metric-gutter-cell").length).toBeGreaterThan(0)
   })
 
+  it("shows future metric providers in the same selector", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace(jobPayload(), { diffLineMetricProviders: [coverageMetricProvider] })
+
+    await screen.findByText("Implementation review")
+    const selector = screen.getByLabelText("Metric gutter")
+    const row = screen.getByText("new").closest("tr") as HTMLElement
+
+    expect(selector).toHaveValue("coverage.pr")
+    expect(within(selector).getByRole("option", { name: "PR coverage" })).toBeInTheDocument()
+    expect(within(row).getByTitle("Coverage pending on 1")).toHaveAttribute("data-diff-metric-id", "coverage.pr")
+  })
+
   it("hides the metric gutter when disabled from the selector", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
       ok: true,
@@ -389,24 +412,28 @@ describe("ReviewWorkspace", () => {
   })
 
   it("toggles the selected metric gutter with a keyboard shortcut and lists it in help", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue({
-      ok: true,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        review_diff_settings: {
-          ...DEFAULT_REVIEW_DIFF_SETTINGS,
-          metric_gutter: "off"
-        }
-      })
-    } as Response)
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCognitiveReviewRisk())
+    vi.spyOn(window, "fetch").mockImplementation(async (_url, init) => {
+      const parsed = JSON.parse(String((init as RequestInit).body))
+      return {
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          review_diff_settings: {
+            ...DEFAULT_REVIEW_DIFF_SETTINGS,
+            ...parsed.review_diff_settings
+          }
+        })
+      } as Response
+    })
+    vi.mocked(fetchReviewDiffSettings).mockResolvedValue({ review_diff_settings: { ...DEFAULT_REVIEW_DIFF_SETTINGS, metric_gutter: "coverage.pr" } })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     function Harness({ helpOpen }: { helpOpen: boolean }) {
       return (
         <ShortcutsProvider>
           <QueryClientProvider client={client}>
-            <ReviewWorkspace payload={jobPayload()} />
+            <ReviewWorkspace diffLineMetricProviders={[coverageMetricProvider]} payload={jobPayload()} />
             <ShortcutsHelpModal onClose={() => {}} open={helpOpen} />
           </QueryClientProvider>
         </ShortcutsProvider>
@@ -417,9 +444,15 @@ describe("ReviewWorkspace", () => {
     const { rerender } = render(<Harness helpOpen={false} />)
 
     await screen.findByText("Implementation review")
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Coverage pending on 1")).toBeInTheDocument()
+
     fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "G" })
 
     await waitFor(() => expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument())
+
+    fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "G" })
+
+    await waitFor(() => expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Coverage pending on 1")).toBeInTheDocument())
 
     rerender(<Harness helpOpen />)
 
