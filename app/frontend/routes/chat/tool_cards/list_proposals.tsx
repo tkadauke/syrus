@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { EmptyState, StatePill } from "../toolCardUi"
+import { EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { parseProposalOutcome, type ProposalOutcome } from "../proposalToolCard"
 
 // Core-owned tool card for list_proposals (the pending-action tool-card work).
@@ -38,7 +38,7 @@ function renderExpanded(context: ToolCardContext) {
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((proposal) => (
             <tr key={proposal.slug}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">{proposal.slug}</td>
+              <td className="whitespace-nowrap px-2 py-1"><EntityReference kind="proposal" slug={proposal.slug} /></td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{proposal.kind}</td>
               <td className="whitespace-nowrap px-2 py-1"><StatePill state={proposal.state} /></td>
               <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>{proposal.title || "—"}</td>

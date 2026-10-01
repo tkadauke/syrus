@@ -1,11 +1,11 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_epic (the Tier 1 tool-card work). Shows the
 // canonical EPIC id, title, state, repository, dependency badges, and the
 // child Job chain/progress.
-type DependencyBadge = { key: string; label: string; state: string | null }
-type ChildJobRow = { key: string; jobId: string; title: string; state: string }
+type DependencyBadge = { key: string; id: string; label: string; state: string | null }
+type ChildJobRow = { key: string; id: string; jobId: string; title: string; state: string }
 
 type EpicCard = {
   id: string
@@ -25,7 +25,7 @@ function epicDependencyBadges(value: unknown): DependencyBadge[] {
     if (!isPlainObject(item)) return []
     const id = displayValue(item.id)
     if (!id) return []
-    return [{ key: id, label: displayValue(item.display_number) || `EPIC-${id}`, state: displayValue(item.state) }]
+    return [{ key: id, id, label: displayValue(item.display_number) || `EPIC-${id}`, state: displayValue(item.state) }]
   })
 }
 
@@ -37,7 +37,7 @@ function childJobRows(value: unknown): ChildJobRow[] {
     const id = displayValue(item.id)
     const state = displayValue(item.state)
     if (!id || !state) return []
-    return [{ key: id, jobId: `JOB-${id}`, title: displayValue(item.issue_title) || `JOB-${id}`, state }]
+    return [{ key: id, id, jobId: `JOB-${id}`, title: displayValue(item.issue_title) || `JOB-${id}`, state }]
   })
 }
 
@@ -81,7 +81,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{epic.displayNumber}</span>
+        <EntityReference id={epic.id} kind="epic" label={epic.displayNumber} slug={epic.displayNumber} />
         <StatePill state={epic.state} />
         {epic.repository ? <Badge>{epic.repository}</Badge> : null}
       </div>
@@ -104,7 +104,7 @@ function renderExpanded(context: ToolCardContext) {
                   className={`rounded-full px-2 py-0.5 text-2xs ${isDoneState(job.state) ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
                   title={job.title}
                 >
-                  {job.jobId}
+                  <EntityReference id={job.id} kind="job" />
                 </span>
                 {index < epic.childJobs.length - 1 ? <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">→</span> : null}
               </li>
@@ -123,7 +123,7 @@ function DependencyGroup({ label, badges }: { label: string; badges: DependencyB
       <div className="mt-1 flex flex-wrap gap-1">
         {badges.map((badge) => (
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs text-gray-600 dark:bg-gray-800 dark:text-gray-300" key={badge.key}>
-            {badge.label}{badge.state ? ` · ${badge.state}` : ""}
+            <EntityReference id={badge.id} kind="epic" label={badge.label} slug={badge.label} />{badge.state ? ` · ${badge.state}` : ""}
           </span>
         ))}
       </div>

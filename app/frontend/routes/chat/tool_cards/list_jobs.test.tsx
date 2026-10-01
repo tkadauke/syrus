@@ -34,11 +34,12 @@ describe("list_jobs tool card", () => {
     render(<>{listJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4049")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "PR #12" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/12")
+    expect(screen.getByRole("link", { name: "JOB-4049" })).toHaveAttribute("href", "/jobs/4049")
     expect(screen.getByText("Fix bug")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Copy tkadauke/syrus to clipboard" })).toHaveLength(2)
   })
 
   it("renders a friendly empty state for a well-formed empty list", () => {

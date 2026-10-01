@@ -35,6 +35,8 @@ describe("read_epic tool card", () => {
     expect(screen.getByText("Tier 1 Custom Tool Cards")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "the Tier 1 tool-card work" })).toHaveAttribute("href", "/epics/291")
+    expect(screen.getByRole("button", { name: "Copy the Tier 1 tool-card work to clipboard" })).toBeInTheDocument()
   })
 
   it("renders dependency badges for depends-on and dependent Epics", () => {
@@ -53,9 +55,11 @@ describe("read_epic tool card", () => {
     render(<>{readEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Depends on")).toBeInTheDocument()
-    expect(screen.getByText("EPIC-58 · merged")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-58" })).toHaveAttribute("href", "/epics/288")
+    expect(screen.getByText(/merged/)).toBeInTheDocument()
     expect(screen.getByText("Dependents")).toBeInTheDocument()
-    expect(screen.getByText("EPIC-70 · pending")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-70" })).toHaveAttribute("href", "/epics/300")
+    expect(screen.getByText(/pending/)).toBeInTheDocument()
   })
 
   it("renders the child Job chain with a done/total progress count", () => {
@@ -70,8 +74,8 @@ describe("read_epic tool card", () => {
     render(<>{readEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Child Jobs (1/2)")).toBeInTheDocument()
-    expect(screen.getByText("JOB-319")).toBeInTheDocument()
-    expect(screen.getByText("JOB-320")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-319" })).toHaveAttribute("href", "/jobs/319")
+    expect(screen.getByRole("link", { name: "JOB-320" })).toHaveAttribute("href", "/jobs/320")
   })
 
   it("omits optional sections when fields are missing", () => {

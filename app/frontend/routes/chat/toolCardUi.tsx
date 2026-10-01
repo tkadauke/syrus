@@ -163,17 +163,17 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     const jobId = compactEntityValue(reference.jobId)
     const workflowId = compactEntityValue(reference.workflowId)
     return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
-  } },
+  }, copyValue: slugCopyValue },
   workflow: { label: (reference) => prefixedEntityLabel("WF", reference.id), href: (reference) => {
     const id = compactEntityValue(reference.id)
     const jobId = compactEntityValue(reference.jobId)
     return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
-  } },
+  }, copyValue: slugCopyValue },
   pull_request: { label: (reference) => {
     const id = compactEntityValue(reference.id)
     return id ? `PR #${id}` : null
   }, href: (reference) => displayValue(reference.prUrl) },
-  artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref },
+  artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
 }

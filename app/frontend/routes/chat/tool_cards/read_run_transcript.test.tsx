@@ -39,7 +39,7 @@ describe("read_run_transcript tool card", () => {
 
     render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("RUN-9")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy RUN-9 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("succeeded")).toBeInTheDocument()
     expect(screen.getByText("success")).toBeInTheDocument()
     expect(screen.getByText("changed the code")).toBeInTheDocument()

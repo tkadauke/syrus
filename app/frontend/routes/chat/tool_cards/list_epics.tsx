@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { EntityReference } from "../toolCardUi"
 
 // Core-owned tool card for list_epics (the Tier 1 tool-card work). Renders results
 // as a dense table optimized for scanning, mirroring the list_jobs card.
@@ -98,7 +99,7 @@ function renderExpanded(context: ToolCardContext) {
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.key}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">{row.epicId}</td>
+              <td className="whitespace-nowrap px-2 py-1"><EntityReference id={row.key} kind="epic" /></td>
               <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>
                 {row.title}
               </td>
