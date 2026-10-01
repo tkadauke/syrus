@@ -9,9 +9,9 @@ RSpec.describe CognitiveReview::McpToolSet do
     Syrus::PluginRegistry.clear_plugin_record_cache!
   end
 
-  it "exposes submit_cognitive_review_notes to post-implementation review runs" do
+  it "exposes submit_review_notes to post-implementation review runs" do
     expect(described_class.available_for_context?(context)).to be(true)
-    expect(described_class.tool_definitions(context: context).pluck(:name)).to eq([ "submit_cognitive_review_notes" ])
+    expect(described_class.tool_definitions(context: context).pluck(:name)).to eq([ "submit_review_notes" ])
   end
 
   it "withholds the tool from ordinary implementation runs" do
@@ -31,7 +31,7 @@ RSpec.describe CognitiveReview::McpToolSet do
     )
 
     response = described_class.new.handle(
-      "submit_cognitive_review_notes",
+      "submit_review_notes",
       {
         notes: [
           {
@@ -94,14 +94,14 @@ RSpec.describe CognitiveReview::McpToolSet do
       ]
     }
 
-    2.times { described_class.new.handle("submit_cognitive_review_notes", params, { run: run }) }
+    2.times { described_class.new.handle("submit_review_notes", params, { run: run }) }
 
     expect(CognitiveReview::Note.where(run: run).count).to eq(1)
     expect(CognitiveReview::Note.last).to have_attributes(explanation: "Initial explanation.", priority: "high")
   end
 
   it "accepts an empty no-debt submission without requiring a diff version" do
-    response = described_class.new.handle("submit_cognitive_review_notes", { notes: [] }, { run: run })
+    response = described_class.new.handle("submit_review_notes", { notes: [] }, { run: run })
 
     expect(response).not_to be_error
     expect(CognitiveReview::Note.where(run: run)).to be_empty
@@ -118,7 +118,7 @@ RSpec.describe CognitiveReview::McpToolSet do
     )
 
     response = described_class.new.handle(
-      "submit_cognitive_review_notes",
+      "submit_review_notes",
       {
         notes: [
           {
@@ -139,7 +139,7 @@ RSpec.describe CognitiveReview::McpToolSet do
 
   it "returns a structured validation error for non-object note entries" do
     response = described_class.new.handle(
-      "submit_cognitive_review_notes",
+      "submit_review_notes",
       { notes: [ "not an object" ] },
       { run: run }
     )

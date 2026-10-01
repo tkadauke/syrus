@@ -5,7 +5,7 @@ module CognitiveReview
     include Syrus::Plugin::McpToolSet
 
     TOOL_CLASSES = [
-      Tools::SubmitCognitiveReviewNotesTool
+      Tools::SubmitReviewNotesTool
     ].freeze
 
     def self.available_for?(_repository) = CognitiveReview.enabled?
@@ -28,10 +28,10 @@ module CognitiveReview
 
     def handle(tool_name, params, server_context)
       context = McpToolContext.from_server_context(server_context)
-      return Mcp::Tools.unauthorized("Cognitive review tools are only available to post-implementation review runs") unless self.class.available_for_context?(context)
+      return Mcp::Tools.unauthorized("Review-note tools are only available to post-implementation review runs") unless self.class.available_for_context?(context)
 
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
-      return Mcp::Tools.invalid("Unknown Cognitive Review tool: #{tool_name.inspect}") unless klass
+      return Mcp::Tools.invalid("Unknown review-note tool: #{tool_name.inspect}") unless klass
 
       klass.call(**self.class.symbolize(params), server_context: server_context)
     rescue StandardError => e

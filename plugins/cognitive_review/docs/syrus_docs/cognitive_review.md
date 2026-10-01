@@ -1,20 +1,19 @@
-# Cognitive Review
+# Review Notes
 
-Cognitive Review is a bundled, disabled-by-default plugin that owns review-note
-generation for changed diff ranges.
+Review Notes is a bundled, disabled-by-default plugin that owns agent-authored
+review guidance for changed diff ranges.
 
 When enabled, the plugin contributes three providers:
 
 - `post_implementation_review_provider` appends the generic best-effort
   post-implementation review step to implementation-style workflows.
-- `mcp_tool_set` exposes `submit_cognitive_review_notes` only to that review
+- `mcp_tool_set` exposes `submit_review_notes` only to that review
   step.
 - `diff_review_annotation_provider` projects submitted notes into the Job
   review tab.
 
 Disabling the plugin hides the workflow provider, MCP tool set, and review-tab
-annotations. It does not delete cognitive review note rows that were already
-submitted.
+annotations. It does not delete review-note rows that were already submitted.
 
 ## Operator Behavior
 
@@ -25,7 +24,7 @@ ranges that deserve operator attention: risky behavior, subtle coupling,
 missing verification, migration or data concerns, or other attention debt.
 
 If there are no such ranges, the agent must still call
-`submit_cognitive_review_notes` with an empty `notes` array. The host step is
+`submit_review_notes` with an empty `notes` array. The host step is
 best-effort: provider or agent failures are logged but do not fail the parent
 workflow.
 
@@ -35,7 +34,7 @@ path plus an old-side or new-side range; the initial version prioritizes
 changed new-code ranges. Repeated submissions from the same review Run are
 idempotent for the same diff version and range/title/reason-code identity.
 
-Open notes count as unresolved PR-level cognitive review debt. Acknowledging a
+Open notes count as unresolved PR-level review attention debt. Acknowledging a
 note or adding discussion marks it handled; unflagged changed lines do not
 create debt.
 
@@ -60,4 +59,4 @@ configuration key.
 
 Agent Memory is optional. When the Agent Memory plugin is enabled, its normal
 workflow context can inform the review pass. When memory is disabled or
-unavailable, Cognitive Review relies on the Job, repository, and diff context.
+unavailable, Review Notes relies on the Job, repository, and diff context.

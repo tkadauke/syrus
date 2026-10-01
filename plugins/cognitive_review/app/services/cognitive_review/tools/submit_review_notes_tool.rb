@@ -3,15 +3,15 @@ require "mcp"
 
 module CognitiveReview
   module Tools
-    class SubmitCognitiveReviewNotesTool < MCP::Tool
-      tool_name "submit_cognitive_review_notes"
+    class SubmitReviewNotesTool < MCP::Tool
+      tool_name "submit_review_notes"
 
       MAX_NOTES = 20
       MAX_TEXT_LENGTH = 1_000
 
       description <<~DESC
-        Submit cognitive review notes for changed diff ranges after an implementation workflow.
-        Each note should identify the file/range and explain why that range deserves operator attention.
+        Submit review notes for changed diff ranges after an implementation workflow.
+        Each note should read like concise review guidance and explain why that range is shaped the way it is.
         Submit an empty notes array when the diff has no attention-worthy ranges.
       DESC
 
@@ -48,13 +48,13 @@ module CognitiveReview
         def call(notes:, server_context:)
           run = Mcp::Tools.run_from_context(server_context)
           context = McpToolContext.from_run(run)
-          return Mcp::Tools.unauthorized("submit_cognitive_review_notes is only available to post-implementation review runs") unless CognitiveReview::McpToolSet.available_for_context?(context)
+          return Mcp::Tools.unauthorized("submit_review_notes is only available to post-implementation review runs") unless CognitiveReview::McpToolSet.available_for_context?(context)
 
           normalized = normalize_notes(notes)
           return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
           if normalized.empty?
-            Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: 0 note(s)")
-            return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 cognitive review note(s)." } ])
+            Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: 0 note(s)")
+            return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 review note(s)." } ])
           end
 
           version = DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: run.workflow_id)
@@ -67,13 +67,13 @@ module CognitiveReview
               attributes: note.merge("source_metadata" => source_metadata(run: run, version: version))
             )
           end
-          Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: #{saved_notes.size} note(s)")
+          Mcp::Tools.write_log(run, "[mcp] submit_review_notes received: #{saved_notes.size} note(s)")
 
-          MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} cognitive review note(s)." } ])
+          MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} review note(s)." } ])
         rescue ArgumentError, ActiveRecord::RecordInvalid => e
           Mcp::Tools.invalid(e.message)
         rescue StandardError => e
-          Rails.logger.error("[CognitiveReview::Tools::SubmitCognitiveReviewNotesTool] #{e.class}: #{e.message}")
+          Rails.logger.error("[CognitiveReview::Tools::SubmitReviewNotesTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
         end
 
