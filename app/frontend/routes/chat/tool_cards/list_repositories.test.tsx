@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listRepositoriesToolCard from "./list_repositories"
 
@@ -8,6 +8,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("list_repositories tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(listRepositoriesToolCard.toolName).toBe("list_repositories")
   })
@@ -38,7 +44,9 @@ describe("list_repositories tool card", () => {
 
     render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/1")
+    fireEvent.click(screen.getByRole("button", { name: "Copy tkadauke/syrus to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("tkadauke/syrus")
     expect(screen.getByText("main")).toBeInTheDocument()
     expect(screen.getByText("linear")).toBeInTheDocument()
     expect(screen.getByText("Page 2 of 2")).toBeInTheDocument()
