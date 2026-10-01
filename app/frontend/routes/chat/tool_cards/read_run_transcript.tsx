@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, FilterableList, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, Disclosure, EntityReference, FilterableList, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
 // Core-owned tool card for read_run_transcript (the Tier 1 tool-card work). Shows
@@ -74,7 +74,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">RUN-{run.runId}</span>
+        <EntityReference id={run.runId} kind="run" />
         <StatePill state={run.runState} />
         {run.agentOutcome ? <Badge>{run.agentOutcome}</Badge> : null}
       </div>

@@ -55,7 +55,7 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(payload[:job]).to include(id: job.id, issue_number: 123, pr_number: 9, branch_name: "syrus/issue-123", agent_provider: "claude")
+    expect(payload[:job]).to include(id: job.id, repository_slug: repository.slug, issue_number: 123, pr_number: 9, branch_name: "syrus/issue-123", agent_provider: "claude")
     expect(payload[:job]).to include(commits_behind_base: nil)
     expect(payload[:job][:dependencies]).to contain_exactly(
       include(id: upstream.id, issue_title: "Survey the aqueduct"),

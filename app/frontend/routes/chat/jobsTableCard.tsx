@@ -1,6 +1,6 @@
 import { isPlainObject } from "@app/pluginToolCards"
 import { DataTable } from "../../components/ui"
-import { EmptyState, StatePill } from "./toolCardUi"
+import { EmptyState, EntityReference, StatePill } from "./toolCardUi"
 
 // Shared dense-table rendering for the list_jobs and search_jobs tool cards
 // (the Tier 1 tool-card work) — both tools return arrays of similarly-shaped Job
@@ -62,11 +62,11 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
       <DataTable.Body>
         {rows.map((row) => (
           <DataTable.Row key={row.key}>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono font-medium text-xs">{row.jobId}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs"><EntityReference id={row.key} kind="job" /></DataTable.Cell>
             <DataTable.Cell className="max-w-[16rem] truncate px-2 py-1 text-xs" title={row.title}>{row.title}</DataTable.Cell>
             <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs"><StatePill state={row.state} /></DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.repositorySlug || "—"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.prNumber ? `#${row.prNumber}` : "—"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.repositorySlug ? <EntityReference kind="repository" slug={row.repositorySlug} /> : "—"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.prNumber ? <EntityReference id={row.prNumber} kind="pull_request" prUrl={row.repositorySlug ? `https://github.com/${row.repositorySlug}/pull/${row.prNumber}` : null} /> : "—"}</DataTable.Cell>
             <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs capitalize">{row.priority || "—"}</DataTable.Cell>
           </DataTable.Row>
         ))}
