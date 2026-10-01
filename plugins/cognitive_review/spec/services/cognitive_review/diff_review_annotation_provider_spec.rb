@@ -134,7 +134,6 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload[:ranges]).to eq({})
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
   end
-
   it "counts user comments on covered note ranges as handled review-note debt" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
