@@ -167,7 +167,6 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
     note = CognitiveReview::Note.create!(
-    note = CognitiveReview::Note.create!(
       job: job,
       workflow: workflow,
       run: run,
