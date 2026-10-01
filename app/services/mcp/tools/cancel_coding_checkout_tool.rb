@@ -34,6 +34,13 @@ module Mcp::Tools
 
         repository = resolve_repository(chat_session, repository_id)
         return Mcp::Tools.invalid("repository not found or not accessible") unless repository
+        active_repository = active_repository_for(chat_session)
+        if active_repository && repository.id != active_repository.id
+          return Mcp::Tools.invalid(
+            "repository_id #{repository.id} does not match the active Coding Mode checkout repository " \
+            "#{active_repository.slug}. Cancel that active checkout by omitting repository_id or passing #{active_repository.id}."
+          )
+        end
 
         before = ChatWorkspace.coding_reset_status(chat_session, repository)
         result = JobCodingMode::CancelTakeover.call(chat_session: chat_session, repository: repository)
@@ -62,6 +69,11 @@ module Mcp::Tools
         else
           chat_session.repository
         end
+      end
+
+      def active_repository_for(chat_session)
+        linked_job = Job.where(linked_chat_id: chat_session.id, state: "coding").includes(:repository).first
+        linked_job&.repository || chat_session.repository
       end
 
       def released_job_payload(job)

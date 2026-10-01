@@ -76,17 +76,40 @@ RSpec.describe Mcp::Tools::CancelCodingCheckoutTool do
     expect(ChatWorkspace).to have_received(:coding_reset_status).with(chat_session, repository).twice
   end
 
-  it "accepts an explicit accessible repository_id" do
-    other_repo = Factories.repository(user: user)
+  it "accepts an explicit repository_id matching the active checkout repository" do
     allow(ChatWorkspace).to receive(:coding_reset_status).and_return({})
     allow(JobCodingMode::CancelTakeover).to receive(:call)
-      .with(chat_session: chat_session, repository: other_repo)
+      .with(chat_session: chat_session, repository: repository)
       .and_return(JobCodingMode::CancelTakeover::Result.new(job: nil, chat_session: chat_session))
+
+    response = call_tool(repository_id: repository.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(JobCodingMode::CancelTakeover).to have_received(:call).with(chat_session: chat_session, repository: repository)
+  end
+
+  it "rejects an explicit repository_id that does not match the linked coding Job repository" do
+    other_repo = Factories.repository(user: user)
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "coding",
+      branch_name: "syrus/job-42",
+      linked_chat_id: chat_session.id
+    )
+    allow(ChatWorkspace).to receive(:coding_reset_status)
+    allow(JobCodingMode::CancelTakeover).to receive(:call)
 
     response = call_tool(repository_id: other_repo.id)
 
-    expect(response.dig(:result, :isError)).to be_falsey
-    expect(JobCodingMode::CancelTakeover).to have_received(:call).with(chat_session: chat_session, repository: other_repo)
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("does not match the active Coding Mode checkout repository")
+    expect(response.dig(:result, :content, 0, :text)).to include(repository.slug)
+    expect(ChatWorkspace).not_to have_received(:coding_reset_status)
+    expect(JobCodingMode::CancelTakeover).not_to have_received(:call)
+    expect(chat_session.reload.coding_checkout_branch).to eq("syrus/job-42")
+    expect(job.reload).to be_coding
+    expect(job.linked_chat_id).to eq(chat_session.id)
   end
 
   it "returns an error when coding mode is disabled" do
