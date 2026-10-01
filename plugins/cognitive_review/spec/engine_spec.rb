@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe CognitiveReview::Engine do
   before do
-    PluginRecord.find_or_create_by!(name: "cognitive_review").update!(enabled: true, disableable: true)
+    PluginRecord.find_or_create_by!(name: "cognitive_review").update!(enabled: true, default_enabled: false, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
   end
 

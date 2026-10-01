@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_185514) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_011238) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -823,6 +823,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_185514) do
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
+  end
+
+  create_table "cognitive_review_discussion_entries", force: :cascade do |t|
+    t.integer "note_id", null: false
+    t.integer "user_id"
+    t.text "body", null: false
+    t.json "metadata", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["note_id", "created_at", "id"], name: "idx_cognitive_review_discussions_note_order"
+    t.index ["note_id"], name: "index_cognitive_review_discussion_entries_on_note_id"
+    t.index ["user_id"], name: "index_cognitive_review_discussion_entries_on_user_id"
+  end
+
+  create_table "cognitive_review_notes", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "run_id", null: false
+    t.integer "diff_review_version_id", null: false
+    t.integer "acknowledged_by_user_id"
+    t.integer "discussion_started_by_user_id"
+    t.integer "last_discussed_by_user_id"
+    t.string "path", null: false
+    t.string "side", null: false
+    t.integer "start_line", null: false
+    t.integer "end_line", null: false
+    t.integer "old_start_line"
+    t.integer "old_end_line"
+    t.integer "new_start_line"
+    t.integer "new_end_line"
+    t.string "title", null: false
+    t.string "summary"
+    t.text "explanation", null: false
+    t.json "reason_codes", null: false
+    t.decimal "confidence", precision: 5, scale: 4
+    t.string "priority", default: "medium", null: false
+    t.json "source_metadata", null: false
+    t.string "state", default: "open", null: false
+    t.string "idempotency_key", null: false
+    t.datetime "acknowledged_at"
+    t.datetime "discussion_started_at"
+    t.datetime "last_discussed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_user_id"], name: "index_cognitive_review_notes_on_acknowledged_by_user_id"
+    t.index ["diff_review_version_id"], name: "index_cognitive_review_notes_on_diff_review_version_id"
+    t.index ["discussion_started_by_user_id"], name: "index_cognitive_review_notes_on_discussion_started_by_user_id"
+    t.index ["job_id", "diff_review_version_id", "state", "path", "id"], name: "idx_cognitive_review_notes_job_version_state"
+    t.index ["job_id", "path", "side", "start_line", "end_line"], name: "idx_cognitive_review_notes_range"
+    t.index ["job_id"], name: "index_cognitive_review_notes_on_job_id"
+    t.index ["last_discussed_by_user_id"], name: "index_cognitive_review_notes_on_last_discussed_by_user_id"
+    t.index ["run_id", "diff_review_version_id", "idempotency_key"], name: "idx_cognitive_review_notes_idempotency", unique: true
+    t.index ["run_id"], name: "index_cognitive_review_notes_on_run_id"
+    t.index ["workflow_id"], name: "index_cognitive_review_notes_on_workflow_id"
   end
 
   create_table "command_spans", force: :cascade do |t|
