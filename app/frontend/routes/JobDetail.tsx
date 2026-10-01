@@ -111,6 +111,16 @@ import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 
+const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set([
+  "running",
+  "coding",
+  "implemented",
+  "approved",
+  "landing",
+  "closed",
+  "no_change_needed"
+])
+
 export function JobDetailRoute() {
   const { t } = useT("jobs")
   const params = useParams()
@@ -798,7 +808,7 @@ function SummaryTab({
   // required, but a payload without it crashes the whole Summary tab through
   // the route error boundary rather than just hiding one panel.
   const typedArtifacts = payload.typed_artifacts ?? []
-  const showUnsatisfiedDependencies = payload.job.state !== "landing" && payload.unsatisfied_dependencies.length > 0
+  const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
