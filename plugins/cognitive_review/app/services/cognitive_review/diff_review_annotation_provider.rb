@@ -66,6 +66,8 @@ module CognitiveReview
         ranges[path] << {
           id: "cognitive_review_note:#{note.id}",
           component: "cognitive_review/note_marker",
+          marker_component: "cognitive_review/note_marker",
+          inline_component: "cognitive_review/note_panel",
           path: path,
           side: note.side,
           start_line: note.start_line,

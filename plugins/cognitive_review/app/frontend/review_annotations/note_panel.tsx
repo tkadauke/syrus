@@ -27,6 +27,7 @@ type NotePanelProps = {
   notes?: CognitiveReviewNote[]
   total?: number
 }
+type NotePanelItemProps = NotePanelProps & Partial<CognitiveReviewNote>
 
 const VISIBLE_NOTE_LIMIT = 12
 const NOTE_CARD_CLASS = [
@@ -43,8 +44,8 @@ const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0
 
 export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotationComponentProps) {
   const { t } = useT("cognitive_review")
-  const props = (item.props ?? {}) as NotePanelProps
-  const notes = Array.isArray(props.notes) ? props.notes : []
+  const props = (item.props ?? {}) as NotePanelItemProps
+  const notes = Array.isArray(props.notes) ? props.notes : isCognitiveReviewNote(props) ? [props] : []
   const total = typeof props.total === "number" ? props.total : notes.length
   const hideHeader = props.hide_header === true
   const visibleNotes = notes.slice(0, VISIBLE_NOTE_LIMIT)
@@ -64,6 +65,10 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
       {hiddenCount > 0 ? <p className="text-xs text-text-muted">{t("panel.hidden_count", { count: hiddenCount })}</p> : null}
     </div>
   )
+}
+
+function isCognitiveReviewNote(props: NotePanelItemProps): props is CognitiveReviewNote {
+  return typeof props.note_id === "number" && typeof props.job_id === "number" && typeof props.path === "string"
 }
 
 function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {

@@ -178,6 +178,8 @@ describe("ReviewWorkspace", () => {
               {
                 id: "cognitive_review_note:7",
                 component: "cognitive_review/note_marker",
+                marker_component: "cognitive_review/note_marker",
+                inline_component: "cognitive_review/note_panel",
                 path: "app/models/user.rb",
                 side: "new",
                 start_line: 1,
@@ -235,14 +237,21 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     expect(await screen.findByText("Review Notes: 1")).toBeInTheDocument()
-    expect(await screen.findByText("Agent note")).toBeInTheDocument()
-    expect(screen.getByText("The provider flagged this range.")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(2)
+    })
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(within(viewer).getByText("Inspect this branch")).toBeInTheDocument()
+    expect(within(viewer).getByText("The provider flagged this range.")).toBeInTheDocument()
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
+    expect(within(sidebar).getByText("The provider flagged this range.")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
 
     expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
-    const noteCard = screen.getByText("Inspect this branch").closest("article")!
-    const rangeButton = screen.getByText("app/models/user.rb new lines 1-1")
+    const noteCard = within(sidebar).getByText("Inspect this branch").closest("article")!
+    const rangeButton = within(sidebar).getByText("app/models/user.rb new lines 1-1")
     const highlightedGutter = () => document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')
 
     fireEvent.mouseEnter(noteCard)
@@ -272,7 +281,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(rangeButton)
     expect(highlightedRow?.scrollIntoView).toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Acknowledge" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/cognitive_review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
@@ -1330,7 +1339,7 @@ describe("ReviewWorkspace", () => {
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
     expect(screen.queryByText("Latest review note")).not.toBeInTheDocument()
-    expect(screen.getByText("Historical review note")).toBeInTheDocument()
+    expect(screen.getAllByText("Historical review note").length).toBeGreaterThan(0)
     expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 

@@ -562,6 +562,35 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
   })
 
+  it("renders full review-note panels inline at the start of covered ranges", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationRanges={{
+          "app/models/run.rb": [
+            {
+              id: "note-1",
+              side: "new",
+              start_line: 5,
+              end_line: 6,
+              title: "Inspect changed range",
+              body: "This explanation should appear inside the diff body.",
+              marker_component: "missing/marker",
+              inline_component: "missing/panel"
+            }
+          ]
+        }}
+        selectedPath="app/models/run.rb"
+      />
+    )
+
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(within(viewer).getByText("Inspect changed range")).toBeInTheDocument()
+    expect(within(viewer).getByText("This explanation should appear inside the diff body.")).toBeInTheDocument()
+    expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+  })
+
   it("exposes typed line selections for optional comment callbacks", () => {
     const onCommentLine = vi.fn()
     render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
