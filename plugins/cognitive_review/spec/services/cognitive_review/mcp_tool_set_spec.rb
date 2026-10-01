@@ -67,6 +67,11 @@ RSpec.describe CognitiveReview::McpToolSet do
       "base_sha" => "base",
       "head_sha" => "head"
     )
+    artifact_entry = run.workflow.reload.artifact(CognitiveReview::Artifact::KEY).last
+    expect(artifact_entry).to include(
+      "diff_review_version_id" => version.id,
+      "notes" => [ include("path" => "app/models/job.rb") ]
+    )
   end
 
   it "submits notes idempotently for the current run and version" do
@@ -100,11 +105,32 @@ RSpec.describe CognitiveReview::McpToolSet do
     expect(CognitiveReview::Note.last).to have_attributes(explanation: "Initial explanation.", priority: "high")
   end
 
-  it "accepts an empty no-debt submission without requiring a diff version" do
+  it "stores an empty no-debt submission as durable evidence for the current diff version" do
+    version = DiffReviewVersions::Creator.call(
+      job: run.job,
+      workflow: run.workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
     response = described_class.new.handle("submit_cognitive_review_notes", { notes: [] }, { run: run })
 
     expect(response).not_to be_error
     expect(CognitiveReview::Note.where(run: run)).to be_empty
+    expect(run.workflow.reload.artifact(CognitiveReview::Artifact::KEY).last).to include(
+      "diff_review_version_id" => version.id,
+      "notes" => []
+    )
+  end
+
+  it "rejects an empty submission when no diff review version exists" do
+    response = described_class.new.handle("submit_cognitive_review_notes", { notes: [] }, { run: run })
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("No diff review version is available")
+    expect(run.workflow.reload.artifact(CognitiveReview::Artifact::KEY)).to be_nil
   end
 
   it "rejects malformed ranges without creating notes" do

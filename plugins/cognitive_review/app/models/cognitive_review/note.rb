@@ -5,7 +5,7 @@ module CognitiveReview
     self.table_name = "cognitive_review_notes"
 
     SIDES = %w[new old].freeze
-    STATES = %w[open acknowledged discussed].freeze
+    STATES = %w[open acknowledged discussed dismissed].freeze
     PRIORITIES = %w[low medium high].freeze
 
     belongs_to :job
@@ -48,6 +48,7 @@ module CognitiveReview
     scope :for_state, ->(state) { where(state: state) if state.present? }
     scope :open_debt, -> { where(state: "open") }
     scope :handled, -> { where(state: %w[acknowledged discussed]) }
+    scope :dismissed, -> { where(state: "dismissed") }
 
     def self.upsert_from_submission!(run:, diff_review_version:, attributes:)
       attrs = attributes.with_indifferent_access
@@ -122,7 +123,7 @@ module CognitiveReview
     end
 
     def open? = state == "open"
-    def handled? = state != "open"
+    def handled? = %w[acknowledged discussed].include?(state)
 
     private
 
