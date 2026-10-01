@@ -1,3 +1,4 @@
+require "digest"
 require "mcp"
 
 module CognitiveReview
@@ -27,11 +28,15 @@ module CognitiveReview
                 start_line: { type: "integer", minimum: 1 },
                 end_line: { type: "integer", minimum: 1 },
                 title: { type: "string", maxLength: 120 },
-                body: { type: "string", maxLength: MAX_TEXT_LENGTH },
-                category: { type: "string", maxLength: 80 },
-                confidence: { type: "number", minimum: 0.0, maximum: 1.0 }
+                summary: { type: "string", maxLength: 240 },
+                explanation: { type: "string", maxLength: MAX_TEXT_LENGTH },
+                body: { type: "string", maxLength: MAX_TEXT_LENGTH, description: "Deprecated alias for explanation." },
+                reason_codes: { type: "array", items: { type: "string", maxLength: 80 } },
+                category: { type: "string", maxLength: 80, description: "Deprecated alias appended to reason_codes." },
+                confidence: { type: "number", minimum: 0.0, maximum: 1.0 },
+                priority: { type: "string", enum: %w[low medium high] }
               },
-              required: %w[path side start_line title body]
+              required: %w[path side start_line title]
             },
             description: "Diff-range notes worth surfacing to the operator. Use [] when there are no notes."
           }
@@ -47,11 +52,26 @@ module CognitiveReview
 
           normalized = normalize_notes(notes)
           return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
+          if normalized.empty?
+            Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: 0 note(s)")
+            return MCP::Tool::Response.new([ { type: "text", text: "Saved 0 cognitive review note(s)." } ])
+          end
 
-          Artifact.append!(run: run, notes: normalized)
-          Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: #{normalized.size} note(s)")
+          version = DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: run.workflow_id)
+          return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
 
-          MCP::Tool::Response.new([ { type: "text", text: "Saved #{normalized.size} cognitive review note(s)." } ])
+          saved_notes = normalized.map do |note|
+            CognitiveReview::Note.upsert_from_submission!(
+              run: run,
+              diff_review_version: version,
+              attributes: note.merge("source_metadata" => source_metadata(run: run, version: version))
+            )
+          end
+          Mcp::Tools.write_log(run, "[mcp] submit_cognitive_review_notes received: #{saved_notes.size} note(s)")
+
+          MCP::Tool::Response.new([ { type: "text", text: "Saved #{saved_notes.size} cognitive review note(s)." } ])
+        rescue ArgumentError, ActiveRecord::RecordInvalid => e
+          Mcp::Tools.invalid(e.message)
         rescue StandardError => e
           Rails.logger.error("[CognitiveReview::Tools::SubmitCognitiveReviewNotesTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
@@ -69,31 +89,35 @@ module CognitiveReview
         end
 
         def normalize_note(note, index:)
+          raise ArgumentError, "notes[#{index}] must be an object" unless note.respond_to?(:to_h)
+
           attrs = note.to_h.with_indifferent_access
           path = text(attrs[:path])
           side = text(attrs[:side])
           start_line = positive_integer(attrs[:start_line])
           end_line = positive_integer(attrs[:end_line]) || start_line
           title = text(attrs[:title], max: 120)
-          body = text(attrs[:body], max: MAX_TEXT_LENGTH)
+          summary = text(attrs[:summary], max: 240)
+          explanation = text(attrs[:explanation].presence || attrs[:body], max: MAX_TEXT_LENGTH)
+          reason_codes = reason_codes(attrs)
 
           raise ArgumentError, "notes[#{index}].path is required" if path.blank?
           raise ArgumentError, "notes[#{index}].side must be new or old" unless %w[new old].include?(side)
           raise ArgumentError, "notes[#{index}].start_line must be positive" unless start_line
           raise ArgumentError, "notes[#{index}].title is required" if title.blank?
-          raise ArgumentError, "notes[#{index}].body is required" if body.blank?
+          raise ArgumentError, "notes[#{index}].explanation is required" if explanation.blank?
 
           {
-            "id" => "cognitive-review-#{index + 1}",
             "path" => path,
             "side" => side,
             "start_line" => [ start_line, end_line ].min,
             "end_line" => [ start_line, end_line ].max,
             "title" => title,
-            "body" => body,
-            "category" => text(attrs[:category], max: 80).presence,
+            "summary" => summary.presence,
+            "explanation" => explanation,
+            "reason_codes" => reason_codes,
             "confidence" => confidence(attrs[:confidence]),
-            "tone" => "warning"
+            "priority" => priority(attrs[:priority])
           }.compact
         end
 
@@ -112,6 +136,34 @@ module CognitiveReview
           return unless number
 
           number.clamp(0.0, 1.0)
+        end
+
+        def reason_codes(attrs)
+          values = Array(attrs[:reason_codes]).map { |value| text(value, max: 80) }
+          values << text(attrs[:category], max: 80) if attrs[:category].present?
+          values.reject(&:blank?).uniq
+        end
+
+        def priority(value)
+          normalized = text(value, max: 20)
+          return "medium" if normalized.blank?
+          return normalized if CognitiveReview::Note::PRIORITIES.include?(normalized)
+
+          raise ArgumentError, "priority must be low, medium, or high"
+        end
+
+        def source_metadata(run:, version:)
+          {
+            "run_id" => run.id,
+            "workflow_id" => run.workflow_id,
+            "job_id" => run.job_id,
+            "diff_review_version_id" => version.id,
+            "base_sha" => version.base_sha,
+            "head_sha" => version.head_sha,
+            "agent_provider" => run.agent_provider,
+            "model" => run.model,
+            "prompt_sha256" => Digest::SHA256.hexdigest(run.prompt.to_s)
+          }.compact
         end
       end
     end

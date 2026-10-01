@@ -13,7 +13,8 @@ When enabled, the plugin contributes three providers:
   review tab.
 
 Disabling the plugin hides the workflow provider, MCP tool set, and review-tab
-annotations. It does not delete notes already submitted into workflow artifacts.
+annotations. It does not delete cognitive review note rows that were already
+submitted.
 
 ## Operator Behavior
 
@@ -28,10 +29,34 @@ If there are no such ranges, the agent must still call
 best-effort: provider or agent failures are logged but do not fail the parent
 workflow.
 
+Submitted notes are durable plugin-owned records scoped to the Job, Workflow,
+Run, and DiffReviewVersion that produced them. A note anchors to a repository
+path plus an old-side or new-side range; the initial version prioritizes
+changed new-code ranges. Repeated submissions from the same review Run are
+idempotent for the same diff version and range/title/reason-code identity.
+
+Open notes count as unresolved PR-level cognitive review debt. Acknowledging a
+note or adding discussion marks it handled; unflagged changed lines do not
+create debt.
+
+## API
+
+When the plugin is enabled, these app API routes are available under the same
+Job permissions used by the review tab:
+
+- `GET /api/v1/app/jobs/:job_id/cognitive_review_notes`
+- `GET /api/v1/app/jobs/:job_id/cognitive_review_notes/:id`
+- `POST /api/v1/app/jobs/:job_id/cognitive_review_notes/:id/acknowledge`
+- `POST /api/v1/app/jobs/:job_id/cognitive_review_notes/:id/discussion_entries`
+
+Read-tier repository members can list and read notes. Acknowledgement and
+discussion require the Job owner, a write-tier repository member, or an admin.
+Disabled plugin routes return the standard `plugin_disabled` error.
+
 ## Configuration
 
 Enable or disable the plugin from Admin -> Plugins. There is no repository
-configuration key for the first scaffold.
+configuration key.
 
 Agent Memory is optional. When the Agent Memory plugin is enabled, its normal
 workflow context can inform the review pass. When memory is disabled or
