@@ -209,17 +209,23 @@ function BreakdownTable({
     )
   }
 
+  // Named landmark, same as the empty branch above. AdminEventLogTable takes no
+  // aria-label, so without this wrapper the breakdown loses its accessible name
+  // exactly when it has data -- "By Repository" was reachable as a region while
+  // empty and unreachable once populated.
   return (
-    <AdminEventLogTable
-      columns={breakdownColumns({ columns, entityLabel, prefix, t })}
-      defaultSort={{ column: "total_usd", direction: "desc" }}
-      getRowKey={(row) => row.id}
-      localSort
-      panel={{ summary: title }}
-      rows={rows}
-      storageKey={storageKey}
-      tableClassName="table-fixed"
-    />
+    <section aria-label={title}>
+      <AdminEventLogTable
+        columns={breakdownColumns({ columns, entityLabel, prefix, t })}
+        defaultSort={{ column: "total_usd", direction: "desc" }}
+        getRowKey={(row) => row.id}
+        localSort
+        panel={{ summary: title }}
+        rows={rows}
+        storageKey={storageKey}
+        tableClassName="table-fixed"
+      />
+    </section>
   )
 }
 
@@ -235,17 +241,20 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
     )
   }
 
+  // Named landmark, same as the empty branch above -- see BreakdownTable.
   return (
-    <AdminEventLogTable
-      columns={triggerColumns(t)}
-      defaultSort={{ column: "total_usd", direction: "desc" }}
-      getRowKey={(row) => row.trigger_kind}
-      localSort
-      panel={{ summary: t("by_trigger_kind") }}
-      rows={rows}
-      storageKey="syrus.spending.trigger_kinds.columns"
-      tableClassName="table-fixed"
-    />
+    <section aria-label={t("trigger_aria")}>
+      <AdminEventLogTable
+        columns={triggerColumns(t)}
+        defaultSort={{ column: "total_usd", direction: "desc" }}
+        getRowKey={(row) => row.trigger_kind}
+        localSort
+        panel={{ summary: t("by_trigger_kind") }}
+        rows={rows}
+        storageKey="syrus.spending.trigger_kinds.columns"
+        tableClassName="table-fixed"
+      />
+    </section>
   )
 }
 
@@ -260,17 +269,20 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
     )
   }
 
+  // Named landmark, same as the empty branch above -- see BreakdownTable.
   return (
-    <AdminEventLogTable
-      columns={topRunColumns({ prefix, t })}
-      defaultSort={{ column: "cost_usd", direction: "desc" }}
-      getRowKey={(run) => run.id}
-      localSort
-      panel={{ summary: t("top_runs") }}
-      rows={payload.top_runs}
-      storageKey="syrus.spending.top_runs.columns"
-      tableClassName="table-fixed"
-    />
+    <section aria-label={t("top_runs_aria")}>
+      <AdminEventLogTable
+        columns={topRunColumns({ prefix, t })}
+        defaultSort={{ column: "cost_usd", direction: "desc" }}
+        getRowKey={(run) => run.id}
+        localSort
+        panel={{ summary: t("top_runs") }}
+        rows={payload.top_runs}
+        storageKey="syrus.spending.top_runs.columns"
+        tableClassName="table-fixed"
+      />
+    </section>
   )
 }
 
