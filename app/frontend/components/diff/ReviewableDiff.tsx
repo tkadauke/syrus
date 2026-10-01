@@ -118,6 +118,7 @@ export type ReviewableDiffProps = {
   reviewAnnotations?: Record<string, Record<string, DiffReviewAnnotation[]>> | null
   reviewAnnotationCounts?: DiffReviewAnnotationCount[] | null
   reviewAnnotationRanges?: Record<string, DiffReviewAnnotationRange[]> | null
+  activeDiffLineMetricProviderId?: string | null
   diffLineMetricProviders?: DiffLineMetricProvider[] | null
   wordHighlighting?: boolean
 }
@@ -329,6 +330,7 @@ export function ReviewableDiff({
   reviewAnnotations,
   reviewAnnotationCounts,
   reviewAnnotationRanges,
+  activeDiffLineMetricProviderId,
   diffLineMetricProviders,
   scroll = "bounded",
   selectedPath,
@@ -379,10 +381,12 @@ export function ReviewableDiff({
   const visibleFiles = renderFiles.slice(0, visibleFileCount)
   const remainingFileCount = renderFiles.length - visibleFiles.length
   const showHeader = showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")
-  const effectiveDiffLineMetricProviders = useMemo(
-    () => [...cognitiveReviewRiskMetricProviders(reviewAnnotationCounts, t), ...(diffLineMetricProviders ?? [])],
-    [reviewAnnotationCounts, t, diffLineMetricProviders]
-  )
+  const effectiveDiffLineMetricProviders = useMemo(() => {
+    const providers = [...cognitiveReviewRiskMetricProviders(reviewAnnotationCounts, t), ...(diffLineMetricProviders ?? [])]
+    if (activeDiffLineMetricProviderId === "off") return []
+    if (activeDiffLineMetricProviderId) return providers.filter((provider) => provider.id === activeDiffLineMetricProviderId)
+    return providers
+  }, [activeDiffLineMetricProviderId, reviewAnnotationCounts, t, diffLineMetricProviders])
 
   function estimateSize(index: number) {
     const file = visibleFiles[index]
@@ -1583,7 +1587,10 @@ export function UnifiedDiffTable({
       <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
         <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
         <td className={`text-amber-700 dark:text-amber-300 ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-        <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
+        <td
+          className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`}
+          colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}
+        >
           {panel}
         </td>
       </tr>
@@ -2077,7 +2084,10 @@ function metricsForLine(providers: DiffLineMetricProvider[], context: DiffLineMe
   return providers.map((provider) => provider.metricForLine(context)).filter((metric): metric is DiffLineMetric => Boolean(metric))
 }
 
-function cognitiveReviewRiskMetricProviders(counts: DiffReviewAnnotationCount[] | null | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
+function cognitiveReviewRiskMetricProviders(
+  counts: DiffReviewAnnotationCount[] | null | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
   const hasCognitiveReviewDebtData = (counts ?? []).some((count) => String(count.id ?? "").startsWith("cognitive_review."))
   if (!hasCognitiveReviewDebtData) return []
 

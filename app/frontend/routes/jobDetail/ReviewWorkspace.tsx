@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
+import { Select } from "../../components/Select"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { TypedArtifact } from "../../api/artifacts"
 import { Markdown } from "../../lib/Markdown"
@@ -47,6 +48,11 @@ type ReviewAnnotationFocusDetail = {
   side?: "old" | "new"
 }
 
+type DiffMetricCandidate = {
+  id: string
+  label: string
+}
+
 const SURFACE = "job_review_workspace"
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
 const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
@@ -77,7 +83,6 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     staleTime: Infinity
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
-  useReviewDiffSettingsShortcuts(reviewSettings)
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
   // "paint" is a closer proxy for when the reviewer actually sees something.
@@ -157,6 +162,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     versions
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+  const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
+  const diffMetricCandidates = diffMetricCandidatesForReview(activeReviewAnnotations, t)
+  const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
+  const metricGutterMutation = useReviewDiffSettingsMutation(reviewSettings)
+  useReviewDiffSettingsShortcuts(reviewSettings)
 
   useEffect(() => {
     if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
@@ -291,56 +301,83 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
-  const activeReviewAnnotations = activeDiff.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
-
   return (
-    <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
-      <div className="min-w-0 space-y-4 lg:flex-1">
-        <Section.Root>
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <SectionHeading>{t("review_summary_title")}</SectionHeading>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
-              </div>
-              <Button
-                aria-label={t("review_settings_button")}
-                className="h-9 w-9 shrink-0"
-                onClick={() => setSettingsOpen(true)}
-                size="icon"
-                title={t("review_settings_button")}
-                variant="secondary"
-              >
-                <GearIcon />
-              </Button>
-            </div>
-            <div className="text-xs">
-              <DiffReviewVersionSelector
-                disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
-                onChange={selectVersion}
-                onRangeChange={selectRange}
-                selectedRange={selectedRange}
-                selectedVersionId={activeVersionId}
-                versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
-              />
-            </div>
-          </div>
-          {payload.summary ? (
-            <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
-          ) : (
-            <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
-          )}
-        </Section.Root>
-
-        <ReviewArtifactsPanel
-          payload={payload}
-          reviewArtifacts={reviewArtifacts}
-          selectedRange={selectedRange}
-          selectedVersion={selectedVersion}
-          versions={versions}
+    <>
+      {diffMetricCandidates.length > 0 ? (
+        <ReviewMetricGutterShortcut
+          activeMetricGutterId={activeMetricGutterId}
+          candidates={diffMetricCandidates}
+          onToggle={(metricGutter) => metricGutterMutation.mutate({ metric_gutter: metricGutter })}
         />
+      ) : null}
+      <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
+        <div className="min-w-0 space-y-4 lg:flex-1">
+          <Section.Root>
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SectionHeading>{t("review_summary_title")}</SectionHeading>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  {diffMetricCandidates.length > 0 ? (
+                    <label className="flex items-center gap-2 text-xs text-text-secondary">
+                      <span>{t("review_metric_gutter_label")}</span>
+                      <Select
+                        aria-label={t("review_metric_gutter_label")}
+                        className="min-w-40"
+                        fullWidth={false}
+                        onChange={(event) => metricGutterMutation.mutate({ metric_gutter: event.target.value })}
+                        value={activeMetricGutterId}
+                      >
+                        <option value="off">{t("review_metric_gutter_off")}</option>
+                        {diffMetricCandidates.map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>
+                            {candidate.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  ) : null}
+                  <Button
+                    aria-label={t("review_settings_button")}
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setSettingsOpen(true)}
+                    size="icon"
+                    title={t("review_settings_button")}
+                    variant="secondary"
+                  >
+                    <GearIcon />
+                  </Button>
+                </div>
+              </div>
+              <div className="text-xs">
+                <DiffReviewVersionSelector
+                  disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
+                  onChange={selectVersion}
+                  onRangeChange={selectRange}
+                  selectedRange={selectedRange}
+                  selectedVersionId={activeVersionId}
+                  versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
+                />
+              </div>
+            </div>
+            {payload.summary ? (
+              <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
+            ) : (
+              <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
+            )}
+          </Section.Root>
 
-        {/*
+          <ReviewArtifactsPanel
+            payload={payload}
+            reviewArtifacts={reviewArtifacts}
+            selectedRange={selectedRange}
+            selectedVersion={selectedVersion}
+            versions={versions}
+          />
+
+          {/*
           Not `overflow-hidden`: this diff viewer renders with `scroll="natural"`,
           so its file headers pin via `position: sticky` against the page itself.
           Any ancestor whose `overflow` isn't `visible` -- including `hidden` --
@@ -349,102 +386,104 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           `SURFACE_CLIP_ROUNDED_CLASS` clips the diff's square corners to the
           panel's rounded corners without that side effect.
         */}
-        <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
-          <ReviewableDiff
-            changedFilesPopup={reviewSettings.file_list}
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingDiscussError={feedback.discussComposingError}
-            composingDiscussPending={feedback.discussComposingPending}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            emptyState={
-              <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
-                {t("source_no_changed_files")}
-              </div>
-            }
-            fileCommentCounts={feedback.commentCounts}
-            files={activeDiff.files}
-            mode="continuous"
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={startComment}
-            onDeleteThread={feedback.onDeleteThread}
-            onDiscussComposing={feedback.onDiscussComposing}
-            onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onSelectFile={setSelectedPath}
-            onStartEditThread={feedback.onStartEditThread}
-            renderImageDiff={(file) => (
-              <ImageDiffThumbnails
-                baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
-                file={file}
-                headRef={activeDiff.head_sha ?? activeDiff.head_ref}
-                jobId={jobId}
-              />
-            )}
-            reviewSettings={reviewSettings}
-            reviewAnnotations={activeReviewAnnotations.annotations}
-            reviewAnnotationCounts={activeReviewAnnotations.counts}
-            reviewAnnotationRanges={activeReviewAnnotations.ranges}
-            scroll="natural"
-            selectedPath={selectedPath}
-            showFileHeaders
-            unavailableState={t("source_diff_not_available")}
-          />
-        </Section.Root>
-      </div>
-      {isDesktopSplit ? (
-        <ReviewCommentsSplitterHandle
-          collapsed={commentsSplitter.collapsed}
-          label={t("review_comments_splitter_label")}
-          maxWidth={REVIEW_COMMENTS_MAX_WIDTH}
-          onClick={() => {
-            commentsSplitter.toggleCollapsed()
-            setCommentsPeekOpen(false)
-          }}
-          onKeyDown={(event) => {
-            commentsSplitter.resizeWithKeyboard(event)
-            setCommentsPeekOpen(false)
-          }}
-          onMouseDown={commentsSplitter.beginResize}
-          valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
-        />
-      ) : null}
-      <div
-        className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
-        data-testid="review-comments-panel"
-        style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
-      >
-        {isDesktopSplit && commentsSplitter.collapsed ? null : <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />}
-      </div>
-      {isDesktopSplit && commentsSplitter.collapsed ? (
-        <ReviewCommentsCollapsedRail
-          label={t("review_comments_collapsed_aria")}
-          onMouseEnter={openCommentsPeek}
-          onMouseLeave={closeCommentsPeek}
-          summaries={feedback.versionSummaries}
-        />
-      ) : null}
-      {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
-        <div
-          className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
-          data-testid="review-comments-peek"
-          onMouseEnter={openCommentsPeek}
-          onMouseLeave={closeCommentsPeek}
-          style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
-        >
-          <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />
+          <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
+            <ReviewableDiff
+              changedFilesPopup={reviewSettings.file_list}
+              comments={feedback.diffThreads}
+              composingBody={feedback.composingBody}
+              composingDiscussError={feedback.discussComposingError}
+              composingDiscussPending={feedback.discussComposingPending}
+              composingError={feedback.composingError}
+              composingPending={feedback.composingPending}
+              composingSelection={feedback.composingSelection}
+              editingThreadBody={feedback.editingThreadBody}
+              editingThreadId={feedback.editingThreadId}
+              emptyState={
+                <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                  {t("source_no_changed_files")}
+                </div>
+              }
+              fileCommentCounts={feedback.commentCounts}
+              files={activeDiff.files}
+              mode="continuous"
+              onCancelComposing={feedback.onCancelComposing}
+              onCancelEditThread={feedback.onCancelEditThread}
+              onChangeComposingBody={feedback.onChangeComposingBody}
+              onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
+              onCommentLine={startComment}
+              onDeleteThread={feedback.onDeleteThread}
+              onDiscussComposing={feedback.onDiscussComposing}
+              onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
+              onSaveComposing={feedback.onSaveComposing}
+              onSaveEditThread={feedback.onSaveEditThread}
+              onSelectFile={setSelectedPath}
+              onStartEditThread={feedback.onStartEditThread}
+              renderImageDiff={(file) => (
+                <ImageDiffThumbnails
+                  baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
+                  file={file}
+                  headRef={activeDiff.head_sha ?? activeDiff.head_ref}
+                  jobId={jobId}
+                />
+              )}
+              reviewSettings={reviewSettings}
+              reviewAnnotations={activeReviewAnnotations.annotations}
+              reviewAnnotationCounts={activeReviewAnnotations.counts}
+              reviewAnnotationRanges={activeReviewAnnotations.ranges}
+              activeDiffLineMetricProviderId={activeMetricGutterId}
+              scroll="natural"
+              selectedPath={selectedPath}
+              showFileHeaders
+              unavailableState={t("source_diff_not_available")}
+            />
+          </Section.Root>
         </div>
-      ) : null}
-      {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
-    </div>
+        {isDesktopSplit ? (
+          <ReviewCommentsSplitterHandle
+            collapsed={commentsSplitter.collapsed}
+            label={t("review_comments_splitter_label")}
+            maxWidth={REVIEW_COMMENTS_MAX_WIDTH}
+            onClick={() => {
+              commentsSplitter.toggleCollapsed()
+              setCommentsPeekOpen(false)
+            }}
+            onKeyDown={(event) => {
+              commentsSplitter.resizeWithKeyboard(event)
+              setCommentsPeekOpen(false)
+            }}
+            onMouseDown={commentsSplitter.beginResize}
+            valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
+          />
+        ) : null}
+        <div
+          className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
+          data-testid="review-comments-panel"
+          style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
+        >
+          {isDesktopSplit && commentsSplitter.collapsed ? null : <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />}
+        </div>
+        {isDesktopSplit && commentsSplitter.collapsed ? (
+          <ReviewCommentsCollapsedRail
+            label={t("review_comments_collapsed_aria")}
+            onMouseEnter={openCommentsPeek}
+            onMouseLeave={closeCommentsPeek}
+            summaries={feedback.versionSummaries}
+          />
+        ) : null}
+        {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
+          <div
+            className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
+            data-testid="review-comments-peek"
+            onMouseEnter={openCommentsPeek}
+            onMouseLeave={closeCommentsPeek}
+            style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
+          >
+            <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />
+          </div>
+        ) : null}
+        {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
+      </div>
+    </>
   )
 }
 
@@ -626,11 +665,9 @@ function clearTimer(timerRef: { current: number | null }) {
 
 const REVIEW_SHORTCUT_GROUP_ORDER = 2
 
-function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
-  const { t } = useT("jobs")
+function useReviewDiffSettingsMutation(reviewSettings: ReviewDiffSettings) {
   const queryClient = useQueryClient()
-  const shortcutGroup = t("review_shortcuts_group")
-  const mutation = useMutation({
+  return useMutation({
     mutationFn: patchReviewDiffSettings,
     onMutate: async (patch: Partial<ReviewDiffSettings>) => {
       await queryClient.cancelQueries({ queryKey: ["review_diff_settings"] })
@@ -649,6 +686,12 @@ function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
       queryClient.setQueryData(["review_diff_settings"], payload)
     }
   })
+}
+
+function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
+  const { t } = useT("jobs")
+  const shortcutGroup = t("review_shortcuts_group")
+  const mutation = useReviewDiffSettingsMutation(reviewSettings)
 
   function updateSetting<Key extends keyof ReviewDiffSettings>(key: Key, value: ReviewDiffSettings[Key]) {
     mutation.mutate({ [key]: value } as Partial<ReviewDiffSettings>)
@@ -698,6 +741,46 @@ function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
       groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
     }
   )
+}
+
+function ReviewMetricGutterShortcut({
+  activeMetricGutterId,
+  candidates,
+  onToggle
+}: {
+  activeMetricGutterId: string
+  candidates: DiffMetricCandidate[]
+  onToggle: (metricGutter: string) => void
+}) {
+  const { t } = useT("jobs")
+  const shortcutGroup = t("review_shortcuts_group")
+  useOptionalShortcut(
+    "alt+shift+g",
+    () => {
+      onToggle(activeMetricGutterId === "off" ? candidates[0]!.id : "off")
+    },
+    {
+      description: t("review_shortcut_toggle_metric_gutter"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  return null
+}
+
+function diffMetricCandidatesForReview(
+  annotations: DiffReviewAnnotationsPayload,
+  t: (key: string, options?: Record<string, unknown>) => string
+): DiffMetricCandidate[] {
+  const hasCognitiveReviewDebtData = annotations.counts.some((count) => String(count.id ?? "").startsWith("cognitive_review."))
+  if (!hasCognitiveReviewDebtData) return []
+  return [{ id: "cognitive_review.risk", label: t("review_metric_cognitive_review_risk") }]
+}
+
+function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCandidate[]) {
+  if (configuredId === "off") return "off"
+  if (candidates.some((candidate) => candidate.id === configuredId)) return configuredId
+  return candidates[0]?.id ?? "off"
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
