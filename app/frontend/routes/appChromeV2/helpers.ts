@@ -199,7 +199,7 @@ export function sidebarLinkClass(active: boolean, collapsed = false) {
 }
 
 export function recentChatLinkClass(active: boolean) {
-  return `flex min-w-0 w-full items-start gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis"}`
+  return `flex min-w-0 w-full items-center gap-2 rounded px-2 py-1.5 text-xs ${active ? "bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-brand-emphasis"}`
 }
 
 export function adminSubnavLinkClass(active: boolean) {

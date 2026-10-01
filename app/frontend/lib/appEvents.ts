@@ -164,6 +164,15 @@ type NotificationReadPayload = {
   read_at?: string
 }
 
+function patchCachedChatRecord(
+  chat: ChatPayload["chat"],
+  patch: Partial<Pick<ChatRecord, "stop_requested_at" | "turn_retry_state">>
+) {
+  if (!chat) return chat
+
+  return { ...chat, ...patch }
+}
+
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   const sequenceOutcome = trackAppEventSequence(queryClient, event)
   if (sequenceOutcome === "duplicate") return
@@ -678,11 +687,10 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
           queued_messages: replaceTail.queued_messages ?? current.queued_messages,
           messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
-          chat: {
-            ...current.chat,
-            turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat.turn_retry_state,
-            stop_requested_at: replaceTail.stop_requested_at ?? current.chat.stop_requested_at
-          }
+          chat: patchCachedChatRecord(current.chat, {
+            turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
+            stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at
+          })
         }
       }
     )
@@ -700,11 +708,10 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
         agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
         turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
         queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
-        chat: {
-          ...current.chat,
-          turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat.turn_retry_state,
-          stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat.stop_requested_at
-        }
+        chat: patchCachedChatRecord(current.chat, {
+          turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat?.turn_retry_state,
+          stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat?.stop_requested_at
+        })
       } : current
     )
     scheduleChatDetailInvalidation(queryClient, ["chats", String(event.id)])
@@ -731,11 +738,10 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
           turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
           switching_provider: controls.switching_provider ?? current.switching_provider,
           queued_messages: controls.queued_messages ?? current.queued_messages,
-          chat: {
-            ...current.chat,
-            turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat.turn_retry_state,
+          chat: patchCachedChatRecord(current.chat, {
+            turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat?.turn_retry_state,
             stop_requested_at: controls.stop_requested_at
-          }
+          })
         }
       }
     )
