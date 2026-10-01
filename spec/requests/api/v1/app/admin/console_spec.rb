@@ -38,8 +38,10 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["settings"]).to include(
       "polling_paused" => true,
-      "runs_paused" => false
+      "runs_paused" => false,
+      "merge_train_enabled" => false
     )
+    expect(parse_body["settings"].keys).to match_array(AppSettingRegistry.admin_console_keys.map(&:to_s))
     expect(parse_body["users"].first).to include(
       "id" => admin.id,
       "email_address" => admin.email_address

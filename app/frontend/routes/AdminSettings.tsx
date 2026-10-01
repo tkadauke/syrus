@@ -114,27 +114,43 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
+  const [gradeMaxIterations, setGradeMaxIterations] = useState(String(payload.settings.grade_max_iterations))
+  const [adversarialReviewRounds, setAdversarialReviewRounds] = useState(String(payload.settings.adversarial_review_rounds))
+  const [maxJobFailures, setMaxJobFailures] = useState(String(payload.settings.max_job_failures))
+  const [mergeTrainMaxSize, setMergeTrainMaxSize] = useState(String(payload.settings.merge_train_max_size))
+  const [mainConcernReportThreshold, setMainConcernReportThreshold] = useState(String(payload.settings.main_concern_report_threshold))
+  const [mainBranchBreakagePolicy, setMainBranchBreakagePolicy] = useState<MainBranchBreakagePolicy>(payload.settings.main_branch_breakage_policy)
+  const [reportIssueRepoSlug, setReportIssueRepoSlug] = useState(payload.settings.report_issue_repo_slug)
   const [videoRetentionDays, setVideoRetentionDays] = useState(String(payload.settings.video_retention_days))
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
+  const [telegramBotHandle, setTelegramBotHandle] = useState(payload.settings.telegram_bot_handle ?? "")
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
   const [showWorkUnitDebug, setShowWorkUnitDebug] = useState(payload.settings.show_work_unit_debug)
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
-  const [mainBranchBreakagePolicy, setMainBranchBreakagePolicy] = useState<MainBranchBreakagePolicy>(payload.settings.main_branch_breakage_policy)
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
+  const [chatCodingWorkspaceBudgetMb, setChatCodingWorkspaceBudgetMb] = useState(String(payload.settings.chat_coding_workspace_budget_mb))
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
       signups_open: signupsOpen,
+      grade_max_iterations: Number(gradeMaxIterations),
+      adversarial_review_rounds: Number(adversarialReviewRounds),
+      max_job_failures: Number(maxJobFailures),
+      merge_train_max_size: Number(mergeTrainMaxSize),
+      main_concern_report_threshold: Number(mainConcernReportThreshold),
+      report_issue_repo_slug: reportIssueRepoSlug,
       video_retention_days: Number(videoRetentionDays),
       video_storage_budget_mb: Number(videoBudgetMb),
+      telegram_bot_handle: telegramBotHandle,
       max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
       proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
       show_work_unit_debug: showWorkUnitDebug,
       rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
       main_branch_breakage_policy: mainBranchBreakagePolicy,
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
-      workflow_admission_policy: workflowAdmissionPolicy
+      workflow_admission_policy: workflowAdmissionPolicy,
+      chat_coding_workspace_budget_mb: Number(chatCodingWorkspaceBudgetMb)
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -144,8 +160,15 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
   useEffect(() => {
     setSignupsOpen(payload.settings.signups_open)
+    setGradeMaxIterations(String(payload.settings.grade_max_iterations))
+    setAdversarialReviewRounds(String(payload.settings.adversarial_review_rounds))
+    setMaxJobFailures(String(payload.settings.max_job_failures))
+    setMergeTrainMaxSize(String(payload.settings.merge_train_max_size))
+    setMainConcernReportThreshold(String(payload.settings.main_concern_report_threshold))
+    setReportIssueRepoSlug(payload.settings.report_issue_repo_slug)
     setVideoRetentionDays(String(payload.settings.video_retention_days))
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
+    setTelegramBotHandle(payload.settings.telegram_bot_handle ?? "")
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
     setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
@@ -153,7 +176,8 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setMainBranchBreakagePolicy(payload.settings.main_branch_breakage_policy)
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.main_branch_breakage_policy, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy])
+    setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
+  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.main_branch_breakage_policy, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -174,6 +198,121 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         }
         onChange={(event) => setSignupsOpen(event.target.checked)}
       />
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-report-issue-repo">{t("settings.report_issue_repo_slug_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.report_issue_repo_slug_help")}</span>
+        <Input
+          className="mt-1 max-w-md"
+          id="admin-settings-report-issue-repo"
+          onChange={(event) => setReportIssueRepoSlug(event.target.value)}
+          value={reportIssueRepoSlug}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-handle">{t("settings.telegram_bot_handle_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.telegram_bot_handle_help")}</span>
+        <Input
+          className="mt-1 max-w-sm"
+          id="admin-settings-telegram-handle"
+          onChange={(event) => setTelegramBotHandle(event.target.value)}
+          value={telegramBotHandle}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-grade-max-iterations">{t("settings.grade_max_iterations_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.grade_max_iterations_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-grade-max-iterations"
+            max={10}
+            min={1}
+            onChange={(event) => setGradeMaxIterations(event.target.value)}
+            type="number"
+            value={gradeMaxIterations}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-adversarial-review-rounds">{t("settings.adversarial_review_rounds_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.adversarial_review_rounds_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-adversarial-review-rounds"
+            max={10}
+            min={0}
+            onChange={(event) => setAdversarialReviewRounds(event.target.value)}
+            type="number"
+            value={adversarialReviewRounds}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-job-failures">{t("settings.max_job_failures_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_job_failures_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-max-job-failures"
+            min={1}
+            onChange={(event) => setMaxJobFailures(event.target.value)}
+            type="number"
+            value={maxJobFailures}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-concern-report-threshold">{t("settings.main_concern_report_threshold_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.main_concern_report_threshold_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-main-concern-report-threshold"
+            min={1}
+            onChange={(event) => setMainConcernReportThreshold(event.target.value)}
+            type="number"
+            value={mainConcernReportThreshold}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-merge-train-max-size">{t("settings.merge_train_max_size_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.merge_train_max_size_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-merge-train-max-size"
+            min={1}
+            onChange={(event) => setMergeTrainMaxSize(event.target.value)}
+            type="number"
+            value={mergeTrainMaxSize}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-branch-breakage-policy">{t("settings.main_branch_breakage_policy_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.main_branch_breakage_policy_help")}</span>
+          <Select
+            className="mt-2"
+            fullWidth={false}
+            id="admin-settings-main-branch-breakage-policy"
+            onChange={(event) => setMainBranchBreakagePolicy(event.target.value as "strict" | "isolate_unrelated_failures")}
+            value={mainBranchBreakagePolicy}
+          >
+            <option value="strict">{t("settings.main_branch_breakage_policy_strict")}</option>
+            <option value="isolate_unrelated_failures">{t("settings.main_branch_breakage_policy_isolate_unrelated_failures")}</option>
+          </Select>
+        </div>
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">{t("settings.video_retention_label")}</label>
@@ -200,6 +339,20 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setVideoBudgetMb(event.target.value)}
           type="number"
           value={videoBudgetMb}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-chat-coding-workspace-budget">{t("settings.chat_coding_workspace_budget_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.chat_coding_workspace_budget_help")}</span>
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
+          id="admin-settings-chat-coding-workspace-budget"
+          min={0}
+          onChange={(event) => setChatCodingWorkspaceBudgetMb(event.target.value)}
+          type="number"
+          value={chatCodingWorkspaceBudgetMb}
         />
       </div>
 
@@ -255,21 +408,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           type="number"
           value={rebaseFailureCooldown}
         />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-branch-breakage-policy">{t("settings.main_branch_breakage_policy_label")}</label>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.main_branch_breakage_policy_help")}</span>
-        <Select
-          className="mt-2"
-          fullWidth={false}
-          id="admin-settings-main-branch-breakage-policy"
-          onChange={(event) => setMainBranchBreakagePolicy(event.target.value as MainBranchBreakagePolicy)}
-          value={mainBranchBreakagePolicy}
-        >
-          <option value="strict">{t("settings.main_branch_breakage_policy_strict")}</option>
-          <option value="isolate_unrelated_failures">{t("settings.main_branch_breakage_policy_isolate_unrelated_failures")}</option>
-        </Select>
       </div>
 
       <div className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}>
@@ -347,12 +485,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
   })
 
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
+    <section className="space-y-4 rounded border border-border bg-surface p-6">
       <SectionHeading>{t("settings.telegram_heading")}</SectionHeading>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
-      </div>
+      <div className="text-xs text-text-muted">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
 
       <div className="flex flex-wrap gap-2">
         <Input
@@ -371,8 +507,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
           {saveToken.isPending ? t("settings.saving") : t("settings.telegram_save_token")}
         </Button>
         {tokenSet && (
-          <button
-            className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
+          <Button
             disabled={clearToken.isPending}
             onClick={async () => {
               if (await confirm({ message: t("settings.telegram_token_clear_confirm"), destructive: true })) {
@@ -380,17 +515,17 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
                 clearToken.mutate()
               }
             }}
-            type="button"
+            variant="danger"
           >
             {clearToken.isPending ? t("settings.clearing") : t("settings.clear")}
-          </button>
+          </Button>
         )}
       </div>
 
       <PlatformPollingControl disabled={!tokenSet} label={t("settings.telegram_heading")} platform="telegram" />
 
-      {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
+      {saveToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
+      {clearToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
       {dialog}
     </section>
   )
@@ -423,12 +558,10 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
   })
 
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
+    <section className="space-y-4 rounded border border-border bg-surface p-6">
       <SectionHeading>{t("settings.discord_heading")}</SectionHeading>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
-      </div>
+      <div className="text-xs text-text-muted">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
 
       <div className="flex flex-wrap gap-2">
         <Input
@@ -447,8 +580,7 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
           {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
         </Button>
         {tokenSet && (
-          <button
-            className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
+          <Button
             disabled={clearToken.isPending}
             onClick={async () => {
               if (await confirm({ message: t("settings.discord_token_clear_confirm"), destructive: true })) {
@@ -456,17 +588,17 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
                 clearToken.mutate()
               }
             }}
-            type="button"
+            variant="danger"
           >
             {clearToken.isPending ? t("settings.clearing") : t("settings.clear")}
-          </button>
+          </Button>
         )}
       </div>
 
       <PlatformPollingControl disabled={!tokenSet} label={t("settings.discord_heading")} platform="discord" />
 
-      {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
+      {saveToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
+      {clearToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
       {dialog}
     </section>
   )
@@ -495,17 +627,16 @@ function PlatformPollingControl({ platform, label, disabled }: { platform: strin
 
   return (
     <div className="space-y-1">
-      <button
-        className="rounded bg-gray-100 dark:bg-gray-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+      <Button
         disabled={startPolling.isPending || disabled}
         onClick={() => startPolling.mutate()}
-        type="button"
+        variant="secondary"
       >
         {startPolling.isPending ? t("settings.polling_starting") : t("settings.polling_start")}
-      </button>
+      </Button>
 
-      {statusMessage ? <p className="text-xs text-gray-500 dark:text-gray-400">{statusMessage}</p> : null}
-      {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.polling_error", { platform: label })}</p> : null}
+      {statusMessage ? <p className="text-xs text-text-muted">{statusMessage}</p> : null}
+      {startPolling.isError ? <p className="text-xs text-danger" role="alert">{t("settings.polling_error", { platform: label })}</p> : null}
     </div>
   )
 }
@@ -516,5 +647,5 @@ function SettingsError({ error }: { error: Error }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-text-secondary"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-danger" : "text-text-secondary"}`}>{children}</div>
 }
