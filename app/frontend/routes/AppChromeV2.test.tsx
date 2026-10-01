@@ -2360,7 +2360,7 @@ describe("chat row mode icons", () => {
     expect(screen.queryByTestId("mode-icon-local")).not.toBeInTheDocument()
   })
 
-  it("wraps status dots in a group-hover:hidden container so they hide when the action menu appears", async () => {
+  it("keeps status dots in a reserved slot that becomes invisible when the action menu appears", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
       groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
@@ -2370,7 +2370,9 @@ describe("chat row mode icons", () => {
 
     await screen.findByText("Active chat")
     const activityMarker = screen.getByTitle("Chat turn active")
-    expect(activityMarker.parentElement?.className).toContain("group-hover:hidden")
+    const markerSlot = activityMarker.closest("[data-testid='recent-chat-marker-slot']")
+    expect(markerSlot).toHaveClass("h-6", "min-w-6", "group-hover/recent-chat:invisible")
+    expect(markerSlot).not.toHaveClass("hidden")
   })
 })
 
