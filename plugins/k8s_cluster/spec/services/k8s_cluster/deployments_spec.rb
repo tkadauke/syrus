@@ -10,8 +10,13 @@ RSpec.describe K8sCluster::Deployments do
   def deployment(name: "web")
     {
       "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
-      "spec" => { "replicas" => 3 },
-      "status" => { "readyReplicas" => 2, "availableReplicas" => 2, "updatedReplicas" => 3 }
+      "spec" => { "replicas" => 3, "selector" => { "matchLabels" => { "app" => "web" } } },
+      "status" => {
+        "readyReplicas" => 2,
+        "availableReplicas" => 2,
+        "updatedReplicas" => 3,
+        "conditions" => [ { "type" => "Available", "status" => "False", "reason" => "MinimumReplicasUnavailable", "lastTransitionTime" => "2026-01-01T00:05:00Z" } ]
+      }
     }
   end
 
@@ -27,6 +32,10 @@ RSpec.describe K8sCluster::Deployments do
       expect(row[:replicas]).to eq(3)
       expect(row[:ready_replicas]).to eq(2)
       expect(row[:updated_replicas]).to eq(3)
+      expect(row[:selector]).to eq("app" => "web")
+      expect(row[:conditions]).to eq([
+        { type: "Available", status: "False", reason: "MinimumReplicasUnavailable", last_transition_time: "2026-01-01T00:05:00Z" }
+      ])
     end
 
     it "lists across all namespaces when none is given" do

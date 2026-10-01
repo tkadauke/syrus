@@ -10,8 +10,13 @@ RSpec.describe K8sCluster::StatefulSets do
   def stateful_set(name: "db")
     {
       "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
-      "spec" => { "replicas" => 3 },
-      "status" => { "readyReplicas" => 2, "currentReplicas" => 2, "updatedReplicas" => 3 }
+      "spec" => { "replicas" => 3, "selector" => { "matchLabels" => { "app" => "db" } } },
+      "status" => {
+        "readyReplicas" => 2,
+        "currentReplicas" => 2,
+        "updatedReplicas" => 3,
+        "conditions" => [ { "type" => "Ready", "status" => "False", "reason" => "PodsNotReady", "lastTransitionTime" => "2026-01-01T00:05:00Z" } ]
+      }
     }
   end
 
@@ -27,6 +32,10 @@ RSpec.describe K8sCluster::StatefulSets do
       expect(row[:ready_replicas]).to eq(2)
       expect(row[:current_replicas]).to eq(2)
       expect(row[:updated_replicas]).to eq(3)
+      expect(row[:selector]).to eq("app" => "db")
+      expect(row[:conditions]).to eq([
+        { type: "Ready", status: "False", reason: "PodsNotReady", last_transition_time: "2026-01-01T00:05:00Z" }
+      ])
     end
 
     it "lists across all namespaces when none is given" do

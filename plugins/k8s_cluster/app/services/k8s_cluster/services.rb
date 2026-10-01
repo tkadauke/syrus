@@ -7,12 +7,13 @@ module K8sCluster
     def list(namespace: nil)
       with_client(api_client.core) do |client|
         items = client.get_services(namespace_scope(namespace)).fetch("items", [])
+        endpoints_by_key = endpoints_by_key(client, namespace: namespace)
 
         {
           available: true,
           generated_at: Time.current.iso8601,
           truncated: items.length > MAX_SERVICES,
-          services: items.first(MAX_SERVICES).map { |item| summary(item) }
+          services: items.first(MAX_SERVICES).map { |item| summary(item, endpoints_by_key) }
         }
       end
     end
@@ -25,7 +26,12 @@ module K8sCluster
 
     private
 
-    def summary(item)
+    def summary(item, endpoints_by_key)
+      selector = item.dig("spec", "selector") || {}
+      endpoint = endpoints_by_key.fetch(endpoint_key(item), nil)
+      ready_addresses = endpoint&.fetch(:ready_addresses, 0)
+      not_ready_addresses = endpoint&.fetch(:not_ready_addresses, 0)
+
       {
         name: item.dig("metadata", "name"),
         namespace: item.dig("metadata", "namespace"),
@@ -33,7 +39,28 @@ module K8sCluster
         cluster_ip: item.dig("spec", "clusterIP"),
         external_ips: item.dig("spec", "externalIPs") || [],
         ports: (item.dig("spec", "ports") || []).map { |port| port_summary(port) },
+        selector: selector,
+        ready_addresses: ready_addresses,
+        not_ready_addresses: not_ready_addresses,
+        missing_target_warning: selector.present? && (endpoint.blank? || ready_addresses.to_i.zero?),
         created_at: item.dig("metadata", "creationTimestamp")
+      }
+    end
+
+    def endpoints_by_key(client, namespace:)
+      items = client.get_endpoints(namespace_scope(namespace)).fetch("items", [])
+      items.to_h { |item| [ endpoint_key(item), endpoint_summary(item) ] }
+    end
+
+    def endpoint_key(item)
+      "#{item.dig("metadata", "namespace")}/#{item.dig("metadata", "name")}"
+    end
+
+    def endpoint_summary(item)
+      subsets = item["subsets"] || []
+      {
+        ready_addresses: subsets.sum { |subset| (subset["addresses"] || []).length },
+        not_ready_addresses: subsets.sum { |subset| (subset["notReadyAddresses"] || []).length }
       }
     end
 
