@@ -113,6 +113,27 @@ RSpec.describe "App API review notes", type: :request do
     expect(parse_body.dig("discussion_entry", "metadata")).to eq("source" => "review_tab")
   end
 
+  it "counts user comments on covered note ranges as handled" do
+    note = create_note
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: user,
+      surface: "job_source_diff",
+      anchor_kind: "line",
+      path: note.path,
+      side: "right",
+      new_line: 13,
+      body: "I am checking this exact range.",
+      state: "draft"
+    )
+
+    get notes_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("unresolved_count" => 0, "handled_count" => 1)
+  end
+
   it "blocks read-tier repository members from acknowledging notes" do
     reader = Factories.user
     RepositoryMembership.create!(repository: repo, user: reader, role: "read")
