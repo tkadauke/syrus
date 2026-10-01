@@ -47,7 +47,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       %r{plugins/agent_insights/app/frontend/agentInsightToolCard\.tsx$},
       %r{plugins/browser/app/frontend/browserToolCard\.tsx$},
       %r{plugins/github_source/app/frontend/routes/AdminGithubApiUsage\.tsx$},
-      %r{plugins/theming_tools/app/frontend/themeToolCard\.tsx$}
+      %r{plugins/theming_tools/app/frontend/themeToolCard\.tsx$},
+      %r{plugins/video_walkthroughs/app/frontend/(?:tool_cards/.*|videoWalkthroughAnalysisToolCard)\.tsx$}
     ]
   end
 
