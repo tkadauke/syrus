@@ -372,7 +372,12 @@
     "image_no_previous_version": "Nulla versio prior (documentum additum)",
     "image_no_new_version": "Nulla versio nova (documentum ablatum)",
     "image_previous_unavailable": "Versio prior non praesto est",
-    "image_new_unavailable": "Versio nova non praesto est"
+    "image_new_unavailable": "Versio nova non praesto est",
+    "metrics": {
+      "cognitive_review_risk": "Periculum notarum recensionis",
+      "cognitive_review_risk_open": "{{count}} officium apertum notae recensionis",
+      "cognitive_review_risk_clear": "Nullum officium apertum notae recensionis"
+    }
   },
   "timeline_axis": {
     "timezone_hint": "Tempora in hora tua locali monstrantur ({{offset}})"

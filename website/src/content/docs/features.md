@@ -303,11 +303,15 @@ side-panel cards.
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unhandled notes, handled
 notes, dismissed notes, and a zero-note state when the reviewer submitted no
-ranges. A diff version with no notes and no submitted review marker is not
-presented as no debt. Acknowledged notes, discussed notes, and covered ranges
-with operator diff comments count as handled. Unflagged changed lines are
-treated as having no PR-level review-note debt; repository-wide cognitive
-coverage or historical attention-debt metrics are separate concerns.
+ranges. The diff also includes a slim right-side metric rail that stays visible
+while wide code scrolls horizontally: red marks lines covered by open
+review-note obligations, while blue marks changed or context lines with no
+open review-note obligation. A diff version with no notes and no submitted
+review marker is not presented as no debt. Acknowledged notes, discussed notes,
+and covered ranges with operator diff comments count as handled. Unflagged
+changed lines are treated as having no PR-level review-note debt;
+repository-wide cognitive coverage or historical attention-debt metrics are
+separate concerns.
 
 ## Deploy
 
