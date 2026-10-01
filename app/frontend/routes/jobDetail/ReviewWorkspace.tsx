@@ -40,6 +40,13 @@ import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisual
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
 
+type ReviewAnnotationFocusDetail = {
+  annotationId?: string
+  line?: number
+  path?: string
+  side?: "old" | "new"
+}
+
 const SURFACE = "job_review_workspace"
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
 const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
@@ -189,6 +196,28 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     }
   }, [activeVersionId, pendingCommentFocus])
 
+  useEffect(() => {
+    function focusReviewAnnotation(event: Event) {
+      const detail = (event as CustomEvent<ReviewAnnotationFocusDetail>).detail
+      if (!detail?.path) return
+      setSelectedPath(detail.path)
+
+      let frame = 0
+      let attempts = 0
+      const scheduleFocus = () => {
+        frame = window.requestAnimationFrame(() => {
+          attempts += 1
+          if (focusReviewAnnotationTarget(detail) || attempts >= 12) return
+          scheduleFocus()
+        })
+      }
+      scheduleFocus()
+    }
+
+    window.addEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
+    return () => window.removeEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
+  }, [])
+
   function focusPendingComment(pendingCommentFocus: DiffReviewComment) {
     if (pendingCommentFocus.anchor_kind === "review") {
       const record = document.querySelector(`[data-diff-review-comment-id="${pendingCommentFocus.id}"]`)
@@ -202,6 +231,15 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     const anchor = pendingCommentFocus.anchor_key ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`) : null
     ;(anchor || file)?.scrollIntoView({ block: "center" })
     return Boolean(anchor || file)
+  }
+
+  function focusReviewAnnotationTarget(detail: ReviewAnnotationFocusDetail) {
+    const annotationSelector = detail.annotationId ? `[data-diff-review-annotation-ids~="${CSS.escape(detail.annotationId)}"]` : null
+    const lineSelector = detail.side && detail.line ? `[data-diff-anchor="${CSS.escape(`${detail.side}:${detail.line}`)}"]` : null
+    const file = document.querySelector(`[data-diff-file="${CSS.escape(detail.path ?? "")}"]`)
+    const target = (annotationSelector ? file?.querySelector(annotationSelector) : null) || (lineSelector ? file?.querySelector(lineSelector) : null) || file
+    target?.scrollIntoView({ block: "center" })
+    return Boolean(target)
   }
 
   function startComment(nextSelection: DiffLineSelection) {
