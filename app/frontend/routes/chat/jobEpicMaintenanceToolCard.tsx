@@ -1,8 +1,9 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
-import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 type SubjectKind = "job" | "epic"
+const SUBJECT_ENTITY_KIND: Record<SubjectKind, "job" | "epic"> = { job: "job", epic: "epic" }
 
 type MaintenanceToolDefinition = {
   toolName: string
@@ -217,7 +218,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} tone={card.failed ? "failure" : undefined} />
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.definition.actionLabel}</span>
-        {target ? <Badge>{target}</Badge> : null}
+        {card.targetId ? <Badge><EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge> : target ? <Badge>{target}</Badge> : null}
         {card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
         {card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
         {card.memberCount != null ? <Badge>{card.memberCount} {card.memberCount === 1 ? "action" : "actions"}</Badge> : null}
@@ -232,7 +233,15 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         <div>
           <SectionLabel>Current dependencies</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {card.dependencies.map((dependency) => <Badge key={dependency}>{dependency}</Badge>)}
+            {card.dependencies.map((dependency) => {
+              const job = dependency.match(/^JOB-(\d+)$/)
+              const epic = dependency.match(/^EPIC-(\d+)$/)
+              return (
+                <Badge key={dependency}>
+                  {job ? <EntityReference id={job[1]} kind="job" /> : epic ? <EntityReference id={epic[1]} kind="epic" /> : dependency}
+                </Badge>
+              )
+            })}
           </div>
         </div>
       ) : null}

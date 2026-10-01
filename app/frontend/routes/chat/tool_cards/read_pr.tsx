@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { CardShell, EntityReference, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
@@ -74,13 +74,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {pr.htmlUrl ? (
-          <a className="font-mono font-semibold text-brand hover:underline dark:text-brand-emphasis" href={pr.htmlUrl} rel="noreferrer" target="_blank">
-            #{pr.number}
-          </a>
-        ) : (
-          <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{pr.number}</span>
-        )}
+        <EntityReference id={pr.number} kind="pull_request" prUrl={pr.htmlUrl} />
         <StatePill state={pr.state} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>

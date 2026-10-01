@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, durationLabel, EmptyState, StatePill } from "../toolCardUi"
+import { Badge, displayValue, durationLabel, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for list_job_workflows (the Tier 1 tool-card work). Renders
 // a Workflow index as a dense table: trigger kind, state, summary, step/run
@@ -54,6 +54,7 @@ function renderExpanded(context: ToolCardContext) {
   if (!rows) return null
 
   if (rows.length === 0) return <EmptyState>No Workflows found.</EmptyState>
+  const jobId = displayValue(context.input?.job_id)
 
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
@@ -72,7 +73,7 @@ function renderExpanded(context: ToolCardContext) {
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.key}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">WF-{row.id}</td>
+              <td className="whitespace-nowrap px-2 py-1"><EntityReference id={row.id} jobId={jobId} kind="workflow" /></td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</td>
               <td className="whitespace-nowrap px-2 py-1"><StatePill state={row.state} /></td>
               <td className="max-w-[20rem] truncate px-2 py-1 text-gray-700 dark:text-gray-300" title={row.summary ?? undefined}>{row.summary || "—"}</td>
