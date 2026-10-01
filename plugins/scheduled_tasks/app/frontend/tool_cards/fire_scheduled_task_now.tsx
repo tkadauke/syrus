@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
-import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { CardShell, displayValue, EntityReference, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Plugin-owned tool card for fire_scheduled_task_now (the pending-action tool-card work).
 // The tool returns the standard pending-action shape
@@ -51,7 +51,10 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label={t("tool_pending_action")} value={`#${card.actionId}`} />
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_pending_action")}</div>
+          <EntityReference kind="artifact" slug={`#${card.actionId}`} />
+        </div>
       </dl>
       <div className="text-gray-500 dark:text-gray-400">{t("tool_fire_now_pending_confirmation")}</div>
     </CardShell>
