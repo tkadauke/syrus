@@ -4,6 +4,7 @@ import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardCont
 import configMapsToolCard from "./k8s_cluster_configmaps"
 import cronJobsToolCard from "./k8s_cluster_cronjobs"
 import daemonSetsToolCard from "./k8s_cluster_daemonsets"
+import deletePodToolCard, { examples as deletePodExamples } from "./k8s_cluster_delete_pod"
 import deploymentsToolCard from "./k8s_cluster_deployments"
 import eventsToolCard, { examples as eventExamples } from "./k8s_cluster_events"
 import ingressesToolCard from "./k8s_cluster_ingresses"
@@ -15,8 +16,11 @@ import overviewToolCard from "./k8s_cluster_overview"
 import podLogsToolCard from "./k8s_cluster_pod_logs"
 import podsToolCard from "./k8s_cluster_pods"
 import pvcsToolCard from "./k8s_cluster_pvcs"
+import restartRolloutToolCard from "./k8s_cluster_restart_rollout"
+import scaleDeploymentToolCard from "./k8s_cluster_scale_deployment"
 import secretsToolCard, { examples as secretExamples } from "./k8s_cluster_secrets"
 import servicesToolCard from "./k8s_cluster_services"
+import setNodeCordonToolCard from "./k8s_cluster_set_node_cordon"
 import statefulSetsToolCard from "./k8s_cluster_statefulsets"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -55,12 +59,120 @@ describe("Kubernetes cluster tool cards", () => {
     })
   })
 
+  it("registers plugin-owned cards for Kubernetes action acknowledgement tools", () => {
+    [
+      "k8s_cluster_restart_rollout",
+      "k8s_cluster_scale_deployment",
+      "k8s_cluster_delete_pod",
+      "k8s_cluster_set_node_cordon"
+    ].forEach((toolName) => {
+      expect(pluginToolCardRendererFor(toolName)).not.toBeNull()
+    })
+  })
+
   it("attributes the Kubernetes cards and examples to the plugin catalog", () => {
     const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "k8s_cluster_events")
 
     expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "k8s_cluster" })
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
+    expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
+  })
+
+  it("summarizes successful action acknowledgements with action, target, scope, and result", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5, reason: "Scale for morning traffic" },
+      parsedResult: {
+        available: true,
+        generated_at: "2026-09-30T12:00:00Z",
+        deployment: "web",
+        namespace: "default",
+        before: { replicas: 2 },
+        after: { replicas: 5 },
+        audit_id: "audit-123"
+      }
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toBe("Scale deployment default/web in Cluster 7 / default · succeeded")
+    render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Set replicas to 5")).toBeInTheDocument()
+    expect(screen.getByText("2 replicas")).toBeInTheDocument()
+    expect(screen.getByText("5 replicas")).toBeInTheDocument()
+    expect(screen.getByText("Scale for morning traffic")).toBeInTheDocument()
+    expect(screen.getByText("audit-123")).toBeInTheDocument()
+    expect(screen.getByText("Confirm desired and ready replica counts converge.")).toBeInTheDocument()
+  })
+
+  it("marks no-op acknowledgements when previous and current state match", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_set_node_cordon",
+      input: { cluster_id: 7, name: "node-1", cordoned: true },
+      parsedResult: {
+        available: true,
+        node: "node-1",
+        before: { unschedulable: true },
+        after: { unschedulable: true }
+      }
+    })
+
+    expect(setNodeCordonToolCard.collapsedSummary?.(cardContext)).toBe("Cordon node node-1 in Cluster 7 · no-op")
+    render(<>{setNodeCordonToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("no-op")).toBeInTheDocument()
+    expect(screen.getAllByText("unschedulable").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText("Read the node to confirm it is unschedulable.")).toBeInTheDocument()
+  })
+
+  it("distinguishes validation, permission, missing resource, and API failures", () => {
+    const validationContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: -1 },
+      resultBody: "Error: replicas must be a non-negative integer",
+      resultError: true,
+      parsedResult: null
+    })
+    const permissionContext = context({
+      toolName: "k8s_cluster_delete_pod",
+      input: { cluster_id: 7, namespace: "default", name: "web-1" },
+      resultBody: "Error: Write access is disabled for Kubernetes cluster 7",
+      resultError: true,
+      parsedResult: null
+    })
+    const missingContext = context({
+      toolName: "k8s_cluster_restart_rollout",
+      input: { cluster_id: 7, namespace: "default", name: "missing" },
+      resultBody: "Error: deployments.apps \"missing\" not found",
+      resultError: true,
+      parsedResult: null
+    })
+    const apiContext = context({
+      toolName: "k8s_cluster_set_node_cordon",
+      input: { cluster_id: 7, name: "node-1", cordoned: false },
+      resultBody: "Error: Kubeclient::HttpError: apiserver timed out",
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(validationContext)).toContain("validation failed")
+    expect(deletePodToolCard.collapsedSummary?.(permissionContext)).toContain("permission denied")
+    expect(restartRolloutToolCard.collapsedSummary?.(missingContext)).toContain("missing resource")
+    expect(setNodeCordonToolCard.collapsedSummary?.(apiContext)).toContain("API failed")
+
+    render(
+      <>
+        {scaleDeploymentToolCard.renderExpanded(validationContext)}
+        {deletePodToolCard.renderExpanded(permissionContext)}
+        {restartRolloutToolCard.renderExpanded(missingContext)}
+        {setNodeCordonToolCard.renderExpanded(apiContext)}
+      </>
+    )
+
+    expect(screen.getByText("Validation failure")).toBeInTheDocument()
+    expect(screen.getByText("Permission error")).toBeInTheDocument()
+    expect(screen.getByText("Missing resource")).toBeInTheDocument()
+    expect(screen.getByText("Backend/API error")).toBeInTheDocument()
   })
 
   it("summarizes cluster inventory with resource counts and warning status", () => {
