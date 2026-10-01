@@ -610,7 +610,7 @@ export function JobsSection({
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <SectionHeading>{t("jobs_section")}</SectionHeading>
-        <Link className="text-xs text-brand hover:underline" to={withRoutePrefix(newJobPath, prefix)}>
+        <Link aria-label={t("add_job_from_jobs_section")} className="text-xs text-brand hover:underline" to={withRoutePrefix(newJobPath, prefix)}>
           {t("add_job")}
         </Link>
       </div>

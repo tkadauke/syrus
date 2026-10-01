@@ -472,13 +472,13 @@ describe("StateChips", () => {
 })
 
 describe("JobsSection", () => {
-  it("renders an Add Job link in the header pointing to the new-job form", () => {
+  it("renders an Add Job link in the section header with a distinct accessible name", () => {
     render(
       <MemoryRouter>
         <JobsSection jobs={[]} newJobPath="/jobs/new?repository_id=42" prefix="" />
       </MemoryRouter>
     )
-    const link = screen.getByRole("link", { name: "+ Add Job" })
+    const link = screen.getByRole("link", { name: "Add Job from Jobs section" })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute("href", "/jobs/new?repository_id=42")
   })
@@ -489,7 +489,7 @@ describe("JobsSection", () => {
         <JobsSection jobs={[]} newJobPath="/jobs/new?repository_id=7" prefix="/app-shell" />
       </MemoryRouter>
     )
-    const link = screen.getByRole("link", { name: "+ Add Job" })
+    const link = screen.getByRole("link", { name: "Add Job from Jobs section" })
     expect(link).toHaveAttribute("href", "/app-shell/jobs/new?repository_id=7")
   })
 
