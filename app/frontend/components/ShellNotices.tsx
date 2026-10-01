@@ -4,7 +4,7 @@ import { syrusShellBridge, type SyrusBackendUpdate, type SyrusShellBridge, type 
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { Button } from "./Button"
 import { DismissButton } from "./DismissButton"
-import { NOTICE_AUTO_DISMISS_DELAY_MS, compactNoticeSurfaceClass } from "./noticeStyles"
+import { NOTICE_AUTO_DISMISS_DELAY_MS, NOTICE_SIDEBAR_STACK_CLASS, compactNoticeSurfaceClass } from "./noticeStyles"
 
 // How long the "Skill installed ✓" confirmation lingers before the notice
 // removes itself.
@@ -57,7 +57,7 @@ function BridgedShellNotices({ bridge }: { bridge: SyrusShellBridge }) {
   const skill = <SkillOfferNotice bridge={bridge} state={state} />
 
   return (
-    <div className="shrink-0 space-y-2 px-3 pb-2 empty:hidden" data-testid="shell-notices">
+    <div className={NOTICE_SIDEBAR_STACK_CLASS} data-testid="shell-notices">
       {backend}
       {update}
       {skill}
