@@ -44,7 +44,7 @@ module Mcp::Tools
       group
     end
 
-    def bulk_action_response(group:, message:)
+    def bulk_action_response(group:, message:, extra: {})
       members = group.chat_pending_actions.to_a
       anchor = members.first
 
@@ -54,7 +54,8 @@ module Mcp::Tools
         pending_confirmation_id: anchor.id,
         state: group.state,
         member_count: members.size,
-        message: message
+        message: message,
+        **extra
       )
     end
   end
