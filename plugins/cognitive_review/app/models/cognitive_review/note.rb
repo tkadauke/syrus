@@ -7,6 +7,14 @@ module CognitiveReview
     SIDES = %w[new old].freeze
     STATES = %w[open acknowledged discussed].freeze
     PRIORITIES = %w[low medium high].freeze
+    COMMENT_SIDE_BY_NOTE_SIDE = {
+      "new" => "right",
+      "old" => "left"
+    }.freeze
+    COMMENT_LINE_METHOD_BY_NOTE_SIDE = {
+      "new" => :new_line,
+      "old" => :old_line
+    }.freeze
 
     belongs_to :job
     belongs_to :workflow
@@ -48,6 +56,26 @@ module CognitiveReview
     scope :for_state, ->(state) { where(state: state) if state.present? }
     scope :open_debt, -> { where(state: "open") }
     scope :handled, -> { where(state: %w[acknowledged discussed]) }
+
+    def self.review_comments_for(notes)
+      note_records = Array(notes)
+      version_ids = note_records.filter_map(&:diff_review_version_id).uniq
+      return DiffReviewComment.none if note_records.empty? || version_ids.empty?
+
+      DiffReviewComment
+        .where(job_id: note_records.map(&:job_id).uniq, diff_review_version_id: version_ids, anchor_kind: "line")
+        .where.not(state: "superseded")
+    end
+
+    def self.open_for_pr_debt(notes, review_comments: review_comments_for(notes))
+      comment_records = review_comments.to_a
+      Array(notes).select { |note| note.open_for_pr_debt?(review_comments: comment_records) }
+    end
+
+    def self.handled_for_pr_debt(notes, review_comments: review_comments_for(notes))
+      comment_records = review_comments.to_a
+      Array(notes).select { |note| note.handled_for_pr_debt?(review_comments: comment_records) }
+    end
 
     def self.upsert_from_submission!(run:, diff_review_version:, attributes:)
       attrs = attributes.with_indifferent_access
@@ -123,6 +151,12 @@ module CognitiveReview
 
     def open? = state == "open"
     def handled? = state != "open"
+    def open_for_pr_debt?(review_comments:) = open? && !covered_by_user_comment?(review_comments)
+    def handled_for_pr_debt?(review_comments:) = handled? || covered_by_user_comment?(review_comments)
+
+    def covered_by_user_comment?(review_comments)
+      Array(review_comments).any? { |comment| covered_by_user_comment_range?(comment) }
+    end
 
     private
 
@@ -136,6 +170,15 @@ module CognitiveReview
       self.reason_codes = Array(reason_codes).map { |code| code.to_s.strip }.reject(&:blank?).uniq
       self.source_metadata = {} unless source_metadata.is_a?(Hash)
       self.state = state.to_s.strip.presence || "open"
+    end
+
+    def covered_by_user_comment_range?(comment)
+      return false unless comment.diff_review_version_id == diff_review_version_id
+      return false unless comment.path == path
+      return false unless comment.side == COMMENT_SIDE_BY_NOTE_SIDE[side]
+
+      comment_line = comment.public_send(COMMENT_LINE_METHOD_BY_NOTE_SIDE[side])
+      comment_line.present? && comment_line.between?(start_line, end_line)
     end
 
     def derive_side_range

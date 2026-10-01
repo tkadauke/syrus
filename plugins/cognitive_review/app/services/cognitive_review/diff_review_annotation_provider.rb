@@ -6,7 +6,7 @@ module CognitiveReview
       notes = notes_for(job: job, version: version, base_sha: base_sha, head_sha: head_sha)
       return {} if notes.empty?
 
-      open_notes = notes.select(&:open?)
+      open_notes = CognitiveReview::Note.open_for_pr_debt(notes)
       return { ranges: {}, panels: [], counts: [ open_count(open_notes) ] } if open_notes.empty?
 
       {

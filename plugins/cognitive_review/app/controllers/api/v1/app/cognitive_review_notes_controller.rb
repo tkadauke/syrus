@@ -80,12 +80,14 @@ module Api
 
         def notes_payload(job:, notes:, version:, discussion_entry: nil)
           note_records = notes.to_a
+          version_notes = CognitiveReview::Note.where(job: job, diff_review_version: version).to_a
+          review_comments = CognitiveReview::Note.review_comments_for(version_notes).to_a
           {
             job_id: job.id,
             diff_review_version_id: version&.id,
             latest_version_id: job.diff_review_versions.latest_first.first&.id,
-            unresolved_count: CognitiveReview::Note.where(job: job, diff_review_version: version).open_debt.count,
-            handled_count: CognitiveReview::Note.where(job: job, diff_review_version: version).handled.count,
+            unresolved_count: CognitiveReview::Note.open_for_pr_debt(version_notes, review_comments: review_comments).size,
+            handled_count: CognitiveReview::Note.handled_for_pr_debt(version_notes, review_comments: review_comments).size,
             notes: note_records.map { |note| note_json(note) },
             by_path: by_path(note_records),
             discussion_entry: discussion_entry && discussion_entry_json(discussion_entry)
