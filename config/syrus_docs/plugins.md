@@ -874,12 +874,17 @@ Core normalizes these optional keys:
 | `ranges` | `{ "path.rb" => [{ side: "old"|"new", start_line:, end_line:, id:, title:, body:, tone:, component:, props:, actions: }] }` | Compact markers on matching old- or new-side diff rows, including multi-line ranges |
 | `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel |
 | `actions` | `[{ id:, label:, href:, method:, component:, props: }]` | Side-panel actions |
-| `counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges |
+| `counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges; `cognitive_review.*` counts also enable the fixed right-side review-note risk metric gutter in the diff |
 
 If a payload entry names `component: "plugin_name/Component"`, the frontend
 looks for `plugins/<plugin_name>/app/frontend/review_annotations/Component.tsx`
 and passes the item as a prop. Entries without a plugin component use core's
 generic card/action/line-marker rendering.
+
+The diff renderer's right-side metric gutter is intentionally generic: core
+registers the cognitive-review risk metric from the annotation payload today,
+and future per-line metrics can register additional line metric providers
+without replacing the diff table or the sticky gutter host.
 
 **One class per tool.** The entrypoint is a single class, but internally each
 non-trivial tool is its own `MCP::Tool` subclass in its own file — the same

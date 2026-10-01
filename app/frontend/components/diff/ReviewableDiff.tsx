@@ -10,7 +10,7 @@ import { CopyIcon } from "../CopyableSlug"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
-import type { DiffReviewAnnotation, DiffReviewAnnotationRange } from "../../api/jobs"
+import type { DiffReviewAnnotation, DiffReviewAnnotationCount, DiffReviewAnnotationRange } from "../../api/jobs"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { renderPluginReviewAnnotation } from "../../pluginReviewAnnotations"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
@@ -116,8 +116,32 @@ export type ReviewableDiffProps = {
   unavailableState?: ReactNode
   reviewSettings?: ReviewDiffSettings
   reviewAnnotations?: Record<string, Record<string, DiffReviewAnnotation[]>> | null
+  reviewAnnotationCounts?: DiffReviewAnnotationCount[] | null
   reviewAnnotationRanges?: Record<string, DiffReviewAnnotationRange[]> | null
+  diffLineMetricProviders?: DiffLineMetricProvider[] | null
   wordHighlighting?: boolean
+}
+
+export type DiffLineMetricTone = "clear" | "risk" | "neutral" | "info" | "warning" | "danger" | "success"
+
+export type DiffLineMetric = {
+  id: string
+  label: string
+  tone: DiffLineMetricTone
+  title?: string
+  annotationIds?: string[]
+}
+
+export type DiffLineMetricContext = {
+  file: ReviewableDiffFile
+  line: DiffLine
+  reviewNotes: DiffReviewAnnotation[]
+}
+
+export type DiffLineMetricProvider = {
+  id: string
+  label: string
+  metricForLine: (context: DiffLineMetricContext) => DiffLineMetric | null
 }
 
 export type ReviewableUnifiedDiffProps = Omit<ReviewableDiffProps, "files"> & {
@@ -303,7 +327,9 @@ export function ReviewableDiff({
   renderImageDiff,
   reviewSettings,
   reviewAnnotations,
+  reviewAnnotationCounts,
   reviewAnnotationRanges,
+  diffLineMetricProviders,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
@@ -323,6 +349,7 @@ export function ReviewableDiff({
   const isMobileFilesMenu = useIsMobileViewport()
   const effectiveReviewSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, ...reviewSettings }
   const wordHighlightingEnabled = wordHighlighting ?? effectiveReviewSettings.intraline_highlighting === "word"
+  const { t } = useT("common")
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -352,6 +379,10 @@ export function ReviewableDiff({
   const visibleFiles = renderFiles.slice(0, visibleFileCount)
   const remainingFileCount = renderFiles.length - visibleFiles.length
   const showHeader = showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")
+  const effectiveDiffLineMetricProviders = useMemo(
+    () => [...cognitiveReviewRiskMetricProviders(reviewAnnotationCounts, t), ...(diffLineMetricProviders ?? [])],
+    [reviewAnnotationCounts, t, diffLineMetricProviders]
+  )
 
   function estimateSize(index: number) {
     const file = visibleFiles[index]
@@ -594,6 +625,7 @@ export function ReviewableDiff({
           renderImageDiff={renderImageDiff}
           reviewSettings={effectiveReviewSettings}
           reviewAnnotations={reviewAnnotations?.[file.path]}
+          diffLineMetricProviders={effectiveDiffLineMetricProviders}
           reviewAnnotationRanges={reviewAnnotationRanges?.[file.path]}
           selected={selectedPath === file.path}
           showFilesPopupTrigger={changedFilesPopup}
@@ -1037,6 +1069,7 @@ function DiffFileSection({
   renderImageDiff,
   reviewSettings,
   reviewAnnotations,
+  diffLineMetricProviders,
   reviewAnnotationRanges,
   selected,
   showFilesPopupTrigger,
@@ -1073,6 +1106,7 @@ function DiffFileSection({
   renderImageDiff?: (file: ReviewableDiffFile) => ReactNode
   reviewSettings: ReviewDiffSettings
   reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
+  diffLineMetricProviders?: DiffLineMetricProvider[]
   reviewAnnotationRanges?: DiffReviewAnnotationRange[]
   selected: boolean
   showFilesPopupTrigger?: boolean
@@ -1248,6 +1282,7 @@ function DiffFileSection({
           onToggleHighlightToken={onToggleHighlightToken}
           reviewSettings={reviewSettings}
           reviewAnnotations={reviewAnnotations}
+          diffLineMetricProviders={diffLineMetricProviders}
           reviewAnnotationRanges={reviewAnnotationRanges}
           tokenCache={cacheEntry.tokensByHunk}
         />
@@ -1401,6 +1436,7 @@ export function UnifiedDiffTable({
   onToggleHighlightToken,
   reviewSettings = DEFAULT_REVIEW_DIFF_SETTINGS,
   reviewAnnotations,
+  diffLineMetricProviders = [],
   reviewAnnotationRanges,
   testId,
   tokenCache: tokenCacheProp
@@ -1432,6 +1468,7 @@ export function UnifiedDiffTable({
   onToggleHighlightToken?: (token: string) => void
   reviewSettings?: ReviewDiffSettings
   reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
+  diffLineMetricProviders?: DiffLineMetricProvider[]
   reviewAnnotationRanges?: DiffReviewAnnotationRange[]
   testId?: string
   // Optional external Shiki-token cache keyed by hunk id (see
@@ -1465,6 +1502,7 @@ export function UnifiedDiffTable({
   const gutterColSpan = showLineNumbers ? (hideSeparateOldLineGutter ? 1 : 2) : 1
   const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView, mobileUnifiedWrap)
   const showReviewNotes = hasReviewAnnotations(reviewAnnotations, reviewAnnotationRanges)
+  const showMetricGutter = diffLineMetricProviders.length > 0
 
   let hunkIndex = -1
 
@@ -1472,7 +1510,7 @@ export function UnifiedDiffTable({
     lineWrapping === "scroll"
       ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
       : "w-full min-w-0 max-w-full overflow-x-hidden"
-  const splitInlineColSpan = (showLineNumbers ? 5 : 3) + (showReviewNotes ? 1 : 0)
+  const splitInlineColSpan = (showLineNumbers ? 5 : 3) + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)
 
   function renderThreadRow(threads: DiffReviewThread[], splitRow: boolean) {
     if (threads.length === 0) return null
@@ -1545,7 +1583,7 @@ export function UnifiedDiffTable({
       <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
         <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
         <td className={`text-amber-700 dark:text-amber-300 ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-        <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={2}>
+        <td className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
           {panel}
         </td>
       </tr>
@@ -1598,7 +1636,7 @@ export function UnifiedDiffTable({
       <tr className="font-sans" data-testid="diff-review-composer">
         <td className="border-r border-brand/20" colSpan={gutterColSpan} />
         <td className={`text-brand ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={showReviewNotes ? 3 : 2}>
+        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
           {panel}
         </td>
       </tr>
@@ -1613,8 +1651,10 @@ export function UnifiedDiffTable({
         style={{ tabSize: reviewSettings.tab_width }}
         data-testid={testId}
       >
-        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} showReviewNotes={showReviewNotes} /> : null}
-        {!splitView && mobileUnifiedWrap ? <UnifiedDiffColGroup showLineNumbers={showLineNumbers} showReviewNotes={showReviewNotes} /> : null}
+        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} showMetricGutter={showMetricGutter} showReviewNotes={showReviewNotes} /> : null}
+        {!splitView && mobileUnifiedWrap ? (
+          <UnifiedDiffColGroup showLineNumbers={showLineNumbers} showMetricGutter={showMetricGutter} showReviewNotes={showReviewNotes} />
+        ) : null}
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
@@ -1630,6 +1670,7 @@ export function UnifiedDiffTable({
                   mobileUnifiedWrap={mobileUnifiedWrap}
                   reviewSettings={reviewSettings}
                   showLineNumbers={showLineNumbers}
+                  showMetricGutter={showMetricGutter}
                   showReviewNotes={showReviewNotes}
                   splitView={splitView}
                 />
@@ -1638,6 +1679,7 @@ export function UnifiedDiffTable({
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
+            const lineMetrics = metricsForLine(diffLineMetricProviders, { file, line, reviewNotes })
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
             const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
@@ -1662,10 +1704,12 @@ export function UnifiedDiffTable({
                     onCommentLine={onCommentLine}
                     onToggleHighlightToken={toggleHighlight}
                     reviewSettings={reviewSettings}
+                    lineMetrics={lineMetrics}
                     reviewNotes={reviewNotes}
                     reviewNoteIds={reviewNoteIdsForLine}
                     reviewNoteRowClass={reviewNoteRowClass}
                     showReviewNotes={showReviewNotes}
+                    showMetricGutter={showMetricGutter}
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
@@ -1755,6 +1799,7 @@ export function UnifiedDiffTable({
                     ) : null}
                   </td>
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
+                  {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
                 </tr>
                 {renderThreadRow(threads, false)}
                 {renderComposerRow(isComposingHere, false)}
@@ -1873,6 +1918,7 @@ function SplitDiffRow({
   codeCellClass,
   file,
   highlightedToken,
+  lineMetrics,
   line,
   lineAnchorKey,
   onCommentLine,
@@ -1881,6 +1927,7 @@ function SplitDiffRow({
   reviewNotes,
   reviewNoteIds,
   reviewNoteRowClass,
+  showMetricGutter,
   showReviewNotes,
   showLineNumbers,
   tokens
@@ -1890,6 +1937,7 @@ function SplitDiffRow({
   codeCellClass: string
   file: ReviewableDiffFile
   highlightedToken?: string | null
+  lineMetrics: DiffLineMetric[]
   line: DiffLine
   lineAnchorKey?: string | null
   onCommentLine?: (selection: DiffLineSelection) => void
@@ -1898,6 +1946,7 @@ function SplitDiffRow({
   reviewNotes?: DiffReviewAnnotation[]
   reviewNoteIds: string[]
   reviewNoteRowClass: string
+  showMetricGutter: boolean
   showReviewNotes: boolean
   showLineNumbers: boolean
   tokens?: ThemedToken[]
@@ -1964,7 +2013,36 @@ function SplitDiffRow({
         ) : null}
       </td>
       {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes ?? []} reviewSettings={reviewSettings} /> : null}
+      {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
     </tr>
+  )
+}
+
+function MetricGutterCell({ metrics, reviewSettings }: { metrics: DiffLineMetric[]; reviewSettings: ReviewDiffSettings }) {
+  return (
+    <td
+      className={`sticky right-0 z-[2] w-5 min-w-5 select-none border-l border-border bg-inherit text-center shadow-[-1px_0_0_var(--color-border)] ${diffDensityClasses(reviewSettings).marker}`}
+      data-diff-metric-gutter="true"
+      data-diff-metric-ids={metrics.map((metric) => metric.id).join(" ") || undefined}
+      data-testid="diff-metric-gutter-cell"
+    >
+      {metrics.length > 0 ? (
+        <div className="flex h-full min-h-4 items-stretch justify-center gap-px" role="list">
+          {metrics.map((metric) => (
+            <span
+              aria-label={metric.title || metric.label}
+              className={`block min-h-4 w-1.5 rounded-sm outline-none ring-offset-1 focus:ring-2 focus:ring-brand ${metricToneClass(metric.tone)}`}
+              data-diff-metric-id={metric.id}
+              data-diff-review-annotation-ids={metric.annotationIds?.length ? metric.annotationIds.join(" ") : undefined}
+              key={metric.id}
+              role="listitem"
+              tabIndex={0}
+              title={metric.title || metric.label}
+            />
+          ))}
+        </div>
+      ) : null}
+    </td>
   )
 }
 
@@ -1992,6 +2070,48 @@ function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
     .map((note) => note.id)
     .filter((id): id is string | number => id !== undefined && id !== null)
     .map(String)
+}
+
+function metricsForLine(providers: DiffLineMetricProvider[], context: DiffLineMetricContext) {
+  if (!isDiffCodeLine(context.line.kind)) return []
+  return providers.map((provider) => provider.metricForLine(context)).filter((metric): metric is DiffLineMetric => Boolean(metric))
+}
+
+function cognitiveReviewRiskMetricProviders(counts: DiffReviewAnnotationCount[] | null | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
+  const hasCognitiveReviewDebtData = (counts ?? []).some((count) => String(count.id ?? "").startsWith("cognitive_review."))
+  if (!hasCognitiveReviewDebtData) return []
+
+  const provider: DiffLineMetricProvider = {
+    id: "cognitive_review.risk",
+    label: t("diff_review.metrics.cognitive_review_risk"),
+    metricForLine: ({ reviewNotes }) => {
+      const cognitiveReviewNoteIds = reviewNoteIds(reviewNotes).filter((id) => id.startsWith("cognitive_review_note:"))
+      const hasOpenRisk = cognitiveReviewNoteIds.length > 0
+      return {
+        id: "cognitive_review.risk",
+        label: t("diff_review.metrics.cognitive_review_risk"),
+        tone: hasOpenRisk ? "risk" : "clear",
+        title: hasOpenRisk
+          ? t("diff_review.metrics.cognitive_review_risk_open", { count: cognitiveReviewNoteIds.length })
+          : t("diff_review.metrics.cognitive_review_risk_clear"),
+        annotationIds: cognitiveReviewNoteIds
+      }
+    }
+  }
+  return [provider]
+}
+
+function metricToneClass(tone: DiffLineMetricTone) {
+  const classes: Record<DiffLineMetricTone, string> = {
+    clear: "bg-info",
+    danger: "bg-danger",
+    info: "bg-info",
+    neutral: "bg-border-strong",
+    risk: "bg-danger",
+    success: "bg-success",
+    warning: "bg-warning"
+  }
+  return classes[tone]
 }
 
 function reviewNotesFallbackMarker(count: number, title: string) {
@@ -2059,19 +2179,29 @@ function rangeAnnotationMatchesLine(note: DiffReviewAnnotationRange, line: DiffL
   return lineNumber != null && lineNumber >= note.start_line && lineNumber <= note.end_line
 }
 
-function SplitDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {
+function SplitDiffColGroup({
+  showLineNumbers,
+  showMetricGutter,
+  showReviewNotes
+}: {
+  showLineNumbers: boolean
+  showMetricGutter: boolean
+  showReviewNotes: boolean
+}) {
+  const fixedColumnsRem = 1.5 + (showReviewNotes ? 1.5 : 0) + (showMetricGutter ? 1.25 : 0)
   if (!showLineNumbers) {
     return (
       <colgroup>
-        <col style={{ width: showReviewNotes ? "calc((100% - 3rem) / 2)" : "calc((100% - 1.5rem) / 2)" }} />
-        <col style={{ width: showReviewNotes ? "calc((100% - 3rem) / 2)" : "calc((100% - 1.5rem) / 2)" }} />
+        <col style={{ width: `calc((100% - ${fixedColumnsRem}rem) / 2)` }} />
+        <col style={{ width: `calc((100% - ${fixedColumnsRem}rem) / 2)` }} />
         <col style={{ width: "1.5rem" }} />
         {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
+        {showMetricGutter ? <col style={{ width: "1.25rem" }} /> : null}
       </colgroup>
     )
   }
 
-  const codeWidth = showReviewNotes ? "calc((100% - 9rem) / 2)" : "calc((100% - 7.5rem) / 2)"
+  const codeWidth = `calc((100% - ${fixedColumnsRem + 6}rem) / 2)`
   return (
     <colgroup>
       <col style={{ width: "3rem" }} />
@@ -2080,11 +2210,20 @@ function SplitDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbe
       <col style={{ width: codeWidth }} />
       <col style={{ width: "1.5rem" }} />
       {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
+      {showMetricGutter ? <col style={{ width: "1.25rem" }} /> : null}
     </colgroup>
   )
 }
 
-function UnifiedDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {
+function UnifiedDiffColGroup({
+  showLineNumbers,
+  showMetricGutter,
+  showReviewNotes
+}: {
+  showLineNumbers: boolean
+  showMetricGutter: boolean
+  showReviewNotes: boolean
+}) {
   if (!showLineNumbers) {
     return (
       <colgroup>
@@ -2092,6 +2231,7 @@ function UnifiedDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNum
         <col />
         <col style={{ width: "1.5rem" }} />
         {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
+        {showMetricGutter ? <col style={{ width: "1.25rem" }} /> : null}
       </colgroup>
     )
   }
@@ -2103,6 +2243,7 @@ function UnifiedDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNum
       <col />
       <col style={{ width: "1.5rem" }} />
       {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
+      {showMetricGutter ? <col style={{ width: "1.25rem" }} /> : null}
     </colgroup>
   )
 }
@@ -2113,6 +2254,7 @@ function HunkRow({
   line,
   mobileUnifiedWrap = false,
   reviewSettings,
+  showMetricGutter = false,
   showLineNumbers = true,
   showReviewNotes = false,
   splitView = false
@@ -2122,6 +2264,7 @@ function HunkRow({
   line: DiffLine
   mobileUnifiedWrap?: boolean
   reviewSettings: ReviewDiffSettings
+  showMetricGutter?: boolean
   showLineNumbers?: boolean
   showReviewNotes?: boolean
   splitView?: boolean
@@ -2146,6 +2289,7 @@ function HunkRow({
           ) : null}
         </td>
         {showReviewNotes ? <td className={`w-4 select-none ${diffDensityClasses(reviewSettings).marker}`} /> : null}
+        {showMetricGutter ? <MetricGutterCell metrics={[]} reviewSettings={reviewSettings} /> : null}
       </tr>
     )
   }
@@ -2183,6 +2327,7 @@ function HunkRow({
       </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`} />
       {showReviewNotes ? <td className={`w-4 select-none ${diffDensityClasses(reviewSettings).marker}`} /> : null}
+      {showMetricGutter ? <MetricGutterCell metrics={[]} reviewSettings={reviewSettings} /> : null}
     </tr>
   )
 }

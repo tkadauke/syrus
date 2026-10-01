@@ -372,7 +372,12 @@
     "image_no_previous_version": "Keine vorherige Version (Datei hinzugefügt)",
     "image_no_new_version": "Keine neue Version (Datei entfernt)",
     "image_previous_unavailable": "Vorherige Version nicht verfügbar",
-    "image_new_unavailable": "Neue Version nicht verfügbar"
+    "image_new_unavailable": "Neue Version nicht verfügbar",
+    "metrics": {
+      "cognitive_review_risk": "Review-Hinweis-Risiko",
+      "cognitive_review_risk_open": "{{count}} offene Review-Hinweis-Pflicht",
+      "cognitive_review_risk_clear": "Keine offene Review-Hinweis-Pflicht"
+    }
   },
   "timeline_axis": {
     "timezone_hint": "Zeiten werden in deiner Ortszeit angezeigt ({{offset}})"

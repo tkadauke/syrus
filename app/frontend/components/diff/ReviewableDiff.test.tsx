@@ -5,7 +5,15 @@ import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as highlighterLib from "../../lib/highlighter"
 import * as performanceMarkers from "../../lib/performanceMarkers"
 import { DEFAULT_REVIEW_DIFF_SETTINGS } from "../../api/reviewDiffSettings"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
+import {
+  AgentDiff,
+  DiffHunkSnippet,
+  ReviewableDiff,
+  annotationsForFile,
+  filesFromUnifiedDiff,
+  isLineAnnotations,
+  type DiffLineMetricProvider
+} from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -560,6 +568,143 @@ describe("ReviewableDiff", () => {
     )
 
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+  })
+
+  it("keeps the diff metric gutter hidden when no metric is registered", () => {
+    render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument()
+  })
+
+  it("renders review-note risk in a sticky right-side metric gutter", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Inspect changed range" }]
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const riskyRow = screen.getByText("new").closest("tr") as HTMLElement
+    const clearRow = screen.getByText("old").closest("tr") as HTMLElement
+    const riskyMetric = within(riskyRow).getByTitle("1 open review-note obligation")
+    const clearMetric = within(clearRow).getByTitle("No open review-note obligation")
+
+    expect(riskyMetric.closest("td")).toHaveClass("sticky", "right-0")
+    expect(riskyMetric).toHaveClass("bg-danger")
+    expect(riskyMetric).toHaveAttribute("data-diff-review-annotation-ids", "cognitive_review_note:7")
+    expect(clearMetric).toHaveClass("bg-info")
+  })
+
+  it("updates review-note risk when note ranges become handled", () => {
+    const { rerender } = render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Inspect changed range" }]
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
+
+    rerender(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{}}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("maps review-note risk to side-aware old-line ranges in split view", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:8", side: "old", start_line: 1, end_line: 1, title: "Inspect deleted code" }]
+        }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_numbers: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const oldRow = screen.getByText("old").closest("tr") as HTMLElement
+    const newRow = screen.getByText("new").closest("tr") as HTMLElement
+
+    expect(within(oldRow).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
+    expect(within(newRow).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("keeps metric rows aligned across collapsed and expanded hidden hunk context", async () => {
+    const gapFile = {
+      additions: 1,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/models/gap.rb b/app/models/gap.rb",
+        "--- a/app/models/gap.rb",
+        "+++ b/app/models/gap.rb",
+        "@@ -1,1 +1,1 @@",
+        " first",
+        "@@ -5,1 +5,2 @@",
+        " fifth",
+        "+sixth"
+      ].join("\n"),
+      path: "app/models/gap.rb",
+      status: "modified"
+    }
+    render(
+      <ReviewableDiff
+        files={[gapFile]}
+        mode="single-file"
+        onLoadFileContext={async () => "first\nsecond\nthird\nfourth\nfifth\nsixth"}
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 0 }]}
+        selectedPath="app/models/gap.rb"
+        showFileHeaders
+      />
+    )
+
+    const hunkMetricCells = screen
+      .getAllByTestId("diff-metric-gutter-cell")
+      .filter((cell) => (cell.closest("tr") as HTMLElement | null)?.dataset.diffKind === "hunk")
+    expect(hunkMetricCells.length).toBeGreaterThan(0)
+    hunkMetricCells.forEach((cell) => expect(cell).toBeEmptyDOMElement())
+
+    fireEvent.click(screen.getByRole("button", { name: "Load whole file" }))
+
+    await screen.findByText("third")
+    expect(within(screen.getByText("third").closest("tr") as HTMLElement).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("supports future metric providers in the same sticky gutter", () => {
+    const provider: DiffLineMetricProvider = {
+      id: "coverage.pr",
+      label: "PR coverage",
+      metricForLine: ({ line }) =>
+        line.kind === "add" ? { id: "coverage.pr", label: "PR coverage", tone: "warning", title: `Coverage pending on ${line.newLine}` } : null
+    }
+
+    render(<ReviewableDiff diffLineMetricProviders={[provider]} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    const row = screen.getByText("new").closest("tr") as HTMLElement
+    const marker = within(row).getByTitle("Coverage pending on 1")
+
+    expect(marker.closest("td")).toHaveClass("sticky", "right-0")
+    expect(marker).toHaveAttribute("data-diff-metric-id", "coverage.pr")
+    expect(marker).toHaveClass("bg-warning")
   })
 
   it("exposes typed line selections for optional comment callbacks", () => {
