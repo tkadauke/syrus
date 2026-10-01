@@ -69,7 +69,10 @@ module Mcp::Tools
               "plan" => plan
             },
             reason: reason,
-            message: "Force #{plan.fetch("workflow_trigger_kind")} for #{job.slug}? Target base: #{plan.fetch("target_base") || "unknown"}."
+            message: "Force #{plan.fetch("workflow_trigger_kind")} for #{job.slug}? Target base: #{plan.fetch("target_base") || "unknown"}.",
+            extra: {
+              plan: plan
+            }
           )
         end
 
@@ -86,7 +89,7 @@ module Mcp::Tools
           },
           reason: reason
         )
-        bulk_action_response(group: group, message: "Force rebase for #{jobs.size} Jobs?")
+        bulk_action_response(group: group, message: "Force rebase for #{jobs.size} Jobs?", extra: { plans: plans })
       end
     end
   end

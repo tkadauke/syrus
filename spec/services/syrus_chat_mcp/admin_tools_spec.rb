@@ -610,7 +610,14 @@ RSpec.describe "Mcp::Tools admin tools" do
     allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "force_rebase", { job_id: job.id, reason: "Bypass queue position." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    body = payload_for(response)
+    action = ChatPendingAction.find(body.fetch(:pending_confirmation_id))
+
+    expect(body.fetch(:plan)).to include(
+      job_id: job.id,
+      pr_number: 2265,
+      workflow_trigger_kind: "rebase"
+    )
 
     expect {
       expect(action.confirm!).to be true
@@ -984,6 +991,7 @@ RSpec.describe "Mcp::Tools admin tools" do
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(body).to include(state: "pending", member_count: 2, message: "Force rebase for 2 Jobs?")
+      expect(body.fetch(:plans).map { |plan| plan.fetch(:job_id) }).to contain_exactly(job_one.id, job_two.id)
       expect(group.reason).to eq("Both branches drifted behind the same base rewrite.")
       expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
     end
