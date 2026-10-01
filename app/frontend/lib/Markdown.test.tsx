@@ -75,6 +75,60 @@ describe("Markdown", () => {
     expect(screen.getByText(/ALongUnbrokenToken/).closest("td")).toBeInTheDocument()
   })
 
+  it("balances tiny label and prose columns for ordinary three-column status tables", () => {
+    const markdown = [
+      "| # | Section | Status |",
+      "| --- | --- | --- |",
+      "| 1 | Dashboard | The run summary wraps as ordinary prose and remains readable on mobile. |",
+      "| 2 | Review | Final status details stay in the last column instead of being pushed off screen. |"
+    ].join("\n")
+    const { container } = render(<Markdown text={markdown} />)
+
+    const table = container.querySelector("table")
+    const columns = Array.from(container.querySelectorAll("col"))
+
+    expect(table).toHaveClass("chat-prose-table--balanced")
+    expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["compact", "label", "prose"])
+    expect(columns.map((column) => column.getAttribute("style"))).toEqual([
+      "--chat-table-column-width: 11.3%;",
+      "--chat-table-column-width: 28.8%;",
+      "--chat-table-column-width: 60%;"
+    ])
+  })
+
+  it("gives two-column label and prose tables balanced width hints", () => {
+    const markdown = [
+      "| Field | Details |",
+      "| --- | --- |",
+      "| Trigger label | A normal sentence of breakable prose should receive most of the table width. |",
+      "| Branch | Short labels should not force the detail column into a narrow strip. |"
+    ].join("\n")
+    const { container } = render(<Markdown text={markdown} />)
+
+    const table = container.querySelector("table")
+    const columns = Array.from(container.querySelectorAll("col"))
+
+    expect(table).toHaveClass("chat-prose-table--balanced")
+    expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["label", "prose"])
+    expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 32.4%;", "--chat-table-column-width: 67.6%;"])
+  })
+
+  it("marks tables with unbroken tokens as wide while keeping them wrapped for containment", () => {
+    const markdown = ["| Label | Value |", "| --- | --- |", "| Artifact | https://example.test/downloads/ALongUnbrokenTokenThatCannotWrapNaturally |"].join(
+      "\n"
+    )
+    const { container } = render(<Markdown text={markdown} />)
+
+    const wrapper = container.querySelector(".chat-prose-table-wrap")
+    const table = container.querySelector("table")
+
+    expect(wrapper).toBeInTheDocument()
+    expect(table).toHaveClass("chat-prose-table--wide")
+    expect(table).not.toHaveClass("chat-prose-table--balanced")
+    expect(container.querySelector("col[data-chat-table-column='prose']")).toBeInTheDocument()
+    expect(screen.getByText("https://example.test/downloads/ALongUnbrokenTokenThatCannotWrapNaturally")).toBeInTheDocument()
+  })
+
   it("renders strong emphasis that spans a soft-broken source line", () => {
     const { container } = render(
       <Markdown text={"## 4. Open-core boundary\n\n**Decision: OSS ships mechanism, including good isolation. Commercial ships\ntenancy.**\n\nIsolation is commodity."} />

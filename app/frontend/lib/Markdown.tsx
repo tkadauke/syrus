@@ -1,4 +1,4 @@
-import { Fragment, type MouseEvent, type ReactNode } from "react"
+import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from "react"
 import katex from "katex"
 import "katex/dist/katex.min.css"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
@@ -12,8 +12,16 @@ type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
+type TableColumnKind = "compact" | "label" | "prose"
+type TableColumnHint = { kind: TableColumnKind; width: string }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
+const WIDE_TABLE_COLUMN_COUNT = 5
+const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
+  compact: 0.45,
+  label: 1.15,
+  prose: 2.4
+}
 
 export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
@@ -309,28 +317,106 @@ function renderTable(lines: string[], index: number, key: number, options: Rende
     rows.push(splitTableRow(lines[index]))
     index += 1
   }
+  const columnHints = tableColumnHints(headers, rows)
+  const wide = tableNeedsHorizontalScroll(headers, rows)
 
   return {
     nextIndex: index,
     node: (
-      <div key={`block-${key}`} className="chat-prose-table-wrap"><table>
-        <thead>
-          <tr>{headers.map((header, cellIndex) => <th key={cellIndex}>{renderInline(header, options)}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {headers.map((_header, cellIndex) => <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>)}
+      <div key={`block-${key}`} className="chat-prose-table-wrap">
+        <table className={wide ? "chat-prose-table chat-prose-table--wide" : "chat-prose-table chat-prose-table--balanced"}>
+          <colgroup>
+            {columnHints.map((hint, cellIndex) => (
+              <col
+                key={cellIndex}
+                className={`chat-prose-table__col chat-prose-table__col--${hint.kind}`}
+                data-chat-table-column={hint.kind}
+                style={{ "--chat-table-column-width": hint.width } as CSSProperties}
+              />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {headers.map((header, cellIndex) => (
+                <th key={cellIndex}>{renderInline(header, options)}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table></div>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {headers.map((_header, cellIndex) => (
+                  <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )
   }
 }
 
 function splitTableRow(line: string) {
-  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim())
+}
+
+function tableColumnHints(headers: string[], rows: string[][]): TableColumnHint[] {
+  const kinds = headers.map((header, columnIndex) =>
+    tableColumnKind(
+      header,
+      rows.map((row) => row[columnIndex] || "")
+    )
+  )
+  const totalWeight = kinds.reduce((sum, kind) => sum + tableColumnWeight(kind), 0)
+
+  return kinds.map((kind) => ({
+    kind,
+    width: `${Math.round((tableColumnWeight(kind) / totalWeight) * 1000) / 10}%`
+  }))
+}
+
+function tableColumnKind(header: string, cells: string[]): TableColumnKind {
+  const values = [header, ...cells].map(normalizeTableCell)
+  const longest = Math.max(...values.map((value) => value.length), 0)
+  const proseValues = values.filter((value) => /\s/.test(value) && value.length > 18).length
+
+  if (values.every(compactTableValue) && longest <= 16) return "compact"
+  if (proseValues > 0 || longest > 36) return "prose"
+  return "label"
+}
+
+function tableColumnWeight(kind: TableColumnKind) {
+  return TABLE_COLUMN_WEIGHTS[kind]
+}
+
+function compactTableValue(value: string) {
+  if (value === "") return true
+  if (/^(?:#|no\.?|num(?:ber)?|id|ids|count|qty|status)$/i.test(value)) return true
+  return /^[A-Z]{1,4}-?\d{1,6}$/.test(value) || /^[\d.,%:/-]+$/.test(value)
+}
+
+function normalizeTableCell(value: string) {
+  return value
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]\n]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_~]/g, "")
+    .trim()
+}
+
+function tableNeedsHorizontalScroll(headers: string[], rows: string[][]) {
+  if (headers.length >= WIDE_TABLE_COLUMN_COUNT) return true
+
+  return [headers, ...rows].some((row) => row.some((cell) => hasUnbreakableTableToken(cell)))
+}
+
+function hasUnbreakableTableToken(value: string) {
+  return /https?:\/\/\S{24,}/i.test(value) || /`[^\s`]{24,}`/.test(value) || /[^\s`|]{32,}/.test(value)
 }
 
 function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
