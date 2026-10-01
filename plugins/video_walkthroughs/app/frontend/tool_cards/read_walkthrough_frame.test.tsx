@@ -21,7 +21,11 @@ describe("read_walkthrough_frame tool card", () => {
       timestamp: "01:12",
       range: { start: "01:10", end: "01:15" },
       frame_index: 2160,
-      image: { data: "/9j/4AAQSkZJRgABAQAAAQABAAD/2w==", mimeType: "image/jpeg", label: "Checkout regression at 01:12" },
+      image: {
+        src: "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201%201%22%3E%3Crect%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%232563eb%22%2F%3E%3C%2Fsvg%3E",
+        mimeType: "image/svg+xml",
+        label: "Checkout regression at 01:12"
+      },
       transcript: "The save button is clicked.",
       context: "The error toast is visible beside the form.",
       links: [{ label: "Source video", url: "/api/v1/app/video_walkthroughs/42" }]
@@ -39,7 +43,7 @@ describe("read_walkthrough_frame tool card", () => {
     expect(screen.getByText("The save button is clicked.")).toBeInTheDocument()
     expect(screen.getByText("The error toast is visible beside the form.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Source video" })).toHaveAttribute("href", "/api/v1/app/video_walkthroughs/42")
-    expect(screen.getByRole("img", { name: "Checkout regression at 01:12" })).toHaveAttribute("src", expect.stringContaining("data:image/jpeg;base64,"))
+    expect(screen.getByRole("img", { name: "Checkout regression at 01:12" })).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"))
   })
 
   it("renders a missing-frame payload without an inline image", () => {
@@ -79,5 +83,6 @@ describe("read_walkthrough_frame tool card", () => {
 
   it("exports catalog examples for normal, missing-frame, and error payloads", () => {
     expect(examples.map((example) => example.id)).toEqual(["normal_frame", "missing_frame", "capture_error"])
+    expect(JSON.stringify(examples[0].parsedResult)).toContain("data:image/svg+xml")
   })
 })
