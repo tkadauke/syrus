@@ -6,14 +6,13 @@
     "discuss": "Disputa",
     "discussing": "Disputatur...",
     "discussion_body": "Nota disputationis",
-    "error": "Haec nota cognitiva renovari non potuit.",
-    "save_discussion": "Disputationem serva",
-    "view_range": "Intervallum vide"
+    "error": "Haec nota recensionis renovari non potuit.",
+    "save_discussion": "Disputationem serva"
   },
   "note": {
     "agent_authored": "Nota agentis",
     "confidence": "{{confidence}}% fiducia",
-    "fallback_title": "Nota recognitionis cognitivae",
+    "fallback_title": "Nota recensionis",
     "priority": "Prioritas {{priority}}",
     "range": "{{path}} {{side}} versus {{start}}-{{end}}",
     "side": {
@@ -23,9 +22,9 @@
   },
   "panel": {
     "hidden_count": "{{count}} plures notae in diff patent.",
-    "summary": "{{count}} nota recognitionis cognitivae aperta",
-    "summary_one": "{{count}} nota recognitionis cognitivae aperta",
-    "summary_other": "{{count}} notae recognitionis cognitivae apertae",
-    "title": "Recognitio cognitiva"
+    "summary": "{{count}} nota recensionis aperta",
+    "summary_one": "{{count}} nota recensionis aperta",
+    "summary_other": "{{count}} notae recensionis apertae",
+    "title": "Notae recensionis"
   }
 }
