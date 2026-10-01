@@ -65,6 +65,34 @@ RSpec.describe "App API diff review comments", type: :request do
       )
     end
 
+    it "lists comments from multiple requested surfaces" do
+      review_workspace = create_comment(surface: "job_review_workspace")
+      source_diff = create_comment(surface: "job_source_diff", new_line: 13)
+      create_comment(surface: "run_agent_diff", new_line: 14)
+
+      get comments_path, params: {
+        surface: "job_review_workspace,job_source_diff",
+        diff_review_version_id: version.id
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["comments"].map { |comment| comment["id"] }).to match_array([ review_workspace.id, source_diff.id ])
+    end
+
+    it "accepts array-style surface filters" do
+      review_workspace = create_comment(surface: "job_review_workspace")
+      source_diff = create_comment(surface: "job_source_diff", new_line: 13)
+      create_comment(surface: "run_agent_diff", new_line: 14)
+
+      get comments_path, params: {
+        surfaces: [ "job_review_workspace", "job_source_diff" ],
+        diff_review_version_id: version.id
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["comments"].map { |comment| comment["id"] }).to match_array([ review_workspace.id, source_diff.id ])
+    end
+
     it "defaults to the latest diff review version when no version is selected" do
       old_version = version
       latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)

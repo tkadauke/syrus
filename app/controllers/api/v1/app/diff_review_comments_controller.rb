@@ -119,7 +119,7 @@ module Api
           job.diff_review_comments
              .includes(:user, :workflow, :run, :diff_review_version)
              .for_diff_review_version(version.id)
-             .for_surface(params[:surface])
+             .then { |scope| filter_surfaces(scope) }
              .for_path(params[:path])
              .for_state(params[:state])
              .for_base_ref(params[:base_ref])
@@ -132,7 +132,7 @@ module Api
         def all_version_comments(job)
           job.diff_review_comments
              .includes(:user, :workflow, :run, :diff_review_version)
-             .for_surface(params[:surface])
+             .then { |scope| filter_surfaces(scope) }
              .for_path(params[:path])
              .for_state(params[:state])
              .for_workflow(params[:workflow_id])
@@ -145,6 +145,20 @@ module Api
           raise ActiveRecord::RecordNotFound unless version
 
           job.diff_review_comments.for_diff_review_version(version.id).find(params[:id])
+        end
+
+        def filter_surfaces(scope)
+          surfaces = requested_surfaces
+          return scope if surfaces.empty?
+
+          scope.where(surface: surfaces)
+        end
+
+        def requested_surfaces
+          Array(params[:surfaces].presence || params[:surface])
+            .flat_map { |surface| surface.to_s.split(",") }
+            .map(&:strip)
+            .reject(&:blank?)
         end
 
         def comment_params
