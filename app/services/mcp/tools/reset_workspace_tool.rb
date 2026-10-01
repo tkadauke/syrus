@@ -13,6 +13,10 @@ module Mcp::Tools
       the checkout is reset to the repository default branch tip, uncommitted
       changes and local-only commits are discarded, Coding Mode checkout state is
       refreshed, and ChatWorkspacePrepareJob is queued for the next turn.
+      Status output includes the active checkout branch and HEAD, dirty/ahead
+      state, any linked coding Job, and valid next handoff lanes. This tool is
+      not a Coding Mode cancel/detach primitive; use cancel_coding_checkout for
+      that existing takeover-release flow.
       Only available when the coding_mode feature is enabled.
     DESC
 

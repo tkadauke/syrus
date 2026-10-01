@@ -217,7 +217,7 @@ const PROVIDER_BUILTIN_ENTRIES: ToolPresentationEntry[] = [
 // rendering (and whether a card exists at all) still comes from whatever
 // card discovery already found for that tool name, or the generic fallback
 // if none did.
-const LOCAL_MODE_TOOL_NAMES = new Set(["open_in_local_mode", "cancel_local_mode", "reset_workspace", "complete_implement_step", "submit_coding_changes"])
+const LOCAL_MODE_TOOL_NAMES = new Set(["open_in_local_mode", "cancel_local_mode", "reset_workspace", "cancel_coding_checkout", "complete_implement_step", "submit_coding_changes"])
 
 // Components rendered directly from a chat message's own shape (a
 // chat_proposal's `item.proposal`, a pending action's `item.pending_action`

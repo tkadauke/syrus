@@ -12,7 +12,11 @@ module Mcp::Tools
       workflow (graders → summarize → PR open). Use this after committing the
       implementation. The current branch is captured to an immutable handoff branch
       after the operator confirms the pending action; you do not need to push a
-      standalone chat branch first.
+      standalone chat branch first. Do not use this for an existing Syrus Job
+      branch; open that Job in Coding Mode and use complete_implement_step
+      instead. Branches that already belong to a Syrus Job in this repository
+      are refused because this tool creates a new Job rather than updating the
+      existing one.
       Only available when the coding_mode feature is enabled.
     DESC
 
@@ -52,6 +56,13 @@ module Mcp::Tools
 
         branch = branch.to_s.strip.presence || current_checkout_branch(chat_session, repository).to_s.strip
         return Mcp::Tools.invalid("branch is required") if branch.blank?
+        if (existing_job = existing_job_for_branch(repository, branch))
+          return Mcp::Tools.invalid(
+            "Branch '#{branch}' already belongs to #{existing_job.slug}. " \
+            "submit_coding_changes would create a new CodingHandoff Job, not update that existing Job. " \
+            "Use open_in_coding_mode(#{existing_job.id}) first, then hand off with complete_implement_step."
+          )
+        end
 
         title = title.to_s.strip
         return Mcp::Tools.invalid("title is required") if title.blank?
@@ -104,6 +115,17 @@ module Mcp::Tools
 
       def auto_submit_coding_handoff?(chat_session)
         chat_session.active_goal&.auto_submit_coding_handoff? || false
+      end
+
+      def existing_job_for_branch(repository, branch)
+        repository.jobs.find_by(branch_name: branch) || existing_job_for_syrus_branch(repository, branch)
+      end
+
+      def existing_job_for_syrus_branch(repository, branch)
+        match = branch.match(/\Asyrus\/(?:direct|job)-(?<id>\d+)\z/)
+        return nil unless match
+
+        repository.jobs.find_by(id: match[:id])
       end
 
       def stack_context_for(chat_session, repository)
