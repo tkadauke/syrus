@@ -356,7 +356,7 @@ module App
       @job_detail_dependencies ||= begin
         records = @job
           .dependencies
-          .includes(:created_by_user, depends_on_job: :repository, depends_on_epic: :repository)
+          .includes(:created_by_user, depends_on_job: [ :epic, :repository ], depends_on_epic: :repository)
           .to_a
         @job.association(:dependencies).target = records
         @job.association(:dependencies).loaded!

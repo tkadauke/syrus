@@ -1271,6 +1271,51 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Override and force-run" })).not.toBeInTheDocument()
   })
 
+  it("describes same-epic blockers as epic ordering instead of PR merging", () => {
+    const dependency = {
+      id: 12,
+      source: "parsed",
+      manual: false,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 5762,
+        kind: "issue",
+        state: "implemented",
+        summary_state: "implemented",
+        epic_id: 18,
+        repository_slug: "tkadauke/syrus",
+        issue_number: 5762,
+        issue_title: "Add overview briefing base",
+        branch_name: "syrus/issue-5762",
+        pr_number: 5762,
+        job_path: "/jobs/5762"
+      }
+    }
+
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), epic_id: 18 },
+        epic: {
+          id: 18,
+          number: 18,
+          display_number: "EPIC-18",
+          title: "Operator briefing",
+          state: "in_progress",
+          epic_path: "/epics/18"
+        },
+        dependencies: [dependency],
+        unsatisfied_dependencies: [dependency]
+      })
+    )
+
+    expect(screen.getByText("Blocked on:")).toBeInTheDocument()
+    expect(screen.getByText(/waiting on the Epic's dependency order/)).toBeInTheDocument()
+    expect(screen.queryByText(/once that PR merges/)).not.toBeInTheDocument()
+  })
+
   it("renders epic dependency rows with a link to the epic and a remove button", () => {
     const epicDependency = {
       id: 20,
