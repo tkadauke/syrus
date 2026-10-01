@@ -10,6 +10,7 @@ import { CopyIcon } from "../CopyableSlug"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
+import type { DiffReviewAnnotation } from "../../api/jobs"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
@@ -113,6 +114,7 @@ export type ReviewableDiffProps = {
   showFileHeaders?: boolean | "continuous"
   unavailableState?: ReactNode
   reviewSettings?: ReviewDiffSettings
+  reviewAnnotations?: Record<string, Record<string, DiffReviewAnnotation[]>> | null
   wordHighlighting?: boolean
 }
 
@@ -132,22 +134,26 @@ type FilesPopupPlacement = {
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
 const DIFF_INLINE_REVIEW_PANEL_CLASS = "sticky left-0 z-[1] w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
-const DIFF_FILE_HEADER_CONTROL_BASE_CLASS = "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
+const DIFF_FILE_HEADER_CONTROL_BASE_CLASS =
+  "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
 
-const DIFF_DENSITY_CLASSES: Record<ReviewDiffSettings["density"], {
-  changedFilesHeader: string
-  changedFilesRow: string
-  codeCell: string
-  commentButton: string
-  fileHeader: string
-  fileHeaderControl: string
-  filePathCopy: string
-  gutter: string
-  hunkCodeCell: string
-  inlineReviewCell: string
-  marker: string
-  tableText: string
-}> = {
+const DIFF_DENSITY_CLASSES: Record<
+  ReviewDiffSettings["density"],
+  {
+    changedFilesHeader: string
+    changedFilesRow: string
+    codeCell: string
+    commentButton: string
+    fileHeader: string
+    fileHeaderControl: string
+    filePathCopy: string
+    gutter: string
+    hunkCodeCell: string
+    inlineReviewCell: string
+    marker: string
+    tableText: string
+  }
+> = {
   compact: {
     changedFilesHeader: "px-2 py-1",
     changedFilesRow: "gap-1.5 px-2 py-1",
@@ -243,7 +249,16 @@ function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string): [F
 // A pixel estimate used only until a file section actually mounts and
 // reports its real height (see `virtualizer.measureElement`). Close enough
 // that ordinary scrolling doesn't jump once the real measurement lands.
-function estimateFileSectionHeight(file: ReviewableDiffFile, { collapsed, density, forceLoaded, largeFileRowThreshold, showHeader }: { collapsed: boolean; density: ReviewDiffSettings["density"]; forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }): number {
+function estimateFileSectionHeight(
+  file: ReviewableDiffFile,
+  {
+    collapsed,
+    density,
+    forceLoaded,
+    largeFileRowThreshold,
+    showHeader
+  }: { collapsed: boolean; density: ReviewDiffSettings["density"]; forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }
+): number {
   const estimates = DIFF_DENSITY_ESTIMATES[density]
   const header = showHeader ? estimates.header : 0
   if (collapsed) return header
@@ -285,6 +300,7 @@ export function ReviewableDiff({
   onStartEditThread,
   renderImageDiff,
   reviewSettings,
+  reviewAnnotations,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
@@ -325,9 +341,10 @@ export function ReviewableDiff({
     fileCache.current = new Map()
   }
 
-  const containerClass = scroll === "natural"
-    ? "min-w-0 max-w-full bg-white font-mono text-xs dark:bg-gray-950"
-    : "max-h-[32rem] min-w-0 max-w-full overflow-y-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
+  const containerClass =
+    scroll === "natural"
+      ? "min-w-0 max-w-full bg-white font-mono text-xs dark:bg-gray-950"
+      : "max-h-[32rem] min-w-0 max-w-full overflow-y-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
 
   const visibleFiles = renderFiles.slice(0, visibleFileCount)
   const remainingFileCount = renderFiles.length - visibleFiles.length
@@ -337,14 +354,27 @@ export function ReviewableDiff({
     const file = visibleFiles[index]
     if (!file) return DEFAULT_FILE_HEADER_HEIGHT_PX
     const cacheEntry = fileCache.current.get(file.path)
-    return estimateFileSectionHeight(file, { collapsed: cacheEntry?.collapsed ?? false, density: effectiveReviewSettings.density, forceLoaded: cacheEntry?.forceLoaded ?? false, largeFileRowThreshold, showHeader })
+    return estimateFileSectionHeight(file, {
+      collapsed: cacheEntry?.collapsed ?? false,
+      density: effectiveReviewSettings.density,
+      forceLoaded: cacheEntry?.forceLoaded ?? false,
+      largeFileRowThreshold,
+      showHeader
+    })
   }
 
   function getItemKey(index: number) {
     return visibleFiles[index]?.path ?? index
   }
 
-  const virtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
+  const virtualizer = useVirtualizer({
+    count: visibleFiles.length,
+    enabled: scroll === "bounded",
+    estimateSize,
+    getItemKey,
+    getScrollElement: () => scrollContainerRef.current,
+    overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN
+  })
 
   // Navigates the virtualized list to `selectedPath` whenever it changes
   // (Files menu selection or a sidebar comment's "View in diff") -- unlike the old
@@ -367,16 +397,20 @@ export function ReviewableDiff({
       return
     }
     pendingScrollTarget.current = null
-    measureSync("diff_review.anchor_scroll", () => {
-      if (scroll === "natural") {
-        document.querySelector(`[data-diff-file="${CSS.escape(target)}"]`)?.scrollIntoView({ block: "start" })
-      } else {
-        virtualizer.scrollToIndex(index, { align: "start" })
+    measureSync(
+      "diff_review.anchor_scroll",
+      () => {
+        if (scroll === "natural") {
+          document.querySelector(`[data-diff-file="${CSS.escape(target)}"]`)?.scrollIntoView({ block: "start" })
+        } else {
+          virtualizer.scrollToIndex(index, { align: "start" })
+        }
+      },
+      {
+        maxPerSession: 200,
+        metadata: { selected_path: target, virtualization_mode: scroll }
       }
-    }, {
-      maxPerSession: 200,
-      metadata: { selected_path: target, virtualization_mode: scroll }
-    })
+    )
   })
 
   const virtualItems = virtualizer.getVirtualItems()
@@ -387,9 +421,8 @@ export function ReviewableDiff({
   // -- initial mount, "load more files", or files scrolling in/out of the
   // overscan range -- not on every scroll-position pixel.
   useEffect(() => {
-    const mountedFiles = scroll === "natural"
-      ? visibleFiles
-      : virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
+    const mountedFiles =
+      scroll === "natural" ? visibleFiles : virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
     const mountedRows = mountedFiles.reduce((sum, file) => sum + (file.patch ? countDiffRows(file.patch) : 0), 0)
     recordCount("diff_review.viewport_render", {
       maxPerSession: 300,
@@ -455,7 +488,13 @@ export function ReviewableDiff({
 
   return (
     <div className="relative min-w-0 max-w-full [contain:inline-size]" data-testid="agent-diff-viewer" ref={containerRef}>
-      <div className={containerClass} data-rendered-file-count={renderedFileCount} data-total-file-count={visibleFiles.length} onClick={wordHighlightingEnabled ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
+      <div
+        className={containerClass}
+        data-rendered-file-count={renderedFileCount}
+        data-total-file-count={visibleFiles.length}
+        onClick={wordHighlightingEnabled ? clearHighlightOnDiffBackgroundClick : undefined}
+        ref={scrollContainerRef}
+      >
         {scroll === "natural" ? (
           visibleFiles.map((file, index) => renderFileSection(file, index))
         ) : (
@@ -464,12 +503,7 @@ export function ReviewableDiff({
               const file = visibleFiles[virtualItem.index]
               if (!file) return null
               return (
-                <div
-                  data-index={virtualItem.index}
-                  key={virtualItem.key}
-                  ref={virtualizer.measureElement}
-                  style={virtualFileSectionStyle(virtualItem.start)}
-                >
+                <div data-index={virtualItem.index} key={virtualItem.key} ref={virtualizer.measureElement} style={virtualFileSectionStyle(virtualItem.start)}>
                   {renderFileSection(file, virtualItem.index)}
                 </div>
               )
@@ -488,37 +522,44 @@ export function ReviewableDiff({
           </div>
         ) : null}
       </div>
-      {changedFilesPopup && filesPopupOpen ? renderChangedFilesOverlay(
-        isMobileFilesMenu ? (
-          <MobileChangedFilesModal
-            commentCounts={fileCommentCounts}
-            files={sortedFiles}
-            density={effectiveReviewSettings.density}
-            layout={effectiveReviewSettings.file_list_layout}
-            onClose={() => setFilesPopupOpen(false)}
-            onSelectFile={selectFileFromPopup}
-            selectedPath={selectedPath}
-          />
-        ) : (
-          <ChangedFilesPopup
-            commentCounts={fileCommentCounts}
-            files={sortedFiles}
-            filesPopupTriggerRef={filesPopupTriggerRef}
-            density={effectiveReviewSettings.density}
-            layout={effectiveReviewSettings.file_list_layout}
-            onClose={() => setFilesPopupOpen(false)}
-            onSelectFile={selectFileFromPopup}
-            placement={filesPopupPlacement}
-            selectedPath={selectedPath}
-          />
-        )
-      ) : null}
+      {changedFilesPopup && filesPopupOpen
+        ? renderChangedFilesOverlay(
+            isMobileFilesMenu ? (
+              <MobileChangedFilesModal
+                commentCounts={fileCommentCounts}
+                files={sortedFiles}
+                density={effectiveReviewSettings.density}
+                layout={effectiveReviewSettings.file_list_layout}
+                onClose={() => setFilesPopupOpen(false)}
+                onSelectFile={selectFileFromPopup}
+                selectedPath={selectedPath}
+              />
+            ) : (
+              <ChangedFilesPopup
+                commentCounts={fileCommentCounts}
+                files={sortedFiles}
+                filesPopupTriggerRef={filesPopupTriggerRef}
+                density={effectiveReviewSettings.density}
+                layout={effectiveReviewSettings.file_list_layout}
+                onClose={() => setFilesPopupOpen(false)}
+                onSelectFile={selectFileFromPopup}
+                placement={filesPopupPlacement}
+                selectedPath={selectedPath}
+              />
+            )
+          )
+        : null}
     </div>
   )
 
   function renderFileSection(file: ReviewableDiffFile, index: number) {
     return (
-      <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path} style={stickyFileHeaderBoundaryStyle(showHeader, effectiveReviewSettings.density)}>
+      <section
+        className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""}
+        data-diff-file={file.path}
+        key={file.path}
+        style={stickyFileHeaderBoundaryStyle(showHeader, effectiveReviewSettings.density)}
+      >
         <DiffFileSection
           annotations={annotationsForFile(annotations, file.path)}
           cache={fileCache.current}
@@ -549,6 +590,7 @@ export function ReviewableDiff({
           onToggleHighlightToken={wordHighlightingEnabled ? toggleHighlightToken : undefined}
           renderImageDiff={renderImageDiff}
           reviewSettings={effectiveReviewSettings}
+          reviewAnnotations={reviewAnnotations?.[file.path]}
           selected={selectedPath === file.path}
           showFilesPopupTrigger={changedFilesPopup}
           showHeader={showHeader}
@@ -661,17 +703,32 @@ function ChangedFilesPopup({
         onClick={(event) => event.stopPropagation()}
         ref={popupRef}
         role="dialog"
-        style={placement ? {
-          bottom: placement.bottom,
-          left: placement.left,
-          maxHeight: placement.maxHeight,
-          top: placement.top,
-          width: placement.width
-        } : { left: 16, maxHeight: 480, top: 56, width: 320 }}
+        style={
+          placement
+            ? {
+                bottom: placement.bottom,
+                left: placement.left,
+                maxHeight: placement.maxHeight,
+                top: placement.top,
+                width: placement.width
+              }
+            : { left: 16, maxHeight: 480, top: 56, width: 320 }
+        }
       >
-        <p className={`shrink-0 border-b border-gray-100 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400 ${DIFF_DENSITY_CLASSES[density].changedFilesHeader}`}>{t("diff_review.changed_files")}</p>
+        <p
+          className={`shrink-0 border-b border-gray-100 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400 ${DIFF_DENSITY_CLASSES[density].changedFilesHeader}`}
+        >
+          {t("diff_review.changed_files")}
+        </p>
         <div className="min-h-0 flex-1 overflow-auto">
-          <ChangedFilesList commentCounts={commentCounts} density={density} files={files} layout={layout} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+          <ChangedFilesList
+            commentCounts={commentCounts}
+            density={density}
+            files={files}
+            layout={layout}
+            onSelectFile={onSelectFile}
+            selectedPath={selectedPath}
+          />
         </div>
       </div>
     </div>
@@ -702,12 +759,24 @@ function MobileChangedFilesModal({
     <div className="fixed inset-0 z-[60] flex h-[100dvh] w-[100dvw] flex-col bg-white font-mono text-xs dark:bg-gray-950" ref={modalRef} role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
-        <button aria-label={t("diff_review.close_changed_files")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+        <button
+          aria-label={t("diff_review.close_changed_files")}
+          className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          onClick={onClose}
+          type="button"
+        >
           <CloseIcon className="h-5 w-5" />
         </button>
       </div>
       <div className="flex-1 overflow-auto">
-        <ChangedFilesList commentCounts={commentCounts} density={density} files={files} layout={layout} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+        <ChangedFilesList
+          commentCounts={commentCounts}
+          density={density}
+          files={files}
+          layout={layout}
+          onSelectFile={onSelectFile}
+          selectedPath={selectedPath}
+        />
       </div>
     </div>
   )
@@ -728,7 +797,8 @@ function ChangedFilesList({
   onSelectFile: (path: string) => void
   selectedPath?: string | null
 }) {
-  if (layout === "nested") return <NestedChangedFilesList commentCounts={commentCounts} density={density} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
+  if (layout === "nested")
+    return <NestedChangedFilesList commentCounts={commentCounts} density={density} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
 
   return (
     <>
@@ -744,7 +814,11 @@ function ChangedFilesList({
             <span className="min-w-0 flex-1 truncate">{file.path}</span>
             {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
             {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
-            {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+            {commentCounts?.[file.path] ? (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                {commentCounts[file.path]}
+              </span>
+            ) : null}
           </button>
         )
       })}
@@ -831,7 +905,11 @@ function ChangedFileTreeRow({
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
         {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
         {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
-        {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+        {commentCounts?.[file.path] ? (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            {commentCounts[file.path]}
+          </span>
+        ) : null}
       </button>
     )
   }
@@ -847,21 +925,28 @@ function ChangedFileTreeRow({
         title={node.path}
         type="button"
       >
-        <span aria-hidden="true" className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}>{">"}</span>
+        <span
+          aria-hidden="true"
+          className={`mr-1 inline-block w-3 text-gray-400 transition-transform dark:text-gray-500 ${expandedPaths.has(node.path) ? "rotate-90" : ""}`}
+        >
+          {">"}
+        </span>
         {node.name}
       </button>
-      {expandedPaths.has(node.path) ? node.children.map((child) => (
-        <ChangedFileTreeRow
-          commentCounts={commentCounts}
-          density={density}
-          expandedPaths={expandedPaths}
-          key={child.path}
-          node={child}
-          onSelectFile={onSelectFile}
-          onToggleDirectory={onToggleDirectory}
-          selectedPath={selectedPath}
-        />
-      )) : null}
+      {expandedPaths.has(node.path)
+        ? node.children.map((child) => (
+            <ChangedFileTreeRow
+              commentCounts={commentCounts}
+              density={density}
+              expandedPaths={expandedPaths}
+              key={child.path}
+              node={child}
+              onSelectFile={onSelectFile}
+              onToggleDirectory={onToggleDirectory}
+              selectedPath={selectedPath}
+            />
+          ))
+        : null}
     </>
   )
 }
@@ -947,6 +1032,7 @@ function DiffFileSection({
   onToggleHighlightToken,
   renderImageDiff,
   reviewSettings,
+  reviewAnnotations,
   selected,
   showFilesPopupTrigger,
   showHeader,
@@ -981,6 +1067,7 @@ function DiffFileSection({
   onToggleHighlightToken?: (token: string) => void
   renderImageDiff?: (file: ReviewableDiffFile) => ReactNode
   reviewSettings: ReviewDiffSettings
+  reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
   selected: boolean
   showFilesPopupTrigger?: boolean
   showHeader: boolean
@@ -1063,18 +1150,20 @@ function DiffFileSection({
   // resolve null — never show controls that can't do anything.
   const contextExpansionEnabled = Boolean(onLoadFileContext) && file.status !== "removed"
 
-  const hunkControls: HunkControls[] = contextExpansionEnabled ? hunks.map((_, hunkIndex) => {
-    const upGap = gapsMeta[hunkIndex]
-    const downGap = gapsMeta[hunkIndex + 1]
-    const loading = contextState.status === "loading"
-    const upVisible = !contextState.fullyExpanded && remainingInGap(upGap, contextState.gaps[hunkIndex]) > 0
-    const downVisible = !contextState.fullyExpanded && remainingInGap(downGap, contextState.gaps[hunkIndex + 1]) > 0
+  const hunkControls: HunkControls[] = contextExpansionEnabled
+    ? hunks.map((_, hunkIndex) => {
+        const upGap = gapsMeta[hunkIndex]
+        const downGap = gapsMeta[hunkIndex + 1]
+        const loading = contextState.status === "loading"
+        const upVisible = !contextState.fullyExpanded && remainingInGap(upGap, contextState.gaps[hunkIndex]) > 0
+        const downVisible = !contextState.fullyExpanded && remainingInGap(downGap, contextState.gaps[hunkIndex + 1]) > 0
 
-    return {
-      down: downVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
-      up: upVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
-    }
-  }) : []
+        return {
+          down: downVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
+          up: upVisible ? { lineCount: reviewSettings.context_lines, loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
+        }
+      })
+    : []
 
   if (collapsed) {
     return showHeader ? (
@@ -1152,6 +1241,7 @@ function DiffFileSection({
           onStartEditThread={onStartEditThread}
           onToggleHighlightToken={onToggleHighlightToken}
           reviewSettings={reviewSettings}
+          reviewAnnotations={reviewAnnotations}
           tokenCache={cacheEntry.tokensByHunk}
         />
       ) : file.is_image && renderImageDiff ? (
@@ -1174,7 +1264,9 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
         {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions} </span> : null}
         {t("diff_review.large_file_hidden", { rowCount })}
       </p>
-      <Button onClick={onLoad} size="sm" variant="secondary">{t("diff_review.load_file_diff")}</Button>
+      <Button onClick={onLoad} size="sm" variant="secondary">
+        {t("diff_review.load_file_diff")}
+      </Button>
     </div>
   )
 }
@@ -1196,7 +1288,11 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
 // cache that outlives this component's own mount -- see FileCacheEntry -- so
 // a file that scrolls out of the virtualized window and back doesn't redo
 // Shiki work it already paid for.
-function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null, tokensByHunk: Map<number, ThemedToken[][]>): (ThemedToken[] | undefined)[] {
+function useHighlightedDiffLines(
+  lines: DiffLine[],
+  lang: HighlighterLanguageId | null,
+  tokensByHunk: Map<number, ThemedToken[][]>
+): (ThemedToken[] | undefined)[] {
   // Bumped after a fetch populates `tokensByHunk` (mutated in place, so its
   // reference never changes on its own) to tell the memo below new entries
   // landed.
@@ -1226,22 +1322,24 @@ function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId 
         const tokens = await tokenizeLines(code, lang)
         return [hunkId, tokens] as const
       })
-    ).then((results) => {
-      if (cancelled) return
-      for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
-      const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
-      endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
-      bumpVersion()
-    }).catch((error: unknown) => {
-      // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
-      // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
-      // surface as an unhandled promise rejection -- the diff already
-      // renders correctly as plain text without tokens, so this is a
-      // silent degrade, not a UI error.
-      if (cancelled) return
-      endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, error: true } })
-      console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
-    })
+    )
+      .then((results) => {
+        if (cancelled) return
+        for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
+        const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
+        endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
+        bumpVersion()
+      })
+      .catch((error: unknown) => {
+        // A blocked/failed highlighter load (e.g. CSP-blocked WASM in a
+        // browser that hasn't picked up 'wasm-unsafe-eval' yet) must not
+        // surface as an unhandled promise rejection -- the diff already
+        // renders correctly as plain text without tokens, so this is a
+        // silent degrade, not a UI error.
+        if (cancelled) return
+        endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, error: true } })
+        console.warn("Diff syntax highlighting failed; falling back to plain text.", error)
+      })
 
     return () => {
       cancelled = true
@@ -1295,6 +1393,7 @@ export function UnifiedDiffTable({
   onStartEditThread,
   onToggleHighlightToken,
   reviewSettings = DEFAULT_REVIEW_DIFF_SETTINGS,
+  reviewAnnotations,
   testId,
   tokenCache: tokenCacheProp
 }: {
@@ -1324,6 +1423,7 @@ export function UnifiedDiffTable({
   onStartEditThread?: (thread: DiffReviewThread) => void
   onToggleHighlightToken?: (token: string) => void
   reviewSettings?: ReviewDiffSettings
+  reviewAnnotations?: Record<string, DiffReviewAnnotation[]>
   testId?: string
   // Optional external Shiki-token cache keyed by hunk id (see
   // useHighlightedDiffLines) -- DiffFileSection passes its per-file cache
@@ -1355,13 +1455,15 @@ export function UnifiedDiffTable({
   const hideSeparateOldLineGutter = hideOldLineGutter || collapseUnifiedGutters
   const gutterColSpan = showLineNumbers ? (hideSeparateOldLineGutter ? 1 : 2) : 1
   const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView, mobileUnifiedWrap)
+  const showReviewNotes = hasReviewAnnotations(reviewAnnotations)
 
   let hunkIndex = -1
 
-  const scrollClass = lineWrapping === "scroll"
-    ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
-    : "w-full min-w-0 max-w-full overflow-x-hidden"
-  const splitInlineColSpan = showLineNumbers ? 5 : 3
+  const scrollClass =
+    lineWrapping === "scroll"
+      ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+      : "w-full min-w-0 max-w-full overflow-x-hidden"
+  const splitInlineColSpan = (showLineNumbers ? 5 : 3) + (showReviewNotes ? 1 : 0)
 
   function renderThreadRow(threads: DiffReviewThread[], splitRow: boolean) {
     if (threads.length === 0) return null
@@ -1404,8 +1506,12 @@ export function UnifiedDiffTable({
                   value={editingThreadBody ?? ""}
                 />
                 <div className="flex gap-2">
-                  <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">{t("save")}</Button>
-                  <Button onClick={onCancelEditThread} size="sm" variant="secondary">{t("cancel")}</Button>
+                  <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">
+                    {t("save")}
+                  </Button>
+                  <Button onClick={onCancelEditThread} size="sm" variant="secondary">
+                    {t("cancel")}
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -1451,13 +1557,17 @@ export function UnifiedDiffTable({
             value={composingBody ?? ""}
           />
           <div className="flex gap-2">
-            <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">{t("diff_review_composer.create_comment")}</Button>
+            <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">
+              {t("diff_review_composer.create_comment")}
+            </Button>
             {onDiscussComposing ? (
               <Button disabled={!composingBody?.trim() || composingDiscussPending} onClick={onDiscussComposing} size="sm" variant="secondary">
                 {composingDiscussPending ? t("diff_review_composer.discussing") : t("diff_review_composer.discuss")}
               </Button>
             ) : null}
-            <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
+            <Button onClick={onCancelComposing} size="sm" variant="secondary">
+              {t("cancel")}
+            </Button>
           </div>
           {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
           {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
@@ -1479,7 +1589,7 @@ export function UnifiedDiffTable({
       <tr className="font-sans" data-testid="diff-review-composer">
         <td className="border-r border-brand/20" colSpan={gutterColSpan} />
         <td className={`text-brand ${diffDensityClasses(reviewSettings).marker}`}>*</td>
-        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2}>
+        <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={showReviewNotes ? 3 : 2}>
           {panel}
         </td>
       </tr>
@@ -1488,19 +1598,37 @@ export function UnifiedDiffTable({
 
   return (
     <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
-      <table className={diffTableClass(reviewSettings, splitView, mobileUnifiedWrap)} data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view} style={{ tabSize: reviewSettings.tab_width }} data-testid={testId}>
-        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} /> : null}
-        {!splitView && mobileUnifiedWrap ? <UnifiedDiffColGroup showLineNumbers={showLineNumbers} /> : null}
+      <table
+        className={diffTableClass(reviewSettings, splitView, mobileUnifiedWrap)}
+        data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view}
+        style={{ tabSize: reviewSettings.tab_width }}
+        data-testid={testId}
+      >
+        {splitView ? <SplitDiffColGroup showLineNumbers={showLineNumbers} showReviewNotes={showReviewNotes} /> : null}
+        {!splitView && mobileUnifiedWrap ? <UnifiedDiffColGroup showLineNumbers={showLineNumbers} showReviewNotes={showReviewNotes} /> : null}
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
               const controls = hunkControls?.[hunkIndex]
               if (controls && !controls.up && !controls.down) return null
-              return <HunkRow controls={controls} hideOldLineGutter={hideSeparateOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} mobileUnifiedWrap={mobileUnifiedWrap} reviewSettings={reviewSettings} showLineNumbers={showLineNumbers} splitView={splitView} />
+              return (
+                <HunkRow
+                  controls={controls}
+                  hideOldLineGutter={hideSeparateOldLineGutter}
+                  key={`${index}-hunk-${line.hunkNewStart ?? ""}`}
+                  line={line}
+                  mobileUnifiedWrap={mobileUnifiedWrap}
+                  reviewSettings={reviewSettings}
+                  showLineNumbers={showLineNumbers}
+                  showReviewNotes={showReviewNotes}
+                  splitView={splitView}
+                />
+              )
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
+            const reviewNotes = line.newLine != null ? (reviewAnnotations?.[String(line.newLine)] ?? []) : []
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
             const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
@@ -1508,7 +1636,7 @@ export function UnifiedDiffTable({
             const threads = lineAnchorKey ? comments?.[lineAnchorKey] || [] : []
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             const visibleLineNumber = collapseUnifiedGutters ? (line.newLine ?? line.oldLine ?? "") : (line.newLine ?? "")
-            const visibleLineNumberCommentSide = collapseUnifiedGutters ? commentSide : (commentSide === "new" ? "new" : null)
+            const visibleLineNumberCommentSide = collapseUnifiedGutters ? commentSide : commentSide === "new" ? "new" : null
             if (splitView && isDiffCodeLine(line.kind)) {
               return (
                 <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
@@ -1523,6 +1651,8 @@ export function UnifiedDiffTable({
                     onCommentLine={onCommentLine}
                     onToggleHighlightToken={toggleHighlight}
                     reviewSettings={reviewSettings}
+                    reviewNotes={reviewNotes}
+                    showReviewNotes={showReviewNotes}
                     showLineNumbers={showLineNumbers}
                     tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
                   />
@@ -1534,11 +1664,11 @@ export function UnifiedDiffTable({
             if (splitView) {
               return (
                 <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-                  <tr
-                    className={`group ${diffLineClass(line.kind)}`}
-                    data-diff-kind={line.kind}
-                  >
-                    <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).codeCell}`} colSpan={splitInlineColSpan}>
+                  <tr className={`group ${diffLineClass(line.kind)}`} data-diff-kind={line.kind}>
+                    <td
+                      className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).codeCell}`}
+                      colSpan={splitInlineColSpan}
+                    >
                       <DiffCode
                         code={reviewDisplayCode(line.code, reviewSettings)}
                         highlightedToken={activeHighlight}
@@ -1555,40 +1685,65 @@ export function UnifiedDiffTable({
             }
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-              <tr
-                className={`group ${diffLineClass(line.kind)}`}
-                data-coverage={annotation}
-                data-diff-anchor={lineAnchorKey || undefined}
-                data-diff-kind={line.kind}
-              >
-                {hideSeparateOldLineGutter || !showLineNumbers ? null : (
-                  <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-                    {commentSide === "old" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.oldLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : (line.oldLine ?? "")}
+                <tr
+                  className={`group ${diffLineClass(line.kind)}`}
+                  data-coverage={annotation}
+                  data-diff-anchor={lineAnchorKey || undefined}
+                  data-diff-kind={line.kind}
+                >
+                  {hideSeparateOldLineGutter || !showLineNumbers ? null : (
+                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+                      {commentSide === "old" && canComment ? (
+                        <GutterCommentButton
+                          file={file}
+                          line={line}
+                          lineNumber={line.oldLine ?? ""}
+                          reviewSettings={reviewSettings}
+                          onCommentLine={onCommentLine}
+                          side="old"
+                        />
+                      ) : (
+                        (line.oldLine ?? "")
+                      )}
+                    </td>
+                  )}
+                  {showLineNumbers ? (
+                    <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+                      {visibleLineNumberCommentSide && canComment ? (
+                        <GutterCommentButton
+                          file={file}
+                          line={line}
+                          lineNumber={visibleLineNumber}
+                          reviewSettings={reviewSettings}
+                          onCommentLine={onCommentLine}
+                          side={visibleLineNumberCommentSide}
+                        />
+                      ) : (
+                        visibleLineNumber
+                      )}
+                    </td>
+                  ) : null}
+                  <td className={`${diffMarkerClass(line.kind)} ${diffDensityClasses(reviewSettings).marker}`}>{line.marker}</td>
+                  <td className={`${codeCellClass} ${diffCoverageBorderClass(annotation)}`}>
+                    <DiffCode
+                      code={reviewDisplayCode(line.code, reviewSettings)}
+                      highlightedToken={activeHighlight}
+                      kind={line.kind}
+                      onToggleHighlightToken={toggleHighlight}
+                      tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                    />
                   </td>
-                )}
-                {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-                  {visibleLineNumberCommentSide && canComment ? (
-                    <GutterCommentButton file={file} line={line} lineNumber={visibleLineNumber} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side={visibleLineNumberCommentSide} />
-                  ) : visibleLineNumber}
-                </td> : null}
-                <td className={`${diffMarkerClass(line.kind)} ${diffDensityClasses(reviewSettings).marker}`}>{line.marker}</td>
-                <td className={`${codeCellClass} ${diffCoverageBorderClass(annotation)}`}>
-                  <DiffCode
-                    code={reviewDisplayCode(line.code, reviewSettings)}
-                    highlightedToken={activeHighlight}
-                    kind={line.kind}
-                    onToggleHighlightToken={toggleHighlight}
-                    tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
-                  />
-                </td>
-                <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-                  {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                    : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
-                    : null}
-                </td>
-              </tr>
-              {renderThreadRow(threads, false)}
-              {renderComposerRow(isComposingHere, false)}
+                  <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
+                    {annotation === "covered" ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                    ) : annotation === "uncovered" ? (
+                      <span className="text-red-600 dark:text-red-400">✗</span>
+                    ) : null}
+                  </td>
+                  {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
+                </tr>
+                {renderThreadRow(threads, false)}
+                {renderComposerRow(isComposingHere, false)}
               </Fragment>
             )
           })}
@@ -1646,24 +1801,30 @@ function DiffCode({
   tokens?: ThemedToken[]
 }) {
   const highlightable = kind === "add" || kind === "delete" || kind === "context"
-  if (!highlightable || !code) return <>{tokens ? renderCodeLine(tokens, code || " ") : (code || " ")}</>
+  if (!highlightable || !code) return <>{tokens ? renderCodeLine(tokens, code || " ") : code || " "}</>
 
   if (tokens) {
     return (
       <>
         {tokens.map((shikiToken, tokenIndex) => (
           <Fragment key={tokenIndex}>
-            {tokenizeCode(shikiToken.content).map((word, wordIndex) => word.highlightable ? (
-              <span
-                className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
-                data-diff-highlight-token
-                key={wordIndex}
-                onClick={() => onToggleHighlightToken(word.text)}
-                style={{ color: shikiToken.color }}
-              >
-                {word.text}
-              </span>
-            ) : <span key={wordIndex} style={{ color: shikiToken.color }}>{word.text}</span>)}
+            {tokenizeCode(shikiToken.content).map((word, wordIndex) =>
+              word.highlightable ? (
+                <span
+                  className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
+                  data-diff-highlight-token
+                  key={wordIndex}
+                  onClick={() => onToggleHighlightToken(word.text)}
+                  style={{ color: shikiToken.color }}
+                >
+                  {word.text}
+                </span>
+              ) : (
+                <span key={wordIndex} style={{ color: shikiToken.color }}>
+                  {word.text}
+                </span>
+              )
+            )}
           </Fragment>
         ))}
       </>
@@ -1673,16 +1834,20 @@ function DiffCode({
   const wordTokens = tokenizeCode(code)
   return (
     <>
-      {wordTokens.map((token, index) => token.highlightable ? (
-        <span
-          className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
-          data-diff-highlight-token
-          key={index}
-          onClick={() => onToggleHighlightToken(token.text)}
-        >
-          {token.text}
-        </span>
-      ) : <span key={index}>{token.text}</span>)}
+      {wordTokens.map((token, index) =>
+        token.highlightable ? (
+          <span
+            className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-warning-surface text-warning-text" : "hover:bg-warning-surface"}`}
+            data-diff-highlight-token
+            key={index}
+            onClick={() => onToggleHighlightToken(token.text)}
+          >
+            {token.text}
+          </span>
+        ) : (
+          <span key={index}>{token.text}</span>
+        )
+      )}
     </>
   )
 }
@@ -1699,6 +1864,8 @@ function SplitDiffRow({
   onCommentLine,
   onToggleHighlightToken,
   reviewSettings,
+  reviewNotes,
+  showReviewNotes,
   showLineNumbers,
   tokens
 }: {
@@ -1712,6 +1879,8 @@ function SplitDiffRow({
   onCommentLine?: (selection: DiffLineSelection) => void
   onToggleHighlightToken: (token: string) => void
   reviewSettings: ReviewDiffSettings
+  reviewNotes?: DiffReviewAnnotation[]
+  showReviewNotes: boolean
   showLineNumbers: boolean
   tokens?: ThemedToken[]
 }) {
@@ -1726,40 +1895,76 @@ function SplitDiffRow({
       data-diff-kind={line.kind}
       data-diff-split-row="true"
     >
-      {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "delete" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.oldLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="old" /> : (line.oldLine ?? "")}
-      </td> : null}
+      {showLineNumbers ? (
+        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+          {line.kind === "delete" && canComment ? (
+            <GutterCommentButton
+              file={file}
+              line={line}
+              lineNumber={line.oldLine ?? ""}
+              reviewSettings={reviewSettings}
+              onCommentLine={onCommentLine}
+              side="old"
+            />
+          ) : (
+            (line.oldLine ?? "")
+          )}
+        </td>
+      ) : null}
       <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
         {oldCode ? (
-          <DiffCode
-            code={oldCode}
-            highlightedToken={highlightedToken}
-            kind={line.kind}
-            onToggleHighlightToken={onToggleHighlightToken}
-            tokens={tokens}
-          />
+          <DiffCode code={oldCode} highlightedToken={highlightedToken} kind={line.kind} onToggleHighlightToken={onToggleHighlightToken} tokens={tokens} />
         ) : null}
       </td>
-      {showLineNumbers ? <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {line.kind === "add" && canComment ? <GutterCommentButton file={file} line={line} lineNumber={line.newLine ?? ""} reviewSettings={reviewSettings} onCommentLine={onCommentLine} side="new" /> : (line.newLine ?? "")}
-      </td> : null}
+      {showLineNumbers ? (
+        <td className={`relative ${diffGutterClass(line.kind)} ${diffDensityClasses(reviewSettings).gutter}`}>
+          {line.kind === "add" && canComment ? (
+            <GutterCommentButton
+              file={file}
+              line={line}
+              lineNumber={line.newLine ?? ""}
+              reviewSettings={reviewSettings}
+              onCommentLine={onCommentLine}
+              side="new"
+            />
+          ) : (
+            (line.newLine ?? "")
+          )}
+        </td>
+      ) : null}
       <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
         {newCode ? (
-          <DiffCode
-            code={newCode}
-            highlightedToken={highlightedToken}
-            kind={line.kind}
-            onToggleHighlightToken={onToggleHighlightToken}
-            tokens={tokens}
-          />
+          <DiffCode code={newCode} highlightedToken={highlightedToken} kind={line.kind} onToggleHighlightToken={onToggleHighlightToken} tokens={tokens} />
         ) : null}
       </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-        {annotation === "covered" ? <span className="text-success-text">✓</span>
-          : annotation === "uncovered" ? <span className="text-danger-text">✗</span>
-          : null}
+        {annotation === "covered" ? (
+          <span className="text-success-text">✓</span>
+        ) : annotation === "uncovered" ? (
+          <span className="text-danger-text">✗</span>
+        ) : null}
       </td>
+      {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes ?? []} reviewSettings={reviewSettings} /> : null}
     </tr>
+  )
+}
+
+function ReviewNotesCell({ reviewNotes, reviewSettings }: { reviewNotes: DiffReviewAnnotation[]; reviewSettings: ReviewDiffSettings }) {
+  if (reviewNotes.length === 0) return <td className={`w-4 select-none ${diffDensityClasses(reviewSettings).marker}`} />
+
+  const title = reviewNotes
+    .map((note) => note.title || note.body)
+    .filter(Boolean)
+    .join("\n")
+  return (
+    <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
+      <span
+        className="inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-warning-bg px-1 text-[10px] font-semibold text-warning-text"
+        title={title || undefined}
+      >
+        {reviewNotes.length}
+      </span>
+    </td>
   )
 }
 
@@ -1770,9 +1975,12 @@ function diffTableClass(settings: ReviewDiffSettings, splitView = false, mobileU
 
 function diffCodeCellClass(settings: ReviewDiffSettings, lineWrapping: ReviewDiffSettings["line_wrapping"], splitView = false, mobileUnifiedWrap = false) {
   const constrainedWrap = splitView || mobileUnifiedWrap
-  const wrapClass = lineWrapping === "wrap"
-    ? `${constrainedWrap ? "max-w-0 overflow-hidden" : ""} min-w-0 whitespace-pre-wrap break-words [&_span]:break-words`
-    : splitView ? "min-w-0 overflow-hidden whitespace-pre" : "min-w-[40rem] whitespace-pre"
+  const wrapClass =
+    lineWrapping === "wrap"
+      ? `${constrainedWrap ? "max-w-0 overflow-hidden" : ""} min-w-0 whitespace-pre-wrap break-words [&_span]:break-words`
+      : splitView
+        ? "min-w-0 overflow-hidden whitespace-pre"
+        : "min-w-[40rem] whitespace-pre"
   return `${wrapClass} ${diffDensityClasses(settings).codeCell} text-text-primary`
 }
 
@@ -1788,40 +1996,46 @@ function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
   const normalizedCode = settings.whitespace === "trim_trailing" ? code.replace(/[ \t]+$/u, "") : code
   if (!settings.visible_whitespace) return normalizedCode
 
-  return normalizedCode
-    .replace(/\t/gu, "→\t")
-    .replace(/ /gu, "·")
+  return normalizedCode.replace(/\t/gu, "→\t").replace(/ /gu, "·")
 }
 
-function SplitDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
+function hasReviewAnnotations(reviewAnnotations: Record<string, DiffReviewAnnotation[]> | undefined) {
+  return Object.values(reviewAnnotations ?? {}).some((notes) => notes.length > 0)
+}
+
+function SplitDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {
   if (!showLineNumbers) {
     return (
       <colgroup>
-        <col style={{ width: "calc((100% - 1.5rem) / 2)" }} />
-        <col style={{ width: "calc((100% - 1.5rem) / 2)" }} />
+        <col style={{ width: showReviewNotes ? "calc((100% - 3rem) / 2)" : "calc((100% - 1.5rem) / 2)" }} />
+        <col style={{ width: showReviewNotes ? "calc((100% - 3rem) / 2)" : "calc((100% - 1.5rem) / 2)" }} />
+        {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
         <col style={{ width: "1.5rem" }} />
       </colgroup>
     )
   }
 
+  const codeWidth = showReviewNotes ? "calc((100% - 9rem) / 2)" : "calc((100% - 7.5rem) / 2)"
   return (
     <colgroup>
       <col style={{ width: "3rem" }} />
-      <col style={{ width: "calc((100% - 7.5rem) / 2)" }} />
+      <col style={{ width: codeWidth }} />
       <col style={{ width: "3rem" }} />
-      <col style={{ width: "calc((100% - 7.5rem) / 2)" }} />
+      <col style={{ width: codeWidth }} />
+      {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
       <col style={{ width: "1.5rem" }} />
     </colgroup>
   )
 }
 
-function UnifiedDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) {
+function UnifiedDiffColGroup({ showLineNumbers, showReviewNotes }: { showLineNumbers: boolean; showReviewNotes: boolean }) {
   if (!showLineNumbers) {
     return (
       <colgroup>
         <col style={{ width: "1.5rem" }} />
         <col />
         <col style={{ width: "1.5rem" }} />
+        {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
       </colgroup>
     )
   }
@@ -1832,24 +2046,50 @@ function UnifiedDiffColGroup({ showLineNumbers }: { showLineNumbers: boolean }) 
       <col style={{ width: "1.5rem" }} />
       <col />
       <col style={{ width: "1.5rem" }} />
+      {showReviewNotes ? <col style={{ width: "1.5rem" }} /> : null}
     </colgroup>
   )
 }
 
-function HunkRow({ controls, hideOldLineGutter, line, mobileUnifiedWrap = false, reviewSettings, showLineNumbers = true, splitView = false }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine; mobileUnifiedWrap?: boolean; reviewSettings: ReviewDiffSettings; showLineNumbers?: boolean; splitView?: boolean }) {
+function HunkRow({
+  controls,
+  hideOldLineGutter,
+  line,
+  mobileUnifiedWrap = false,
+  reviewSettings,
+  showLineNumbers = true,
+  showReviewNotes = false,
+  splitView = false
+}: {
+  controls?: HunkControls
+  hideOldLineGutter?: boolean
+  line: DiffLine
+  mobileUnifiedWrap?: boolean
+  reviewSettings: ReviewDiffSettings
+  showLineNumbers?: boolean
+  showReviewNotes?: boolean
+  splitView?: boolean
+}) {
   if (splitView) {
     const codeColSpan = showLineNumbers ? 3 : 2
     return (
       <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
         {showLineNumbers ? (
           <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
-            {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+            {controls?.up ? (
+              <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} />
+            ) : null}
           </td>
         ) : null}
-        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan}>{line.code}</td>
-        <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
-          {showLineNumbers && controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
+        <td className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`} colSpan={codeColSpan}>
+          {line.code}
         </td>
+        <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>
+          {showLineNumbers && controls?.down ? (
+            <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} />
+          ) : null}
+        </td>
+        {showReviewNotes ? <td className={`w-4 select-none ${diffDensityClasses(reviewSettings).marker}`} /> : null}
       </tr>
     )
   }
@@ -1858,20 +2098,35 @@ function HunkRow({ controls, hideOldLineGutter, line, mobileUnifiedWrap = false,
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
       {hideOldLineGutter || !showLineNumbers ? null : (
         <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
-          {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+          {controls?.up ? (
+            <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} />
+          ) : null}
         </td>
       )}
-      {showLineNumbers ? <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
-        {hideOldLineGutter ? (
-          <div className="flex justify-center gap-1">
-            {controls?.up ? <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
-            {controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
-          </div>
-        ) : controls?.down ? <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
-      </td> : null}
+      {showLineNumbers ? (
+        <td className={`${diffGutterClass("hunk")} ${diffDensityClasses(reviewSettings).gutter}`}>
+          {hideOldLineGutter ? (
+            <div className="flex justify-center gap-1">
+              {controls?.up ? (
+                <HunkContextButton direction="up" lineCount={controls.up.lineCount} loading={controls.up.loading} onClick={controls.up.onClick} />
+              ) : null}
+              {controls?.down ? (
+                <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} />
+              ) : null}
+            </div>
+          ) : controls?.down ? (
+            <HunkContextButton direction="down" lineCount={controls.down.lineCount} loading={controls.down.loading} onClick={controls.down.onClick} />
+          ) : null}
+        </td>
+      ) : null}
       <td className={`${diffMarkerClass("hunk")} ${diffDensityClasses(reviewSettings).marker}`}>{line.marker}</td>
-      <td className={`${mobileUnifiedWrap ? "min-w-0 max-w-0 overflow-hidden whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"} text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`}>{line.code}</td>
+      <td
+        className={`${mobileUnifiedWrap ? "min-w-0 max-w-0 overflow-hidden whitespace-pre-wrap break-words" : "min-w-[40rem] whitespace-pre"} text-text-primary ${diffDensityClasses(reviewSettings).hunkCodeCell}`}
+      >
+        {line.code}
+      </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`} />
+      {showReviewNotes ? <td className={`w-4 select-none ${diffDensityClasses(reviewSettings).marker}`} /> : null}
     </tr>
   )
 }
@@ -2074,10 +2329,7 @@ function statusFromPatch(patch: string) {
   return "modified"
 }
 
-export function annotationsForFile(
-  annotations: ReviewableDiffProps["annotations"],
-  path: string
-): Record<string, LineAnnotation> | undefined {
+export function annotationsForFile(annotations: ReviewableDiffProps["annotations"], path: string): Record<string, LineAnnotation> | undefined {
   if (!annotations || Object.keys(annotations).length === 0) return undefined
   if (isLineAnnotations(annotations)) return annotations
   return annotations[path]

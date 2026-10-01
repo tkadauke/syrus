@@ -22,6 +22,8 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `callbacks`
 - `prepare_detector`
 - `review_criteria_provider`
+- `post_implementation_review_provider`
+- `diff_review_annotation_provider`
 - `autofix_command`
 - `dependency_audit_command`
 - `affected_test_analyzer`
@@ -832,6 +834,51 @@ Workflow tool sets may optionally implement `.available_for_context?(McpToolCont
 and `.tool_definitions(context:)` when availability depends on the agent role
 (e.g. only the `implement` step), not just the repository — see
 `AdminMysql::WorkflowToolSet` and `SyrusDev::WorkflowToolSet`.
+
+## `post_implementation_review_provider`
+
+Contributes to the generic post-implementation review-note host step. Core
+owns a single `post_implementation_review` Step kind; enabled providers decide
+whether that Step should appear in implementation-style workflow chains and
+what prompt/tool contract it should use. A disabled plugin contributes no Step
+and its provider methods are not called.
+
+Register a class that includes `Syrus::Plugin::PostImplementationReviewProvider`
+and optionally implements:
+
+| Method | Signature | Description |
+|---|---|---|
+| `.review_needed?` | `(job:, trigger_kind:) → bool` | Whether the host Step should be appended for this Job/workflow kind |
+| `.prompt_sections` | `(job:, workflow:, run:) → Array<String>` | Prompt sections for the review-note agent pass |
+| `.required_mcp_tools` | `(job:, workflow:, run:) → Array<String>` | Workflow MCP tool names the agent must call |
+
+The host Step is best-effort: it logs provider or agent failures without
+failing the parent workflow. Plugin-owned data remains plugin-owned; core does
+not create review-note models.
+
+## `diff_review_annotation_provider`
+
+Contributes display payloads to the Job review tab. Providers registered under
+`diff_review_annotation_provider` are called only while their plugin is enabled.
+They return a hash from:
+
+```ruby
+review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
+```
+
+Core normalizes these optional keys:
+
+| Key | Shape | Rendered as |
+|---|---|---|
+| `annotations` | `{ "path.rb" => { "12" => [{ id:, title:, body:, tone:, component:, props:, actions: }] } }` | Compact markers on matching new-line diff rows |
+| `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel |
+| `actions` | `[{ id:, label:, href:, method:, component:, props: }]` | Side-panel actions |
+| `counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges |
+
+If a payload entry names `component: "plugin_name/Component"`, the frontend
+looks for `plugins/<plugin_name>/app/frontend/review_annotations/Component.tsx`
+and passes the item as a prop. Entries without a plugin component use core's
+generic card/action/line-marker rendering.
 
 **One class per tool.** The entrypoint is a single class, but internally each
 non-trivial tool is its own `MCP::Tool` subclass in its own file — the same

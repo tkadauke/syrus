@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
@@ -14,12 +14,19 @@ import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
   fetchDiffReviewVersion,
+  type DiffReviewAnnotationsPayload,
   type DiffReviewComment,
   type DiffReviewVersion,
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
-import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, patchReviewDiffSettings, type ReviewDiffSettings, type ReviewDiffSettingsPayload } from "../../api/reviewDiffSettings"
+import {
+  DEFAULT_REVIEW_DIFF_SETTINGS,
+  fetchReviewDiffSettings,
+  patchReviewDiffSettings,
+  type ReviewDiffSettings,
+  type ReviewDiffSettingsPayload
+} from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
@@ -31,6 +38,7 @@ import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
+import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
 
 const SURFACE = "job_review_workspace"
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
@@ -45,10 +53,8 @@ const REVIEW_COMMENTS_PEEK_OPEN_DELAY_MS = 350
 const REVIEW_COMMENTS_PEEK_CLOSE_DELAY_MS = 150
 const REVIEW_COMMENTS_SPLITTER_CLASS =
   "group relative z-10 hidden h-screen w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:sticky lg:top-0 lg:block"
-const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS =
-  "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
-const REVIEW_COMMENTS_RAIL_CLASS =
-  "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
+const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS = "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
+const REVIEW_COMMENTS_RAIL_CLASS = "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
 
 export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
@@ -103,7 +109,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     queryKey: ["jobs", String(jobId), "review_source_diff_range", selectedRange?.baseSha, selectedRange?.headSha],
     queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } })
   })
-  const activeVersionId = selectedRange ? rangeDiff.data?.version?.id ?? null : selectedVersionId ?? defaultVersionId
+  const activeVersionId = selectedRange ? (rangeDiff.data?.version?.id ?? null) : (selectedVersionId ?? defaultVersionId)
   const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId
   const historicalVersion = useQuery({
     enabled: sourceDiff.isSuccess && historicalVersionSelected,
@@ -193,9 +199,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     if (!pendingCommentFocus.path) return true
 
     const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
-    const anchor = pendingCommentFocus.anchor_key
-      ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
-      : null
+    const anchor = pendingCommentFocus.anchor_key ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`) : null
     ;(anchor || file)?.scrollIntoView({ block: "center" })
     return Boolean(anchor || file)
   }
@@ -242,10 +246,13 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
   if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (historicalVersionSelected && historicalVersion.isError) return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (historicalVersionSelected && historicalVersion.isError)
+    return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
   if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
   if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
+
+  const activeReviewAnnotations = activeDiff.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
 
   return (
     <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
@@ -257,7 +264,14 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
                 <SectionHeading>{t("review_summary_title")}</SectionHeading>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
               </div>
-              <Button aria-label={t("review_settings_button")} className="h-9 w-9 shrink-0" onClick={() => setSettingsOpen(true)} size="icon" title={t("review_settings_button")} variant="secondary">
+              <Button
+                aria-label={t("review_settings_button")}
+                className="h-9 w-9 shrink-0"
+                onClick={() => setSettingsOpen(true)}
+                size="icon"
+                title={t("review_settings_button")}
+                variant="secondary"
+              >
                 <GearIcon />
               </Button>
             </div>
@@ -272,7 +286,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
               />
             </div>
           </div>
-          {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
+          {payload.summary ? (
+            <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
+          ) : (
+            <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
+          )}
         </Section.Root>
 
         <ReviewArtifactsPanel
@@ -304,7 +322,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             composingSelection={feedback.composingSelection}
             editingThreadBody={feedback.editingThreadBody}
             editingThreadId={feedback.editingThreadId}
-            emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</div>}
+            emptyState={
+              <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                {t("source_no_changed_files")}
+              </div>
+            }
             fileCommentCounts={feedback.commentCounts}
             files={activeDiff.files}
             mode="continuous"
@@ -321,9 +343,15 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}
             renderImageDiff={(file) => (
-              <ImageDiffThumbnails baseRef={activeDiff.base_sha ?? activeDiff.base_ref} file={file} headRef={activeDiff.head_sha ?? activeDiff.head_ref} jobId={jobId} />
+              <ImageDiffThumbnails
+                baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
+                file={file}
+                headRef={activeDiff.head_sha ?? activeDiff.head_ref}
+                jobId={jobId}
+              />
             )}
             reviewSettings={reviewSettings}
+            reviewAnnotations={activeReviewAnnotations.annotations}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders
@@ -353,7 +381,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         data-testid="review-comments-panel"
         style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
       >
-        {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
+        {isDesktopSplit && commentsSplitter.collapsed ? null : <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />}
       </div>
       {isDesktopSplit && commentsSplitter.collapsed ? (
         <ReviewCommentsCollapsedRail
@@ -371,12 +399,66 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           onMouseLeave={closeCommentsPeek}
           style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
         >
-          {feedback.panel}
+          <ReviewSidePanel annotations={activeReviewAnnotations} feedbackPanel={feedback.panel} />
         </div>
       ) : null}
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   )
+}
+
+const EMPTY_REVIEW_ANNOTATIONS: DiffReviewAnnotationsPayload = {
+  annotations: {},
+  panels: [],
+  actions: [],
+  counts: []
+}
+
+function ReviewSidePanel({ annotations, feedbackPanel }: { annotations: DiffReviewAnnotationsPayload; feedbackPanel: ReactNode }) {
+  const { t } = useT("jobs")
+  const hasPluginContent = annotations.counts.length > 0 || annotations.panels.length > 0 || annotations.actions.length > 0
+  if (!hasPluginContent) return <>{feedbackPanel}</>
+
+  return (
+    <div className="space-y-4">
+      <Section.Root>
+        <SectionHeading>{t("review_annotations_title")}</SectionHeading>
+        {annotations.counts.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {annotations.counts.map((count, index) => (
+              <span className={`rounded border px-2 py-1 text-xs font-medium ${reviewAnnotationToneClass(count.tone)}`} key={String(count.id ?? index)}>
+                {count.label ? `${count.label}: ` : null}
+                {count.value ?? 0}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {annotations.panels.length > 0 ? (
+          <div className="mt-3 space-y-3">
+            {annotations.panels.map((panel, index) => (
+              <ReviewAnnotationCard item={panel} key={String(panel.id ?? index)} />
+            ))}
+          </div>
+        ) : null}
+        {annotations.actions.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {annotations.actions.map((action, index) => (
+              <ReviewAnnotationActionButton action={action} key={String(action.id ?? index)} />
+            ))}
+          </div>
+        ) : null}
+      </Section.Root>
+      {feedbackPanel}
+    </div>
+  )
+}
+
+function reviewAnnotationToneClass(tone: string | null | undefined) {
+  if (tone === "danger") return "border-danger-border bg-danger-bg text-danger-text"
+  if (tone === "warning") return "border-warning-border bg-warning-bg text-warning-text"
+  if (tone === "success") return "border-success-border bg-success-bg text-success-text"
+  if (tone === "info") return "border-info-border bg-info-bg text-info-text"
+  return "border-border bg-surface-raised text-text-primary"
 }
 
 function ReviewCommentsSplitterHandle({
@@ -412,7 +494,9 @@ function ReviewCommentsSplitterHandle({
       title={label}
     >
       <span className="absolute left-1/2 top-0 h-full -translate-x-1/2 border-l border-border" />
-      <span className={`${REVIEW_COMMENTS_SPLITTER_GRIP_CLASS} ${collapsed ? "opacity-70" : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-80"}`} />
+      <span
+        className={`${REVIEW_COMMENTS_SPLITTER_GRIP_CLASS} ${collapsed ? "opacity-70" : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-80"}`}
+      />
     </div>
   )
 }
@@ -429,18 +513,17 @@ function ReviewCommentsCollapsedRail({
   summaries: { count: number; label: string; marker: string; versionId: number }[]
 }) {
   return (
-    <aside
-      aria-label={label}
-      className={REVIEW_COMMENTS_RAIL_CLASS}
-      data-testid="review-comments-rail"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <aside aria-label={label} className={REVIEW_COMMENTS_RAIL_CLASS} data-testid="review-comments-rail" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="flex flex-col items-center gap-3">
         <CommentIcon />
         <div className="flex w-full flex-col items-center gap-2">
           {summaries.map((summary) => (
-            <div className="flex w-full flex-col items-center gap-1" data-testid="review-comments-rail-version" key={summary.versionId} title={`${summary.label}: ${summary.count}`}>
+            <div
+              className="flex w-full flex-col items-center gap-1"
+              data-testid="review-comments-rail-version"
+              key={summary.versionId}
+              title={`${summary.label}: ${summary.count}`}
+            >
               <span className="max-w-full truncate text-[11px] font-semibold text-gray-700 dark:text-gray-300">{summary.marker}</span>
               <span className="min-w-5 rounded-full bg-brand px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">{summary.count}</span>
             </div>
@@ -453,7 +536,16 @@ function ReviewCommentsCollapsedRail({
 
 function CommentIcon() {
   return (
-    <svg aria-hidden="true" className="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5 text-gray-500 dark:text-gray-400"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
     </svg>
   )
@@ -520,34 +612,50 @@ function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
     mutation.mutate({ [key]: value } as Partial<ReviewDiffSettings>)
   }
 
-  useOptionalShortcut("alt+shift+w", () => {
-    updateSetting("line_wrapping", reviewSettings.line_wrapping === "wrap" ? "scroll" : "wrap")
-  }, {
-    description: t("review_shortcut_toggle_wrapping"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+v", () => {
-    updateSetting("desktop_view", reviewSettings.desktop_view === "unified" ? "split" : "unified")
-  }, {
-    description: t("review_shortcut_cycle_view"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+h", () => {
-    updateSetting("syntax_highlighting", !reviewSettings.syntax_highlighting)
-  }, {
-    description: t("review_shortcut_toggle_syntax"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+s", () => {
-    updateSetting("whitespace", reviewSettings.whitespace === "show" ? "trim_trailing" : "show")
-  }, {
-    description: t("review_shortcut_cycle_whitespace"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
+  useOptionalShortcut(
+    "alt+shift+w",
+    () => {
+      updateSetting("line_wrapping", reviewSettings.line_wrapping === "wrap" ? "scroll" : "wrap")
+    },
+    {
+      description: t("review_shortcut_toggle_wrapping"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+v",
+    () => {
+      updateSetting("desktop_view", reviewSettings.desktop_view === "unified" ? "split" : "unified")
+    },
+    {
+      description: t("review_shortcut_cycle_view"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+h",
+    () => {
+      updateSetting("syntax_highlighting", !reviewSettings.syntax_highlighting)
+    },
+    {
+      description: t("review_shortcut_toggle_syntax"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+s",
+    () => {
+      updateSetting("whitespace", reviewSettings.whitespace === "show" ? "trim_trailing" : "show")
+    },
+    {
+      description: t("review_shortcut_cycle_whitespace"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
@@ -596,7 +704,11 @@ function ReviewArtifactsPanel({
                 <div className={surfaceClasses("inset", "sm", "min-w-0 overflow-x-auto")}>
                   <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
-                    {payload.test_plan.steps.map((step, index) => <li className="break-words" key={`${index}-${step}`}>{step}</li>)}
+                    {payload.test_plan.steps.map((step, index) => (
+                      <li className="break-words" key={`${index}-${step}`}>
+                        {step}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : null}
@@ -607,12 +719,7 @@ function ReviewArtifactsPanel({
               ))}
             </div>
           ) : null}
-          <VersionedArtifactsList
-            artifacts={payload.typed_artifacts}
-            selectedRange={selectedRange}
-            selectedVersion={selectedVersion}
-            versions={versions}
-          />
+          <VersionedArtifactsList artifacts={payload.typed_artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
       ) : null}
     </Section.Root>
@@ -665,14 +772,17 @@ function VersionedArtifactsList({
       matching.push(artifact)
     }
   }
-  const displayed = [ ...matching, ...unversioned ]
+  const displayed = [...matching, ...unversioned]
 
   if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 
   return (
     <div className="min-w-0 space-y-4">
       {displayed.map((artifact, index) => (
-        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" key={artifactKey(artifact, index)}>
+        <div
+          className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+          key={artifactKey(artifact, index)}
+        >
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
             <span className="min-w-0 break-words font-semibold text-text-primary">{artifact.title}</span>
             <span className="min-w-0 break-all text-xs text-text-muted">{artifact.type}</span>
@@ -690,7 +800,7 @@ function VersionedArtifactsList({
 }
 
 function artifactKey(artifact: TypedArtifact, index: number) {
-  return [ artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index ].join("-")
+  return [artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index].join("-")
 }
 
 function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
@@ -727,17 +837,19 @@ function shortSha(sha: string) {
 }
 
 function reviewArtifactSummaries(workflows: JobWorkflow[]) {
-  return workflows.flatMap((workflow) => {
-    const artifacts = workflow.artifacts || {}
-    const summaries: string[] = []
-    const testPlan = stepArtifactTestPlan(artifacts.test_plan)
-    if (testPlan?.notes) summaries.push(testPlan.notes)
-    for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
-      summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
-      summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    return summaries
-  }).slice(0, 6)
+  return workflows
+    .flatMap((workflow) => {
+      const artifacts = workflow.artifacts || {}
+      const summaries: string[] = []
+      const testPlan = stepArtifactTestPlan(artifacts.test_plan)
+      if (testPlan?.notes) summaries.push(testPlan.notes)
+      for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
+        summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
+        summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      return summaries
+    })
+    .slice(0, 6)
 }
