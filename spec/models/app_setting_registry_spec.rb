@@ -38,6 +38,7 @@ RSpec.describe AppSettingRegistry do
       :user_daily_spend_budget_usd,
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
+      :main_branch_breakage_policy,
       :video_retention_days,
       :video_storage_budget_mb,
       :retention_available_space_override_gb,
@@ -53,6 +54,19 @@ RSpec.describe AppSettingRegistry do
         category: "Instance operations",
         operational_meaning: "Commits-behind threshold that triggers proactive PR rebase maintenance while mergeability is still clean.",
         min: 1,
+        admin_editable: true,
+        secret: false
+      }
+    ])
+
+    expect(described_class.metadata_for([ :main_branch_breakage_policy ])).to eq([
+      {
+        key: "main_branch_breakage_policy",
+        type: "string",
+        default: "strict",
+        category: "Workflow behavior",
+        operational_meaning: "Main-branch breakage policy: 'strict' pauses unrelated work when main is broken; 'isolate_unrelated_failures' keeps work moving and lets grader_collect pass failures proven to be inherited from broken main.",
+        options: AppSetting::MAIN_BRANCH_BREAKAGE_POLICIES,
         admin_editable: true,
         secret: false
       }
