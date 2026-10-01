@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import listInsightsToolCard from "./list_insights"
 import readInsightToolCard from "./read_insight"
@@ -33,6 +33,12 @@ const baseInsight = {
 }
 
 describe("Agent Insights tool cards", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers plugin-local card modules for Agent Insights tools", () => {
     expect(pluginToolCardRendererFor("list_insights")).not.toBeNull()
     expect(pluginToolCardRendererFor("read_insight")).not.toBeNull()
@@ -67,6 +73,8 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getAllByText("acme/widgets")).toHaveLength(3)
     expect(screen.getAllByRole("link", { name: "WF-12" })[0]).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
     expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
+    fireEvent.click(screen.getAllByRole("button", { name: "Copy INSIGHT-41 to clipboard" })[0])
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-41")
   })
 
   it("renders read_insight details with long evidence, recommended action, links, and retirement outcome", () => {
@@ -99,9 +107,12 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("Show full text (8 lines)")).toBeInTheDocument()
     expect(screen.getByText("Show remaining evidence (2)")).toBeInTheDocument()
     expect(screen.getByText("Retirement outcome")).toBeInTheDocument()
-    expect(screen.getByText("Superseded by JOB-77")).toBeInTheDocument()
+    expect(screen.getByText("Superseded by")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-77" })).toHaveAttribute("href", "/jobs/77")
     expect(screen.getByRole("link", { name: "JOB-50" })).toHaveAttribute("href", "/jobs/50")
     expect(screen.getByRole("link", { name: "RUN-70" })).toHaveAttribute("href", "/admin/runs/70/transcript")
+    fireEvent.click(screen.getByRole("button", { name: "Copy RUN-70 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("RUN-70")
   })
 
   it("renders retire_insight outcome details from the text response and call input", () => {
@@ -122,8 +133,8 @@ describe("Agent Insights tool cards", () => {
 
     expect(screen.getByText("Suggestion #41 retired.")).toBeInTheDocument()
     expect(screen.getByText("Duplicate of the newer insight.")).toBeInTheDocument()
-    expect(screen.getByText("#44")).toBeInTheDocument()
-    expect(screen.getByText("JOB-82")).toBeInTheDocument()
+    expect(screen.getByText("INSIGHT-44")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
   })
 
   it("falls back to the generic renderer for malformed list and detail payloads", () => {

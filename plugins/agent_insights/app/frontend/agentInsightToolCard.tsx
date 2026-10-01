@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { CopyableSlug } from "@app/components/CopyableSlug"
 import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import {
@@ -7,6 +8,7 @@ import {
   Disclosure,
   displayValue,
   EmptyState,
+  EntityReference,
   InternalLink,
   numberValue,
   SectionLabel,
@@ -161,8 +163,32 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
 function RefLink({ target }: { target: InsightRef | null }) {
   if (!target) return null
   const text = target.slug ?? target.title ?? `#${target.id}`
-  if (!target.path) return <span className="font-mono text-gray-600 dark:text-gray-300">{text}</span>
+  const job = text.match(/^JOB-(\d+)$/)
+  const workflow = text.match(/^WF-(\d+)$/)
+  const run = text.match(/^RUN-(\d+)$/)
+  if (job) return <EntityReference href={target.path} id={job[1]} kind="job" slug={text} wrap="nowrap" />
+  if (workflow) return <EntityReference href={target.path} id={workflow[1]} kind="workflow" slug={text} wrap="nowrap" />
+  if (run) return <EntityReference href={target.path} id={run[1]} kind="run" slug={text} wrap="nowrap" />
+  if (!target.path) return <EntityReference kind="artifact" slug={text} wrap="nowrap" />
   return <InternalLink href={target.path}>{text}</InternalLink>
+}
+
+function InsightIdReference({ id }: { id: string }) {
+  return <CopyableSlug className="text-xs normal-case" slug={`INSIGHT-${id}`} />
+}
+
+function RepositoryReference({ repository }: { repository: InsightRef }) {
+  return (
+    <EntityReference
+      href={repository.path}
+      id={repository.id}
+      kind="repository"
+      repositoryId={repository.id}
+      repositorySlug={repository.slug ?? repository.title}
+      slug={repository.slug ?? repository.title}
+      wrap="nowrap"
+    />
+  )
 }
 
 function TextPreview({ text, maxLines = 4 }: { text: string; maxLines?: number }) {
@@ -183,8 +209,8 @@ function EvidenceRow({ entry }: { entry: EvidenceItem }) {
   return (
     <li className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
       {entry.kind ? <Badge>{entry.kind.replace(/_/g, " ")}</Badge> : null}
-      {entry.jobId ? entry.jobPath ? <InternalLink href={entry.jobPath}>JOB-{entry.jobId}</InternalLink> : <span className="font-mono">JOB-{entry.jobId}</span> : null}
-      {entry.runId ? entry.runPath ? <InternalLink href={entry.runPath}>RUN-{entry.runId}</InternalLink> : <span className="font-mono">RUN-{entry.runId}</span> : null}
+      {entry.jobId ? <EntityReference href={entry.jobPath} id={entry.jobId} kind="job" wrap="nowrap" /> : null}
+      {entry.runId ? <EntityReference href={entry.runPath} id={entry.runId} kind="run" wrap="nowrap" /> : null}
     </li>
   )
 }
@@ -253,9 +279,9 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Insight ID">{insight.id}</DescriptionList.Item>
+        <DescriptionList.Item label="Insight ID"><InsightIdReference id={insight.id} /></DescriptionList.Item>
         {insight.proposalType ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Proposal">{insight.proposalType.replace(/_/g, " ")}</DescriptionList.Item> : null}
-        {insight.repository?.slug ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Repository">{insight.repository.slug}</DescriptionList.Item> : null}
+        {insight.repository?.slug ? <DescriptionList.Item label="Repository"><RepositoryReference repository={insight.repository} /></DescriptionList.Item> : null}
         {insight.createdAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Created">{insight.createdAt}</DescriptionList.Item> : null}
         {insight.updatedAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Updated">{insight.updatedAt}</DescriptionList.Item> : null}
         {insight.retiredAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Retired">{insight.retiredAt}</DescriptionList.Item> : null}
@@ -271,8 +297,8 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
           <SectionLabel>Retirement outcome</SectionLabel>
           <TextPreview text={insight.retiredReason} />
           <div className="mt-1 flex flex-wrap gap-2 text-gray-500 dark:text-gray-400">
-            {insight.supersededByInsightId ? <span>Superseded by insight #{insight.supersededByInsightId}</span> : null}
-            {insight.supersededByJobId ? <span>Superseded by JOB-{insight.supersededByJobId}</span> : null}
+            {insight.supersededByInsightId ? <span className="inline-flex items-center gap-1">Superseded by <InsightIdReference id={insight.supersededByInsightId} /></span> : null}
+            {insight.supersededByJobId ? <span className="inline-flex items-center gap-1">Superseded by <EntityReference id={insight.supersededByJobId} kind="job" wrap="nowrap" /></span> : null}
           </div>
         </div>
       ) : null}
@@ -303,7 +329,10 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
         {rows.map((row) => (
           <DataTable.Row key={row.id}>
             <DataTable.Cell className="max-w-[24rem] px-2 py-1">
-              <Text as="div" variant="heading-sm">{row.title}</Text>
+              <div className="flex flex-wrap items-center gap-1">
+                <Text as="div" variant="heading-sm">{row.title}</Text>
+                <InsightIdReference id={row.id} />
+              </div>
               {row.summary ? <Text as="div" className="mt-0.5 line-clamp-2" variant="caption" tone="muted">{row.summary}</Text> : null}
               <div className="flex flex-wrap gap-1 pt-1">
                 {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
@@ -320,7 +349,9 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
                 {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
               </div>
             </DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs">{row.repository?.slug ?? "-"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">
+              {row.repository ? <RepositoryReference repository={row.repository} /> : "-"}
+            </DataTable.Cell>
             <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs text-text-muted">{row.updatedAt ?? row.createdAt ?? "-"}</DataTable.Cell>
           </DataTable.Row>
         ))}
@@ -350,9 +381,9 @@ export function OutcomeBody({ outcome, label }: { outcome: NonNullable<ReturnTyp
       <SectionLabel>{label}</SectionLabel>
       <Text>{outcome.message}</Text>
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        {outcome.targetInsightId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Insight">#{outcome.targetInsightId}</DescriptionList.Item> : null}
-        {outcome.supersededByInsightId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Superseding insight">#{outcome.supersededByInsightId}</DescriptionList.Item> : null}
-        {outcome.supersededByJobId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Superseding job">JOB-{outcome.supersededByJobId}</DescriptionList.Item> : null}
+        {outcome.targetInsightId ? <DescriptionList.Item label="Insight"><InsightIdReference id={outcome.targetInsightId} /></DescriptionList.Item> : null}
+        {outcome.supersededByInsightId ? <DescriptionList.Item label="Superseding insight"><InsightIdReference id={outcome.supersededByInsightId} /></DescriptionList.Item> : null}
+        {outcome.supersededByJobId ? <DescriptionList.Item label="Superseding job"><EntityReference id={outcome.supersededByJobId} kind="job" wrap="nowrap" /></DescriptionList.Item> : null}
       </DescriptionList.Root>
       {outcome.reason ? (
         <div>

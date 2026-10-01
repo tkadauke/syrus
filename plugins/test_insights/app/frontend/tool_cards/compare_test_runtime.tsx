@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, EmptyState, numberValue } from "@app/routes/chat/toolCardUi"
+import { Badge, displayValue, EmptyState, EntityReference, numberValue } from "@app/routes/chat/toolCardUi"
 import { formatMs, parseTestIdentityRef, t, TableShell, TestIdentityLink, type TestIdentityRef } from "../testInsightToolCard"
 
 // Plugin-owned tool card for compare_test_runtime (the pending-action tool-card work). Lives entirely
@@ -22,7 +22,14 @@ type ComparisonRow = {
   avgDelta: Delta
 }
 
-type SourceDescriptor = { label: string }
+type SourceDescriptor = {
+  label: string
+  type: string | null
+  jobId: string | null
+  jobSlug: string | null
+  runId: string | null
+  runSlug: string | null
+}
 
 function parseStats(value: unknown): DurationStats {
   if (!isPlainObject(value)) return { avgDurationMs: null, p95DurationMs: null }
@@ -57,18 +64,22 @@ function parseRow(value: unknown): ComparisonRow | null {
 }
 
 function describeSource(value: unknown): SourceDescriptor {
-  if (!isPlainObject(value)) return { label: t("unknown") }
+  if (!isPlainObject(value)) return { label: t("unknown"), type: null, jobId: null, jobSlug: null, runId: null, runSlug: null }
 
   const type = displayValue(value.type)
-  if (type === "run") return { label: displayValue(value.run_slug) ?? t("run_with_id", { id: displayValue(value.run_id) ?? "?" }) }
-  if (type === "job") return { label: displayValue(value.job_slug) ?? t("job_with_id", { id: displayValue(value.job_id) ?? "?" }) }
+  const jobId = displayValue(value.job_id)
+  const jobSlug = displayValue(value.job_slug)
+  const runId = displayValue(value.run_id)
+  const runSlug = displayValue(value.run_slug)
+  if (type === "run") return { label: runSlug ?? t("run_with_id", { id: runId ?? "?" }), type, jobId, jobSlug, runId, runSlug }
+  if (type === "job") return { label: jobSlug ?? t("job_with_id", { id: jobId ?? "?" }), type, jobId, jobSlug, runId, runSlug }
   if (type === "window") {
     const starts = displayValue(value.starts_at)
     const ends = displayValue(value.ends_at)
-    return { label: starts && ends ? `${starts} → ${ends}` : t("time_window") }
+    return { label: starts && ends ? `${starts} → ${ends}` : t("time_window"), type, jobId, jobSlug, runId, runSlug }
   }
 
-  return { label: displayValue(value.label) ?? t("unknown") }
+  return { label: displayValue(value.label) ?? t("unknown"), type, jobId, jobSlug, runId, runSlug }
 }
 
 type CompareCard = {
@@ -126,6 +137,17 @@ function DeltaCell({ delta }: { delta: Delta }) {
   )
 }
 
+function SourceBadge({ label, source }: { label: string; source: SourceDescriptor }) {
+  let reference = null
+  if (source.type === "run" && (source.runId || source.runSlug)) {
+    reference = <EntityReference id={source.runId} kind="run" label={source.label} slug={source.runSlug ?? source.label} wrap="nowrap" />
+  } else if (source.type === "job" && (source.jobId || source.jobSlug)) {
+    reference = <EntityReference id={source.jobId} kind="job" label={source.label} slug={source.jobSlug ?? source.label} wrap="nowrap" />
+  }
+
+  return <Badge>{label}: {reference ?? source.label}</Badge>
+}
+
 function renderExpanded(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
@@ -134,8 +156,8 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <div className="mt-1 space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-        <Badge>{t("tool_baseline_badge", { label: card.baseline.label })}</Badge>
-        <Badge>{t("tool_comparison_badge", { label: card.comparison.label })}</Badge>
+        <SourceBadge label={t("tool_baseline_label")} source={card.baseline} />
+        <SourceBadge label={t("tool_comparison_label")} source={card.comparison} />
         {card.graderName ? <Badge>{card.graderName}</Badge> : null}
       </div>
       <TableShell>

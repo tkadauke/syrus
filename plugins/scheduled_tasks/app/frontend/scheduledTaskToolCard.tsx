@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import i18n from "i18next"
 import { isPlainObject } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the scheduled_tasks plugin's chat tool
 // cards (the pending-action tool-card work). Lives outside `tool_cards/` on purpose: core's
@@ -100,7 +100,7 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{task.id}</span>
+        <EntityReference href={`/scheduled_tasks/${task.id}`} kind="artifact" slug={`#${task.id}`} wrap="nowrap" />
         <StatePill state={task.state} />
         {task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : null}
         {task.enabled === false ? <Badge>{t("tool_disabled")}</Badge> : null}
@@ -162,7 +162,7 @@ export function ScheduledTaskOutcomeCard({
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={pill} tone={tone} />
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{outcome.id}</span>
+        <EntityReference href={`/scheduled_tasks/${outcome.id}`} kind="artifact" slug={`#${outcome.id}`} wrap="nowrap" />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{outcome.label}</div>
       {detail ? <div className="text-gray-600 dark:text-gray-300">{detail}</div> : null}

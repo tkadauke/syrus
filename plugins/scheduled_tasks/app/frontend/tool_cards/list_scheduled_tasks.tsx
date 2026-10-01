@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
-import { Badge, EmptyState, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, EmptyState, EntityReference, StatePill } from "@app/routes/chat/toolCardUi"
 import { FailureBadge, parseScheduledTask, type ScheduledTaskCard } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for list_scheduled_tasks (the pending-action tool-card work).
@@ -50,7 +50,7 @@ function renderExpanded(context: ToolCardContext) {
           {tasks.map((task) => (
             <tr key={task.id}>
               <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={task.label}>
-                <span className="font-mono text-gray-500 dark:text-gray-400">#{task.id}</span> {task.label}
+                <EntityReference className="mr-1" href={`/scheduled_tasks/${task.id}`} kind="artifact" slug={`#${task.id}`} wrap="nowrap" /> {task.label}
               </td>
               <td className="whitespace-nowrap px-2 py-1"><StatePill state={task.state} /></td>
               <td className="whitespace-nowrap px-2 py-1">{task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : "—"}</td>
