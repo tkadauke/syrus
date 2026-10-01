@@ -7889,13 +7889,34 @@ describe("App", () => {
   })
 
   it("renders the app settings route from the app admin settings API and updates settings", async () => {
+    const baseSettings = {
+      signups_open: false,
+      grade_max_iterations: 5,
+      adversarial_review_rounds: 0,
+      max_job_failures: 3,
+      merge_train_max_size: 20,
+      main_concern_report_threshold: 2,
+      main_branch_breakage_policy: "strict",
+      report_issue_repo_slug: "tkadauke/syrus",
+      video_retention_days: 7,
+      video_storage_budget_mb: 2048,
+      telegram_bot_handle: null,
+      max_concurrent_agent_runs: 3,
+      proactive_rebase_commit_threshold: 20,
+      show_work_unit_debug: false,
+      rebase_failure_cooldown_minutes: 60,
+      workflow_admission_control_enabled: true,
+      workflow_admission_policy: "whole_workflow",
+      chat_coding_workspace_budget_mb: 0,
+      clearable_secrets: []
+    }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              settings: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] },
+              settings: { ...baseSettings, signups_open: true },
               message: "Settings updated."
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -7906,7 +7927,7 @@ describe("App", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            settings: { signups_open: false, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60, clearable_secrets: [] }
+            settings: baseSettings
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         )
@@ -7938,7 +7959,26 @@ describe("App", () => {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
-            app_setting: { signups_open: true, video_retention_days: 7, video_storage_budget_mb: 2048, max_concurrent_agent_runs: 3, proactive_rebase_commit_threshold: 20, rebase_failure_cooldown_minutes: 60 }
+            app_setting: {
+              signups_open: true,
+              grade_max_iterations: 5,
+              adversarial_review_rounds: 0,
+              max_job_failures: 3,
+              merge_train_max_size: 20,
+              main_concern_report_threshold: 2,
+              main_branch_breakage_policy: "strict",
+              report_issue_repo_slug: "tkadauke/syrus",
+              video_retention_days: 7,
+              video_storage_budget_mb: 2048,
+              telegram_bot_handle: "",
+              max_concurrent_agent_runs: 3,
+              proactive_rebase_commit_threshold: 20,
+              show_work_unit_debug: false,
+              rebase_failure_cooldown_minutes: 60,
+              workflow_admission_control_enabled: true,
+              workflow_admission_policy: "whole_workflow",
+              chat_coding_workspace_budget_mb: 0
+            }
           })
         })
       )
