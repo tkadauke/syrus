@@ -89,6 +89,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "serializes dependency target epic membership" do
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      blocker = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented")
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      dependency = payload_for(job).fetch(:dependencies).sole
+
+      expect(dependency.fetch(:depends_on_job)).to include(
+        id: blocker.id,
+        epic_id: epic.id,
+        summary_state: "implemented"
+      )
+    end
+
     it "reuses the job detail active work unit lookup across runtime predicates" do
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 

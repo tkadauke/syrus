@@ -40,6 +40,7 @@ module App
           kind: job.kind,
           state: job.state,
           summary_state: dependency_job_summary_state(job),
+          epic_id: job.epic_id,
           repository_slug: job.repository.slug,
           issue_number: job.issue_number,
           issue_title: job.issue_title,

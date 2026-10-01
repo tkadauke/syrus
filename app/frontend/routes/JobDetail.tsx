@@ -1906,6 +1906,8 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
 function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
+  const hasSameEpicDependency =
+    payload.job.epic_id != null && payload.unsatisfied_dependencies.some((dependency) => dependency.depends_on_job?.epic_id === payload.job.epic_id)
   return (
     <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1919,7 +1921,9 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
               </span>
             ))}
           </span>
-          <span className="ml-1">{count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}</span>
+          <span className="ml-1">
+            {hasSameEpicDependency ? t("blocked_auto_start_same_epic") : count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}
+          </span>
         </div>
         {payload.actions.can_override_dependencies ? (
           <CommandButton
