@@ -269,6 +269,7 @@
   "blocked_on_other": "Blockiert durch {{count}} Abhängigkeiten:",
   "blocked_auto_start_one": "— diese Aufgabe startet automatisch, sobald dieser PR gemergt ist.",
   "blocked_auto_start_other": "— diese Aufgabe startet automatisch, sobald diese PRs gemergt sind.",
+  "blocked_auto_start_same_epic": "— diese Aufgabe wartet auf die Abhängigkeitsreihenfolge des Epics; Geschwisteraufgaben landen gemeinsam über das Epic.",
   "override_and_force_run": "Übergehen und Start erzwingen",
   "dependents_title_one": "{{count}} andere Aufgabe hängt von dieser ab",
   "dependents_title_other": "{{count}} andere Aufgaben hängen von dieser ab",
