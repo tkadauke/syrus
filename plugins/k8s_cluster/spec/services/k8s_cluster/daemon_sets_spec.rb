@@ -10,11 +10,13 @@ RSpec.describe K8sCluster::DaemonSets do
   def daemon_set(name: "monitoring")
     {
       "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
+      "spec" => { "selector" => { "matchLabels" => { "app" => "monitoring" } } },
       "status" => {
         "desiredNumberScheduled" => 3,
         "currentNumberScheduled" => 3,
         "numberReady" => 2,
-        "numberAvailable" => 2
+        "numberAvailable" => 2,
+        "conditions" => [ { "type" => "Available", "status" => "False", "reason" => "NodeUnavailable", "lastTransitionTime" => "2026-01-01T00:05:00Z" } ]
       }
     }
   end
@@ -31,6 +33,10 @@ RSpec.describe K8sCluster::DaemonSets do
       expect(row[:current_number_scheduled]).to eq(3)
       expect(row[:number_ready]).to eq(2)
       expect(row[:number_available]).to eq(2)
+      expect(row[:selector]).to eq("app" => "monitoring")
+      expect(row[:conditions]).to eq([
+        { type: "Available", status: "False", reason: "NodeUnavailable", last_transition_time: "2026-01-01T00:05:00Z" }
+      ])
     end
 
     it "lists across all namespaces when none is given" do

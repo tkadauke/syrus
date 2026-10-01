@@ -31,8 +31,21 @@ module K8sCluster
         ready_replicas: integer(item.dig("status", "readyReplicas")).to_i,
         current_replicas: integer(item.dig("status", "currentReplicas")).to_i,
         updated_replicas: integer(item.dig("status", "updatedReplicas")).to_i,
+        selector: item.dig("spec", "selector", "matchLabels") || {},
+        conditions: recent_conditions(item),
         created_at: item.dig("metadata", "creationTimestamp")
       }
+    end
+
+    def recent_conditions(item)
+      (item.dig("status", "conditions") || []).last(3).map do |condition|
+        {
+          type: condition["type"],
+          status: condition["status"],
+          reason: condition["reason"],
+          last_transition_time: condition["lastTransitionTime"]
+        }
+      end
     end
   end
 end
