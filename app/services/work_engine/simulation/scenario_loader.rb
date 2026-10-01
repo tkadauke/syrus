@@ -90,12 +90,22 @@ module WorkEngine
         setting.save!(validate: false)
       end
 
+      # Placeholder provider credentials matter: agent providers check auth
+      # before they consult the injected runner seam, so a credential-less
+      # simulated user makes every inline Judgment call (PrCommentIngester's
+      # actionable classification, for one) fail at the auth preflight. Since
+      # classification fails CLOSED, that silently drops injected review
+      # comments and a PR-feedback scenario stalls for a reason unrelated to
+      # what it tests. These values are never used to reach a provider -- the
+      # runner seam answers first (see Runner#with_stubbed_judgment_runner).
       def create_user!(attrs)
         User.create!(
           email_address: attrs.fetch("email", "simulation-#{SecureRandom.hex(6)}@example.com"),
           password: attrs.fetch("password", "supersecret"),
           agent_provider: attrs.fetch("agent_provider", "codex"),
-          github_handle: attrs["github_handle"]
+          github_handle: attrs["github_handle"],
+          codex_api_key: attrs.fetch("codex_api_key", "simulation-codex-key"),
+          claude_oauth_token: attrs.fetch("claude_oauth_token", "simulation-claude-token")
         )
       end
 

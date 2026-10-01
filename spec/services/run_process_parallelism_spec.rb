@@ -67,6 +67,14 @@ RSpec.describe RunProcessParallelism do
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.max").and_return("17179869184\n")
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.current").and_return("4294967296\n")
     allow(File).to receive(:read).with("/sys/fs/cgroup/memory.stat").and_return("anon 1073741824\ninactive_file 2147483648\n")
+    # effective_memory_limit_bytes takes the MINIMUM of the cgroup v2 limit, the
+    # cgroup v1 limit, and /proc/meminfo. Stubbing only the v2 path leaves the
+    # other two reading the host, so on a Linux runner whose real memory is
+    # below the stubbed 16 GiB the minimum is the host's value and this example
+    # fails for a reason that has nothing to do with the code under test. It
+    # passed on macOS only because neither fallback path exists there.
+    allow(File).to receive(:read).with("/sys/fs/cgroup/memory/memory.limit_in_bytes").and_raise(Errno::ENOENT)
+    allow(File).to receive(:read).with("/proc/meminfo").and_raise(Errno::ENOENT)
 
     expect(described_class.effective_memory_limit_bytes).to eq(16.gigabytes)
     expect(described_class.current_memory_bytes).to eq(2.gigabytes)

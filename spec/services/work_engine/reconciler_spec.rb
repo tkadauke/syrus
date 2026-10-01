@@ -5796,9 +5796,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     step.update_columns(state: "succeeded", finished_at: now - 30.minutes)
     run.update_columns(state: "succeeded", finished_at: now - 30.minutes)
 
-    failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now - 20.minutes)
-    failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now - 10.minutes)
-    latest_workflow, _latest_step, latest_run = failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now)
+    # One attempt per THRESHOLD, derived from the constant so this cannot drift
+    # from it the way a hardcoded count did.
+    latest_workflow = _latest_step = latest_run = nil
+    WorkEngine::RepeatedFailureCircuit::THRESHOLD.times do |index|
+      minutes_ago = (WorkEngine::RepeatedFailureCircuit::THRESHOLD - 1 - index) * 10
+      latest_workflow, _latest_step, latest_run =
+        failed_workflow_attempt_with_diagnostic(job: job, trigger_kind: "merge_train", finished_at: now - minutes_ago.minutes)
+    end
     latest_workflow.update!(artifacts: { "merge_train_id" => train.id })
     attach_work_unit(latest_workflow, kind: "merge_train", state: "failed", member_jobs: [ job ])
     latest_run.run_failure_classification.update!(
@@ -5818,7 +5823,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       recommended_repair_action: "operator_review_repeated_failure_circuit"
     )
     expect(issue.evidence).to include(
-      "streak_count" => 3,
+      "streak_count" => WorkEngine::RepeatedFailureCircuit::THRESHOLD,
       "threshold" => WorkEngine::RepeatedFailureCircuit::THRESHOLD,
       "app_revision" => "pre-fix-sha",
       "error_class" => "NoMethodError"
@@ -5831,7 +5836,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(attention_item.evidence).to include(
       "fingerprint" => issue.evidence["fingerprint"],
       "app_revision" => "pre-fix-sha",
-      "streak_count" => 3
+      "streak_count" => WorkEngine::RepeatedFailureCircuit::THRESHOLD
     )
   end
 

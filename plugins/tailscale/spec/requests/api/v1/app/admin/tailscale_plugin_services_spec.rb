@@ -111,13 +111,22 @@ RSpec.describe "API: admin plugin services for Tailscale", type: :request do
   end
 
   describe "missing runtime: Plugin Runtime plugin disabled" do
-    it "404s every plugin_services action before even asking the manager" do
+    # `index` is deliberately exempt from the plugin-disabled guard so the
+    # diagnostic page still renders (read-only, `manageable: false`) with the
+    # runtime off -- see plugin_runtime's own
+    # "keeps the diagnostic index available when Plugin Runtime is disabled".
+    # Every action that would *mutate* a service still refuses up front, which
+    # is what this example is here to pin for the real tailscale wiring.
+    it "404s mutating plugin_services actions before even asking the manager" do
       PluginRecord.find_by!(name: "plugin_runtime").update!(enabled: false)
 
-      get "/api/v1/app/admin/plugin_services"
+      post "/api/v1/app/admin/plugin_services/tailscale/restart"
 
       expect(response).to have_http_status(:not_found)
       expect(json.dig("error", "code")).to eq("plugin_disabled")
+      # "before even asking the manager" is the real assertion: no stub for
+      # /v1/services exists in this example, so any manager call would raise.
+      expect(a_request(:any, /#{Regexp.escape(manager)}/)).not_to have_been_made
     end
   end
 

@@ -107,7 +107,15 @@ The classifier currently emits these families:
 - `repeated_failure_circuit_open` — pauses automatic retry/rebuild when the
   same failed-Run exception fingerprint recurs on the same app revision for
   the configured streak threshold; opens or refreshes one urgent operator
-  Attention Item for the affected Job's repeated-failure circuit
+  Attention Item for the affected Job's repeated-failure circuit.
+  `WorkEngine::RepeatedFailureCircuit::THRESHOLD` must stay **above**
+  `AutoRetryAttempt::MAX_ATTEMPTS`, because the circuit is for failures that
+  survive retrying. When the two were equal, the circuit opened on the very
+  failure that would have scheduled the final retry: the last attempt became
+  unreachable, the budget never recorded exhaustion, and the reconciler
+  re-detected the same failure every tick while re-skipping a repair that
+  could never apply. The threshold is now derived from the budget so the two
+  cannot collide again.
 - `nonretryable_semantic_git_failure`
 - `cleanup_blocked_by_active_descendants`
 - `workflow_workspace_prune_risk`

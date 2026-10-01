@@ -36,12 +36,32 @@ RSpec.describe WorkEngine::RepeatedFailureCircuit do
     run
   end
 
+  # Builds exactly THRESHOLD consecutive identical failures, derived from the
+  # constant rather than hardcoded, so the helper cannot drift away from the
+  # threshold it is supposed to trip (it did, when THRESHOLD moved above the
+  # auto-retry budget).
   def trip_circuit(app_revision:, finished_at:)
-    failed_attempt(finished_at: finished_at - 2.minutes, app_revision: app_revision)
-    failed_attempt(finished_at: finished_at - 1.minute, app_revision: app_revision)
-    latest_run = failed_attempt(finished_at: finished_at, app_revision: app_revision)
+    latest_run = nil
+
+    described_class::THRESHOLD.times do |index|
+      minutes_ago = described_class::THRESHOLD - 1 - index
+      latest_run = failed_attempt(finished_at: finished_at - minutes_ago.minutes, app_revision: app_revision)
+    end
 
     described_class.new(run: latest_run).open_attention_item!
+  end
+
+  it "opens only after the auto-retry budget has been spent" do
+    # These two numbers were equal, which made the circuit open on the same
+    # failure that would have scheduled the final retry. The budget's last
+    # attempt became unreachable: the documented "up to three attempts with
+    # 5m/20m/1h backoff" was really two, the 1-hour backoff was dead code, and
+    # the budget never recorded exhaustion -- so the reconciler re-detected the
+    # failure every tick and re-skipped a repair that could never apply.
+    #
+    # The circuit is meant to catch failures that survive retrying, so its
+    # threshold has to sit above the retry budget, not on top of it.
+    expect(described_class::THRESHOLD).to be > AutoRetryAttempt::MAX_ATTEMPTS
   end
 
   it "keeps one open attention item across retry workflows and app revisions" do

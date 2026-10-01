@@ -2,7 +2,7 @@ require "digest"
 
 module WorkEngine
   class RepeatedFailureCircuit
-    THRESHOLD = 3
+    THRESHOLD = AutoRetryAttempt::MAX_ATTEMPTS + 1
     TOP_STACK_FRAMES = 5
     PROBLEM_CODE = "application_error".freeze
     CIRCUIT = "repeated_failure_circuit".freeze

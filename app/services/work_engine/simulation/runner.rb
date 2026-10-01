@@ -45,31 +45,62 @@ module WorkEngine
       end
 
       def call
-        max_ticks.times do |tick|
-          before = fingerprint
-          apply_scenario_events!(tick)
-          reconcile!(tick)
-          process_auto_retry_attempts!(tick)
-          retry_failed_jobs!(tick)
-          wake_jobs!
-          process_landing_queue!(tick)
-          execute_active_runs!(tick)
-          next if retryable_failed_jobs?
-          return success(tick + 1) if complete?
-          return waiting(tick + 1) if no_active_runs? && valid_waiting?
+        with_stubbed_judgment_runner do
+          max_ticks.times do |tick|
+            before = fingerprint
+            apply_scenario_events!(tick)
+            reconcile!(tick)
+            process_auto_retry_attempts!(tick)
+            retry_failed_jobs!(tick)
+            wake_jobs!
+            process_landing_queue!(tick)
+            execute_active_runs!(tick)
+            next if retryable_failed_jobs?
+            return success(tick + 1) if complete?
+            return waiting(tick + 1) if no_active_runs? && valid_waiting?
 
-          after = fingerprint
-          if after == before && no_active_runs?
-            return stuck(tick + 1, "no state changed")
+            after = fingerprint
+            if after == before && no_active_runs?
+              return stuck(tick + 1, "no state changed")
+            end
           end
+
+          return waiting(max_ticks) if valid_waiting? && no_active_runs?
+
+          stuck(max_ticks, "max ticks exhausted")
         end
-
-        return waiting(max_ticks) if valid_waiting? && no_active_runs?
-
-        stuck(max_ticks, "max ticks exhausted")
       end
 
       private
+
+      # Agentic *steps* never reach a real agent here -- the harness decides
+      # their outcome from the scenario's `outcomes:`. But some production
+      # paths consult an agent inline through Judgment rather than as a Step:
+      # PrCommentIngester classifies whether a review comment is actionable
+      # that way. Those calls fall back to `RunJob.agent_runner`, which the
+      # simulator leaves unset, so Judgment would try to spawn a real agent
+      # CLI, fail, and -- because classification fails CLOSED -- silently
+      # drop every injected review comment as "not actionable". A scenario
+      # that reports PR feedback then goes nowhere, for a reason that has
+      # nothing to do with what it is testing.
+      #
+      # So stub exactly that boundary (the LLM call) and let ingestion,
+      # dedup, attribution, watermarking, and dispatch run for real. The
+      # verdict is deliberately fixed rather than scenario-configurable:
+      # no current scenario tests classification itself, and a knob no
+      # fixture sets would just be dead surface.
+      def with_stubbed_judgment_runner
+        previous = RunJob.agent_runner
+        RunJob.agent_runner = ->(**_kwargs) {
+          AgentInvocation::Result.new(
+            turns: 1, exit_status: 0, timed_out: false, is_error: false,
+            outcome: "success", final_text: { actionable: true }.to_json, session_id: nil
+          )
+        }
+        yield
+      ensure
+        RunJob.agent_runner = previous
+      end
 
       attr_reader :job_ids, :work_intent_ids, :scenario, :outcomes, :scenario_events, :expectations, :runtime, :success_states, :wait_states, :max_ticks, :ignored_reconciler_issue_kinds, :events, :run_attempts
 
