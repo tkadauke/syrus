@@ -3,7 +3,7 @@
 Review Notes is a bundled Syrus plugin for agent-authored review notes on
 changed diff ranges. After implementation-style workflows, it can run a
 best-effort review pass that flags code ranges worth operator attention and
-surfaces those notes in the Job review tab.
+surfaces concise notes in the Job review tab.
 
 Notes are stored as plugin-owned records scoped to the Job, Workflow, Run, and
 DiffReviewVersion that produced them. Open notes count as unresolved

@@ -40,7 +40,7 @@ RSpec.describe Steps::PostImplementationReview do
       end
 
       def self.required_mcp_tools(job:, workflow:, run:)
-        [ "submit_cognitive_review_notes" ]
+        [ "submit_review_notes" ]
       end
     end
     Syrus::PluginRegistry.register(
@@ -52,7 +52,7 @@ RSpec.describe Steps::PostImplementationReview do
     expect(handler).to receive(:run_agent) do |prompt:, max_turns:, required_mcp_tools:, **|
       expect(prompt).to include("Provider review prompt")
       expect(max_turns).to eq(described_class::TURN_BUDGET)
-      expect(required_mcp_tools).to eq([ "submit_cognitive_review_notes" ])
+      expect(required_mcp_tools).to eq([ "submit_review_notes" ])
     end
 
     handler.call
@@ -65,7 +65,7 @@ RSpec.describe Steps::PostImplementationReview do
       include Syrus::Plugin::PostImplementationReviewProvider
 
       def self.review_needed?(job:, trigger_kind:) = true
-      def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_cognitive_review_notes" ]
+      def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
     end
     Syrus::PluginRegistry.register(
       name: "post_implementation_review_failure_spec_provider",
@@ -73,7 +73,7 @@ RSpec.describe Steps::PostImplementationReview do
       provides: { post_implementation_review_provider: provider }
     )
 
-    allow(handler).to receive(:run_agent).and_raise(Steps::Base::StepFailed, "agent didn't call submit_cognitive_review_notes")
+    allow(handler).to receive(:run_agent).and_raise(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
 
     expect { handler.call }.not_to raise_error
     expect(job.job_logs.last.chunk).to include("best-effort step did not complete")

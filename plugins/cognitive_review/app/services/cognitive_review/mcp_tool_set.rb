@@ -5,7 +5,7 @@ module CognitiveReview
     include Syrus::Plugin::McpToolSet
 
     TOOL_CLASSES = [
-      Tools::SubmitCognitiveReviewNotesTool
+      Tools::SubmitReviewNotesTool
     ].freeze
 
     def self.available_for?(_repository) = CognitiveReview.enabled?
