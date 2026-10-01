@@ -170,6 +170,16 @@ function renderRoute(initialEntry = "/repositories/1/edit") {
 describe("RepositoryForm plugin input-source decoupling", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("contains the edit page to the mobile viewport instead of widening the page", async () => {
+    mockFetch()
+    renderRoute()
+
+    const main = await screen.findByRole("main", { name: "Edit Repository" })
+
+    expect(main).toHaveClass("w-full", "min-w-0", "max-w-3xl", "overflow-x-hidden", "px-4", "sm:p-6")
+    expect(await screen.findByRole("heading", { level: 1, name: "Edit acme/widgets" })).toHaveClass("min-w-0", "[overflow-wrap:anywhere]")
+  })
+
   it("labels main branch health monitoring separately from broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: true,

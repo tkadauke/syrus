@@ -63,7 +63,7 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
   })
 
   return (
-    <main aria-label={mode === "new" ? t('repository_form.aria_new') : t('repository_form.aria_edit')} className="mx-auto max-w-3xl space-y-6 p-6">
+    <main aria-label={mode === "new" ? t('repository_form.aria_new') : t('repository_form.aria_edit')} className="mx-auto w-full min-w-0 max-w-3xl space-y-6 overflow-x-hidden px-4 py-6 sm:p-6">
       {form.isPending ? <PanelMessage>{t('repository_form.loading')}</PanelMessage> : null}
       {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t('repository_form.error_load'))}</PanelMessage> : null}
       {form.isSuccess ? <RepositoryForm mode={mode} payload={form.data} prefix={prefix} /> : null}
@@ -254,9 +254,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
   return (
     <>
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeading className="break-words">{title}</PageHeading>
-        {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+      <header className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeading className="min-w-0 break-words [overflow-wrap:anywhere]">{title}</PageHeading>
+        {mode === "edit" && payload.repository.repository_path ? <Link className="shrink-0 text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
           {t('repository_form.back')}
         </Link> : null}
       </header>
@@ -265,7 +265,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
       {ownerNotice ? <PanelMessage>{ownerNotice}</PanelMessage> : null}
       {repoNotice ? <PanelMessage tone={repoNotice.tone}>{repoNotice.text}</PanelMessage> : null}
 
-      <form className="space-y-5" onSubmit={submit}>
+      <form className="min-w-0 space-y-5" onSubmit={submit}>
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
             <SectionHeading>
