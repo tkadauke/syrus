@@ -28,9 +28,17 @@ type NotePanelProps = {
 }
 
 const VISIBLE_NOTE_LIMIT = 12
-const AGENT_NOTE_BADGE_CLASS = "shrink-0 rounded border border-warning-border bg-surface px-1.5 py-0.5 text-2xs font-semibold uppercase text-warning-text"
+const NOTE_CARD_CLASS = [
+  "rounded border border-warning-border bg-warning-bg/45 p-3",
+  "text-sm text-text-primary focus-within:ring-2 focus-within:ring-warning-border"
+].join(" ")
+const AGENT_NOTE_BADGE_CLASS = [
+  "shrink-0 rounded border border-warning-border bg-surface px-1.5 py-0.5",
+  "text-2xs font-semibold uppercase text-warning-text"
+].join(" ")
 const DISCUSSION_TEXTAREA_CLASS =
   "min-h-20 w-full rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary"
 
 export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotationComponentProps) {
   const { t } = useT("cognitive_review")
@@ -121,7 +129,7 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
 
   return (
     <article
-      className="rounded border border-warning-border bg-warning-bg/45 p-3 text-sm text-text-primary focus-within:ring-2 focus-within:ring-warning-border"
+      className={NOTE_CARD_CLASS}
       data-cognitive-review-note-id={note.note_id}
       onBlur={clearHighlightOnBlur}
       onFocus={() => setHighlightCondition("focus", true)}
@@ -183,7 +191,7 @@ function NoteMetadata({ note }: { note: CognitiveReviewNote }) {
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {chips.map((chip) => (
-        <span className="rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary" key={chip}>
+        <span className={METADATA_CHIP_CLASS} key={chip}>
           {chip}
         </span>
       ))}
