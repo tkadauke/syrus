@@ -107,10 +107,9 @@ class Feature < ApplicationRecord
     enabled?(:epicless_job_bundling)
   end
 
-  # Worker-local persistent MCP sidecar daemon skeleton . Off by
-  # default; when disabled, PersistentMcpDaemon.start refuses to boot and
-  # workflow/chat agents keep using the existing per-run/per-session stdio
-  # sidecars (Mcp::Sidecar) unchanged.
+  # Worker-local persistent MCP sidecar daemon. On by default; when disabled,
+  # PersistentMcpDaemon.start refuses to boot and workflow/chat agents keep
+  # using the existing per-run/per-session stdio sidecars (Mcp::Sidecar).
   def self.persistent_mcp_sidecar_enabled?
     enabled?(:persistent_mcp_sidecar)
   end

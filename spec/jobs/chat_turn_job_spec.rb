@@ -2643,7 +2643,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(Rails.logger).to have_received(:warn).with(a_string_matching(/mcp_transport=stdio chat_id=#{chat.id} reason=daemon_unreachable/))
     end
 
-    it "downgrades a healthy persistent decision to stdio for Codex chats (no HTTP MCP transport wiring)" do
+    it "routes Codex chats through the persistent daemon with stdio proxy entries" do
       codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
       codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-widgets", default_branch: "main")
       codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
@@ -2663,10 +2663,32 @@ RSpec.describe ChatTurnJob, :ci_only do
       described_class.perform_now(codex_chat.id, codex_message.id)
 
       servers = received[:mcp_servers]
-      expect(servers["syrus-chat-sidecar"]).to include(command: Rails.root.join("bin/syrus-chat-sidecar").to_s)
+      expect(servers["syrus-chat-sidecar"]).to include(
+        command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+        args: [],
+        required: true
+      )
+      expect(servers["syrus-chat-deferred-sidecar"]).to include(
+        command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+        args: [],
+        required: false
+      )
+      essential_token = servers.dig("syrus-chat-sidecar", :env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+      deferred_token = servers.dig("syrus-chat-deferred-sidecar", :env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+      expect(servers.dig("syrus-chat-sidecar", :env, "SYRUS_MCP_PROXY_URL"))
+        .to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}")
+      expect(essential_token).to be_present
+      expect(deferred_token).to be_present
+      expect(essential_token).not_to eq(deferred_token)
+
+      resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
+      expect(resolved_essential.tier).to eq("essential")
+      expect(resolved_essential.provider).to eq("codex")
+      resolved_deferred = McpInvocationContext.resolve(deferred_token, worker_id: "w1")
+      expect(resolved_deferred.tier).to eq("deferred")
+
       artifact = codex_chat.reload.artifact("mcp_transport")
-      expect(artifact["transport"]).to eq("stdio")
-      expect(artifact["reason"]).to match(/\Aprovider_unsupported: codex/)
+      expect(artifact["transport"]).to eq("persistent")
     end
   end
 
