@@ -171,6 +171,19 @@ unaffected either way. On by default; flip it off if a repository should keep
 landing several small approved same-priority Jobs one at a time instead of as
 a bundle.
 
+A Job the assembler has already dropped does **not** block the bundle. The
+assembler's default scope excludes any Job holding an active work unit, and
+`JobBundleDispatcher` gates only on the members that will actually land. This
+matters because `blocked` counts as active (`WorkUnits::Ownership::ACTIVE_STATES`
+is `queued`/`blocked`/`running`), so work that can never finish — a `ci_failure`
+repair blocked on `ci_repair_safety` against a base SHA that will not be graded
+again — would otherwise veto every bundle in the repository indefinitely, with
+the queue showing only `waiting_epicless_bundle` and no recorded failure. The
+wider candidate set is still consulted, but only to *explain* a bundle that
+cannot form (naming the workflow that removed a candidate instead of just
+"fewer than 2 same-tier Jobs"), never to prevent one that can. Regression
+coverage: `spec/fixtures/work_engine_simulations/blocked_ci_repair_does_not_block_job_bundle.yml`.
+
 ## performance_logging
 
 **Category:** Operations

@@ -83,26 +83,28 @@ class JobBundleDispatcher
       return cooldown_reason(failed_bundle)
     end
 
-    potential_members = potential_member_candidates
-    return "landing queue is paused" if landing_queue_paused?(potential_members)
+    # Member-scoped checks run against the set that will actually land -- the
+    # assembler's default scope, which already drops Jobs holding an active work
+    # unit -- and never against a wider set.
+    #
+    # Two wider sets used to gate here, and both over-blocked. The
+    # `potential_member_candidates` list is every approved epicless Job in the
+    # tier with none of the assembler's eligibility filtering, and
+    # `include_active: true` deliberately re-adds the Jobs the assembler just
+    # dropped. Either way a Job the bundle would *exclude* could veto it, so one
+    # Job carrying work that cannot finish -- a ci_failure repair blocked on
+    # `ci_repair_safety` against a base SHA that will never be graded again --
+    # stopped every other approved Job in the repository from landing,
+    # indefinitely, while the landing queue reported only
+    # `waiting_epicless_bundle` and recorded no failure anywhere.
+    #
+    # The wider candidate set is still worth consulting, but only to *explain* a
+    # bundle that already cannot form -- never to prevent one that can. Naming
+    # the work that removed a candidate is far more actionable than the
+    # assembler's "fewer than N same-tier Jobs".
+    readiness = LandingBundleAssembler.for_repository(@repository)
+    return candidate_exclusion_reason || readiness.reason unless readiness.ready?
 
-    if (active_work = active_member_work(potential_members))
-      return active_member_work_reason(active_work)
-    end
-
-    if (workflow = RebaseWorkflowSelector.active_for_jobs(potential_members).order(:id).first)
-      return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
-    end
-    if RebaseWorkflowSelector.active_for_jobs?(potential_members)
-      return "active rebase workflow must finish before the job bundle starts"
-    end
-
-    if (active_lock = active_member_lock(potential_members))
-      return active_member_lock_reason(active_lock)
-    end
-
-    readiness = LandingBundleAssembler.for_repository(@repository, include_active: true)
-    return readiness.reason unless readiness.ready?
     return "landing queue is paused" if landing_queue_paused?(readiness.members)
 
     if (active_work = active_member_work(readiness.members))
@@ -154,6 +156,34 @@ class JobBundleDispatcher
     end
 
     Job.landing.where(repository_id: @repository.id).order(:id).first
+  end
+
+  # Reporting only. Called when no bundle can form, to say *why* a candidate was
+  # dropped instead of only how many were left. Must never gate dispatch: these
+  # same checks over a set wider than the actual members is exactly what let one
+  # permanently blocked Job hold up every other approved Job in the repository.
+  def candidate_exclusion_reason
+    candidates = potential_member_candidates
+    return if candidates.empty?
+
+    return "landing queue is paused" if landing_queue_paused?(candidates)
+
+    if (active_work = active_member_work(candidates))
+      return active_member_work_reason(active_work)
+    end
+
+    if (workflow = RebaseWorkflowSelector.active_for_jobs(candidates).order(:id).first)
+      return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
+    end
+    if RebaseWorkflowSelector.active_for_jobs?(candidates)
+      return "active rebase workflow must finish before the job bundle starts"
+    end
+
+    if (active_lock = active_member_lock(candidates))
+      return active_member_lock_reason(active_lock)
+    end
+
+    nil
   end
 
   def potential_member_candidates

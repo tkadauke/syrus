@@ -140,6 +140,36 @@ RSpec.describe JobBundleDispatcher do
     expect(described_class.try_dispatch!(repository)).to be_nil
   end
 
+  it "dispatches the remaining members when a non-member's work cannot finish" do
+    # A ci_failure repair blocked on `ci_repair_safety` waits for its recorded
+    # base SHA to be graded healthy. When that base has been superseded the
+    # condition never clears, so the unit sits `blocked` -- which is one of
+    # WorkUnits::Ownership::ACTIVE_STATES -- forever.
+    #
+    # The assembler already drops a Job holding an active unit, so `stuck` is not
+    # a bundle member. It must not veto the bundle either: gating on a wider set
+    # than the actual members let a single unsatisfiable repair stop every other
+    # approved Job in the repository from landing, with the landing queue
+    # reporting only `waiting_epicless_bundle` and no failure recorded anywhere.
+    stuck = approved_job(1)
+    approved_job(2)
+    approved_job(3)
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: stuck)
+    blocked_workflow.work_unit.update!(state: "blocked", blocked_reason: "ci_repair_safety")
+
+    workflow = described_class.try_dispatch!(repository)
+
+    expect(workflow).to be_present
+    expect(MergeTrain.count).to eq(1)
+    member_job_ids = MergeTrain.sole.members.map(&:job_id)
+    expect(member_job_ids).not_to include(stuck.id)
+    expect(member_job_ids.size).to eq(2)
+    # The unsatisfiable repair is left exactly as it was -- clearing it is a
+    # separate concern from not being held hostage by it.
+    expect(stuck.reload.state).to eq("approved")
+    expect(blocked_workflow.work_unit.reload.state).to eq("blocked")
+  end
+
   it "does not dispatch while a rebase workflow is active for a bundle member" do
     a = approved_job(1)
     approved_job(2)

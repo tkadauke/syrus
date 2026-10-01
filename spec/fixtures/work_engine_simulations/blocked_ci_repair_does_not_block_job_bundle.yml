@@ -1,0 +1,78 @@
+# A ci_failure repair that is start-blocked on `ci_repair_safety` is waiting for
+# its recorded base SHA to be known-healthy. When that base has been superseded
+# -- rolled back, or simply left behind as the branch moved on -- the condition
+# can never clear, so the unit stays `blocked` forever.
+#
+# `blocked` is one of WorkUnits::Ownership::ACTIVE_STATES, so
+# JobBundleDispatcher counted that unit as "active member work that must finish
+# before the job bundle starts" and refused to assemble a bundle. One
+# unsatisfiable repair therefore stopped every approved Job in the repository
+# from landing, indefinitely, while the landing queue reported only
+# `waiting_epicless_bundle` and recorded no failure anywhere.
+#
+# Same shape as obsolete_visual_diff_does_not_block_job_bundle: work that cannot
+# make progress must not gate the bundler.
+name: permanently blocked ci repair does not block job bundle
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: blocked-ci-repair-does-not-block-job-bundle
+  auto_merge_enabled: true
+jobs:
+  alpha:
+    title: Approved member carrying a stale blocked CI repair
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6401
+    approved_at: "2026-09-20 10:00:00"
+    workflow:
+      kind: ci_failure
+      state: queued
+      artifacts:
+        base_sha: "1111111111111111111111111111111111111111"
+      work_unit:
+        state: blocked
+        blocked_reason: ci_repair_safety
+      steps:
+        - kind: prepare
+          state: queued
+  # Two more approved members, so a bundle genuinely assembles and the
+  # dispatcher's refusal is what holds them -- with only one other member no
+  # bundle forms and it would land solo, which hides the bug.
+  beta:
+    title: Second approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6402
+    approved_at: "2026-09-20 10:01:00"
+  gamma:
+    title: Third approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-gamma
+    pr_number: 6403
+    approved_at: "2026-09-20 10:02:00"
+outcomes:
+  default: success
+expect:
+  jobs:
+    # alpha keeps its unresolved repair and stays approved -- clearing a
+    # permanently blocked ci_repair_safety gate is a separate concern. What
+    # matters here is that it no longer holds anyone else back.
+    alpha:
+      - approved
+    beta:
+      - closed
+    gamma:
+      - closed
+  queues:
+    # Not `landing: empty` -- that asserts Job.landing_queue (approved + landing)
+    # is empty, and alpha stays approved on purpose.
+    active_runs: empty
+  events:
+    - merge_train_land
