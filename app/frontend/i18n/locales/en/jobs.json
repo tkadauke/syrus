@@ -496,7 +496,6 @@
   "review_settings_save_error": "Could not save review settings.",
   "review_metric_gutter_label": "Metric gutter",
   "review_metric_gutter_off": "Off",
-  "review_metric_cognitive_review_risk": "Review-note risk",
   "review_shortcuts_group": "Review diff",
   "review_shortcut_toggle_wrapping": "Toggle line wrapping",
   "review_shortcut_cycle_view": "Cycle unified/split view",

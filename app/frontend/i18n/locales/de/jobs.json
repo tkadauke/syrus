@@ -490,7 +490,6 @@
   "review_settings_save_error": "Review-Einstellungen konnten nicht gespeichert werden.",
   "review_metric_gutter_label": "Metrik-Leiste",
   "review_metric_gutter_off": "Aus",
-  "review_metric_cognitive_review_risk": "Review-Hinweis-Risiko",
   "review_shortcuts_group": "Review-Diff",
   "review_shortcut_toggle_wrapping": "Zeilenumbruch umschalten",
   "review_shortcut_cycle_view": "Vereinheitlicht/geteilt wechseln",
