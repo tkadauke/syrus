@@ -1,6 +1,8 @@
 # Agent transcript improvement plan
 
-Captured June 4, 2026 from production admin API data.
+Captured June 4, 2026 from production admin API data. The original sample
+used concrete private workflow, run, job, and chat IDs; this public version
+keeps the failure shapes and redacts the instance-specific identifiers.
 
 ## Goal
 
@@ -47,50 +49,48 @@ Top repeated failure messages:
 | `grader eager-load failed (exit 1)` | 19 |
 | `required graders failed: eager-load, rspec, react-tests` | 13 |
 | `grader react-tests failed (exit 127)` | 10 |
-| Git fetch refused into checked-out branch for JOB-709 stack rebase | 3 |
+| Git fetch refused into checked-out branch during stack rebase | 3 |
 | `worker_died` | 3 |
 | GitHub merge 405: `This branch can't be rebased` | 2 |
 
 Representative workflow observations:
 
-- Workflow `5700` for JOB-702 shows `RetryUntil` behavior working:
+- One workflow shows `RetryUntil` behavior working:
   an initial `rspec` grader failed, `landing_fix` ran, graders passed,
   and the workflow reached push/auto-merge. The raw step list still
   reads like an unrolled sequence of anonymous `grader` steps rather
   than a compact loop with named graders and per-iteration summaries.
-- Workflow `5677` for JOB-753 shows an agentic `respond` step followed
+- Another workflow shows an agentic `respond` step followed
   by a failed grader, a second `respond`, successful graders, then a
   failed `summarize_amend` run. The failure message starts with a raw
   `git commit --amend -m ...` invocation, which is a system/tooling
   failure after the agent had already returned success.
-- Workflows `5686` and `5680` show `agent_rebase` runs ending as
+- Some `agent_rebase` workflows ended as
   `worker_died`. The admin API marks the run outcome, but the transcript
   endpoint has no parsed transcript for those runs.
-- Runs `15383`, `15403`, `15610`, `15800`, `16155`, and similar grader
-  failures expose only three artifact log lines: run start, command
-  start, and generic `grader failed`. The actual stdout/stderr needed
-  to fix the failure is not available through the admin artifact API.
+- Several grader failures exposed only three artifact log lines: run start,
+  command start, and generic `grader failed`. The actual stdout/stderr needed
+  to fix the failure was not available through the admin artifact API.
 - Recent agentic run transcript endpoints often return empty summaries:
   `total_tool_calls: 0`, no events, and no model/session metadata, even
-  for successful agentic runs such as `15398`, `15407`, `15416`,
-  `15802`, `16031`, `16054`, and `16172`.
+  for successful agentic runs.
 
 Representative chat observations:
 
-- Chat `5` had 200 returned messages: 90 tool uses, 91 tool results.
+- One chat had 200 returned messages: 90 tool uses, 91 tool results.
   Tools included `Bash` 27 times, `Read` 37 times, `Glob` 8 times,
   `Grep` 13 times, plus proposal/bookmark MCP tools. Several discovery
   calls returned `No files found`, and one Rails execution in a chat
   workspace failed because gems were not installed.
-- Chat `6` had 200 returned messages: 85 tool uses, 88 tool results.
+- Another chat had 200 returned messages: 85 tool uses, 88 tool results.
   It includes an explicit tool-shape error:
   `InputValidationError: Read failed ... unexpected parameter command`.
-- Chat `6` also includes an MCP proposal error:
-  `Error: epic_id was not found in tkadauke/gymassistant`. The error is
+- That chat also includes an MCP proposal error:
+  `Error: epic_id was not found in the attached repository`. The error is
   true, but not actionable enough for the agent to know whether it used
   the wrong repository, wrong proposal id, stale context, or a missing
   lookup endpoint.
-- Chat `2` used whiteboard tools heavily: 1 clear, 8 text draws,
+- A whiteboard-heavy chat used whiteboard tools heavily: 1 clear, 8 text draws,
   23 shape draws, and 26 arrow draws. This is a useful workload, but it
   shows the agent has to perform many low-level operations instead of
   submitting a higher-level scene batch with validation feedback.

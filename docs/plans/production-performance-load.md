@@ -1,7 +1,7 @@
 # Production performance and load plan
 
 Captured July 14, 2026 from a production incident where the app felt slow
-while JOB-1711 and JOB-1713 were running.
+while two CPU-heavy agent workflows were running.
 
 Status check 2026-08-26: this is still relevant as historical load-analysis
 rationale, but many observability gaps named here have since been addressed.
@@ -25,9 +25,11 @@ operators can answer these questions quickly:
 
 ## Current Evidence
 
-Observed during the incident:
+Observed during the incident. The original capture included specific private
+instance record IDs and hostnames; this public version keeps only the
+operational shape needed to explain the design.
 
-- `k3s-production-master-03` was at 100% CPU.
+- One production node was at 100% CPU.
 - Both `syrus-web` pods and the single `syrus-worker` pod were scheduled on
   that same node.
 - `syrus-worker` used roughly 3.5 cores and 6.3 GiB RAM.
@@ -36,21 +38,23 @@ Observed during the incident:
 - The worker data volume was high but not full: `/syrus-home` around 85%.
 - Pending Solid Queue jobs were empty at the sampled moment; the `runs` pool
   had two active Runs.
-- JOB-1711 was not idle. Its workflow had already spent about:
+- One active implementation workflow was not idle. It had already spent about:
   - 5 minutes in `prepare`
   - 40 minutes in the first `implement` run
   - 6 minutes in `adversarial_review`
   - then entered a second `implement` run that launched full `bin/rspec`
-- The active JOB-1711 process tree included a long-running `bin/rspec` child
-  plus Claude task-output tails.
-- JOB-1713 was compiling C++ coverage with multiple `cc1plus` processes.
+- That workflow's process tree included a long-running `bin/rspec` child plus
+  provider task-output tails.
+- Another active workflow was compiling C++ coverage with multiple `cc1plus`
+  processes.
 - Web logs showed Action Cable upgrade failures:
   `Request origin not allowed`, followed by repeated REST polling of run
   artifacts.
-- Job detail requests for JOB-1711 were modest individually but non-trivial:
-  about 124 SQL queries per full job payload request.
-- `PollRepositoryJob` for `tkadauke/syrus` took about 31 seconds in a recent
-  sample and emitted high-volume dedup/ingestion logging.
+- Job detail requests for the active implementation workflow were modest
+  individually but non-trivial: about 124 SQL queries per full job payload
+  request.
+- `PollRepositoryJob` for the primary repository took about 31 seconds in a
+  recent sample and emitted high-volume dedup/ingestion logging.
 - `ReapStaleRunsJob` repeatedly attempted workflows blocked by
   `main_branch_broken`, causing recurring background churn.
 - Performance logging reported `enabled=false`, so no in-app slow request/SQL
