@@ -8,17 +8,28 @@ module CognitiveReview
     }.freeze
 
     def self.review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
-      notes = notes_for(job: job, version: version, base_sha: base_sha, head_sha: head_sha)
-      return {} if notes.empty?
+      all_notes = notes_for_sidebar(job: job)
+      notes = notes_for(all_notes, version: version, base_sha: base_sha, head_sha: head_sha)
+      sidebar_notes = CognitiveReview::Note.open_for_pr_debt(all_notes)
+      return {} if notes.empty? && sidebar_notes.empty?
 
       open_notes = CognitiveReview::Note.open_for_pr_debt(notes)
-      return { ranges: {}, panels: [], counts: [ open_count(open_notes) ] } if open_notes.empty?
-
       comments_by_note_id = matching_comments_by_note_id(open_notes)
-      {
-        ranges: ranges_for(open_notes, comments_by_note_id: comments_by_note_id),
-        panels: panels_for(open_notes, comments_by_note_id: comments_by_note_id),
+
+      sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes)
+
+      payload = {
+        sidebar_panels: panels_for(sidebar_notes, comments_by_note_id: sidebar_comments_by_note_id),
+        sidebar_counts: [ open_count(sidebar_notes) ],
         counts: [ open_count(open_notes) ]
+      }
+
+      return payload.merge(ranges: {}, panels: []) if open_notes.empty?
+
+      {
+        **payload,
+        ranges: ranges_for(open_notes, comments_by_note_id: comments_by_note_id),
+        panels: panels_for(open_notes, comments_by_note_id: comments_by_note_id)
       }
     end
 
@@ -31,19 +42,19 @@ module CognitiveReview
       }
     end
 
-    def self.notes_for(job:, version:, base_sha:, head_sha:)
-      scope = CognitiveReview::Note.where(job: job)
+    def self.notes_for(notes, version:, base_sha:, head_sha:)
       if version
-        scope = scope.where(diff_review_version: version)
-      else
-        scope = scope.select do |note|
-          metadata = note.source_metadata.to_h
-          metadata["base_sha"].to_s == base_sha.to_s && metadata["head_sha"].to_s == head_sha.to_s
-        end
+        return notes.select { |note| note.diff_review_version_id == version.id }
       end
-      return scope if scope.is_a?(Array)
 
-      scope.includes(:discussion_entries).ordered.to_a
+      notes.select do |note|
+        metadata = note.source_metadata.to_h
+        metadata["base_sha"].to_s == base_sha.to_s && metadata["head_sha"].to_s == head_sha.to_s
+      end
+    end
+
+    def self.notes_for_sidebar(job:)
+      CognitiveReview::Note.where(job: job).includes(:discussion_entries).ordered.to_a
     end
 
     def self.ranges_for(notes, comments_by_note_id: {})
@@ -75,12 +86,14 @@ module CognitiveReview
       notes.map do |note|
         {
           id: "cognitive_review.note.#{note.id}",
+          diff_review_version_id: note.diff_review_version_id,
           component: "cognitive_review/note_panel",
           title: note.title,
           body: note.explanation,
           tone: "warning",
           props: {
             hide_header: true,
+            diff_review_version_id: note.diff_review_version_id,
             notes: [ note_props(note, matching_comments: comments_by_note_id[note.id] || []) ],
             total: 1
           }

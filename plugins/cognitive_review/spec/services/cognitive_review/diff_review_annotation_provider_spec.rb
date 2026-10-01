@@ -127,7 +127,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
   end
 
-  it "does not fall back to stale notes from an unrelated diff version" do
+  it "keeps older-version notes out of active inline annotations while exposing them to the sidebar" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
@@ -147,7 +147,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       head_sha: "new-head",
       files: []
     )
-    CognitiveReview::Note.create!(
+    note = CognitiveReview::Note.create!(
       job: job,
       workflow: workflow,
       run: run,
@@ -170,7 +170,17 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload).to eq({})
+    expect(payload[:ranges]).to eq({})
+    expect(payload[:panels]).to eq([])
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+    expect(payload[:sidebar_panels]).to contain_exactly(
+      hash_including(
+        id: "cognitive_review.note.#{note.id}",
+        diff_review_version_id: old_version.id,
+        props: hash_including(diff_review_version_id: old_version.id, notes: [ hash_including(note_id: note.id) ])
+      )
+    )
   end
 
   it "counts acknowledged and discussed notes as handled rather than unresolved review-note debt" do

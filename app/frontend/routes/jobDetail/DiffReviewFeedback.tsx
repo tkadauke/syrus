@@ -889,8 +889,9 @@ function groupReviewSidebarItems({
     })
   }
 
-  if (reviewAnnotationPanels.length > 0) {
-    const versionId = currentVersionId ?? versions?.[0]?.id ?? 0
+  for (const panel of reviewAnnotationPanels) {
+    const item = annotationPanelSidebarItem(panel)
+    const versionId = annotationPanelVersionId(panel) ?? currentVersionId ?? versions?.[0]?.id ?? 0
     const group =
       groups.get(versionId) ??
       {
@@ -898,7 +899,7 @@ function groupReviewSidebarItems({
         versionId,
         items: []
       }
-    group.items.push(...reviewAnnotationPanels.map(annotationPanelSidebarItem))
+    group.items.push(item)
     groups.set(versionId, group)
   }
 
@@ -925,6 +926,13 @@ function annotationPanelSidebarItem(panel: DiffReviewAnnotationPanel): ReviewSid
     path,
     line
   }
+}
+
+function annotationPanelVersionId(panel: DiffReviewAnnotationPanel) {
+  if (typeof panel.diff_review_version_id === "number") return panel.diff_review_version_id
+
+  const props = panel.props ?? {}
+  return typeof props.diff_review_version_id === "number" ? props.diff_review_version_id : null
 }
 
 function compareReviewSidebarItems(a: ReviewSidebarItem, b: ReviewSidebarItem, fileOrder: Map<string, number>) {

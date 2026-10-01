@@ -872,9 +872,11 @@ Core normalizes these optional keys:
 |---|---|---|
 | `annotations` | `{ "path.rb" => { "12" => [{ id:, title:, body:, tone:, component:, props:, actions: }] } }` | Compact markers on matching new-line diff rows; shorthand for simple new-side notes |
 | `ranges` | `{ "path.rb" => [{ side: "old"|"new", start_line:, end_line:, id:, title:, body:, tone:, component:, props:, actions: }] }` | Compact markers on matching old- or new-side diff rows, including multi-line ranges |
-| `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel |
+| `panels` / `cards` | `[{ id:, title:, body:, component:, props: }]` | Cards in the review side panel for the currently displayed diff version |
+| `sidebar_panels` | `[{ id:, diff_review_version_id:, title:, body:, component:, props: }]` | Cards in the review side panel across review versions; the host groups them with comments by `diff_review_version_id` |
 | `actions` | `[{ id:, label:, href:, method:, component:, props: }]` | Side-panel actions |
-| `counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges |
+| `counts` | `[{ id:, label:, value:, tone: }]` | Count badges for the currently displayed diff version |
+| `sidebar_counts` | `[{ id:, label:, value:, tone: }]` | Side-panel count badges across review versions |
 
 If a payload entry names `component: "plugin_name/Component"`, the frontend
 looks for `plugins/<plugin_name>/app/frontend/review_annotations/Component.tsx`

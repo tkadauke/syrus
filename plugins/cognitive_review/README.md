@@ -17,7 +17,7 @@ workflow MCP tool, review-tab diff annotations, and app API routes for listing,
 reading, acknowledging, and discussing notes. The legacy
 `submit_cognitive_review_notes` tool name remains accepted for compatibility.
 
-In the review tab, open notes appear as warning-tinted diff ranges plus
-agent-authored note cards in the side panel. Operators can jump to the range,
-acknowledge a note without replying, or discuss it; either action marks the
-note handled.
+In the review tab, open notes appear as warning-tinted diff ranges for the
+displayed version plus agent-authored note cards in the unified Review
+conversation side panel. Operators can acknowledge a note without replying, or
+discuss it; either action marks the note handled.

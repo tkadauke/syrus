@@ -1216,6 +1216,7 @@ export type DiffReviewAnnotationRange = DiffReviewAnnotation & {
 
 export type DiffReviewAnnotationPanel = {
   id?: string | number
+  diff_review_version_id?: number | null
   title?: string | null
   body?: string | null
   tone?: "default" | "info" | "warning" | "danger" | "success" | string
@@ -1234,8 +1235,10 @@ export type DiffReviewAnnotationsPayload = {
   annotations: Record<string, Record<string, DiffReviewAnnotation[]>>
   ranges: Record<string, DiffReviewAnnotationRange[]>
   panels: DiffReviewAnnotationPanel[]
+  sidebar_panels?: DiffReviewAnnotationPanel[]
   actions: DiffReviewAnnotationAction[]
   counts: DiffReviewAnnotationCount[]
+  sidebar_counts?: DiffReviewAnnotationCount[]
 }
 
 export type JobSourceDiffPayload = {

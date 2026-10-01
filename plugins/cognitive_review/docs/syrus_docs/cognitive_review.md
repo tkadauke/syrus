@@ -41,12 +41,15 @@ changed lines do not create debt. The legacy `submit_cognitive_review_notes`
 tool name and `/cognitive_review_notes` routes remain accepted for
 compatibility, but new callers should use the review-note names.
 
-In the Job review tab, open notes render as warning-tinted diff ranges and as
-agent-authored cognitive-note cards in the review side panel. The side panel
-shows the open-note count, lets operators jump to the flagged range, and
-offers `Acknowledge` and `Discuss` actions. `Acknowledge` marks the note
-handled without adding a reply; `Discuss` stores an operator discussion entry
-and marks the note handled once that discussion exists.
+In the Job review tab, open notes render as warning-tinted diff ranges for the
+displayed diff version and as agent-authored review-note cards in the unified
+Review conversation side panel. The side panel shows the open-note count across
+review versions, interleaves review notes with user comments by version and
+code position, and offers `Acknowledge` and `Discuss` actions. Hovering or
+focusing a note card highlights its covered line range in the displayed diff
+when that version is selected. `Acknowledge` marks the note handled without
+adding a reply; `Discuss` stores an operator discussion entry and marks the
+note handled once that discussion exists.
 
 ## API
 

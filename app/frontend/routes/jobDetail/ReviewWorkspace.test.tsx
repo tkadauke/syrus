@@ -2200,7 +2200,7 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
   })
 
-  it("groups review notes and comments by version while keeping each version ordered", async () => {
+  it("groups all-version review notes and comments by version while keeping each version ordered", async () => {
     const oldComment = comment({
       id: 31,
       diff_review_version_id: 100,
@@ -2224,10 +2224,42 @@ describe("ReviewWorkspace", () => {
         ],
         review_annotations: {
           annotations: {},
-          ranges: {},
+          ranges: {
+            "app/models/user.rb": [
+              {
+                id: "cognitive_review_note:9",
+                component: "cognitive_review/note_marker",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Current version review note",
+                body: "The note comes before the current comment."
+              }
+            ]
+          },
           panels: [
             reviewNotePanel({
               noteId: 9,
+              versionId: 200,
+              title: "Current version review note",
+              explanation: "The note comes before the current comment.",
+              path: "app/models/user.rb",
+              startLine: 1
+            })
+          ],
+          sidebar_panels: [
+            reviewNotePanel({
+              noteId: 8,
+              versionId: 100,
+              title: "Earlier version review note",
+              explanation: "Older review note still belongs in the unified sidebar.",
+              path: "app/models/user.rb",
+              startLine: 1
+            }),
+            reviewNotePanel({
+              noteId: 9,
+              versionId: 200,
               title: "Current version review note",
               explanation: "The note comes before the current comment.",
               path: "app/models/user.rb",
@@ -2235,7 +2267,8 @@ describe("ReviewWorkspace", () => {
             })
           ],
           actions: [],
-          counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 1, tone: "warning" }]
+          counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 1, tone: "warning" }],
+          sidebar_counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 2, tone: "warning" }]
         }
       })
     )
@@ -2248,7 +2281,12 @@ describe("ReviewWorkspace", () => {
     const sidebarText = sidebar.textContent || ""
 
     expect(sidebarText.indexOf("Initial implementation")).toBeLessThan(sidebarText.indexOf("Repair"))
+    expect(sidebarText.indexOf("Earlier version review note")).toBeGreaterThan(sidebarText.indexOf("Initial implementation"))
+    expect(sidebarText.indexOf("Earlier version review note")).toBeLessThan(sidebarText.indexOf("Repair"))
     expect(sidebarText.indexOf("Current version review note")).toBeLessThan(sidebarText.indexOf("Current version human comment."))
+    expect(within(sidebar).getByText("Review Notes: 2")).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:9"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:8"]')).not.toBeInTheDocument()
     expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
   })
 })
@@ -2258,21 +2296,25 @@ function reviewNotePanel({
   noteId,
   path,
   startLine,
-  title
+  title,
+  versionId
 }: {
   explanation: string
   noteId: number
   path: string
   startLine: number
   title: string
+  versionId?: number
 }): JobSourceDiffPayload["review_annotations"]["panels"][number] {
   return {
     id: `cognitive_review.note.${noteId}`,
+    ...(versionId != null ? { diff_review_version_id: versionId } : {}),
     component: "cognitive_review/note_panel",
     title,
     body: explanation,
     props: {
       hide_header: true,
+      ...(versionId != null ? { diff_review_version_id: versionId } : {}),
       total: 1,
       notes: [
         {

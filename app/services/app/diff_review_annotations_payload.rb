@@ -4,8 +4,10 @@ module App
       annotations: {},
       ranges: {},
       panels: [],
+      sidebar_panels: [],
       actions: [],
-      counts: []
+      counts: [],
+      sidebar_counts: []
     }.freeze
 
     def self.build(job:, user:, version:, base_sha:, head_sha:, files:)
@@ -52,8 +54,10 @@ module App
       merge_annotations!(result[:annotations], payload[:annotations])
       merge_ranges!(result[:ranges], payload[:ranges])
       result[:panels].concat(normalize_collection(payload[:panels] || payload[:cards]))
+      result[:sidebar_panels].concat(normalize_collection(payload[:sidebar_panels]))
       result[:actions].concat(normalize_collection(payload[:actions]))
       result[:counts].concat(normalize_collection(payload[:counts]))
+      result[:sidebar_counts].concat(normalize_collection(payload[:sidebar_counts]))
     end
 
     def merge_annotations!(target, annotations)

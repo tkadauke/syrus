@@ -149,6 +149,10 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     return sourceDiff.data
   }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
   const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
+  const sidebarReviewAnnotationCounts =
+    activeReviewAnnotations.sidebar_counts && activeReviewAnnotations.sidebar_counts.length > 0 ? activeReviewAnnotations.sidebar_counts : activeReviewAnnotations.counts
+  const sidebarReviewAnnotationPanels =
+    activeReviewAnnotations.sidebar_panels && activeReviewAnnotations.sidebar_panels.length > 0 ? activeReviewAnnotations.sidebar_panels : activeReviewAnnotations.panels
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -160,8 +164,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
     reviewAnnotationActions: activeReviewAnnotations.actions,
-    reviewAnnotationCounts: activeReviewAnnotations.counts,
-    reviewAnnotationPanels: activeReviewAnnotations.panels,
+    reviewAnnotationCounts: sidebarReviewAnnotationCounts,
+    reviewAnnotationPanels: sidebarReviewAnnotationPanels,
     reviewFilePaths: activeDiff?.files.map((file) => file.path) ?? [],
     supportsGlobalComments: true,
     surface: SURFACE,
@@ -471,8 +475,10 @@ const EMPTY_REVIEW_ANNOTATIONS: DiffReviewAnnotationsPayload = {
   annotations: {},
   ranges: {},
   panels: [],
+  sidebar_panels: [],
   actions: [],
-  counts: []
+  counts: [],
+  sidebar_counts: []
 }
 
 function ReviewCommentsSplitterHandle({
