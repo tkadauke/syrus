@@ -48,6 +48,8 @@ module CognitiveReview
         ranges[path] ||= []
         ranges[path] << {
           id: "cognitive_review_note:#{note.id}",
+          component: "cognitive_review/note_marker",
+          path: path,
           side: note.side,
           start_line: note.start_line,
           end_line: note.end_line,
@@ -57,7 +59,8 @@ module CognitiveReview
           category: note.reason_codes.first,
           confidence: note.confidence&.to_f,
           state: note.state,
-          priority: note.priority
+          priority: note.priority,
+          props: note_props(note)
         }.compact
       end
     end
@@ -66,11 +69,41 @@ module CognitiveReview
       [
         {
           id: "cognitive_review.summary",
+          component: "cognitive_review/note_panel",
           title: "Cognitive review",
           body: "#{notes.size} note#{'s' unless notes.one?} flagged for operator attention.",
-          tone: "warning"
+          tone: "warning",
+          props: {
+            notes: notes.map { |note| note_props(note) },
+            total: notes.size
+          }
         }
       ]
+    end
+
+    def self.note_props(note)
+      {
+        note_id: note.id,
+        job_id: note.job_id,
+        path: note.path,
+        side: note.side,
+        start_line: note.start_line,
+        end_line: note.end_line,
+        title: note.title,
+        summary: note.summary,
+        explanation: note.explanation,
+        reason_codes: note.reason_codes,
+        confidence: note.confidence&.to_f,
+        priority: note.priority,
+        state: note.state,
+        discussion_entries: note.discussion_entries.ordered.map do |entry|
+          {
+            id: entry.id,
+            body: entry.body,
+            created_at: entry.created_at&.iso8601
+          }
+        end
+      }.compact
     end
   end
 end

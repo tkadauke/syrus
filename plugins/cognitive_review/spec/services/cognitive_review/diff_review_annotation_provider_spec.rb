@@ -39,10 +39,24 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
       hash_including(
         id: "cognitive_review_note:#{note.id}",
+        component: "cognitive_review/note_marker",
+        path: "app/models/job.rb",
         side: "new",
         start_line: 4,
         end_line: 6,
-        title: "Check lifecycle"
+        title: "Check lifecycle",
+        props: hash_including(
+          note_id: note.id,
+          job_id: job.id,
+          path: "app/models/job.rb",
+          explanation: "This range changes lifecycle behavior."
+        )
+      )
+    )
+    expect(payload[:panels]).to contain_exactly(
+      hash_including(
+        component: "cognitive_review/note_panel",
+        props: hash_including(notes: [ hash_including(note_id: note.id) ], total: 1)
       )
     )
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))

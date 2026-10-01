@@ -14,3 +14,8 @@ The plugin is disabled by default. When enabled, it contributes a
 post-implementation review provider, the `submit_cognitive_review_notes`
 workflow MCP tool, review-tab diff annotations, and app API routes for listing,
 reading, acknowledging, and discussing notes.
+
+In the review tab, open notes appear as warning-tinted diff ranges plus
+agent-authored note cards in the side panel. Operators can jump to the range,
+acknowledge a note without replying, or discuss it; either action marks the
+note handled.
