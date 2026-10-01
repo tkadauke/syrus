@@ -30,6 +30,7 @@ describe("read_job tool card", () => {
         issue_title: "Add plugin-aware tool cards",
         state: "running",
         pr_number: 12,
+        repository_slug: "tkadauke/syrus",
         branch_name: "syrus/direct-148",
         priority: "high",
         agent_provider: "claude"
@@ -41,10 +42,12 @@ describe("read_job tool card", () => {
     expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Add plugin-aware tool cards")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "PR #12" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/12")
     expect(screen.getByText("syrus/direct-148")).toBeInTheDocument()
     expect(screen.getByText("high priority")).toBeInTheDocument()
     expect(screen.getByText("claude")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
+    expect(screen.getByRole("button", { name: "Copy JOB-4048 to clipboard" })).toBeInTheDocument()
   })
 
   it("renders dependency badges, distinguishing pending dependencies", () => {
@@ -62,8 +65,9 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4040 · approved")).toBeInTheDocument()
-    expect(screen.getByText("the Tier 1 tool-card work · running")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4040" })).toHaveAttribute("href", "/jobs/4040")
+    expect(screen.getByRole("link", { name: "the Tier 1 tool-card work" })).toHaveAttribute("href", "/epics/291")
+    expect(screen.getByText(/approved/)).toBeInTheDocument()
     expect(screen.getByText("owner/repo#123 · open")).toBeInTheDocument()
   })
 

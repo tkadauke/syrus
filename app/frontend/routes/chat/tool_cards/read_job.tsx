@@ -1,10 +1,10 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, Row, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_job (the Tier 1 tool-card work). Shows the
 // canonical JOB id, title, state, PR, branch, priority, agent provider,
 // dependencies, and deployment stage when present.
-type DependencyBadge = { key: string; label: string; state: string | null; pending: boolean }
+type DependencyBadge = { key: string; id: string | null; kind: "job" | "epic" | null; label: string; state: string | null; pending: boolean }
 type DeploymentStage = { name: string; label: string; reached: boolean }
 
 type JobCard = {
@@ -12,6 +12,7 @@ type JobCard = {
   title: string
   state: string
   prNumber: string | null
+  repositorySlug: string | null
   branchName: string | null
   priority: string | null
   agentProvider: string | null
@@ -27,18 +28,18 @@ function dependencyBadges(value: unknown): DependencyBadge[] {
 
     if (item.pending) {
       const label = displayValue(item.unresolved_ref) || "pending dependency"
-      return [{ key: `pending-${index}`, label, state: displayValue(item.unresolved_ref_state), pending: true }]
+      return [{ key: `pending-${index}`, id: null, kind: null, label, state: displayValue(item.unresolved_ref_state), pending: true }]
     }
 
     if (item.epic_id !== undefined) {
       const epicId = displayValue(item.epic_id)
       if (!epicId) return []
-      return [{ key: `epic-${epicId}`, label: displayValue(item.display_number) || `EPIC-${epicId}`, state: displayValue(item.state), pending: false }]
+      return [{ key: `epic-${epicId}`, id: epicId, kind: "epic", label: displayValue(item.display_number) || `EPIC-${epicId}`, state: displayValue(item.state), pending: false }]
     }
 
     const jobId = displayValue(item.id)
     if (!jobId) return []
-    return [{ key: `job-${jobId}`, label: `JOB-${jobId}`, state: displayValue(item.state), pending: false }]
+    return [{ key: `job-${jobId}`, id: jobId, kind: "job", label: `JOB-${jobId}`, state: displayValue(item.state), pending: false }]
   })
 }
 
@@ -67,6 +68,7 @@ function parseJob(context: ToolCardContext): JobCard | null {
     title: displayValue(job.issue_title) || `JOB-${id}`,
     state,
     prNumber: displayValue(job.pr_number),
+    repositorySlug: displayValue(job.repository_slug),
     branchName: displayValue(job.branch_name),
     priority: displayValue(job.priority),
     agentProvider: displayValue(job.agent_provider),
@@ -88,7 +90,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">JOB-{job.id}</span>
+        <EntityReference id={job.id} kind="job" />
         <StatePill state={job.state} />
         {job.priority ? <Badge>{job.priority} priority</Badge> : null}
         {job.agentProvider ? <Badge>{job.agentProvider}</Badge> : null}
@@ -96,7 +98,18 @@ function renderExpanded(context: ToolCardContext) {
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{job.title}</div>
       {job.prNumber || job.branchName ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {job.prNumber ? <Row label="PR" value={`#${job.prNumber}`} /> : null}
+          {job.prNumber ? (
+            <div className="min-w-0">
+              <SectionLabel>PR</SectionLabel>
+              <div className="truncate text-xs">
+                <EntityReference
+                  id={job.prNumber}
+                  kind="pull_request"
+                  prUrl={job.repositorySlug ? `https://github.com/${job.repositorySlug}/pull/${job.prNumber}` : null}
+                />
+              </div>
+            </div>
+          ) : null}
           {job.branchName ? <Row label="Branch" value={job.branchName} /> : null}
         </dl>
       ) : null}
@@ -109,7 +122,7 @@ function renderExpanded(context: ToolCardContext) {
                 className={`rounded-full px-2 py-0.5 text-2xs ${dependency.pending ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
                 key={dependency.key}
               >
-                {dependency.label}
+                {dependency.kind ? <EntityReference id={dependency.id} kind={dependency.kind} label={dependency.label} slug={dependency.label} /> : dependency.label}
                 {dependency.state ? ` · ${dependency.state}` : ""}
               </span>
             ))}

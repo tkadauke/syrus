@@ -1,4 +1,5 @@
-import { Badge, CardShell, displayValue, Row, StatePill } from "./toolCardUi"
+import { type ReactNode } from "react"
+import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
 // propose_epic, list_proposals, delete_proposal) — the pending-action tool-card work.
@@ -21,6 +22,7 @@ export type ProposalOutcome = {
   state: string
   repository: string | null
   dependencyCount: number
+  targetEpicId: string | null
   targetEpicLabel: string | null
   providerSetting: string | null
   materialized: MaterializedOutcome
@@ -63,6 +65,7 @@ export function parseProposalOutcome(value: unknown): ProposalOutcome | null {
     state,
     repository: displayValue(value.repository),
     dependencyCount: Array.isArray(value.dependencies) ? value.dependencies.length : 0,
+    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : null,
     targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
     providerSetting: displayValue(value.provider_setting),
     materialized: parseMaterialized(value.materialized)
@@ -84,7 +87,7 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
   if (materialized.kind === "job") {
     return (
       <div className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
-        <span>Materialized as <span className="font-mono font-medium">JOB-{materialized.jobId}</span></span>
+        <span>Materialized as <EntityReference id={materialized.jobId} kind="job" /></span>
         {materialized.jobState ? <StatePill state={materialized.jobState} /> : null}
       </div>
     )
@@ -93,13 +96,22 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
   if (materialized.kind === "epic") {
     return (
       <div className="text-gray-700 dark:text-gray-300">
-        Materialized as <span className="font-mono font-medium">EPIC-{materialized.epicId}</span>
+        Materialized as <EntityReference id={materialized.epicId} kind="epic" />
         {materialized.childJobCount > 0 ? ` (${materialized.childJobCount} child Job${materialized.childJobCount === 1 ? "" : "s"})` : ""}
       </div>
     )
   }
 
   return <div className="text-gray-700 dark:text-gray-300">Rejected: {materialized.reason.replace(/_/g, " ")}</div>
+}
+
+function DetailValue({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="truncate text-xs">{children}</div>
+    </div>
+  )
 }
 
 // Deliberately concise: this renders a tool call's *outcome* (state,
@@ -112,15 +124,19 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{humanizeKind(proposal.kind)}</Badge>
         <StatePill state={proposal.state} />
-        <span className="font-mono text-gray-500 dark:text-gray-400">{proposal.slug}</span>
+        <EntityReference kind="proposal" slug={proposal.slug} />
       </div>
       {proposal.title ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
       {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {proposal.repository ? <Row label="Repository" value={proposal.repository} /> : null}
-          {proposal.targetEpicLabel ? <Row label="Target epic" value={proposal.targetEpicLabel} /> : null}
-          {proposal.dependencyCount > 0 ? <Row label="Dependencies" value={String(proposal.dependencyCount)} /> : null}
-          {proposal.providerSetting && proposal.providerSetting !== "default" ? <Row label="Provider" value={proposal.providerSetting} /> : null}
+          {proposal.repository ? <DetailValue label="Repository"><EntityReference kind="repository" slug={proposal.repository} /></DetailValue> : null}
+          {proposal.targetEpicLabel ? (
+            <DetailValue label="Target epic">
+              {proposal.targetEpicId ? <EntityReference id={proposal.targetEpicId} kind="epic" label={proposal.targetEpicLabel} slug={proposal.targetEpicLabel} /> : proposal.targetEpicLabel}
+            </DetailValue>
+          ) : null}
+          {proposal.dependencyCount > 0 ? <DetailValue label="Dependencies">{proposal.dependencyCount}</DetailValue> : null}
+          {proposal.providerSetting && proposal.providerSetting !== "default" ? <DetailValue label="Provider">{proposal.providerSetting}</DetailValue> : null}
         </dl>
       ) : null}
       <MaterializedOutcomeDetail materialized={proposal.materialized} />

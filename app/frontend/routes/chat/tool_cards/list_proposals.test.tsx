@@ -37,10 +37,10 @@ describe("list_proposals tool card", () => {
     render(<>{listProposalsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("fix-output")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy fix-output to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("Fix output")).toBeInTheDocument()
     expect(screen.getByText("proposed")).toBeInTheDocument()
-    expect(screen.getByText("tier-2-cards")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy tier-2-cards to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("Tier 2 Custom Tool Cards")).toBeInTheDocument()
     expect(screen.getByText("withdrawn")).toBeInTheDocument()
   })

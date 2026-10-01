@@ -30,12 +30,13 @@ describe("propose_job tool card", () => {
 
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("fix-output")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy fix-output to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("Fix output")).toBeInTheDocument()
     expect(screen.getByText("proposed")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy tkadauke/syrus to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("1")).toBeInTheDocument()
-    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "the pending-action tool-card work" })).toHaveAttribute("href", "/epics/12")
   })
 
   it("renders the materialized Job once confirmed", () => {
@@ -50,7 +51,7 @@ describe("propose_job tool card", () => {
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
     expect(screen.getByText("running")).toBeInTheDocument()
   })
 

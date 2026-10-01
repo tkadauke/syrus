@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { CopyableSlug, CopyIcon } from "../../components/CopyableSlug"
+import { CopyIcon } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { CodeSurface, Input, Pill, Surface, Text, ToolCard } from "../../components/ui"
 import type { SemanticTone } from "../../components/ui"
@@ -124,6 +124,7 @@ export type EntityReferenceProps = {
   repositorySlug?: string | null
   prUrl?: string | null
   className?: string
+  wrap?: "break" | "nowrap"
 }
 
 function compactEntityValue(value: number | string | null | undefined): string | null {
@@ -163,17 +164,17 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     const jobId = compactEntityValue(reference.jobId)
     const workflowId = compactEntityValue(reference.workflowId)
     return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
-  } },
+  }, copyValue: slugCopyValue },
   workflow: { label: (reference) => prefixedEntityLabel("WF", reference.id), href: (reference) => {
     const id = compactEntityValue(reference.id)
     const jobId = compactEntityValue(reference.jobId)
     return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
-  } },
+  }, copyValue: slugCopyValue },
   pull_request: { label: (reference) => {
     const id = compactEntityValue(reference.id)
     return id ? `PR #${id}` : null
   }, href: (reference) => displayValue(reference.prUrl) },
-  artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref },
+  artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
 }
@@ -223,8 +224,12 @@ function CopyOnlyIconButton({ value }: { value: string }) {
   )
 }
 
-function linkedEntityReference(label: string, href: string, external: boolean) {
-  const className = "min-w-0 break-all font-mono font-medium text-brand hover:underline dark:text-brand-emphasis"
+function entityLabelWrapClass(reference: EntityReferenceProps) {
+  return reference.wrap === "nowrap" ? "whitespace-nowrap" : "break-all"
+}
+
+function linkedEntityReference(label: string, href: string, external: boolean, reference: EntityReferenceProps) {
+  const className = `min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`
   return <a className={className} href={href} rel={external ? "noreferrer" : undefined} target={external ? "_blank" : undefined}>{label}</a>
 }
 
@@ -236,17 +241,18 @@ export function EntityReference(reference: EntityReferenceProps) {
   const copyValue = entityCopyValue(reference, label)
   const external = Boolean(href?.match(/^https?:\/\//))
 
-  if (!href && copyValue) {
-    return hoverWrapper(reference, <CopyableSlug className={`text-xs normal-case ${reference.className ?? ""}`} slug={copyValue} />)
-  }
-
   const content = href ? (
     <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
-      {linkedEntityReference(label, href, external)}
+      {linkedEntityReference(label, href, external, reference)}
       {copyValue ? <CopyOnlyIconButton value={copyValue} /> : null}
     </span>
+  ) : copyValue ? (
+    <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
+      <span className={`min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary`}>{label}</span>
+      <CopyOnlyIconButton value={copyValue} />
+    </span>
   ) : (
-    <span className={`break-all font-mono font-medium text-text-primary ${reference.className ?? ""}`}>{label}</span>
+    <span className={`${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary ${reference.className ?? ""}`}>{label}</span>
   )
 
   return hoverWrapper(reference, content)
