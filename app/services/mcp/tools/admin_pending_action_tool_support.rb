@@ -18,7 +18,7 @@ module Mcp::Tools
       Mcp::Tools.unauthorized("Admin access required")
     end
 
-    def create_pending_admin_action(server_context:, chat_session:, action:, payload:, message:, reason: nil)
+    def create_pending_admin_action(server_context:, chat_session:, action:, payload:, message:, reason: nil, extra: {})
       pending_action = create_pending_action_for_current_message!(
         server_context,
         chat_session,
@@ -33,7 +33,8 @@ module Mcp::Tools
         pending_action_id: pending_action.id,
         state: pending_action.state,
         reason: pending_action.reason,
-        message: message
+        message: message,
+        **extra
       )
     rescue ActiveRecord::RecordInvalid => e
       Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
