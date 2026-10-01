@@ -28,7 +28,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
     )
 
     index = described_class.index(job: job)
-    show = described_class.show(version: version)
+    show = described_class.show(version: version, user: job.user)
 
     expect(index[:latest_version_id]).to eq(version.id)
     expect(index[:versions]).to contain_exactly(include(
@@ -46,7 +46,8 @@ RSpec.describe App::DiffReviewVersionsPayload do
       base_sha: "aabbccdd1234567",
       head_sha: "deadbeef12345678",
       default_ref: job.repository.default_branch,
-      diff_error: nil
+      diff_error: nil,
+      review_annotations: App::DiffReviewAnnotationsPayload::EMPTY_PAYLOAD
     )
     expect(show[:files]).to contain_exactly(
       path: "app/models/user.rb",
@@ -68,7 +69,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
       ]
     )
 
-    show = described_class.show(version: version)
+    show = described_class.show(version: version, user: job.user)
 
     expect(show[:files]).to contain_exactly(
       path: "app/assets/images/logo.png",
@@ -78,6 +79,60 @@ RSpec.describe App::DiffReviewVersionsPayload do
       patch: nil,
       is_image: true
     )
+  end
+
+  it "renders review annotations for the selected version rather than the latest version" do
+    provider = Class.new do
+      include Syrus::Plugin::DiffReviewAnnotationProvider
+
+      def self.review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
+        path = files.first[:path] || files.first["path"]
+        {
+          ranges: {
+            path => [
+              {
+                id: "selected-version-#{version.id}",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "#{base_sha}:#{head_sha}:#{user.id}"
+              }
+            ]
+          },
+          counts: [ { id: "selected", label: "Selected", value: version.id } ]
+        }
+      end
+    end
+    Syrus::PluginRegistry.register(name: "selected_version_annotations", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+    selected = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "selected-base",
+      head_sha: "selected-head",
+      files: [
+        { path: "app/models/selected.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+selected" }
+      ]
+    )
+    DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "latest-base",
+      head_sha: "latest-head",
+      files: [
+        { path: "app/models/latest.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+latest" }
+      ]
+    )
+
+    show = described_class.show(version: selected, user: job.user)
+
+    expect(show.dig(:review_annotations, :ranges, "app/models/selected.rb")).to contain_exactly(
+      hash_including(
+        "id" => "selected-version-#{selected.id}",
+        "title" => "selected-base:selected-head:#{job.user.id}"
+      )
+    )
+    expect(show.dig(:review_annotations, :ranges)).not_to have_key("app/models/latest.rb")
+    expect(show.dig(:review_annotations, :counts)).to contain_exactly("id" => "selected", "label" => "Selected", "value" => selected.id)
+  ensure
+    Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
   end
 
   it "keeps a resumed Run's second, different commit range as its own distinguishable payload entry instead of a look-alike duplicate" do

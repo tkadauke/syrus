@@ -10,7 +10,7 @@ module Api
         def show
           job = find_job
           version = job.diff_review_versions.find(params[:id])
-          render json: ::App::DiffReviewVersionsPayload.show(version: version)
+          render json: ::App::DiffReviewVersionsPayload.show(version: version, user: Current.user)
         end
 
         private
