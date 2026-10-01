@@ -85,10 +85,11 @@ test("edits an Epic's metadata", async ({ page }) => {
 
 async function createEpic(page: Page, title: string, description: string): Promise<number> {
   await page.goto("/epics/new")
-  await page.getByLabel("Title").fill(title)
-  await page.getByLabel("Description").fill(description)
-  await page.getByLabel(/repository/i).selectOption({ label: "demo/syrus-preview" })
-  await page.getByRole("button", { name: "Create Epic", exact: true }).click()
+  const form = page.getByRole("main", { name: "New Epic" })
+  await form.getByLabel("Title").fill(title)
+  await form.getByLabel("Description").fill(description)
+  await form.getByLabel("Repository").selectOption({ label: "demo/syrus-preview" })
+  await form.getByRole("button", { name: "Create Epic", exact: true }).click()
 
   await page.waitForURL(/\/epics\/\d+$/)
   return idFromUrl(page)
