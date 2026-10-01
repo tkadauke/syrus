@@ -45,7 +45,12 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
         title: "Check lifecycle"
       )
     )
-    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+    expect(payload[:counts]).to contain_exactly(
+      hash_including(id: "cognitive_review.open", label: "Review Notes", value: 1)
+    )
+    expect(payload[:panels]).to contain_exactly(
+      hash_including(id: "cognitive_review.summary", title: "Review Notes")
+    )
   end
 
   it "does not fall back to stale notes from an unrelated diff version" do
@@ -131,6 +136,8 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
 
     expect(payload[:ranges]).to eq({})
-    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload[:counts]).to contain_exactly(
+      hash_including(id: "cognitive_review.open", label: "Review Notes", value: 0)
+    )
   end
 end
