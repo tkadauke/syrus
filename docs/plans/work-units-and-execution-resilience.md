@@ -933,8 +933,8 @@ Workflow is attached to a different tip Job, the tab should show:
 ```text
 Epic merge train · requested · active attempt
   Attempt 1 · running · member
-  Scope: EPIC-254
-  Workflow WF-19955 attached to JOB-3538
+  Scope: EPIC-20
+  Workflow WF-100 attached to JOB-10
   Current step: Grade / rspec
 ```
 
