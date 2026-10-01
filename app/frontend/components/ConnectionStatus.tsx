@@ -5,7 +5,7 @@ import { type ConnectionEvent, useConnectionContext } from "../lib/connectionCon
 import { withRoutePrefix } from "../lib/routing"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { Button } from "./Button"
-import { noticeAnimationClass } from "./noticeStyles"
+import { noticePopoverSurfaceClass } from "./noticeStyles"
 import { RelativeTimestamp } from "./RelativeTimestamp"
 import { surfaceClasses } from "./ui"
 
@@ -48,7 +48,7 @@ export function ConnectionStatusButton({ prefix, onNavigate }: { prefix: string;
         <StatusDot status={connection.status} />
       </button>
       {open ? (
-        <div className={`absolute left-0 top-full z-30 mt-2 w-80 rounded border border-border bg-surface shadow-lg ${noticeAnimationClass()}`}>
+        <div className={noticePopoverSurfaceClass()}>
           <ConnectionStatusPanel />
         </div>
       ) : null}
