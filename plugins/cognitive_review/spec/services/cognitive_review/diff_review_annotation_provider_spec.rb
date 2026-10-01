@@ -134,4 +134,106 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     expect(payload[:ranges]).to eq({})
     expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
   end
+
+  it "counts user comments on covered note ranges as handled review-note debt" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 6,
+      title: "Commented note",
+      explanation: "A user comment on this range handles it.",
+      source_metadata: {}
+    )
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: job.user,
+      surface: "job_source_diff",
+      anchor_kind: "line",
+      path: note.path,
+      side: "right",
+      new_line: 5,
+      body: "I'll inspect this edge.",
+      state: "draft"
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload[:ranges]).to eq({})
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+  end
+
+  it "keeps notes open when user comments miss the covered range" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 6,
+      title: "Uncommented note",
+      explanation: "A nearby comment should not handle this.",
+      source_metadata: {}
+    )
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: job.user,
+      surface: "job_source_diff",
+      anchor_kind: "line",
+      path: note.path,
+      side: "right",
+      new_line: 7,
+      body: "This is nearby, not covered.",
+      state: "draft"
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload.dig(:ranges, note.path)).to contain_exactly(hash_including(id: "cognitive_review_note:#{note.id}"))
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+  end
 end
