@@ -1817,9 +1817,19 @@ describe("ReviewWorkspace", () => {
     ).toHaveAttribute("aria-selected", "true")
   })
 
-  it("keeps latest-version review behavior working while comment history is enabled", async () => {
+  it("keeps latest-version review behavior working while comment history is enabled across review surfaces", async () => {
+    const sourceDiffComment = comment({
+      id: 1,
+      surface: "job_source_diff",
+      body: "Source diff comment should stay visible in review.",
+      state: "submitted"
+    })
+    const draftReviewComment = comment({
+      id: 2,
+      body: "Draft review comment remains actionable."
+    })
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
-    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([sourceDiffComment, draftReviewComment]))
     vi.mocked(submitDiffReviewComments).mockResolvedValue({
       message: "Diff comments submitted as chat feedback.",
       workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
@@ -1828,12 +1838,12 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("Please add a regression spec.")
+    await screen.findByText("Source diff comment should stay visible in review.")
     fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
-      expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace&all_versions=1")
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
+      expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace%2Cjob_source_diff&all_versions=1")
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
     })
   })
 
