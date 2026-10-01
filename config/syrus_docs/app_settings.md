@@ -4,6 +4,11 @@
 
 Typed metadata for these fields lives in `AppSettingRegistry`. Defaults, validation ranges, categories, operational meaning, and special `0` semantics should be changed there first so model validations, admin API metadata, and this reference stay aligned.
 
+Reachability and scope decisions are recorded in
+[`app_setting_scope_audit.md`](app_setting_scope_audit.md). Use that audit when
+deciding whether a new setting belongs in `AppSetting`, on `Repository`, or as
+an instance-wide default with a future per-repository override.
+
 ## Workflow behavior
 
 ### grade_max_iterations
@@ -24,7 +29,7 @@ flag controlling it — only a repository's `.syrus.yml` can override it — see
 
 ### max_job_failures
 
-**Type:** integer · **Default:** 3
+**Type:** integer · **Default:** 3 · **Min:** 1
 
 Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used as the retry budget ceiling for Job auto-close after repeated failures.
 
@@ -44,7 +49,7 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 
 ### merge_train_max_size
 
-**Type:** integer · **Default:** 20
+**Type:** integer · **Default:** 20 · **Min:** 1
 
 Maximum number of PRs that can participate in a single merge train. `merge_train_assemble` rejects the train if the member count exceeds this limit.
 

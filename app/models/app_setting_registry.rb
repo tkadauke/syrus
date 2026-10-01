@@ -9,8 +9,30 @@ class AppSettingRegistry
     :max,
     :zero_means,
     :admin_editable,
-    :secret
+    :secret,
+    :surface
   ) do
+    class << self
+      alias_method :new_without_surface_default, :new
+
+      def new(key:, type:, default:, category:, operational_meaning:, min:, max:, zero_means:, admin_editable:, secret:, surface: nil)
+        surface ||= :admin_settings if admin_editable
+        new_without_surface_default(
+          key: key,
+          type: type,
+          default: default,
+          category: category,
+          operational_meaning: operational_meaning,
+          min: min,
+          max: max,
+          zero_means: zero_means,
+          admin_editable: admin_editable,
+          secret: secret,
+          surface: surface
+        )
+      end
+    end
+
     def integer?
       type == :integer
     end
@@ -39,7 +61,8 @@ class AppSettingRegistry
         max: max,
         zero_means: zero_means,
         admin_editable: admin_editable,
-        secret: secret
+        secret: secret,
+        surface: surface&.to_s
       }.compact
     end
   end
@@ -54,8 +77,9 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Maximum number of repair-check cycles in the grader loop before a workflow fails.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :adversarial_review_rounds,
@@ -66,20 +90,22 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Number of implement-to-adversarial-review iterations run before graders.",
       zero_means: "Adversarial review is disabled instance-wide.",
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :max_job_failures,
       type: :integer,
       default: 3,
-      min: nil,
+      min: 1,
       max: nil,
       category: "Workflow behavior",
       operational_meaning: "Consecutive failure threshold used by scheduled task auto-pause and provider retry suppression.",
-      zero_means: "Auto-pause is disabled.",
-      admin_editable: false,
-      secret: false
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :rebase_failure_cooldown_minutes,
@@ -90,8 +116,9 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Cooldown period in minutes between consecutive rebase-Workflow failures for the same PR before a retry is allowed.",
       zero_means: "No cooldown; rebase retries are never rate-limited.",
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :merge_train_enabled,
@@ -103,19 +130,21 @@ class AppSettingRegistry
       operational_meaning: "Approved Epic child Jobs land through an atomic merge-train workflow instead of one-by-one auto-merge.",
       zero_means: nil,
       admin_editable: false,
-      secret: false
+      secret: false,
+      surface: :admin_console
     ),
     Definition.new(
       key: :merge_train_max_size,
       type: :integer,
       default: 20,
-      min: nil,
+      min: 1,
       max: nil,
       category: "Landing queue",
       operational_meaning: "Maximum number of PRs that can participate in one merge train.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :signups_open,
@@ -139,7 +168,8 @@ class AppSettingRegistry
       operational_meaning: "Emergency kill switch that pauses repository, pull request, merge-state, and scheduled-task polling.",
       zero_means: nil,
       admin_editable: false,
-      secret: false
+      secret: false,
+      surface: :admin_console
     ),
     Definition.new(
       key: :telegram_bot_handle,
@@ -150,8 +180,9 @@ class AppSettingRegistry
       category: "External platforms",
       operational_meaning: "Public Telegram bot handle shown by Connected Platforms when Telegram is configured.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :telegram_bot_token,
@@ -199,7 +230,8 @@ class AppSettingRegistry
       operational_meaning: "Emergency kill switch that keeps workflow Runs queued without losing state.",
       zero_means: nil,
       admin_editable: false,
-      secret: false
+      secret: false,
+      surface: :admin_console
     ),
     Definition.new(
       key: :report_issue_repo_slug,
@@ -210,8 +242,9 @@ class AppSettingRegistry
       category: "Instance operations",
       operational_meaning: "Repository slug used for in-app bug report routing and the Report an issue UI link.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :max_concurrent_agent_runs,
@@ -270,8 +303,9 @@ class AppSettingRegistry
       category: "Instance operations",
       operational_meaning: "When enabled, WorkflowAdmissionControl gates new Workflow runs against configured concurrency and resource policies.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :workflow_admission_policy,
@@ -282,8 +316,9 @@ class AppSettingRegistry
       category: "Instance operations",
       operational_meaning: "Admission control policy: 'whole_workflow' reserves capacity for an entire Workflow at once; 'phase_aware' admits one phase at a time.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :main_branch_breakage_policy,
@@ -294,8 +329,9 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Main-branch breakage policy: 'strict' pauses unrelated work when main is broken; 'isolate_unrelated_failures' keeps work moving and lets grader_collect pass failures proven to be inherited from broken main.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :workflow_admission_control_changed_at,
@@ -474,8 +510,9 @@ class AppSettingRegistry
       category: "Coding-Mode workspaces",
       operational_meaning: "Instance-wide disk budget for retained Coding-Mode chat checkouts, in megabytes.",
       zero_means: "Size cap is disabled; idle reclaim and reclaim-on-handoff still apply.",
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     ),
     Definition.new(
       key: :retention_available_space_override_gb,
@@ -498,8 +535,9 @@ class AppSettingRegistry
       category: "Instance operations",
       operational_meaning: "Minimum repeated broken-main reports before the aggregator surfaces a main-branch concern.",
       zero_means: nil,
-      admin_editable: false,
-      secret: false
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
     )
   ].freeze
 
@@ -525,6 +563,22 @@ class AppSettingRegistry
 
   def self.admin_editable_keys
     definitions.select(&:admin_editable).map(&:key)
+  end
+
+  def self.keys_for_surface(surface)
+    definitions.select { |definition| definition.surface == surface.to_sym }.map(&:key)
+  end
+
+  def self.admin_settings_keys
+    keys_for_surface(:admin_settings)
+  end
+
+  def self.admin_console_keys
+    keys_for_surface(:admin_console)
+  end
+
+  def self.non_secret_admin_settings_keys
+    definitions.select { |definition| definition.surface == :admin_settings && !definition.secret }.map(&:key)
   end
 
   def self.boolean_key?(key)

@@ -22,14 +22,23 @@ export type AdminSettingMetadata = {
 export type AdminSettingsPayload = {
   settings: {
     signups_open: boolean
+    grade_max_iterations: number
+    adversarial_review_rounds: number
+    max_job_failures: number
+    merge_train_max_size: number
+    main_concern_report_threshold: number
+    main_branch_breakage_policy: "strict" | "isolate_unrelated_failures"
+    report_issue_repo_slug: string
     video_retention_days: number
     video_storage_budget_mb: number
+    telegram_bot_handle: string | null
     max_concurrent_agent_runs: number
     proactive_rebase_commit_threshold: number
     show_work_unit_debug: boolean
     rebase_failure_cooldown_minutes: number
     workflow_admission_control_enabled: boolean
     workflow_admission_policy: "whole_workflow" | "phase_aware"
+    chat_coding_workspace_budget_mb: number
     workflow_admission_control_changed_at: string | null
     workflow_admission_control_changed_by: {
       id: number
@@ -44,14 +53,23 @@ export type AdminSettingsPayload = {
 
 export type AdminSettingsUpdate = {
   signups_open?: boolean
+  grade_max_iterations?: number
+  adversarial_review_rounds?: number
+  max_job_failures?: number
+  merge_train_max_size?: number
+  main_concern_report_threshold?: number
+  main_branch_breakage_policy?: "strict" | "isolate_unrelated_failures"
+  report_issue_repo_slug?: string
   video_retention_days?: number
   video_storage_budget_mb?: number
+  telegram_bot_handle?: string
   max_concurrent_agent_runs?: number
   proactive_rebase_commit_threshold?: number
   show_work_unit_debug?: boolean
   rebase_failure_cooldown_minutes?: number
   workflow_admission_control_enabled?: boolean
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
+  chat_coding_workspace_budget_mb?: number
   telegram_bot_token?: string
   discord_bot_token?: string
 }
