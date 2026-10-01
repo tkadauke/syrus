@@ -50,6 +50,8 @@ const SIDEBAR_DANGER_BUTTON_CLASS = "flex w-full items-center gap-2 px-3 py-2 te
 const SIDEBAR_DIVIDER_CLASS = "my-1 border-t border-border"
 const SIDEBAR_DIALOG_CLOSE_CLASS = "rounded p-1 text-text-secondary hover:bg-surface-subtle hover:text-text-primary"
 const RECENT_CHATS_ICON_BUTTON_CLASS = "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded p-0 text-gray-500 hover:bg-gray-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-400 dark:hover:bg-gray-800"
+const RECENT_CHAT_ACTION_SLOT_CLASS = "relative flex h-6 w-6 shrink-0 items-center justify-center"
+const RECENT_CHAT_MARKER_CELL_CLASS = "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
@@ -137,6 +139,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
   const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
+  const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
@@ -392,7 +395,9 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
     >
       <div className="mb-2 flex items-center justify-between gap-2 px-2">
         <div className="min-w-0 text-2xs font-semibold uppercase tracking-normal text-gray-500 dark:text-gray-400">{t("nav:recent_chats_aria")}</div>
-        <RecentChatsSettingsMenu availableChatTypes={availableChatTypes} chatTypeFeatureVisible={chatTypeFeatureVisible} settings={sidebarSettings} setSettings={setSidebarSettings} />
+        <div className={RECENT_CHAT_ACTION_SLOT_CLASS} data-testid="recent-chat-header-action-slot">
+          <RecentChatsSettingsMenu availableChatTypes={availableChatTypes} chatTypeFeatureVisible={chatTypeFeatureVisible} settings={sidebarSettings} setSettings={setSidebarSettings} />
+        </div>
       </div>
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
@@ -417,18 +422,20 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                   <ChevronDownIcon className={collapsed ? "-rotate-90" : ""} />
                   <span className="min-w-0 flex-1 truncate">{section.label}</span>
                 </button>
-                {showQuickStart ? (
-                  <button
-                    aria-label={`New chat in ${section.label}`}
-                    className={RECENT_CHATS_ICON_BUTTON_CLASS}
-                    disabled={startingChat}
-                    onClick={() => onStartChat?.(quickStartRepositoryId)}
-                    title={`New chat in ${section.label}`}
-                    type="button"
-                  >
-                    <PlusIcon />
-                  </button>
-                ) : null}
+                <div className={RECENT_CHAT_ACTION_SLOT_CLASS} data-testid="recent-chat-header-action-slot">
+                  {showQuickStart ? (
+                    <button
+                      aria-label={`New chat in ${section.label}`}
+                      className={RECENT_CHATS_ICON_BUTTON_CLASS}
+                      disabled={startingChat}
+                      onClick={() => onStartChat?.(quickStartRepositoryId)}
+                      title={`New chat in ${section.label}`}
+                      type="button"
+                    >
+                      <PlusIcon />
+                    </button>
+                  ) : null}
+                </div>
               </h2>
               <div className="space-y-0.5">
                 {visibleChats.map((chat) => {
@@ -437,7 +444,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                   const title = sidebarChatTitle(chat, t("chat:new_title"))
                   return (
                     <div
-                      className={`group relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
+                      className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
                       key={chat.id}
                       onDragEnter={(e) => {
                         e.preventDefault()
@@ -458,7 +465,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                       onDragOver={(e) => e.preventDefault()}
                     >
                       <Link
-                        className={`${recentChatLinkClass(active)} pr-9`}
+                        className={recentChatLinkClass(active)}
                         onClick={onCloseDrawer}
                         title={title}
                         to={withRoutePrefix(chat.chat_path, prefix)}
@@ -474,26 +481,37 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         ) : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
-                        <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
-                          <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
-                          {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
-                            <span
-                              className={`mt-0.5 shrink-0 ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
-                              data-testid="chat-goal-marker"
-                              title={chat.active_goal.status === "paused" ? t("nav:title_goal_paused") : t("nav:title_goal_active")}
-                            >
-                              <TargetIcon className="h-3.5 w-3.5" />
-                            </span>
-                          ) : null}
-                          {chat.pending_proposal_count > 0 && (
-                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
-                          )}
-                          {chat.coding_checkout_uncommitted && (
-                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" title={t("nav:title_uncommitted")} />
-                          )}
-                          {chat.scratchpad_items_count > 0 && (
-                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" title={t("nav:title_scratchpad")} />
-                          )}
+                        <span
+                          className={`${RECENT_CHAT_ACTION_SLOT_CLASS} group-focus-within/recent-chat:hidden group-hover/recent-chat:hidden ${openActionChatId === chat.id ? "hidden" : ""}`}
+                          data-testid="recent-chat-marker-slot"
+                        >
+                          <span className="absolute right-[0.3125rem] top-1/2 flex -translate-y-1/2 items-center gap-1">
+                            <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
+                            {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
+                              <span
+                                className={`${RECENT_CHAT_MARKER_CELL_CLASS} ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                                data-testid="chat-goal-marker"
+                                title={chat.active_goal.status === "paused" ? t("nav:title_goal_paused") : t("nav:title_goal_active")}
+                              >
+                                <TargetIcon className="h-3.5 w-3.5" />
+                              </span>
+                            ) : null}
+                            {chat.pending_proposal_count > 0 && (
+                              <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
+                                <span className="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-500" />
+                              </span>
+                            )}
+                            {chat.coding_checkout_uncommitted && (
+                              <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_uncommitted")}>
+                                <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                              </span>
+                            )}
+                            {chat.scratchpad_items_count > 0 && (
+                              <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_scratchpad")}>
+                                <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
+                              </span>
+                            )}
+                          </span>
                         </span>
                       </Link>
                       <RecentChatActionsMenu
@@ -504,7 +522,14 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         onHide={() => hideRecentChat(chat)}
                         onNotice={onNotice}
                         onTogglePin={() => togglePin(chat)}
+                        open={openActionChatId === chat.id}
                         search={location.search}
+                        setOpen={(nextOpen) => {
+                          setOpenActionChatId((current) => {
+                            const open = typeof nextOpen === "function" ? nextOpen(current === chat.id) : nextOpen
+                            return open ? chat.id : current === chat.id ? null : current
+                          })
+                        }}
                       />
                     </div>
                   )
@@ -827,20 +852,26 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   const { t } = useTranslation("nav")
   if (active) {
     return (
-      <span aria-hidden="true" className="mt-[0.35rem] inline-flex h-2 w-3.5 shrink-0 items-center justify-between" title={t("nav:title_turn_active")}>
-        {[0, 1, 2].map((index) => (
-          <span
-            aria-hidden="true"
-            className="h-1 w-1 animate-bounce rounded-full bg-brand"
-            key={index}
-            style={{ animationDelay: `${index * 140}ms` }}
-          />
-        ))}
+      <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_turn_active")}>
+        <span aria-hidden="true" className="inline-flex h-2 w-3.5 items-center justify-between">
+          {[0, 1, 2].map((index) => (
+            <span
+              aria-hidden="true"
+              className="h-1 w-1 animate-bounce rounded-full bg-brand"
+              key={index}
+              style={{ animationDelay: `${index * 140}ms` }}
+            />
+          ))}
+        </span>
       </span>
     )
   }
 
-  return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-brand" : "bg-transparent"}`} />
+  return (
+    <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
+      <span className={`h-2 w-2 rounded-full ${unread ? "bg-brand" : "bg-transparent"}`} />
+    </span>
+  )
 }
 
 function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {
@@ -868,7 +899,7 @@ function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingMod
   )
 }
 
-function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelete, onHide, onNotice, onTogglePin, search }: {
+function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelete, onHide, onNotice, onTogglePin, open, search, setOpen }: {
   chat: ChatNavRecord
   deleteDisabled?: boolean
   disabled: boolean
@@ -876,12 +907,13 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   onHide: () => void
   onNotice: (message: string | null) => void
   onTogglePin: () => void
+  open: boolean
   search: string
+  setOpen: (open: boolean | ((value: boolean) => boolean)) => void
 }) {
   const location = useLocation()
   const queryClient = useQueryClient()
   const { t } = useTranslation("chat")
-  const [open, setOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   // Dropdown opens upward by default (placement "top-end", matching the old
@@ -963,11 +995,11 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   }
 
   return (
-    <div className="absolute right-1 top-1/2 z-10 -translate-y-1/2" ref={referenceRef}>
+    <div className="absolute right-2 top-1/2 z-10 -translate-y-1/2" data-testid="recent-chat-action-slot" ref={referenceRef}>
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 group-hover:opacity-100"
+        className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-focus-within/recent-chat:opacity-100 group-hover/recent-chat:opacity-100"}`}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
