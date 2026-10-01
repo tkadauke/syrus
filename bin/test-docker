@@ -214,6 +214,54 @@ else
   fi
 fi
 
+# The handshake above runs the sidecar through `compose exec`, which hands it the
+# container's FULL environment. That is not what chat does: ChatTurnJob spawns
+# its sidecars as children of the agent CLI, under a deliberately scrubbed
+# environment. So boot them the way chat actually does -- with the env the real
+# config carries -- or a sidecar that cannot boot without its secrets passes here
+# and dies in production. This container is the only place that distinction is
+# observable: dev and test have config/master.key on disk and a password-less
+# SQLite database, so a scrubbed sidecar boots there regardless.
+cs="$(in_service worker '
+  require "json"
+  require "open3"
+  u = User.find_by(email_address: "itest-mcp@example.com") ||
+      User.create!(email_address: "itest-mcp@example.com", password: "itest-password-123")
+  r = u.repositories.first || u.repositories.create!(owner: "itest", name: "repo")
+  c = ChatSession.create!(repository: r, user: u)
+  m = c.messages.create!(role: "user", content: { text: "startability" })
+  j = ChatTurnJob.new
+  j.instance_variable_set(:@chat, c)
+  j.instance_variable_set(:@user_message, m)
+  payload = [
+    { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "itest", version: "0" } } }.to_json,
+    { jsonrpc: "2.0", method: "notifications/initialized" }.to_json
+  ].join("\n") + "\n"
+  bad = []
+  [ [ "syrus-chat-sidecar", "essential", true ], [ "syrus-chat-deferred-sidecar", "deferred", false ] ].each do |name, tier, always|
+    cfg = j.send(:stdio_chat_server_config, tier: tier, always_load: always)
+    out, _e, st = Open3.capture3(cfg[:env].to_h, cfg[:command], stdin_data: payload, unsetenv_others: true)
+    if out.include?(%(serverInfo":{"name":"#{name}"))
+      puts "  OK #{name}"
+    else
+      bad << name
+      puts "  FAIL #{name} exit=#{st.exitstatus} env_keys=#{cfg[:env].keys.sort.join(",")}"
+    end
+  end
+  puts(bad.empty? ? "CHAT_SIDECARS_OK" : "CHAT_SIDECARS_FAILED")
+')"
+if printf '%s' "$cs" | grep -q 'CHAT_SIDECARS_OK'; then
+  ok "chat sidecars initialize under the scrubbed env chat hands them"
+else
+  bad "a chat MCP sidecar could not boot under the environment chat gives it"
+  dump "$cs"
+  printf '   \033[33mNOTE\033[0m  This is what an operator sees as "MCP unavailable: syrus-chat-sidecar\n'
+  printf '         failed" with every chat tool missing. Do NOT fix it by restoring the\n'
+  printf '         secrets -- the MCP config is agent-readable and chat_turn_job_spec.rb\n'
+  printf '         requires them absent. Route chat at the secret-free bin/syrus-mcp-proxy\n'
+  printf '         (the persistent daemon path) instead of spawning the Rails sidecar.\n'
+fi
+
 # ---------------------------------------------------------------------------
 note "f) whisper.cpp (bundled chat_speech_to_text default backend)"
 # `web` is the app container in this stack (see docker-compose.yml's shared
