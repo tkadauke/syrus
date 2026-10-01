@@ -4,37 +4,28 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
   it "projects submitted workflow notes for the requested diff version into review annotations" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
+    run = workflow.runs.first
     version = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
-      run: workflow.runs.first,
+      run: run,
       base_sha: "base",
       head_sha: "head",
       files: []
     )
-    workflow.set_artifact!(CognitiveReview::Artifact::KEY, [
-      {
-        "run_id" => workflow.runs.first.id,
-        "job_id" => job.id,
-        "workflow_id" => workflow.id,
-        "diff_review_version_id" => version.id,
-        "base_sha" => "base",
-        "head_sha" => "head",
-        "submitted_at" => Time.current.iso8601,
-        "notes" => [
-          {
-            "id" => "note-1",
-            "path" => "app/models/job.rb",
-            "side" => "new",
-            "start_line" => 4,
-            "end_line" => 6,
-            "title" => "Check lifecycle",
-            "body" => "This range changes lifecycle behavior.",
-            "tone" => "warning"
-          }
-        ]
-      }
-    ])
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 6,
+      title: "Check lifecycle",
+      explanation: "This range changes lifecycle behavior.",
+      source_metadata: {}
+    )
 
     payload = described_class.review_annotations(
       job: job,
@@ -47,7 +38,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
 
     expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
       hash_including(
-        id: "note-1",
+        id: "cognitive_review_note:#{note.id}",
         side: "new",
         start_line: 4,
         end_line: 6,
@@ -60,10 +51,11 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
   it "does not fall back to stale notes from an unrelated diff version" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
+    run = workflow.runs.first
     old_version = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
-      run: workflow.runs.first,
+      run: run,
       base_sha: "old-base",
       head_sha: "old-head",
       files: []
@@ -76,28 +68,19 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       head_sha: "new-head",
       files: []
     )
-    workflow.set_artifact!(CognitiveReview::Artifact::KEY, [
-      {
-        "run_id" => workflow.runs.first.id,
-        "job_id" => job.id,
-        "workflow_id" => workflow.id,
-        "diff_review_version_id" => old_version.id,
-        "base_sha" => "old-base",
-        "head_sha" => "old-head",
-        "submitted_at" => Time.current.iso8601,
-        "notes" => [
-          {
-            "id" => "stale-note",
-            "path" => "app/models/job.rb",
-            "side" => "new",
-            "start_line" => 4,
-            "end_line" => 4,
-            "title" => "Old note",
-            "body" => "This belongs to an older diff."
-          }
-        ]
-      }
-    ])
+    CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: old_version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 4,
+      title: "Old note",
+      explanation: "This belongs to an older diff.",
+      source_metadata: {}
+    )
 
     payload = described_class.review_annotations(
       job: job,
@@ -109,5 +92,45 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
 
     expect(payload).to eq({})
+  end
+
+  it "counts acknowledged and discussed notes as handled rather than unresolved debt" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 4,
+      title: "Handled note",
+      explanation: "Already handled.",
+      state: "acknowledged",
+      source_metadata: {}
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload[:ranges]).to eq({})
+    expect(payload[:counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
   end
 end
