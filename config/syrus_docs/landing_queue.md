@@ -37,6 +37,34 @@ Jobs wait in `approved` when:
 
 `inconclusive` main branch health is warning-only. Syrus shows the main-health warning surfaces and notifications, but it does not hold queued workflows or landing queue entries solely because the signal is inconclusive.
 
+## Broken-main policy and repository pauses
+
+`AppSetting.main_branch_breakage_policy` chooses how broadly broken main-branch
+health blocks landing:
+
+- `strict` (the default) treats a broken default branch as an instance-wide
+  safety stop for unrelated landing in that repository. When main health
+  transitions to `broken`, `MainHealthChangedService` sets
+  `repository.landing_paused`; `LandingQueueProcessor` then blocks approved
+  Jobs for that repository as `landing_paused_main_broken`.
+- `isolate_unrelated_failures` keeps unrelated work moving while main is
+  broken and lets `grader_collect` pass failures proven to be inherited from
+  broken main. It does not auto-land PR checks that merely look inherited; that
+  is controlled separately by the `pr_checks_failing_inherited` gate in
+  `LandingQueueProcessor` and the per-repository
+  `Repository#land_on_inherited_check_failure` setting.
+
+Main health is intentionally conservative: `Repository#main_health` is
+`broken` when either `ci_health` or `grader_health` is broken, so a single
+never-passing CI check can pause landing under `strict`.
+
+Changing the policy does not clear an existing pause. `MainHealthChangedService`
+sets and clears `repository.landing_paused` on health transitions; if landing is
+already paused and an operator changes the policy to
+`isolate_unrelated_failures`, use the repository health page's **Resume
+landing** action (`repositories#resume_landing`) to clear the pause and enqueue
+`LandingQueueProcessorJob`.
+
 The dashboard's landing queue `Blocked reason` column first shows the per-Job
 queue blocker recorded by `LandingQueueProcessor`. If that value is blank,
 the dashboard falls back to merge-train and start-gate diagnostics for the
