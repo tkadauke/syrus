@@ -31,6 +31,7 @@ type DiffReviewFeedbackOptions = {
   headRef?: string | null
   includeAllVersions?: boolean
   jobId: number | string
+  commentSurfaces?: string[]
   // Called with a comment's file path when the caller clicks "View in
   // diff". The reviewable diff itself owns navigation (including scrolling
   // a virtualized, not-currently-mounted file into view), so this should
@@ -62,6 +63,7 @@ export function useDiffReviewFeedback({
   headRef,
   includeAllVersions = false,
   jobId,
+  commentSurfaces,
   onNavigateToFile,
   onViewCommentVersion,
   runId,
@@ -82,7 +84,7 @@ export function useDiffReviewFeedback({
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const search = diffReviewCommentsSearch({ surface, baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, workflowId })
+  const search = diffReviewCommentsSearch({ surface, surfaces: commentSurfaces, baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
   const comments = useQuery({
     enabled,
@@ -846,16 +848,17 @@ function versionForGroup(versionId: number, embedded: DiffReviewComment["diff_re
   }
 }
 
-function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, workflowId }: {
+function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, surfaces, workflowId }: {
   baseRef?: string | null
   diffReviewVersionId?: number | null
   headRef?: string | null
   includeAllVersions?: boolean
   runId?: number | null
   surface: string
+  surfaces?: string[]
   workflowId?: number | null
 }) {
-  const params = new URLSearchParams({ surface })
+  const params = new URLSearchParams({ surface: (surfaces && surfaces.length > 0 ? surfaces : [surface]).join(",") })
   if (includeAllVersions) {
     params.set("all_versions", "1")
   } else {
