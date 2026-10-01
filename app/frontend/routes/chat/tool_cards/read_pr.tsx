@@ -105,6 +105,33 @@ const readPrToolCard: ToolCardRenderer = {
 
 export default readPrToolCard
 
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "open_pr_with_diff",
+    label: "Open PR with diff",
+    input: { pr_number: 407 },
+    parsedResult: {
+      pr: {
+        number: 407,
+        title: "Add linked entity refs to tool cards",
+        body: "Updates representative cards and examples so entity references are linked and copyable.",
+        state: "open",
+        html_url: "https://github.com/tkadauke/syrus/pull/407",
+        diff: { text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs", truncated: false, bytes: 112 }
+      }
+    }
+  },
+  {
+    id: "pr_without_html_url",
+    label: "PR without GitHub URL",
+    description: "The PR number remains copyable when no external URL is available.",
+    input: { pr_number: 408 },
+    parsedResult: { pr: { number: 408, title: "Local PR metadata", state: "open" } }
+  }
+]
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
 }

@@ -167,3 +167,53 @@ const readWorkflowToolCard: ToolCardRenderer = {
 }
 
 export default readWorkflowToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "workflow_with_run_timeline",
+    label: "Workflow with Run timeline",
+    input: { workflow_id: 25606 },
+    parsedResult: {
+      workflow: {
+        id: 25606,
+        job_id: 4221,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "codex",
+        summary: "Adding linked entity refs to representative tool cards.",
+        total_cost_usd: "1.75",
+        started_at: "2026-01-01T00:00:00Z",
+        finished_at: "2026-01-01T00:05:00Z",
+        steps: [
+          {
+            id: 1,
+            kind: "implement",
+            state: "succeeded",
+            started_at: "2026-01-01T00:00:00Z",
+            finished_at: "2026-01-01T00:02:00Z",
+            runs: [
+              {
+                id: 9,
+                state: "succeeded",
+                agent_outcome: "success",
+                agent_summary: "Updated the card and its tests.",
+                started_at: "2026-01-01T00:00:00Z",
+                finished_at: "2026-01-01T00:02:00Z",
+                cost_usd: "0.42"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    id: "queued_workflow_without_job",
+    label: "Queued Workflow without Job link",
+    description: "No job_id is present, so the workflow slug remains copyable without a derived route.",
+    input: { workflow_id: 25607 },
+    parsedResult: { workflow: { id: 25607, state: "queued", trigger_kind: "retry" } }
+  }
+]

@@ -26,3 +26,43 @@ const readRunTestResultsToolCard: ToolCardRenderer = {
 }
 
 export default readRunTestResultsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "run_with_passing_tests",
+    label: "Run with passing tests",
+    input: { run_id: 200 },
+    parsedResult: {
+      job_id: 10,
+      job_slug: "JOB-10",
+      workflow_id: 30,
+      run_id: 200,
+      grader_name: "vitest",
+      test_runs: [
+        {
+          id: 1,
+          grader_name: "vitest",
+          total_count: 4,
+          passed_count: 4,
+          failed_count: 0,
+          skipped_count: 0,
+          error_count: 0,
+          duration_ms: 900,
+          failed_error_cases: [],
+          failed_error_case_count: 0,
+          failed_error_cases_omitted: 0,
+          slow_cases: [],
+          slow_case_count: 0,
+          slow_cases_omitted: 0
+        }
+      ]
+    }
+  },
+  {
+    id: "run_without_results",
+    label: "Run without results",
+    parsedResult: { job_id: 10, job_slug: "JOB-10", workflow_id: 30, run_id: 201, grader_name: null, test_runs: [] }
+  }
+]
