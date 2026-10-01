@@ -94,13 +94,6 @@ RSpec.describe "stdio MCP sidecar boot environment" do
   end
 
   it "never configures a Rails-booting stdio MCP command with an environment it cannot boot under" do
-    # Pending, not skipped: chat's stdio fallback is currently exactly this
-    # unsatisfiable pairing, so this example documents a live defect rather than
-    # a guarded invariant. RSpec fails a pending example that starts passing, so
-    # this clears itself the moment the fallback stops spawning the Rails sidecar
-    # -- it cannot be silently left behind.
-    pending "chat's stdio fallback still spawns bin/syrus-chat-sidecar under a scrubbed env"
-
     with_boot_secrets_in_env do
       offenders = stdio_configs.filter_map do |label, config|
         command = config[:command] || config["command"]

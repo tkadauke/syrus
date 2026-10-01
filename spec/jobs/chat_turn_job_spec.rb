@@ -465,23 +465,18 @@ RSpec.describe ChatTurnJob, :ci_only do
       config = JSON.parse(File.read(kwargs[:mcp_config]))
       essential = config.dig("mcpServers", "syrus-chat-sidecar")
       deferred = config.dig("mcpServers", "syrus-chat-deferred-sidecar")
-      expect(essential["command"]).to eq(Rails.root.join("bin/syrus-chat-sidecar").to_s)
-      expect(essential["args"]).to be_nil
-      expect(essential.dig("env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
-      expect(essential.dig("env", "SYRUS_CHAT_CURRENT_MESSAGE_ID")).to eq(user_message.id.to_s)
-      expect(essential.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("essential")
-      expect(essential.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-sidecar")
+      expect(essential["command"]).to eq(Rails.root.join("bin/syrus-mcp-unavailable").to_s)
+      expect(essential["args"]).to eq([])
+      expect(essential.dig("env", "SYRUS_MCP_UNAVAILABLE_SERVER_NAME")).to eq("syrus-chat-sidecar")
+      expect(essential.dig("env", "SYRUS_MCP_UNAVAILABLE_MESSAGE")).to include("Persistent MCP daemon is required")
       expect(essential["env"]).to include(host_env)
       expect(essential["env"]).to include("GEM_HOME" => "/usr/local/bundle", "GEM_PATH" => "/usr/local/bundle")
       expect(essential["env"]).not_to include(*secret_env.keys)
       expect(essential["env"].values).not_to include(*secret_env.values)
       expect(essential["alwaysLoad"]).to eq(true)
-      expect(deferred["command"]).to eq(Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s)
-      expect(deferred["args"]).to be_nil
-      expect(deferred.dig("env", "SYRUS_CHAT_SESSION_ID")).to eq(chat.id.to_s)
-      expect(deferred.dig("env", "SYRUS_CHAT_CURRENT_MESSAGE_ID")).to eq(user_message.id.to_s)
-      expect(deferred.dig("env", "SYRUS_CHAT_MCP_TOOL_TIER")).to eq("deferred")
-      expect(deferred.dig("env", "SYRUS_CHAT_MCP_SERVER_NAME")).to eq("syrus-chat-deferred-sidecar")
+      expect(deferred["command"]).to eq(Rails.root.join("bin/syrus-mcp-unavailable").to_s)
+      expect(deferred["args"]).to eq([])
+      expect(deferred.dig("env", "SYRUS_MCP_UNAVAILABLE_SERVER_NAME")).to eq("syrus-chat-deferred-sidecar")
       expect(deferred["env"]).not_to include(*secret_env.keys)
       expect(deferred["env"].values).not_to include(*secret_env.values)
       expect(deferred["alwaysLoad"]).to eq(false)
@@ -1486,20 +1481,18 @@ RSpec.describe ChatTurnJob, :ci_only do
     )
     expect(received[:mcp_servers]).to include(
       "syrus-chat-sidecar" => include(
-        command: Rails.root.join("bin/syrus-chat-sidecar").to_s,
+        command: Rails.root.join("bin/syrus-mcp-unavailable").to_s,
         args: [],
         required: true
       ),
       "syrus-chat-deferred-sidecar" => include(
-        command: Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
+        command: Rails.root.join("bin/syrus-mcp-unavailable").to_s,
         args: [],
         required: false
       )
     )
     expect(received.dig(:mcp_servers, "syrus-chat-sidecar", :env)).to include(
-      "SYRUS_CHAT_SESSION_ID" => codex_chat.id.to_s,
-      "SYRUS_CHAT_CURRENT_MESSAGE_ID" => codex_message.id.to_s,
-      "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-sidecar",
+      "SYRUS_MCP_UNAVAILABLE_SERVER_NAME" => "syrus-chat-sidecar",
       "PATH" => ENV.fetch("PATH")
     )
     messages = codex_chat.messages.order(:created_at).to_a

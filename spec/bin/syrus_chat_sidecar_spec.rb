@@ -17,9 +17,9 @@ RSpec.describe "bin/syrus-chat-sidecar", :ci_only do
     ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
-  it "boots both chat MCP sidecars from the generated config against a persisted chat session" do
+  it "boots both chat MCP sidecar binaries against a persisted chat session" do
     records = create_persisted_chat_session!
-    config = generated_mcp_config_for(records.fetch(:chat), records.fetch(:message))
+    config = direct_sidecar_config_for(records.fetch(:chat), records.fetch(:message))
 
     essential = config.fetch("mcpServers").fetch("syrus-chat-sidecar")
     deferred = config.fetch("mcpServers").fetch("syrus-chat-deferred-sidecar")
@@ -51,15 +51,28 @@ RSpec.describe "bin/syrus-chat-sidecar", :ci_only do
     { user: user, repository: repository, chat: chat, message: message }
   end
 
-  def generated_mcp_config_for(chat, message)
-    with_env("SYRUS_DATA_ROOT" => data_root) do
-      job = ChatTurnJob.new
-      job.instance_variable_set(:@chat, chat)
-      job.instance_variable_set(:@user_message, message)
-      job.send(:with_chat_mcp_config, Struct.new(:provider).new("claude")) do |path|
-        JSON.parse(File.read(path))
-      end
-    end
+  def direct_sidecar_config_for(chat, message)
+    {
+      "mcpServers" => {
+        "syrus-chat-sidecar" => {
+          "command" => Rails.root.join("bin/syrus-chat-sidecar").to_s,
+          "env" => direct_sidecar_env(chat, message, tier: "essential", server_name: "syrus-chat-sidecar")
+        },
+        "syrus-chat-deferred-sidecar" => {
+          "command" => Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
+          "env" => direct_sidecar_env(chat, message, tier: "deferred", server_name: "syrus-chat-deferred-sidecar")
+        }
+      }
+    }
+  end
+
+  def direct_sidecar_env(chat, message, tier:, server_name:)
+    AgentSidecarEnvironment.build_boot(extra: {
+      "SYRUS_CHAT_SESSION_ID" => chat.id.to_s,
+      "SYRUS_CHAT_CURRENT_MESSAGE_ID" => message.id.to_s,
+      "SYRUS_CHAT_MCP_TOOL_TIER" => tier,
+      "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
+    })
   end
 
   def list_tools_via_stdio(server_config)

@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# Secret-free stdio MCP responder for paths where Syrus must not expose Rails
+# boot secrets to agent-visible config and no persistent daemon transport is
+# available.
+require "json"
+
+server_name = ENV.fetch("SYRUS_MCP_UNAVAILABLE_SERVER_NAME", "syrus-mcp-unavailable")
+message = ENV.fetch("SYRUS_MCP_UNAVAILABLE_MESSAGE", "MCP tools are unavailable.")
+
+warn("#{server_name}: #{message}")
+
+def response_id(json)
+  JSON.parse(json)["id"]
+rescue JSON::ParserError
+  nil
+end
+
+def error_response(id, message)
+  { jsonrpc: "2.0", id: id, error: { code: -32_603, message: message } }.to_json
+end
+
+STDIN.each_line do |line|
+  body = line.strip
+  next if body.empty?
+
+  STDOUT.puts(error_response(response_id(body), message))
+  STDOUT.flush
+end
