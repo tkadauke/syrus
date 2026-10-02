@@ -381,6 +381,22 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
+        def retry_turn
+          chat_session = find_chat_session
+          result = ChatTurnAutoRetryReconciler.perform_now!(chat_session)
+
+          unless result.performed?
+            render_error("retry_unavailable", result.message, status: retry_turn_error_status(result))
+            return
+          end
+
+          render json: chat_payload(chat_session.reload, message: result.message)
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
+          raise unless transient_chat_lock_error?(e)
+
+          render_temporary_chat_lock_error
+        end
+
         def daemon_connection
           chat_session = find_chat_session
 
@@ -1869,6 +1885,10 @@ module Api
           SpawnedProcess.running
                         .where(kind: "agent", workdir: chat_session.workspace_root.to_s)
                         .find_each { |process| process.request_kill!(user: Current.user) }
+        end
+
+        def retry_turn_error_status(result)
+          result.code == :no_retry ? :unprocessable_content : :conflict
         end
 
         def repository_json(repository)

@@ -850,6 +850,7 @@ export type ChatPayload = {
     app_share_path: string
     app_enqueue_message_path: string
     app_scheduled_messages_path: string
+    app_retry_turn_path?: string
     app_stop_path: string
     app_daemon_connection_path: string
     app_switch_provider_path: string
@@ -1162,6 +1163,10 @@ export function updateChatRepository(id: number | string, repositoryId: string |
 
 export function switchChatProvider(path: string, chatProvider: string) {
   return postJson<{ message: string }>(path, { provider: chatProvider })
+}
+
+export function retryChatTurn(path: string) {
+  return postJson<ChatPayload>(path)
 }
 
 export function updateChatMode(id: number | string, mode: ChatMode | null) {

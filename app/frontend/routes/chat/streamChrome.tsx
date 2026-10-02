@@ -111,10 +111,20 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
   )
 }
 
-export function TurnRetryIndicator({ retry }: { retry: ChatTurnRetryState }) {
+export function TurnRetryIndicator({
+  retry,
+  onRetryNow,
+  retryNowPending = false
+}: {
+  retry: ChatTurnRetryState
+  onRetryNow?: () => void
+  retryNowPending?: boolean
+}) {
+  const { t } = useT("chat")
   const nextRetryAt = retry.next_auto_retry_at ? new Date(retry.next_auto_retry_at) : null
   const now = useTicker(Boolean(nextRetryAt))
   const nextRetry = nextRetryAt ? formatRetryCountdown(nextRetryAt, now) : null
+  const canRetryNow = retry.retryable && Boolean(nextRetryAt) && Boolean(onRetryNow)
   const details = [
     retry.classification_label,
     retry.retryable ? "retryable" : "not retryable",
@@ -134,13 +144,27 @@ export function TurnRetryIndicator({ retry }: { retry: ChatTurnRetryState }) {
   return (
     <div aria-label={details} aria-live="polite" className="flex justify-start" role="status">
       <div className={`inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm ${tone}`} title={details}>
-        <span>{retry.state_label}</span>
+        <span className="whitespace-nowrap">{retry.state_label}</span>
         <span aria-hidden="true" className="text-current/45">·</span>
-        <span>attempt {retry.retry_attempt_count}/{retry.retry_budget}</span>
+        <span className="whitespace-nowrap">attempt {retry.retry_attempt_count}/{retry.retry_budget}</span>
         {nextRetry ? (
           <>
             <span aria-hidden="true" className="text-current/45">·</span>
-            <span>next {nextRetry}</span>
+            <span className="whitespace-nowrap">next {nextRetry}</span>
+          </>
+        ) : null}
+        {canRetryNow ? (
+          <>
+            <span aria-hidden="true" className="hidden text-current/45 min-[360px]:inline">·</span>
+            <button
+              aria-label={t("retry_turn_now")}
+              className="inline-flex h-6 shrink-0 items-center rounded-full border border-current/20 bg-white/70 px-2 text-[11px] font-semibold text-current shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-950/40 dark:hover:bg-gray-950/70"
+              disabled={retryNowPending}
+              onClick={onRetryNow}
+              type="button"
+            >
+              {retryNowPending ? t("retry_turn_now_pending") : t("retry_turn_now_short")}
+            </button>
           </>
         ) : null}
         <span className="sr-only">{label}</span>

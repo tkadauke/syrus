@@ -77,6 +77,7 @@ module ChatSerialization
           app_share_path: "/api/v1/app/chats/#{chat_session.id}/share",
           app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
           app_scheduled_messages_path: "/api/v1/app/chats/#{chat_session.id}/scheduled_messages",
+          app_retry_turn_path: "/api/v1/app/chats/#{chat_session.id}/retry_turn",
           app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
           app_daemon_connection_path: "/api/v1/app/chats/#{chat_session.id}/daemon_connection",
           app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",

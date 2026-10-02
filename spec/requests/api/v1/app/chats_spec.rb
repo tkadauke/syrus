@@ -21,6 +21,29 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries
   end
 
+  def create_chat_turn_retry(user:, scheduled_at: 5.minutes.from_now)
+    chat = ChatSession.create!(
+      user: user,
+      last_message_at: 2.minutes.ago,
+      turn_in_flight: true
+    )
+    message = chat.messages.create!(
+      role: "user",
+      content: { "text" => "Please retry this turn." },
+      sender_user_id: user.id,
+      created_at: 2.minutes.ago
+    )
+    attempt = ChatTurnAutoRetryAttempt.create!(
+      chat_session: chat,
+      root_user_message: message,
+      user_message: message,
+      attempt_number: 1,
+      scheduled_at: scheduled_at
+    )
+
+    [ chat, message, attempt ]
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/chats"
 
@@ -2010,6 +2033,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
     expect(body.dig("paths", "app_clear_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
+    expect(body.dig("paths", "app_retry_turn_path")).to eq("/api/v1/app/chats/#{chat.id}/retry_turn")
     expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
     expect(body.dig("paths", "app_attachments_path")).to be_nil
     expect(body.dig("paths", "app_context_path")).to be_nil
@@ -2030,6 +2054,117 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("whiteboard", "elements", 0, "id")).to eq("box-1")
     expect(body.dig("whiteboard", "appState")).to eq("viewBackgroundColor" => "#ffffff")
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
+  end
+
+  describe "POST /api/v1/app/chats/:id/retry_turn" do
+    it "performs a scheduled retry immediately and returns the refreshed chat payload" do
+      sign_in_as(user)
+      chat, message, attempt = create_chat_turn_retry(user: user)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/retry_turn"
+      }.to change { chat.messages.where(role: "user").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).on_queue("chat")
+
+      expect(response).to have_http_status(:ok)
+      retry_message = attempt.reload.retry_message
+      expect(attempt.performed_at).to be_present
+      expect(retry_message).to have_attributes(
+        chat_session: chat,
+        role: "user",
+        content: message.content,
+        sender_user_id: user.id
+      )
+      expect(parse_body["message"]).to eq("Chat turn retry started.")
+      expect(parse_body["turn_retry_state"]).to be_nil
+      expect(parse_body.dig("chat", "turn_retry_state")).to be_nil
+    end
+
+    it "returns unprocessable when no active retry is scheduled" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, turn_in_flight: true)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/retry_turn"
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("retry_unavailable")
+    end
+
+    it "does not expose another user's chat retry" do
+      sign_in_as(Factories.user)
+      chat, _message, _attempt = create_chat_turn_retry(user: user)
+
+      post "/api/v1/app/chats/#{chat.id}/retry_turn"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns conflict when a live agent process is already active for the turn" do
+      sign_in_as(user)
+      chat, _message, attempt = create_chat_turn_retry(user: user)
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        workdir: chat.workspace_root.to_s,
+        hostname: "worker-1",
+        started_at: 1.minute.ago,
+        pid: 1234
+      )
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/retry_turn"
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("retry_unavailable")
+      expect(attempt.reload.skipped_reason).to eq("chat turn became active before retry")
+    end
+
+    it "returns conflict when a pending ChatTurnJob already exists for the turn" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      sign_in_as(user)
+      chat, message, attempt = create_chat_turn_retry(user: user)
+      queue_job = SolidQueue::Job.create!(
+        class_name: "ChatTurnJob",
+        queue_name: "chat",
+        priority: 0,
+        arguments: { "arguments" => [ chat.id, message.id ] },
+        created_at: 1.minute.ago,
+        updated_at: 1.minute.ago
+      )
+      SolidQueue::ReadyExecution.create!(job: queue_job, queue_name: "chat", priority: 0, created_at: 1.minute.ago)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/retry_turn"
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("retry_unavailable")
+      expect(attempt.reload.skipped_reason).to eq("chat turn became active before retry")
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    it "returns conflict when the turn moved to a newer user message" do
+      sign_in_as(user)
+      chat, _message, attempt = create_chat_turn_retry(user: user)
+      chat.messages.create!(
+        role: "user",
+        content: { "text" => "A newer turn took over." },
+        sender_user_id: user.id
+      )
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/retry_turn"
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("retry_unavailable")
+      expect(attempt.reload.skipped_reason).to eq("chat turn moved to a newer user message")
+    end
   end
 
   it "includes the running shell command in the payload for a Coding Mode chat (JOB-607 composer remount fix)" do
