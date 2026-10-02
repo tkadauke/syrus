@@ -169,7 +169,7 @@ COPY plugins/design_docs/cli/go.mod ./plugins/design_docs/cli/
 COPY plugins/spending_insights/cli/go.mod ./plugins/spending_insights/cli/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    cd cli && go mod download
+    cd cli && GOWORK=off go mod download
 
 COPY cli/ ./cli/
 COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/
@@ -186,7 +186,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     target_os="${TARGETOS:-linux}"; \
     target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
     cd cli; \
-    env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
+    env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
       go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .
 
 # Final stage for app image
