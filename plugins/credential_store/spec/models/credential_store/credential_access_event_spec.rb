@@ -7,7 +7,7 @@ RSpec.describe CredentialStore::CredentialAccessEvent do
   def create_credential
     CredentialStore::Credential.create!(
       name: "Deploy token",
-      credential_type: "github/pat",
+      credential_type: "k8s_cluster.kubeconfig",
       scope_type: "repository",
       scope_id: repo.id,
       created_by: owner,
