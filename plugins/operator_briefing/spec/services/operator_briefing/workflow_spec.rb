@@ -60,6 +60,12 @@ RSpec.describe OperatorBriefing::Workflow do
     expect(definition).to be_infrastructure
     expect(definition.workflow_trigger_kind).to eq("briefing_generate")
     expect(definition.scope).to eq("repository")
+    expect(definition.lock_scope).to eq("none")
+    expect(definition.lock_conflicts_enforced?).to be(true)
+    expect(definition.lock_keys_for(job: job, member_jobs: [ job ])).to contain_exactly(
+      "job:#{job.id}",
+      "operator_briefing:repository:#{repository.id}:user:#{user.id}"
+    )
 
     dive_definition = WorkDefinitions.for("briefing_dive")
     expect(dive_definition).to be_a(OperatorBriefing::DiveWorkDefinition)

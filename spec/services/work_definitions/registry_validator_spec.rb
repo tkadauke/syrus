@@ -87,4 +87,13 @@ RSpec.describe WorkDefinitions::RegistryValidator do
     expect(errors.map(&:code)).to include("unknown_landing_lock_kind")
     expect(errors.map(&:message)).to include(/missing_landing_kind/)
   end
+
+  it "requires definitions to declare or inherit a valid lock scope" do
+    allow_any_instance_of(WorkDefinitions::Initial).to receive(:lock_scope).and_return("global")
+
+    errors = described_class.call
+
+    expect(errors.map(&:code)).to include("invalid_lock_scope")
+    expect(errors.map(&:message)).to include(/initial/)
+  end
 end

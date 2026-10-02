@@ -72,6 +72,7 @@ RSpec.describe WorkDefinitions do
       expect(definition.unit_gates).to respond_to(:each)
       expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: be_present)
       expect(definition.members_for(job: job, artifacts: {})).to respond_to(:each)
+      expect(definition.lock_scope).to be_present
       expect(definition.lock_keys_for(job: job, member_jobs: [])).to respond_to(:each)
       expect(definition.ref_metadata_for(job: job, artifacts: {})).to have_attributes(
         source_repository: job.effective_pr_repository,
@@ -347,6 +348,24 @@ RSpec.describe WorkDefinitions do
         expect(definition.generic_intent_start_allowed?).to be(true), "#{definition.kind} should be generic-startable unless it declares a dispatcher"
       end
     end
+  end
+
+  it "lets repository-subject work opt out of the repository mutex" do
+    definition_class = Class.new(WorkDefinitions::Base) do
+      self.plugin = "spec"
+      self.kind = "spec_repository_subject"
+      self.workflow_trigger_kind = "initial"
+      self.runtime_role = "first_class"
+      self.scope = "repository"
+      self.lock_scope = "none"
+    end
+    definition = definition_class.new
+    job = Factories.job_record
+
+    keys = definition.lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})
+
+    expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: "repository", id: job.repository_id)
+    expect(keys).to contain_exactly("job:#{job.id}")
   end
 
   it "resolves merge train members from the train artifact through the definition" do

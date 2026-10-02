@@ -38,6 +38,7 @@ module WorkEngine
           user = create_user!(data.fetch("user", {}))
           reset_global_configuration!
           configure_features!(data.fetch("features", {}))
+          configure_plugins!(data.fetch("plugins", {}))
           configure_app_settings!(data.fetch("app_settings", {}))
           repository = create_repository!(user, data.fetch("repository", {}))
           create_main_branch_health_checks!(repository, data.fetch("main_branch_health_checks", []))
@@ -128,6 +129,16 @@ module WorkEngine
         Feature.clear_enabled_cache!
       end
 
+      def configure_plugins!(attrs)
+        attrs.to_h.each do |name, enabled|
+          PluginRecord.find_or_create_by!(name: name.to_s).update!(
+            enabled: enabled == true,
+            disableable: true
+          )
+        end
+        Syrus::PluginRegistry.clear_plugin_record_cache! if attrs.present?
+      end
+
       def create_repository!(user, attrs)
         owner = attrs.fetch("owner", "simulation")
         name = attrs.fetch("name", "repo-#{SecureRandom.hex(4)}")
@@ -182,7 +193,7 @@ module WorkEngine
             repository: repository,
             epic: epic,
             kind: attrs.fetch("kind", "issue"),
-            issue_number: attrs["issue_number"] || (issue_number += 1),
+            issue_number: attrs.key?("issue_number") ? attrs["issue_number"] : (issue_number += 1),
             issue_title: attrs.fetch("title", key.to_s.humanize),
             issue_body: attrs.fetch("body", "Synthetic work-engine simulation job #{key}."),
             state: "closed",
@@ -631,19 +642,28 @@ module WorkEngine
       end
 
       def attach_work_unit!(job, workflow, config)
+        kind = config.dig("work_unit", "kind") || workflow.trigger_kind
+        from_definition = config.dig("work_unit", "from_definition") == true
+        definition = WorkDefinitions.for(kind) if from_definition
+        artifacts = workflow.artifacts.to_h
+        members = from_definition ? definition.members_for(job: job, artifacts: artifacts) : [ job ]
+        definition_scope = definition&.scope_for(job: job, artifacts: artifacts)
+        scope_type = config.dig("scope", "type") || definition_scope&.type || "job"
+        scope_id = config.dig("scope", "id") || definition_scope&.id || job.id
+
         intent = WorkIntent.create!(
-          kind: config.dig("work_unit", "kind") || workflow.trigger_kind,
+          kind: kind,
           state: config.dig("intent", "state") || "requested",
           repository: job.repository,
-          scope_type: config.dig("scope", "type") || "job",
-          scope_id: config.dig("scope", "id") || job.id,
+          scope_type: scope_type,
+          scope_id: scope_id,
           actor: job.user,
           source_type: "work_engine_simulation"
         )
         unit = WorkUnit.create!(
           work_intent: intent,
           workflow: workflow,
-          kind: config.dig("work_unit", "kind") || workflow.trigger_kind,
+          kind: kind,
           state: config.dig("work_unit", "state") || workflow.state,
           blocked_reason: config.dig("work_unit", "blocked_reason"),
           blocked_details: config.dig("work_unit", "blocked_details") || {},
@@ -652,8 +672,17 @@ module WorkEngine
           scope_type: intent.scope_type,
           scope_id: intent.scope_id
         )
-        unit.work_unit_members.create!(job: job, role: "primary")
-        unit.work_unit_locks.create!(lock_key: "job:#{job.id}") if unit.active?
+        members.each_with_index do |member_job, index|
+          unit.work_unit_members.create!(job: member_job, role: index.zero? ? "primary" : "member")
+        end
+        if unit.active?
+          lock_keys = if from_definition
+            definition.lock_keys_for(job: job, member_jobs: members, artifacts: artifacts)
+          else
+            [ "job:#{job.id}" ]
+          end
+          lock_keys.each { |lock_key| unit.work_unit_locks.create!(lock_key: lock_key) }
+        end
       end
 
       def sync_work_unit_state!(workflow, config)
