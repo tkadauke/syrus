@@ -61,4 +61,14 @@ RSpec.describe RunPreAdmissionSkip do
 
     expect(result).not_to be_skip
   end
+
+  it "skips retired review_plan steps before host admission" do
+    review_step.update!(kind: "review_plan")
+
+    result = described_class.call(run: run)
+
+    expect(result).to be_skip
+    expect(result.reason).to eq("review_plan_retired")
+    expect(result.message).to eq("[review_plan] retired legacy PR-comment step - skipping")
+  end
 end

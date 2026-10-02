@@ -1,0 +1,39 @@
+{
+  "actions": {
+    "acknowledge": "Acknowledge",
+    "acknowledging": "Acknowledging...",
+    "cancel": "Cancel",
+    "discuss": "Discuss",
+    "discussing": "Discussing...",
+    "discussion_body": "Discussion note",
+    "error": "Could not update this review note.",
+    "save_discussion": "Save discussion",
+    "view_range": "View range"
+  },
+  "note": {
+    "agent_authored": "Agent note",
+    "confidence": "{{confidence}}% confidence",
+    "fallback_title": "Review note",
+    "priority": "{{priority}} priority",
+    "range": "{{path}} {{side}} lines {{start}}-{{end}}",
+    "side": {
+      "new": "new",
+      "old": "old"
+    }
+  },
+  "panel": {
+    "hidden_count": "{{count}} more notes are available in the diff.",
+    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
+    "summary": "{{count}} open review note",
+    "summary_one": "{{count}} open review note",
+    "summary_other": "{{count}} open review notes",
+    "title": "Review Notes",
+    "zero_summary": "No PR-level review-note debt was flagged for this diff version."
+  },
+  "rollup": {
+    "dismissed": "Dismissed",
+    "handled": "Handled",
+    "open": "Open",
+    "total": "Flagged"
+  }
+}

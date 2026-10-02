@@ -17,7 +17,7 @@ require "rails_helper"
 # open.
 RSpec.describe "plugin UI components" do
   # Directory per loader, mirroring each one's import.meta.glob.
-  COMPONENT_DIRS = %w[routes repo_tabs workspaceTabs ui_slots].freeze
+  COMPONENT_DIRS = %w[routes repo_tabs workspaceTabs ui_slots review_annotations].freeze
 
   # `component: "global_search/Search"` in any plugin's Ruby registration.
   REGISTRATION = /component:\s*["']([\w.]+)\/(\w+)["']/

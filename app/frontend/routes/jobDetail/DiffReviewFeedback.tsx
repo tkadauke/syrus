@@ -14,6 +14,9 @@ import {
   startJobDiscussionChat,
   submitDiffReviewComments,
   updateDiffReviewComment,
+  type DiffReviewAnnotationAction,
+  type DiffReviewAnnotationCount,
+  type DiffReviewAnnotationPanel,
   type DiffReviewComment,
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind,
@@ -22,6 +25,7 @@ import {
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 import { Pill, surfaceClasses } from "../../components/ui"
 import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
+import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
@@ -31,6 +35,7 @@ type DiffReviewFeedbackOptions = {
   headRef?: string | null
   includeAllVersions?: boolean
   jobId: number | string
+  commentSurfaces?: string[]
   // Called with a comment's file path when the caller clicks "View in
   // diff". The reviewable diff itself owns navigation (including scrolling
   // a virtualized, not-currently-mounted file into view), so this should
@@ -38,6 +43,10 @@ type DiffReviewFeedbackOptions = {
   // e.g. `setSelectedPath`.
   onNavigateToFile?: (path: string) => void
   onViewCommentVersion?: (comment: DiffReviewComment) => void
+  reviewAnnotationActions?: DiffReviewAnnotationAction[]
+  reviewAnnotationCounts?: DiffReviewAnnotationCount[]
+  reviewAnnotationPanels?: DiffReviewAnnotationPanel[]
+  reviewFilePaths?: string[]
   runId?: number | null
   supportsGlobalComments?: boolean
   surface: string
@@ -62,8 +71,13 @@ export function useDiffReviewFeedback({
   headRef,
   includeAllVersions = false,
   jobId,
+  commentSurfaces,
   onNavigateToFile,
   onViewCommentVersion,
+  reviewAnnotationActions = [],
+  reviewAnnotationCounts = [],
+  reviewAnnotationPanels = [],
+  reviewFilePaths = [],
   runId,
   supportsGlobalComments = false,
   surface,
@@ -82,7 +96,7 @@ export function useDiffReviewFeedback({
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const search = diffReviewCommentsSearch({ surface, baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, workflowId })
+  const search = diffReviewCommentsSearch({ surface, surfaces: commentSurfaces, baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
   const comments = useQuery({
     enabled,
@@ -325,6 +339,10 @@ export function useDiffReviewFeedback({
         replyError={replyToComment.error}
         replyPending={replyToComment.isPending}
         replyingId={replyingId}
+        reviewAnnotationActions={reviewAnnotationActions}
+        reviewAnnotationCounts={reviewAnnotationCounts}
+        reviewAnnotationPanels={reviewAnnotationPanels}
+        reviewFilePaths={reviewFilePaths}
         resolvePending={resolveComment.isPending}
         reviewCommentBody={reviewCommentBody}
         submitError={submitError}
@@ -397,6 +415,10 @@ function DiffReviewFeedbackPanel({
   replyError,
   replyPending,
   replyingId,
+  reviewAnnotationActions,
+  reviewAnnotationCounts,
+  reviewAnnotationPanels,
+  reviewFilePaths,
   resolvePending,
   reviewCommentBody,
   submitError,
@@ -436,6 +458,10 @@ function DiffReviewFeedbackPanel({
   replyError: Error | null
   replyPending: boolean
   replyingId: number | null
+  reviewAnnotationActions: DiffReviewAnnotationAction[]
+  reviewAnnotationCounts: DiffReviewAnnotationCount[]
+  reviewAnnotationPanels: DiffReviewAnnotationPanel[]
+  reviewFilePaths: string[]
   resolvePending: boolean
   reviewCommentBody: string
   submitError: string | null
@@ -448,6 +474,18 @@ function DiffReviewFeedbackPanel({
 }) {
   const { t } = useT("jobs")
   const ambiguousRunIds = useMemo(() => duplicateRunIds(versions || []), [versions])
+  const reviewItems = useMemo(
+    () =>
+      groupReviewSidebarItems({
+        comments,
+        currentVersionId,
+        reviewAnnotationPanels,
+        reviewFilePaths,
+        versions
+      }),
+    [comments, currentVersionId, reviewAnnotationPanels, reviewFilePaths, versions]
+  )
+  const hasReviewItems = reviewItems.length > 0
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -458,35 +496,56 @@ function DiffReviewFeedbackPanel({
           <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
         </div>
       </div>
+      {reviewAnnotationCounts.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {reviewAnnotationCounts.map((count, index) => (
+            <span className={`rounded border px-2 py-1 text-xs font-medium ${reviewAnnotationToneClass(count.tone)}`} key={String(count.id ?? index)}>
+              {count.label ? `${count.label}: ` : null}
+              {count.value ?? 0}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {reviewAnnotationActions.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {reviewAnnotationActions.map((action, index) => (
+            <ReviewAnnotationActionButton action={action} key={String(action.id ?? index)} />
+          ))}
+        </div>
+      ) : null}
       <div className="mt-3 space-y-4">
-        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : groupCommentsByVersion(comments, versions).map((group) => {
+        {!hasReviewItems ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : reviewItems.map((group) => {
           const isCurrent = group.versionId === currentVersionId
           return (
             <div key={group.versionId}>
               <VersionSectionHeader ambiguousRunIds={ambiguousRunIds} isCurrent={isCurrent} t={t} version={group.version} />
               <div className={isCurrent ? "mt-2 space-y-3" : surfaceClasses("warning", "sm", "mt-2 space-y-3")}>
-                {group.comments.map((comment) => (
-                  <CommentCard
-                    comment={comment}
-                    deletePending={deletePending}
-                    key={comment.id}
-                    onChangeReplyBody={onChangeReplyBody}
-                    onCancelReply={onCancelReply}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onReply={onReply}
-                    onResolve={onResolve}
-                    onStartReply={onStartReply}
-                    onViewInDiff={onViewInDiff}
-                    replyBody={replyBody}
-                    replyError={replyError}
-                    replyPending={replyPending}
-                    replyingId={replyingId}
-                    resolvePending={resolvePending}
-                    supportsGlobalComments={supportsGlobalComments}
-                    t={t}
-                  />
-                ))}
+                {group.items.map((item) =>
+                  item.kind === "annotation" ? (
+                    <ReviewAnnotationCard item={item.panel} key={item.key} />
+                  ) : (
+                    <CommentCard
+                      comment={item.comment}
+                      deletePending={deletePending}
+                      key={item.key}
+                      onChangeReplyBody={onChangeReplyBody}
+                      onCancelReply={onCancelReply}
+                      onDelete={onDelete}
+                      onEdit={onEdit}
+                      onReply={onReply}
+                      onResolve={onResolve}
+                      onStartReply={onStartReply}
+                      onViewInDiff={onViewInDiff}
+                      replyBody={replyBody}
+                      replyError={replyError}
+                      replyPending={replyPending}
+                      replyingId={replyingId}
+                      resolvePending={resolvePending}
+                      supportsGlobalComments={supportsGlobalComments}
+                      t={t}
+                    />
+                  )
+                )}
               </div>
             </div>
           )
@@ -778,6 +837,121 @@ type CommentVersionGroup = {
   versionId: number
 }
 
+type ReviewSidebarItem =
+  | {
+      kind: "annotation"
+      key: string
+      panel: DiffReviewAnnotationPanel
+      path: string | null
+      line: number | null
+    }
+  | {
+      kind: "comment"
+      key: string
+      comment: DiffReviewComment
+      path: string | null
+      line: number | null
+    }
+
+type ReviewSidebarGroup = {
+  items: ReviewSidebarItem[]
+  version: DiffReviewVersion
+  versionId: number
+}
+
+function groupReviewSidebarItems({
+  comments,
+  currentVersionId,
+  reviewAnnotationPanels,
+  reviewFilePaths,
+  versions
+}: {
+  comments: DiffReviewComment[]
+  currentVersionId: number | null
+  reviewAnnotationPanels: DiffReviewAnnotationPanel[]
+  reviewFilePaths: string[]
+  versions?: DiffReviewVersion[]
+}): ReviewSidebarGroup[] {
+  const fileOrder = new Map(reviewFilePaths.map((path, index) => [path, index]))
+  const groups = new Map<number, ReviewSidebarGroup>()
+
+  for (const group of groupCommentsByVersion(comments, versions)) {
+    groups.set(group.versionId, {
+      version: group.version,
+      versionId: group.versionId,
+      items: group.comments.map((comment) => ({
+        kind: "comment",
+        key: `comment:${comment.id}`,
+        comment,
+        path: comment.path,
+        line: commentLineNumber(comment)
+      }))
+    })
+  }
+
+  for (const panel of reviewAnnotationPanels) {
+    const item = annotationPanelSidebarItem(panel)
+    const versionId = annotationPanelVersionId(panel) ?? currentVersionId ?? versions?.[0]?.id ?? 0
+    const group =
+      groups.get(versionId) ??
+      {
+        version: versionForGroup(versionId, null, versions),
+        versionId,
+        items: []
+      }
+    group.items.push(item)
+    groups.set(versionId, group)
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((a, b) => compareReviewSidebarItems(a, b, fileOrder))
+    }))
+    .sort((a, b) => a.version.version_index - b.version.version_index || a.versionId - b.versionId)
+}
+
+function annotationPanelSidebarItem(panel: DiffReviewAnnotationPanel): ReviewSidebarItem {
+  const props = panel.props ?? {}
+  const notes = Array.isArray(props.notes) ? props.notes : []
+  const firstNote = notes[0]
+  const note = firstNote && typeof firstNote === "object" ? (firstNote as Record<string, unknown>) : props
+  const path = typeof note.path === "string" ? note.path : null
+  const line = typeof note.start_line === "number" ? note.start_line : null
+
+  return {
+    kind: "annotation",
+    key: `annotation:${String(panel.id ?? `${path ?? "review"}:${line ?? 0}`)}`,
+    panel,
+    path,
+    line
+  }
+}
+
+function annotationPanelVersionId(panel: DiffReviewAnnotationPanel) {
+  if (typeof panel.diff_review_version_id === "number") return panel.diff_review_version_id
+
+  const props = panel.props ?? {}
+  return typeof props.diff_review_version_id === "number" ? props.diff_review_version_id : null
+}
+
+function compareReviewSidebarItems(a: ReviewSidebarItem, b: ReviewSidebarItem, fileOrder: Map<string, number>) {
+  const aPathOrder = a.path ? (fileOrder.get(a.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
+  const bPathOrder = b.path ? (fileOrder.get(b.path) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
+  if (aPathOrder !== bPathOrder) return aPathOrder - bPathOrder
+  if (a.path && b.path && a.path !== b.path) return a.path.localeCompare(b.path)
+
+  const aLine = a.line ?? Number.MAX_SAFE_INTEGER
+  const bLine = b.line ?? Number.MAX_SAFE_INTEGER
+  if (aLine !== bLine) return aLine - bLine
+  return a.key.localeCompare(b.key)
+}
+
+function commentLineNumber(comment: DiffReviewComment) {
+  if (comment.side === "left") return comment.old_line
+  return comment.new_line
+}
+
 // Groups the sidebar's full (all-versions) comment list into per-version
 // sections, ordered by version_index -- the richer metadata comes from the
 // full `versions` array (job_id-scoped) when the caller has one; a comment's
@@ -846,16 +1020,17 @@ function versionForGroup(versionId: number, embedded: DiffReviewComment["diff_re
   }
 }
 
-function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, workflowId }: {
+function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, surfaces, workflowId }: {
   baseRef?: string | null
   diffReviewVersionId?: number | null
   headRef?: string | null
   includeAllVersions?: boolean
   runId?: number | null
   surface: string
+  surfaces?: string[]
   workflowId?: number | null
 }) {
-  const params = new URLSearchParams({ surface })
+  const params = new URLSearchParams({ surface: (surfaces && surfaces.length > 0 ? surfaces : [surface]).join(",") })
   if (includeAllVersions) {
     params.set("all_versions", "1")
   } else {
@@ -879,6 +1054,14 @@ function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "su
     submitted: "bg-info/10 text-info"
   }[tone]
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+}
+
+function reviewAnnotationToneClass(tone: string | null | undefined) {
+  if (tone === "danger") return "border-danger-border bg-danger-bg text-danger-text"
+  if (tone === "warning") return "border-warning-border bg-warning-bg text-warning-text"
+  if (tone === "success") return "border-success-border bg-success-bg text-success-text"
+  if (tone === "info") return "border-info-border bg-info-bg text-info-text"
+  return "border-border bg-surface-raised text-text-primary"
 }
 
 const terminalWorkflowStates = new Set(["succeeded", "failed", "cancelled"])

@@ -21,9 +21,6 @@ RSpec.describe Workflows::Initial do
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     )
-    allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
-      RepoReviewPlanPlan::Result.new(enabled: false, source: "none", note: "disabled")
-    )
   end
 
   it "materializes the standard chain with coverage_analyze always present" do
@@ -235,17 +232,63 @@ RSpec.describe Workflows::Initial do
     end
   end
 
-  context "when review_plan is enabled" do
+  context "when legacy review_plan is enabled in .syrus.yml" do
     before do
-      allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
-        RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+      config = SyrusYml.new("review_plan: true\n").parse
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
       )
     end
 
-    it "appends review_plan after pr_open" do
+    it "ignores the retired key and does not materialize review_plan" do
       workflow = described_class.instantiate(job: job)
 
-      expect(workflow.steps.order(:position).pluck(:kind).last(2)).to eq(%w[ pr_open review_plan ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to end_with("summarize", "test_plan", "pr_open")
+      expect(workflow.steps.where(kind: "review_plan")).to be_empty
+    end
+  end
+
+  context "with post-implementation review providers" do
+    after do
+      Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
+    end
+
+    it "appends no host step when no provider is enabled" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.where(kind: "post_implementation_review")).to be_empty
+    end
+
+    it "appends the generic host step after pr_open when an enabled provider requests review" do
+      provider = Class.new do
+        include Syrus::Plugin::PostImplementationReviewProvider
+
+        def self.review_needed?(job:, trigger_kind:)
+          trigger_kind == "initial"
+        end
+      end
+
+      Syrus::PluginRegistry.register(name: "review_notes_enabled", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind).last(2)).to eq(%w[ pr_open post_implementation_review ])
+    end
+
+    it "does not append the host step for a disabled provider" do
+      provider = Class.new do
+        include Syrus::Plugin::PostImplementationReviewProvider
+
+        def self.review_needed?(job:, trigger_kind:)
+          raise "disabled provider should not be called"
+        end
+      end
+
+      Syrus::PluginRegistry.register(name: "review_notes_disabled", version: "1.0.0", default_enabled: false, provides: { post_implementation_review_provider: provider })
+
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.where(kind: "post_implementation_review")).to be_empty
     end
   end
 

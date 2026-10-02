@@ -1324,25 +1324,6 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
-    it "skips review_plan without creating a Run when the review_plan artifact already exists" do
-      review_plan = Step.create!(workflow: workflow, kind: "review_plan", position: 2)
-      s3.update!(position: 3)
-      s2.update!(next_step_id: review_plan.id)
-      review_plan.update!(next_step_id: s3.id)
-      workflow.set_artifact!("review_plan", { "items" => [], "summary" => nil })
-
-      expect {
-        described_class.advance_from(s2)
-      }.to change { s3.runs.count }.by(1)
-
-      expect(review_plan.reload).to be_skipped
-      expect(review_plan.runs.count).to eq(0)
-      expect(review_plan.details).to include(
-        "skipped" => true,
-        "skip_reason" => "review_plan_already_submitted"
-      )
-    end
-
     it "skips cancelled steps and creates a Run on the first queued step beyond them" do
       Step.suppress_cancel_cascade do
         s2.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)

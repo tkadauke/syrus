@@ -764,14 +764,27 @@ export type JobRun = {
   rate_limited: boolean
   failure_classification?: RunFailureClassification | null
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
-  health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
+  health_snapshots: Array<{
+    id: number
+    health_status: string | null
+    hint: string | null
+    run_state: string | null
+    last_log_preview: string | null
+    created_at: string | null
+  }>
   active_process?: JobRunActiveProcess | null
   command_spans_total?: number
   command_spans_displayed?: number
   command_spans_truncated?: boolean
   command_spans?: JobCommandSpan[]
   worker_health_correlation?: RunWorkerHealthCorrelation | null
-  agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
+  agent_session: {
+    session_id: string
+    provider: string | null
+    transcript_pruned: boolean
+    transcript_bytes: number | null
+    transcript_lines: number | null
+  } | null
   can_stop: boolean
   can_diagnose: boolean
   can_resume: boolean
@@ -881,10 +894,6 @@ export type JobRetryAction = {
   step_kind?: string
   step_label?: string
 }
-
-
-
-
 
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
 
@@ -1077,7 +1086,10 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths"> & {
+export type JobWorkflowsPayload = Pick<
+  JobDetailPayload,
+  "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths"
+> & {
   job_id?: number
 }
 
@@ -1175,6 +1187,62 @@ export type DiffReviewVersion = {
   created_at: string | null
 }
 
+export type DiffReviewAnnotationAction = {
+  id?: string | number
+  label?: string | null
+  href?: string | null
+  method?: string | null
+  component?: string | null
+  title?: string | null
+  props?: Record<string, unknown>
+}
+
+export type DiffReviewAnnotation = {
+  id?: string | number
+  title?: string | null
+  body?: string | null
+  tone?: "default" | "info" | "warning" | "danger" | "success" | string
+  component?: string | null
+  marker_component?: string | null
+  inline_component?: string | null
+  path?: string | null
+  props?: Record<string, unknown>
+  actions?: DiffReviewAnnotationAction[]
+}
+
+export type DiffReviewAnnotationRange = DiffReviewAnnotation & {
+  side: "old" | "new"
+  start_line: number
+  end_line: number
+}
+
+export type DiffReviewAnnotationPanel = {
+  id?: string | number
+  diff_review_version_id?: number | null
+  title?: string | null
+  body?: string | null
+  tone?: "default" | "info" | "warning" | "danger" | "success" | string
+  component?: string | null
+  props?: Record<string, unknown>
+}
+
+export type DiffReviewAnnotationCount = {
+  id?: string | number
+  label?: string | null
+  value?: number | string | null
+  tone?: "default" | "info" | "warning" | "danger" | "success" | string
+}
+
+export type DiffReviewAnnotationsPayload = {
+  annotations: Record<string, Record<string, DiffReviewAnnotation[]>>
+  ranges: Record<string, DiffReviewAnnotationRange[]>
+  panels: DiffReviewAnnotationPanel[]
+  sidebar_panels?: DiffReviewAnnotationPanel[]
+  actions: DiffReviewAnnotationAction[]
+  counts: DiffReviewAnnotationCount[]
+  sidebar_counts?: DiffReviewAnnotationCount[]
+}
+
 export type JobSourceDiffPayload = {
   job_id: number
   base_ref: string | null
@@ -1189,6 +1257,7 @@ export type JobSourceDiffPayload = {
   diff_error: string | null
   version: DiffReviewVersion | null
   versions: DiffReviewVersion[]
+  review_annotations: DiffReviewAnnotationsPayload
 }
 
 export type DiffReviewVersionsPayload = {
@@ -1202,6 +1271,7 @@ export type DiffReviewVersionPayload = DiffReviewVersion & {
   default_ref: string
   files: JobSourceDiffPayload["files"]
   diff_error: string | null
+  review_annotations?: DiffReviewAnnotationsPayload
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
@@ -1475,7 +1545,6 @@ function diffReviewCommentPath(jobId: string | number, commentId: number, diffRe
 export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
-
 
 export function fetchJobRunArtifacts(path: string) {
   return getJson<JobRunArtifactsPayload>(path)

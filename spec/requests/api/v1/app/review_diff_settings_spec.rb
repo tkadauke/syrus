@@ -29,7 +29,8 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
       "file_list_layout" => "flat",
       "file_sort" => "original",
       "context_lines" => 20,
-      "visible_whitespace" => false
+      "visible_whitespace" => false,
+      "metric_gutter" => "cognitive_review.risk"
     )
   end
 
@@ -44,7 +45,8 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
         context_lines: 40,
         tab_width: 4,
         syntax_highlighting: false,
-        visible_whitespace: true
+        visible_whitespace: true,
+        metric_gutter: "off"
       }
     }
 
@@ -59,6 +61,7 @@ RSpec.describe "API: /api/v1/app/review_diff_settings", type: :request do
       "tab_width" => 4,
       "syntax_highlighting" => false,
       "visible_whitespace" => true,
+      "metric_gutter" => "off",
       "line_numbers" => false
     )
     expect(user.reload.review_diff_settings).to include("desktop_view" => "split", "line_numbers" => false)

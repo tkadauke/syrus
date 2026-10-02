@@ -46,12 +46,15 @@ RSpec.describe Workflows::LocalModeHandoff do
         expect(kinds.last).to eq("pr_open")
       end
 
-      it "appends review_plan after pr_open when configured" do
-        allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
-          RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+      it "ignores legacy review_plan config and does not append review_plan" do
+        config = SyrusYml.new("review_plan: true\n").parse
+        allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+          RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
         )
+
         kinds = described_class.steps_for(job)
-        expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
+        expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
+        expect(kinds).not_to include("review_plan")
       end
     end
 

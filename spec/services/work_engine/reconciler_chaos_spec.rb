@@ -1603,9 +1603,6 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     grade_loop_plan = RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)
-    review_plan_plan = RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
-    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(review_plan_plan)
-    allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(review_plan_plan)
     user = Factories.user
     repository = Factories.repository(user: user)
     template_classes = Workflow::TriggerKind.entries.map(&:template_class).uniq
@@ -1636,14 +1633,23 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       static_step_kinds.merge(serialized_template_step_kinds(workflow.chain_template))
     end
 
-    # Step kinds no core workflow template materializes statically: legacy
-    # compatibility kinds and kinds only a fanout creates at runtime.
+    # Step kinds no default workflow template materializes statically:
+    # compatibility shims, plugin-provider gated hooks, and kinds only a
+    # fanout creates at runtime.
     # auto_close is only used by the agent_insights plugin's Workflow
     # (disabled by default, so not in this spec's registered set) --
     # Workflows::Investigation no longer auto-closes (investigation Jobs
     # reach :implemented for operator review instead, like a PR-based Job).
     missing_from_templates = Step::Kind.values - static_step_kinds.to_a
-    expect(missing_from_templates).to contain_exactly("apply_suggestions", "auto_close", "grade", "grader", "preflight_grader")
+    expect(missing_from_templates).to contain_exactly(
+      "apply_suggestions",
+      "auto_close",
+      "grade",
+      "grader",
+      "post_implementation_review",
+      "preflight_grader",
+      "review_plan"
+    )
 
     job = Factories.job_record(user: user, repository: repository, issue_number: 21_000, state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "manual", agent_provider: job.agent_provider)

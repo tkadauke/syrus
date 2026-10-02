@@ -76,8 +76,27 @@ RSpec.describe Syrus::PluginRegistry do
         :agent_provider, :chat_provider, :mcp_tool_set, :input_source, :prompt_injector,
         :artifact_renderer, :coverage_analyzer, :preview_provider,
         :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider,
-        :build_system_graph_provider, :grader_type
+        :build_system_graph_provider, :grader_type,
+        :post_implementation_review_provider, :diff_review_annotation_provider
       )
+    end
+  end
+
+  describe "review extension point validation" do
+    it "requires post-implementation review providers to include the interface" do
+      provider = Class.new
+
+      expect {
+        described_class.register(name: "bad_review_provider", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::PostImplementationReviewProvider/)
+    end
+
+    it "requires diff review annotation providers to include the interface" do
+      provider = Class.new
+
+      expect {
+        described_class.register(name: "bad_annotation_provider", version: "1.0.0", provides: { diff_review_annotation_provider: provider })
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /must include Syrus::Plugin::DiffReviewAnnotationProvider/)
     end
   end
 end

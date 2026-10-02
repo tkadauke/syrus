@@ -292,23 +292,26 @@ rounds run, restrict visual review to specific changed files, and record seed
 notes (demo login, a record to look for) so the reviewer can reach an
 authenticated or populated view of the app instead of a blank one.
 
-## Review Plan
+## Review Notes
 
-Repositories can opt in to a lightweight self-review pass with a single
-`.syrus.yml` line:
+The bundled `cognitive_review` plugin is disabled by default. When enabled,
+Syrus runs a best-effort agentic pass after implementation-style workflows and
+asks it to flag changed diff ranges that deserve operator attention. Open
+notes appear in the Job review tab as warning-tinted ranges and plugin-owned
+side-panel cards.
 
-```yaml
-review_plan: true
-```
-
-Once the PR is open, the same agent that implemented the change looks back
-over its own diff and posts a PR comment pointing reviewers at the specific
-spots most worth a closer look — a tricky assumption, an edge case, a test
-gap — each anchored at a file and line, with a short note on why it matters.
-If nothing about the change stands out, no comment is posted at all.
-
-Review plan is best-effort: it never blocks or fails a Job. If the agent
-doesn't produce anything usable, the run simply moves on without a comment.
+The review tab also shows a PR-level review-note debt rollup for the
+selected diff version: total flagged ranges, open/unhandled notes, handled
+notes, dismissed notes, and a zero-note state when the reviewer submitted no
+ranges. The diff also includes a slim right-side metric rail that stays visible
+while wide code scrolls horizontally: red marks lines covered by open
+review-note obligations, while blue marks changed or context lines with no
+open review-note obligation. A diff version with no notes and no submitted
+review marker is not presented as no debt. Acknowledged notes, discussed notes,
+and covered ranges with operator diff comments count as handled. Unflagged
+changed lines are treated as having no PR-level review-note debt;
+repository-wide cognitive coverage or historical attention-debt metrics are
+separate concerns.
 
 ## Deploy
 
@@ -1300,6 +1303,9 @@ disableability, category, extension point classes, and basic author/source
 metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
+Disabled bundled plugins with their own operator docs, such as Review Notes,
+withhold their routes and extension-point providers while retaining
+previously written plugin records for when they are re-enabled.
 The list uses the same chip-based filter bar as other admin list pages: a
 Category chip filters by the plugin category taxonomy (language, agent
 provider, input source, MCP tool set, and the rest), and a Search chip

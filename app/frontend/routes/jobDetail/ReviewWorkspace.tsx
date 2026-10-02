@@ -1,9 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
+import { Select } from "../../components/Select"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { TypedArtifact } from "../../api/artifacts"
 import { Markdown } from "../../lib/Markdown"
@@ -14,14 +15,21 @@ import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
   fetchDiffReviewVersion,
+  type DiffReviewAnnotationsPayload,
   type DiffReviewComment,
   type DiffReviewVersion,
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
-import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, patchReviewDiffSettings, type ReviewDiffSettings, type ReviewDiffSettingsPayload } from "../../api/reviewDiffSettings"
+import {
+  DEFAULT_REVIEW_DIFF_SETTINGS,
+  fetchReviewDiffSettings,
+  patchReviewDiffSettings,
+  type ReviewDiffSettings,
+  type ReviewDiffSettingsPayload
+} from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
-import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
+import { ReviewableDiff, diffLineMetricProvidersForReview, type DiffLineMetricProvider, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useResizableSplitter } from "../chat/useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
@@ -32,7 +40,24 @@ import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
+type ReviewAnnotationFocusDetail = {
+  annotationId?: string
+  line?: number
+  path?: string
+  side?: "old" | "new"
+}
+
+type ReviewAnnotationHighlightDetail = {
+  annotationId?: string | null
+}
+
+type DiffMetricCandidate = {
+  id: string
+  label: string
+}
+
 const SURFACE = "job_review_workspace"
+const REVIEW_COMMENT_SURFACES = [SURFACE, "job_source_diff"]
 const REVIEW_COMMENTS_WIDTH_KEY = "syrus.review.comments.width"
 const REVIEW_COMMENTS_COLLAPSED_KEY = "syrus.review.comments.collapsed"
 const REVIEW_COMMENTS_DEFAULT_WIDTH = 384
@@ -45,13 +70,12 @@ const REVIEW_COMMENTS_PEEK_OPEN_DELAY_MS = 350
 const REVIEW_COMMENTS_PEEK_CLOSE_DELAY_MS = 150
 const REVIEW_COMMENTS_SPLITTER_CLASS =
   "group relative z-10 hidden h-screen w-4 shrink-0 cursor-col-resize outline-none transition-colors hover:bg-brand/5 focus-visible:bg-brand/10 lg:sticky lg:top-0 lg:block"
-const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS =
-  "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
-const REVIEW_COMMENTS_RAIL_CLASS =
-  "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
+const REVIEW_COMMENTS_SPLITTER_GRIP_CLASS = "absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-muted transition-opacity"
+const REVIEW_COMMENTS_RAIL_CLASS = "hidden h-screen w-12 shrink-0 border-l border-border bg-surface px-1.5 py-3 lg:block"
 
-export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
+export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
+  const { t: commonT } = useT("common")
   const jobId = payload.job.id
   const sourceDiff = useQuery({
     queryKey: ["jobs", String(jobId), "review_source_diff"],
@@ -64,7 +88,6 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     staleTime: Infinity
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
-  useReviewDiffSettingsShortcuts(reviewSettings)
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
   // "paint" is a closer proxy for when the reviewer actually sees something.
@@ -78,6 +101,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
+  const [highlightedReviewAnnotationId, setHighlightedReviewAnnotationId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [commentsPeekOpen, setCommentsPeekOpen] = useState(false)
   const commentsPeekOpenTimerRef = useRef<number | null>(null)
@@ -103,7 +127,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     queryKey: ["jobs", String(jobId), "review_source_diff_range", selectedRange?.baseSha, selectedRange?.headSha],
     queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } })
   })
-  const activeVersionId = selectedRange ? rangeDiff.data?.version?.id ?? null : selectedVersionId ?? defaultVersionId
+  const activeVersionId = selectedRange ? (rangeDiff.data?.version?.id ?? null) : (selectedVersionId ?? defaultVersionId)
   const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId
   const historicalVersion = useQuery({
     enabled: sourceDiff.isSuccess && historicalVersionSelected,
@@ -124,11 +148,17 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         files: historicalVersion.data.files,
         truncated: historicalVersion.data.truncated,
         diff_error: historicalVersion.data.diff_error,
+        review_annotations: historicalVersion.data.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS,
         version: historicalVersion.data
       }
     }
     return sourceDiff.data
   }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
+  const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
+  const sidebarReviewAnnotationCounts =
+    activeReviewAnnotations.sidebar_counts && activeReviewAnnotations.sidebar_counts.length > 0 ? activeReviewAnnotations.sidebar_counts : activeReviewAnnotations.counts
+  const sidebarReviewAnnotationPanels =
+    activeReviewAnnotations.sidebar_panels && activeReviewAnnotations.sidebar_panels.length > 0 ? activeReviewAnnotations.sidebar_panels : activeReviewAnnotations.panels
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -136,13 +166,31 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     headRef: activeDiff?.head_ref,
     includeAllVersions: true,
     jobId,
+    commentSurfaces: REVIEW_COMMENT_SURFACES,
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
+    reviewAnnotationActions: activeReviewAnnotations.actions,
+    reviewAnnotationCounts: sidebarReviewAnnotationCounts,
+    reviewAnnotationPanels: sidebarReviewAnnotationPanels,
+    reviewFilePaths: activeDiff?.files.map((file) => file.path) ?? [],
     supportsGlobalComments: true,
     surface: SURFACE,
     versions
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+  const diffMetricProviders = useMemo(
+    () => diffLineMetricProvidersForReview(activeReviewAnnotations.counts, commonT, diffLineMetricProviders),
+    [activeReviewAnnotations.counts, commonT, diffLineMetricProviders]
+  )
+  const diffMetricCandidates = diffMetricProviders.map(metricCandidateFromProvider)
+  const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
+  const lastEnabledMetricGutterIdRef = useRef(activeMetricGutterId === "off" ? (diffMetricCandidates[0]?.id ?? "off") : activeMetricGutterId)
+  const metricGutterMutation = useReviewDiffSettingsMutation(reviewSettings)
+  useReviewDiffSettingsShortcuts(reviewSettings)
+
+  useEffect(() => {
+    if (activeMetricGutterId !== "off") lastEnabledMetricGutterIdRef.current = activeMetricGutterId
+  }, [activeMetricGutterId])
 
   useEffect(() => {
     if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
@@ -183,6 +231,38 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     }
   }, [activeVersionId, pendingCommentFocus])
 
+  useEffect(() => {
+    function focusReviewAnnotation(event: Event) {
+      const detail = (event as CustomEvent<ReviewAnnotationFocusDetail>).detail
+      if (!detail?.path) return
+      setSelectedPath(detail.path)
+
+      let frame = 0
+      let attempts = 0
+      const scheduleFocus = () => {
+        frame = window.requestAnimationFrame(() => {
+          attempts += 1
+          if (focusReviewAnnotationTarget(detail) || attempts >= 12) return
+          scheduleFocus()
+        })
+      }
+      scheduleFocus()
+    }
+
+    window.addEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
+    return () => window.removeEventListener("syrus:focus-review-annotation", focusReviewAnnotation)
+  }, [])
+
+  useEffect(() => {
+    function highlightReviewAnnotation(event: Event) {
+      const detail = (event as CustomEvent<ReviewAnnotationHighlightDetail>).detail
+      setHighlightedReviewAnnotationId(detail?.annotationId || null)
+    }
+
+    window.addEventListener("syrus:highlight-review-annotation", highlightReviewAnnotation)
+    return () => window.removeEventListener("syrus:highlight-review-annotation", highlightReviewAnnotation)
+  }, [])
+
   function focusPendingComment(pendingCommentFocus: DiffReviewComment) {
     if (pendingCommentFocus.anchor_kind === "review") {
       const record = document.querySelector(`[data-diff-review-comment-id="${pendingCommentFocus.id}"]`)
@@ -193,11 +273,18 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     if (!pendingCommentFocus.path) return true
 
     const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
-    const anchor = pendingCommentFocus.anchor_key
-      ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
-      : null
+    const anchor = pendingCommentFocus.anchor_key ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`) : null
     ;(anchor || file)?.scrollIntoView({ block: "center" })
     return Boolean(anchor || file)
+  }
+
+  function focusReviewAnnotationTarget(detail: ReviewAnnotationFocusDetail) {
+    const annotationSelector = detail.annotationId ? `[data-diff-review-annotation-ids~="${CSS.escape(detail.annotationId)}"]` : null
+    const lineSelector = detail.side && detail.line ? `[data-diff-anchor="${CSS.escape(`${detail.side}:${detail.line}`)}"]` : null
+    const file = document.querySelector(`[data-diff-file="${CSS.escape(detail.path ?? "")}"]`)
+    const target = (annotationSelector ? file?.querySelector(annotationSelector) : null) || (lineSelector ? file?.querySelector(lineSelector) : null) || file
+    target?.scrollIntoView({ block: "center" })
+    return Boolean(target)
   }
 
   function startComment(nextSelection: DiffLineSelection) {
@@ -242,48 +329,90 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
   if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (historicalVersionSelected && historicalVersion.isError) return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (historicalVersionSelected && historicalVersion.isError)
+    return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
   if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
   if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
-    <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
-      <div className="min-w-0 space-y-4 lg:flex-1">
-        <Section.Root>
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <SectionHeading>{t("review_summary_title")}</SectionHeading>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
-              </div>
-              <Button aria-label={t("review_settings_button")} className="h-9 w-9 shrink-0" onClick={() => setSettingsOpen(true)} size="icon" title={t("review_settings_button")} variant="secondary">
-                <GearIcon />
-              </Button>
-            </div>
-            <div className="text-xs">
-              <DiffReviewVersionSelector
-                disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
-                onChange={selectVersion}
-                onRangeChange={selectRange}
-                selectedRange={selectedRange}
-                selectedVersionId={activeVersionId}
-                versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
-              />
-            </div>
-          </div>
-          {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
-        </Section.Root>
-
-        <ReviewArtifactsPanel
-          payload={payload}
-          reviewArtifacts={reviewArtifacts}
-          selectedRange={selectedRange}
-          selectedVersion={selectedVersion}
-          versions={versions}
+    <>
+      {diffMetricCandidates.length > 0 ? (
+        <ReviewMetricGutterShortcut
+          activeMetricGutterId={activeMetricGutterId}
+          candidates={diffMetricCandidates}
+          lastEnabledMetricGutterIdRef={lastEnabledMetricGutterIdRef}
+          onToggle={(metricGutter) => metricGutterMutation.mutate({ metric_gutter: metricGutter })}
         />
+      ) : null}
+      <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
+        <div className="min-w-0 space-y-4 lg:flex-1">
+          <Section.Root>
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SectionHeading>{t("review_summary_title")}</SectionHeading>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  {diffMetricCandidates.length > 0 ? (
+                    <label className="flex items-center gap-2 text-xs text-text-secondary">
+                      <span>{t("review_metric_gutter_label")}</span>
+                      <Select
+                        aria-label={t("review_metric_gutter_label")}
+                        className="min-w-40"
+                        fullWidth={false}
+                        onChange={(event) => metricGutterMutation.mutate({ metric_gutter: event.target.value })}
+                        value={activeMetricGutterId}
+                      >
+                        <option value="off">{t("review_metric_gutter_off")}</option>
+                        {diffMetricCandidates.map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>
+                            {candidate.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  ) : null}
+                  <Button
+                    aria-label={t("review_settings_button")}
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setSettingsOpen(true)}
+                    size="icon"
+                    title={t("review_settings_button")}
+                    variant="secondary"
+                  >
+                    <GearIcon />
+                  </Button>
+                </div>
+              </div>
+              <div className="text-xs">
+                <DiffReviewVersionSelector
+                  disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
+                  onChange={selectVersion}
+                  onRangeChange={selectRange}
+                  selectedRange={selectedRange}
+                  selectedVersionId={activeVersionId}
+                  versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
+                />
+              </div>
+            </div>
+            {payload.summary ? (
+              <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
+            ) : (
+              <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
+            )}
+          </Section.Root>
 
-        {/*
+          <ReviewArtifactsPanel
+            payload={payload}
+            reviewArtifacts={reviewArtifacts}
+            selectedRange={selectedRange}
+            selectedVersion={selectedVersion}
+            versions={versions}
+          />
+
+          {/*
           Not `overflow-hidden`: this diff viewer renders with `scroll="natural"`,
           so its file headers pin via `position: sticky` against the page itself.
           Any ancestor whose `overflow` isn't `visible` -- including `hidden` --
@@ -304,7 +433,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             composingSelection={feedback.composingSelection}
             editingThreadBody={feedback.editingThreadBody}
             editingThreadId={feedback.editingThreadId}
-            emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</div>}
+            emptyState={
+              <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                {t("source_no_changed_files")}
+              </div>
+            }
             fileCommentCounts={feedback.commentCounts}
             files={activeDiff.files}
             mode="continuous"
@@ -321,9 +454,20 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}
             renderImageDiff={(file) => (
-              <ImageDiffThumbnails baseRef={activeDiff.base_sha ?? activeDiff.base_ref} file={file} headRef={activeDiff.head_sha ?? activeDiff.head_ref} jobId={jobId} />
+              <ImageDiffThumbnails
+                baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
+                file={file}
+                headRef={activeDiff.head_sha ?? activeDiff.head_ref}
+                jobId={jobId}
+              />
             )}
             reviewSettings={reviewSettings}
+            reviewAnnotations={activeReviewAnnotations.annotations}
+            reviewAnnotationCounts={activeReviewAnnotations.counts}
+            reviewAnnotationRanges={activeReviewAnnotations.ranges}
+            highlightedReviewAnnotationId={highlightedReviewAnnotationId}
+            activeDiffLineMetricProviderId={activeMetricGutterId}
+            diffLineMetricProviders={diffLineMetricProviders}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders
@@ -376,7 +520,18 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       ) : null}
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
+    </>
   )
+}
+
+const EMPTY_REVIEW_ANNOTATIONS: DiffReviewAnnotationsPayload = {
+  annotations: {},
+  ranges: {},
+  panels: [],
+  sidebar_panels: [],
+  actions: [],
+  counts: [],
+  sidebar_counts: []
 }
 
 function ReviewCommentsSplitterHandle({
@@ -412,7 +567,9 @@ function ReviewCommentsSplitterHandle({
       title={label}
     >
       <span className="absolute left-1/2 top-0 h-full -translate-x-1/2 border-l border-border" />
-      <span className={`${REVIEW_COMMENTS_SPLITTER_GRIP_CLASS} ${collapsed ? "opacity-70" : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-80"}`} />
+      <span
+        className={`${REVIEW_COMMENTS_SPLITTER_GRIP_CLASS} ${collapsed ? "opacity-70" : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-80"}`}
+      />
     </div>
   )
 }
@@ -429,18 +586,17 @@ function ReviewCommentsCollapsedRail({
   summaries: { count: number; label: string; marker: string; versionId: number }[]
 }) {
   return (
-    <aside
-      aria-label={label}
-      className={REVIEW_COMMENTS_RAIL_CLASS}
-      data-testid="review-comments-rail"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <aside aria-label={label} className={REVIEW_COMMENTS_RAIL_CLASS} data-testid="review-comments-rail" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="flex flex-col items-center gap-3">
         <CommentIcon />
         <div className="flex w-full flex-col items-center gap-2">
           {summaries.map((summary) => (
-            <div className="flex w-full flex-col items-center gap-1" data-testid="review-comments-rail-version" key={summary.versionId} title={`${summary.label}: ${summary.count}`}>
+            <div
+              className="flex w-full flex-col items-center gap-1"
+              data-testid="review-comments-rail-version"
+              key={summary.versionId}
+              title={`${summary.label}: ${summary.count}`}
+            >
               <span className="max-w-full truncate text-[11px] font-semibold text-gray-700 dark:text-gray-300">{summary.marker}</span>
               <span className="min-w-5 rounded-full bg-brand px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">{summary.count}</span>
             </div>
@@ -453,7 +609,16 @@ function ReviewCommentsCollapsedRail({
 
 function CommentIcon() {
   return (
-    <svg aria-hidden="true" className="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5 text-gray-500 dark:text-gray-400"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
     </svg>
   )
@@ -492,11 +657,9 @@ function clearTimer(timerRef: { current: number | null }) {
 
 const REVIEW_SHORTCUT_GROUP_ORDER = 2
 
-function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
-  const { t } = useT("jobs")
+function useReviewDiffSettingsMutation(reviewSettings: ReviewDiffSettings) {
   const queryClient = useQueryClient()
-  const shortcutGroup = t("review_shortcuts_group")
-  const mutation = useMutation({
+  return useMutation({
     mutationFn: patchReviewDiffSettings,
     onMutate: async (patch: Partial<ReviewDiffSettings>) => {
       await queryClient.cancelQueries({ queryKey: ["review_diff_settings"] })
@@ -515,39 +678,102 @@ function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
       queryClient.setQueryData(["review_diff_settings"], payload)
     }
   })
+}
+
+function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
+  const { t } = useT("jobs")
+  const shortcutGroup = t("review_shortcuts_group")
+  const mutation = useReviewDiffSettingsMutation(reviewSettings)
 
   function updateSetting<Key extends keyof ReviewDiffSettings>(key: Key, value: ReviewDiffSettings[Key]) {
     mutation.mutate({ [key]: value } as Partial<ReviewDiffSettings>)
   }
 
-  useOptionalShortcut("alt+shift+w", () => {
-    updateSetting("line_wrapping", reviewSettings.line_wrapping === "wrap" ? "scroll" : "wrap")
-  }, {
-    description: t("review_shortcut_toggle_wrapping"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+v", () => {
-    updateSetting("desktop_view", reviewSettings.desktop_view === "unified" ? "split" : "unified")
-  }, {
-    description: t("review_shortcut_cycle_view"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+h", () => {
-    updateSetting("syntax_highlighting", !reviewSettings.syntax_highlighting)
-  }, {
-    description: t("review_shortcut_toggle_syntax"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
-  useOptionalShortcut("alt+shift+s", () => {
-    updateSetting("whitespace", reviewSettings.whitespace === "show" ? "trim_trailing" : "show")
-  }, {
-    description: t("review_shortcut_cycle_whitespace"),
-    group: shortcutGroup,
-    groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
-  })
+  useOptionalShortcut(
+    "alt+shift+w",
+    () => {
+      updateSetting("line_wrapping", reviewSettings.line_wrapping === "wrap" ? "scroll" : "wrap")
+    },
+    {
+      description: t("review_shortcut_toggle_wrapping"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+v",
+    () => {
+      updateSetting("desktop_view", reviewSettings.desktop_view === "unified" ? "split" : "unified")
+    },
+    {
+      description: t("review_shortcut_cycle_view"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+h",
+    () => {
+      updateSetting("syntax_highlighting", !reviewSettings.syntax_highlighting)
+    },
+    {
+      description: t("review_shortcut_toggle_syntax"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  useOptionalShortcut(
+    "alt+shift+s",
+    () => {
+      updateSetting("whitespace", reviewSettings.whitespace === "show" ? "trim_trailing" : "show")
+    },
+    {
+      description: t("review_shortcut_cycle_whitespace"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+}
+
+function ReviewMetricGutterShortcut({
+  activeMetricGutterId,
+  candidates,
+  lastEnabledMetricGutterIdRef,
+  onToggle
+}: {
+  activeMetricGutterId: string
+  candidates: DiffMetricCandidate[]
+  lastEnabledMetricGutterIdRef: RefObject<string>
+  onToggle: (metricGutter: string) => void
+}) {
+  const { t } = useT("jobs")
+  const shortcutGroup = t("review_shortcuts_group")
+  useOptionalShortcut(
+    "alt+shift+g",
+    () => {
+      const fallbackCandidate = candidates[0]!.id
+      const rememberedMetricGutterId = lastEnabledMetricGutterIdRef.current
+      const lastEnabledMetricGutterId =
+        rememberedMetricGutterId && candidates.some((candidate) => candidate.id === rememberedMetricGutterId) ? rememberedMetricGutterId : fallbackCandidate
+      onToggle(activeMetricGutterId === "off" ? lastEnabledMetricGutterId : "off")
+    },
+    {
+      description: t("review_shortcut_toggle_metric_gutter"),
+      group: shortcutGroup,
+      groupOrder: REVIEW_SHORTCUT_GROUP_ORDER
+    }
+  )
+  return null
+}
+
+function metricCandidateFromProvider(provider: DiffLineMetricProvider): DiffMetricCandidate {
+  return { id: provider.id, label: provider.label }
+}
+
+function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCandidate[]) {
+  if (configuredId === "off") return "off"
+  if (candidates.some((candidate) => candidate.id === configuredId)) return configuredId
+  return candidates[0]?.id ?? "off"
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
@@ -596,7 +822,11 @@ function ReviewArtifactsPanel({
                 <div className={surfaceClasses("inset", "sm", "min-w-0 overflow-x-auto")}>
                   <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
-                    {payload.test_plan.steps.map((step, index) => <li className="break-words" key={`${index}-${step}`}>{step}</li>)}
+                    {payload.test_plan.steps.map((step, index) => (
+                      <li className="break-words" key={`${index}-${step}`}>
+                        {step}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : null}
@@ -607,12 +837,7 @@ function ReviewArtifactsPanel({
               ))}
             </div>
           ) : null}
-          <VersionedArtifactsList
-            artifacts={payload.typed_artifacts}
-            selectedRange={selectedRange}
-            selectedVersion={selectedVersion}
-            versions={versions}
-          />
+          <VersionedArtifactsList artifacts={payload.typed_artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
       ) : null}
     </Section.Root>
@@ -665,14 +890,17 @@ function VersionedArtifactsList({
       matching.push(artifact)
     }
   }
-  const displayed = [ ...matching, ...unversioned ]
+  const displayed = [...matching, ...unversioned]
 
   if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 
   return (
     <div className="min-w-0 space-y-4">
       {displayed.map((artifact, index) => (
-        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" key={artifactKey(artifact, index)}>
+        <div
+          className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+          key={artifactKey(artifact, index)}
+        >
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
             <span className="min-w-0 break-words font-semibold text-text-primary">{artifact.title}</span>
             <span className="min-w-0 break-all text-xs text-text-muted">{artifact.type}</span>
@@ -690,7 +918,7 @@ function VersionedArtifactsList({
 }
 
 function artifactKey(artifact: TypedArtifact, index: number) {
-  return [ artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index ].join("-")
+  return [artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index].join("-")
 }
 
 function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
@@ -727,17 +955,19 @@ function shortSha(sha: string) {
 }
 
 function reviewArtifactSummaries(workflows: JobWorkflow[]) {
-  return workflows.flatMap((workflow) => {
-    const artifacts = workflow.artifacts || {}
-    const summaries: string[] = []
-    const testPlan = stepArtifactTestPlan(artifacts.test_plan)
-    if (testPlan?.notes) summaries.push(testPlan.notes)
-    for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
-      summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
-      summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    return summaries
-  }).slice(0, 6)
+  return workflows
+    .flatMap((workflow) => {
+      const artifacts = workflow.artifacts || {}
+      const summaries: string[] = []
+      const testPlan = stepArtifactTestPlan(artifacts.test_plan)
+      if (testPlan?.notes) summaries.push(testPlan.notes)
+      for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
+        summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
+        summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      return summaries
+    })
+    .slice(0, 6)
 }

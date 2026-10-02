@@ -2,7 +2,7 @@
 #
 # Thin adapter over RepoDefaultBranchSyrusYml, which owns the actual GitHub
 # fetch and SyrusYml parse (shared with RepoAdversarialReviewPlan,
-# RepoVisualReviewPlan, RepoGradeLoopPlan, and RepoReviewPlanPlan so
+# RepoVisualReviewPlan, and RepoGradeLoopPlan so
 # Workflows::Base resolves the repository's default-branch config once per
 # workflow instantiation instead of each plan fetching it independently).
 # Previously parsed the GitHub content directly with YAML.safe_load +

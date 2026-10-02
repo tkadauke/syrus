@@ -5,7 +5,15 @@ import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as highlighterLib from "../../lib/highlighter"
 import * as performanceMarkers from "../../lib/performanceMarkers"
 import { DEFAULT_REVIEW_DIFF_SETTINGS } from "../../api/reviewDiffSettings"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, annotationsForFile, filesFromUnifiedDiff, isLineAnnotations } from "./ReviewableDiff"
+import {
+  AgentDiff,
+  DiffHunkSnippet,
+  ReviewableDiff,
+  annotationsForFile,
+  filesFromUnifiedDiff,
+  isLineAnnotations,
+  type DiffLineMetricProvider
+} from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -13,14 +21,9 @@ const files = [
   {
     additions: 1,
     deletions: 1,
-    patch: [
-      "diff --git a/app/models/job.rb b/app/models/job.rb",
-      "--- a/app/models/job.rb",
-      "+++ b/app/models/job.rb",
-      "@@ -1,2 +1,2 @@",
-      "-old",
-      "+new"
-    ].join("\n"),
+    patch: ["diff --git a/app/models/job.rb b/app/models/job.rb", "--- a/app/models/job.rb", "+++ b/app/models/job.rb", "@@ -1,2 +1,2 @@", "-old", "+new"].join(
+      "\n"
+    ),
     path: "app/models/job.rb",
     status: "modified"
   },
@@ -59,14 +62,9 @@ function manyFiles(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     additions: 1,
     deletions: 0,
-    patch: [
-      `diff --git a/file${index}.rb b/file${index}.rb`,
-      `--- a/file${index}.rb`,
-      `+++ b/file${index}.rb`,
-      "@@ -1,1 +1,2 @@",
-      " keep",
-      "+added"
-    ].join("\n"),
+    patch: [`diff --git a/file${index}.rb b/file${index}.rb`, `--- a/file${index}.rb`, `+++ b/file${index}.rb`, "@@ -1,1 +1,2 @@", " keep", "+added"].join(
+      "\n"
+    ),
     path: `file${index}.rb`,
     status: "modified"
   }))
@@ -127,7 +125,22 @@ describe("ReviewableDiff", () => {
   })
 
   it("applies persisted review rendering settings", () => {
-    render(<ReviewableDiff files={files} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false, tab_width: 4, density: "compact", intraline_highlighting: "off" }} showFileHeaders />)
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="continuous"
+        reviewSettings={{
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          desktop_view: "split",
+          line_wrapping: "scroll",
+          line_numbers: false,
+          tab_width: 4,
+          density: "compact",
+          intraline_highlighting: "off"
+        }}
+        showFileHeaders
+      />
+    )
 
     const table = screen.getAllByRole("table")[0]
     expect(table).toHaveAttribute("data-review-diff-view", "split")
@@ -140,7 +153,9 @@ describe("ReviewableDiff", () => {
   it("keeps compact density visibly denser than comfortable across diff rows, headers, and file lists", () => {
     const compactSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "compact" as const }
     const comfortableSettings = { ...DEFAULT_REVIEW_DIFF_SETTINGS, density: "comfortable" as const }
-    const { rerender } = render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={compactSettings} showFileHeaders />)
+    const { rerender } = render(
+      <ReviewableDiff changedFilesPopup files={files} mode="continuous" onCommentLine={vi.fn()} reviewSettings={compactSettings} showFileHeaders />
+    )
 
     expect(screen.getAllByRole("table")[0]).toHaveClass("text-2xs")
     expect(getCodeCellText("new")).toHaveClass("py-0", "leading-[14px]")
@@ -165,7 +180,14 @@ describe("ReviewableDiff", () => {
   })
 
   it("gives desktop split panes equal fixed-width columns when wrapping long one-sided lines", () => {
-    render(<ReviewableDiff files={[splitWideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }} showFileHeaders />)
+    render(
+      <ReviewableDiff
+        files={[splitWideLineFile()]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }}
+        showFileHeaders
+      />
+    )
 
     const table = screen.getByRole("table")
     const cols = Array.from(table.querySelectorAll("col"))
@@ -193,7 +215,14 @@ describe("ReviewableDiff", () => {
   })
 
   it("clips desktop split panes instead of letting horizontal-scroll long lines move the center boundary", () => {
-    render(<ReviewableDiff files={[splitWideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false }} showFileHeaders />)
+    render(
+      <ReviewableDiff
+        files={[splitWideLineFile()]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "scroll", line_numbers: false }}
+        showFileHeaders
+      />
+    )
 
     const table = screen.getByRole("table")
     const cols = Array.from(table.querySelectorAll("col"))
@@ -223,21 +252,23 @@ describe("ReviewableDiff", () => {
   it("keeps added files in desktop split view on the fixed split table layout", () => {
     render(
       <ReviewableDiff
-        files={[{
-          additions: 2,
-          deletions: 0,
-          patch: [
-            "diff --git a/app/models/new_job.rb b/app/models/new_job.rb",
-            "new file mode 100644",
-            "--- /dev/null",
-            "+++ b/app/models/new_job.rb",
-            "@@ -0,0 +1,2 @@",
-            "+short_new_value",
-            `+${"new_value_".repeat(40)}`
-          ].join("\n"),
-          path: "app/models/new_job.rb",
-          status: "added"
-        }]}
+        files={[
+          {
+            additions: 2,
+            deletions: 0,
+            patch: [
+              "diff --git a/app/models/new_job.rb b/app/models/new_job.rb",
+              "new file mode 100644",
+              "--- /dev/null",
+              "+++ b/app/models/new_job.rb",
+              "@@ -0,0 +1,2 @@",
+              "+short_new_value",
+              `+${"new_value_".repeat(40)}`
+            ].join("\n"),
+            path: "app/models/new_job.rb",
+            status: "added"
+          }
+        ]}
         mode="continuous"
         reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_wrapping: "wrap", line_numbers: true }}
         showFileHeaders
@@ -371,7 +402,13 @@ describe("ReviewableDiff", () => {
     })
 
     try {
-      render(<ReviewableDiff files={[wideLineFile()]} mode="continuous" reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_wrapping: "wrap", line_numbers: true }} />)
+      render(
+        <ReviewableDiff
+          files={[wideLineFile()]}
+          mode="continuous"
+          reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_wrapping: "wrap", line_numbers: true }}
+        />
+      )
 
       const scroller = screen.getByTestId("diff-file-scroll")
       const table = screen.getByRole("table")
@@ -383,12 +420,7 @@ describe("ReviewableDiff", () => {
       expect(table).toHaveAttribute("data-review-diff-view", "unified")
       expect(table).toHaveClass("w-full", "table-fixed")
       expect(table).not.toHaveClass("min-w-full")
-      expect(cols.map((col) => col.getAttribute("style"))).toEqual([
-        "width: 3rem;",
-        "width: 1.5rem;",
-        null,
-        "width: 1.5rem;"
-      ])
+      expect(cols.map((col) => col.getAttribute("style"))).toEqual(["width: 3rem;", "width: 1.5rem;", null, "width: 1.5rem;"])
       expect(codeCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words", "[&_span]:break-words")
       expect(codeCell).not.toHaveClass("min-w-[40rem]")
       expect(hunkCell).toHaveClass("min-w-0", "max-w-0", "overflow-hidden", "whitespace-pre-wrap", "break-words")
@@ -402,20 +434,15 @@ describe("ReviewableDiff", () => {
   it("renders visible whitespace when enabled", () => {
     render(
       <ReviewableDiff
-        files={[{
-          additions: 1,
-          deletions: 0,
-          patch: [
-            "diff --git a/f.rb b/f.rb",
-            "--- a/f.rb",
-            "+++ b/f.rb",
-            "@@ -1,1 +1,2 @@",
-            " keep value",
-            "+new\tvalue  "
-          ].join("\n"),
-          path: "f.rb",
-          status: "modified"
-        }]}
+        files={[
+          {
+            additions: 1,
+            deletions: 0,
+            patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,2 @@", " keep value", "+new\tvalue  "].join("\n"),
+            path: "f.rb",
+            status: "modified"
+          }
+        ]}
         mode="continuous"
         reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, syntax_highlighting: false, visible_whitespace: true }}
       />
@@ -461,14 +488,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("keeps coverage annotations attached to new-line coordinates", () => {
-    render(
-      <ReviewableDiff
-        annotations={{ "app/models/job.rb": { "1": "uncovered" } }}
-        files={files}
-        mode="single-file"
-        selectedPath="app/models/job.rb"
-      />
-    )
+    render(<ReviewableDiff annotations={{ "app/models/job.rb": { "1": "uncovered" } }} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
     const row = screen.getByText("new").closest("tr")
     expect(row).toHaveAttribute("data-coverage", "uncovered")
@@ -489,12 +509,231 @@ describe("ReviewableDiff", () => {
   })
 
   it("does not misapply an empty per-file annotations map to a rendered file", () => {
-    render(
-      <ReviewableDiff annotations={{}} files={files} mode="single-file" selectedPath="app/models/job.rb" />
-    )
+    render(<ReviewableDiff annotations={{}} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
     const row = screen.getByText("new").closest("tr")
     expect(row).not.toHaveAttribute("data-coverage")
+  })
+
+  it("renders plugin review-note markers only for annotated new lines", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotations={{
+          "app/models/job.rb": {
+            "1": [{ id: "note-1", title: "Inspect this branch" }]
+          }
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const row = screen.getByText("new").closest("tr") as HTMLElement
+    expect(within(row).getByTitle("Inspect this branch")).toHaveTextContent("1")
+    expect(screen.queryByTitle("Missing note")).not.toBeInTheDocument()
+  })
+
+  it("renders split-view old-side range note markers in the review-note rail after coverage", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "note-1", side: "old", start_line: 1, end_line: 1, title: "Inspect deleted code" }]
+        }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_numbers: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const row = screen.getByText("old").closest("tr") as HTMLElement
+    const cells = Array.from(row.querySelectorAll("td"))
+
+    expect(cells).toHaveLength(6)
+    expect(cells[4]).not.toHaveTextContent("1")
+    expect(within(cells[5]).getByTitle("Inspect deleted code")).toHaveTextContent("1")
+  })
+
+  it("renders multi-line new-side range note markers on every covered line", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationRanges={{
+          "app/models/run.rb": [{ id: "note-1", side: "new", start_line: 5, end_line: 6, title: "Inspect changed range" }]
+        }}
+        selectedPath="app/models/run.rb"
+      />
+    )
+
+    expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+  })
+
+  it("renders full review-note panels inline at the start of covered ranges", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationRanges={{
+          "app/models/run.rb": [
+            {
+              id: "note-1",
+              side: "new",
+              start_line: 5,
+              end_line: 6,
+              title: "Inspect changed range",
+              body: "This explanation should appear inside the diff body.",
+              marker_component: "missing/marker",
+              inline_component: "missing/panel"
+            }
+          ]
+        }}
+        selectedPath="app/models/run.rb"
+      />
+    )
+
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(within(viewer).getByText("Inspect changed range")).toBeInTheDocument()
+    expect(within(viewer).getByText("This explanation should appear inside the diff body.")).toBeInTheDocument()
+    expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+  })
+
+  it("keeps the diff metric gutter hidden when no metric is registered", () => {
+    render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument()
+  })
+
+  it("renders review-note risk in a sticky right-side metric gutter", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Inspect changed range" }]
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const riskyRow = screen.getByText("new").closest("tr") as HTMLElement
+    const clearRow = screen.getByText("old").closest("tr") as HTMLElement
+    const riskyMetric = within(riskyRow).getByTitle("1 open review-note obligation")
+    const clearMetric = within(clearRow).getByTitle("No open review-note obligation")
+
+    expect(riskyMetric.closest("td")).toHaveClass("sticky", "right-0")
+    expect(riskyMetric).toHaveClass("bg-danger")
+    expect(riskyMetric).toHaveAttribute("data-diff-review-annotation-ids", "cognitive_review_note:7")
+    expect(clearMetric).toHaveClass("bg-info")
+  })
+
+  it("updates review-note risk when note ranges become handled", () => {
+    const { rerender } = render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Inspect changed range" }]
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
+
+    rerender(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{}}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("maps review-note risk to side-aware old-line ranges in split view", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 1 }]}
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [{ id: "cognitive_review_note:8", side: "old", start_line: 1, end_line: 1, title: "Inspect deleted code" }]
+        }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", line_numbers: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const oldRow = screen.getByText("old").closest("tr") as HTMLElement
+    const newRow = screen.getByText("new").closest("tr") as HTMLElement
+
+    expect(within(oldRow).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
+    expect(within(newRow).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("keeps metric rows aligned across collapsed and expanded hidden hunk context", async () => {
+    const gapFile = {
+      additions: 1,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/models/gap.rb b/app/models/gap.rb",
+        "--- a/app/models/gap.rb",
+        "+++ b/app/models/gap.rb",
+        "@@ -1,1 +1,1 @@",
+        " first",
+        "@@ -5,1 +5,2 @@",
+        " fifth",
+        "+sixth"
+      ].join("\n"),
+      path: "app/models/gap.rb",
+      status: "modified"
+    }
+    render(
+      <ReviewableDiff
+        files={[gapFile]}
+        mode="single-file"
+        onLoadFileContext={async () => "first\nsecond\nthird\nfourth\nfifth\nsixth"}
+        reviewAnnotationCounts={[{ id: "cognitive_review.total", label: "Flagged ranges", value: 0 }]}
+        selectedPath="app/models/gap.rb"
+        showFileHeaders
+      />
+    )
+
+    const hunkMetricCells = screen
+      .getAllByTestId("diff-metric-gutter-cell")
+      .filter((cell) => (cell.closest("tr") as HTMLElement | null)?.dataset.diffKind === "hunk")
+    expect(hunkMetricCells.length).toBeGreaterThan(0)
+    hunkMetricCells.forEach((cell) => expect(cell).toBeEmptyDOMElement())
+
+    fireEvent.click(screen.getByRole("button", { name: "Load whole file" }))
+
+    await screen.findByText("third")
+    expect(within(screen.getByText("third").closest("tr") as HTMLElement).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
+  })
+
+  it("supports future metric providers in the same sticky gutter", () => {
+    const provider: DiffLineMetricProvider = {
+      id: "coverage.pr",
+      label: "PR coverage",
+      metricForLine: ({ line }) =>
+        line.kind === "add" ? { id: "coverage.pr", label: "PR coverage", tone: "warning", title: `Coverage pending on ${line.newLine}` } : null
+    }
+
+    render(<ReviewableDiff diffLineMetricProviders={[provider]} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    const row = screen.getByText("new").closest("tr") as HTMLElement
+    const marker = within(row).getByTitle("Coverage pending on 1")
+
+    expect(marker.closest("td")).toHaveClass("sticky", "right-0")
+    expect(marker).toHaveAttribute("data-diff-metric-id", "coverage.pr")
+    expect(marker).toHaveClass("bg-warning")
   })
 
   it("exposes typed line selections for optional comment callbacks", () => {
@@ -948,11 +1187,7 @@ describe("ReviewableDiff", () => {
     const popupText = dialog.textContent || ""
     expect(popupText.indexOf("app")).toBeLessThan(popupText.indexOf("models"))
     expect(popupText.indexOf("models")).toBeLessThan(popupText.indexOf("deep.rb"))
-    expect(changedFiles.map((button) => button.getAttribute("title"))).toEqual([
-      "app/models/deep.rb (+5 -4)",
-      "a.rb (+2 -0)",
-      "z.rb (+1 -0)"
-    ])
+    expect(changedFiles.map((button) => button.getAttribute("title"))).toEqual(["app/models/deep.rb (+5 -4)", "a.rb (+2 -0)", "z.rb (+1 -0)"])
 
     fireEvent.click(appFolder)
     expect(appFolder).toHaveAttribute("aria-expanded", "false")
@@ -1046,9 +1281,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("shows the plain unavailable placeholder for a patch-less non-image file", () => {
-    const binaryFiles = [
-      { additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }
-    ]
+    const binaryFiles = [{ additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }]
 
     render(<ReviewableDiff files={binaryFiles} mode="single-file" selectedPath="vendor/some.bin" unavailableState="Diff not available" />)
 
@@ -1056,9 +1289,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("delegates to renderImageDiff for a patch-less image file instead of the plain placeholder", () => {
-    const imageFiles = [
-      { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
-    ]
+    const imageFiles = [{ additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }]
 
     render(
       <ReviewableDiff
@@ -1075,9 +1306,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("falls back to the plain placeholder for an image file when no renderImageDiff is given", () => {
-    const imageFiles = [
-      { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
-    ]
+    const imageFiles = [{ additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }]
 
     render(<ReviewableDiff files={imageFiles} mode="single-file" selectedPath="app/assets/images/logo.png" unavailableState="Diff not available" />)
 
@@ -1273,14 +1502,7 @@ describe("file-level virtualization", () => {
     function Controlled() {
       const [selectedPath, setSelectedPath] = useState<string | null>(null)
       return (
-        <ReviewableDiff
-          changedFilesPopup
-          files={manyFiles(60)}
-          mode="continuous"
-          onSelectFile={setSelectedPath}
-          selectedPath={selectedPath}
-          showFileHeaders
-        />
+        <ReviewableDiff changedFilesPopup files={manyFiles(60)} mode="continuous" onSelectFile={setSelectedPath} selectedPath={selectedPath} showFileHeaders />
       )
     }
     render(<Controlled />)
@@ -1306,14 +1528,7 @@ describe("hidden-context expansion", () => {
     return {
       additions: 1,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        `@@ -${startLine},1 +${startLine},2 @@`,
-        " keep",
-        "+added"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", `@@ -${startLine},1 +${startLine},2 @@`, " keep", "+added"].join("\n"),
       path: "f.rb",
       status: "modified"
     }
@@ -1410,26 +1625,11 @@ describe("hidden-context expansion", () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        "@@ -1,1 +1,1 @@",
-        " first",
-        "@@ -6,1 +6,1 @@",
-        " second"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " first", "@@ -6,1 +6,1 @@", " second"].join("\n"),
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue([
-      "first",
-      "between 2",
-      "between 3",
-      "between 4",
-      "between 5",
-      "second"
-    ].join("\n"))
+    const onLoadFileContext = vi.fn().mockResolvedValue(["first", "between 2", "between 3", "between 4", "between 5", "second"].join("\n"))
     render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
 
     fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
@@ -1438,17 +1638,7 @@ describe("hidden-context expansion", () => {
     const codeCells = Array.from(screen.getAllByRole("cell"))
       .filter((cell) => cell.className.includes("min-w-[40rem]"))
       .map((cell) => cell.textContent)
-    expect(codeCells).toEqual([
-      "diff --git a/f.rb b/f.rb",
-      "--- a/f.rb",
-      "+++ b/f.rb",
-      "first",
-      "between 2",
-      "between 3",
-      "between 4",
-      "between 5",
-      "second"
-    ])
+    expect(codeCells).toEqual(["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "first", "between 2", "between 3", "between 4", "between 5", "second"])
     expect(screen.queryByText("@@ -1,1 +1,1 @@")).not.toBeInTheDocument()
     expect(screen.queryByText("@@ -6,1 +6,1 @@")).not.toBeInTheDocument()
   })
@@ -1457,26 +1647,13 @@ describe("hidden-context expansion", () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        "@@ -1,1 +1,1 @@",
-        " class First; end",
-        "@@ -6,1 +6,1 @@",
-        " class Second; end"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " class First; end", "@@ -6,1 +6,1 @@", " class Second; end"].join(
+        "\n"
+      ),
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue([
-      "class First; end",
-      "def loaded_context",
-      "  true",
-      "end",
-      "",
-      "class Second; end"
-    ].join("\n"))
+    const onLoadFileContext = vi.fn().mockResolvedValue(["class First; end", "def loaded_context", "  true", "end", "", "class Second; end"].join("\n"))
     render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
 
     fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
@@ -1568,12 +1745,14 @@ describe("word-occurrence highlighting", () => {
   })
 
   it("never turns punctuation into a clickable highlight target", () => {
-    const punctFiles = [{
-      additions: 1,
-      deletions: 1,
-      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+foo();"].join("\n"),
-      path: "a.rb"
-    }]
+    const punctFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+foo();"].join("\n"),
+        path: "a.rb"
+      }
+    ]
     render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
 
     expect(screen.getByText("(")).not.toHaveClass("cursor-pointer")
@@ -1581,12 +1760,14 @@ describe("word-occurrence highlighting", () => {
   })
 
   it("does not render a highlight note and clears when clicking non-identifier diff content", () => {
-    const punctFiles = [{
-      additions: 1,
-      deletions: 1,
-      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token();"].join("\n"),
-      path: "a.rb"
-    }]
+    const punctFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token();"].join("\n"),
+        path: "a.rb"
+      }
+    ]
     render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
 
     fireEvent.click(screen.getByText("shared_token"))
@@ -1678,19 +1859,25 @@ describe("performance markers", () => {
 
     render(
       <ReviewableDiff
-        comments={{ "app/models/job.rb": { anchor: [ { author: "reviewer", body: "look here", id: 1, state: "draft" } ] } }}
+        comments={{ "app/models/job.rb": { anchor: [{ author: "reviewer", body: "look here", id: 1, state: "draft" }] } }}
         files={files}
         mode="continuous"
       />
     )
 
     expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.parse_diff", expect.objectContaining({ maxPerSession: 300 }))
-    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.viewport_render", expect.objectContaining({
-      metadata: expect.objectContaining({ total_files: files.length })
-    }))
-    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.comment_threads_render", expect.objectContaining({
-      metadata: expect.objectContaining({ thread_count: 1 })
-    }))
+    expect(recordCountSpy).toHaveBeenCalledWith(
+      "diff_review.viewport_render",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ total_files: files.length })
+      })
+    )
+    expect(recordCountSpy).toHaveBeenCalledWith(
+      "diff_review.comment_threads_render",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ thread_count: 1 })
+      })
+    )
   })
 
   it("times the Files menu from open to render as one span", () => {

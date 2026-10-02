@@ -78,7 +78,7 @@ RSpec.describe AgentRole do
     end
 
     it "maps summary/test-plan step kinds to WORKFLOW_SUMMARY_TEST_PLAN" do
-      %w[summarize summarize_amend test_plan refresh_job_metadata review_plan].each do |kind|
+      %w[summarize summarize_amend test_plan refresh_job_metadata].each do |kind|
         expect(described_class.for_step_kind(kind)).to eq(described_class::WORKFLOW_SUMMARY_TEST_PLAN)
       end
     end

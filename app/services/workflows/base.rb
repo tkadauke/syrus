@@ -295,17 +295,13 @@ module Workflows
       [ "grader_fanout", "grader_collect" ]
     end
 
-    # review_plan is opt-in per `.syrus.yml` (RepoReviewPlanPlan, read
-    # pre-clone the same way as the adversarial/visual review plans) -- a
-    # repo that hasn't configured it gets no review_plan Step at all rather
-    # than one that runs and immediately self-skips as a no-op.
     def self.initial_pr_finish_steps(job, syrus_yml: nil)
       steps = [ "summarize", "test_plan", "pr_open" ]
-      steps << "review_plan" if resolve_plan(RepoReviewPlanPlan, job, syrus_yml).enabled?
+      steps << "post_implementation_review" if post_implementation_review_requested?(job, trigger_kind: trigger_kind)
       steps
     end
 
-    def self.feedback_finish_steps
+    def self.feedback_finish_steps(job = nil)
       [
         "coverage_analyze",
         "coverage_pr_comment",
@@ -313,8 +309,18 @@ module Workflows
         "dependency_audit_pr_comment",
         "summarize_amend",
         "refresh_job_metadata",
-        follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ]
+        follow_up_push(max_iterations: AppSetting.grade_max_iterations),
+        job && post_implementation_review_requested?(job, trigger_kind: trigger_kind) ? "post_implementation_review" : nil
+      ].compact
+    end
+
+    def self.post_implementation_review_requested?(job, trigger_kind:)
+      Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).any? do |provider|
+        provider.review_needed?(job: job, trigger_kind: trigger_kind.to_s)
+      rescue StandardError => e
+        Rails.logger.warn("[Workflows::Base] #{provider}.review_needed? failed: #{e.class}: #{e.message}")
+        false
+      end
     end
 
     def self.adversarial_review_rounds(job, syrus_yml: nil)
