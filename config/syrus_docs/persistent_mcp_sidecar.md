@@ -1,17 +1,19 @@
 # Persistent MCP sidecar
 
-Workflow and chat agents normally talk to Syrus over a stdio MCP server that
-is spawned fresh for every run or chat turn (`Mcp::Sidecar`, see
-`bin/syrus-mcp-sidecar` / `bin/syrus-chat-sidecar`). Booting one of those
-sidecars boots Rails from scratch each time, which is expensive and can fail
-under load.
+Workflow agents normally talk to Syrus over a stdio MCP server that is spawned
+fresh for every run (`Mcp::Sidecar`, see `bin/syrus-mcp-sidecar`). Chat agents
+use the persistent daemon when it is available; the old direct chat stdio
+sidecars still exist for specialized internal callers, but generated
+agent-visible chat MCP config no longer points at them because they need Rails
+boot secrets. Booting one of those Rails sidecars from scratch each time is
+expensive and can fail under load.
 
 `persistent_mcp_sidecar` is a labs feature (default on) gating a
 worker-local daemon that boots Rails once and stays up, instead of once per
 run or chat turn. The flag is visible in Admin → Features and is also
 toggleable via Rails console (see "Toggling" below), so operators can turn it
 off without shelling into a worker when they need to fall back to per-run
-stdio sidecars. `WorkflowMcpTransportSelector` and
+workflow stdio sidecars. `WorkflowMcpTransportSelector` and
 `ChatMcpTransportSelector` each decide, per workflow agent invocation or chat
 turn respectively, whether to route that invocation's MCP traffic to this
 daemon instead of spawning the usual stdio sidecar -- see "Workflow transport
@@ -86,11 +88,14 @@ concurrent dispatches.
 Generated MCP configs are agent-visible. Persistent transport keeps stdio-only
 workflow and chat CLIs on `bin/syrus-mcp-proxy`, whose env carries only the
 daemon URL plus a short-lived invocation token. The legacy direct
-`bin/syrus-mcp-sidecar` / `bin/syrus-chat-sidecar` fallback is different: it
-boots Rails as a child process, so it receives the worker boot env needed for
-MySQL, Active Record encryption, and S3-backed production boots. Shared service
-bearer tokens that are not needed for Rails boot stay out of that
-direct-sidecar env.
+`bin/syrus-mcp-sidecar` fallback is different: it boots Rails as a child
+process, so it receives the worker boot env needed for MySQL, Active Record
+encryption, and S3-backed production boots. Shared service bearer tokens that
+are not needed for Rails boot stay out of that direct-sidecar env. Chat has no
+safe direct Rails stdio fallback under an agent-visible scrubbed environment;
+when persistent chat transport is not selected, the generated chat MCP entries
+point at a secret-free unavailable responder that reports that the persistent
+daemon is required instead of attempting to boot Rails.
 
 For agent CLIs that only support stdio MCP, the configured command is
 `bin/syrus-mcp-proxy` when persistent transport is selected. The proxy does not

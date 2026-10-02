@@ -474,11 +474,11 @@ class ChatTurnJob < ApplicationJob
 
   def stdio_chat_server_config(tier:, always_load:)
     server_name = tier == "deferred" ? "syrus-chat-deferred-sidecar" : "syrus-chat-sidecar"
-    command = tier == "deferred" ? "bin/syrus-chat-deferred-sidecar" : "bin/syrus-chat-sidecar"
     {
       type: "stdio",
-      command: Rails.root.join(command).to_s,
-      env: sidecar_env(tool_tier: tier, server_name: server_name),
+      command: Rails.root.join("bin/syrus-mcp-unavailable").to_s,
+      args: [],
+      env: unavailable_chat_mcp_env(server_name: server_name),
       alwaysLoad: always_load
     }
   end
@@ -579,13 +579,12 @@ class ChatTurnJob < ApplicationJob
     Rails.logger.warn("[ChatTurnJob] failed to record mcp transport decision for chat ##{@chat.id}: #{e.class}: #{e.message}")
   end
 
-  def sidecar_env(tool_tier:, server_name:)
+  def unavailable_chat_mcp_env(server_name:)
     AgentSidecarEnvironment.build(extra: {
-      "SYRUS_CHAT_SESSION_ID" => @chat.id.to_s,
-      "SYRUS_CHAT_CURRENT_MESSAGE_ID" => @user_message.id.to_s,
-      "SYRUS_CHAT_MCP_TOOL_TIER" => tool_tier,
-      "SYRUS_CHAT_MCP_SERVER_NAME" => server_name
-    })
+      "SYRUS_MCP_UNAVAILABLE_SERVER_NAME" => server_name,
+      "SYRUS_MCP_UNAVAILABLE_MESSAGE" => "Persistent MCP daemon is required for chat MCP tools; the legacy Rails stdio sidecar cannot boot safely under an agent-visible scrubbed environment.",
+      "PATH" => ENV["PATH"]
+    }.compact)
   end
 
   def with_git_askpass_env

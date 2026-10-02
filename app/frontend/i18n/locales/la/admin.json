@@ -451,7 +451,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Adiutor MCP Persistens",
-        "description": "Activat daemonem adiutoris MCP persistentis in ipso worker, qui semel oritur et transportum MCP localem cum indicio salutis praebet. Vices colloquii et cursus agentis laboris vocationes instrumentorum MCP ad eum dirigere possunt, cum reditu automatico ad stdio si daemon non praesto aut incompatibilis est. Agentis CLI quae solum stdio sustinent daemonem per processum proxium sine secretis attingunt."
+        "description": "Activat daemonem adiutoris MCP persistentis in ipso worker, qui semel oritur et transportum MCP localem cum indicio salutis praebet. Vices colloquii et cursus agentis laboris vocationes instrumentorum MCP ad eum dirigere possunt. Agentis CLI quae solum stdio sustinent daemonem per processum proxium sine secretis attingunt; agentes workflow ad stdio directum redire possunt, sed MCP colloquii daemonem requirit."
       },
       "browser_error_auto_reports": {
         "name": "Relationes automaticae errorum navigatoris",

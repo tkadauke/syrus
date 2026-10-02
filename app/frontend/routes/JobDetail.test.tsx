@@ -2539,7 +2539,24 @@ describe("JobDetailRoute", () => {
   })
 
   it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobPayload()))
+    const payload = jobPayload({
+      landing_queue_entry: {
+        position: 3,
+        blocked_reason: { key: "auto_merge_not_enabled" },
+        waiting_for_jobs: []
+      },
+      job: {
+        ...baseJob(),
+        pr_checks: {
+          state: "pending",
+          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+          short_sha: "3bf7b45",
+          checked_at: "2026-08-26T19:20:00Z",
+          checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+        }
+      }
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
@@ -2567,6 +2584,12 @@ describe("JobDetailRoute", () => {
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
+
+    const notices = await screen.findByRole("region", { name: "Job notices" })
+    expect(notices).not.toHaveClass("mx-4")
+    const noticeControls = within(notices).getByText("Notice 1 of 2").parentElement
+    expect(noticeControls).toHaveClass("mx-4", "sm:mx-0")
+    expect(within(noticeControls as HTMLElement).getByRole("button", { name: "Next notice" })).toBeInTheDocument()
     expect(summaryTab.closest("main")).toBe(main)
   })
 

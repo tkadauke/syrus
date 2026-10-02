@@ -563,11 +563,15 @@ class ChatWorkspace
     ahead_count = exists ? git_count(path, "rev-list", "--count", "#{base_ref}..HEAD") : 0
     dirty = exists && self.class.uncommitted_changes?(path)
     destructive = dirty || ahead_count.to_i.positive?
+    configured_branch = @chat_session.coding_checkout_branch
+    branch = current_branch.presence || configured_branch
+    linked_job = Job.where(linked_chat_id: @chat_session.id, state: "coding", repository: repository).first
+    checkout_job = branch.present? ? Job.where(repository: repository, branch_name: branch).first : nil
 
     {
       path: path.to_s,
       exists: exists,
-      configured_branch: @chat_session.coding_checkout_branch,
+      configured_branch: configured_branch,
       current_branch: current_branch,
       head_sha: head_sha,
       default_branch: default_branch,
@@ -576,6 +580,9 @@ class ChatWorkspace
       dirty: dirty,
       committed_ahead_count: ahead_count.to_i,
       destructive_reset_required: destructive,
+      linked_coding_job: coding_status_job_payload(linked_job),
+      active_checkout_job: coding_status_job_payload(checkout_job),
+      valid_next_handoff_lanes: valid_coding_handoff_lanes(linked_job, checkout_job),
       prepare_status: @chat_session.coding_checkout_prepare_status,
       prepare_started_at: @chat_session.coding_checkout_prepare_started_at,
       prepare_finished_at: @chat_session.coding_checkout_prepare_finished_at,
@@ -613,6 +620,25 @@ class ChatWorkspace
         "updated_at" => Time.current.iso8601
       }
     )
+  end
+
+  def coding_status_job_payload(job)
+    return nil unless job
+
+    {
+      id: job.id,
+      slug: job.slug,
+      state: job.state,
+      branch_name: job.branch_name,
+      linked_chat_id: job.linked_chat_id
+    }
+  end
+
+  def valid_coding_handoff_lanes(linked_job, checkout_job)
+    return [ "complete_implement_step" ] if linked_job
+    return [ "open_in_coding_mode" ] if checkout_job&.implemented? || checkout_job&.approved?
+
+    [ "submit_coding_changes" ]
   end
 
   # Sets up a writable coding checkout on an existing Job branch.

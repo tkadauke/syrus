@@ -609,7 +609,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Persistent MCP sidecar",
-        "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns and workflow agent runs can route MCP tool calls to it, with automatic fallback to stdio when the daemon is unavailable or incompatible. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon."
+        "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns and workflow agent runs can route MCP tool calls to it. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon; workflow agents can fall back to direct stdio when needed, while chat MCP requires the daemon."
       },
       "emergency_land": {
         "name": "Emergency land",

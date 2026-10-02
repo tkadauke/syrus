@@ -46,6 +46,8 @@ RSpec.describe Mcp::Tools::ResetWorkspaceTool do
       default_branch: "main",
       dirty: false,
       committed_ahead_count: 0,
+      linked_coding_job: nil,
+      valid_next_handoff_lanes: [ "submit_coding_changes" ],
       destructive_reset_required: false
     )
     allow(ChatWorkspace).to receive(:reset_coding_workspace!)
@@ -56,6 +58,7 @@ RSpec.describe Mcp::Tools::ResetWorkspaceTool do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(body).to include(reset: false)
     expect(body[:status]).to include(current_branch: "main", committed_ahead_count: 0)
+    expect(body[:status]).to include(linked_coding_job: nil, valid_next_handoff_lanes: [ "submit_coding_changes" ])
     expect(ChatWorkspace).not_to have_received(:reset_coding_workspace!)
   end
 

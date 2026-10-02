@@ -1,4 +1,12 @@
 namespace :e2e do
+  def enable_e2e_chat_provider_plugins!
+    %w[claude_agent codex_agent].each do |plugin_name|
+      plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
+      plugin_record.update!(enabled: true) unless plugin_record.enabled?
+    end
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
   desc "Seed deterministic local fixtures for Playwright E2E specs"
   task seed: :environment do
     unless Rails.env.development? || ENV["ALLOW_E2E_SEED"] == "1"
@@ -18,6 +26,7 @@ namespace :e2e do
     end
 
     Rails.application.load_seed
+    enable_e2e_chat_provider_plugins!
 
     settings = AppSetting.current
     settings.update!(
@@ -135,6 +144,7 @@ namespace :e2e do
     # place those specs ran at all -- so five of them failed there while passing
     # locally. Resetting here makes a local run reproduce CI.
     PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
+    enable_e2e_chat_provider_plugins!
 
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the

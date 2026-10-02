@@ -389,6 +389,47 @@ taken-over Job, this single backend operation discards the chat checkout and
 calls `release_coding_mode_takeover!`, clearing the link and returning the Job
 to `implemented`. If the checkout belongs to fresh chat-authored work rather
 than a taken-over Job, cancel keeps the existing checkout-discard behavior.
+Chat agents can call the `cancel_coding_checkout` MCP primitive for this exact
+flow. It is intentionally non-magical: it releases the active checkout/takeover
+state and reports before/after status, but it does not preserve, migrate, or
+apply code changes. Agents must create a local backup branch or tag first when
+the operator wants to recover commits from the current checkout.
+
+The three pieces of state are related but distinct:
+
+- The **git checkout state** is the local branch, HEAD, dirty state, and commits
+  ahead of the default branch in the chat workspace.
+- The **chat coding checkout state** is the chat session's active checkout
+  branch and any linked Coding Mode checkout ownership.
+- The **Job lifecycle state** is the Job's state machine value (`implemented`,
+  `approved`, `coding`, and so on) plus `linked_chat_id` when a chat owns the
+  implement step.
+
+Use `reset_workspace` with no confirmation as the read-only status check. It
+reports the active checkout branch, HEAD, dirty/ahead state, linked coding Job
+if any, and valid next handoff lanes. `reset_workspace(confirm_discard: true)`
+is only the fresh-default-branch escape hatch; it is not the takeover cancel
+path.
+
+Recovery recipe for "I committed before opening/taking over the existing Job":
+
+1. Preserve the current local work first, for example with a backup branch or
+   tag in the checkout.
+2. If the chat has a conflicting active coding checkout, call
+   `cancel_coding_checkout` to release it. This may discard the current checkout,
+   so step 1 must happen first.
+3. Call `open_in_coding_mode(job_id)` for the existing `implemented` or
+   `approved` Job.
+4. Cherry-pick or apply the saved commits onto the Job branch now checked out by
+   Coding Mode.
+5. Commit, verify the working tree is clean, and call
+   `complete_implement_step(job_id)` when the operator confirms handoff.
+
+Use `submit_coding_changes` only for new chat-authored work with no existing Job
+handoff lane. Submitting from a branch that already belongs to a Syrus Job would
+create a new CodingHandoff Job rather than update that existing Job, so the
+chat MCP tool refuses existing Job branches and points the agent back to
+`open_in_coding_mode` plus `complete_implement_step`.
 
 Repository skill commands, one per skill resolved for the chat's attached
 repository (`/skill-name key=value ...`), are appended to the palette
