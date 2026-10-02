@@ -109,7 +109,7 @@ class MuseInvocation
           ),
           stdin_data: api_key,
           mounts: ProcessRunner.mounts(workspace_path),
-      network: "agent",
+          network: "agent",
           timeout: timeout,
           silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
           kind: "agent",

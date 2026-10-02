@@ -670,7 +670,7 @@ RSpec.describe ProcessRunner, :ci_only do
         env: {},
         command: [ ruby, "-e", "sleep 0.5" ],
         mounts: described_class.mounts(@dir),
-      network: "grader",
+        network: "grader",
         timeout: 5,
         workflow: workflow
       ).run
@@ -707,7 +707,7 @@ RSpec.describe ProcessRunner, :ci_only do
         env: {},
         command: [ ruby, "-e", "sleep 0.5" ],
         mounts: described_class.mounts(workspace_path.join("nested")),
-      network: "grader",
+        network: "grader",
         timeout: 5
       ).run
     end
@@ -917,7 +917,7 @@ RSpec.describe ProcessRunner, :ci_only do
         env: {},
         command: [ ruby, "-e", script ],
         mounts: described_class.mounts(@dir),
-      network: "grader",
+        network: "grader",
         timeout: 15,
         stdin_data: big + "\n",
         on_output_line: ->(line) { total_bytes = line.to_i }

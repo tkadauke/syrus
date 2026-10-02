@@ -68,7 +68,7 @@ class CodexCredentialProbe
             "Reply with OK."
           ],
           mounts: ProcessRunner.mounts(workspace),
-        network: "agent",
+          network: "agent",
           timeout: CredentialProbe::TIMEOUT_SECONDS,
           silent_timeout: 15,
           kind: "agent",
