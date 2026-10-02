@@ -1895,7 +1895,7 @@ describe("JobDetailView", () => {
         body: JSON.stringify({ message: "Please explain the failure pattern." }),
         method: "POST"
       }))
-      expect(screen.getByTestId("location")).toHaveTextContent("/chats/9")
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/9")
     })
   })
 
