@@ -933,8 +933,7 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
 
-    fireEvent(document, new Event("selectionchange"))
-    fireEvent.touchEnd(body)
+    fireEvent.touchEnd(document)
     expect(screen.queryByRole("textbox", { name: "New thread comment" })).not.toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole("button", { name: "Comment on selection" }))

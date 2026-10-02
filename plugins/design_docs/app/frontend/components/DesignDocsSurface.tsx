@@ -800,7 +800,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       const liveSelection = document.getSelection()
       if (!root || !liveSelection || liveSelection.rangeCount === 0) return false
 
-      return root.contains(liveSelection.getRangeAt(0).commonAncestorContainer)
+      return selectionRangeBelongsToRoot(root, liveSelection.getRangeAt(0))
     }
 
     if (editorMode === "markdown") return document.activeElement === textareaRef.current
@@ -809,7 +809,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     const liveSelection = document.getSelection()
     if (!root || !liveSelection || liveSelection.rangeCount === 0) return false
 
-    return root.contains(liveSelection.getRangeAt(0).commonAncestorContainer)
+    return selectionRangeBelongsToRoot(root, liveSelection.getRangeAt(0))
   }, [editingLocked, editorMode])
 
   const updateActiveSurfaceSelection = useCallback(() => {
@@ -841,7 +841,13 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
     if (!selectionCommentsEnabled) return
 
     document.addEventListener("selectionchange", scheduleSelectionRead)
-    return () => document.removeEventListener("selectionchange", scheduleSelectionRead)
+    document.addEventListener("pointerup", scheduleSelectionRead)
+    document.addEventListener("touchend", scheduleSelectionRead, { passive: true })
+    return () => {
+      document.removeEventListener("selectionchange", scheduleSelectionRead)
+      document.removeEventListener("pointerup", scheduleSelectionRead)
+      document.removeEventListener("touchend", scheduleSelectionRead)
+    }
   }, [scheduleSelectionRead, selectionCommentsEnabled])
 
   useEffect(() => () => {
@@ -3391,7 +3397,7 @@ function selectionRangeFromRoot(root: HTMLElement, draft: string, rectContainer:
   if (!range || range.rangeCount === 0) return emptySelection()
 
   const selectedRange = range.getRangeAt(0)
-  if (!root.contains(selectedRange.commonAncestorContainer)) return emptySelection()
+  if (!selectionRangeBelongsToRoot(root, selectedRange)) return emptySelection()
 
   const selectedText = selectedRange.toString()
   const sourceStart = sourceOffsetForSelectionBoundary(root, selectedRange.startContainer, selectedRange.startOffset, "start")
@@ -3409,4 +3415,12 @@ function selectionRangeFromRoot(root: HTMLElement, draft: string, rectContainer:
     selectedText,
     rect: rangeSelectionRect(selectedRange, rectContainer)
   }
+}
+
+function selectionRangeBelongsToRoot(root: HTMLElement, range: Range) {
+  return selectionBoundaryBelongsToRoot(root, range.startContainer) && selectionBoundaryBelongsToRoot(root, range.endContainer)
+}
+
+function selectionBoundaryBelongsToRoot(root: HTMLElement, node: Node) {
+  return node === root || root.contains(node)
 }
