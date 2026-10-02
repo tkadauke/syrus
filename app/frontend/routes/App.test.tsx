@@ -11758,7 +11758,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: "Build a planning console" } })
+          body: JSON.stringify({ chat_provider: "claude", chat_message: { text: "Build a planning console" } })
         })
       )
     })
