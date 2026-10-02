@@ -191,6 +191,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
             search={location.search}
           />
         }
+        mobileSummaryLabel={folders.find((folder) => folder.active)?.name}
         smartFolders={
           <SmartFolderNavigation
             actionLabel={() => ""}

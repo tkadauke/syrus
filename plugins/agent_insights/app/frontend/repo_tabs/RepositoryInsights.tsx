@@ -118,6 +118,7 @@ function InsightSuggestionsList({
           suggestionSearch={{ surface: "repository_insights", subject: "agent_insight" }}
         />
       }
+      mobileSummaryLabel={smartFolders.find((folder) => folder.id === payload.active_smart_folder_id)?.name ?? t("smart_folder_agent_insights_all")}
       smartFolders={
         <AdminSmartFolderNav
           activeFolderId={payload.active_smart_folder_id}

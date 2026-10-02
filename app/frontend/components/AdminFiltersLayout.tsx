@@ -7,11 +7,13 @@ export function AdminFiltersLayout({
   children,
   description,
   filterBar,
+  mobileSummaryLabel,
   smartFolders
 }: {
   children: ReactNode
   description?: ReactNode
   filterBar?: ReactNode
+  mobileSummaryLabel?: string
   smartFolders?: ReactNode
 }) {
   const { t } = useT("nav")
@@ -54,7 +56,7 @@ export function AdminFiltersLayout({
     <div className="space-y-3">
       <details className={`group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 ${marginGutterRestore}`}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>{t("filters_layout.folders_and_filters")}</span>
+          <span className="min-w-0 truncate">{mobileSummaryLabel || t("filters_layout.folders_and_filters")}</span>
           <span className="text-gray-400 dark:text-gray-500 group-open:hidden">{t("filters_layout.show")}</span>
           <span className="hidden text-gray-400 dark:text-gray-500 group-open:inline">{t("filters_layout.hide")}</span>
         </summary>

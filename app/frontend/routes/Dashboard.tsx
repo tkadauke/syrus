@@ -537,6 +537,12 @@ function DesktopDashboardControls({ payload, pathname, search }: { payload: Dash
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const { t } = useT("dashboard")
+  const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
+  const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
+  const folderLabel = activeFolder
+    ? (activeFolder.kind !== "user_defined" && activeFolder.key ? t(`smart_folder.names.${activeFolder.key}`, { ns: "nav", defaultValue: activeFolder.name }) : activeFolder.name)
+    : t("folders_and_filters")
+
   return (
     <Page.Nav className="space-y-3">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
@@ -552,7 +558,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
       </div>
       <details className="group rounded-[var(--radius-panel)] border border-border bg-surface text-text-primary">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
-          <span>{t("folders_and_filters")}</span>
+          <span className="min-w-0 truncate">{folderLabel}</span>
           <Text as="span" className="group-open:hidden" muted variant="caption">
             {t("show")}
           </Text>

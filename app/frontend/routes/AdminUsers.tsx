@@ -37,6 +37,7 @@ export function AdminUsersIndex() {
     queryFn: () => fetchAdminUsers(location.search)
   })
   const activeUserFolderId = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id && folder.kind === "user_defined")?.id
+  const activeFolderLabel = users.data?.smart_folders.find((folder) => folder.id === users.data.active_smart_folder_id)?.name ?? t("users.all_users")
 
   return (
     <Page.Root aria-label={t("users.aria_index")} gutter="responsive" size="wide">
@@ -61,6 +62,7 @@ export function AdminUsersIndex() {
               search={location.search}
             />
           }
+          mobileSummaryLabel={activeFolderLabel}
           smartFolders={
             <AdminSmartFolderNav
               activeFolderId={users.data.active_smart_folder_id}

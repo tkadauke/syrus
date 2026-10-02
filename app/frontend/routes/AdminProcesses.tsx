@@ -45,6 +45,7 @@ export function AdminProcessesIndex() {
   const activeUserFolderId = processes.data?.smart_folders.find(
     (folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined"
   )?.id
+  const activeFolderLabel = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id)?.name ?? t("processes.all_label")
 
   return (
     <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
@@ -69,6 +70,7 @@ export function AdminProcessesIndex() {
               search={location.search}
             />
           }
+          mobileSummaryLabel={activeFolderLabel}
           smartFolders={
             <AdminSmartFolderNav
               activeFolderId={processes.data.active_smart_folder_id}

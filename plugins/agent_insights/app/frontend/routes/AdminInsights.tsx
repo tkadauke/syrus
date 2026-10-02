@@ -100,6 +100,7 @@ function AdminInsightsContent({
 }) {
   const { t } = useT("agent_insights")
   const activeUserFolderId = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id && folder.kind === "user_defined")?.id
+  const activeFolderLabel = payload.smart_folders.find((folder) => folder.id === payload.active_smart_folder_id)?.name ?? t("smart_folder_agent_insights_all")
 
   return (
     <AdminFiltersLayout
@@ -112,6 +113,7 @@ function AdminInsightsContent({
           search={search}
         />
       }
+      mobileSummaryLabel={activeFolderLabel}
       smartFolders={
         <AdminSmartFolderNav
           activeFolderId={payload.active_smart_folder_id}
