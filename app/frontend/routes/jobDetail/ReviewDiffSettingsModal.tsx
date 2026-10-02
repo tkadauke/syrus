@@ -19,7 +19,20 @@ const REVIEW_SETTINGS_MODAL_CLASS = [
   "shadow-[var(--shadow-panel)]"
 ].join(" ")
 
-export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialSettings: ReviewDiffSettings; onClose: () => void }) {
+export type ReviewDiffSettingsMetricOption = {
+  id: string
+  label: string
+}
+
+export function ReviewDiffSettingsModal({
+  initialSettings,
+  metricGutterOptions = [],
+  onClose
+}: {
+  initialSettings: ReviewDiffSettings
+  metricGutterOptions?: ReviewDiffSettingsMetricOption[]
+  onClose: () => void
+}) {
   const queryClient = useQueryClient()
   const { t } = useT("jobs")
   const [settings, setSettings] = useState(initialSettings)
@@ -37,6 +50,8 @@ export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialS
     mutation.mutate({ [key]: value })
   }
 
+  const activeMetricGutterValue = metricGutterSettingValue(settings.metric_gutter, metricGutterOptions)
+
   return (
     <Modal className={REVIEW_SETTINGS_MODAL_CLASS} label={t("review_settings_title")} onClose={onClose} open>
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -51,6 +66,17 @@ export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialS
         <SettingsSelect label={t("review_settings_file_list_layout")} onChange={(value) => updateSetting("file_list_layout", value as ReviewDiffSettings["file_list_layout"])} options={[["flat", t("review_settings_flat")], ["nested", t("review_settings_nested")]]} value={settings.file_list_layout} />
         <SettingsSelect label={t("review_settings_file_sort")} onChange={(value) => updateSetting("file_sort", value as ReviewDiffSettings["file_sort"])} options={[["original", t("review_settings_original_order")], ["alphabetical", t("review_settings_alphabetical")], ["change_size", t("review_settings_change_size")]]} value={settings.file_sort} />
         <SettingsSelect label={t("review_settings_density")} onChange={(value) => updateSetting("density", value as ReviewDiffSettings["density"])} options={[["compact", t("review_settings_compact")], ["comfortable", t("review_settings_comfortable")], ["spacious", t("review_settings_spacious")]]} value={settings.density} />
+        {activeMetricGutterValue ? (
+          <SettingsSelect
+            label={t("review_metric_gutter_label")}
+            onChange={(value) => updateSetting("metric_gutter", value)}
+            options={[
+              ["off", t("review_metric_gutter_off")],
+              ...metricGutterOptions.map((option) => [option.id, option.label] as [string, string])
+            ]}
+            value={activeMetricGutterValue}
+          />
+        ) : null}
         <label className="space-y-1 text-sm text-text-secondary">
           <span>{t("review_settings_tab_width")}</span>
           <Input max={8} min={2} onChange={(event) => updateSetting("tab_width", Number(event.target.value))} type="number" value={settings.tab_width} />
@@ -67,6 +93,13 @@ export function ReviewDiffSettingsModal({ initialSettings, onClose }: { initialS
       {mutation.isError ? <p className="mt-3 text-sm text-danger-text">{t("review_settings_save_error")}</p> : null}
     </Modal>
   )
+}
+
+function metricGutterSettingValue(configuredValue: string, options: ReviewDiffSettingsMetricOption[]) {
+  if (options.length === 0) return null
+  if (configuredValue === "off") return "off"
+  if (options.some((option) => option.id === configuredValue)) return configuredValue
+  return options[0]!.id
 }
 
 function SettingsSelect({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<[string, string]>; value: string }) {
