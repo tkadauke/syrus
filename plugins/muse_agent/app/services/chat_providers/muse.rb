@@ -119,7 +119,8 @@ module ChatProviders
         {
           command: server.fetch("command"),
           args: Array(server["args"]),
-          env: server.fetch("env", {})
+          env: server.fetch("env", {}),
+          required: server["alwaysLoad"] != false
         }
       end
     end
