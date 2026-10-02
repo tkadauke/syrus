@@ -530,7 +530,8 @@ class ChatTurnJob < ApplicationJob
       worker_id: decision.daemon_identity["worker_id"],
       current_message: @user_message,
       tier: tier,
-      provider: @chat.effective_chat_provider
+      provider: @chat.effective_chat_provider,
+      expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
     )
   end
 

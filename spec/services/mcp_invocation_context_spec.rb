@@ -84,6 +84,91 @@ RSpec.describe McpInvocationContext do
       expect(resolved.tool_context.role).to eq(AgentRole::CHAT_EVALUATOR)
     end
 
+    it "resolves a turn-scoped token after the old default window but before the chat turn ceiling" do
+      token = travel_to(10.minutes.ago) do
+        described_class.issue_for_chat(
+          chat_session,
+          worker_id: worker_id,
+          current_message: message,
+          expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+        )
+      end
+
+      resolved = described_class.resolve(token, worker_id: worker_id)
+
+      expect(resolved.tool_context.chat_session).to eq(chat_session)
+      expect(resolved.current_message_id).to eq(message.id)
+    end
+
+    it "keeps resolving a turn-scoped token after streamed tool messages while the agent process is still live" do
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      SpawnedProcess.create!(
+        chat_session: chat_session,
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-1",
+        pid: 12_345,
+        started_at: Time.current,
+        workdir: chat_session.workspace_root.to_s
+      )
+      chat_session.messages.create!(
+        role: "tool_use",
+        tool_name: "read_file",
+        tool_use_id: "toolu_1",
+        content: {
+          "type" => "tool_use",
+          "id" => "toolu_1",
+          "name" => "read_file",
+          "input" => { "path" => "README.md" }
+        }
+      )
+      expect(chat_session.reload).not_to be_turn_in_flight
+      expect(chat_session).to be_agent_busy
+
+      resolved = described_class.resolve(token, worker_id: worker_id)
+
+      expect(resolved.tool_context.chat_session).to eq(chat_session)
+      expect(resolved.current_message_id).to eq(message.id)
+    end
+
+    it "rejects a turn-scoped token once that message is no longer in flight" do
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      chat_session.messages.create!(role: "assistant", content: { "text" => "done" })
+      expect(chat_session.reload).not_to be_turn_in_flight
+
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/TurnEnded/))
+      expect { described_class.resolve(token, worker_id: worker_id) }
+        .to raise_error(described_class::TurnEnded, /message #{message.id} is no longer active/)
+    end
+
+    it "rejects an earlier turn token while a later message on the same chat is now in flight" do
+      earlier_message = message
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: earlier_message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      chat_session.messages.create!(role: "assistant", content: { "text" => "done" })
+      later_message = chat_session.messages.create!(role: "user", content: { "text" => "again" })
+      expect(chat_session.reload).to be_turn_in_flight
+
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/TurnEnded/))
+      expect { described_class.resolve(token, worker_id: worker_id) }
+        .to raise_error(described_class::TurnEnded, /message #{earlier_message.id} is no longer active/)
+      expect(later_message.id).not_to eq(earlier_message.id)
+    end
+
     it "rejects a token whose chat session no longer exists as unauthorized" do
       token = described_class.issue_for_chat(chat_session, worker_id: worker_id)
       chat_session_id = chat_session.id
@@ -152,6 +237,16 @@ RSpec.describe McpInvocationContext do
       token = travel_to(4.minutes.ago) { described_class.issue_for_run(run, worker_id: worker_id, expires_in: 5.minutes) }
 
       expect { described_class.resolve(token, worker_id: worker_id) }.not_to raise_error
+    end
+
+    it "keeps run tokens on the shared five-minute default expiry" do
+      issued_at = Time.current.change(usec: 0)
+      token = travel_to(issued_at) { described_class.issue_for_run(run, worker_id: worker_id) }
+
+      payload = Rails.application.message_verifier(described_class::MESSAGE_VERIFIER_PURPOSE).verify(token)
+
+      expect(payload.fetch("surface")).to eq("run")
+      expect(payload.fetch("exp")).to eq((issued_at + described_class::DEFAULT_EXPIRES_IN).to_i)
     end
 
     it "rejects a token minted for a different worker" do
