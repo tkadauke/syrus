@@ -42,6 +42,8 @@ module WorkDefinitions
         errors << error(:missing_workflow_trigger_kind, "#{definition_class.name} does not declare workflow_trigger_kind") if definition.workflow_trigger_kind.blank?
         errors << error(:unknown_workflow_trigger_kind, "WorkDefinition #{definition.kind.inspect} points to unknown workflow trigger #{definition.workflow_trigger_kind.inspect}") unless trigger_kind_exists?(definition.workflow_trigger_kind)
         errors << error(:missing_scope, "WorkDefinition #{definition.kind.inspect} does not declare scope") if definition.scope.blank?
+        errors << error(:missing_lock_scope, "WorkDefinition #{definition.kind.inspect} does not declare or inherit lock_scope") if definition.lock_scope.blank?
+        errors << error(:invalid_lock_scope, "WorkDefinition #{definition.kind.inspect} has invalid lock_scope #{definition.lock_scope.inspect}") unless valid_lock_scope?(definition.lock_scope)
         errors << error(:invalid_runtime_role, "WorkDefinition #{definition.kind.inspect} has invalid runtime_role #{definition.runtime_role.inspect}") unless Workflow::TriggerKind::RUNTIME_ROLES.include?(definition.runtime_role)
         errors << error(:invalid_intent_gates, "WorkDefinition #{definition.kind.inspect} intent_gates must be an Array") unless definition.intent_gates.is_a?(Array)
         errors << error(:invalid_unit_gates, "WorkDefinition #{definition.kind.inspect} unit_gates must be an Array") unless definition.unit_gates.is_a?(Array)
@@ -126,6 +128,10 @@ module WorkDefinitions
       true
     rescue ArgumentError
       false
+    end
+
+    def valid_lock_scope?(scope)
+      scope.to_s.in?(%w[job epic repository none])
     end
 
     def error(code, message)
