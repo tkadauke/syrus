@@ -73,6 +73,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::WorkspaceTab }
   end
 
+  let(:slug_type_class) do
+    Class.new do
+      include Syrus::Plugin::SlugType
+
+      def self.prefix = "THING"
+      def self.display_label = "Thing"
+      def self.record_for(_id, user:) = nil
+      def self.web_path(record) = "/things/#{record.id}"
+    end
+  end
+
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer)
@@ -162,6 +173,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_git_transport)
     end
 
+    it "includes :slug_type" do
+      expect(described_class::EXTENSION_POINTS).to include(:slug_type)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -199,6 +214,25 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :callbacks to Syrus::Plugin::Callbacks" do
       expect(described_class::INTERFACE_FOR[:callbacks].call).to eq(Syrus::Plugin::Callbacks)
+    end
+
+    it "maps :slug_type to Syrus::Plugin::SlugType" do
+      expect(described_class::INTERFACE_FOR[:slug_type].call).to eq(Syrus::Plugin::SlugType)
+    end
+
+    it "gives slug type providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::SlugType }
+
+      expect(provider).to respond_to(:prefix)
+      expect(provider).to respond_to(:display_label)
+      expect(provider).to respond_to(:parse_id)
+      expect(provider).to respond_to(:record_for)
+      expect(provider).to respond_to(:web_path)
+      expect { provider.prefix }.to raise_error(NotImplementedError, /must implement \.prefix/)
+      expect { provider.display_label }.to raise_error(NotImplementedError, /must implement \.display_label/)
+      expect(provider.copyable?).to eq(true)
+      expect(provider.preview_available?).to eq(false)
+      expect(provider.linkifies_generated_text?).to eq(true)
     end
 
     it "gives artifact renderer providers the class contract used by the registry" do
@@ -440,6 +474,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:preview_provider)).to eq([ preview_provider_class ])
+    end
+
+    it "returns slug type providers" do
+      described_class.register(
+        name: "slug_plugin", version: "1.0.0",
+        provides: { slug_type: slug_type_class }
+      )
+
+      expect(described_class.providers_for(:slug_type)).to eq([ slug_type_class ])
     end
 
     it "returns admin page and chat MCP providers" do
@@ -722,7 +765,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             source_control_provider: source_control_provider_class,
             artifact_renderer:  artifact_renderer_class,
             platform_delivery: platform_delivery_class,
-            workspace_tab:      workspace_tab_class
+            workspace_tab:      workspace_tab_class,
+            slug_type:          slug_type_class
           }
         )
       }.not_to raise_error
@@ -839,6 +883,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { preview_provider: plain_class }
         )
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::PreviewProvider/)
+    end
+
+    it "raises RegistrationError when slug_type class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { slug_type: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::SlugType/)
     end
 
     it "raises RegistrationError when platform_delivery class lacks the interface module" do
