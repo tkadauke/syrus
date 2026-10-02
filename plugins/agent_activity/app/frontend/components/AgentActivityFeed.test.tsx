@@ -244,7 +244,7 @@ describe("AgentActivityFeed", () => {
     setupFetchMock()
     renderFeed()
 
-    fireEvent.click(await screen.findByText("Folders and filters"))
+    fireEvent.click(await screen.findByText("All history", { selector: "summary > span" }))
 
     expect(screen.getByRole("navigation", { name: "Agent Activity smart folders" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "All history" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=")
