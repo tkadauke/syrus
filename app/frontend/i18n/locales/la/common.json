@@ -349,6 +349,15 @@
     "pr_checks_failing_base_stale": "Recognitiones PR in {{slug}} deficiunt; testimonium basis vetustum est ({{checks}})"
   },
   "close": "Claudere",
+  "find_bar": {
+    "close": "Quaestionem claudere",
+    "input_label": "Quaerere",
+    "next_match": "Proxima inventio",
+    "next_short": "Proxima",
+    "placeholder": "Quaere...",
+    "previous_match": "Prior inventio",
+    "previous_short": "Prior"
+  },
   "search_aria": "Quaerere",
   "search_type_filters_aria": "Filtra generis quaerendi",
   "loading_search_aria": "Eventus quaerendi onerantur",

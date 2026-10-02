@@ -40,9 +40,6 @@ module Mcp::Tools
         missing = ids.zip(jobs).select { |_id, job| job.nil? }.map(&:first)
         return Mcp::Tools.invalid("job not found: #{missing.join(', ')}") if missing.any?
 
-        LandingQueueProcessor.refresh_snapshot!(Job.where(id: jobs.map(&:id)))
-        jobs.each(&:reload)
-
         unless bulk
           job = jobs.first
           return create_pending_admin_action(

@@ -911,6 +911,8 @@ Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
+Chat agents can also pin or unpin visible chat sessions in the sidebar,
+separate from pinned-message previews and pinned context notes.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.

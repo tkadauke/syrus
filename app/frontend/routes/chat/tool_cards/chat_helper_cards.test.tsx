@@ -6,8 +6,10 @@ import { ToolGroup } from "../MessageCards"
 import askUserQuestionToolCard from "./ask_user_question"
 import markGoalBlockedToolCard from "./mark_goal_blocked"
 import markGoalCompletedToolCard from "./mark_goal_completed"
+import pinChatToolCard from "./pin_chat"
 import renameChatToolCard from "./rename_chat"
 import suggestNextStepToolCard from "./suggest_next_step"
+import unpinChatToolCard from "./unpin_chat"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -26,6 +28,8 @@ describe("chat helper tool cards", () => {
     expect(markGoalCompletedToolCard.toolName).toBe("mark_goal_completed")
     expect(markGoalBlockedToolCard.toolName).toBe("mark_goal_blocked")
     expect(renameChatToolCard.toolName).toBe("rename_chat")
+    expect(pinChatToolCard.toolName).toBe("pin_chat")
+    expect(unpinChatToolCard.toolName).toBe("unpin_chat")
   })
 
   it("renders ask_user_question as an interaction summary with safe question labels and options", () => {
@@ -84,8 +88,24 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("Release planning")).toBeInTheDocument()
   })
 
+  it("renders chat pinning state changes", () => {
+    const pinned = { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." }
+    expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: pinned }))).toBe("Chat pinned.")
+    render(<>{pinChatToolCard.renderExpanded(context("pin_chat", { parsedResult: pinned }))}</>)
+    expect(screen.getByText("Chat pin")).toBeInTheDocument()
+    expect(screen.getByText("pinned")).toBeInTheDocument()
+    expect(screen.getByText("Release planning")).toBeInTheDocument()
+
+    const unpinned = { session_id: 42, title: "Release planning", pinned: false, message: "Chat unpinned." }
+    expect(unpinChatToolCard.collapsedSummary?.(context("unpin_chat", { parsedResult: unpinned }))).toBe("Chat unpinned.")
+    render(<>{unpinChatToolCard.renderExpanded(context("unpin_chat", { parsedResult: unpinned }))}</>)
+    expect(screen.getByText("Chat unpin")).toBeInTheDocument()
+    expect(screen.getByText("unpinned")).toBeInTheDocument()
+  })
+
   it("renders missing payload fields as malformed cards instead of throwing", () => {
     expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe("Next-step suggestion returned an unexpected response")
+    expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: { session_id: 42 } }))).toBe("Chat pin returned an unexpected response")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
   })

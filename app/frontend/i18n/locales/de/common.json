@@ -349,6 +349,15 @@
     "pr_checks_failing_base_stale": "PR-Prüfungen auf {{slug}} schlagen fehl; Basisnachweis ist veraltet ({{checks}})"
   },
   "close": "Schließen",
+  "find_bar": {
+    "close": "Suche schließen",
+    "input_label": "Suchen",
+    "next_match": "Nächster Treffer",
+    "next_short": "Weiter",
+    "placeholder": "Suchen...",
+    "previous_match": "Vorheriger Treffer",
+    "previous_short": "Zurück"
+  },
   "search_aria": "Suche",
   "search_type_filters_aria": "Suchtyp-Filter",
   "loading_search_aria": "Suchergebnisse werden geladen",
