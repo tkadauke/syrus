@@ -11768,6 +11768,31 @@ describe("App", () => {
     expect(within(input.closest("form") as HTMLElement).queryByText("acme/widgets")).not.toBeInTheDocument()
   })
 
+  it("hides scratch pad controls from the initial composer", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: "Build the operator briefing" } })
+    expect(screen.queryByRole("button", { name: "Stash" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Upload file" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Scratch pad" })).not.toBeInTheDocument()
+  })
+
   it("renders non-empty chats in the standard layout immediately", async () => {
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
