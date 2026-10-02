@@ -16,6 +16,24 @@ RSpec.describe ChatTurnJob, :ci_only do
     }.to have_enqueued_job(described_class).with(chat.id, user_message.id).on_queue("chat")
   end
 
+  it "sizes persistent chat MCP invocation tokens to the agent turn ceiling" do
+    job = described_class.new
+    job.instance_variable_set(:@chat, chat)
+    job.instance_variable_set(:@user_message, user_message)
+    decision = instance_double("AgentProviders::Base::McpTransportDecision", daemon_identity: { "worker_id" => "worker-chat" })
+
+    expect(McpInvocationContext).to receive(:issue_for_chat).with(
+      chat,
+      worker_id: "worker-chat",
+      current_message: user_message,
+      tier: "essential",
+      provider: chat.effective_chat_provider,
+      expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+    ).and_return("token")
+
+    expect(job.send(:mint_chat_invocation_context_token, decision, tier: "essential")).to eq("token")
+  end
+
   before do
     ChatTurnJob.agent_runner = nil
     allow(ChatWorkspace).to receive(:path_for).and_call_original
@@ -2529,6 +2547,18 @@ RSpec.describe ChatTurnJob, :ci_only do
   describe "persistent MCP transport (EPIC-20 chat routing)" do
     let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
 
+    def mark_agent_busy!(chat_session, workdir: workspace_path)
+      SpawnedProcess.create!(
+        chat_session: chat_session,
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-1",
+        pid: 12_345,
+        started_at: Time.current,
+        workdir: workdir.to_s
+      )
+    end
+
     def set_persistent_mcp_feature(enabled)
       feature = Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |record|
         record.category = "Labs"
@@ -2586,6 +2616,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(deferred_token).to be_present
       expect(essential_token).not_to eq(deferred_token)
 
+      mark_agent_busy!(chat)
       resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
       expect(resolved_essential.tier).to eq("essential")
       expect(resolved_essential.tool_context.chat_session).to eq(chat)
@@ -2674,6 +2705,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(deferred_token).to be_present
       expect(essential_token).not_to eq(deferred_token)
 
+      mark_agent_busy!(codex_chat, workdir: codex_workspace_path)
       resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
       expect(resolved_essential.tier).to eq("essential")
       expect(resolved_essential.provider).to eq("codex")
