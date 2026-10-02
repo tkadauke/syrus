@@ -1141,8 +1141,11 @@ export function startOnboardingChat() {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats/onboarding")
 }
 
-export function sendChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = []) {
-  return postJson<ChatPayload>(path, chatMessagePayload(text, attachments))
+export function sendChatMessage(path: string, text: string, attachments: ChatMessageAttachmentInput[] = [], chatProvider?: string | null) {
+  return postJson<ChatPayload>(path, {
+    ...(chatProvider ? { chat_provider: chatProvider } : {}),
+    ...chatMessagePayload(text, attachments)
+  })
 }
 
 export function renameChat(path: string, title: string) {

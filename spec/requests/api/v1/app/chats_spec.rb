@@ -6400,6 +6400,36 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("chat", "agent_busy")).to eq(false)
   end
 
+  it "pins the selected provider when sending the first message to an empty chat" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test", chat_provider: "claude")
+    chat = ChatSession.create!(user: user, repository: repository, chat_provider: "claude")
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_provider: "codex", chat_message: { text: "Start with Codex" } }
+    }.to change { chat.messages.count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_provider).to eq("codex")
+    expect(chat.effective_chat_provider).to eq("codex")
+    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
+    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
+  end
+
+  it "ignores chat_provider on the message endpoint after a chat has started" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test", chat_provider: "claude")
+    chat = ChatSession.create!(user: user, repository: repository, chat_provider: "claude", last_message_at: 1.day.ago)
+    chat.messages.create!(role: "user", content: { "text" => "Original provider" }, sender_user_id: user.id)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_provider: "codex", chat_message: { text: "Stay pinned" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_provider).to eq("claude")
+    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+  end
+
   it "enqueues title generation from a goal command sent to an unnamed chat" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
