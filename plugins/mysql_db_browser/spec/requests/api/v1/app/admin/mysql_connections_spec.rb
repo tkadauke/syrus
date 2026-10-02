@@ -49,7 +49,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(response.body).not_to include("s3cret")
     end
 
-    it "creates a connection with encrypted credentials" do
+    it "creates a connection with credential-store-backed credentials" do
       post "/api/v1/app/admin/mysql_connections", params: {
         mysql_connection: {
           label: "Prod", host: "db.example.com", port: 3306, username: "app", password: "hunter2"
@@ -60,7 +60,14 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(response.body).not_to include("hunter2")
 
       connection = MysqlConnection.find(parse_body.dig("mysql_connection", "id"))
-      expect(connection.password).to eq("hunter2")
+      expect(connection.password).to be_nil
+      expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection)).to have_attributes(
+        credential_type: "mysql_db_browser.connection",
+        scope_type: "instance",
+        payload: "hunter2",
+        safe_metadata: include("host" => "db.example.com", "port" => 3306, "username" => "app"),
+        target_constraints: include("allowed_hosts" => [ "db.example.com" ])
+      )
       expect(connection.agentic_access_enabled).to be false
     end
 
@@ -81,7 +88,8 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(response).to have_http_status(:ok)
       connection.reload
       expect(connection.label).to eq("Renamed")
-      expect(connection.password).to eq("new-pass")
+      expect(connection.password).to be_nil
+      expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection).payload).to eq("new-pass")
     end
 
     it "leaves the password untouched when not supplied on update" do
@@ -91,6 +99,35 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(connection.reload.password).to eq("keep-me")
+    end
+
+    it "leaves a credential-store-backed password untouched and syncs metadata when not supplied on update" do
+      post "/api/v1/app/admin/mysql_connections", params: {
+        mysql_connection: { label: "Prod", host: "db.example.com", port: 3306, username: "app", password: "keep-me" }
+      }
+      connection = MysqlConnection.find(parse_body.dig("mysql_connection", "id"))
+      credential = MysqlDbBrowser::CredentialMaterial.credential_for(connection)
+      rotated_at = credential.last_rotated_at
+
+      patch "/api/v1/app/admin/mysql_connections/#{connection.id}", params: {
+        mysql_connection: { label: "Renamed", host: "db2.example.com", port: 3307, username: "reporter" }
+      }
+
+      expect(response).to have_http_status(:ok)
+      connection.reload
+      credential.reload
+      expect(credential.payload).to eq("keep-me")
+      expect(credential.last_rotated_at.to_i).to eq(rotated_at.to_i)
+      expect(credential.safe_metadata).to include("host" => "db2.example.com", "port" => 3307, "username" => "reporter")
+      expect(credential.target_constraints).to include("allowed_hosts" => [ "db2.example.com" ])
+
+      allow(MysqlDbBrowser::ConnectionTester).to receive(:test_params)
+        .with(hash_including(host: "db2.example.com", port: 3307, username: "reporter", password: "keep-me"))
+        .and_return({ success: true })
+      post "/api/v1/app/admin/mysql_connections/#{connection.id}/test"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["success"]).to be(true)
     end
 
     it "deletes a connection" do
@@ -140,6 +177,28 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(parse_body["success"]).to be(true)
+      end
+
+      it "tests an existing credential-store-backed connection through a broker lease" do
+        post "/api/v1/app/admin/mysql_connections", params: {
+          mysql_connection: { label: "Prod", host: "db.example.com", port: 3306, username: "app", password: "stored-pass" }
+        }
+        connection = MysqlConnection.find(parse_body.dig("mysql_connection", "id"))
+        allow(MysqlDbBrowser::ConnectionTester).to receive(:test_params)
+          .with(hash_including(password: "stored-pass"))
+          .and_return({ success: true })
+
+        post "/api/v1/app/admin/mysql_connections/#{connection.id}/test"
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["success"]).to be(true)
+        expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+          credential: MysqlDbBrowser::CredentialMaterial.credential_for(connection),
+          user: admin,
+          surface: "admin",
+          action: "lease",
+          result: "allowed"
+        )
       end
     end
   end

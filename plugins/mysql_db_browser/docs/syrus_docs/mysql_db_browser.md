@@ -4,7 +4,8 @@ The `mysql_db_browser` plugin (`plugins/mysql_db_browser/`) lets an operator
 register connections to arbitrary external MySQL databases and browse/query
 them in a grid-first, Sequel Pro/TablePlus-style browser. It is a
 self-contained Rails engine plugin, installed but disabled by default
-(`default_enabled: false`, `disableable: true`, category `observability`).
+(`default_enabled: false`, `disableable: true`, category `tooling`) and
+depends on the bundled `credential_store` plugin.
 In Syrus's plugin architecture, the plugin's own `PluginRecord.enabled`
 toggle *is* the feature gate — there is no separate `Feature` flag. Every
 controller action checks `MysqlDbBrowser.enabled?` (the plugin record
@@ -12,11 +13,18 @@ enabled) and `Current.user.admin?`, so the whole surface is admin-only.
 
 ## Connections (`MysqlConnection`)
 
-`app/models/mysql_connection.rb` stores `label`, `host`, `port`, `username`,
-an optional `default_database`, and encrypted `credentials`
-(`encrypts :credentials, :json`, same pattern as `InputSource#credentials`) -
-the plaintext password lives only inside that encrypted JSON blob, never in
-a plain column. Two independent boolean opt-ins, both default `false`:
+`app/models/mysql_connection.rb` stores non-secret metadata: `label`, `host`,
+`port`, `username`, an optional `default_database`, and
+`credential_store_credential_id`. New and rotated passwords are written as
+`credential_store` records with credential type
+`mysql_db_browser.connection`; the DB Browser row keeps only the reference and
+safe metadata needed for listing and policy decisions. The legacy encrypted
+`credentials` JSON column remains as a compatibility fallback for connections
+created before the credential-store migration, so existing external database
+access is not stranded. Rotating the password moves that row onto
+credential-store-backed storage and clears the legacy payload.
+
+Two independent boolean opt-ins, both default `false`:
 
 - `agentic_access_enabled` - opts this specific connection into agentic
   access; see Agentic access below.
@@ -31,8 +39,9 @@ that never persists a draft connection.
 ## Schema browsing
 
 `MysqlDbBrowser::SchemaInspector` introspects an explicit external
-`Mysql2::Client` (built from the connection's decrypted credentials) rather
-than `ActiveRecord::Base.connection` - it mirrors `AdminMysql::Inspector`'s
+`Mysql2::Client` (built from a brokered credential-store lease, or the legacy
+encrypted fallback for pre-migration rows) rather than
+`ActiveRecord::Base.connection` - it mirrors `AdminMysql::Inspector`'s
 safe-section/timeout-hint/truncation design but is not tied to Syrus's own
 database. `GET .../mysql_connections/:id/schema` lists databases (always
 including the four MySQL system schemas - `information_schema`,
@@ -196,6 +205,14 @@ docs' Agentic write-access gating section for the parallel shape.
 Query tab and the Content tab (the latter via `#execute_select`, which yields
 the connected client so the caller can build the final SQL with the same
 escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
+
+- **Credential access.** Credential-store-backed rows acquire the MySQL
+  password through `CredentialStore::Broker` for admin UI schema browsing,
+  table content, raw queries, password testing, and workflow/chat MCP tools.
+  Broker lease events record admin/workflow/chat credential access without
+  writing password material to API responses, MCP transcripts, query audit
+  rows, or logs. Legacy encrypted rows are still read directly only until an
+  operator rotates the password.
 
 - **Read-only by default.** A statement is accepted unmodified only if it is
   a read query or safe diagnostic/metadata statement: `SELECT`, `SHOW`,

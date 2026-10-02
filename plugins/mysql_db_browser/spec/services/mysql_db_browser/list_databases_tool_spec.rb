@@ -9,7 +9,7 @@ RSpec.describe MysqlDbBrowser::ListDatabasesTool do
 
   it "returns the connection's databases payload" do
     payload = { available: true, databases: [ { name: "app_prod", system_schema: false } ] }
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(instance_double(MysqlDbBrowser::SchemaInspector, databases: payload))
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(instance_double(MysqlDbBrowser::SchemaInspector, databases: payload))
 
     response = call(mysql_connection_id: connection.id)
 
@@ -34,7 +34,7 @@ RSpec.describe MysqlDbBrowser::ListDatabasesTool do
   end
 
   it "surfaces a connection failure as an error response" do
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(
       instance_double(MysqlDbBrowser::SchemaInspector).tap { |inspector| allow(inspector).to receive(:databases).and_raise(MysqlDbBrowser::SchemaInspector::Unavailable, "Access denied") }
     )
 
