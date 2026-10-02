@@ -552,7 +552,7 @@ RSpec.describe MuseInvocation do
     end
   end
 
-  it "maps required MCP server flags to required and optional Muse modes" do
+  it "writes required Muse mode for absent or true MCP requiredness and optional mode for false" do
     Dir.mktmpdir("muse-home") do |muse_home|
       stub_process_runners(lines: completed_lines_with)
 
@@ -585,9 +585,11 @@ RSpec.describe MuseInvocation do
 
       settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
       expect(result).to be_success
-      expect(settings.dig("mcpServers", "syrus-chat-sidecar", "mode")).to eq("required")
-      expect(settings.dig("mcpServers", "syrus-chat-deferred-sidecar", "mode")).to eq("optional")
-      expect(settings.dig("mcpServers", "syrus-workflow-sidecar", "mode")).to eq("required")
+      expect(settings.fetch("mcpServers")).to include(
+        "syrus-chat-sidecar" => include("mode" => "required"),
+        "syrus-chat-deferred-sidecar" => include("mode" => "optional"),
+        "syrus-workflow-sidecar" => include("mode" => "required")
+      )
     end
   end
 
