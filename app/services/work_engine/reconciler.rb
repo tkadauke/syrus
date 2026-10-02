@@ -3128,7 +3128,7 @@ module WorkEngine
 
     def start_blocked_check_due?(workflow)
       next_check_at = start_block_next_check_at(workflow)
-      next_check_at.present? && next_check_at <= now
+      next_check_at.blank? || next_check_at <= now
     end
 
     def stale_dependency_start_block?(workflow)

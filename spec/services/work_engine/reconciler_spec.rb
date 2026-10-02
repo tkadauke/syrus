@@ -4268,6 +4268,33 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
+  it "rechecks start blocks with missing retry metadata instead of waiting indefinitely" do
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 22.hours.ago,
+      updated_at: 22.hours.ago,
+      artifacts: { "start_blocked_reason" => "admission_control" }
+    )
+    step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: "admission_control",
+      blocked_until: nil,
+      blocked_details: { "start_blocked_reason" => "admission_control" }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :resource_admission_start_block)).to be_nil
+    expect(kind(result, :queued_workflow_without_first_run)).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "start_workflow",
+      check_after: nil
+    )
+    expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
   it "rechecks stale dependency or stack start blocks once dependencies are ready" do
     run.destroy!
     workflow.update_columns(
