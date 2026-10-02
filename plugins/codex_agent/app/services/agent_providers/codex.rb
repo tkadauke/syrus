@@ -165,7 +165,8 @@ module AgentProviders
           resume_session_id: resume_session_id,
           resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
           model: model,
-          effort_level: effort_level
+          effort_level: effort_level,
+          env: cli_invocation_env
         ).run
       ensure
         codex_auth.persist_updated_auth_json

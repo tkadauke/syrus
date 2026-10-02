@@ -79,3 +79,32 @@ func TestSaveCredentialsTightensPermissionsOnExistingFile(t *testing.T) {
 		t.Fatalf("file mode = %v, want 0600", got)
 	}
 }
+
+func TestLoadDefaultCredentialsPrefersInvocationContext(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SYRUS_CLI_URL", "https://syrus.example.com")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "signed-context")
+	if err := SaveCredentials(filepath.Join(home, ".syrus", "credentials"), Credentials{URL: "https://human.example.com", Token: "human-token"}); err != nil {
+		t.Fatal(err)
+	}
+
+	creds, err := LoadDefaultCredentials()
+	if err != nil {
+		t.Fatalf("LoadDefaultCredentials returned error: %v", err)
+	}
+	if !creds.Internal || creds.URL != "https://syrus.example.com" || creds.Token != "signed-context" {
+		t.Fatalf("credentials = %#v", creds)
+	}
+}
+
+func TestLoadDefaultCredentialsReportsIncompleteInvocationContext(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("SYRUS_CLI_INTERNAL", "1")
+	t.Setenv("SYRUS_CLI_URL", "https://syrus.example.com")
+
+	_, err := LoadDefaultCredentials()
+	if !errors.Is(err, ErrMissingInvocationContext) {
+		t.Fatalf("expected ErrMissingInvocationContext, got %v", err)
+	}
+}

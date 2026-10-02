@@ -127,6 +127,37 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body.to_s).not_to include("Private")
   end
 
+  it "scopes invocation-context CLI clients to the current run's job", :skip_sign_in do
+    current_job = Factories.job_with_run(
+      repository: repo,
+      issue_number: 101,
+      issue_title: "Current scoped work",
+      run_attrs: { state: "running" }
+    )
+    other_job = Factories.job_record(
+      repository: repo,
+      issue_number: 102,
+      issue_title: "Same repository but outside the run",
+      state: "queued"
+    )
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+
+    get "/api/v1/app/jobs", params: { state: "all", limit: 10 },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["jobs"]).to contain_exactly(include(
+      "id" => current_job.id,
+      "title" => "Current scoped work"
+    ))
+    expect(body.to_s).not_to include("Same repository but outside the run")
+
+    get "/api/v1/app/jobs/#{other_job.id}", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "includes epic_title for jobs with an epic and nil for epicless jobs" do
     user.update!(api_token: "syrus_cli_token")
     epic = Factories.epic(user: user, repository: repo, title: "Fix the pipes")

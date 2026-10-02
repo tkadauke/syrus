@@ -30,6 +30,7 @@ import (
 // LoginMessage is what the CLI tells a user with no usable credentials.
 // Exported so plugin commands fail the same way the built-in ones do.
 const LoginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
+const InvocationContextMessage = "Syrus internal CLI authentication is enabled, but SYRUS_CLI_URL or SYRUS_CLI_INVOCATION_CONTEXT is missing. Check the worker runtime configuration."
 
 // DetectCurrentRepoSlug reports the owner/name of the checkout the command was
 // run from, or "" when it cannot tell. It is a var so tests can stub it; see
@@ -61,9 +62,12 @@ func Client() (*api.Client, error) {
 		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
 			return nil, errors.New(LoginMessage)
 		}
+		if errors.Is(err, config.ErrMissingInvocationContext) {
+			return nil, errors.New(InvocationContextMessage)
+		}
 		return nil, err
 	}
-	return api.NewClient(creds.URL, creds.Token)
+	return api.NewClientWithOptions(creds.URL, creds.Token, api.ClientOptions{InternalAuth: creds.Internal})
 }
 
 // Prompt writes a label and reads one line of input.

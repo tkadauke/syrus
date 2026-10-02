@@ -18,6 +18,7 @@
 # active; once the Run reaches a terminal state, replay is rejected as expired.
 class McpInvocationContext
   MESSAGE_VERIFIER_PURPOSE = :mcp_invocation
+  APP_API_AUDIENCE = "app_api".freeze
   DEFAULT_EXPIRES_IN = 5.minutes
   VERSION = 1
 
@@ -51,6 +52,20 @@ class McpInvocationContext
       )
     end
 
+    def issue_for_app_run(run, provider: nil, expires_in: DEFAULT_EXPIRES_IN)
+      issue(
+        surface: "run",
+        worker_id: APP_API_AUDIENCE,
+        expires_in: expires_in,
+        payload: {
+          "run_id" => run.id,
+          "job_id" => run.job_id,
+          "provider" => provider,
+          "aud" => APP_API_AUDIENCE
+        }
+      )
+    end
+
     def issue_for_chat(chat_session, worker_id:, current_message: nil, tier: "essential",
                         evaluator: false, scoped_event_id: nil, evaluator_session_id: nil,
                         provider: nil, expires_in: DEFAULT_EXPIRES_IN)
@@ -70,6 +85,26 @@ class McpInvocationContext
       )
     end
 
+    def issue_for_app_chat(chat_session, current_message: nil, tier: "essential",
+                           evaluator: false, scoped_event_id: nil, evaluator_session_id: nil,
+                           provider: nil, expires_in: DEFAULT_EXPIRES_IN)
+      issue(
+        surface: "chat",
+        worker_id: APP_API_AUDIENCE,
+        expires_in: expires_in,
+        payload: {
+          "chat_session_id" => chat_session.id,
+          "current_message_id" => current_message&.id,
+          "tier" => tier.to_s,
+          "evaluator" => evaluator ? true : false,
+          "scoped_event_id" => scoped_event_id,
+          "evaluator_session_id" => evaluator_session_id,
+          "provider" => provider,
+          "aud" => APP_API_AUDIENCE
+        }
+      )
+    end
+
     # Verifies and reconstructs a Resolved context for `token`, scoped to the
     # daemon instance identified by `worker_id` (PersistentMcpDaemon#identity's
     # worker_id). Raises a specific InvalidContext subclass -- and logs the
@@ -83,6 +118,18 @@ class McpInvocationContext
       build_resolved(payload)
     rescue InvalidContext => e
       log_rejection(e, worker_id: worker_id)
+      raise
+    end
+
+    def resolve_for_app_api(token)
+      payload = decode(token)
+      unless payload["aud"] == APP_API_AUDIENCE
+        raise Malformed, "invocation token is not valid for app API authentication"
+      end
+
+      build_resolved(payload)
+    rescue InvalidContext => e
+      log_rejection(e, worker_id: APP_API_AUDIENCE)
       raise
     end
 

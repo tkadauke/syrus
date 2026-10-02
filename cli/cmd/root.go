@@ -14,6 +14,7 @@ import (
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
+const invocationContextMessage = "Syrus internal CLI authentication is enabled, but SYRUS_CLI_URL or SYRUS_CLI_INVOCATION_CONTEXT is missing. Check the worker runtime configuration."
 
 var chatDebug bool
 

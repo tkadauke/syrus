@@ -24,6 +24,20 @@ RSpec.describe McpInvocationContext do
       expect(resolved.tool_context.role).to eq(McpToolContext.from_run(run).role)
     end
 
+    it "resolves app API run tokens without accepting daemon MCP tokens for that audience" do
+      app_token = described_class.issue_for_app_run(run, provider: "codex")
+      mcp_token = described_class.issue_for_run(run, worker_id: worker_id, provider: "codex")
+
+      resolved = described_class.resolve_for_app_api(app_token)
+
+      expect(resolved.surface).to eq(:run)
+      expect(resolved.provider).to eq("codex")
+      expect(resolved.tool_context.run).to eq(run)
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/Malformed/))
+      expect { described_class.resolve_for_app_api(mcp_token) }
+        .to raise_error(described_class::Malformed, /not valid for app API/)
+    end
+
     it "re-derives role live from the current step kind instead of trusting a stale claim" do
       token = described_class.issue_for_run(run, worker_id: worker_id)
       run.step.update_columns(kind: "adversarial_review")
