@@ -11,25 +11,38 @@ module Api
 
           def create
             cluster = KubernetesCluster.new(cluster_params)
-            apply_kubeconfig!(cluster, require_kubeconfig: true)
 
-            if cluster.errors.empty? && cluster.save
-              render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
-            else
-              render_error("validation_failed", cluster.errors.full_messages.to_sentence, status: :unprocessable_content)
+            ActiveRecord::Base.transaction do
+              apply_kubeconfig!(cluster, require_kubeconfig: true)
+              raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
+
+              cluster.save!
+              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user) if cluster.persisted? && pending_kubeconfig.present?
+              cluster.save!
             end
+            render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
+          rescue ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def update
             cluster = find_cluster
             cluster.assign_attributes(cluster_params)
-            apply_kubeconfig!(cluster, require_kubeconfig: false)
 
-            if cluster.errors.empty? && cluster.save
-              render json: { kubernetes_cluster: cluster_json(cluster) }
-            else
-              render_error("validation_failed", cluster.errors.full_messages.to_sentence, status: :unprocessable_content)
+            ActiveRecord::Base.transaction do
+              apply_kubeconfig!(cluster, require_kubeconfig: false)
+              raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
+
+              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user) if pending_kubeconfig.present?
+              cluster.save!
             end
+            render json: { kubernetes_cluster: cluster_json(cluster) }
+          rescue ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def destroy
@@ -47,7 +60,7 @@ module Api
           def test_existing_cluster
             cluster = find_cluster
             kubeconfig = params.dig(:kubernetes_cluster, :kubeconfig)
-            return K8sCluster::ConnectionTester.test(cluster) if kubeconfig.blank?
+            return K8sCluster::ConnectionTester.test(cluster, context: admin_context) if kubeconfig.blank?
 
             with_parsed_kubeconfig(kubeconfig) do |parsed|
               K8sCluster::ConnectionTester.test_params(
@@ -95,10 +108,12 @@ module Api
 
             parsed = K8sCluster::KubeconfigParser.parse(kubeconfig)
             cluster.api_server_url = parsed.api_server_url
-            cluster.credentials = parsed.credentials
+            @pending_kubeconfig = kubeconfig
           rescue K8sCluster::KubeconfigParser::ParseError => e
             cluster.errors.add(:base, e.message)
           end
+
+          def pending_kubeconfig = @pending_kubeconfig
 
           def find_cluster
             KubernetesCluster.find(params[:id])
@@ -123,10 +138,11 @@ module Api
           end
 
           def credential_kind(cluster)
-            return "token" if cluster.token.present?
-            return "client_cert" if cluster.client_cert.present?
+            K8sCluster::ClusterCredential.credential_kind(cluster)
+          end
 
-            nil
+          def admin_context
+            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
           end
 
           def require_k8s_cluster_enabled

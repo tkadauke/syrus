@@ -60,7 +60,7 @@ module K8sCluster
           timestamps: timestamps
         }
 
-        respond_with(cluster_id: cluster_id, params: params) do
+        respond_with(cluster_id: cluster_id, params: params, server_context: server_context) do
           cluster = AgenticAccess.cluster!(cluster_id)
           Pods.new(cluster).logs(
             name,
