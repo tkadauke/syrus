@@ -39,10 +39,10 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     if (!entry.linkifiesGeneratedText && !(copyOnly && entry.copyable)) return part
 
     const control = <SlugReferenceControl copyOnly={copyOnly} entry={entry} id={id} slug={slug} />
-    if (!hoverCards || !entry.previewAvailable) return <span key={index}>{control}</span>
+    if (!hoverCards || (!entry.previewAvailable && !entry.copyable && !hrefForSlugReference(entry, id))) return <span key={index}>{control}</span>
 
     return (
-      <SlugReferenceCard entry={entry} id={id} key={index}>
+      <SlugReferenceCard entry={entry} id={id} key={index} slug={slug}>
         {control}
       </SlugReferenceCard>
     )
