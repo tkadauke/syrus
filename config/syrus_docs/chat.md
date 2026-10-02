@@ -168,6 +168,16 @@ message's `id`, `role`, `content`, and `created_at`; callers should treat
 `has_more` as a neutral "another page is available" signal because page
 direction is defined by the tool's ordering contract, not by the field name.
 
+Sidebar pinning is exposed separately from pinned context. `pin_chat` and
+`unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
+sidebar uses for its pin control; `update_pinned_context` and
+`remove_pinned_context` continue to mutate only the per-chat context note.
+Both pinning tools default to the current chat session and accept an optional
+`chat_session_id` for another visible, active chat in the current chat user's
+accessible chat scope. They are idempotent: pinning an already-pinned chat or
+unpinning an already-unpinned chat succeeds and returns the current `pinned`
+state.
+
 Job-navigation MCP tools use the same compact-card posture. `search_jobs`
 searches across all repositories visible to the current chat user by Job title
 and stored body text, accepts an optional exact `state` filter, defaults to 20

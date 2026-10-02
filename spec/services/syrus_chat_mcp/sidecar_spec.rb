@@ -100,12 +100,14 @@ RSpec.describe Mcp::Sidecar do
         repo_info
         submit_chat_feedback
         rename_chat
+        pin_chat
+        unpin_chat
         suggest_next_step
         ask_user_question
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(25)
+      expect(tool_names.size).to eq(27)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
@@ -188,7 +190,7 @@ RSpec.describe Mcp::Sidecar do
         "list_repo_documents",
         "read_repo_document"
       )
-      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "rename_chat", "ask_user_question")
+      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "rename_chat", "pin_chat", "unpin_chat", "ask_user_question")
     end
 
     it "assigns every chat MCP tool file to exactly one tier" do
@@ -205,7 +207,7 @@ RSpec.describe Mcp::Sidecar do
       names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
 
       expect(names).to include("read_workflow", "assign_job_to_epic")
-      expect(names).not_to include("repo_info", "rename_chat", "ask_user_question", "admin_overview")
+      expect(names).not_to include("repo_info", "rename_chat", "pin_chat", "unpin_chat", "ask_user_question", "admin_overview")
     end
 
     it "registers search_syrus_docs in DEFERRED_TOOLS" do

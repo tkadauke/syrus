@@ -178,6 +178,8 @@ class McpToolRegistry
         chat(Mcp::Tools::RepoInfoTool),
         chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),
         chat(Mcp::Tools::RenameChatTool, mutation: true),
+        chat(Mcp::Tools::PinChatTool, mutation: true),
+        chat(Mcp::Tools::UnpinChatTool, mutation: true),
         chat(Mcp::Tools::SuggestNextStepTool, mutation: true),
         chat(Mcp::Tools::AskUserQuestionTool, mutation: true),
         chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true),
