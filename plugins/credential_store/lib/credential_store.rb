@@ -11,5 +11,27 @@ module CredentialStore
     category "agent_capability"
     default_enabled true
     disableable true
+
+    credential_types [
+      { name: "credential_store.generic", label: "Generic secret", description: "Opaque credential material with safe display metadata." },
+      { name: "credential_store.ssh_key", label: "SSH key", description: "SSH key material constrained by host, user, or fingerprint metadata." },
+      { name: "credential_store.kubeconfig", label: "Kubeconfig", description: "Kubernetes configuration constrained by context or cluster metadata." },
+      { name: "credential_store.url_token", label: "URL token", description: "Token material constrained to one or more URL prefixes." }
+    ]
+    provides admin_page: "CredentialStore::AdminPages",
+             sidebar_page: "CredentialStore::SidebarPages"
+    route :get, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#index"
+    route :post, "/api/v1/app/credential_store/credentials", to: "api/v1/app/credential_store/credentials#create"
+    route :get, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#show"
+    route :patch, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#update"
+    route :post, "/api/v1/app/credential_store/credentials/:id/rotate", to: "api/v1/app/credential_store/credentials#rotate"
+    route :post, "/api/v1/app/credential_store/credentials/:id/revoke", to: "api/v1/app/credential_store/credentials#revoke"
+    route :delete, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#revoke"
+    route :get, "/credential_store", to: "spa#show"
+    route :get, "/admin/credential_store", to: "spa#show"
+    frontend routes: {
+          "credential_store/CredentialStoreAdmin" => "app/frontend/routes/CredentialStoreAdmin.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/credential_store.json" ]
   end
 end
