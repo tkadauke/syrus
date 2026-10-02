@@ -296,7 +296,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       classified_at: Time.current
     )
     epic = Factories.epic(user: admin, repository: repository)
-    Factories.job_record(user: admin, repository: repository, epic: epic, state: "approved", branch_name: "syrus/epic-#{epic.id}-child", pr_number: 77)
+    Factories.job_record(user: admin, repository: repository, epic: epic, state: "approved", branch_name: "syrus/epic-#{epic.id}-child", pr_number: 77, commits_behind_base: 1)
 
     cases = {
       "admin_kill_process" => [ { process_id: process.id }, { "process_id" => process.id } ],
