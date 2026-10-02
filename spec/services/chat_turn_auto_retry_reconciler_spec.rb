@@ -63,6 +63,33 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     expect(chat.reload).to be_turn_in_flight
   end
 
+  it "performs a scheduled retry immediately before its automatic retry time" do
+    chat, message = create_stuck_chat
+    now = Time.current
+    attempt = ChatTurnAutoRetryAttempt.create!(
+      chat_session: chat,
+      root_user_message: message,
+      user_message: message,
+      attempt_number: 1,
+      scheduled_at: now + 5.minutes
+    )
+
+    result = nil
+    expect {
+      travel_to(now) { result = described_class.perform_now!(chat) }
+    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).on_queue("chat")
+
+    retry_message = attempt.reload.retry_message
+    expect(result).to be_performed
+    expect(attempt.performed_at.to_i).to eq(now.to_i)
+    expect(retry_message).to have_attributes(
+      chat_session: chat,
+      role: "user",
+      content: message.content,
+      sender_user_id: user.id
+    )
+  end
+
   it "does not schedule a retry while the original agent process is still live" do
     chat, _message = create_stuck_chat
     SpawnedProcess.create!(
