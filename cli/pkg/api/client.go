@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -19,6 +20,8 @@ type Client struct {
 	httpClient       *http.Client
 	unauthorizedHint string
 }
+
+var apiIDPattern = regexp.MustCompile(`^[0-9]+$`)
 
 type Error struct {
 	StatusCode int
@@ -74,6 +77,7 @@ func (c *Client) newRequest(ctx context.Context, method string, path string, bod
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("X-Syrus-CLI-Command", commandNamespace(method, relative))
 	return req, nil
 }
 
@@ -140,4 +144,20 @@ func (c *Client) responseError(resp *http.Response) error {
 	}
 
 	return &Error{StatusCode: resp.StatusCode, Message: message}
+}
+
+func commandNamespace(method string, endpoint *url.URL) string {
+	parts := strings.Split(strings.Trim(endpoint.Path, "/"), "/")
+	if len(parts) >= 3 && parts[0] == "api" && parts[1] == "v1" {
+		parts = parts[3:]
+	}
+	cleaned := make([]string, 0, len(parts)+1)
+	cleaned = append(cleaned, strings.ToLower(method))
+	for _, part := range parts {
+		if part == "" || apiIDPattern.MatchString(part) {
+			continue
+		}
+		cleaned = append(cleaned, part)
+	}
+	return strings.Join(cleaned, ".")
 }

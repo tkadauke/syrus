@@ -14,7 +14,9 @@ module Api
 
         skip_before_action :compute_system_alerts
         skip_forgery_protection if: :authenticated_bearer_token_request?
+        around_action :audit_internal_cli_invocation
         before_action :enforce_invocation_context_scope
+        before_action :authorize_internal_cli_invocation
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -124,6 +126,29 @@ module Api
           end
 
           true
+        end
+
+        def authorize_internal_cli_invocation
+          invocation = current_internal_cli_invocation
+          return true unless invocation
+          return true if invocation.allowed?
+
+          render_error("forbidden", AppApi::InternalCliInvocation::DENIED_MESSAGE, status: :forbidden)
+          false
+        end
+
+        def audit_internal_cli_invocation
+          yield
+        ensure
+          current_internal_cli_invocation&.audit(status: response.status)
+        end
+
+        def current_internal_cli_invocation
+          return @current_internal_cli_invocation if defined?(@current_internal_cli_invocation)
+
+          context = Current.session&.invocation_context
+          @current_internal_cli_invocation =
+            AppApi::InternalCliInvocation.active?(Current.session) ? AppApi::InternalCliInvocation.new(self, context: context) : nil
         end
 
         def disallowed_invocation_param?(context)
