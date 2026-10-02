@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
 import type { ChatTurnRetryState } from "../../api/chats"
+import { classes } from "../../components/ui/classes"
+import { TONE_CHIP_CLASSES, type SemanticTone } from "../../components/ui"
 import { useT } from "../../hooks/useT"
 import { providerLabel } from "./utils"
 
@@ -111,6 +113,16 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
   )
 }
 
+const RETRY_INDICATOR_BASE_CLASSES = "inline-flex max-w-full flex-wrap items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1"
+const RETRY_INDICATOR_TONES: Record<"exhausted" | "circuitOpen" | "default", SemanticTone> = {
+  circuitOpen: "warning",
+  default: "neutral",
+  exhausted: "danger"
+}
+const RETRY_NOW_BUTTON_CLASSES = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface px-2 text-[11px] font-semibold text-current shadow-sm ring-1 ring-current/20 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+const SWITCHING_INDICATOR_CLASSES = "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1"
+const BOUNCING_DOT_CLASSES = "h-1.5 w-1.5 animate-bounce rounded-full bg-current"
+
 export function TurnRetryIndicator({
   retry,
   onRetryNow,
@@ -136,14 +148,14 @@ export function TurnRetryIndicator({
     ? `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget} · next ${nextRetry}`
     : `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget}`
   const tone = retry.auto_retry_exhausted
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+    ? RETRY_INDICATOR_TONES.exhausted
     : retry.provider_circuit_open
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
-      : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+      ? RETRY_INDICATOR_TONES.circuitOpen
+      : RETRY_INDICATOR_TONES.default
 
   return (
     <div aria-label={details} aria-live="polite" className="flex justify-start" role="status">
-      <div className={`inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm ${tone}`} title={details}>
+      <div className={classes(RETRY_INDICATOR_BASE_CLASSES, TONE_CHIP_CLASSES[tone])} title={details}>
         <span className="whitespace-nowrap">{retry.state_label}</span>
         <span aria-hidden="true" className="text-current/45">·</span>
         <span className="whitespace-nowrap">attempt {retry.retry_attempt_count}/{retry.retry_budget}</span>
@@ -158,7 +170,7 @@ export function TurnRetryIndicator({
             <span aria-hidden="true" className="hidden text-current/45 min-[360px]:inline">·</span>
             <button
               aria-label={t("retry_turn_now")}
-              className="inline-flex h-6 shrink-0 items-center rounded-full border border-current/20 bg-white/70 px-2 text-[11px] font-semibold text-current shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-950/40 dark:hover:bg-gray-950/70"
+              className={RETRY_NOW_BUTTON_CLASSES}
               disabled={retryNowPending}
               onClick={onRetryNow}
               type="button"
@@ -209,11 +221,11 @@ export function SwitchingProviderIndicator({ provider, providerLabel: labelOverr
   const label = t("switching_to_provider", { provider: labelOverride || providerLabel(provider) })
   return (
     <div aria-label={label} aria-live="polite" className="flex justify-start" role="status">
-      <div className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+      <div className={classes(SWITCHING_INDICATOR_CLASSES, TONE_CHIP_CLASSES.warning)}>
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
             <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500 dark:bg-amber-300"
+              className={BOUNCING_DOT_CLASSES}
               key={index}
               style={{ animationDelay: `${index * 140}ms` }}
             />
