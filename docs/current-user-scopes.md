@@ -209,6 +209,7 @@ per-user/private:
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
+  - plugins/credential_store/app/controllers/api/v1/app/credential_store/credentials_controller.rb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
   - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
