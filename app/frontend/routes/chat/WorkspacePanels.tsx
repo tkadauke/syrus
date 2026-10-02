@@ -2,7 +2,7 @@ import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
 import { PanelMessage } from "../../components/PanelMessage"
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
@@ -22,7 +22,7 @@ import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { RuntimePanel } from "../RuntimePanel"
 import { errorMessage } from "../../lib/errorMessage"
-import { SourceCodeTable } from "../../components/FilePreviewModal"
+import { SourceCodeTable, type SourceCodeMatch } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { CHAT_DIFF_FILES_COLLAPSED_KEY, CHAT_DIFF_FILES_WIDTH_KEY, CHAT_FILES_TREE_COLLAPSED_KEY, CHAT_FILES_TREE_DEFAULT_WIDTH, CHAT_FILES_TREE_MAX_WIDTH, CHAT_FILES_TREE_REOPEN_WIDTH, CHAT_FILES_TREE_SNAP_CLOSED_WIDTH, CHAT_FILES_TREE_WIDTH_KEY, type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
@@ -40,6 +40,7 @@ import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
 import { Markdown } from "../../lib/Markdown"
+import { ContextFindBar } from "../../components/ContextFindBar"
 
 
 
@@ -53,6 +54,7 @@ import { Markdown } from "../../lib/Markdown"
 
 export function ChatWorkspacePanel({
   activeTab,
+  contextFindOpenerRef,
   showTabs = true,
   onSelectTab,
   onToggleCollapse,
@@ -62,6 +64,7 @@ export function ChatWorkspacePanel({
   onBookmarkSelect
 }: {
   activeTab: WorkspaceTab | null
+  contextFindOpenerRef?: MutableRefObject<(() => boolean) | null>
   showTabs?: boolean
   onSelectTab: (tab: WorkspaceTab | null) => void
   onToggleCollapse?: () => void
@@ -157,7 +160,7 @@ export function ChatWorkspacePanel({
         {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
         {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
-        {activeTab === "files" ? <CodingFilesPanel payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}
+        {activeTab === "files" ? <CodingFilesPanel contextFindOpenerRef={contextFindOpenerRef} payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "runtime" ? <RuntimePanel chatId={payload.chat.id} /> : null}
@@ -1345,7 +1348,7 @@ function SplitterHandle({
   )
 }
 
-function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload; readOnly?: boolean }) {
+function CodingFilesPanel({ contextFindOpenerRef, payload, readOnly = false }: { contextFindOpenerRef?: MutableRefObject<(() => boolean) | null>; payload: ChatPayload; readOnly?: boolean }) {
   const { t } = useT("chat")
   const [view, setView] = useState<"files" | "diff">("files")
   const [diffMode, setDiffMode] = useState<"cumulative" | "turn">("cumulative")
@@ -1353,6 +1356,10 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
   const [selectedRef, setSelectedRef] = useState<string>("")
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState("")
+  const [activeFindIndex, setActiveFindIndex] = useState(0)
+  const sourceScrollRef = useRef<HTMLDivElement | null>(null)
   // Below lg there's no room for a resizable side-by-side split (matches the
   // pre-splitter fixed grid, which only became two columns at lg:) -- the
   // Diff tab's file list falls back to a stacked, non-resizable layout.
@@ -1454,6 +1461,15 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
   }
 
   const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
+  const fileText = fileContent.data?.content ?? ""
+  const findMatches = useMemo(() => fileFindMatches(fileText, findQuery), [fileText, findQuery])
+  const activeFindMatch = findMatches[activeFindIndex] ?? null
+  const findTableMatches = findMatches.map((match, index) => ({ ...match, active: index === activeFindIndex }))
+  const findCountLabel = findQuery.trim().length === 0
+    ? t("context_find_ready")
+    : findMatches.length === 0
+      ? t("context_find_count_zero")
+      : t("context_find_count", { current: activeFindIndex + 1, total: findMatches.length })
   const commitOptions = commits.data?.commits ?? []
   const diffFiles = diffResult.data?.diff ? parseCodingDiffFiles(diffResult.data.diff) : []
   const selectedDiff = selectedDiffFile ? diffFiles.find((file) => file.path === selectedDiffFile) || null : null
@@ -1481,6 +1497,48 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
       setSelectedFile(null)
     }
   }, [fileTree.data, selectedFile])
+
+  const canFindInFile = view === "files" && Boolean(selectedFile) && fileContent.isSuccess && !fileContent.data?.binary && !fileContent.data?.too_large
+  const openFind = useCallback(() => {
+    if (!canFindInFile) return false
+    setFindOpen(true)
+    return true
+  }, [canFindInFile])
+
+  useEffect(() => {
+    if (!contextFindOpenerRef) return
+
+    contextFindOpenerRef.current = openFind
+    return () => {
+      if (contextFindOpenerRef.current === openFind) contextFindOpenerRef.current = null
+    }
+  }, [contextFindOpenerRef, openFind])
+
+  useEffect(() => {
+    setFindOpen(false)
+    setFindQuery("")
+    setActiveFindIndex(0)
+  }, [selectedFile, selectedRef, view])
+
+  useEffect(() => {
+    setActiveFindIndex(0)
+  }, [findQuery])
+
+  useEffect(() => {
+    if (activeFindIndex >= findMatches.length) setActiveFindIndex(0)
+  }, [activeFindIndex, findMatches.length])
+
+  useEffect(() => {
+    if (!activeFindMatch || !sourceScrollRef.current) return
+
+    const row = sourceScrollRef.current.querySelector(`[data-source-line="${activeFindMatch.line}"]`)
+    if (typeof row?.scrollIntoView === "function") row.scrollIntoView({ block: "center" })
+  }, [activeFindMatch])
+
+  function goToFindIndex(index: number) {
+    if (findMatches.length === 0) return
+    setActiveFindIndex((index + findMatches.length) % findMatches.length)
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1542,6 +1600,21 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
           </Select>
         </div>
       )}
+      {findOpen ? (
+        <ContextFindBar
+          closeLabel={t("context_find_close")}
+          countLabel={findCountLabel}
+          hasResults={findMatches.length > 0}
+          nextLabel={t("context_find_next")}
+          placeholder={t("context_find_placeholder_file")}
+          previousLabel={t("context_find_previous")}
+          query={findQuery}
+          onClose={() => setFindOpen(false)}
+          onNext={() => goToFindIndex(activeFindIndex + 1)}
+          onPrevious={() => goToFindIndex(activeFindIndex - 1)}
+          onQueryChange={setFindQuery}
+        />
+      ) : null}
 
       {readOnly || view === "files" ? (
         <div className="flex min-h-0 flex-1">
@@ -1576,7 +1649,7 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
             onKeyDown={treeSplitter.resizeWithKeyboard}
             onMouseDown={treeSplitter.beginResize}
           />
-          <div className="min-w-0 flex-1 overflow-y-auto">
+          <div className="min-w-0 flex-1 overflow-y-auto" ref={sourceScrollRef}>
             {!selectedFile ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_empty")}</p>
             ) : fileContent.isPending || fileContentNotReady ? (
@@ -1588,7 +1661,7 @@ function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload;
             ) : fileContent.data?.too_large ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_too_large")}</p>
             ) : (
-              <SourceCodeTable content={fileContent.data?.content ?? ""} path={selectedFile} targetLine={null} testId="coding-source-viewer" />
+              <SourceCodeTable content={fileContent.data?.content ?? ""} matches={findTableMatches} path={selectedFile} targetLine={null} testId="coding-source-viewer" />
             )}
           </div>
         </div>
@@ -1663,6 +1736,25 @@ type CodingDiffFile = {
 
 function truncateCommitMessage(message: string) {
   return message.length > 72 ? `${message.slice(0, 69)}...` : message
+}
+
+function fileFindMatches(content: string, query: string): SourceCodeMatch[] {
+  const needle = query.trim()
+  if (!needle) return []
+
+  const lowerNeedle = needle.toLowerCase()
+  const matches: SourceCodeMatch[] = []
+  content.split("\n").forEach((line, index) => {
+    const lowerLine = line.toLowerCase()
+    let cursor = 0
+    while (cursor <= lowerLine.length) {
+      const foundAt = lowerLine.indexOf(lowerNeedle, cursor)
+      if (foundAt < 0) break
+      matches.push({ line: index + 1, start: foundAt, end: foundAt + needle.length })
+      cursor = foundAt + Math.max(lowerNeedle.length, 1)
+    }
+  })
+  return matches
 }
 
 function isCodingRelayUnavailable(error: unknown): error is ApiError {

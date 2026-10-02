@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
 import { buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Markdown } from "../lib/Markdown"
@@ -104,22 +104,35 @@ function FilePreviewState({ message, tone = "neutral" }: { message: string; tone
   return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
 }
 
-export function SourceCodeTable({ content, path, targetLine, testId = "source-preview-code" }: { content: string; path: string; targetLine: number | null; testId?: string }) {
+export type SourceCodeMatch = {
+  line: number
+  start: number
+  end: number
+  active?: boolean
+}
+
+export function SourceCodeTable({ content, matches = [], path, targetLine, testId = "source-preview-code" }: { content: string; matches?: SourceCodeMatch[]; path: string; targetLine: number | null; testId?: string }) {
   const language = detectHighlighterLanguage(path)
   const lines = content.split("\n")
   const tokenLines = useHighlightedLines(content, language)
+  const matchesByLine = matches.reduce<Record<number, SourceCodeMatch[]>>((grouped, match) => {
+    grouped[match.line] ||= []
+    grouped[match.line].push(match)
+    return grouped
+  }, {})
 
   return (
     <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
       <tbody>
         {lines.map((line, index) => {
           const lineNum = index + 1
-          const targeted = targetLine === lineNum
+          const lineMatches = matchesByLine[lineNum] || []
+          const targeted = targetLine === lineNum || lineMatches.some((match) => match.active)
           return (
             <tr className={targeted ? "bg-yellow-100 dark:bg-yellow-950/50" : "bg-white dark:bg-gray-950"} data-source-line={lineNum} key={lineNum}>
               <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">{lineNum}</td>
               <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {renderCodeLine(tokenLines?.[index], line || " ")}
+                {renderCodeLineWithMatches(renderCodeLine(tokenLines?.[index], line || " "), line, lineMatches)}
               </td>
             </tr>
           )
@@ -128,3 +141,29 @@ export function SourceCodeTable({ content, path, targetLine, testId = "source-pr
     </table>
   )
 }
+
+function renderCodeLineWithMatches(rendered: ReactNode, plainLine: string, matches: SourceCodeMatch[]) {
+  if (matches.length === 0 || plainLine.length === 0) return rendered
+
+  const sorted = [...matches].sort((a, b) => a.start - b.start)
+  const parts: ReactNode[] = []
+  let cursor = 0
+
+  sorted.forEach((match, index) => {
+    const start = Math.max(cursor, match.start)
+    const end = Math.max(start, match.end)
+    if (start > cursor) parts.push(<Fragment key={`text-${index}`}>{plainLine.slice(cursor, start)}</Fragment>)
+    parts.push(
+      <mark className="rounded px-0.5" data-source-search-match={match.active ? "active" : "true"} key={`match-${index}`} style={match.active ? activeSourceMatchStyle : sourceMatchStyle}>
+        {plainLine.slice(start, end)}
+      </mark>
+    )
+    cursor = end
+  })
+  if (cursor < plainLine.length) parts.push(<Fragment key="tail">{plainLine.slice(cursor)}</Fragment>)
+
+  return parts
+}
+
+const sourceMatchStyle = { backgroundColor: "rgba(250, 204, 21, 0.35)", color: "inherit" }
+const activeSourceMatchStyle = { backgroundColor: "rgb(252, 211, 77)", color: "rgb(17, 24, 39)" }
