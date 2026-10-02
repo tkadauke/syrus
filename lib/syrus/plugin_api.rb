@@ -93,6 +93,7 @@ module Syrus
         @routes = []
         @links = []
         @metric_blocks = []
+        @credential_types = []
         @frontend = {}
         @events = {}
         @effects = []
@@ -158,6 +159,30 @@ module Syrus
         Array(entries).each do |entry|
           attrs = entry.to_h.transform_keys(&:to_sym)
           link(attrs.fetch(:label), attrs.fetch(:href), description: attrs[:description], kind: attrs.fetch(:kind, :surface), enabled_only: attrs.fetch(:enabled_only, true))
+        end
+      end
+
+      # Declares credential type names that credential-management plugins may
+      # discover. This is deliberately metadata-only: storage, encryption,
+      # parsing, authorization, broker materialization, and redaction remain
+      # owned by the credential-management implementation, not by the declaring
+      # plugin.
+      def credential_type_names(*names)
+        return @credential_types.map { |entry| entry.fetch(:name) } if names.empty?
+
+        @credential_types.concat(names.flatten.map { |name| { name: name.to_s } })
+      end
+
+      def credential_types(entries = nil)
+        return @credential_types if entries.nil?
+
+        credential_type_entry_list(entries).each do |entry|
+          attrs = entry.to_h.transform_keys(&:to_sym)
+          @credential_types << {
+            name: attrs.fetch(:name).to_s,
+            label: attrs[:label],
+            description: attrs[:description]
+          }.compact
         end
       end
 
@@ -296,6 +321,7 @@ module Syrus
           routes: (routes if routes.any?),
           links: (links if links.any?),
           metrics: (metric_declarations if metric_declarations.any?),
+          credential_types: (@credential_types if @credential_types.any?),
           frontend: (frontend if frontend.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
@@ -327,6 +353,14 @@ module Syrus
       end
 
       private
+
+      def credential_type_entry_list(entries)
+        if entries.respond_to?(:key?) && (entries.key?(:name) || entries.key?("name"))
+          [ entries ]
+        else
+          Array(entries)
+        end
+      end
 
       # Evaluates the `metrics` block a second time through a scratch
       # Declaration -- the same double-evaluation `metric_declarations`

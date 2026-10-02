@@ -554,6 +554,55 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  describe ".credential_types" do
+    it "returns credential type declarations from enabled healthy plugins" do
+      described_class.register(
+        name: "credential_plugin",
+        version: "1.0.0",
+        credential_types: [
+          {
+            name: "credential_plugin.kubeconfig",
+            label: "Kubernetes kubeconfig",
+            description: "Cluster access material."
+          }
+        ]
+      )
+
+      expect(described_class.credential_types).to eq([
+        {
+          "name" => "credential_plugin.kubeconfig",
+          "label" => "Kubernetes kubeconfig",
+          "description" => "Cluster access material.",
+          "plugin" => "credential_plugin"
+        }
+      ])
+      expect(described_class.credential_type_names).to eq([ "credential_plugin.kubeconfig" ])
+    end
+
+    it "excludes credential types from disabled plugins" do
+      described_class.register(
+        name: "disabled_credential_plugin",
+        version: "1.0.0",
+        credential_type_names: [ "disabled_credential_plugin.kubeconfig" ]
+      )
+      PluginRecord.find_by!(name: "disabled_credential_plugin").update!(enabled: false)
+
+      expect(described_class.credential_types).to eq([])
+      expect(described_class.credential_type_names).to eq([])
+    end
+
+    it "falls back to registered credential types when plugin_records is unavailable" do
+      described_class.register(
+        name: "fallback_credential_plugin",
+        version: "1.0.0",
+        credential_type_names: [ "fallback_credential_plugin.kubeconfig" ]
+      )
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect(described_class.credential_type_names).to eq([ "fallback_credential_plugin.kubeconfig" ])
+    end
+  end
+
   describe ".register" do
     it "stores the plugin manifest" do
       described_class.register(name: "test_plugin", version: "1.0.0")
@@ -638,6 +687,106 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           "enabled_only" => true
         }
       ])
+    end
+
+    it "stores credential type names on the manifest" do
+      described_class.register(
+        name: "k8s_cluster",
+        version: "1.0.0",
+        credential_type_names: [ "k8s_cluster.kubeconfig" ]
+      )
+
+      expect(described_class.all_plugins.first.credential_types).to eq([
+        { "name" => "k8s_cluster.kubeconfig" }
+      ])
+    end
+
+    it "accepts credential type display metadata" do
+      described_class.register(
+        name: "k8s_cluster",
+        version: "1.0.0",
+        credential_types: {
+          name: "k8s_cluster.kubeconfig",
+          label: "Kubernetes kubeconfig",
+          description: "Cluster access material."
+        }
+      )
+
+      expect(described_class.all_plugins.first.credential_types).to eq([
+        {
+          "name" => "k8s_cluster.kubeconfig",
+          "label" => "Kubernetes kubeconfig",
+          "description" => "Cluster access material."
+        }
+      ])
+    end
+
+    it "accepts credential type declarations from the manifest DSL" do
+      definition = Syrus::PluginApi::Definition.new(
+        name: "k8s_cluster",
+        namespace: Module.new,
+        lib_dir: Rails.root.to_s
+      )
+      definition.credential_type_names "k8s_cluster.token"
+      definition.credential_types(
+        name: "k8s_cluster.kubeconfig",
+        label: "Kubernetes kubeconfig",
+        description: "Cluster access material."
+      )
+
+      expect(definition.manifest_arguments.fetch(:credential_types)).to eq([
+        { name: "k8s_cluster.token" },
+        {
+          name: "k8s_cluster.kubeconfig",
+          label: "Kubernetes kubeconfig",
+          description: "Cluster access material."
+        }
+      ])
+    end
+
+    it "rejects invalid credential type names" do
+      expect {
+        described_class.register(
+          name: "k8s_cluster",
+          version: "1.0.0",
+          credential_type_names: [ "K8S Cluster" ]
+        )
+      }.to raise_error(described_class::RegistrationError, /lowercase dot-separated segments/)
+    end
+
+    it "rejects credential type names that are not namespaced to the declaring plugin" do
+      expect {
+        described_class.register(
+          name: "k8s_cluster",
+          version: "1.0.0",
+          credential_type_names: [ "other_plugin.kubeconfig" ]
+        )
+      }.to raise_error(described_class::RegistrationError, /namespaced with the declaring plugin name/)
+    end
+
+    it "rejects duplicate credential type names within one plugin" do
+      expect {
+        described_class.register(
+          name: "k8s_cluster",
+          version: "1.0.0",
+          credential_type_names: [ "k8s_cluster.kubeconfig", "k8s_cluster.kubeconfig" ]
+        )
+      }.to raise_error(described_class::RegistrationError, /duplicate credential type/)
+    end
+
+    it "replaces a plugin's prior credential type declaration when it re-registers" do
+      described_class.register(
+        name: "replace_credential_plugin",
+        version: "1.0.0",
+        credential_type_names: [ "replace_credential_plugin.token" ]
+      )
+      described_class.register(
+        name: "replace_credential_plugin",
+        version: "1.0.1",
+        credential_type_names: [ "replace_credential_plugin.kubeconfig" ]
+      )
+
+      expect(described_class.credential_type_names).to eq([ "replace_credential_plugin.kubeconfig" ])
     end
 
     it "rejects plugin-provided links without a label or href" do
