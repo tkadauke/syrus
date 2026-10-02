@@ -14,11 +14,12 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
 
-          chat_session = job.discussion_chat || ::App::JobDiscussionChatResolver.new(job: job, user: Current.user).resolve
+          chat_session = job.discussion_chat
           user_message = nil
           message_text = requested_message(job).presence
 
           ApplicationRecord.transaction do
+            chat_session ||= ChatSession.create!(user: Current.user, repository: job.repository)
             chat_session.chat_attachments.find_or_create_by!(attachable: job)
             user_message = chat_session.messages.create!(
               role: "user",
