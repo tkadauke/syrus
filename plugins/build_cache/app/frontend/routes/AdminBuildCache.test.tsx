@@ -59,12 +59,15 @@ describe("AdminBuildCache", () => {
 
     expect(await screen.findByText(/not configured/i)).toBeInTheDocument()
     expect(screen.queryByTestId("build-cache-stats")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("build-cache-clear-form")).not.toBeInTheDocument()
   })
 
   it("shows bucket stats when configured", async () => {
     renderPage(() => Promise.resolve(jsonResponse(buildCachePayload())))
 
     expect(await screen.findByTestId("build-cache-stats")).toBeInTheDocument()
+    expect(screen.queryByText(/not configured/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId("build-cache-clear-form")).toBeInTheDocument()
     expect(screen.getByText("42")).toBeInTheDocument()
   })
 
