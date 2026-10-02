@@ -90,8 +90,8 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("FROM docker.io/library/golang:1.26.5-bookworm AS cli-build")
     expect(cli_stage).to include("COPY go.work go.work.sum ./")
     expect(cli_stage).to include("COPY cli/go.mod cli/go.sum ./cli/")
-    expect(cli_stage).to include("cd cli && go mod download")
-    expect(cli_stage).to include('env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch"')
+    expect(cli_stage).to include("cd cli && GOWORK=off go mod download")
+    expect(cli_stage).to include('env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch"')
     expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .')
 
     plugin_cli_modules.each do |module_path|
