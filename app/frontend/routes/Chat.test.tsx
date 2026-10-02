@@ -3585,15 +3585,15 @@ describe("composer next-step suggestion", () => {
     return screen.findByRole("textbox")
   }
 
-  it("renders the suggestion as ghost text with a tab hint when the composer is empty", async () => {
+  it("renders the suggestion as ghost text with a tappable accept button when the composer is empty", async () => {
     mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
 
     renderRoute()
 
     const ghost = await screen.findByTestId("chat-suggestion-ghost")
     expect(ghost).toHaveTextContent("Create an Epic from these findings")
-    expect(ghost).toHaveTextContent("tab")
-    expect(screen.getByText("Suggested next message: Create an Epic from these findings. Press Tab to accept.")).toBeInTheDocument()
+    expect(within(ghost).getByRole("button", { name: "Accept suggested message: Create an Epic from these findings" })).toBeInTheDocument()
+    expect(screen.getByText("Suggested next message: Create an Epic from these findings. Tap the suggestion button or press Tab to accept.")).toBeInTheDocument()
   })
 
   it("does not render ghost text when no suggestion is stored", async () => {
@@ -3615,6 +3615,20 @@ describe("composer next-step suggestion", () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 300)
     fireEvent.keyDown(textarea, { key: "Tab" })
     nowSpy.mockRestore()
+
+    expect(textarea).toHaveValue("Create an Epic from these findings")
+    expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
+  })
+
+  it("fills the composer with the suggestion when tapping the mobile accept button", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    const ghost = await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    fireEvent.click(within(ghost).getByRole("button", { name: "Accept suggested message: Create an Epic from these findings" }))
 
     expect(textarea).toHaveValue("Create an Epic from these findings")
     expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
