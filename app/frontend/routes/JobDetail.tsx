@@ -524,7 +524,7 @@ function HeaderChatAffordance({
     mutationFn: (message: string) => startJobDiscussionChat(payload.job.id, message),
     onSuccess: (result) => {
       setPromptDialogOpen(false)
-      navigate(result.redirect_to)
+      navigate(withRoutePrefix(result.redirect_to, prefix))
     }
   })
 
