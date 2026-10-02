@@ -28,7 +28,7 @@ module ChatSearch
 
     total = grouped_matches.length
     paged_chat_ids = grouped_matches.slice(search_offset(page), SEARCH_PAGE_SIZE) || []
-    sessions_by_id = Current.user.accessible_chat_sessions
+    sessions_by_id = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
       .where(id: paged_chat_ids)
       .preload(repository_attachments: :attachable)
       .index_by(&:id)
@@ -61,7 +61,7 @@ module ChatSearch
   end
 
   def filtered_chat_search_scope
-    scope = Current.user.accessible_chat_sessions.visible.active
+    scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).visible.active
     scope = apply_chat_attachment_filter(scope, "Repository", :repository_id)
     return scope if performed?
 
