@@ -48,3 +48,49 @@ or `chat_session`), the tool/surface/action/purpose, result, and denial reason.
 They intentionally do not store payload material. Credentials are
 revocation-only at the model layer so destroying a credential cannot delete its
 audit history.
+
+## Brokered Tool Access
+
+The plugin exposes a Ruby broker API for other bundled plugins that declare
+`depends_on [ "credential_store" ]`. The broker is intentionally not an MCP
+tool and never returns plaintext credential material to the agent:
+
+```ruby
+CredentialStore::Broker.with_credential_file(
+  context: mcp_tool_context,
+  credential: credential_id_or_name,
+  type: "k8s_cluster.kubeconfig",
+  purpose: "kubectl apply",
+  tool_name: "k8s.apply",
+  target: { kube_context: "production" }
+) do |path, metadata|
+  # Run the local command with the temporary file.
+end
+
+CredentialStore::Broker.with_credential_env(
+  context: mcp_tool_context,
+  credential: credential_id_or_name,
+  type: "credential_store.url_token",
+  env_key: "API_TOKEN",
+  purpose: "probe deployment",
+  tool_name: "deploy.probe",
+  target: { host: "api.example.com", url: "https://api.example.com/status" }
+) do |env, metadata|
+  # Merge `env` into a child process environment.
+end
+```
+
+Every broker call resolves the credential from the current `McpToolContext`,
+then authorizes the request against credential scope, current user,
+repository/team membership, allowed repository scope, MCP surface, allowed
+tool name, expected credential type, target constraints, revocation, and
+expiry. A successful call issues a short-lived local lease, materializes the
+payload only inside the block as either a restrictive temporary file or a
+per-call env hash, and cleans that local material in `ensure`.
+
+Broker return values and broker-wrapped exceptions are scrubbed with
+`CredentialStore::Redaction`, which removes the known credential payload and
+common unsafe probe output shapes before a dependent MCP tool returns results
+or persistent dispatch records an error summary. Dependent tools should still
+avoid printing command environments or raw files; the broker is the last guard,
+not a substitute for careful tool design.
