@@ -241,6 +241,19 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("workspace_missing")
   end
 
+  it "cancels a CI repair blocked on a superseded base instead of waiting forever" do
+    result = run_scenario("superseded_ci_repair_base_resolves")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    workflow = job.workflows.find_by!(trigger_kind: "ci_failure")
+    expect(workflow).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq(WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON)
+    expect(workflow.work_unit).to be_cancelled
+    expect(workflow.work_unit.preemption_reason).to eq(WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON)
+    expect(result.events.join("\n")).to include("cancel_superseded_ci_repair")
+  end
+
   {
     "queued_step_without_run" => "queued_step_without_run",
     "running_workflow_with_failed_step" => "running_workflow_with_failed_step",

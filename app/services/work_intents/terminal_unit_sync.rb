@@ -3,6 +3,7 @@ module WorkIntents
     ACTIVE_UNIT_STATES = %w[queued blocked running].freeze
     SUPERSEDING_CANCEL_REASONS = [
       Workflow::SUPERSEDED_BY_REBASE_REASON,
+      WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
       "operator_cancelled",
       "job_approved"
     ].freeze
