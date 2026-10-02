@@ -99,11 +99,16 @@ daemon URL plus a short-lived invocation token. The legacy direct
 `bin/syrus-mcp-sidecar` fallback is different: it boots Rails as a child
 process, so it receives the worker boot env needed for MySQL, Active Record
 encryption, and S3-backed production boots. Shared service bearer tokens that
-are not needed for Rails boot stay out of that direct-sidecar env. Chat has no
-safe direct Rails stdio fallback under an agent-visible scrubbed environment;
-when persistent chat transport is not selected, the generated chat MCP entries
-point at a secret-free unavailable responder that reports that the persistent
-daemon is required instead of attempting to boot Rails.
+are not needed for Rails boot stay out of that direct-sidecar env.
+
+Chat's non-persistent fallback is also proxy-backed. When
+`ChatMcpTransportSelector` returns `:stdio` because the feature is disabled or
+the primary daemon is unhealthy, `ChatTurnJob` starts a worker-owned loopback
+compatibility daemon and points both stable chat server names at
+`bin/syrus-mcp-proxy`. The proxy receives the compatibility daemon URL plus a
+short-lived chat invocation token, not Rails boot secrets. The old direct Rails
+chat sidecar entrypoints remain for specialized internal callers, but generated
+agent-visible chat MCP config does not spawn them.
 
 For agent CLIs that only support stdio MCP, the configured command is
 `bin/syrus-mcp-proxy` when persistent transport is selected. The proxy does not
@@ -227,10 +232,21 @@ workflow: resumed sessions derive MCP tool prefixes from the config key). Each
 entry carries its own `McpInvocationContext.issue_for_chat` token so the daemon
 can tell which tier a given call belongs to.
 
+For a stdio decision, `ChatTurnJob` keeps those same two config keys but points
+them at `bin/syrus-mcp-proxy` and a worker-owned compatibility daemon started
+outside the agent environment. The compatibility daemon uses the same
+`PersistentMcpDaemon` dispatch stack with the same `Mcp::Sidecar.chat_tools_for`
+/ plugin tool assembly and the same signed invocation-token resolver. If even
+that worker-owned fallback cannot start, Syrus falls back to the explicit
+`bin/syrus-mcp-unavailable` responder so the chat turn reports a clear MCP
+failure instead of silently advertising a partial tool inventory.
+
 **Diagnostics**: every non-`nil` decision is recorded on
 `ChatSession#artifact("mcp_transport")` (via `ChatSession#set_artifact!`, the
 same read/write convention `SubmitArtifactTool` uses for `typed_artifacts`)
-and as a Rails log line — `warn`-level specifically for a stdio fallback so
+and as a Rails log line. Stdio fallback artifacts include
+`"stdio_fallback": "proxy"` and the selector reason (`feature_disabled`,
+`daemon_unreachable: ...`, etc.); the log line is warn-level so
 "feature enabled, daemon failed" is greppable via the `read_syrus_logs` MCP
 tool, not just via manual inspection of a specific chat's artifacts.
 

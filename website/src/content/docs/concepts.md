@@ -160,9 +160,11 @@ thread; Workflows and Runs are the attempts.
 
 ## MCP Sidecar
 
-Agent processes talk back to Syrus through a small MCP sidecar. The
-sidecar runs next to the agent over stdio, boots the Syrus Rails app,
-and writes structured results onto the current Workflow or Run.
+Agent processes talk back to Syrus through a small MCP sidecar. Workflow
+fallback sidecars run next to the agent over stdio, boot the Syrus Rails app,
+and write structured results onto the current Workflow or Run. Chat turns and
+some agent providers may instead use a secret-free stdio proxy or local HTTP
+transport to reach a worker-owned MCP daemon with the same tool surface.
 
 That pattern gives the agent a narrow set of explicit signals instead
 of asking Syrus to scrape prose from the transcript. The important
