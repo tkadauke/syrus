@@ -992,11 +992,11 @@ module WorkEngine
             safe_to_auto_repair: workflow.job.open? && (!blocked_before_start || ci_repair_base_superseded),
             recommended_repair_action: if ci_repair_base_superseded
               "cancel_superseded_ci_repair"
-            elsif blocked_before_start
+                                       elsif blocked_before_start
               "wait_for_start_block_to_clear"
-            else
+                                       else
               "start_workflow"
-            end,
+                                       end,
             check_after: ci_repair_base_superseded ? nil : start_block_next_check_at(workflow),
             evidence: workflow_evidence(workflow).merge(
               first_step_id: workflow.first_step&.id,

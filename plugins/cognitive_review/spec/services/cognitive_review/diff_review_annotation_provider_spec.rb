@@ -501,5 +501,4 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
   ensure
     ActiveSupport::Notifications.unsubscribe(subscription) if subscription
   end
-
 end
