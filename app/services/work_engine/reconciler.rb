@@ -983,14 +983,28 @@ module WorkEngine
             )
           end
 
+          ci_repair_base_superseded = superseded_ci_repair_start_block?(workflow)
+          blocked_before_start = start_blocked?(workflow)
           issue(
             kind: :queued_workflow_without_first_run,
-            severity: start_blocked?(workflow) ? :info : :error,
+            severity: blocked_before_start && !ci_repair_base_superseded ? :info : :error,
             affected_ids: ids_for(workflow),
-            safe_to_auto_repair: workflow.job.open? && !start_blocked?(workflow),
-            recommended_repair_action: start_blocked?(workflow) ? "wait_for_start_block_to_clear" : "start_workflow",
-            check_after: start_block_next_check_at(workflow),
-            evidence: workflow_evidence(workflow).merge(first_step_id: workflow.first_step&.id),
+            safe_to_auto_repair: workflow.job.open? && (!blocked_before_start || ci_repair_base_superseded),
+            recommended_repair_action: if ci_repair_base_superseded
+              "cancel_superseded_ci_repair"
+                                       elsif blocked_before_start
+              "wait_for_start_block_to_clear"
+                                       else
+              "start_workflow"
+                                       end,
+            check_after: ci_repair_base_superseded ? nil : start_block_next_check_at(workflow),
+            evidence: workflow_evidence(workflow).merge(
+              first_step_id: workflow.first_step&.id,
+              start_blocked_reason: start_block_reason(workflow),
+              start_blocked_details: start_block_details(workflow),
+              ci_repair_base_sha: ci_repair_start_block_base_sha(workflow),
+              ci_repair_current_base_sha: workflow.job && WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
+            ),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
           )
         elsif workflow.queued? && (failed_step = orphaned_failed_step(workflow))
@@ -3169,6 +3183,25 @@ module WorkEngine
 
     def start_block_next_check_at(workflow)
       WorkUnits::StartBlock.for(workflow).next_check_at
+    end
+
+    def superseded_ci_repair_start_block?(workflow)
+      return false unless workflow.work_unit&.kind == "ci_failure" || workflow.trigger_kind == "ci_failure"
+      return false unless start_block_reason(workflow).to_s == WorkUnits::Gates::CiRepairSafety::REASON
+      return false unless ci_repair_start_block_kind(workflow) == "base_not_known_healthy"
+
+      WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow))
+    end
+
+    def ci_repair_start_block_kind(workflow)
+      start_block_details(workflow).to_h["kind"].presence ||
+        workflow.work_unit&.blocked_details.to_h["kind"].presence
+    end
+
+    def ci_repair_start_block_base_sha(workflow)
+      start_block_details(workflow).to_h["base_sha"].presence ||
+        workflow.artifact("base_sha").presence ||
+        workflow.work_unit&.work_intent&.payload_artifacts.to_h["base_sha"].presence
     end
 
     def run_stale?(run)

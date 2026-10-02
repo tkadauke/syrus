@@ -656,6 +656,8 @@ Rails.application.routes.draw do
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   get "manifest.json" => "rails/pwa#manifest", as: :pwa_manifest
+  get "apple-touch-icon.png" => "pwa_assets#apple_touch_icon", as: :apple_touch_icon
+  get "apple-touch-icon-precomposed.png" => "pwa_assets#apple_touch_icon", as: :apple_touch_icon_precomposed
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # SPA shell for every path the React router owns, so a hard reload never

@@ -62,6 +62,31 @@ RSpec.describe Step::Kind do
       end
     end
 
+    it "returns provider-declared tools for post-implementation review run context" do
+      registry_snapshot = Syrus::PluginRegistry.boot_snapshot
+      provider = Class.new do
+        include Syrus::Plugin::PostImplementationReviewProvider
+
+        def self.review_needed?(job:, trigger_kind:) = trigger_kind == "initial"
+        def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
+      end
+      Syrus::PluginRegistry.register(
+        name: "step_kind_review_notes_provider",
+        version: "1.0.0",
+        provides: { post_implementation_review_provider: provider }
+      )
+      job = Factories.job_with_run(step_attrs: { kind: "post_implementation_review" })
+      run = job.initial_run
+
+      expect(described_class.fetch("post_implementation_review").required_mcp_tools_for(
+        job: job,
+        workflow: run.workflow,
+        run: run
+      )).to eq([ "submit_review_notes" ])
+    ensure
+      Syrus::PluginRegistry.restore(registry_snapshot) if registry_snapshot
+    end
+
     it "keeps retired review_plan executable for persisted legacy workflows without MCP tools" do
       entry = described_class.fetch("review_plan")
 

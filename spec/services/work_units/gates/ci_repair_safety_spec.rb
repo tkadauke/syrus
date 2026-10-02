@@ -94,6 +94,23 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     expect(result.details).to include("kind" => "base_not_known_healthy", "base_sha" => base_sha)
   end
 
+  it "marks an unknown-health base as superseded when it is no longer the job's current base" do
+    current_base_sha = "9991234567890000000000000000000000000000"
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    job.update!(pr_checks_base_sha: current_base_sha)
+    unit = ci_unit_for(job)
+
+    result = described_class.call(unit)
+
+    expect(result).to be_blocked
+    expect(result.details).to include(
+      "kind" => "base_not_known_healthy",
+      "base_sha" => base_sha,
+      "current_base_sha" => current_base_sha,
+      "base_superseded" => true
+    )
+  end
+
   it "re-applies base health safety to later CI retry loop phases" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     unit = ci_unit_for(job, state: "running")

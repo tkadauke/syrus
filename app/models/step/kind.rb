@@ -27,6 +27,9 @@ class Step
     #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     #
+    # dynamic_required_mcp_tools: optional callable for step kinds whose
+    # required tools come from provider contracts at run time.
+    #
     # runtime_inserted: true for a step kind the template never describes --
     #   Steps::GraderFanout materializes one `grader` Step per configured
     #   grader at run time. Template matching has to drop these before
@@ -44,7 +47,8 @@ class Step
     #   McpToolContext; a plugin that owns an agentic step declares its role
     #   here rather than core naming the plugin's step kind.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
-                        :required_mcp_tools, :fail_policy, :reconcile_strategy,
+                        :required_mcp_tools, :dynamic_required_mcp_tools,
+                        :fail_policy, :reconcile_strategy,
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
@@ -52,6 +56,7 @@ class Step
                         :review_gate, :runtime_inserted, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
+                     dynamic_required_mcp_tools: nil,
                      fail_policy: :default,
                      reconcile_strategy: nil,
                      skip_if_artifact: nil,
@@ -71,6 +76,17 @@ class Step
         resource_profile_step_kinds ||= [ kind ]
         resource_profile_fallback_step_kinds ||= []
         super
+      end
+
+      def required_mcp_tools_for(job:, workflow:, run:)
+        dynamic_tools =
+          if dynamic_required_mcp_tools
+            Array(dynamic_required_mcp_tools.call(job: job, workflow: workflow, run: run))
+          else
+            []
+          end
+
+        (Array(required_mcp_tools) + dynamic_tools).map(&:to_s).reject(&:blank?).uniq
       end
 
       # Same rule as Workflow::TriggerKind#template_class: a handler containing
@@ -175,6 +191,9 @@ class Step
                 repair_semantics: :publication,
                 reconcile_strategy: :pr_open),
       Entry.new(kind: "post_implementation_review", handler: "PostImplementationReview", label: "Review notes", style: "bg-amber-100 text-amber-700", agentic: true,
+                dynamic_required_mcp_tools: ->(job:, workflow:, run:) {
+                  PostImplementationReviewRequiredMcpTools.call(job: job, workflow: workflow, run: run)
+                },
                 fail_policy: :advance,
                 resource_profile_fallback_step_kinds: %w[implement respond]),
       Entry.new(kind: "review_plan",        handler: "ReviewPlan",         label: "Review plan (retired)",      style: "bg-gray-100 text-gray-700",   agentic: false,

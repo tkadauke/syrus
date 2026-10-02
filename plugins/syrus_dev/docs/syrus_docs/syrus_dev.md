@@ -12,6 +12,12 @@ self-contained Rails engine plugin, installed but disabled by default
 disabled on ordinary customer/project installations — it exists to make Syrus
 better at building and debugging Syrus.
 
+When the instance has an active `tkadauke/syrus` repository, or a repository
+whose upstream is `tkadauke/syrus`, the Admin Plugins page recommends enabling
+this plugin. That gives self-development instances a visible nudge to turn on
+the diagnostics surface used by log-sift and insight workflows without making
+the plugin default-on for ordinary installations.
+
 ## Configuration
 
 No credentials or `config_schema`. The plugin is a thin presentation/tool

@@ -352,6 +352,43 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(include("[mcp_sidecar_stderr]", "sidecar booted"))
     end
 
+    it "fails successful agent runs when enforced required MCP tools were not called" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "sid-1"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run,
+          provider: "claude",
+          session_id: "sid-1",
+          transcript_jsonl: { type: "system", subtype: "init", session_id: "sid-1", tools: [ "Bash" ] }.to_json + "\n"
+        )
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+
+      expect {
+        handler.send(
+          :run_agent,
+          prompt: "review",
+          required_mcp_tools: %w[submit_review_notes],
+          enforce_required_mcp_tools: true
+        )
+      }.to raise_error(Steps::Base::StepFailed, "required MCP tool(s) were not called: submit_review_notes")
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
+    end
+
     it "logs required MCP tool health as ok when Codex only records completed tool_result items" do
       result = AgentInvocation::Result.new(
         turns: 1,

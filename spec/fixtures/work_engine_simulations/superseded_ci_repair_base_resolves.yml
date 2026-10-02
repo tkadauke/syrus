@@ -1,0 +1,53 @@
+name: superseded CI repair base resolves
+repository:
+  owner: simulation
+  name: superseded-ci-repair-base-resolves
+  auto_merge_enabled: true
+  main_branch_health_enabled: true
+main_branch_health_checks:
+  - sha: current-base-sha
+    checked_at: "2026-09-20 10:00:00"
+    ci_health: healthy
+    grader_health: healthy
+jobs:
+  job:
+    title: CI repair blocked on an obsolete base
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-superseded-ci-repair-base
+    pr_number: 6501
+    approved_at: "2026-09-20 10:00:00"
+    pr_checks_state: failing
+    pr_checks_sha: head-sha
+    pr_checks_base_sha: current-base-sha
+    pr_checks_failing_names:
+      - rails-test
+    workflow:
+      kind: ci_failure
+      created_at: "2026-09-20 09:55:00"
+      artifacts:
+        base_sha: stale-base-sha
+        head_sha: head-sha
+      work_unit:
+        state: blocked
+        blocked_reason: ci_repair_safety
+        blocked_until: "2026-09-20 10:05:00"
+        blocked_details:
+          kind: base_not_known_healthy
+          base_sha: stale-base-sha
+          current_base_sha: current-base-sha
+          base_superseded: true
+      steps:
+        - kind: prepare
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - approved
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - cancel_superseded_ci_repair
