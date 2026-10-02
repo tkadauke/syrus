@@ -24,4 +24,7 @@ Enable this plugin when Syrus operators need a lightweight database browser for 
 
 ## Operational Notes
 
-Treat configured credentials as sensitive production access. Use narrowly scoped MySQL users for each connection whenever possible.
+Treat configured credentials as sensitive production access. New and rotated
+secrets are stored through the Credential Store plugin; legacy encrypted
+connection payloads remain readable until password rotation moves them forward.
+Use narrowly scoped MySQL users for each connection whenever possible.

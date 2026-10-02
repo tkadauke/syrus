@@ -10,7 +10,7 @@ RSpec.describe MysqlDbBrowser::DescribeTableTool do
   it "returns the table's detail payload" do
     payload = { database: "app_prod", table: "users", columns: { available: true, rows: [] } }
     inspector = instance_double(MysqlDbBrowser::SchemaInspector, table: payload)
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(inspector)
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(inspector)
 
     response = call(mysql_connection_id: connection.id, database: "app_prod", table: "users")
 
@@ -22,7 +22,7 @@ RSpec.describe MysqlDbBrowser::DescribeTableTool do
   it "returns an error response when the table does not exist" do
     inspector = instance_double(MysqlDbBrowser::SchemaInspector)
     allow(inspector).to receive(:table).and_raise(MysqlDbBrowser::SchemaInspector::NotFound, "Table app_prod.missing was not found")
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(inspector)
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(inspector)
 
     response = call(mysql_connection_id: connection.id, database: "app_prod", table: "missing")
 

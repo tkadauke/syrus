@@ -9,14 +9,16 @@ module MysqlDbBrowser
 
     class_attribute :client_factory, default: ->(options) { Mysql2::Client.new(**options) }
 
-    def self.test(connection)
-      new.test(
-        host: connection.host,
-        port: connection.port,
-        username: connection.username,
-        password: connection.password,
-        database: connection.default_database
-      )
+    def self.test(connection, context: nil)
+      CredentialMaterial.with_password(connection, context: context, purpose: "test MySQL connection") do |password, _metadata|
+        new.test(
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+          password: password,
+          database: connection.default_database
+        )
+      end
     end
 
     def self.test_params(host:, port:, username:, password:, database: nil)
