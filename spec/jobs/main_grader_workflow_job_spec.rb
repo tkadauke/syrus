@@ -20,7 +20,7 @@ RSpec.describe MainGraderWorkflowJob do
     expect(job.kind).to eq("main_grader")
     expect(job.repository).to eq(repository)
     expect(job.user).to eq(user)
-    expect(job.issue_title).to eq("main_grader:#{sha}")
+    expect(job.issue_title).to eq("main_grader: abc123de")
   end
 
   it "creates a main_grader Workflow with the SHA artifact" do
