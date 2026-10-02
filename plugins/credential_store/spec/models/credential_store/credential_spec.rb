@@ -8,7 +8,7 @@ RSpec.describe CredentialStore::Credential do
     described_class.new({
       name: "Production deploy token",
       description: "Used by deployment tools.",
-      credential_type: "github/pat",
+      credential_type: "k8s_cluster.kubeconfig",
       scope_type: "repository",
       scope_id: repo.id,
       created_by: owner,
@@ -48,7 +48,13 @@ RSpec.describe CredentialStore::Credential do
     expect(raw_value.to_s).not_to include("secret-token")
   end
 
-  it "requires credential type names to be lowercase policy identifiers" do
+  it "accepts registered plugin-style dot-namespaced credential type names" do
+    credential = build_credential(credential_type: "k8s_cluster.service_account")
+
+    expect(credential).to be_valid
+  end
+
+  it "requires credential type names to match the plugin registry contract" do
     credential = build_credential(credential_type: "GitHub PAT")
 
     expect(credential).not_to be_valid
@@ -115,6 +121,21 @@ RSpec.describe CredentialStore::Credential do
 
     expect(credential).to be_revoked
     expect(credential).not_to be_active
+  end
+
+  it "is revocation-only and preserves access audit rows" do
+    credential = build_credential
+    credential.save!
+    CredentialStore::CredentialAccessEvent.record!(
+      credential: credential,
+      surface: "workflow",
+      action: "use",
+      result: "allowed"
+    )
+
+    expect { credential.destroy! }
+      .to raise_error(ActiveRecord::ReadOnlyRecord, "CredentialStore::Credential is revocation-only")
+    expect(CredentialStore::CredentialAccessEvent.where(credential: credential).count).to eq(1)
   end
 
   it "rejects a revocation timestamp before the last rotation" do

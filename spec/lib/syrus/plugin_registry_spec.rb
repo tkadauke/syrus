@@ -774,6 +774,11 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(described_class::RegistrationError, /duplicate credential type/)
     end
 
+    it "exposes the credential type name pattern for credential stores" do
+      expect("k8s_cluster.kubeconfig").to match(described_class.credential_type_name_pattern)
+      expect("github/pat").not_to match(described_class.credential_type_name_pattern)
+    end
+
     it "replaces a plugin's prior credential type declaration when it re-registers" do
       described_class.register(
         name: "replace_credential_plugin",
