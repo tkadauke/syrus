@@ -1,0 +1,10 @@
+project:
+  id: credential_store
+  label: "credential_store plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

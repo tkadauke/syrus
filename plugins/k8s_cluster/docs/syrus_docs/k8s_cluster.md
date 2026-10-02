@@ -23,7 +23,8 @@ access" below. This Job adds a short, explicit allowlist of write/mutating
 MCP tools - restart a deployment rollout, scale a deployment, delete a pod,
 cordon/uncordon a node - gated by a separate, stricter `allow_writes` opt-in
 per DOC-21 phase 2; see "Write-capable agentic tools" and "Minimal RBAC for
-agentic access" below.
+agentic access" below. The plugin also depends on `credential_store` for
+credential-backed kubectl access; see "Credential-backed kubectl" below.
 
 ## Clusters (`KubernetesCluster`)
 
@@ -248,6 +249,62 @@ one route per resource kind, matching the plugin's declared route list
 one-for-one, rather than a separate nested `/:name` route per kind.
 `ResourceService::Unavailable` renders `502 connection_unavailable`;
 `ResourceService::NotFound` renders `404 not_found`.
+
+## Credential-backed kubectl
+
+`k8s_cluster` declares a dependency on the bundled `credential_store`
+plugin and registers the credential type name `k8s_cluster.kubeconfig`.
+The plugin does not store, encrypt, parse, or broker these credentials
+itself. Credential Store owns the encrypted payload, scoped management API/UI,
+lease authorization, audit events, and redaction. The Kubernetes plugin owns
+only the Kubernetes-facing MCP tool and command policy.
+
+`k8s_cluster_kubectl` accepts:
+
+```
+credential: "prod-k3s" or 123
+kube_context: "prod"
+namespace: "default"
+args: ["get", "pods"]
+```
+
+The tool requests a `k8s_cluster.kubeconfig` lease from
+`CredentialStore::Broker`, writes the payload to a restrictive temporary
+file, invokes `kubectl` with that file only through `KUBECONFIG`, and removes
+the file after the command completes or raises. Returned stdout, stderr, and
+errors are scrubbed through Credential Store redaction, and Credential Store
+records the lease attempt as an access event. MCP usage records and
+transcripts receive only the redacted tool result plus safe metadata such as
+credential id/name/type, cluster/context/host labels, target context, and
+namespace. An optional `cluster` input is accepted as a validation label for
+credentials that use cluster target constraints; it is not passed to kubectl.
+
+Operators adding a k3s credential should create a Credential Store record:
+
+- Type: `k8s_cluster.kubeconfig`.
+- Payload: the service-account kubeconfig YAML.
+- Safe metadata: non-secret labels such as `cluster`, `context`,
+  `namespace`, and `host`.
+- Target constraints: usually `allowed_kube_contexts`, optionally
+  `allowed_kube_clusters` and `allowed_kube_namespaces`, for example
+  `["prod"]` and `["default"]`.
+- Allowed tools: include only `k8s_cluster_kubectl` unless another tool is
+  deliberately authorized.
+- Allowed surfaces: choose `workflow`, `chat`, or both based on where agents
+  should use the credential.
+
+The tool rejects the `kubectl` executable, leading global flags,
+`--kubeconfig`, `--context`, `--namespace`, and direct credential flags in
+`args`; callers pass context and namespace through the dedicated inputs so the
+broker can validate target constraints. It also blocks `kubectl config ...`,
+streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
+`port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
+`delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and
+similar), and Secret-value exposure patterns such as `get secrets -o yaml`,
+`get secrets -o=jsonpath=...`, or `describe secret` unless explicit allowance
+is supplied on a non-chat surface. Chat calls cannot self-authorize those
+high-risk allowances. The local runner also enforces a timeout so a missed
+policy case cannot keep the temporary kubeconfig materialized indefinitely.
 
 ## Cluster-browsing UI
 

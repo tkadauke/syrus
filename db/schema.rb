@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_153849) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_000000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -929,6 +929,59 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_153849) do
     t.index ["repository_id", "project_id", "branch", "created_at"], name: "idx_coverage_snapshots_project_branch"
     t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
+  end
+
+  create_table "credential_store_credential_access_events", force: :cascade do |t|
+    t.integer "credential_id", null: false
+    t.integer "user_id"
+    t.integer "repository_id"
+    t.integer "job_id"
+    t.integer "workflow_id"
+    t.integer "run_id"
+    t.integer "chat_session_id"
+    t.string "tool_name"
+    t.string "surface", null: false
+    t.string "action", null: false
+    t.string "purpose"
+    t.string "result", null: false
+    t.string "denial_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "created_at", "id"], name: "idx_credential_store_access_chat_time"
+    t.index ["chat_session_id"], name: "idx_on_chat_session_id_a1b0bedb87"
+    t.index ["credential_id", "created_at", "id"], name: "idx_credential_store_access_credential_time"
+    t.index ["credential_id"], name: "idx_on_credential_id_db7bd8d2f4"
+    t.index ["job_id"], name: "index_credential_store_credential_access_events_on_job_id"
+    t.index ["repository_id"], name: "idx_on_repository_id_8d397b8213"
+    t.index ["run_id", "created_at", "id"], name: "idx_credential_store_access_run_time"
+    t.index ["run_id"], name: "index_credential_store_credential_access_events_on_run_id"
+    t.index ["user_id"], name: "index_credential_store_credential_access_events_on_user_id"
+    t.index ["workflow_id"], name: "index_credential_store_credential_access_events_on_workflow_id"
+  end
+
+  create_table "credential_store_credentials", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "credential_type", null: false
+    t.string "scope_type", null: false
+    t.bigint "scope_id"
+    t.integer "created_by_id", null: false
+    t.integer "owner_user_id"
+    t.text "payload", null: false
+    t.json "safe_metadata", null: false
+    t.json "target_constraints", null: false
+    t.json "allowed_surfaces", null: false
+    t.json "allowed_tools", null: false
+    t.datetime "expires_at"
+    t.datetime "last_rotated_at"
+    t.datetime "revoked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_credential_store_credentials_on_created_by_id"
+    t.index ["expires_at"], name: "index_credential_store_credentials_on_expires_at"
+    t.index ["owner_user_id"], name: "index_credential_store_credentials_on_owner_user_id"
+    t.index ["revoked_at"], name: "index_credential_store_credentials_on_revoked_at"
+    t.index ["scope_type", "scope_id", "credential_type"], name: "idx_credential_store_credentials_scope_type"
   end
 
   create_table "design_doc_agent_runs", force: :cascade do |t|

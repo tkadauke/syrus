@@ -11,6 +11,11 @@ module K8sCluster
     category "tooling"
     default_enabled false
     disableable true
+    depends_on [ "credential_store" ]
+    credential_types [
+      { name: "k8s_cluster.kubeconfig", label: "Kubernetes kubeconfig", description: "Kubeconfig material for a Kubernetes cluster." },
+      { name: "k8s_cluster.service_account", label: "Kubernetes service account", description: "Service account token or config for Kubernetes access." }
+    ]
     provides sidebar_page: "K8sCluster::SidebarPages",
              mcp_tool_set: "K8sCluster::WorkflowToolSet",
              chat_mcp_tool_set: "K8sCluster::ChatToolSet"

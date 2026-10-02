@@ -29,6 +29,13 @@ Plugins can contribute:
 - source integrations such as GitHub or Linear,
 - speech-to-text backends for chat dictation.
 
+Plugins can also declare stable credential type names for a
+credential-management plugin to discover. These declarations are intentionally
+metadata-only: a name such as `k8s_cluster.kubeconfig`, plus optional safe label
+and description text. Credential storage, encryption, payload parsing,
+authorization, broker materialization, redaction, and credential-use callbacks
+remain outside this hook.
+
 The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
 distributed separately.

@@ -123,7 +123,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -137,6 +137,11 @@ module Syrus
         validate_author!(metadata[:author])
         validate_category!(category)
         links = normalize_links!(links)
+        credential_types = normalize_credential_types!(
+          plugin_name: name,
+          credential_types: credential_types,
+          credential_type_names: credential_type_names
+        )
 
         @mutex.synchronize do
           # Registration runs on every `to_prepare`, so re-registering a name
@@ -148,6 +153,7 @@ module Syrus
           validate_plugin_event_name_uniqueness!(events, plugin_name: name)
           validate_mcp_tool_name_uniqueness!(provides)
           validate_workspace_tab_id_uniqueness!(provides)
+          validate_credential_type_name_uniqueness!(credential_types, plugin_name: name)
           @generation += 1
           @plugins << Syrus::Plugin::Manifest.new(
             name:            name,
@@ -170,6 +176,7 @@ module Syrus
             conflicts_with:  Array(conflicts_with).map(&:to_s),
             links:           links,
             metrics:         Array(metrics).map { |metric| metric.to_h.stringify_keys },
+            credential_types: credential_types,
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
             events:          events
@@ -310,6 +317,29 @@ module Syrus
 
         direct = @mutex.synchronize { @direct_providers[ep].dup }
         manifest_providers + direct
+      end
+
+      def credential_types
+        plugins = @mutex.synchronize { @plugins.dup }
+
+        begin
+          records = records_for(plugins)
+          enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
+          health = health_for(plugins, enabled_names: enabled.map(&:name))
+          enabled.select { |manifest| health.healthy?(manifest.name) }
+        rescue ActiveRecord::ActiveRecordError
+          plugins
+        end.flat_map do |manifest|
+          Array(manifest.credential_types).map { |entry| entry.merge("plugin" => manifest.name) }
+        end
+      end
+
+      def credential_type_names
+        credential_types.map { |entry| entry.fetch("name") }
+      end
+
+      def credential_type_name_pattern
+        CREDENTIAL_TYPE_NAME_PATTERN
       end
 
       # Returns a snapshot of all registered manifests, each annotated with the
@@ -693,6 +723,82 @@ module Syrus
             "enabled_only" => attrs.fetch("enabled_only", true) != false
           }.compact
         end
+      end
+
+      DEFAULT_CREDENTIAL_TYPE_NAMES = %w[
+        env
+        file_blob
+        json
+        ssh_private_key
+        token
+      ].freeze
+      CREDENTIAL_TYPE_NAME_PATTERN = /\A[a-z0-9_]+(?:\.[a-z0-9_]+)*\z/
+
+      def normalize_credential_types!(plugin_name:, credential_types:, credential_type_names:)
+        entries = Array(credential_type_names).flatten.map { |name| { name: name } } + credential_type_entry_list(credential_types)
+
+        entries.map do |entry|
+          attrs =
+            if entry.respond_to?(:to_h)
+              entry.to_h.stringify_keys
+            else
+              { "name" => entry }
+            end
+          name = attrs.fetch("name", nil).to_s
+
+          if name.blank?
+            raise RegistrationError, "Credential type names cannot be blank"
+          end
+
+          unless name.match?(CREDENTIAL_TYPE_NAME_PATTERN)
+            raise RegistrationError,
+              "Credential type name #{name.inspect} must use lowercase alphanumeric/underscore segments, such as #{plugin_name}.example"
+          end
+
+          unless credential_type_owned_by_plugin?(plugin_name, name)
+            raise RegistrationError,
+              "Credential type name #{name.inspect} must be namespaced with the declaring plugin name #{plugin_name.inspect}"
+          end
+
+          {
+            "name" => name,
+            "label" => attrs["label"].presence,
+            "description" => attrs["description"].presence
+          }.compact
+        end.tap do |normalized|
+          duplicates = normalized.map { |entry| entry.fetch("name") }.tally.select { |_name, count| count > 1 }.keys
+          if duplicates.any?
+            raise RegistrationError,
+              "Plugin #{plugin_name.inspect} declares duplicate credential type name(s): #{duplicates.inspect}"
+          end
+        end
+      end
+
+      def credential_type_entry_list(entries)
+        if entries.respond_to?(:key?) && (entries.key?(:name) || entries.key?("name"))
+          [ entries ]
+        else
+          Array(entries)
+        end
+      end
+
+      def credential_type_owned_by_plugin?(plugin_name, name)
+        name.start_with?("#{plugin_name}.") ||
+          (plugin_name == "credential_store" && DEFAULT_CREDENTIAL_TYPE_NAMES.include?(name))
+      end
+
+      def validate_credential_type_name_uniqueness!(credential_types, plugin_name:)
+        existing = @plugins.each_with_object({}) do |manifest, names|
+          manifest.credential_types.each { |entry| names[entry.fetch("name")] = manifest.name }
+        end
+        collisions = credential_types.map { |entry| entry.fetch("name") } & existing.keys
+        return if collisions.empty?
+
+        details = collisions.map do |credential_type_name|
+          "#{credential_type_name.inspect} already declared by #{existing[credential_type_name].inspect}"
+        end
+        raise RegistrationError,
+          "Plugin #{plugin_name.inspect} declares duplicate credential type name(s): #{details.join(', ')}"
       end
 
       def validate_provides!(provides)
