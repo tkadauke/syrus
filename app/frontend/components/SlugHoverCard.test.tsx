@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter } from "react-router-dom"
+import { Link, MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import { SlugReferenceCard } from "./SlugHoverCard"
@@ -48,9 +48,9 @@ function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <SlugReferenceCard entry={entry} id={id}>
-          <a href={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>
+          <Link to={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>
             {label}-{id}
-          </a>
+          </Link>
         </SlugReferenceCard>
       </MemoryRouter>
     </QueryClientProvider>

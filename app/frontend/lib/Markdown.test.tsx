@@ -219,8 +219,8 @@ describe("Markdown", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
-    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/5")
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
+    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/EPIC-5")
   })
 
   it("links job and epic slugs inside inline code spans", () => {
@@ -233,10 +233,10 @@ describe("Markdown", () => {
     const jobLink = screen.getByRole("link", { name: "JOB-100" })
     const epicLink = screen.getByRole("link", { name: "EPIC-5" })
 
-    expect(jobLink).toHaveAttribute("href", "/jobs/100")
-    expect(epicLink).toHaveAttribute("href", "/epics/5")
-    expect(container.querySelector("code a[href='/jobs/100']")).toBe(jobLink)
-    expect(container.querySelector("code a[href='/epics/5']")).toBe(epicLink)
+    expect(jobLink).toHaveAttribute("href", "/jobs/JOB-100")
+    expect(epicLink).toHaveAttribute("href", "/epics/EPIC-5")
+    expect(container.querySelector("code a[href='/jobs/JOB-100']")).toBe(jobLink)
+    expect(container.querySelector("code a[href='/epics/EPIC-5']")).toBe(epicLink)
   })
 
   it("does not linkify slugs inside markdown links", () => {
@@ -369,8 +369,8 @@ describe("Markdown", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
-    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/5")
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
+    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/EPIC-5")
     expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
   })
 
@@ -435,7 +435,7 @@ describe("renderLightMarkdown", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
   })
 
   it("skips slug linkification when linkifySlugs is false", () => {
