@@ -19,6 +19,10 @@ class DesignDocPolicy < ApplicationPolicy
     owner?
   end
 
+  def unarchive?
+    owner? && archived?
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.all if admin?

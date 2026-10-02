@@ -464,7 +464,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "can_write_canonical" => false,
       "can_suggest" => false,
       "can_review_suggestions" => false,
-      "can_archive" => false
+      "can_archive" => false,
+      "can_unarchive" => true
     )
     expect(DesignDoc.exists?(doc.id)).to be(true)
     expect(DesignDocVersion.where(design_doc_id: doc.id)).to exist
@@ -486,6 +487,42 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.reload.state).to eq("draft")
   end
 
+  it "lets owners unarchive a design doc without unlocking content edits during the same request" do
+    doc = create_design_doc(markdown: "Archived body", state: "archived")
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        state: "draft"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(parse_body.dig("design_doc", "state")).to eq("draft")
+    expect(parse_body.dig("design_doc", "markdown")).to eq("Archived body")
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => true,
+      "can_suggest" => true,
+      "can_review_suggestions" => true,
+      "can_archive" => true,
+      "can_unarchive" => false
+    )
+    expect(doc.reload.state).to eq("draft")
+
+    doc.update!(state: "archived")
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        state: "draft",
+        markdown: "Unexpected rewrite"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(doc.reload.markdown).to eq("Archived body")
+    expect(doc.state).to eq("archived")
+  end
+
   it "keeps archived docs directly inspectable but read-only" do
     doc = create_design_doc(markdown: "Archived body", state: "archived")
     sign_in_as(owner)
@@ -499,7 +536,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "can_write_canonical" => false,
       "can_suggest" => false,
       "can_review_suggestions" => false,
-      "can_archive" => false
+      "can_archive" => false,
+      "can_unarchive" => true
     )
 
     patch "/api/v1/app/design_docs/#{doc.id}", params: {

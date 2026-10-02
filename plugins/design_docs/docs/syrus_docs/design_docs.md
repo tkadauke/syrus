@@ -202,14 +202,17 @@ their anchors describe a past Markdown body, not whatever is currently
 rendered in the editor.
 
 The document detail API includes editor permission flags:
-`can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
-an `Edit` / `Suggest` selector in the editor toolbar. `Edit` is selected by
-default for owners and continuously persists canonical Markdown working state;
-clicking `Save` reveals an optional change summary field and the next `Save`
-creates an append-only checkpoint/version with actor metadata. Switching to
-`Suggest` persists the draft as an owner-authored pending suggestion for later
-review. Owners also see metadata, sharing, repository, resolve, and suggestion
-review controls. Non-owners with access are forced into `Suggest` mode: the
+`can_write_canonical`, `can_suggest`, `can_review_suggestions`, `can_archive`,
+and `can_unarchive`. Owners see an `Edit` / `Suggest` selector in the editor
+toolbar. `Edit` is selected by default for owners and continuously persists
+canonical Markdown working state; clicking `Save` reveals an optional change
+summary field and the next `Save` creates an append-only checkpoint/version
+with actor metadata. Switching to `Suggest` persists the draft as an
+owner-authored pending suggestion for later review. Owners also see metadata,
+sharing, repository, resolve, suggestion review, and archive controls. Archived
+docs stay read-only but show `Unarchive` in the same title-bar action slot
+where active docs show `Archive`; unarchiving is a state-only owner transition
+back to `draft`. Non-owners with access are forced into `Suggest` mode: the
 toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
@@ -351,4 +354,7 @@ required.
 
 Workflow agents receive only `list_design_docs` and `read_design_doc`, scoped to
 the run repository; workflow/run contexts do not expose `delete_design_doc` or
-other mutating Design Docs tools.
+other mutating Design Docs tools. Owners can unarchive from the Design Docs UI;
+the app API accepts only the standalone archived-to-draft state transition for
+that path, so archived Markdown cannot be edited in the same request that
+restores the doc.

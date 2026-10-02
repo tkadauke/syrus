@@ -509,7 +509,8 @@ RSpec.describe "DesignDocs MCP tool sets" do
       can_write_canonical: false,
       can_suggest: false,
       can_review_suggestions: false,
-      can_archive: false
+      can_archive: false,
+      can_unarchive: false
     )
   end
 

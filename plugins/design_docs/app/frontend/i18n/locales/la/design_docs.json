@@ -4,6 +4,7 @@
   "accept": "Accipe",
   "archive": "In archivum mitte",
   "archived_read_only": "Hoc documentum consilii in archivo est. Materia, commentaria, suggestiones, et recensiones legi tantum possunt.",
+  "unarchive": "Ex archivo retrahe",
   "agent_run": {
     "canceled": "Syrus cassavit.",
     "drafting": "Syrus componit...",
