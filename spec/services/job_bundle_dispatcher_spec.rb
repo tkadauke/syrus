@@ -4,11 +4,12 @@ RSpec.describe JobBundleDispatcher do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def approved_job(issue_number, priority: "medium")
+  def approved_job(issue_number, priority: "medium", parent_job: nil)
     Factories.job_record(
       user: user, repository: repository,
       issue_number: issue_number, state: "approved", priority: priority,
-      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}"
+      pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}",
+      parent_job: parent_job
     )
   end
 
@@ -41,6 +42,18 @@ RSpec.describe JobBundleDispatcher do
     expect(a.reload.state).to eq("landing")
     expect(b.reload.state).to eq("landing")
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
+  end
+
+  it "persists dependency order into merge train member positions" do
+    AppSetting.current.update!(merge_train_max_size: 2)
+    approved_job(1)
+    prerequisite = approved_job(2)
+    dependent = approved_job(3, parent_job: prerequisite)
+
+    described_class.try_dispatch!(repository)
+
+    positioned_jobs = MergeTrain.last.members.order(:position).map(&:job)
+    expect(positioned_jobs).to eq([ prerequisite, dependent ])
   end
 
   it "does nothing when the feature flag is disabled" do

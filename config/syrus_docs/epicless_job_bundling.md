@@ -83,9 +83,15 @@ returning as soon as one tier has enough candidates:
   Jobs in the same repository/priority tier happen to be bundle-ready.
 - **Dependency ordering and size cap** — candidates are topologically
   ordered by `LandingQueueProcessor.dependency_ordered` the same way Epic
-  members are, then capped at `AppSetting.merge_train_max_size`, shrinking
-  the cut so a resolved `JobDependency` pair is never split across the cap
-  boundary.
+  members are, using both `parent_job` and resolved, non-pending
+  `JobDependency` rows. Before dispatch, the assembler caps the result at
+  `AppSetting.merge_train_max_size`. If that cap cuts through a
+  dependency-connected set that still fits under the cap, Syrus prefers the
+  connected set so linked Jobs can land atomically instead of being separated
+  by unrelated earlier candidates. If the connected set would exceed
+  `merge_train_max_size`, Syrus keeps the safe split behavior: it shrinks the
+  cut as needed so a dependent is never included while its prerequisite is
+  excluded.
 
 `LandingBundleAssembler` is a pure query with no side effects; the flag
 check lives in its caller, `JobBundleDispatcher`.
@@ -103,6 +109,12 @@ the last member with `merge_train_id` recorded as a workflow artifact —
 the same artifact key `Workflows::MergeTrain.after_fail`/`after_cancel` and
 `MergeTrainFailureHandler` read to find the train, regardless of whether it
 is epic- or bundle-backed.
+
+Member order is the assembler's dependency-aware order. `JobBundleDispatcher`
+persists that order into `MergeTrainMember.position`, and
+`merge_train_build` rebases each member branch onto the growing integration
+branch in that same position order, so prerequisites are integrated before
+their dependents all the way through the train.
 
 Only one landing unit — Epic train, Job bundle, or solo Job — occupies a
 repository's landing slot at a time (`Job.landing.where(repository_id:)`).

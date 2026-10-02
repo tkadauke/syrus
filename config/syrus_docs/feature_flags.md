@@ -157,9 +157,12 @@ nullable and a `priority` column exists so a train row can be either
 epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
 nil, `priority` present), enforced by a model validation. `LandingBundleAssembler`'s
 priority-tier scope (candidate selection: same repository, epicless, approved, own-PR, grouped
-into same-priority tiers, minimum 2 members, capped at
-`AppSetting.merge_train_max_size` without splitting a real `JobDependency`
-edge across bundles) and `JobBundleDispatcher` (transactional
+into same-priority tiers, minimum 2 members, dependency-ordered using both
+`parent_job` and resolved `JobDependency` rows, capped at
+`AppSetting.merge_train_max_size`) coalesces a dependency-connected set that
+crosses the current cap when the connected set still fits under the cap; if it
+would exceed the cap, the assembler keeps the safe split behavior and never
+includes a dependent while excluding its prerequisite. `JobBundleDispatcher` (transactional
 `MergeTrain`/`MergeTrainMember` creation, member locking, and dispatch of the
 existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) are
 wired into `LandingQueueProcessor`: `blockage_for` routes a Job off the
