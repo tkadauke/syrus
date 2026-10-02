@@ -442,6 +442,34 @@ export function contextFindSurface({
   return activeSurface
 }
 
+function localChatFindMatches(messages: ChatMessageItem[], query: string, { includeSystem = false }: { includeSystem?: boolean } = {}): ChatSearchMatch[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return []
+
+  return messages.filter((message) => {
+    if (message.role === "user" || message.role === "assistant") return true
+    return includeSystem && message.role === "system"
+  }).filter((message) => message.text.toLowerCase().includes(needle)).map((message) => ({
+    message_id: message.id,
+    role: message.role,
+    snippet: message.text,
+    created_at: message.created_at ?? null
+  }))
+}
+
+function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: ChatSearchMatch[]) {
+  const seen = new Set<number>()
+  const merged: ChatSearchMatch[] = []
+
+  for (const match of [...localMatches, ...remoteMatches]) {
+    if (seen.has(match.message_id)) continue
+    seen.add(match.message_id)
+    merged.push(match)
+  }
+
+  return merged
+}
+
 function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
   const location = useLocation()
   const { t } = useT("chat")
@@ -496,10 +524,11 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     queryFn: ({ signal }) => fetchChatSearchMessages(findSearch, { signal }),
     enabled: findOpen && findQuery.trim().length > 0
   })
-  const findMatches = findResults.data?.matches ?? []
+  const localFindMatches = useMemo(() => localChatFindMatches(displayedMessages, findQuery, { includeSystem: showSystemMessages }), [displayedMessages, findQuery, showSystemMessages])
+  const findMatches = useMemo(() => mergeChatFindMatches(localFindMatches, findResults.data?.matches ?? []), [findResults.data?.matches, localFindMatches])
   const findCountLabel = findQuery.trim().length === 0
     ? t("context_find_ready")
-    : findResults.isPending
+    : findResults.isPending && findMatches.length === 0
       ? t("context_find_searching")
       : findMatches.length === 0
         ? t("context_find_count_zero")
