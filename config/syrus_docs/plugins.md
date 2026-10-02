@@ -2046,8 +2046,15 @@ Providers include `Syrus::Plugin::SlugType` and implement:
   and inaccessible records so callers do not leak private details.
 - `web_path(record)` — the in-app path used by `/s/:slug`.
 - Optional `api_preview_path(record)`, `copyable?`, `preview_available?`,
-  `linkifies_generated_text?`, `mobile_interaction_hints`, `id_pattern`, and
-  `type_key`.
+  `linkable?`, `client_path(id)`, `linkifies_generated_text?`,
+  `mobile_interaction_hints`, `id_pattern`, and `type_key`.
+
+The app bootstrap payload exposes a safe client registry derived from these
+providers under `slug_refs.types`. The frontend linkifier uses that payload,
+not hardcoded prefix branches, to decide whether generated text should become
+a link, a copyable control, a preview trigger, or plain text. Registered
+copyable refs get a copy affordance by default; a provider can opt out with
+`copyable?`.
 
 `GET /api/v1/app/slug_refs/:slug` and its `/api/v1/app/slugs/:slug` alias use
 the registry to return canonical metadata for app and mobile clients. `/s/:slug`
@@ -2056,21 +2063,19 @@ unknown, malformed, missing, or inaccessible refs.
 
 ## Slug hover preview cards
 
-Core's `SlugHoverCard` (`app/frontend/components/SlugHoverCard.tsx`) renders a
-rich hover/click preview popup for `JOB-<id>`/`EPIC-<id>`/etc. references
-linkified by `linkifySlugs.tsx`. `JOB`/`EPIC` are core concepts and render
-core components directly; a plugin-owned reference kind (`DOC-<id>`, owned by
-`design_docs`) instead resolves through a small, registry-free discovery
-convention deliberately simpler than `workspace_tab`/`ui_slot`: there is no
-`Syrus::Plugin::SlugPreviewCard` module. Backend slug resolution uses the
-`:slug_type` extension point above; frontend preview-card components still use
-file discovery so adding a visual card does not require duplicating React
+Core's `SlugReferenceCard` (`app/frontend/components/SlugHoverCard.tsx`, with
+`SlugHoverCard` kept as a compatibility export) renders a rich hover/click
+preview popup for registered references linkified by `linkifySlugs.tsx`.
+`JOB`/`EPIC`/`CHAT` are core slug types and render core preview components
+directly; plugin-owned reference kinds become linkifiable by registering the
+`:slug_type` provider above. Frontend preview-card components still use file
+discovery so adding a visual card does not require duplicating React component
 registration data in Ruby.
 
 - The plugin drops its card component at
   `plugins/<name>/app/frontend/slugPreviewCards/<PREFIX>.<Component>.tsx` —
-  the leading `<PREFIX>` segment (e.g. `DOC`) *is* the registration: it names
-  the slug prefix the card handles. The file is discovered by
+  the leading `<PREFIX>` segment (e.g. `DOC`) names the registered slug prefix
+  the card decorates. The file is discovered by
   `app/frontend/pluginSlugPreviewCards.tsx`'s
   `import.meta.glob("../../plugins/*/app/frontend/slugPreviewCards/*.tsx")`,
   which parses the prefix back out of each matched path with a regex (and
@@ -2079,17 +2084,16 @@ registration data in Ruby.
   `import.meta.glob` convention `pluginWorkspaceTabs.tsx`/`pluginUiSlots.tsx`
   use — so core never imports plugin code directly and the plugin stays
   physically deletable (an absent prefix just resolves to `null`, rendering
-  nothing extra).
-- `SlugHoverCard.tsx` carries **no** plugin- or prefix-specific knowledge at
-  all: its `kind` prop is `"job" | "epic" | "plugin"`, and for `kind:
-  "plugin"` it takes a generic `prefix` string that the caller (`linkifySlugs.tsx`)
-  derives directly from the matched slug text (e.g. the `DOC` in `DOC-20`),
-  then resolves via `pluginSlugPreviewCardComponentForPrefix(prefix)`. Core
-  does not name `design_docs`, `DOC`, or any other plugin-owned prefix
-  anywhere — the filename convention above is the only registration point.
-  Data fetching, the lightweight preview endpoint/payload, and the card's own
-  loading/empty/inaccessible states are owned entirely by the plugin. See
-  `design_docs.md`'s "Slug Hover Preview" section for the concrete example.
+  nothing extra). Discovery no longer makes a prefix linkifiable on its own:
+  the matching backend `:slug_type` provider must also be present in the
+  bootstrap registry.
+- `SlugReferenceCard` carries **no** plugin-specific knowledge: it receives the
+  registry entry selected by `linkifySlugs.tsx` and uses
+  `pluginSlugPreviewCardComponentForPrefix(prefix)` only when a registered
+  non-core prefix also has a discovered preview component. Data fetching, the
+  lightweight preview endpoint/payload, and the card's own loading/empty/
+  inaccessible states are owned entirely by the plugin. See `design_docs.md`'s
+  "Slug Hover Preview" section for the concrete example.
 
 ## `grader_augmentor`
 

@@ -26,6 +26,10 @@ module Syrus
           true
         end
 
+        def linkable?
+          true
+        end
+
         def preview_available?
           false
         end
@@ -78,8 +82,26 @@ module Syrus
           raise NotImplementedError, "#{name} must implement .web_path"
         end
 
+        def client_path(id)
+          "/s/#{canonical_slug(id)}"
+        end
+
         def api_preview_path(_record)
           nil
+        end
+
+        def client_metadata
+          {
+            prefix: prefix,
+            type: type_key,
+            display_label: display_label,
+            copyable: copyable?,
+            linkable: linkable?,
+            preview_available: preview_available?,
+            linkifies_generated_text: linkifies_generated_text?,
+            href_template: linkable? ? client_path(":id") : nil,
+            mobile_interaction_hints: mobile_interaction_hints
+          }
         end
       end
     end

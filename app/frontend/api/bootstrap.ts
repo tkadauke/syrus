@@ -133,7 +133,22 @@ export type BootstrapPayload = {
   }>
   unread_notifications_count: number
   csrf_token: string
+  slug_refs?: {
+    types: SlugReferenceType[]
+  }
   feature_flags: Record<string, boolean>
+}
+
+export type SlugReferenceType = {
+  prefix: string
+  type: string
+  display_label: string
+  copyable: boolean
+  linkable: boolean
+  preview_available: boolean
+  linkifies_generated_text: boolean
+  href_template: string | null
+  mobile_interaction_hints: Record<string, string>
 }
 
 export function fetchBootstrap() {
