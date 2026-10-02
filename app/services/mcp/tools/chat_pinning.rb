@@ -28,13 +28,12 @@ module Mcp::Tools
       id = normalize_chat_session_id(chat_session_id)
       id ||= chat_session.id
 
-      current_user
-        .accessible_chat_sessions
-        .visible
-        .active
-        .find_by!(id: id)
-    rescue ActiveRecord::RecordNotFound
-      raise AuthorizationSupport::AuthorizationError, "chat session not found or not accessible"
+      target = find_chat_session!(id)
+      if target.hidden_at.present? || target.deleted_at.present?
+        raise AuthorizationSupport::AuthorizationError, "chat session not found or not accessible"
+      end
+
+      target
     end
 
     def normalize_chat_session_id(value)

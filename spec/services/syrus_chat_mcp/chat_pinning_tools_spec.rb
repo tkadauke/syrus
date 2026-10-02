@@ -125,4 +125,21 @@ RSpec.describe "chat pinning MCP tools" do
     expect(response[:result][:content].first[:text]).to include("not_authorized")
     expect(other_chat.reload.pinned?).to be(false)
   end
+
+  it "respects restricted chat-session MCP contexts" do
+    target = ChatSession.create!(user: user, title: "Restricted target")
+    restricted_context = McpToolContext.new(
+      surface: :chat,
+      role: AgentRole::CHAT_PLANNER,
+      user: user,
+      allowed_chat_session_ids: [ chat_session.id ]
+    )
+    allow(McpToolContext).to receive(:from_server_context).and_return(restricted_context)
+
+    response = call_tool("pin_chat", chat_session_id: target.id)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("not_authorized")
+    expect(target.reload.pinned?).to be(false)
+  end
 end
