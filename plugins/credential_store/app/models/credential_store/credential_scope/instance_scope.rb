@@ -5,6 +5,10 @@ module CredentialStore
         credential.errors.add(:scope_id, "must be nil for instance scope") if credential.scope_id.present?
       end
 
+      def usable_by?(_credential, context)
+        context.user.present?
+      end
+
       def record_for(_scope_id)
         nil
       end
