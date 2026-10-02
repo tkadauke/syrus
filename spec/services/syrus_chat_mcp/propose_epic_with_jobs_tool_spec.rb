@@ -70,6 +70,122 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "defaults omitted sibling dependencies to a straight chain in jobs array order" do
+    response = call_tool(
+      epic: {
+        slug: "straight-chain",
+        title: "Straight chain",
+        description: "Let the default wire the children.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "first-child",
+          target_repo: repository.slug,
+          title: "First child",
+          description: "Start here."
+        },
+        {
+          slug: "second-child",
+          target_repo: repository.slug,
+          title: "Second child",
+          description: "Continue here."
+        },
+        {
+          slug: "third-child",
+          target_repo: repository.slug,
+          title: "Third child",
+          description: "Finish here."
+        }
+      ]
+    )
+
+    first = chat_session.proposals.find_by!(slug: "first-child")
+    second = chat_session.proposals.find_by!(slug: "second-child")
+    third = chat_session.proposals.find_by!(slug: "third-child")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(first.dependencies).to be_empty
+    expect(second.dependencies).to contain_exactly(first)
+    expect(third.dependencies).to contain_exactly(second)
+    expect(response_payload(response).fetch(:child_jobs)).to include(
+      include(slug: "second-child", depends_on: [ "first-child" ]),
+      include(slug: "third-child", depends_on: [ "second-child" ])
+    )
+  end
+
+  it "respects explicit sibling dependencies instead of overwriting them with array order" do
+    response = call_tool(
+      epic: {
+        slug: "explicit-order",
+        title: "Explicit order",
+        description: "The listed order differs from the dependency order.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "first-child",
+          target_repo: repository.slug,
+          title: "First child",
+          description: "Listed first and runs first."
+        },
+        {
+          slug: "third-child",
+          target_repo: repository.slug,
+          title: "Third child",
+          description: "Listed second, but runs last.",
+          depends_on: [ "second-child" ]
+        },
+        {
+          slug: "second-child",
+          target_repo: repository.slug,
+          title: "Second child",
+          description: "Listed third, but runs second.",
+          depends_on: [ "first-child" ]
+        }
+      ]
+    )
+
+    third = chat_session.proposals.find_by!(slug: "third-child")
+    second = chat_session.proposals.find_by!(slug: "second-child")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(third.dependencies.pluck(:slug)).to eq([ "second-child" ])
+    expect(second.dependencies.pluck(:slug)).to eq([ "first-child" ])
+  end
+
+  it "does not add a sibling default when a non-first job depends on an existing Job id" do
+    prerequisite_job = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
+    response = call_tool(
+      epic: {
+        slug: "existing-job-edge",
+        title: "Existing Job edge",
+        description: "Do not mix a sibling default into explicit Job IDs.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "local-first",
+          target_repo: repository.slug,
+          title: "Local first",
+          description: "Start the sibling chain."
+        },
+        {
+          slug: "external-tail",
+          target_repo: repository.slug,
+          title: "External tail",
+          description: "Depends on an existing Job instead.",
+          depends_on_job_ids: [ prerequisite_job.id ]
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*local-first, external-tail/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
   it "normalizes literal backslash-n sequences and over-escaped quotes in epic and job descriptions" do
     response = call_tool(
       epic: {
@@ -598,11 +714,13 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   it "rejects fan-in child dependency graphs before creating any proposals" do
+    prerequisite_job = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
     response = call_tool(
       epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
       jobs: [
         { slug: "left", target_repo: repository.slug, title: "Left", description: "Left." },
-        { slug: "right", target_repo: repository.slug, title: "Right", description: "Right." },
+        { slug: "right", target_repo: repository.slug, title: "Right", description: "Right.", depends_on_job_ids: [ prerequisite_job.id ] },
         { slug: "merge", target_repo: repository.slug, title: "Merge", description: "Merge.", depends_on: [ "left", "right" ] }
       ]
     )
@@ -628,12 +746,14 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   it "rejects multiple root and leaf child graphs before creating any proposals" do
+    prerequisite_job = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
     response = call_tool(
       epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
       jobs: [
         { slug: "first", target_repo: repository.slug, title: "First", description: "First." },
         { slug: "second", target_repo: repository.slug, title: "Second", description: "Second.", depends_on: [ "first" ] },
-        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third." },
+        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third.", depends_on_job_ids: [ prerequisite_job.id ] },
         { slug: "fourth", target_repo: repository.slug, title: "Fourth", description: "Fourth.", depends_on: [ "third" ] }
       ]
     )
@@ -673,6 +793,25 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to match(/single chain.*orphan, #{Regexp.escape(existing_job.slug)}/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "does not infer array-order dependencies across a non-empty target Epic boundary" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic", description: "Existing description.")
+    Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 9)
+
+    response = call_tool(
+      epic: { slug: "add-omitted-chain", epic_id: target_epic.id },
+      jobs: [
+        { slug: "first-new", target_repo: repository.slug, title: "First new", description: "First." },
+        { slug: "second-new", target_repo: repository.slug, title: "Second new", description: "Second." },
+        { slug: "third-new", target_repo: repository.slug, title: "Third new", description: "Third." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*first-new, second-new/)
+    expect(response[:result][:content].first[:text]).not_to include("third-new")
     expect(chat_session.proposals.count).to eq(0)
   end
 
@@ -727,8 +866,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     response = call_tool(
       epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
       jobs: [
-        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third.", depends_on: [ "second" ] },
         { slug: "first", target_repo: repository.slug, title: "First", description: "First." },
+        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third.", depends_on: [ "second" ] },
         { slug: "second", target_repo: repository.slug, title: "Second", description: "Second.", depends_on: [ "first" ] }
       ]
     )
@@ -845,9 +984,12 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       expect(tool_description).to match(/single linear dependency chain/i)
       expect(tool_description).to include("fan-out")
       expect(tool_description).to include("fan-in")
+      expect(tool_description).to include("immediately preceding child slug")
 
       job_depends_on_desc = schema.fetch(:properties).fetch(:jobs).fetch(:items).fetch(:properties).fetch(:depends_on).fetch(:description)
       expect(job_depends_on_desc).to match(/single linear chain/i)
+      expect(job_depends_on_desc).to include("immediately preceding job slug")
+      expect(job_depends_on_desc).to include("depends_on_job_ids")
     end
   end
 
