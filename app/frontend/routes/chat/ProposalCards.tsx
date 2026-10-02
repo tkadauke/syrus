@@ -35,6 +35,7 @@ import { fetchBootstrap } from "../../api/bootstrap"
 import { dispatchProposalUpdated } from "../../lib/appEvents"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
@@ -1511,14 +1512,15 @@ function ProposalChildren({
             <ProposalMediaTiles media={media} mediaIds={child.media_ids || []} previewPanels={previewPanels} />
             {child.proposed && parentProposed ? (
               <div className="mt-3">
-                <button
-                  className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+                <Button
                   disabled={mutation.isPending}
                   onClick={() => mutation.mutate({ action: "reject", path: child.app_reject_path })}
+                  size="sm"
                   type="button"
+                  variant="danger"
                 >
                   Reject child Job
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
