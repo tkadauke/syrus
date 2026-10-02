@@ -6878,8 +6878,7 @@ describe("chat provider selector in toolbar", () => {
       }
       if (path === "/api/v1/app/chats/8/message" && (init as RequestInit)?.method === "POST") {
         return Promise.resolve(jsonResponse(chatPayload({
-          chatProvider: "codex",
-          effectiveChatProvider: "codex",
+          chat: { chat_provider: "codex", effective_chat_provider: "codex" },
           messages: [
             { type: "message", id: 10, role: "user", tool_name: null, content: { text: "Start with Codex" }, text: "Start with Codex", bookmarkable: true }
           ]
