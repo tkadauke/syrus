@@ -170,6 +170,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
   onToggleCollapse?: () => void
   onBookmarkSelect?: (messageId: number) => void
   onNotice?: (message: string | null) => void
+  contextFindOpenerRef?: { current: (() => boolean) | null }
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   if (options.activeTab !== "pinned") {
@@ -180,6 +181,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
       <MemoryRouter>
         <ChatWorkspacePanel
           activeTab={options.activeTab ?? "files"}
+          contextFindOpenerRef={options.contextFindOpenerRef}
           onSelectTab={options.onSelectTab ?? (() => {})}
           payload={payload}
           queryKey={["chats", "1", ""] as const}
@@ -356,6 +358,37 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(keyword.tagName).toBe("SPAN")
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
     expect(container.querySelector("pre code")).not.toBeInTheDocument()
+  })
+
+  it("opens file-scoped find from Cmd-F and navigates highlighted matches", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["app/example.ts"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "needle first\nconst answer = 42\nneedle second\n",
+      path: "app/example.ts",
+      too_large: false
+    })
+
+    const contextFindOpenerRef = { current: null as (() => boolean) | null }
+    const { container } = renderWorkspacePanel(makeCodingPayload(), { contextFindOpenerRef })
+    fireEvent.click(await screen.findByRole("button", { name: /app/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "example.ts" }))
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+
+    act(() => {
+      expect(contextFindOpenerRef.current?.()).toBe(true)
+    })
+    const findInput = screen.getByRole("searchbox", { name: "Find" })
+    fireEvent.change(findInput, { target: { value: "needle" } })
+
+    expect(screen.getByText("1/2")).toBeInTheDocument()
+    expect(container.querySelectorAll("[data-source-search-match='true'], [data-source-search-match='active']")).toHaveLength(2)
+    expect(container.querySelector("[data-source-line='1'] [data-source-search-match='active']")).toHaveTextContent("needle")
+
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }))
+
+    expect(screen.getByText("2/2")).toBeInTheDocument()
+    expect(container.querySelector("[data-source-line='3'] [data-source-search-match='active']")).toHaveTextContent("needle")
   })
 
   it("renders the file tree divider with an accessible label in coding and planning Files panels", async () => {
