@@ -723,7 +723,14 @@ module Syrus
         end
       end
 
-      CREDENTIAL_TYPE_NAME_PATTERN = /\A[a-z0-9_]+(?:\.[a-z0-9_]+)+\z/
+      DEFAULT_CREDENTIAL_TYPE_NAMES = %w[
+        env
+        file_blob
+        json
+        ssh_private_key
+        token
+      ].freeze
+      CREDENTIAL_TYPE_NAME_PATTERN = /\A[a-z0-9_]+(?:\.[a-z0-9_]+)*\z/
 
       def normalize_credential_types!(plugin_name:, credential_types:, credential_type_names:)
         entries = Array(credential_type_names).flatten.map { |name| { name: name } } + credential_type_entry_list(credential_types)
@@ -743,10 +750,10 @@ module Syrus
 
           unless name.match?(CREDENTIAL_TYPE_NAME_PATTERN)
             raise RegistrationError,
-              "Credential type name #{name.inspect} must use lowercase dot-separated segments, such as #{plugin_name}.example"
+              "Credential type name #{name.inspect} must use lowercase alphanumeric/underscore segments, such as #{plugin_name}.example"
           end
 
-          unless name.start_with?("#{plugin_name}.")
+          unless credential_type_owned_by_plugin?(plugin_name, name)
             raise RegistrationError,
               "Credential type name #{name.inspect} must be namespaced with the declaring plugin name #{plugin_name.inspect}"
           end
@@ -771,6 +778,11 @@ module Syrus
         else
           Array(entries)
         end
+      end
+
+      def credential_type_owned_by_plugin?(plugin_name, name)
+        name.start_with?("#{plugin_name}.") ||
+          (plugin_name == "credential_store" && DEFAULT_CREDENTIAL_TYPE_NAMES.include?(name))
       end
 
       def validate_credential_type_name_uniqueness!(credential_types, plugin_name:)

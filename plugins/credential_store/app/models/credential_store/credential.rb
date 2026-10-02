@@ -15,6 +15,7 @@ module CredentialStore
       context
       fingerprint
       host
+      known_host
       port
       username
     ].freeze
