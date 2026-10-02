@@ -19,10 +19,12 @@ class MuseInvocation
   # `SessionMcpServerConfig`/`SessionMcpServerMode` wire schema
   # (`muse schema generate-json-schema`). The config key is camelCase
   # `mcpServers`, matching the MSP `session/start` extension object.
-  # "required" makes Muse hard-fail
-  # startup instead of silently dropping the sidecar when it can't connect.
+  # "required" makes Muse hard-fail startup instead of silently dropping the
+  # sidecar when it can't connect; chat-only deferred sidecars opt into
+  # "optional" because Muse defaults omitted mode back to required.
   SETTINGS_SCHEMA_VERSION = 1
   REQUIRED_SERVER_MODE = "required"
+  OPTIONAL_SERVER_MODE = "optional"
   MUSE_RULES_CONTEXT_LIMIT_BYTES = 65_536
   MUSE_RULES_CONTEXT_OUTCOME = "muse_rules_context_too_large".freeze
 
@@ -231,9 +233,13 @@ class MuseInvocation
         "command" => server["command"],
         "args" => Array(server["args"]),
         "env" => AgentSidecarEnvironment.filter_for_agent_config(server),
-        "mode" => REQUIRED_SERVER_MODE
+        "mode" => mcp_server_mode(server)
       }
     end
+  end
+
+  def mcp_server_mode(server)
+    server["required"] == false ? OPTIONAL_SERVER_MODE : REQUIRED_SERVER_MODE
   end
 
   def with_muse_rules_context_fit(workspace_path, log_sink)
