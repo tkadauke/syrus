@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
-import { Select } from "../../components/Select"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { TypedArtifact } from "../../api/artifacts"
 import { Markdown } from "../../lib/Markdown"
@@ -35,7 +34,7 @@ import { useResizableSplitter } from "../chat/useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
-import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
+import { ReviewDiffSettingsModal, type ReviewDiffSettingsMetricOption } from "./ReviewDiffSettingsModal"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
@@ -51,10 +50,7 @@ type ReviewAnnotationHighlightDetail = {
   annotationId?: string | null
 }
 
-type DiffMetricCandidate = {
-  id: string
-  label: string
-}
+type DiffMetricCandidate = ReviewDiffSettingsMetricOption
 
 const SURFACE = "job_review_workspace"
 const REVIEW_COMMENT_SURFACES = [SURFACE, "job_source_diff"]
@@ -355,25 +351,6 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  {diffMetricCandidates.length > 0 ? (
-                    <label className="flex items-center gap-2 text-xs text-text-secondary">
-                      <span>{t("review_metric_gutter_label")}</span>
-                      <Select
-                        aria-label={t("review_metric_gutter_label")}
-                        className="min-w-40"
-                        fullWidth={false}
-                        onChange={(event) => metricGutterMutation.mutate({ metric_gutter: event.target.value })}
-                        value={activeMetricGutterId}
-                      >
-                        <option value="off">{t("review_metric_gutter_off")}</option>
-                        {diffMetricCandidates.map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
-                            {candidate.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </label>
-                  ) : null}
                   <Button
                     aria-label={t("review_settings_button")}
                     className="h-9 w-9 shrink-0"
@@ -518,7 +495,13 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
           {feedback.panel}
         </div>
       ) : null}
-      {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? (
+        <ReviewDiffSettingsModal
+          initialSettings={{ ...reviewSettings, metric_gutter: activeMetricGutterId }}
+          metricGutterOptions={diffMetricCandidates}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </div>
     </>
   )
