@@ -22,8 +22,11 @@ module Mcp::Tools
       Child Jobs must form a SINGLE LINEAR DEPENDENCY CHAIN — Syrus Epics
       execute as one stacked branch, not parallel branches, so no two child
       Jobs may share a common dependency (fan-out) or a common dependent
-      (fan-in), and every child beyond the first must chain onto exactly one
-      other child (directly or transitively) via depends_on. This is
+      (fan-in). For a fresh Epic, omit jobs[].depends_on for a straight
+      top-to-bottom chain: when a non-first child omits depends_on,
+      depends_on_job_ids, and depends_on_epic_ids, Syrus defaults it to depend
+      on the immediately preceding child slug in the jobs array before
+      validation. Explicit dependency values are respected as written. This is
       validated and rejected before the proposal card is created — fix the
       dependency edges and call the tool again rather than expecting the
       operator to catch a branching graph at confirmation time.
@@ -95,7 +98,7 @@ module Mcp::Tools
               description: { type: "string", description: "Markdown child Job prompt/body, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
-              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. REQUIRED to form a single linear chain across all child Jobs in this proposal: every job besides the first must depend on exactly one other child job (no two children may share a dependency or a dependent). A fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when there is just one other child job in this proposal and the two are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
+              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
               media: {
                 type: "array",
@@ -138,6 +141,10 @@ module Mcp::Tools
         end
 
         normalized_jobs = job_attrs.map { |job| normalize_job(job, default_repo: epic_repository.slug) }
+        explicit_branching_error = explicit_sibling_branching_message(normalized_jobs)
+        return Mcp::Tools.invalid(explicit_branching_error) if explicit_branching_error
+
+        default_linear_sibling_dependencies(normalized_jobs, target_epic)
         validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs, target_epic)
         return Mcp::Tools.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
@@ -230,6 +237,48 @@ module Mcp::Tools
 
       def normalize_integer_list(value)
         Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
+      end
+
+      def explicit_sibling_branching_message(jobs)
+        slugs = jobs.map { |job| job[:slug] }
+        return if slugs.any?(&:empty?) || slugs.uniq.length != slugs.length
+
+        sibling_dependencies_by_slug = jobs.to_h { |job| [ job[:slug], job[:depends_on] & slugs ] }
+
+        sibling_dependencies_by_slug.each_value do |dependency_slugs|
+          next unless dependency_slugs.length > 1
+
+          return linear_chain_message_for(dependency_slugs, slugs)
+        end
+
+        dependents_by_dependency = Hash.new { |hash, key| hash[key] = [] }
+        sibling_dependencies_by_slug.each do |slug, dependency_slugs|
+          dependency_slugs.each { |dependency_slug| dependents_by_dependency[dependency_slug] << slug }
+        end
+
+        dependents_by_dependency.each_value do |dependent_slugs|
+          next unless dependent_slugs.length > 1
+
+          return linear_chain_message_for(dependent_slugs, slugs)
+        end
+
+        nil
+      end
+
+      def linear_chain_message_for(offending_slugs, slugs)
+        ordered_offenders = slugs & offending_slugs
+        "Epic child dependency graph must be a single chain; child slugs are unordered or branching: #{ordered_offenders.join(', ')}. Add sibling depends_on edges to make one chain."
+      end
+
+      def default_linear_sibling_dependencies(jobs, target_epic)
+        return if target_epic&.jobs&.exists?
+
+        jobs.each_with_index do |job, index|
+          next if index.zero?
+          next if job[:depends_on].any? || job[:depends_on_job_ids].any? || job[:depends_on_epic_ids].any?
+
+          job[:depends_on] = [ jobs.fetch(index - 1).fetch(:slug) ]
+        end
       end
 
       def validate_payload(chat_session, user, epic, jobs, target_epic)
