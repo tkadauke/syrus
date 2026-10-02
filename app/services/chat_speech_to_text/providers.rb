@@ -1,14 +1,17 @@
 module ChatSpeechToText
   module Providers
-    REGISTRY = {
-      "whisper_cpp" => WhisperCpp
-    }.freeze
+    def self.configured(user: nil)
+      candidates = provider_classes.select(&:available?)
+      pinned_provider_key = ENV["SYRUS_STT_PROVIDER"].to_s.strip.presence
+      candidates = candidates.select { |provider| provider.provider_key == pinned_provider_key } if pinned_provider_key
 
-    DEFAULT_PROVIDER = "whisper_cpp"
+      candidates.filter_map { |provider| provider.build(user: user) }.first
+    end
 
-    def self.configured
-      provider_name = ENV["SYRUS_STT_PROVIDER"].to_s.strip.presence || DEFAULT_PROVIDER
-      REGISTRY[provider_name]&.from_env
+    def self.provider_classes
+      Syrus::PluginRegistry.providers_for(:speech_to_text_provider).map do |provider|
+        provider.is_a?(String) ? provider.constantize : provider
+      end
     end
   end
 end

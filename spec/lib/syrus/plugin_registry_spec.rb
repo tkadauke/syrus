@@ -73,6 +73,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::WorkspaceTab }
   end
 
+  let(:speech_to_text_provider_class) do
+    Class.new { include Syrus::Plugin::SpeechToTextProvider }
+  end
+
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer)
@@ -92,6 +96,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :source_control_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:source_control_provider)
+    end
+
+    it "includes :speech_to_text_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:speech_to_text_provider)
     end
 
     it "includes :prompt_injector" do
@@ -468,6 +476,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:workspace_tab)).to eq([ workspace_tab_class ])
+    end
+
+    it "returns speech-to-text providers" do
+      described_class.register(
+        name: "speech_to_text_plugin", version: "1.0.0",
+        provides: { speech_to_text_provider: speech_to_text_provider_class }
+      )
+
+      expect(described_class.providers_for(:speech_to_text_provider)).to eq([ speech_to_text_provider_class ])
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do
@@ -861,6 +878,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { workspace_tab: plain_class }
         )
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::WorkspaceTab/)
+    end
+
+    it "raises RegistrationError when speech_to_text_provider class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { speech_to_text_provider: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::SpeechToTextProvider/)
     end
 
     it "allows the same extension point to be provided by multiple plugins" do
