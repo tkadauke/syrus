@@ -497,6 +497,15 @@ class ChatTurnJob < ApplicationJob
     server_name = tier == "deferred" ? "syrus-chat-deferred-sidecar" : "syrus-chat-sidecar"
     {
       type: "stdio",
+      command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+      args: [],
+      env: stdio_chat_proxy_env(tier: tier),
+      alwaysLoad: always_load
+    }
+  rescue StandardError => e
+    Rails.logger.warn("[ChatTurnJob] chat stdio MCP fallback unavailable for chat ##{@chat.id}: #{e.class}: #{e.message}")
+    {
+      type: "stdio",
       command: Rails.root.join("bin/syrus-mcp-unavailable").to_s,
       args: [],
       env: unavailable_chat_mcp_env(server_name: server_name),
@@ -534,11 +543,24 @@ class ChatTurnJob < ApplicationJob
   end
 
   def persistent_chat_proxy_env(decision, tier:)
-    {
+    AgentSidecarEnvironment.build(extra: {
       "SYRUS_MCP_PROXY_URL" => persistent_chat_mcp_url,
       "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => mint_chat_invocation_context_token(decision, tier: tier),
       "PATH" => ENV["PATH"]
-    }.compact
+    }.compact)
+  end
+
+  def stdio_chat_proxy_env(tier:)
+    fallback = chat_mcp_stdio_fallback
+    AgentSidecarEnvironment.build(extra: {
+      "SYRUS_MCP_PROXY_URL" => fallback.url,
+      "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => mint_chat_stdio_fallback_token(fallback, tier: tier),
+      "PATH" => ENV["PATH"]
+    }.compact)
+  end
+
+  def chat_mcp_stdio_fallback
+    @chat_mcp_stdio_fallback ||= ChatMcpStdioFallback.server
   end
 
   def persistent_chat_mcp_url
@@ -556,9 +578,19 @@ class ChatTurnJob < ApplicationJob
     )
   end
 
-  # Memoized per turn. `nil` when the feature is off -- callers use that as
-  # the "behave exactly as before, log nothing" signal, matching
-  # AgentProviders::Base#mcp_transport_decision's workflow-side convention.
+  def mint_chat_stdio_fallback_token(fallback, tier:)
+    McpInvocationContext.issue_for_chat(
+      @chat,
+      worker_id: fallback.identity.fetch(:worker_id),
+      current_message: @user_message,
+      tier: tier,
+      provider: @chat.effective_chat_provider
+    )
+  end
+
+  # Memoized per turn. Chat always asks the selector so feature-disabled and
+  # daemon-unhealthy stdio fallback turns leave the same explicit diagnostics
+  # as persistent turns.
   def chat_mcp_transport_decision(provider)
     return @chat_mcp_transport_decision if defined?(@chat_mcp_transport_decision)
 
@@ -566,8 +598,6 @@ class ChatTurnJob < ApplicationJob
   end
 
   def compute_chat_mcp_transport_decision(provider)
-    return nil unless Feature.persistent_mcp_sidecar_enabled?
-
     decision = ChatMcpTransportSelector.select
     log_chat_mcp_transport_decision!(decision)
     decision
@@ -589,6 +619,7 @@ class ChatTurnJob < ApplicationJob
     @chat.set_artifact!("mcp_transport", {
       "transport" => decision.transport.to_s,
       "reason" => decision.reason,
+      "stdio_fallback" => decision.stdio? ? "proxy" : nil,
       "checked_at" => Time.current.utc.iso8601
     }.compact)
 
@@ -604,7 +635,7 @@ class ChatTurnJob < ApplicationJob
   def unavailable_chat_mcp_env(server_name:)
     AgentSidecarEnvironment.build(extra: {
       "SYRUS_MCP_UNAVAILABLE_SERVER_NAME" => server_name,
-      "SYRUS_MCP_UNAVAILABLE_MESSAGE" => "Persistent MCP daemon is required for chat MCP tools; the legacy Rails stdio sidecar cannot boot safely under an agent-visible scrubbed environment.",
+      "SYRUS_MCP_UNAVAILABLE_MESSAGE" => "Chat MCP tools are unavailable because the proxy-backed stdio compatibility daemon could not start; the legacy Rails stdio sidecar is not used under an agent-visible scrubbed environment.",
       "PATH" => ENV["PATH"]
     }.compact)
   end

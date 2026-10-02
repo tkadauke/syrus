@@ -84,8 +84,8 @@ class PersistentMcpDaemon
     ENV.fetch("SYRUS_PERSISTENT_MCP_HOST", DEFAULT_HOST)
   end
 
-  def self.start(host: self.host, port: self.port)
-    new(host: host, port: port).tap(&:start)
+  def self.start(host: self.host, port: self.port, require_feature: true)
+    new(host: host, port: port, require_feature: require_feature).tap(&:start)
   end
 
   def self.ensure_started
@@ -105,14 +105,15 @@ class PersistentMcpDaemon
     ENV.fetch("SYRUS_MCP_DAEMON_AUTO_START", Rails.env.test? ? "0" : "1") != "0"
   end
 
-  def initialize(host: self.class.host, port: self.class.port)
+  def initialize(host: self.class.host, port: self.class.port, require_feature: true)
     @host = host
     @port = port
+    @require_feature = require_feature
     @started_at = nil
   end
 
   def start
-    raise "PersistentMcpDaemon: the persistent_mcp_sidecar feature is disabled" unless Feature.persistent_mcp_sidecar_enabled?
+    raise "PersistentMcpDaemon: the persistent_mcp_sidecar feature is disabled" if @require_feature && !Feature.persistent_mcp_sidecar_enabled?
     raise "PersistentMcpDaemon: already started" if @server
 
     @started_at = Time.current
