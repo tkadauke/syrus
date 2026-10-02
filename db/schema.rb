@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_02_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_233703) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2060,6 +2060,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_000000) do
     t.integer "port", default: 3306, null: false
     t.datetime "updated_at", null: false
     t.string "username", null: false
+    t.bigint "credential_store_credential_id"
+    t.index ["credential_store_credential_id"], name: "index_mysql_connections_on_credential_store_credential_id"
   end
 
   create_table "mysql_query_audits", force: :cascade do |t|

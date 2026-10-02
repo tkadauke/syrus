@@ -11,25 +11,35 @@ module Api
 
           def create
             connection = MysqlConnection.new(connection_params)
-            connection.password = params.dig(:mysql_connection, :password) if params.dig(:mysql_connection, :password).present?
+            password = params.dig(:mysql_connection, :password).presence
 
             if connection.save
+              ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user) if password
               render json: { mysql_connection: connection_json(connection) }, status: :created
             else
               render_error("validation_failed", connection.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
+          rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable => e
+            render_error("plugin_disabled", e.message, status: :not_found)
           end
 
           def update
             connection = find_connection
             connection.assign_attributes(connection_params)
-            connection.password = params.dig(:mysql_connection, :password) if params.dig(:mysql_connection, :password).present?
+            password = params.dig(:mysql_connection, :password).presence
 
             if connection.save
+              if password
+                ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user)
+              else
+                ::MysqlDbBrowser::CredentialMaterial.sync_metadata!(connection, user: Current.user)
+              end
               render json: { mysql_connection: connection_json(connection) }
             else
               render_error("validation_failed", connection.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
+          rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable => e
+            render_error("plugin_disabled", e.message, status: :not_found)
           end
 
           def destroy
@@ -51,8 +61,17 @@ module Api
 
           def test_existing_connection
             connection = find_connection
-            password = params.dig(:mysql_connection, :password).presence || connection.password
+            override_password = params.dig(:mysql_connection, :password).presence
+            return test_connection_params(connection, override_password) if override_password
 
+            ::MysqlDbBrowser::CredentialMaterial.with_password(connection, context: admin_credential_context, purpose: "test MySQL connection") do |password, _metadata|
+              test_connection_params(connection, password)
+            end
+          rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable, CredentialStore::Broker::Error => e
+            { success: false, error: e.message }
+          end
+
+          def test_connection_params(connection, password)
             ::MysqlDbBrowser::ConnectionTester.test_params(
               host: connection.host,
               port: connection.port,
@@ -73,6 +92,10 @@ module Api
             )
           end
 
+          def admin_credential_context
+            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+          end
+
           def find_connection
             MysqlConnection.find(params[:id])
           end
@@ -91,7 +114,7 @@ module Api
               default_database: connection.default_database,
               agentic_access_enabled: connection.agentic_access_enabled,
               allow_writes: connection.allow_writes,
-              has_password: connection.password.present?,
+              has_password: connection.has_password?,
               created_at: connection.created_at.iso8601,
               updated_at: connection.updated_at.iso8601
             }

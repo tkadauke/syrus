@@ -40,7 +40,7 @@ RSpec.describe MysqlDbBrowser::ConnectionTester do
     described_class.client_factory = original
   end
 
-  it "builds the client from a persisted connection's decrypted credentials" do
+  it "builds the client from a persisted connection's configured credentials" do
     connection = Factories.mysql_connection(host: "db.internal", port: 3307, username: "app", password: "s3cret", default_database: "app_prod")
     fake_client = instance_double(Mysql2::Client, query: [], close: nil)
     received_options = nil

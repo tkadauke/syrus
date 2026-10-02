@@ -10,7 +10,7 @@ RSpec.describe MysqlDbBrowser::ListTablesTool do
   it "returns the database's tables payload" do
     payload = { available: true, database: "app_prod", tables: [ { name: "users" } ] }
     inspector = instance_double(MysqlDbBrowser::SchemaInspector, tables: payload)
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(inspector)
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(inspector)
 
     response = call(mysql_connection_id: connection.id, database: "app_prod")
 
@@ -21,7 +21,7 @@ RSpec.describe MysqlDbBrowser::ListTablesTool do
 
   it "surfaces a degraded (available: false) payload as an error response" do
     payload = { available: false, error: { class: "Mysql2::Error", message: "command denied" } }
-    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(instance_double(MysqlDbBrowser::SchemaInspector, tables: payload))
+    allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context, :tool_name)).and_return(instance_double(MysqlDbBrowser::SchemaInspector, tables: payload))
 
     response = call(mysql_connection_id: connection.id, database: "app_prod")
 
