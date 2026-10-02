@@ -768,7 +768,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           version: "1.0.0",
           credential_type_names: [ "K8S Cluster" ]
         )
-      }.to raise_error(described_class::RegistrationError, /lowercase dot-separated segments/)
+      }.to raise_error(described_class::RegistrationError, /lowercase alphanumeric\/underscore segments/)
     end
 
     it "rejects credential type names that are not namespaced to the declaring plugin" do
@@ -793,7 +793,28 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "exposes the credential type name pattern for credential stores" do
       expect("k8s_cluster.kubeconfig").to match(described_class.credential_type_name_pattern)
+      expect("ssh_private_key").to match(described_class.credential_type_name_pattern)
       expect("github/pat").not_to match(described_class.credential_type_name_pattern)
+    end
+
+    it "allows credential_store to declare reserved default credential type names" do
+      described_class.register(
+        name: "credential_store",
+        version: "1.0.0",
+        credential_type_names: [ "ssh_private_key", "token", "credential_store.generic" ]
+      )
+
+      expect(described_class.credential_type_names).to include("ssh_private_key", "token", "credential_store.generic")
+    end
+
+    it "rejects unnamespaced credential type names from other plugins" do
+      expect {
+        described_class.register(
+          name: "other_plugin",
+          version: "1.0.0",
+          credential_type_names: [ "ssh_private_key" ]
+        )
+      }.to raise_error(described_class::RegistrationError, /must be namespaced/)
     end
 
     it "replaces a plugin's prior credential type declaration when it re-registers" do
