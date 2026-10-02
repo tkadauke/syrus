@@ -354,9 +354,10 @@ module ChatSerialization
   # confirm -- see CONFIRMED_VISIBLE_FOR above -- because a separate
   # per-member chat notification announces the outcome), a group's card
   # is the only place the partial-failure breakdown across its members is
-  # visible, so it stays in the payload for every group state.
+  # visible, so resolved groups stay in the payload until the operator
+  # dismisses the card.
   def pending_action_groups_json(chat_session)
-    chat_session.pending_action_groups.includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).map do |group|
+    chat_session.pending_action_groups.where.not(state: "dismissed").includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).map do |group|
       pending_action_group_json(group)
     end
   end
@@ -372,7 +373,8 @@ module ChatSerialization
       chat_message_id: pending_action_group_anchor_message_id(members),
       members: members.map { |member| pending_action_group_member_json(member) },
       app_confirm_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}/confirm",
-      app_reject_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}/reject"
+      app_reject_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}/reject",
+      app_dismiss_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}"
     }
   end
 
@@ -381,6 +383,7 @@ module ChatSerialization
       id: member.id,
       label: pending_action_label(member),
       state: member.state,
+      chat_message_id: member.anchor_message&.id,
       execution_error: member.execution_error
     }
   end

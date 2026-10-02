@@ -51,15 +51,10 @@ module ChatPendingActions
   end
 
   def pending_action_group_confirmed_notice(group)
-    members = group.chat_pending_actions.reload.to_a
-    failed = members.count(&:failed?)
-    succeeded = members.count(&:confirmed?)
-    return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
-
-    "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
+    group.confirmed_notice
   end
 
   def pending_action_group_rejected_notice(group)
-    "Rejected #{group.chat_pending_actions.count} pending actions."
+    group.rejected_notice
   end
 end

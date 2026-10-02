@@ -230,6 +230,7 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
   const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
   const unanchoredItems: ChatStreamItem[] = []
   const renderedMessageIds = new Set<number>()
+  const renderedAnchoredItems = new Set<ChatStreamItem>()
   const result: ChatStreamItem[] = []
 
   const anchor = (messageId: number | null | undefined, streamItem: ChatStreamItem) => {
@@ -244,7 +245,16 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
   }
 
   for (const action of pendingActions) anchor(action.chat_message_id, { type: "pending_action", pendingAction: action })
-  for (const group of pendingActionGroups) anchor(group.chat_message_id, { type: "pending_action_group", pendingActionGroup: group })
+  for (const group of pendingActionGroups) {
+    const streamItem: ChatStreamItem = { type: "pending_action_group", pendingActionGroup: group }
+    const anchorIds = [ group.chat_message_id, ...group.members.map((member) => member.chat_message_id) ].filter((id): id is number => id != null)
+    const uniqueAnchorIds = Array.from(new Set(anchorIds))
+    if (uniqueAnchorIds.length === 0) {
+      unanchoredItems.push(streamItem)
+    } else {
+      for (const messageId of uniqueAnchorIds) anchor(messageId, streamItem)
+    }
+  }
 
   for (const item of items) {
     result.push(item)
@@ -252,13 +262,23 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
     const messageIds = streamItemMessageIds(item)
     for (const messageId of messageIds) {
       renderedMessageIds.add(messageId)
-      result.push(...(anchoredByMessageId.get(messageId) || []))
+      for (const anchoredItem of anchoredByMessageId.get(messageId) || []) {
+        if (renderedAnchoredItems.has(anchoredItem)) continue
+
+        renderedAnchoredItems.add(anchoredItem)
+        result.push(anchoredItem)
+      }
     }
   }
 
   for (const [messageId, anchoredItems] of anchoredByMessageId) {
     if (renderedMessageIds.has(messageId)) continue
-    unanchoredItems.push(...anchoredItems)
+    for (const anchoredItem of anchoredItems) {
+      if (renderedAnchoredItems.has(anchoredItem)) continue
+
+      renderedAnchoredItems.add(anchoredItem)
+      unanchoredItems.push(anchoredItem)
+    }
   }
 
   result.push(...unanchoredItems)
