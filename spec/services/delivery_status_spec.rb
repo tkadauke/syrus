@@ -18,6 +18,30 @@ RSpec.describe DeliveryStatus do
     described_class.for(job: job, policy: policy_double(**policy_opts))
   end
 
+  def workflow_for(job, state:)
+    Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: job.kind,
+      agent_provider: job.agent_provider,
+      priority: job.priority,
+      state: state
+    )
+  end
+
+  def closed_agent_insight_job(latest_workflow_state:)
+    PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: true, disableable: true)
+    job = Factories.job_record(
+      repository: repository,
+      kind: "agent_insight",
+      issue_number: nil,
+      state: "queued"
+    )
+    workflow_for(job, state: latest_workflow_state)
+    job.update_columns(state: "closed", closure_reason: "agent_insight", finished_at: Time.current)
+    job.reload
+  end
+
   it "resolves to waiting_for_local_approval before local approval, matching today's behavior with no delivery config" do
     job = Factories.job_record(repository: repository, state: "implemented")
 
@@ -77,6 +101,18 @@ RSpec.describe DeliveryStatus do
 
   it "resolves to delivery_needs_attention when the job closed without a successful closure reason" do
     job = Factories.job_record(repository: repository, state: "closed", closure_reason: "too_many_failures")
+
+    expect(status_for(job)).to eq(:delivery_needs_attention)
+  end
+
+  it "resolves successful infrastructure auto-close jobs to a neutral terminal status" do
+    job = closed_agent_insight_job(latest_workflow_state: "succeeded")
+
+    expect(status_for(job)).to eq(:approved_for_local_landing)
+  end
+
+  it "keeps failed infrastructure auto-close workflows visible for attention" do
+    job = closed_agent_insight_job(latest_workflow_state: "failed")
 
     expect(status_for(job)).to eq(:delivery_needs_attention)
   end

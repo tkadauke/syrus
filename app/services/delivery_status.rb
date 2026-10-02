@@ -58,7 +58,16 @@ class DeliveryStatus
   # the more specific statuses below: an unsuccessful closure (preempted,
   # too many failures, an ingested external PR closed without merging).
   def unsuccessful_local_closure?
+    return false if successful_infrastructure_closure?
+
     job.closed? && job.closure_reason.present? && Job::SUCCESSFUL_CLOSURE_REASONS.exclude?(job.closure_reason)
+  end
+
+  def successful_infrastructure_closure?
+    job.closed? &&
+      job.infrastructure_job? &&
+      job.closure_reason == job.kind &&
+      job.latest_workflow_state == "succeeded"
   end
 
   # The PR link that governs this Job's delivery beyond local landing: the
@@ -114,6 +123,6 @@ class DeliveryStatus
   end
 
   def locally_approved_or_landed?
-    job.approved? || job.landing? || locally_landed?
+    job.approved? || job.landing? || locally_landed? || successful_infrastructure_closure?
   end
 end
