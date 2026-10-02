@@ -16,12 +16,15 @@ module CredentialStore
       fingerprint
       host
       known_host
+      namespace
       port
       username
     ].freeze
     TARGET_CONSTRAINT_KEYS = %w[
       allowed_hosts
+      allowed_kube_clusters
       allowed_kube_contexts
+      allowed_kube_namespaces
       allowed_url_prefixes
     ].freeze
     SECRET_KEY_PATTERN = /(?:secret|token|password|passphrase|private[_-]?key|client[_-]?key|credential|auth)/i
