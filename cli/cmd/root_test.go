@@ -29,6 +29,25 @@ func TestRootCommandReportsMissingCredentials(t *testing.T) {
 	}
 }
 
+func TestRootCommandReportsMissingInvocationContextInsideSyrus(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("SYRUS_CLI_INTERNAL", "1")
+	t.Setenv("SYRUS_CLI_URL", "https://syrus.example.com")
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected missing invocation context error")
+	}
+	if err.Error() != invocationContextMessage {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
 func TestLoginCommandWritesCredentials(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

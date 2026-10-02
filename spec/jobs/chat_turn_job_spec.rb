@@ -799,6 +799,10 @@ RSpec.describe ChatTurnJob, :ci_only do
   end
 
   it "passes a temporary git askpass helper to Claude for attached repositories and deletes it after success" do
+    original_host = ENV["SYRUS_APP_HOST"]
+    original_assume_ssl = ENV["SYRUS_ASSUME_SSL"]
+    ENV["SYRUS_APP_HOST"] = "syrus.example.com"
+    ENV["SYRUS_ASSUME_SSL"] = "true"
     allow(GithubClient).to receive(:for)
       .with(repository: repository, user: user)
       .and_return(instance_double(GithubClient, access_token: "ghp-chat-token"))
@@ -807,6 +811,9 @@ RSpec.describe ChatTurnJob, :ci_only do
     ChatTurnJob.agent_runner = ->(env:, **_) {
       askpass_path = env.fetch("GIT_ASKPASS")
       expect(env.fetch("GIT_TERMINAL_PROMPT")).to eq("0")
+      expect(env.fetch("SYRUS_CLI_URL")).to eq("https://syrus.example.com")
+      resolved = McpInvocationContext.resolve_for_app_api(env.fetch("SYRUS_CLI_INVOCATION_CONTEXT"))
+      expect(resolved.tool_context.chat_session).to eq(chat)
       expect(File.exist?(askpass_path)).to eq(true)
       expect(File.dirname(askpass_path)).to eq(Dir.tmpdir)
       expect(format("%o", File.stat(askpass_path).mode & 0o777)).to eq("700")
@@ -818,6 +825,9 @@ RSpec.describe ChatTurnJob, :ci_only do
 
     expect(askpass_path).to be_present
     expect(File.exist?(askpass_path)).to eq(false)
+  ensure
+    ENV["SYRUS_APP_HOST"] = original_host
+    ENV["SYRUS_ASSUME_SSL"] = original_assume_ssl
   end
 
   it "deletes the temporary git askpass helper when Claude raises" do
@@ -854,7 +864,9 @@ RSpec.describe ChatTurnJob, :ci_only do
 
     described_class.perform_now(top_level_chat.id, message.id)
 
-    expect(received[:env]).to eq("GIT_TERMINAL_PROMPT" => "0")
+    expect(received[:env].fetch("GIT_TERMINAL_PROMPT")).to eq("0")
+    expect(received[:env]).not_to have_key("GIT_ASKPASS")
+    expect(received[:env]).to have_key("SYRUS_CLI_INVOCATION_CONTEXT")
   end
 
   it "refreshes already-cloned attached repository checkouts at turn start" do

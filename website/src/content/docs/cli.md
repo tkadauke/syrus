@@ -87,6 +87,14 @@ If any command answers `401 Unauthorized`, the saved token is stale
 `syrus login`, and the desktop app heals its own copy automatically the
 next time its window is open and signed in.
 
+Inside Syrus-managed workflow and chat runtimes, the CLI does not read a
+human user's `~/.syrus/credentials` file. Syrus injects a short-lived
+invocation context through `SYRUS_CLI_URL` and
+`SYRUS_CLI_INVOCATION_CONTEXT`; commands authenticate as the current run
+or chat and are scoped to that invocation's user and resources. If that
+internal context is missing or expires, the CLI reports a runtime
+configuration error instead of telling the agent to run `syrus login`.
+
 Syrus Desktop reads and writes the same credentials file. If you have
 already run `syrus login`, the desktop app starts authenticated. If the
 file is missing or incomplete, the desktop app prompts for the same URL
@@ -637,6 +645,11 @@ If credentials are missing or incomplete, the CLI prints:
 ```text
 Run 'syrus login' to set up your Syrus instance URL and API token.
 ```
+
+If a command is running inside a Syrus worker and the internal invocation
+context is missing, the CLI instead reports that `SYRUS_CLI_URL` or
+`SYRUS_CLI_INVOCATION_CONTEXT` is missing. That is an instance runtime
+configuration issue, not something to fix with `syrus login`.
 
 If a repository-scoped command cannot detect a checkout, run it from a
 GitHub repository or pass `--repo owner/name` when the command supports

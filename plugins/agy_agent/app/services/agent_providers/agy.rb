@@ -112,6 +112,7 @@ module AgentProviders
         required_mcp_tools: required_mcp_tools,
         model: model,
         effort_level: effort_level,
+        env: cli_invocation_env,
         on_session_id: on_session_id
       ).run
     end

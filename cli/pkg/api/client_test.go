@@ -63,6 +63,31 @@ func TestAPIErrorUsesJSONMessage(t *testing.T) {
 	}
 }
 
+func TestAPIErrorForInternalAuthDoesNotSuggestLogin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":{"code":"unauthorized","message":"Sign in to use the app API."}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithOptions(server.URL, "bad-token", ClientOptions{InternalAuth: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.GetJob(context.Background(), "123")
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *Error, got %T: %v", err, err)
+	}
+	if strings.Contains(apiErr.Message, "syrus login") {
+		t.Fatalf("internal auth message suggested login: %q", apiErr.Message)
+	}
+	if !strings.Contains(apiErr.Message, "invocation context") {
+		t.Fatalf("expected invocation context hint, got %q", apiErr.Message)
+	}
+}
+
 func TestAPIErrorNon401DoesNotSuggestLogin(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)

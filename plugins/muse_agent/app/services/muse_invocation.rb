@@ -41,6 +41,7 @@ class MuseInvocation
                  muse_home: nil,
                  mcp_server: nil,
                  required_mcp_tools: nil,
+                 env: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { })
     @workspace_path = workspace_path.to_s
@@ -58,6 +59,7 @@ class MuseInvocation
     @muse_home = muse_home&.to_s
     @mcp_server = mcp_server
     @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
+    @env = env || {}
     @stop_requested = stop_requested
     @process_started = process_started
   end
@@ -77,6 +79,7 @@ class MuseInvocation
       max_model_steps: @max_model_steps,
       transcript_policy: @transcript_policy,
       transcript_dir: @transcript_dir,
+      env: @env,
       stop_requested: @stop_requested,
       process_started: @process_started
     )
@@ -87,6 +90,7 @@ class MuseInvocation
   def default_runner(workspace_path:, prompt:, api_key:, log_sink:, timeout:,
                      session_id:, model: nil, reasoning_effort: nil, max_model_steps: nil,
                      transcript_policy: DEFAULT_TRANSCRIPT_POLICY, transcript_dir: nil,
+                     env: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { })
     exec_jsonl = +""
     metadata = default_metadata(session_id)
@@ -100,7 +104,7 @@ class MuseInvocation
       write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
       runner_result = with_muse_rules_context_fit(workspace_path, log_sink) do
         ProcessRunner.new(
-          env: muse_env(workspace_path, muse_home: @muse_home),
+          env: muse_env(workspace_path, muse_home: @muse_home).merge(env || {}),
           command: muse_exec_command(
             workspace_path: workspace_path,
             prompt_path: prompt_path,

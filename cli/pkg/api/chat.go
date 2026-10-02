@@ -169,7 +169,7 @@ func (c *Client) StreamTurn(ctx context.Context, chatID string, message string, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return responseError(resp)
+		return c.responseError(resp)
 	}
 
 	return ParseChatStream(resp.Body, func(event ChatStreamEvent) error {

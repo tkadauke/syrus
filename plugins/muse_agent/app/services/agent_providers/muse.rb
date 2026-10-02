@@ -79,7 +79,8 @@ module AgentProviders
         max_model_steps: max_turns,
         muse_home: WorkflowWorkspace.agent_home_for(workflow, provider),
         mcp_server: (mcp ? mcp_server : nil),
-        required_mcp_tools: required_mcp_tools
+        required_mcp_tools: required_mcp_tools,
+        env: cli_invocation_env
       ).run
     end
 

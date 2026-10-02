@@ -2,6 +2,15 @@
 
 Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke the agent CLI) or **non-agentic** (run service code directly). Step kinds are registered in `app/models/step/kind.rb`.
 
+Agentic workflow processes receive short-lived Syrus CLI authentication in
+their environment: `SYRUS_CLI_URL` points at the app API and
+`SYRUS_CLI_INVOCATION_CONTEXT` carries a signed invocation context for the
+current Run. The `syrus` CLI prefers that internal context over
+`~/.syrus/credentials`, so agent shells can call app API commands without a
+long-lived human API token. The token resolves to the Run's user and is scoped
+to the current run/job/repository boundary; app API requests that try to cross
+that boundary are rejected or filtered.
+
 `Step` is also the workflow DAG node record for the distributed-workflow
 foundation; Syrus does not create a separate node table. Every Step has a
 `placement_policy` column. The default is `pinned_workflow_workspace`, which is
