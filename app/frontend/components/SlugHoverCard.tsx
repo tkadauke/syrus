@@ -1,7 +1,11 @@
 import { FloatingPortal, autoPlacement, flip, offset, shift, useFloating } from "@floating-ui/react"
-import { type ComponentType, type MouseEvent, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { Link } from "react-router-dom"
 import { pluginSlugPreviewCardComponentForPrefix, type PluginSlugPreviewCardProps } from "../pluginSlugPreviewCards"
-import type { SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
+import { hrefForSlugReference, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
+import { useT } from "../hooks/useT"
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
+import { CopyIcon } from "./CopyableSlug"
 import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
@@ -11,10 +15,17 @@ const corePreviewCards: Record<string, ComponentType<{ id: number; compact?: boo
   epic: EpicPreviewCard,
   job: JobPreviewCard
 }
+const actionCloseButtonClassName =
+  "shrink-0 rounded px-2 py-1 text-sm text-text-secondary hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"
+const actionButtonClassName =
+  "inline-flex items-center gap-1 rounded border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary shadow-sm hover:bg-surface-raised focus:outline-none focus:ring-2 focus:ring-brand"
+const actionOpenClassName =
+  "inline-flex items-center rounded bg-brand px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-brand-emphasis focus:outline-none focus:ring-2 focus:ring-brand"
 
 interface SlugReferenceCardProps {
   entry: SlugReferenceRegistryEntry
   id: number
+  slug?: string
   children: ReactNode
 }
 
@@ -39,21 +50,28 @@ function detectPointerFine(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
 }
 
-export function SlugReferenceCard({ entry, id, children }: SlugReferenceCardProps) {
+export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugReferenceCardProps) {
+  const { t } = useT("common")
   const [isOpen, setIsOpen] = useState(false)
+  const [surfaceMode, setSurfaceMode] = useState<"preview" | "actions">("preview")
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Checked once on first render; pointer capability doesn't change during a session
   const canHover = useRef(detectPointerFine())
+  const slug = slugProp ?? `${entry.prefix}-${id}`
+  const href = hrefForSlugReference(entry, id)
+  const hasActions = Boolean(href || entry.copyable)
 
   const { refs, floatingStyles } = useFloating({
     middleware: [offset(8), flip({ padding: 8 }), autoPlacement({ padding: 8 }), shift({ padding: 8 })]
   })
 
-  const open = useCallback(() => {
-    if (!entry.previewAvailable) return
+  const open = useCallback((mode: "preview" | "actions") => {
+    if (mode === "preview" && !entry.previewAvailable) return
+    if (mode === "actions" && !entry.previewAvailable && !hasActions) return
+    setSurfaceMode(mode)
     setIsOpen(true)
-  }, [entry.previewAvailable])
+  }, [entry.previewAvailable, hasActions])
 
   const close = useCallback(() => {
     setIsOpen(false)
@@ -63,8 +81,8 @@ export function SlugReferenceCard({ entry, id, children }: SlugReferenceCardProp
     if (!entry.previewAvailable) return
     if (!canHover.current) return
     if (closeTimer.current) clearTimeout(closeTimer.current)
-    openTimer.current = setTimeout(() => setIsOpen(true), 300)
-  }, [entry.previewAvailable])
+    openTimer.current = setTimeout(() => open("preview"), 300)
+  }, [entry.previewAvailable, open])
 
   const handleReferenceLeave = useCallback(() => {
     if (!entry.previewAvailable) return
@@ -84,13 +102,31 @@ export function SlugReferenceCard({ entry, id, children }: SlugReferenceCardProp
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLSpanElement>) => {
-      if (canHover.current || !entry.previewAvailable) return
-      if ((event.target as HTMLElement).closest("[data-slug-copy-button]")) return
+      if (canHover.current) return
+      if (!entry.previewAvailable && !hasActions) return
 
       event.preventDefault()
-      open()
+      open("actions")
     },
-    [entry.previewAvailable, open]
+    [entry.previewAvailable, hasActions, open]
+  )
+
+  const handleFocus = useCallback(() => {
+    if (canHover.current) {
+      open("preview")
+    }
+  }, [open])
+
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") return
+      if (!entry.previewAvailable && !hasActions) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      open("actions")
+    },
+    [entry.previewAvailable, hasActions, open]
   )
 
   useEffect(() => {
@@ -124,32 +160,118 @@ export function SlugReferenceCard({ entry, id, children }: SlugReferenceCardProp
     }
   }, [])
 
+  const actionSurfaceIsBottomSheet = surfaceMode === "actions" && !canHover.current
+  const wrapperIsInteractive = entry.previewAvailable && !hasActions
+  const floatingClassName =
+    surfaceMode === "actions"
+      ? actionSurfaceIsBottomSheet
+        ? "fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface p-3 shadow-2xl [&>*]:max-w-[calc(100vw-1rem)]"
+        : "z-50 w-80 rounded-lg border border-border bg-surface p-2 shadow-2xl [&>*]:max-w-[calc(100vw-1rem)]"
+      : "[&>*]:max-w-[calc(100vw-1rem)]"
+  const floatingStyle = actionSurfaceIsBottomSheet ? undefined : { ...floatingStyles, zIndex: 50 }
+
   return (
     <>
       <span
+        aria-expanded={wrapperIsInteractive ? isOpen : undefined}
+        aria-haspopup={wrapperIsInteractive ? "dialog" : undefined}
+        aria-label={wrapperIsInteractive ? t("slug_reference.surface_label", { slug }) : undefined}
         onClickCapture={handleClick}
-        onFocus={open}
+        onFocus={handleFocus}
+        onKeyDownCapture={handleKeyDown}
         onMouseEnter={handleReferenceEnter}
         onMouseLeave={handleReferenceLeave}
         ref={refs.setReference}
+        role={wrapperIsInteractive ? "button" : undefined}
         style={{ display: "inline" }}
+        tabIndex={wrapperIsInteractive ? 0 : undefined}
       >
         {children}
       </span>
       {isOpen && (
         <FloatingPortal>
           <div
-            className="[&>*]:max-w-[calc(100vw-1rem)]"
+            aria-label={surfaceMode === "actions" ? t("slug_reference.surface_label", { slug }) : undefined}
+            className={floatingClassName}
             onMouseEnter={handleFloatingEnter}
             onMouseLeave={handleFloatingLeave}
             ref={refs.setFloating}
-            style={{ ...floatingStyles, zIndex: 50 }}
+            role={surfaceMode === "actions" ? "dialog" : undefined}
+            style={floatingStyle}
           >
-            <PreviewCard entry={entry} id={id} />
+            {surfaceMode === "actions" ? (
+              <SlugReferenceActionSurface close={close} entry={entry} href={href} id={id} slug={slug} />
+            ) : (
+              <PreviewCard entry={entry} id={id} />
+            )}
           </div>
         </FloatingPortal>
       )}
     </>
+  )
+}
+
+function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: () => void; entry: SlugReferenceRegistryEntry; href: string | null; id: number; slug: string }) {
+  const { t } = useT("common")
+  const { copied, copy } = useCopyToClipboard()
+
+  const copySlug = () => {
+    copy(slug)
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg bg-surface text-text-primary">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="break-all font-mono text-sm font-semibold">{slug}</div>
+          <div className="text-xs text-text-secondary">{entry.displayLabel}</div>
+        </div>
+        <button className={actionCloseButtonClassName} onClick={close} type="button">
+          {t("slug_reference.close")}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {href ? <SlugReferenceOpenAction close={close} href={href} slug={slug} /> : null}
+        {entry.copyable ? (
+          <button
+            className={actionButtonClassName}
+            onClick={copySlug}
+            type="button"
+          >
+            <CopyIcon className={`h-4 w-4 ${copied ? "text-success-text" : "text-text-secondary"}`} />
+            {copied ? t("copy.copied") : t("slug_reference.copy_action", { slug })}
+          </button>
+        ) : null}
+      </div>
+
+      {entry.previewAvailable ? (
+        <div className="max-h-[65vh] overflow-auto sm:max-h-[28rem]">
+          <PreviewCard entry={entry} id={id} />
+        </div>
+      ) : (
+        <p className="rounded border border-dashed border-border bg-surface-subtle px-3 py-2 text-sm text-text-secondary">{t("slug_reference.preview_unavailable")}</p>
+      )}
+    </div>
+  )
+}
+
+function SlugReferenceOpenAction({ close, href, slug }: { close: () => void; href: string; slug: string }) {
+  const { t } = useT("common")
+  const label = t("slug_reference.open_action", { slug })
+
+  if (href.startsWith("/s/")) {
+    return (
+      <a className={actionOpenClassName} href={href} onClick={close}>
+        {label}
+      </a>
+    )
+  }
+
+  return (
+    <Link className={actionOpenClassName} onClick={close} to={href}>
+      {label}
+    </Link>
   )
 }
 

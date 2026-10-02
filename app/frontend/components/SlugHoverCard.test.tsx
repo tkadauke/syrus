@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Link, MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
+import { CopyableSlug } from "./CopyableSlug"
 import { SlugReferenceCard } from "./SlugHoverCard"
 
 // Stub preview cards so tests don't need live API calls
@@ -35,22 +36,27 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
-function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string) {
+function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string, overrides: Partial<SlugReferenceRegistryEntry> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const label = kind === "plugin" ? prefix : kind.toUpperCase()
+  const slug = `${label}-${id}`
   const entry = registryEntry({
     prefix: prefix ?? kind.toUpperCase(),
     type: kind === "plugin" ? "design_doc" : kind,
-    pluginPreviewComponent: kind === "plugin" && prefix === "DOC" ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div> : null
+    pluginPreviewComponent: kind === "plugin" && prefix === "DOC" ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div> : null,
+    ...overrides
   })
+  const child = entry.linkable && entry.hrefTemplate ? (
+    <Link to={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>{slug}</Link>
+  ) : (
+    <CopyableSlug slug={slug} />
+  )
 
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <SlugReferenceCard entry={entry} id={id}>
-          <Link to={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>
-            {label}-{id}
-          </Link>
+        <SlugReferenceCard entry={entry} id={id} slug={slug}>
+          {child}
         </SlugReferenceCard>
       </MemoryRouter>
     </QueryClientProvider>
@@ -72,7 +78,13 @@ function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<Slu
 }
 
 describe("SlugReferenceCard on a touch / non-pointer device", () => {
-  beforeEach(() => mockMatchMedia(false))
+  beforeEach(() => {
+    mockMatchMedia(false)
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it("renders children without opening from hover", () => {
@@ -84,7 +96,7 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
   })
 
-  it("opens the preview on tap/click and dismisses it on outside pointer down", async () => {
+  it("opens an action sheet on tap/click and dismisses it on outside pointer down", async () => {
     renderCard("job", 42)
     const link = screen.getByRole("link", { name: "JOB-42" })
 
@@ -94,6 +106,9 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     })
 
     expect(clickResult).toBe(false)
+    expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open JOB-42" })).toHaveAttribute("href", "/refs/42")
+    expect(screen.getByRole("button", { name: "Copy JOB-42" })).toBeInTheDocument()
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
 
     await act(async () => {
@@ -103,14 +118,16 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
   })
 
-  it("opens the preview on keyboard focus and dismisses it with Escape", async () => {
+  it("opens the same action surface from Enter and dismisses it with Escape", async () => {
     renderCard("job", 42)
     const link = screen.getByRole("link", { name: "JOB-42" })
 
     await act(async () => {
-      fireEvent.focus(link)
+      fireEvent.keyDown(link, { key: "Enter" })
     })
 
+    expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open JOB-42" })).toBeInTheDocument()
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
 
     await act(async () => {
@@ -118,6 +135,36 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     })
 
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
+  })
+
+  it("opens copy-only registered refs with an unavailable-preview state", async () => {
+    renderCard("plugin", 5, "INSIGHT", { displayLabel: "Insight", hrefTemplate: null, linkable: false, previewAvailable: false })
+    const button = screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" })
+
+    await act(async () => {
+      fireEvent.click(button)
+    })
+
+    expect(screen.getByRole("dialog", { name: "Actions for INSIGHT-5" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open INSIGHT-5" })).not.toBeInTheDocument()
+    const copyAction = screen.getByRole("button", { name: "Copy INSIGHT-5" })
+    expect(copyAction).toBeInTheDocument()
+    expect(screen.getByText("No preview is available for this reference.")).toBeInTheDocument()
+
+    fireEvent.click(copyAction)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-5")
+  })
+
+  it("opens copy-only registered refs from Space without copying inline", async () => {
+    renderCard("plugin", 5, "INSIGHT", { displayLabel: "Insight", hrefTemplate: null, linkable: false, previewAvailable: false })
+    const button = screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" })
+
+    await act(async () => {
+      fireEvent.keyDown(button, { key: " " })
+    })
+
+    expect(screen.getByRole("dialog", { name: "Actions for INSIGHT-5" })).toBeInTheDocument()
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 })
 
