@@ -30,43 +30,58 @@ RSpec.describe ChatProviders::Claude do
   end
 
   describe "#invoke" do
-    it "preserves the current Claude chat invocation contract" do
-      received = nil
-      runner = ->(**kwargs) {
-        received = kwargs
-        result_fixture(session_id: "chat-session-1", transcript_jsonl: "{}\n")
-      }
-      adapter = described_class.new(
-        chat: chat,
-        runner: runner,
-        image_paths: [ "/tmp/capture.png" ],
-        file_paths: [ "/tmp/brief.pdf" ],
-        env: { "GIT_TERMINAL_PROMPT" => "0" }
-      )
+    it "preserves the current no-network Claude chat invocation contract" do
+      Dir.mktmpdir("syrus-chat-contract") do |dir|
+        workspace_path = File.join(dir, "workspace")
+        mcp_config_path = File.join(dir, "syrus-chat-mcp-#{chat.id}-contract.json")
+        FileUtils.mkdir_p(workspace_path)
+        File.write(mcp_config_path, { mcpServers: { "syrus-chat-sidecar" => { type: "stdio" } } }.to_json)
 
-      result = adapter.invoke(
-        workspace_path: "/tmp/chat-workspace",
-        prompt: "What is the plan?",
-        log_sink: ->(*, **) { },
-        mcp_config: "/tmp/mcp.json",
-        resume_session_id: "chat-session-0",
-        stop_requested: -> { false },
-        process_started: ->(_process) { }
-      )
+        received = nil
+        runner = ->(**kwargs) {
+          received = kwargs
+          result_fixture(session_id: "chat-session-1", transcript_jsonl: "{}\n")
+        }
+        streamed = []
+        log_sink = ->(chunk = nil, **) { streamed << chunk }
+        stop_requested = -> { false }
+        process_started = ->(_process) { }
+        adapter = described_class.new(
+          chat: chat,
+          runner: runner,
+          image_paths: [ "/tmp/capture.png" ],
+          file_paths: [ "/tmp/brief.pdf" ],
+          env: { "GIT_TERMINAL_PROMPT" => "0" }
+        )
 
-      expect(result.session_id).to eq("chat-session-1")
-      expect(received).to include(
-        workspace_path: "/tmp/chat-workspace",
-        prompt: "What is the plan?",
-        oauth_token: "oat-test",
-        max_turns: nil,
-        mcp_config: "/tmp/mcp.json",
-        image_paths: [ "/tmp/capture.png" ],
-        file_paths: [ "/tmp/brief.pdf" ],
-        resume_session_id: "chat-session-0",
-        disallowed_tools: %w[Write Edit MultiEdit NotebookEdit AskUserQuestion],
-        env: { "GIT_TERMINAL_PROMPT" => "0" }
-      )
+        result = adapter.invoke(
+          workspace_path: workspace_path,
+          prompt: "What is the plan?",
+          log_sink: log_sink,
+          mcp_config: mcp_config_path,
+          resume_session_id: "chat-session-0",
+          stop_requested: stop_requested,
+          process_started: process_started
+        )
+
+        expect(result.session_id).to eq("chat-session-1")
+        expect(received).to include(
+          workspace_path: workspace_path,
+          prompt: "What is the plan?",
+          oauth_token: "oat-test",
+          max_turns: nil,
+          mcp_config: mcp_config_path,
+          image_paths: [ "/tmp/capture.png" ],
+          file_paths: [ "/tmp/brief.pdf" ],
+          resume_session_id: "chat-session-0",
+          disallowed_tools: %w[Write Edit MultiEdit NotebookEdit AskUserQuestion],
+          env: { "GIT_TERMINAL_PROMPT" => "0" },
+          stop_requested: stop_requested,
+          process_started: process_started
+        )
+        received[:log_sink].call("visible stream chunk", kind: "assistant_text")
+        expect(streamed).to include("visible stream chunk")
+      end
     end
 
     it "allows Write/Edit/MultiEdit in Coding Mode when the feature flag is on" do
