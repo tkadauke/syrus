@@ -424,6 +424,23 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
 
 type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
 type ContextFindOpener = () => boolean
+type ContextFindSurface = "chat" | "workspace"
+
+export function contextFindSurface({
+  activeSurface,
+  isDesktop,
+  panelCollapsed,
+  showMobileChatColumn
+}: {
+  activeSurface: ContextFindSurface
+  isDesktop: boolean
+  panelCollapsed: boolean
+  showMobileChatColumn: boolean
+}): ContextFindSurface {
+  if (!isDesktop) return showMobileChatColumn ? "chat" : "workspace"
+  if (panelCollapsed) return "chat"
+  return activeSurface
+}
 
 function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
   const location = useLocation()
@@ -892,6 +909,7 @@ function ChatWorkspace({
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
+  const [activeFindSurface, setActiveFindSurface] = useState<ContextFindSurface>("chat")
   const chatFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const filesFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const bookmarkRequestIdRef = useRef(0)
@@ -996,6 +1014,7 @@ function ChatWorkspace({
 
   function selectMobileTab(tab: MobileChatTab) {
     setActiveMobileTab(tab)
+    setActiveFindSurface(tab === "chat" ? "chat" : "workspace")
     if (tab === "chat") return
 
     selectTab(tab)
@@ -1004,6 +1023,7 @@ function ChatWorkspace({
   function openPinnedMessages() {
     setPanelCollapsed(false)
     setActiveMobileTab("pinned")
+    setActiveFindSurface("workspace")
     selectTab("pinned")
   }
 
@@ -1013,19 +1033,20 @@ function ChatWorkspace({
 
   function selectBookmark(messageId: number) {
     setActiveMobileTab("chat")
+    setActiveFindSurface("chat")
     bookmarkRequestIdRef.current += 1
     setBookmarkTarget({ messageId, requestId: bookmarkRequestIdRef.current })
   }
 
   const openContextFind = useCallback(() => {
-    const workspaceVisible = isDesktop ? !panelCollapsed : !showMobileChatColumn
-    if (workspaceVisible) {
+    const surface = contextFindSurface({ activeSurface: activeFindSurface, isDesktop, panelCollapsed, showMobileChatColumn })
+    if (surface === "workspace") {
       if (activeTab === "files") return filesFindOpenerRef.current?.() ?? false
       return false
     }
 
     return chatFindOpenerRef.current?.() ?? false
-  }, [activeTab, isDesktop, panelCollapsed, showMobileChatColumn])
+  }, [activeFindSurface, activeTab, isDesktop, panelCollapsed, showMobileChatColumn])
 
   useContextFindShortcut({ onOpen: openContextFind })
 
@@ -1049,7 +1070,7 @@ function ChatWorkspace({
         />
         <div className="flex min-h-0 w-full flex-1">
           {showMobileChatColumn ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
               <ChatWorkspacePanel
@@ -1061,6 +1082,7 @@ function ChatWorkspace({
                 onNotice={onNotice}
                 onBookmarkSelect={selectBookmark}
                 contextFindOpenerRef={filesFindOpenerRef}
+                onSurfaceActive={() => setActiveFindSurface("workspace")}
               />
             </Suspense>
           )}
@@ -1085,7 +1107,7 @@ function ChatWorkspace({
         transition: "grid-template-columns 150ms ease"
       }}
     >
-      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} />
+      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1122,6 +1144,7 @@ function ChatWorkspace({
             onNotice={onNotice}
             onBookmarkSelect={selectBookmark}
             contextFindOpenerRef={filesFindOpenerRef}
+            onSurfaceActive={() => setActiveFindSurface("workspace")}
           />
         </Suspense>
       ) : null}
@@ -1353,7 +1376,7 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
@@ -1391,6 +1414,8 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
   return (
     <section
       className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : alignPlainPlanningHeader ? "gap-1 sm:gap-4" : "gap-1 sm:gap-2"}`}
+      onFocusCapture={onSurfaceActive}
+      onPointerDownCapture={onSurfaceActive}
       style={composerHeight != null ? { "--chat-composer-height": `${composerHeight}px` } as CSSProperties : undefined}
     >
       <ChatTour />

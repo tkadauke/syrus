@@ -61,7 +61,8 @@ export function ChatWorkspacePanel({
   payload,
   queryKey,
   onNotice,
-  onBookmarkSelect
+  onBookmarkSelect,
+  onSurfaceActive
 }: {
   activeTab: WorkspaceTab | null
   contextFindOpenerRef?: MutableRefObject<(() => boolean) | null>
@@ -72,6 +73,7 @@ export function ChatWorkspacePanel({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
   onBookmarkSelect: (messageId: number) => void
+  onSurfaceActive?: () => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -127,7 +129,7 @@ export function ChatWorkspacePanel({
   })
 
   return (
-    <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" onFocusCapture={onSurfaceActive} onPointerDownCapture={onSurfaceActive}>
       {!showTabs ? null : (
         <nav aria-label={t("aria_workspace_tabs")} className="flex min-w-0 items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
           <UnderlineTabs
