@@ -3,6 +3,7 @@ require "rails_helper"
 RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
   let(:connection) { Factories.mysql_connection(agentic_access_enabled: true) }
   let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
 
   def fake_client(rows: [])
     result = instance_double(Mysql2::Result, fields: rows.first&.keys || [])
@@ -26,7 +27,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
   end
 
   it "attributes a workflow-run query to the Job owner and audit-logs it" do
-    run = Factories.job(user: user).initial_run
+    run = Factories.job(user: user, repository: repository).initial_run
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { fake_client(rows: [ { "id" => 1 } ]) }
 
     response = call(mysql_connection_id: connection.id, sql: "SELECT * FROM users", server_context: { run_id: run.id })
@@ -42,7 +43,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
   end
 
   it "attributes a chat-issued query to the chat session's user" do
-    chat_session = instance_double(ChatSession, user: user)
+    chat_session = ChatSession.create!(user: user, repository: repository)
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { fake_client(rows: []) }
 
     call(mysql_connection_id: connection.id, sql: "SELECT 1", server_context: { chat_session: chat_session })
@@ -51,7 +52,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
   end
 
   it "rejects a write statement on a read-only connection without opening a connection" do
-    run = Factories.job(user: user).initial_run
+    run = Factories.job(user: user, repository: repository).initial_run
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { raise "should not connect" }
 
     response = call(mysql_connection_id: connection.id, sql: "DELETE FROM users", server_context: { run_id: run.id })
@@ -61,7 +62,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
   end
 
   it "allows EXPLAIN through the agentic query tool and audit-logs it as read-only" do
-    run = Factories.job(user: user).initial_run
+    run = Factories.job(user: user, repository: repository).initial_run
     MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { fake_client(rows: [ { "table" => "users" } ]) }
 
     response = call(mysql_connection_id: connection.id, sql: "EXPLAIN SELECT * FROM users", server_context: { run_id: run.id })
@@ -75,12 +76,36 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
 
   it "refuses when the connection has agentic access disabled" do
     disabled = Factories.mysql_connection(agentic_access_enabled: false)
-    run = Factories.job(user: user).initial_run
+    run = Factories.job(user: user, repository: repository).initial_run
 
     response = call(mysql_connection_id: disabled.id, sql: "SELECT 1", server_context: { run_id: run.id })
 
     expect(response.error?).to be(true)
     expect(response.content.first[:text]).to include("Agentic access is disabled")
     expect(MysqlQueryAudit.count).to eq(0)
+  end
+
+  it "leases credential-store-backed passwords for MCP query execution and audits credential access" do
+    run = Factories.job(user: user, repository: repository).initial_run
+    MysqlDbBrowser::CredentialMaterial.store!(connection, "s3cret", user: user)
+    MysqlDbBrowser::QueryExecutor.client_factory = ->(**opts) {
+      expect(opts[:password]).to eq("s3cret")
+      fake_client(rows: [ { "id" => 1 } ])
+    }
+
+    response = call(mysql_connection_id: connection.id, sql: "SELECT * FROM users", server_context: { run_id: run.id })
+
+    expect(response.error?).to be(false)
+    expect(response.content.first[:text]).not_to include("s3cret")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: MysqlDbBrowser::CredentialMaterial.credential_for(connection),
+      user: user,
+      repository: repository,
+      run: run,
+      surface: "workflow",
+      tool_name: "mysql_db_browser_execute_query",
+      action: "lease",
+      result: "allowed"
+    )
   end
 end

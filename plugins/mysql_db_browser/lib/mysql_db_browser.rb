@@ -11,14 +11,18 @@ module MysqlDbBrowser
 
   syrus_plugin "mysql_db_browser" do
     display_name "MySQL DB Browser"
-    description "Register and manage connections to external MySQL databases with encrypted credential storage."
-    long_description "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Credentials are stored encrypted and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect."
+    description "Register and manage connections to external MySQL databases with credential-store-backed secret storage."
+    long_description "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Secret material is stored through Credential Store and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/mysql_db_browser.svg"
     author "Thomas Kadauke"
     category "tooling"
     default_enabled false
     disableable true
+    depends_on [ "credential_store" ]
+    credential_types [
+      { name: "mysql_db_browser.connection", label: "MySQL DB Browser connection", description: "Password or DSN secret material for an external MySQL DB Browser connection." }
+    ]
     provides sidebar_page: "MysqlDbBrowser::SidebarPages",
              mcp_tool_set: "MysqlDbBrowser::WorkflowToolSet",
              chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet"

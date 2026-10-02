@@ -30,8 +30,9 @@ module MysqlDbBrowser
     class << self
       def call(server_context:, mysql_connection_id: nil, database: nil, table: nil)
         Mcp::Tools.with_database_connection do
+          context = McpToolContext.from_server_context(server_context) if server_context.present?
           connection = AgenticAccess.connection!(mysql_connection_id)
-          payload = SchemaInspector.new(connection).table(database, table)
+          payload = SchemaInspector.new(connection, context: context, tool_name: tool_name).table(database, table)
           MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ])
         end
       rescue AgenticAccess::ConnectionNotFound, AgenticAccess::AccessDisabled, SchemaInspector::Unavailable, SchemaInspector::NotFound => e

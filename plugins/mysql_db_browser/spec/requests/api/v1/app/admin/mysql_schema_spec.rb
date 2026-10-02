@@ -43,7 +43,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
     end
 
     it "lists databases" do
-      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context)).and_return(
         instance_double(MysqlDbBrowser::SchemaInspector, databases: {
           available: true,
           generated_at: "2026-08-24T00:00:00Z",
@@ -58,7 +58,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
     end
 
     it "reports a bad gateway when the connection is unavailable" do
-      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context)).and_return(
         instance_double(MysqlDbBrowser::SchemaInspector).tap do |inspector|
           allow(inspector).to receive(:databases).and_raise(MysqlDbBrowser::SchemaInspector::Unavailable, "Access denied")
         end
@@ -71,7 +71,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
     end
 
     it "lists tables for a database" do
-      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context)).and_return(
         instance_double(MysqlDbBrowser::SchemaInspector, tables: {
           available: true,
           generated_at: "2026-08-24T00:00:00Z",
@@ -89,7 +89,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
     end
 
     it "returns table detail" do
-      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context)).and_return(
         instance_double(MysqlDbBrowser::SchemaInspector, table: {
           database: "app_prod",
           table: "users",
@@ -109,7 +109,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
     end
 
     it "404s when the requested table does not exist" do
-      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection).and_return(
+      allow(MysqlDbBrowser::SchemaInspector).to receive(:new).with(connection, hash_including(:context)).and_return(
         instance_double(MysqlDbBrowser::SchemaInspector).tap do |inspector|
           allow(inspector).to receive(:table).and_raise(MysqlDbBrowser::SchemaInspector::NotFound, "Table app_prod.missing was not found")
         end
