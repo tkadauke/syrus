@@ -12104,7 +12104,12 @@ describe("App", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
       expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
-      for (const scrollTop of [200, 300, 400, 500, 600, 700]) {
+      fireEvent.touchMove(stream)
+      fireEvent.scroll(stream, { target: { scrollTop: 200 } })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+
+      for (const scrollTop of [300, 400, 500, 600, 700]) {
         fireEvent.touchMove(stream)
         fireEvent.scroll(stream, { target: { scrollTop } })
       }
