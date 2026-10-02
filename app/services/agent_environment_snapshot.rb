@@ -147,9 +147,23 @@ class AgentEnvironmentSnapshot
 
   def required_mcp_tools_for(step)
     return [] unless step
-    Step::Kind.fetch(step.kind).required_mcp_tools
+    tools = Step::Kind.fetch(step.kind).required_mcp_tools
+    tools = tools + post_implementation_review_required_tools if step.kind == "post_implementation_review"
+    tools.uniq
   rescue ArgumentError
     []
+  end
+
+  def post_implementation_review_required_tools
+    Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).select do |provider|
+      provider.review_needed?(job: run.job, trigger_kind: run.workflow&.trigger_kind || run.trigger_kind)
+    rescue StandardError
+      false
+    end.flat_map do |provider|
+      Array(provider.required_mcp_tools(job: run.job, workflow: run.workflow, run: run))
+    rescue StandardError
+      []
+    end.map(&:to_s).reject(&:blank?)
   end
 
   def admin_links(job, workflow, run)

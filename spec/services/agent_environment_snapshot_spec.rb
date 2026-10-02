@@ -99,6 +99,33 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       expect(snapshot).to include("`submit_summary` / `mcp__syrus_mcp_sidecar__submit_summary`")
     end
+
+    it "renders provider-required post-implementation review tools" do
+      registry_snapshot = Syrus::PluginRegistry.boot_snapshot
+      provider = Class.new do
+        include Syrus::Plugin::PostImplementationReviewProvider
+
+        def self.review_needed?(job:, trigger_kind:) = trigger_kind == "initial"
+        def self.required_mcp_tools(job:, workflow:, run:) = [ "submit_review_notes" ]
+      end
+      Syrus::PluginRegistry.register(
+        name: "agent_environment_snapshot_review_notes_provider",
+        version: "1.0.0",
+        provides: { post_implementation_review_provider: provider }
+      )
+
+      repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")
+      job = Factories.job(repository: repo)
+      workflow = job.workflows.last
+      step = Step.create!(workflow: workflow, kind: "post_implementation_review", position: 100)
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex", iteration: 1)
+
+      snapshot = described_class.for_run(run, workspace_path: @workspace_path)
+
+      expect(snapshot).to include("`submit_review_notes` / `syrus-mcp-sidecar.submit_review_notes`")
+    ensure
+      Syrus::PluginRegistry.restore(registry_snapshot) if registry_snapshot
+    end
   end
 
   describe "coverage section" do

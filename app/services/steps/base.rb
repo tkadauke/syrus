@@ -348,7 +348,8 @@ module Steps
     # one is available. Streams transcript chunks into JobLog,
     # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
-    def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil, disallowed_tools: nil)
+    def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil,
+                  disallowed_tools: nil, enforce_required_mcp_tools: false)
       prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
       adapter = resume_session_id.equal?(DEFAULT_AGENT_RESUME) ? agent_adapter : agent_adapter_for(resume_session_id)
@@ -368,12 +369,16 @@ module Steps
       end
 
       adapter.record_result!(result, log: ->(message) { log(message) })
-      log_mcp_required_tool_health(required_mcp_tools) if required_mcp_tools.present?
+      missing_required_tools = log_mcp_required_tool_health(required_mcp_tools)
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?
 
       raise AgentTimedOut, "agent timed out"                         if result.timed_out
       raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
+      if enforce_required_mcp_tools && missing_required_tools.present?
+        raise StepFailed,
+              "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}"
+      end
 
       result
     rescue AgentProviders::ConfigurationError => e
@@ -413,7 +418,7 @@ module Steps
 
     def log_mcp_required_tool_health(required_tools)
       required_tools = Array(required_tools).compact_blank.map(&:to_s)
-      return if required_tools.empty?
+      return [] if required_tools.empty?
 
       transcript = run.reload.provider_session&.transcript_jsonl.to_s
       summary = ClaudeTranscript.new(transcript).summary
@@ -425,8 +430,10 @@ module Steps
         "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",
         kind: "system"
       )
+      missing
     rescue StandardError => e
       log("[mcp_required_health] failed to inspect transcript: #{e.class}: #{e.message}", kind: "system")
+      required_tools
     end
 
     def mcp_tool_available?(available_tools, required_tool)
