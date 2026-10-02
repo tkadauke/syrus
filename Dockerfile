@@ -84,7 +84,6 @@ ENV PATH="/opt/muse/bin:${PATH}" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
-    LD_LIBRARY_PATH="/opt/whisper.cpp/lib:/opt/whisper.cpp/lib64" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
     RAILS_LOG_TO_STDOUT="1"
 
@@ -112,7 +111,7 @@ COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
 COPY plugins/ ./plugins/
 # Every bundled plugin's gemspec is `Syrus.plugin_gemspec(__FILE__)`, which
-# require_relatives this file. Bundler evaluates all 31 gemspecs during
+# require_relatives this file. Bundler evaluates every bundled plugin gemspec during
 # `bundle install`, so it has to be here before that runs -- long before
 # `COPY . .` brings the rest of lib/ in. Kept to the single file the gemspecs
 # need so the layer cache does not turn over on unrelated lib/ edits.
@@ -153,61 +152,6 @@ RUN SYRUS_APP_HOST=syrus.invalid \
     SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile && \
     rm -rf node_modules
 
-
-# Throw-away stage: builds whisper.cpp (CPU-only, MIT licensed,
-# https://github.com/ggml-org/whisper.cpp — GitHub's canonical rename of
-# ggerganov/whisper.cpp) from a pinned release tag via cmake, and downloads
-# the small default dictation model. No CUDA/GPU deps; GGML_CUDA=OFF plus
-# leaving every arch flag at its default keeps the CMake build portable
-# across amd64/arm64. build-essential/cmake are installed only in this
-# throw-away stage (not in base's shared apt layer) so they never ship in
-# any final image, matching the existing `build` stage's pattern.
-#
-# Copied into both `app` (the k8s web pod, per bin/deploy's target=app) and
-# `worker-dev` (the single-host `syrus-backend` image published by
-# bin/publish-image, which docker-compose.yml also runs in the web role via
-# its shared `x-app` image/x-app anchor) so chat_speech_to_text has a working
-# local backend with zero operator-supplied binary/model on every Syrus
-# deployment shape — not just the split-image k8s one. SYRUS_SKIP_WHISPER_BUILD=1
-# skips the compile + ~148MB model download for a fast local dev loop (wired
-# as the default in bin/build-local-image and bin/compose-up via
-# docker-image-lib); published images (bin/publish-image, bin/deploy) never
-# set it, so bundling stays mandatory for anything actually shipped.
-FROM base AS whisper-build
-
-ARG SYRUS_SKIP_WHISPER_BUILD=0
-ARG WHISPER_CPP_VERSION=v1.9.3
-ARG WHISPER_CPP_MODEL=ggml-base.en.bin
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    mkdir -p /opt/whisper.cpp/models && \
-    if [ "$SYRUS_SKIP_WHISPER_BUILD" = "1" ]; then \
-      echo "SYRUS_SKIP_WHISPER_BUILD=1 -- writing a stub whisper-cli for local dev; never set this for published images" && \
-      printf '#!/bin/sh\necho "whisper-cli unavailable: image built with SYRUS_SKIP_WHISPER_BUILD=1" >&2\nexit 1\n' > /opt/whisper.cpp/whisper-cli && \
-      chmod +x /opt/whisper.cpp/whisper-cli && \
-      touch "/opt/whisper.cpp/models/${WHISPER_CPP_MODEL}"; \
-    else \
-      apt-get update -qq && \
-      apt-get install --no-install-recommends -y build-essential cmake && \
-      git clone --branch "$WHISPER_CPP_VERSION" --depth 1 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper-cpp-src && \
-      cmake -S /tmp/whisper-cpp-src -B /tmp/whisper-cpp-src/build \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/whisper.cpp \
-        -DGGML_CUDA=OFF \
-        -DWHISPER_BUILD_EXAMPLES=ON && \
-      cmake --build /tmp/whisper-cpp-src/build --config Release -j"$(nproc)" && \
-      cmake --install /tmp/whisper-cpp-src/build --config Release && \
-      if [ -x /opt/whisper.cpp/bin/whisper-cli ]; then \
-        ln -sf /opt/whisper.cpp/bin/whisper-cli /opt/whisper.cpp/whisper-cli; \
-      else \
-        cp /tmp/whisper-cpp-src/build/bin/whisper-cli /opt/whisper.cpp/whisper-cli; \
-      fi && \
-      curl -fsSL -o "/opt/whisper.cpp/models/${WHISPER_CPP_MODEL}" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_CPP_MODEL}" && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/whisper-cpp-src; \
-    fi
-
-
 # Final stage for app image
 FROM base AS app
 
@@ -217,10 +161,6 @@ USER 1000:1000
 # Copy built artifacts: gems, application
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
-
-# Bundled whisper.cpp CLI + default dictation model — see the whisper-build
-# stage comment for why this is copied into both `app` and `worker-dev`.
-COPY --chown=rails:rails --from=whisper-build /opt/whisper.cpp /opt/whisper.cpp
 
 # Bake the git SHA the image was built from. .git/ is excluded via
 # .dockerignore so the running container can't compute it itself —
@@ -523,13 +463,6 @@ RUN cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check fail
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
-
-# Bundled whisper.cpp CLI + default dictation model. worker-dev also needs
-# this: it's the base for the single-host `syrus-backend` image (built by
-# bin/publish-image), which docker-compose.yml runs in the web role too via
-# its shared `x-app` image — not just the k8s worker pod. See the
-# whisper-build stage comment for the full rationale.
-COPY --chown=rails:rails --from=whisper-build /opt/whisper.cpp /opt/whisper.cpp
 
 # Bake the git SHA the image was built from. .git/ is excluded via
 # .dockerignore so the running container can't compute it itself —

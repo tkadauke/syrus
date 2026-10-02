@@ -6,7 +6,7 @@ require "rails_helper"
 # reload, and not on `after_initialize`, which fires once per boot.
 #
 # When this was wrong, the first file save in `bin/dev` silently unregistered
-# all 30 bundled plugins -- no error, just an app with no agent providers, no
+# all bundled plugins -- no error, just an app with no agent providers, no
 # source control, and an empty sidebar.
 RSpec.describe "Plugin registration survives code reloading" do
   plugin_files = Rails.root.glob("plugins/*/lib/*.rb")
