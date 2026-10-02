@@ -80,6 +80,26 @@ RSpec.describe PendingActionGroup do
       expect(group.chat_pending_actions.pluck(:state).uniq).to eq([ "confirmed" ])
     end
 
+    it "emits one group outcome chat turn for a multi-member confirmation" do
+      job_one = closed_job
+      job_two = closed_job
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat_session,
+        member_attributes: reopen_job_members(job_one, job_two)
+      )
+
+      expect {
+        group.confirm_all!(user: user)
+      }.to change { chat_session.messages.where(role: "system").count }.by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer)).once
+
+      expect(chat_session.messages.order(:created_at, :id).last.content).to include(
+        "source" => "pending_action_group_notification",
+        "outcome" => "confirmed",
+        "text" => "Confirmed 2 pending actions."
+      )
+    end
+
     it "reports a failing member without blocking the others from applying" do
       succeeding_job = closed_job
       failing_job = open_job
@@ -162,6 +182,32 @@ RSpec.describe PendingActionGroup do
       group.reject_all!
 
       expect(group.reject_all!).to be false
+    end
+  end
+
+  describe "#dismiss!" do
+    it "hides a resolved group without changing member outcomes" do
+      job = closed_job
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat_session,
+        member_attributes: reopen_job_members(job)
+      )
+      group.confirm_all!(user: user)
+
+      expect(group.dismiss!).to be true
+      expect(group.reload).to be_dismissed
+      expect(group.chat_pending_actions.first).to be_confirmed
+    end
+
+    it "does not dismiss an unresolved group" do
+      job = closed_job
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat_session,
+        member_attributes: reopen_job_members(job)
+      )
+
+      expect(group.dismiss!).to be false
+      expect(group.reload).to be_pending
     end
   end
 end

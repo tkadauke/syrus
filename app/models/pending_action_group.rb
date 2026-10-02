@@ -1,5 +1,5 @@
 class PendingActionGroup < ApplicationRecord
-  STATES = %w[ pending confirming confirmed rejected ].freeze
+  STATES = %w[ pending confirming confirmed rejected dismissed ].freeze
 
   belongs_to :chat_session
   belongs_to :repository, optional: true
@@ -42,26 +42,69 @@ class PendingActionGroup < ApplicationRecord
 
     member_results = chat_pending_actions.pending.find_each.map { |member| confirm_member(member, user: user) }
     update!(state: "confirmed", confirmed_at: Time.current)
+    notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
     PendingActionGroups::ConfirmResult.new(group: self, member_results: member_results)
   end
 
   def reject_all!
-    with_lock do
+    should_reject = with_lock do
       return false unless pending?
 
-      chat_pending_actions.pending.find_each(&:reject!)
+      chat_pending_actions.pending.find_each { |member| reject_member(member) }
       update!(state: "rejected", rejected_at: Time.current)
       true
     end
+    return false unless should_reject
+
+    notify_chat_of_outcome(rejected_notice, outcome: "rejected")
+    true
+  end
+
+  def dismiss!
+    with_lock do
+      return false unless confirmed? || rejected?
+
+      update!(state: "dismissed")
+      true
+    end
+  end
+
+  def confirmed_notice
+    members = chat_pending_actions.reload.to_a
+    failed = members.count(&:failed?)
+    succeeded = members.count(&:confirmed?)
+    return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
+
+    "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
+  end
+
+  def rejected_notice
+    "Rejected #{chat_pending_actions.count} pending actions."
   end
 
   private
 
   def confirm_member(member, user:)
+    member.suppress_outcome_notification = true
     member.confirm!(user: user)
     PendingActionGroups::MemberResult.new(pending_action: member, success: true, error: nil)
   rescue StandardError => e
     PendingActionGroups::MemberResult.new(pending_action: member, success: false, error: e.message)
+  end
+
+  def reject_member(member)
+    member.suppress_outcome_notification = true
+    member.reject!
+  end
+
+  def notify_chat_of_outcome(text, outcome:)
+    message = chat_session.messages.create!(
+      role: "system",
+      content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome }
+    )
+    chat_session.update!(last_message_at: Time.current)
+    chat_session.pin_chat_provider!
+    ChatTurnJob.perform_later(chat_session_id, message.id)
   end
 
   def derive_owner_from_chat_session

@@ -2,6 +2,8 @@ class ChatPendingAction < ApplicationRecord
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
   TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
+  attr_accessor :suppress_outcome_notification
+
   ACTIONS = %w[
     cancel_job
     close_job_successfully
@@ -474,6 +476,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def notify_chat_of_outcome
+    return if suppress_outcome_notification
     return unless saved_change_to_state?
     return unless confirmed? || rejected? || cancelled?
 
