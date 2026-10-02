@@ -6847,32 +6847,71 @@ describe("chat provider selector in toolbar", () => {
     expect(within(listbox).getByRole("option", { name: "Codex" })).toBeInTheDocument()
   })
 
-  it("calls the switch_provider endpoint with the selected provider and closes the dropdown", async () => {
+  it("selects a provider locally and closes the dropdown without calling the async switch endpoint", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      if (path === "/api/v1/app/chats/8/switch_provider" && (init as RequestInit)?.method === "POST") {
-        return Promise.resolve(jsonResponse({ message: "Switching to codex." }))
       }
       return Promise.resolve(jsonResponse(landingPayload()))
     })
 
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Change provider" }))
+    const button = await screen.findByRole("button", { name: "Change provider" })
+    fireEvent.click(button)
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Codex" }))
 
-    await waitFor(() => {
-      const switchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8/switch_provider" && (call[1] as RequestInit)?.method === "POST"
-      )
-      expect(switchCalls).toHaveLength(1)
-      expect(JSON.parse((switchCalls[0][1] as RequestInit).body as string)).toMatchObject({ provider: "codex" })
+    await waitFor(() => expect(button).toHaveTextContent("Codex"))
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/v1/app/chats/8/switch_provider",
+      expect.objectContaining({ method: "POST" })
+    )
+  })
+
+  it("includes the locally selected provider when immediately sending the first message", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          chatProvider: "codex",
+          effectiveChatProvider: "codex",
+          messages: [
+            { type: "message", id: 10, role: "user", tool_name: null, content: { text: "Start with Codex" }, text: "Start with Codex", bookmarkable: true }
+          ]
+        })))
+      }
+      return Promise.resolve(jsonResponse(landingPayload()))
     })
 
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+    renderRoute()
+
+    const providerButton = await screen.findByRole("button", { name: "Change provider" })
+    fireEvent.click(providerButton)
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Codex" }))
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Start with Codex" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => {
+      const messageCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST"
+      )
+      expect(messageCalls).toHaveLength(1)
+      expect(JSON.parse((messageCalls[0][1] as RequestInit).body as string)).toMatchObject({
+        chat_provider: "codex",
+        chat_message: { text: "Start with Codex" }
+      })
+    })
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/v1/app/chats/8/switch_provider",
+      expect.objectContaining({ method: "POST" })
+    )
   })
 })
 

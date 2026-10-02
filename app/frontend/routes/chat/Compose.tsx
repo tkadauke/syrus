@@ -11,7 +11,7 @@ import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, fetchNewChat, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateChatRepository, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatRepository, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, fetchNewChat, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateChatRepository, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatRepository, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -44,6 +44,7 @@ type SubmittedChatDraft = {
   messageText: string
   composerText: string
   attachments: ChatComposeAttachment[]
+  chatProvider?: string | null
 }
 
 type ComposerDraftSnapshot = {
@@ -141,11 +142,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const composerBannerStackRef = useRef<HTMLDivElement | null>(null)
+  const selectedChatProviderChatIdRef = useRef(chatId)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const newChatForm = payload.messages.length === 0 && payload.pending_actions.length === 0 && !agentActive
   const [newChatRepositoryId, setNewChatRepositoryId] = useState(() => payload.chat.repository ? String(payload.chat.repository.id) : "")
+  const [selectedChatProvider, setSelectedChatProvider] = useState(() => payload.chat.chat_provider || payload.chat.effective_chat_provider || "")
   const queuedMessages = payload.queued_messages || []
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
@@ -237,6 +240,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setNewChatRepositoryId(payload.chat.repository ? String(payload.chat.repository.id) : "")
   }, [chatId, payload.chat.repository])
 
+  useEffect(() => {
+    if (selectedChatProviderChatIdRef.current === chatId && newChatForm) return
+
+    selectedChatProviderChatIdRef.current = chatId
+    setSelectedChatProvider(payload.chat.chat_provider || payload.chat.effective_chat_provider || "")
+  }, [chatId, newChatForm, payload.chat.chat_provider, payload.chat.effective_chat_provider])
+
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
   useEffect(() => {
@@ -285,7 +295,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const draft = {
       messageText,
       composerText,
-      attachments
+      attachments,
+      chatProvider: newChatForm ? selectedChatProvider : null
     }
     clearComposerDraft()
     setHistoryMode(null)
@@ -300,7 +311,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const send = useMutation({
     mutationFn: (draft: SubmittedChatDraft) => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
     onSuccess: (updated, draft) => {
       rememberSubmittedPrompt(draft.messageText)
       queryClient.setQueryData(queryKey, updated)
@@ -331,7 +342,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
-      if (action.kind === "new") return createChat({ repositoryId: newChatForm ? newChatRepositoryId : (payload.chat.repository ? String(payload.chat.repository.id) : ""), text: "", chatProvider: payload.chat.effective_chat_provider ?? payload.chat.chat_provider })
+      if (action.kind === "new") return createChat({ repositoryId: newChatForm ? newChatRepositoryId : (payload.chat.repository ? String(payload.chat.repository.id) : ""), text: "", chatProvider: selectedChatProvider || payload.chat.effective_chat_provider || payload.chat.chat_provider })
       if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
@@ -1963,7 +1974,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
-          <ChatProviderSelector payload={payload} queryKey={queryKey} />
+          <ChatProviderSelector payload={payload} selectedProvider={selectedChatProvider} onChange={setSelectedChatProvider} />
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
@@ -2610,21 +2621,13 @@ function NewChatRepositorySelector({ currentRepository, enabled, isError, isLoad
 // is sent, the provider is pinned and chat settings display it read-only, so
 // this inline control intentionally disappears the moment the landing composer
 // stops being a landing composer.
-function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; queryKey: ChatQueryKey }) {
+function ChatProviderSelector({ payload, selectedProvider, onChange }: { payload: ChatPayload; selectedProvider: string; onChange: (provider: string) => void }) {
   const { t } = useT("chat")
-  const queryClient = useQueryClient()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   const configuredOptions = (payload.chat.chat_provider_options || []).filter((option) => option.configured)
-
-  const switchProvider = useMutation({
-    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-    }
-  })
 
   useEffect(() => {
     if (!dropdownOpen) return
@@ -2641,7 +2644,7 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
 
   if (configuredOptions.length <= 1 || payload.messages.length > 0 || isAgentActive(payload)) return null
 
-  const currentProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
+  const currentProvider = selectedProvider || payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
   const currentLabel = configuredOptions.find((option) => option.value === currentProvider)?.label ?? currentProvider
 
   return (
@@ -2652,7 +2655,6 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
         aria-label={t("provider_selector_label")}
         className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[6rem] sm:max-w-none`}
         data-open={dropdownOpen ? "true" : "false"}
-        disabled={switchProvider.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         size="sm"
@@ -2679,7 +2681,7 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
               }`}
               key={value}
               onClick={() => {
-                switchProvider.mutate(value)
+                onChange(value)
                 setDropdownOpen(false)
               }}
               role="option"
@@ -2688,10 +2690,6 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
               {label}
             </button>
           ))}
-        </div>
-      ) : switchProvider.isError ? (
-        <div className={TOOLBAR_DROPDOWN_ERROR_CLASS}>
-          {t("provider_update_error")}
         </div>
       ) : null}
     </div>
