@@ -3186,7 +3186,8 @@ describe("chat message image attachments", () => {
     renderRoute()
 
     await screen.findByText("Discuss aqueducts.")
-    expect(screen.getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    expect(await within(workspace).findByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
 
     act(() => {
       actionCableSubscriptions.find((subscription) => subscription.params.channel === "ChatChannel")?.mixin.received({
@@ -3197,7 +3198,6 @@ describe("chat message image attachments", () => {
       })
     })
 
-    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
     expect(await within(workspace).findByText("runtime-capture.png")).toBeInTheDocument()
   })
 
