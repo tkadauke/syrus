@@ -633,8 +633,8 @@ RSpec.describe "Mcp::Tools admin tools" do
 
   it "returns restack_epic dry-run output with planned order and skipped nodes" do
     epic = Factories.epic(user: admin, repository: repository)
-    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 31, state: "approved", branch_name: "syrus/root", pr_number: 31)
-    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 32, state: "approved", branch_name: "syrus/child", pr_number: 32)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 31, state: "approved", branch_name: "syrus/root", pr_number: 31, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 32, state: "approved", branch_name: "syrus/child", pr_number: 32, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
     closed = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 33, state: "closed", branch_name: "syrus/closed", pr_number: 33)
     JobDependency.create!(job: child, depends_on_job: root, source: "manual")
 
@@ -644,14 +644,50 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:job_id) }).to eq([ root.id, child.id ])
     expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:target_base) }).to eq([ repository.default_branch, root.branch_name ])
+    expect(plan.fetch(:actions).map { |entry| entry.fetch(:job_id) }).to eq([ child.id ])
+    expect(plan.fetch(:actions).first.fetch(:repair_reasons)).to eq([ "parent_metadata" ])
     expect(plan.fetch(:skipped_nodes)).to include(hash_including(job_id: closed.id, reason: "closed"))
     expect(admin_session.pending_actions.where(action: "restack_epic")).to be_empty
   end
 
+  it "returns a restack_epic no-op without creating a pending confirmation" do
+    epic = Factories.epic(user: admin, repository: repository)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 34, state: "approved", branch_name: "syrus/root", pr_number: 34, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 35, state: "approved", branch_name: "syrus/child", pr_number: 35, parent_job: root, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
+    JobDependency.create!(job: child, depends_on_job: root, source: "manual")
+
+    response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
+    body = payload_for(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(no_op: true, message: "No open child PR branches need restacking.")
+    expect(body.fetch(:plan).fetch(:actions)).to be_empty
+    expect(body).not_to have_key(:pending_confirmation_id)
+    expect(admin_session.pending_actions.where(action: "restack_epic")).to be_empty
+
+    stale_action = admin_session.pending_actions.create!(
+      action: "restack_epic",
+      payload: { "epic_id" => epic.id, "strategy" => "dependency_topology" },
+      reason: "Double-check clean stack."
+    )
+
+    expect {
+      expect(stale_action.confirm!).to be true
+    }.not_to change { Workflow.count }
+
+    expect(stale_action.reload).to be_confirmed
+    expect(stale_action.payload).to include("no_op" => true)
+    expect(child.reload.parent_job).to eq(root)
+    message = admin_session.messages.where(role: "system").last
+    expect(message.content["outcome"]).to eq("confirmed")
+    expect(message.content["text"]).to include("no workflows were launched")
+    expect(message.content["text"]).not_to include("has been applied")
+  end
+
   it "confirms restack_epic by updating stack parents and dispatching stack rebase" do
     epic = Factories.epic(user: admin, repository: repository)
-    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 41, state: "approved", branch_name: "syrus/root", pr_number: 41)
-    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 42, state: "approved", branch_name: "syrus/child", pr_number: 42)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 41, state: "approved", branch_name: "syrus/root", pr_number: 41, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 42, state: "approved", branch_name: "syrus/child", pr_number: 42, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
     JobDependency.create!(job: child, depends_on_job: root, source: "manual")
     allow(WorkUnits::Launcher).to receive(:start!)
 
@@ -660,14 +696,37 @@ RSpec.describe "Mcp::Tools admin tools" do
 
     expect {
       expect(action.confirm!).to be true
-    }.to change { root.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+    }.to change { child.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
 
     expect(child.reload.parent_job).to eq(root)
     workflow = action.reload.result
-    expect(workflow).to have_attributes(job: root, trigger_kind: "stack_rebase")
+    expect(workflow).to have_attributes(job: child, trigger_kind: "stack_rebase")
     expect(workflow.artifact("repair_action")).to eq("restack_epic")
-    expect(workflow.artifact(StackRebasePlan::STACK_ARTIFACT).map { |entry| entry["job_id"] }).to eq([ root.id, child.id ])
+    expect(workflow.artifact(StackRebasePlan::STACK_ARTIFACT).map { |entry| entry["job_id"] }).to eq([ child.id ])
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
+  end
+
+  it "does not apply or attribute a dismissed restack_epic pending action" do
+    allow(AppEvents).to receive(:broadcast)
+    epic = Factories.epic(user: admin, repository: repository)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 43, state: "approved", branch_name: "syrus/root", pr_number: 43, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 44, state: "approved", branch_name: "syrus/child", pr_number: 44, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
+    JobDependency.create!(job: child, depends_on_job: root, source: "manual")
+    allow(WorkUnits::Launcher).to receive(:start!)
+
+    response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(action.cancel!).to be true
+    }.not_to change { Workflow.count }
+
+    expect(child.reload.parent_job).to be_nil
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
+    expect(AdminAction.where(action: "repair_restack_epic")).to be_empty
+    message = admin_session.messages.where(role: "system").last
+    expect(message.content["outcome"]).to eq("cancelled")
+    expect(message.content["text"]).to include("dismissed").and include("was not applied")
   end
 
   it "confirms force_landing_recheck through the recheck service" do

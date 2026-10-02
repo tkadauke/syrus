@@ -30,6 +30,13 @@ module Mcp::Tools
 
         plan = EpicRestackPlan.for(epic)
         return Mcp::Tools.success(plan: plan) if dry_run
+        if plan.fetch("actions").empty?
+          return Mcp::Tools.success(
+            plan: plan,
+            no_op: true,
+            message: "No open child PR branches need restacking."
+          )
+        end
 
         reason = reason.to_s.strip
         return Mcp::Tools.invalid("reason is required") if reason.empty?
@@ -44,7 +51,7 @@ module Mcp::Tools
             "plan" => plan
           },
           reason: reason,
-          message: "Restack #{epic.slug}? Planned branch count: #{plan.fetch("branch_order").size}; skipped: #{plan.fetch("skipped_nodes").size}."
+          message: "Restack #{epic.slug}? Actionable repairs: #{plan.fetch("actions").size}; diagnostic branch count: #{plan.fetch("branch_order").size}; skipped: #{plan.fetch("skipped_nodes").size}."
         )
       end
     end

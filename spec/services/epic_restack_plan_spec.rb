@@ -34,7 +34,40 @@ RSpec.describe EpicRestackPlan do
       middle.branch_name
     ])
     expect(order.last).to include("commits_behind" => 2, "pr_number" => 13)
+    expect(plan.fetch("actions").map { |entry| entry.fetch("job_id") }).to eq([ middle.id, leaf.id ])
+    expect(plan.fetch("actions").map { |entry| entry.fetch("repair_reasons") }).to eq([
+      [ "parent_metadata" ],
+      [ "parent_metadata", "behind_base" ]
+    ])
     expect(plan.fetch("skipped_nodes")).to be_empty
+  end
+
+  it "keeps a clean stack in branch_order but reports zero actionable repairs" do
+    root = child(issue_number: 14, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    middle = child(issue_number: 15, parent_job: root, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
+    leaf = child(issue_number: 16, parent_job: middle, commits_behind_base: 0, mergeability_base_ref: middle.branch_name)
+    JobDependency.create!(job: middle, depends_on_job: root, source: "manual")
+    JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+
+    plan = described_class.for(epic)
+
+    expect(plan.fetch("branch_order").map { |entry| entry.fetch("job_id") }).to eq([ root.id, middle.id, leaf.id ])
+    expect(plan.fetch("branch_order").flat_map { |entry| entry.fetch("repair_reasons") }).to be_empty
+    expect(plan.fetch("actions")).to be_empty
+    expect(plan.fetch("expected_landing_impact")).to eq("no open child PR branches need restacking")
+  end
+
+  it "reports only the minimal mis-stacked branch as actionable" do
+    root = child(issue_number: 17, commits_behind_base: 0, mergeability_base_ref: repository.default_branch)
+    child_job = child(issue_number: 18, commits_behind_base: 0, mergeability_base_ref: root.branch_name)
+    JobDependency.create!(job: child_job, depends_on_job: root, source: "manual")
+
+    plan = described_class.for(epic)
+
+    expect(plan.fetch("branch_order").map { |entry| entry.fetch("job_id") }).to eq([ root.id, child_job.id ])
+    expect(plan.fetch("actions").map { |entry| entry.fetch("job_id") }).to eq([ child_job.id ])
+    expect(plan.fetch("actions").first.fetch("repair_reasons")).to eq([ "parent_metadata" ])
+    expect(plan.fetch("expected_landing_impact")).to eq("updates stack parents to dependency topology and dispatches 1 rebase root(s)")
   end
 
   it "skips blocked, merged, missing-PR, fan-in, and blocked descendant nodes conservatively" do

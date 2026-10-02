@@ -1,3 +1,5 @@
+require "set"
+
 module PendingActions
   class RestackEpic < Base
     action_key "restack_epic"
@@ -7,16 +9,26 @@ module PendingActions
       progress!("Computing restack plan for #{epic.slug}...")
       plan = EpicRestackPlan.new(epic)
       actions = plan.actions
-      raise ArgumentError, "No open child PR branches need restacking." if actions.empty?
+      if actions.empty?
+        progress!("No open child PR branches need restacking; no workflows were launched and no metadata was changed.")
+        action.update!(
+          payload: payload.merge(
+            "no_op" => true,
+            "no_op_message" => "No open child PR branches need restacking; no workflows were launched and no metadata was changed."
+          )
+        )
+        return nil
+      end
 
       progress!("Checking for active epic-wide workflows...")
-      active_job = actions.map { |entry| Job.find(entry.fetch("job_id")) }.find do |job|
+      action_jobs = actions.map { |entry| Job.find(entry.fetch("job_id")) }
+      active_job = action_jobs.find do |job|
         RebaseWorkflowSelector.active_for_stack?(job)
       end
       if active_job
         raise ArgumentError, "A rebase is already in progress — wait for it to finish."
       end
-      active_merge_train_job = actions.map { |entry| Job.find(entry.fetch("job_id")) }.find do |job|
+      active_merge_train_job = action_jobs.find do |job|
         RebaseWorkflowSelector.active_merge_train_for_stack?(job)
       end
       if active_merge_train_job
@@ -33,7 +45,7 @@ module PendingActions
       end
 
       progress!("Creating rebase workflow(s)...")
-      workflows = root_jobs(actions).map do |root|
+      workflows = rebase_roots(actions).map do |root|
         workflow = RebaseWorkflowSelector.instantiate(
           job: root,
           artifacts: {
@@ -66,7 +78,13 @@ module PendingActions
     end
 
     def action_detail
-      "epic_id: #{payload["epic_id"]}, strategy: #{payload["strategy"].presence || "dependency_topology"}"
+      details = [
+        "epic_id: #{payload["epic_id"]}",
+        "strategy: #{payload["strategy"].presence || "dependency_topology"}"
+      ]
+      action_count = payload.dig("plan", "actions")&.size
+      details << "planned_actionable_repairs: #{action_count}" if action_count
+      details.join(", ")
     end
 
     def presentation_label
@@ -88,8 +106,12 @@ module PendingActions
       scope.find_by(id: payload["epic_id"])
     end
 
-    def root_jobs(actions)
-      root_ids = actions.select { |entry| entry["target_parent_job_id"].blank? }.map { |entry| entry.fetch("job_id") }
+    def rebase_roots(actions)
+      action_ids = actions.map { |entry| entry.fetch("job_id") }.to_set
+      root_ids = actions.filter_map do |entry|
+        parent_id = entry["target_parent_job_id"]
+        entry.fetch("job_id") if parent_id.blank? || !action_ids.include?(parent_id)
+      end
       Job.where(id: root_ids).order(:id).to_a
     end
   end
