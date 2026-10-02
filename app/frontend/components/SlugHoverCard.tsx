@@ -127,7 +127,7 @@ export function SlugReferenceCard({ entry, id, children }: SlugReferenceCardProp
   return (
     <>
       <span
-        onClick={handleClick}
+        onClickCapture={handleClick}
         onFocus={open}
         onMouseEnter={handleReferenceEnter}
         onMouseLeave={handleReferenceLeave}
