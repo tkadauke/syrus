@@ -53,6 +53,8 @@ Rails.application.routes.draw do
         post "performance_events", to: "performance_events#create"
         post "client_metrics", to: "client_metrics#create"
         post "report_issue", to: "report_issue#create"
+        get "slug_refs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
+        get "slugs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "sidebar_pages", to: "sidebar_pages#index"
         patch "sidebar_nav_order", to: "sidebar_nav_order#update"
         post "filters/usage", to: "filters#usage"
@@ -576,6 +578,7 @@ Rails.application.routes.draw do
   get "chats/search", to: "spa#show", as: :search_chats
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }
+  get "s/:slug", to: "slug_redirects#show", as: :slug_ref_redirect, constraints: { slug: /[^\/]+/ }
 
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
