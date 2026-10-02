@@ -14,10 +14,17 @@ RSpec.describe CognitiveReview::McpToolSet do
     expect(described_class.tool_definitions(context: context).pluck(:name)).to eq([ "submit_review_notes" ])
   end
 
+  it "advertises submit_review_notes through the real workflow MCP sidecar for review runs" do
+    tool_names = workflow_sidecar_tool_names(run)
+
+    expect(tool_names).to include("submit_review_notes")
+  end
+
   it "withholds the tool from ordinary implementation runs" do
     implement_run = Factories.job_with_run(step_attrs: { kind: "implement" }).initial_run
 
     expect(described_class.available_for_context?(McpToolContext.from_run(implement_run))).to be(false)
+    expect(workflow_sidecar_tool_names(implement_run)).not_to include("submit_review_notes")
   end
 
   it "stores submitted notes as durable rows scoped to the current diff version" do
@@ -197,5 +204,14 @@ RSpec.describe CognitiveReview::McpToolSet do
 
     expect(described_class.available_for_context?(context)).to be(false)
     expect(described_class.tool_definitions(context: context)).to eq([])
+  end
+
+  def workflow_sidecar_tool_names(run)
+    server = Mcp::Sidecar.workflow(run_id: run.id).build_server
+    initialize_request = { jsonrpc: "2.0", id: 0, method: "initialize", params: {} }.to_json
+    server.handle_json(initialize_request)
+    request = { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }.to_json
+    response = JSON.parse(server.handle_json(request), symbolize_names: true)
+    response.fetch(:result).fetch(:tools).map { |tool| tool.fetch(:name) }
   end
 end

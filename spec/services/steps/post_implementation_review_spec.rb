@@ -49,10 +49,11 @@ RSpec.describe Steps::PostImplementationReview do
       provides: { post_implementation_review_provider: provider }
     )
 
-    expect(handler).to receive(:run_agent) do |prompt:, max_turns:, required_mcp_tools:, **|
+    expect(handler).to receive(:run_agent) do |prompt:, max_turns:, required_mcp_tools:, enforce_required_mcp_tools:, **|
       expect(prompt).to include("Provider review prompt")
       expect(max_turns).to eq(described_class::TURN_BUDGET)
       expect(required_mcp_tools).to eq([ "submit_review_notes" ])
+      expect(enforce_required_mcp_tools).to be(true)
     end
 
     handler.call
@@ -60,7 +61,7 @@ RSpec.describe Steps::PostImplementationReview do
     expect(run.reload.prompt).to include("Provider review prompt")
   end
 
-  it "treats provider agent failures as best-effort" do
+  it "fails clearly when a required review-note tool is missing or uncalled" do
     provider = Class.new do
       include Syrus::Plugin::PostImplementationReviewProvider
 
@@ -75,7 +76,6 @@ RSpec.describe Steps::PostImplementationReview do
 
     allow(handler).to receive(:run_agent).and_raise(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
 
-    expect { handler.call }.not_to raise_error
-    expect(job.job_logs.last.chunk).to include("best-effort step did not complete")
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
   end
 end

@@ -147,7 +147,7 @@ class AgentEnvironmentSnapshot
 
   def required_mcp_tools_for(step)
     return [] unless step
-    Step::Kind.fetch(step.kind).required_mcp_tools
+    Step::Kind.fetch(step.kind).required_mcp_tools_for(job: run.job, workflow: run.workflow, run: run)
   rescue ArgumentError
     []
   end
