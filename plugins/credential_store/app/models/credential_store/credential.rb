@@ -2,7 +2,7 @@ module CredentialStore
   class Credential < ApplicationRecord
     self.table_name = "credential_store_credentials"
 
-    TYPE_NAME_PATTERN = /\A[a-z][a-z0-9_]*(?:\/[a-z][a-z0-9_]*)?\z/
+    TYPE_NAME_PATTERN = Syrus::PluginRegistry.credential_type_name_pattern
     NAME_MAX_LENGTH = 120
     DESCRIPTION_MAX_LENGTH = 1000
     SAFE_METADATA_MAX_BYTES = 8.kilobytes
@@ -30,8 +30,7 @@ module CredentialStore
     has_many :access_events,
       class_name: "CredentialStore::CredentialAccessEvent",
       foreign_key: :credential_id,
-      inverse_of: :credential,
-      dependent: :destroy
+      inverse_of: :credential
 
     attribute :safe_metadata, :json, default: -> { {} }
     attribute :target_constraints, :json, default: -> { {} }
@@ -56,6 +55,7 @@ module CredentialStore
     scope :revoked, -> { where.not(revoked_at: nil) }
 
     before_validation :normalize_values
+    before_destroy { raise ActiveRecord::ReadOnlyRecord, "CredentialStore::Credential is revocation-only" }
 
     def revoked?
       revoked_at.present?
