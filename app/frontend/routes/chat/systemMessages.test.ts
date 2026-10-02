@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ChatCrossChatBridge, ChatMessageItem, ChatRenderItem } from "../../api/chats"
 import { isLowPrioritySystemMessage } from "./messageDisplay"
-import { crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage, wakeupAutomationFromContent } from "./systemMessages"
+import { chatTurnRetryFromContent, crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage, wakeupAutomationFromContent } from "./systemMessages"
 
 function systemText(text: string): ChatMessageItem {
   return {
@@ -125,6 +125,20 @@ describe("goalContinuationFromContent", () => {
       label: "Goal",
       body: "Goal continuation started."
     })
+  })
+})
+
+describe("chatTurnRetryFromContent", () => {
+  it("renders chat turn retry wakeups as retry system messages", () => {
+    expect(chatTurnRetryFromContent({ source: "chat_turn_retry", text: "Retrying the previous assistant turn now." }, "Retrying the previous assistant turn now.")).toEqual({
+      tone: "neutral",
+      label: "Retry",
+      body: "Retrying the previous assistant turn now."
+    })
+  })
+
+  it("returns null when the system message is not a chat turn retry wakeup", () => {
+    expect(chatTurnRetryFromContent({ text: "MCP connected" }, "MCP connected")).toBeNull()
   })
 })
 
