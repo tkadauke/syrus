@@ -1,4 +1,10 @@
 Rails.application.config.after_initialize do
+  # Core providers use the same extension point plugins use, and are
+  # registered before the test boot snapshot is captured below.
+  Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Job)
+  Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Epic)
+  Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Chat)
+
   # Plugins self-register via their own engine initializers, which run before
   # this hook - no explicit list is needed here.
   #
