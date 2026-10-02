@@ -1114,9 +1114,11 @@ export function PendingActionGroupCard({
   const search = queryKey[2]
   const [expanded, setExpanded] = useState(false)
   const action = useMutation({
-    mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
+    mutationFn: (input: { action: "confirm" | "reject" | "dismiss"; path: string }) => {
       const path = appendSearch(input.path, search)
-      return input.action === "confirm" ? confirmPendingAction(path) : rejectPendingAction(path)
+      if (input.action === "confirm") return confirmPendingAction(path)
+      if (input.action === "reject") return rejectPendingAction(path)
+      return cancelPendingAction(path)
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -1130,6 +1132,7 @@ export function PendingActionGroupCard({
   const terminalLabel = pendingActionGroupTerminalLabel(pendingActionGroup.state)
   const succeededCount = members.filter((member) => member.state === "confirmed").length
   const failedMembers = members.filter((member) => member.state === "failed")
+  const canDismiss = (pendingActionGroup.state === "confirmed" || pendingActionGroup.state === "rejected") && Boolean(pendingActionGroup.app_dismiss_path)
 
   useEffect(() => {
     if (pendingActionGroup.state === "confirmed" && failedMembers.length > 0) setExpanded(true)
@@ -1185,12 +1188,26 @@ export function PendingActionGroupCard({
       }
       footer={
         terminalLabel ? (
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
             <span
               className={`rounded px-2 py-0.5 font-medium ${pendingActionGroup.state === "confirmed" ? (failedMembers.length > 0 ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200") : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}
             >
               {terminalLabel}
             </span>
+            {canDismiss ? (
+              <button
+                aria-label="Dismiss batch pending action"
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                disabled={action.isPending}
+                onClick={() => action.mutate({ action: "dismiss", path: pendingActionGroup.app_dismiss_path })}
+                type="button"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            ) : null}
+            {action.isError ? (
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div>
+            ) : null}
           </div>
         ) : isConfirming ? (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
