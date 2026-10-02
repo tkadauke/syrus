@@ -110,6 +110,16 @@ describe("linkifySlugs", () => {
     expect(screen.queryAllByTestId("slug-reference-card")).toHaveLength(0)
   })
 
+  it("keeps preview wrappers for registered copyable refs unless hover cards are disabled", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
+
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42", { jobStyle: "copyable" })}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByTestId("slug-reference-card")).toHaveAttribute("data-prefix", "JOB")
+    expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
+  })
+
   it("leaves unregistered uppercase Syrus-style slugs as plain text by default", () => {
     setSlugReferenceRegistryForTests([])
 

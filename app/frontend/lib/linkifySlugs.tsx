@@ -36,13 +36,9 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     const { entry, id, slug } = reference
     const copyOnly = slugStyle === "copyable" || (entry.type === "job" && options.jobStyle === "copyable")
 
-    if (copyOnly && entry.copyable) {
-      return <CopyableSlug className="text-xs normal-case" key={index} slug={part} />
-    }
+    if (!entry.linkifiesGeneratedText && !(copyOnly && entry.copyable)) return part
 
-    if (!entry.linkifiesGeneratedText) return part
-
-    const control = <SlugReferenceControl entry={entry} id={id} slug={slug} />
+    const control = <SlugReferenceControl copyOnly={copyOnly} entry={entry} id={id} slug={slug} />
     if (!hoverCards || !entry.previewAvailable) return <span key={index}>{control}</span>
 
     return (
@@ -67,9 +63,10 @@ function parseSlugReference(slug: string) {
   return { entry, id: Number(match[2]), slug }
 }
 
-function SlugReferenceControl({ entry, id, slug }: { entry: SlugReferenceRegistryEntry; id: number; slug: string }) {
+function SlugReferenceControl({ copyOnly, entry, id, slug }: { copyOnly: boolean; entry: SlugReferenceRegistryEntry; id: number; slug: string }) {
   const href = hrefForSlugReference(entry, id)
 
+  if (copyOnly && entry.copyable) return <CopyableSlug className="text-xs normal-case" slug={slug} />
   if (href && entry.copyable) return <LinkedCopyableSlug href={href} slug={slug} />
   if (href)
     return (

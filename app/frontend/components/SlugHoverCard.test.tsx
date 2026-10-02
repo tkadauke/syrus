@@ -86,12 +86,14 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
 
   it("opens the preview on tap/click and dismisses it on outside pointer down", async () => {
     renderCard("job", 42)
-    const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
+    const link = screen.getByRole("link", { name: "JOB-42" })
 
+    let clickResult = true
     await act(async () => {
-      fireEvent.click(span)
+      clickResult = fireEvent.click(link)
     })
 
+    expect(clickResult).toBe(false)
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
 
     await act(async () => {
