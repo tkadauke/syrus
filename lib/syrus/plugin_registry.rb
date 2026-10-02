@@ -336,6 +336,10 @@ module Syrus
         credential_types.map { |entry| entry.fetch("name") }
       end
 
+      def credential_type_name_pattern
+        CREDENTIAL_TYPE_NAME_PATTERN
+      end
+
       # Returns a snapshot of all registered manifests, each annotated with the
       # current enabled state from PluginRecord. Falls back to enabled: true
       # for every plugin when the table doesn't exist yet.
