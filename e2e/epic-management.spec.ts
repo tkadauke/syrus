@@ -112,7 +112,7 @@ const JOBS_TAB = /^Jobs \(\d+\)$/
 async function addChildJob(page: Page, epicId: number, title: string, prompt: string): Promise<number> {
   await page.goto(`/epics/${epicId}`)
   await openEpicTab(page, JOBS_TAB)
-  await page.getByRole("link", { name: "+ Add Job" }).click()
+  await page.getByRole("link", { name: "Add Job from Jobs section" }).click()
   await expect(page.getByText("This job will be added to")).toBeVisible()
 
   await page.getByLabel("Title").fill(title)
