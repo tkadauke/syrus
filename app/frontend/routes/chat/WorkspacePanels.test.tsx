@@ -389,6 +389,13 @@ describe("ChatWorkspacePanel coding files", () => {
 
     expect(screen.getByText("2/2")).toBeInTheDocument()
     expect(container.querySelector("[data-source-line='3'] [data-source-search-match='active']")).toHaveTextContent("needle")
+
+    fireEvent.change(findInput, { target: { value: "const" } })
+    expect(screen.getByText("1/1")).toBeInTheDocument()
+    await waitFor(() => {
+      const keywordMatch = container.querySelector("[data-source-line='2'] [data-source-search-match='active']")
+      expect(keywordMatch?.closest("span")?.style.color).toBe("var(--shiki-token-keyword)")
+    })
   })
 
   it("renders the file tree divider with an accessible label in coding and planning Files panels", async () => {

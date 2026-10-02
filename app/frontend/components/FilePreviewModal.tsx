@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
+import type { ThemedToken } from "@shikijs/core"
 import { buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Markdown } from "../lib/Markdown"
@@ -132,7 +133,7 @@ export function SourceCodeTable({ content, matches = [], path, targetLine, testI
             <tr className={targeted ? "bg-yellow-100 dark:bg-yellow-950/50" : "bg-white dark:bg-gray-950"} data-source-line={lineNum} key={lineNum}>
               <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">{lineNum}</td>
               <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {renderCodeLineWithMatches(renderCodeLine(tokenLines?.[index], line || " "), line, lineMatches)}
+                {renderCodeLineWithMatches(tokenLines?.[index], line || " ", lineMatches)}
               </td>
             </tr>
           )
@@ -142,9 +143,33 @@ export function SourceCodeTable({ content, matches = [], path, targetLine, testI
   )
 }
 
-function renderCodeLineWithMatches(rendered: ReactNode, plainLine: string, matches: SourceCodeMatch[]) {
-  if (matches.length === 0 || plainLine.length === 0) return rendered
+function renderCodeLineWithMatches(tokens: ThemedToken[] | undefined, plainLine: string, matches: SourceCodeMatch[]) {
+  if (matches.length === 0 || plainLine.length === 0) return renderCodeLine(tokens, plainLine)
+  if (!tokens) return renderTextWithMatches(plainLine, matches, "plain")
 
+  let offset = 0
+  return tokens.map((token, tokenIndex) => {
+    const tokenStart = offset
+    const tokenEnd = tokenStart + token.content.length
+    offset = tokenEnd
+
+    const tokenMatches = matches
+      .filter((match) => match.start < tokenEnd && match.end > tokenStart)
+      .map((match) => ({
+        ...match,
+        start: Math.max(0, match.start - tokenStart),
+        end: Math.min(token.content.length, match.end - tokenStart)
+      }))
+
+    return (
+      <span key={tokenIndex} style={{ color: token.color }}>
+        {renderTextWithMatches(token.content, tokenMatches, `token-${tokenIndex}`)}
+      </span>
+    )
+  })
+}
+
+function renderTextWithMatches(text: string, matches: SourceCodeMatch[], keyPrefix: string) {
   const sorted = [...matches].sort((a, b) => a.start - b.start)
   const parts: ReactNode[] = []
   let cursor = 0
@@ -152,18 +177,18 @@ function renderCodeLineWithMatches(rendered: ReactNode, plainLine: string, match
   sorted.forEach((match, index) => {
     const start = Math.max(cursor, match.start)
     const end = Math.max(start, match.end)
-    if (start > cursor) parts.push(<Fragment key={`text-${index}`}>{plainLine.slice(cursor, start)}</Fragment>)
+    if (start > cursor) parts.push(<Fragment key={`${keyPrefix}-text-${index}`}>{text.slice(cursor, start)}</Fragment>)
     parts.push(
-      <mark className="rounded px-0.5" data-source-search-match={match.active ? "active" : "true"} key={`match-${index}`} style={match.active ? activeSourceMatchStyle : sourceMatchStyle}>
-        {plainLine.slice(start, end)}
+      <mark className="rounded px-0.5" data-source-search-match={match.active ? "active" : "true"} key={`${keyPrefix}-match-${index}`} style={match.active ? activeSourceMatchStyle : sourceMatchStyle}>
+        {text.slice(start, end)}
       </mark>
     )
     cursor = end
   })
-  if (cursor < plainLine.length) parts.push(<Fragment key="tail">{plainLine.slice(cursor)}</Fragment>)
+  if (cursor < text.length) parts.push(<Fragment key={`${keyPrefix}-tail`}>{text.slice(cursor)}</Fragment>)
 
   return parts
 }
 
 const sourceMatchStyle = { backgroundColor: "rgba(250, 204, 21, 0.35)", color: "inherit" }
-const activeSourceMatchStyle = { backgroundColor: "rgb(252, 211, 77)", color: "rgb(17, 24, 39)" }
+const activeSourceMatchStyle = { backgroundColor: "rgb(252, 211, 77)", color: "inherit" }
