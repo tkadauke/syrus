@@ -79,6 +79,61 @@ RSpec.describe "Mcp::Tools admin tools" do
     response.fetch(:result).fetch(:content).first.fetch(:text)
   end
 
+  def landing_recheck_state(*jobs)
+    fields = %w[
+      pr_checks_state
+      pr_checks_sha
+      github_mergeable
+      github_mergeable_state
+      mergeability_head_sha
+      mergeability_base_sha
+      mergeability_base_ref
+      commits_behind_base
+      landing_queue_blocked_reason
+      landing_queue_position
+      landing_queue_entry_position
+      landing_queue_waiting_job_ids
+      landing_queue_blocker_job_ids
+      landing_queue_dependency_edges
+    ]
+
+    jobs.index_with do |job|
+      reloaded = job.reload
+      fields.index_with { |field| reloaded.public_send(field) }
+    end
+  end
+
+  def seed_landing_recheck_state(job, suffix:)
+    job.update_columns(
+      pr_checks_state: "pending",
+      pr_checks_sha: "checks-#{suffix}",
+      github_mergeable: false,
+      github_mergeable_state: "dirty",
+      mergeability_head_sha: "head-#{suffix}",
+      mergeability_base_sha: "base-#{suffix}",
+      mergeability_base_ref: "main",
+      commits_behind_base: suffix.to_i,
+      landing_queue_blocked_reason: { "key" => "stale_#{suffix}", "message" => "Stale #{suffix}" },
+      landing_queue_position: suffix.to_i,
+      landing_queue_entry_position: suffix.to_i + 10,
+      landing_queue_waiting_job_ids: [ suffix.to_i + 100 ],
+      landing_queue_blocker_job_ids: [ suffix.to_i + 200 ],
+      landing_queue_dependency_edges: [ { "from" => suffix.to_i, "to" => suffix.to_i + 1 } ],
+      landing_queue_cached_at: 5.minutes.ago
+    )
+  end
+
+  def landing_recheck_result(job)
+    LandingQueueRecheck::Result.new(
+      job: job,
+      pr_refreshed: true,
+      checks_refreshed: true,
+      commits_behind_refreshed: true,
+      queue_entry: nil,
+      warnings: []
+    )
+  end
+
   it "returns unauthorized errors for non-admin users at runtime" do
     ADMIN_TOOLS.each do |name, arguments|
       response = call_tool(user_session, name, arguments)
@@ -364,6 +419,73 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
     expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Refresh stale landing metadata for both." ])
     expect(group.reason).to eq("Refresh stale landing metadata for both.")
+  end
+
+  it "creates a force_landing_recheck pending action without refreshing landing metadata first" do
+    job = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 42)
+    seed_landing_recheck_state(job, suffix: "1")
+    before_state = landing_recheck_state(job)
+
+    expect(LandingQueueProcessor).not_to receive(:refresh_snapshot!)
+    expect(LandingQueueRecheck).not_to receive(:call)
+
+    response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(action.payload).to include(
+      "observed_blocker" => { "key" => "stale_1", "message" => "Stale 1" },
+      "observed_state" => a_hash_including(
+        "pr_checks_state" => "pending",
+        "github_mergeable_state" => "dirty",
+        "commits_behind_base" => 1,
+        "landing_queue_position" => 1,
+        "landing_queue_entry_position" => 11
+      )
+    )
+    expect(landing_recheck_state(job)).to eq(before_state)
+  end
+
+  it "rejects force_landing_recheck without refreshing landing metadata" do
+    job = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 42)
+    seed_landing_recheck_state(job, suffix: "2")
+    before_state = landing_recheck_state(job)
+
+    expect(LandingQueueProcessor).not_to receive(:refresh_snapshot!)
+    expect(LandingQueueRecheck).not_to receive(:call)
+
+    response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect(action.reject!).to be true
+    expect(landing_recheck_state(job)).to eq(before_state)
+  end
+
+  it "creates a grouped force_landing_recheck without refreshing and confirms each recheck once" do
+    job_one = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 101, branch_name: "syrus/direct-101")
+    job_two = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 102, branch_name: "syrus/direct-102")
+    seed_landing_recheck_state(job_one, suffix: "3")
+    seed_landing_recheck_state(job_two, suffix: "4")
+    before_state = landing_recheck_state(job_one, job_two)
+
+    expect(LandingQueueProcessor).not_to receive(:refresh_snapshot!)
+    allow(LandingQueueRecheck).to receive(:call) { |job| landing_recheck_result(job) }
+
+    response = call_tool(
+      admin_session,
+      "force_landing_recheck",
+      { job_ids: [ job_one.id, job_two.id ], reason: "Refresh stale landing metadata for both." }
+    )
+    group = PendingActionGroup.find(payload_for(response).fetch(:pending_action_group_id))
+
+    expect(LandingQueueRecheck).not_to have_received(:call)
+    expect(landing_recheck_state(job_one, job_two)).to eq(before_state)
+
+    result = group.confirm_all!(user: admin)
+
+    expect(result).to be_all_succeeded
+    expect(LandingQueueRecheck).to have_received(:call).with(job_one).once
+    expect(LandingQueueRecheck).to have_received(:call).with(job_two).once
   end
 
   it "rejects force_landing_recheck job_ids for non-admin users" do
