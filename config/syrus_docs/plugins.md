@@ -1706,6 +1706,40 @@ A plugin-owned `WorkDefinition` subclasses `WorkDefinitions::Base` and sets
 disabled -- so the registry never holds a definition pointing at a trigger kind
 that no longer exists.
 
+`scope` describes what the work is about; `lock_scope` describes which shared
+mutex key the WorkUnit should take. `lock_scope` defaults to `scope`, so
+existing `job`, `epic`, and `repository` definitions keep their historical
+serialization unless they opt out. Repository-scoped read-only sweeps should
+not inherit the bare `repository:<id>` mutex, because that key also blocks
+landing work. Declare `self.lock_scope = "none"` and add a plugin-specific
+lock key from `lock_keys_for` when the plugin only needs to prevent duplicate
+runs of its own kind, for example:
+
+```ruby
+class MyPlugin::WorkDefinition < WorkDefinitions::Base
+  self.plugin = "my_plugin"
+  self.kind = "my_plugin_sweep"
+  self.workflow_trigger_kind = "my_plugin_sweep"
+  self.runtime_role = "infrastructure"
+  self.scope = "repository"
+  self.lock_scope = "none"
+
+  def lock_conflicts_enforced? = true
+
+  def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
+    super.tap do |keys|
+      keys << "my_plugin_sweep:repository:#{job.repository_id}" if job.repository_id.present?
+    end.uniq
+  end
+end
+```
+
+Use the inherited `lock_scope` when the work really must exclude other work at
+that subject granularity. Use a plugin-specific key for narrower duplicate
+guards. Do not take the bare repository mutex for read-only synthesis,
+inspection, reporting, or maintenance sweeps merely because their subject is a
+repository.
+
 Attribute hashes take the same shape as the built-in literals, so the entry
 `Data` classes stay the single description of what a kind is. Every method is
 optional -- contribute only trigger kinds, or only step kinds, or only a Job
