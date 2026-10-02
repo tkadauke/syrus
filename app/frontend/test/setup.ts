@@ -68,6 +68,68 @@ function ensureLocalStorage() {
 
 ensureLocalStorage()
 
+function installBootstrapSlugRegistry() {
+  const existing = document.getElementById("syrus-bootstrap-data")
+  if (existing) existing.remove()
+
+  const element = document.createElement("script")
+  element.id = "syrus-bootstrap-data"
+  element.type = "application/json"
+  element.textContent = JSON.stringify({
+    slug_refs: {
+      types: [
+        {
+          prefix: "JOB",
+          type: "job",
+          display_label: "Job",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/jobs/JOB-:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "EPIC",
+          type: "epic",
+          display_label: "Epic",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/epics/EPIC-:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "CHAT",
+          type: "chat",
+          display_label: "Chat",
+          copyable: true,
+          linkable: false,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: null,
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "DOC",
+          type: "design_doc",
+          display_label: "Design Doc",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/design_docs/:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        }
+      ]
+    }
+  })
+  document.head.appendChild(element)
+}
+
+installBootstrapSlugRegistry()
+
 // jsdom does not implement scrollIntoView; provide a noop so tests that
 // indirectly open scrollable lists (e.g. the slash command palette) don't
 // throw. Individual tests that need to assert scroll behavior can override
@@ -82,6 +144,7 @@ afterEach(() => {
   resetApiClientStateForTests()
   cleanup()
   _clearRecentApiRequestsForTest()
+  installBootstrapSlugRegistry()
   vi.clearAllMocks()
   vi.restoreAllMocks()
 })
