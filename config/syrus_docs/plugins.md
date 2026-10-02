@@ -34,6 +34,31 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_git_transport`
 - `purge_contributor`
 
+Plugins may also declare credential type names for discovery by a
+credential-management plugin. This is not an extension point with executable
+callbacks. A declaration is only a stable type name, plus optional safe display
+text:
+
+```ruby
+syrus_plugin "k8s_cluster" do
+  credential_type_names "k8s_cluster.kubeconfig"
+  credential_types [
+    {
+      name: "k8s_cluster.service_account",
+      label: "Kubernetes service account",
+      description: "Credentials used by Kubernetes tools."
+    }
+  ]
+end
+```
+
+Credential type names must be lowercase dot-separated strings namespaced with
+the declaring plugin name, such as `k8s_cluster.kubeconfig`. Disabled or
+unhealthy plugins do not contribute credential types. Core does not let
+plugins define credential storage, encryption, payload parsing, authorization,
+broker materialization, redaction, or arbitrary credential callbacks; those
+remain the responsibility of the credential-management plugin.
+
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card
 shows the plugin's name, version, enabled state, category, short description,
