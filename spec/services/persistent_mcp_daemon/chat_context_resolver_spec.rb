@@ -45,6 +45,20 @@ RSpec.describe PersistentMcpDaemon::ChatContextResolver do
       expect(resolved.allowed_tools).not_to include(Mcp::Tools::ListJobsTool)
     end
 
+    it "includes plugin chat tool names allowed for the current chat and tier" do
+      resolved = described_class.resolve(raw_context(token_for(tier: "essential")))
+
+      expect(resolved.allowed_tool_names).to include("show_preview", "write_preview_file", "edit_preview_file", "close_preview")
+    end
+
+    it "excludes plugin chat tool names when the tool set rejects the current chat" do
+      chat.update!(mode: "local")
+
+      resolved = described_class.resolve(raw_context(token_for(tier: "essential")))
+
+      expect(resolved.allowed_tool_names).not_to include("show_preview", "write_preview_file", "edit_preview_file", "close_preview")
+    end
+
     it "excludes admin-only tools for a non-admin user" do
       resolved = described_class.resolve(raw_context(token_for))
 
