@@ -574,6 +574,9 @@ goal; the agent can mark the goal completed or blocked, but pause/resume/stop
 remain operator controls. If a chat turn crashes and Syrus schedules an
 automatic retry, the retry status pill keeps the countdown visible and also
 offers a manual retry control so an operator can start the retry immediately.
+Automatic and manual retries wake the transcript with a Retry system message
+and run against the original operator prompt, so the chat does not appear to
+receive a duplicated user message.
 The chat agent can read selected repository context, propose Jobs, propose Epics,
 read user-visible Epics by id, list and
 update Epics, add or remove Epic dependencies, move Epics through
