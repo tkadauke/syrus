@@ -128,6 +128,14 @@ module Api
           render_temporary_chat_lock_error
         end
 
+        def preview
+          suggestion = preview_suggestion
+
+          render json: {
+            insight: preview_suggestion_json(suggestion)
+          }
+        end
+
         private
 
         def current_filter(active_folder: self.active_smart_folder, raw_params: params)
@@ -238,6 +246,14 @@ module Api
           suggestion
         end
 
+        def preview_suggestion
+          AgentInsights::Suggestion
+            .includes(:repository, :created_job)
+            .joins(:repository)
+            .where(repositories: { id: Repository.accessible_to(Current.user).select(:id) })
+            .find_by(id: params[:id])
+        end
+
         def handle_accept(suggestion)
           result = AgentInsights::Proposals::Base.for(suggestion).accept!(actor: Current.user, params: params)
           unless result&.ok?
@@ -343,6 +359,38 @@ module Api
             created_at: suggestion.created_at,
             created_job: suggestion.created_job ? created_job_summary_json(suggestion.created_job) : nil
           }
+        end
+
+        def preview_suggestion_json(suggestion)
+          id = params[:id].to_i
+          display_id = "INSIGHT-#{id}"
+          return { display_id: display_id, accessible: false } unless suggestion
+
+          {
+            id: suggestion.id,
+            display_id: "INSIGHT-#{suggestion.id}",
+            accessible: true,
+            title: suggestion.redacted_title,
+            summary: preview_summary(suggestion),
+            category: suggestion.redacted_category,
+            severity: suggestion.severity,
+            confidence: suggestion.confidence,
+            state: suggestion.state,
+            proposal_type: suggestion.effective_proposal_type,
+            repository: repository_summary_json(suggestion.repository),
+            created_job: suggestion.created_job ? created_job_summary_json(suggestion.created_job) : nil,
+            created_at: suggestion.created_at,
+            web_path: AgentInsights::SlugType.web_path(suggestion)
+          }
+        end
+
+        def preview_summary(suggestion)
+          [
+            suggestion.redacted_suggested_prompt,
+            suggestion.redacted_memory_suggestion,
+            suggestion.redacted_stale_memory_evidence,
+            suggestion.redacted_retired_reason
+          ].find { |value| value.to_s.strip != "" }
         end
 
         def evidence_json(evidence)

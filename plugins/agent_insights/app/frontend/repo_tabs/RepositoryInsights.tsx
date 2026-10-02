@@ -24,9 +24,9 @@ import { Button } from "@app/components/Button"
 import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
-import { CopyableSlug } from "@app/components/CopyableSlug"
 import { Notice, PageHeading, Section, SectionHeading, surfaceClasses, Text } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
+import { InsightSlug } from "../components/InsightSlug"
 
 export function RepositoryInsightsRoute() {
   const { t } = useT("agent_insights")
@@ -271,13 +271,13 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
   }
 
   return (
-    <article className={surfaceClasses("panel", "none", "cursor-pointer")} onClick={handleCardClick}>
+    <article className={surfaceClasses("panel", "none", "cursor-pointer")} id={suggestion.slug} onClick={handleCardClick}>
       {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <CopyableSlug className="text-xs font-semibold text-brand dark:text-brand-emphasis" slug={suggestion.slug} />
+              <InsightSlug className="text-xs font-semibold text-brand dark:text-brand-emphasis" slug={suggestion.slug} />
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
               <TonePill tone="gray">{suggestion.category}</TonePill>

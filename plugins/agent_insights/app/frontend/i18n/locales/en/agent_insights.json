@@ -99,6 +99,7 @@
   "col_actions": "Actions",
   "flag_memory": "memory",
   "flag_proposal": "proposal",
+  "preview_not_accessible": "You do not have access to this insight.",
   "view_job": "View job",
   "promote_to_instance": "Promote to instance memory",
   "promoting": "Promoting…",
