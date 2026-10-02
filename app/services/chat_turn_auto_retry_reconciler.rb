@@ -1,6 +1,9 @@
 class ChatTurnAutoRetryReconciler
   GRACE_PERIOD = 75.seconds
   FAILED_MESSAGE = ChatStopReconciler::FAILED_MESSAGE
+  Result = Struct.new(:performed, :code, :message, keyword_init: true) do
+    def performed? = performed
+  end
 
   def self.sweep!(stale_before: GRACE_PERIOD.ago, now: Time.current)
     new(stale_before: stale_before, now: now).sweep!
@@ -14,6 +17,10 @@ class ChatTurnAutoRetryReconciler
     )
   end
 
+  def self.perform_now!(chat_session, now: Time.current)
+    new(stale_before: GRACE_PERIOD.ago, now: now).perform_now!(chat_session)
+  end
+
   def initialize(stale_before:, now:)
     @stale_before = stale_before
     @now = now
@@ -25,6 +32,18 @@ class ChatTurnAutoRetryReconciler
     performed + scheduled_or_exhausted
   end
 
+  def perform_now!(chat_session)
+    attempt = ApplicationRecord.transaction do
+      chat = ChatSession.lock.find(chat_session.id)
+      next unless chat.turn_in_flight?
+
+      chat.turn_auto_retry_attempts.active.where(performed_at: nil).order(:scheduled_at, :id).first
+    end
+    return result(:no_retry, "No retryable scheduled chat turn retry is active.") unless attempt
+
+    perform_attempt_result!(attempt, allow_early: true)
+  end
+
   private
 
   attr_reader :stale_before, :now
@@ -33,7 +52,7 @@ class ChatTurnAutoRetryReconciler
     count = 0
 
     ChatTurnAutoRetryAttempt.due(now).find_each do |attempt|
-      count += 1 if perform_attempt!(attempt)
+      count += 1 if perform_attempt_result!(attempt, allow_early: false).performed?
     end
 
     count
@@ -167,31 +186,31 @@ class ChatTurnAutoRetryReconciler
     chat.update!(turn_in_flight: false, stop_requested_at: nil, last_message_at: now)
   end
 
-  def perform_attempt!(attempt)
+  def perform_attempt_result!(attempt, allow_early:)
     chat = nil
     retry_message = nil
 
-    ApplicationRecord.transaction do
+    transaction_result = ApplicationRecord.transaction do
       locked_attempt = ChatTurnAutoRetryAttempt.lock.find(attempt.id)
-      next false if locked_attempt.performed_at? || locked_attempt.skipped_reason? || locked_attempt.exhausted_at?
-      next false if locked_attempt.scheduled_at > now
+      next result(:no_retry, "This retry attempt is no longer active.") if locked_attempt.performed_at? || locked_attempt.skipped_reason? || locked_attempt.exhausted_at?
+      next result(:not_due, "This retry attempt is not due yet.") if !allow_early && locked_attempt.scheduled_at > now
 
       chat = ChatSession.lock.find(locked_attempt.chat_session_id)
       unless chat.turn_in_flight?
         locked_attempt.update!(skipped_reason: "chat turn is no longer in flight")
-        next false
+        next result(:turn_inactive, "The chat turn is no longer in flight.")
       end
 
       latest_user_message = ChatTurnLiveness.new(chat).latest_user_message
       unless latest_user_message&.id == locked_attempt.user_message_id
         locked_attempt.update!(skipped_reason: "chat turn moved to a newer user message")
-        next false
+        next result(:stale_turn, "The chat turn moved to a newer user message.")
       end
 
       liveness = ChatTurnLiveness.new(chat)
       if liveness.live_agent_process? || liveness.pending_chat_turn_job?
         locked_attempt.update!(skipped_reason: "chat turn became active before retry")
-        next false
+        next result(:turn_active, "The chat turn is already active.")
       end
 
       retry_message = chat.messages.create!(
@@ -208,10 +227,15 @@ class ChatTurnAutoRetryReconciler
       chat.pin_chat_provider!
       ChatTurnJob.perform_later(chat.id, retry_message.id)
       locked_attempt.update!(performed_at: now, retry_message: retry_message)
+      result(:performed, "Chat turn retry started.")
     end
 
-    broadcast(chat) if chat
-    retry_message.present?
+    broadcast(chat) if retry_message.present?
+    transaction_result
+  end
+
+  def result(code, message)
+    Result.new(performed: code == :performed, code: code, message: message)
   end
 
   def close_dangling_tool_calls!(chat)

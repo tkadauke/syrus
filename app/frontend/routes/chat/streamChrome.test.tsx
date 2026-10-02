@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatTurnRetryState } from "../../api/chats"
 import { TurnRetryIndicator } from "./streamChrome"
@@ -38,6 +38,31 @@ describe("TurnRetryIndicator", () => {
     expect(screen.getByText("next in 5 minutes")).toBeInTheDocument()
   })
 
+  it("renders a retry-now button for scheduled retryable state and calls the handler", () => {
+    const onRetryNow = vi.fn()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"))
+
+    render(<TurnRetryIndicator retry={retryState()} onRetryNow={onRetryNow} />)
+
+    const button = screen.getByRole("button", { name: "Retry chat turn now" })
+    expect(button).toHaveTextContent("Retry now")
+
+    fireEvent.click(button)
+
+    expect(onRetryNow).toHaveBeenCalledTimes(1)
+  })
+
+  it("disables the retry-now button while the manual retry is pending", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"))
+
+    render(<TurnRetryIndicator retry={retryState()} retryNowPending onRetryNow={() => undefined} />)
+
+    expect(screen.getByRole("button", { name: "Retry chat turn now" })).toBeDisabled()
+    expect(screen.getByText("Retrying...")).toBeInTheDocument()
+  })
+
   it("updates the scheduled retry countdown every second", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-09-18T12:04:35Z"))
@@ -72,6 +97,13 @@ describe("TurnRetryIndicator", () => {
     expect(screen.getByRole("status", { name: /Chat turn crashed .* not retryable .* 0 left/ })).toBeInTheDocument()
     expect(screen.getByText("Auto-retry exhausted")).toBeInTheDocument()
     expect(screen.getByText("attempt 3/3")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry chat turn now" })).not.toBeInTheDocument()
     expect(screen.queryByText(/next/)).not.toBeInTheDocument()
+  })
+
+  it("does not render a retry-now button for nonretryable scheduled state", () => {
+    render(<TurnRetryIndicator retry={retryState({ retryable: false })} onRetryNow={() => undefined} />)
+
+    expect(screen.queryByRole("button", { name: "Retry chat turn now" })).not.toBeInTheDocument()
   })
 })

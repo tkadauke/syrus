@@ -571,7 +571,9 @@ it with the same immediate continuation. Editing an already-active goal does
 not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
-remain operator controls.
+remain operator controls. If a chat turn crashes and Syrus schedules an
+automatic retry, the retry status pill keeps the countdown visible and also
+offers a manual retry control so an operator can start the retry immediately.
 The chat agent can read selected repository context, propose Jobs, propose Epics,
 read user-visible Epics by id, list and
 update Epics, add or remove Epic dependencies, move Epics through

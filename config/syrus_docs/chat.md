@@ -11,6 +11,12 @@ before title generation or turn execution. Later changes to the user's defaults
 do not move that existing conversation between providers. A data migration
 backfills older blank-provider chats and the column is non-null afterward.
 
+When a chat turn crashes and Syrus schedules an automatic retry, the retry
+status pill includes a manual retry control. It calls
+`POST /api/v1/app/chats/:id/retry_turn`, which performs the active pending
+retry immediately after re-checking that the chat turn has not moved on and
+that no live agent process or pending `ChatTurnJob` is already active.
+
 The primary new-chat form defaults its repository selector to the same backend
 rule as the create endpoint: the most recently created accessible chat with a
 repository attached, then the first active accessible repository by owner/name,

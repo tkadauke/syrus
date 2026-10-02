@@ -49,6 +49,7 @@ import {
   rejectChatProposal,
   rejectPendingAction,
   renameChat,
+  retryChatTurn,
   searchChatEpics,
   searchChatJobs,
   searchChatProposals,
@@ -491,6 +492,20 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     onError: (error) => onNotice(errorMessage(error, t("retry_failed")))
   })
 
+  const retryScheduledTurn = useMutation({
+    mutationFn: () => {
+      if (!payload.paths.app_retry_turn_path) throw new Error(t("retry_turn_unavailable"))
+
+      return retryChatTurn(appendSearch(payload.paths.app_retry_turn_path, search))
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
+      onNotice(updated.message || t("retry_turn_started"))
+    },
+    onError: (error) => onNotice(errorMessage(error, t("retry_failed")))
+  })
+
   const scrollToBottom = useCallback(() => {
     scrollMessageStreamToBottom(streamRef.current, { smooth: true })
     lastScrollTopRef.current = streamRef.current?.scrollTop ?? 0
@@ -662,7 +677,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
-          <ChatTurnIndicator payload={payload} agentActive={agentActive} />
+          <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -724,7 +739,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
           />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        <ChatTurnIndicator payload={payload} agentActive={agentActive} />
+        <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -747,9 +762,19 @@ function switchingProviderLabel(payload: ChatPayload) {
   return payload.chat.chat_provider_options?.find((option) => option.value === provider)?.label || provider
 }
 
-function ChatTurnIndicator({ payload, agentActive }: { payload: ChatPayload; agentActive: boolean }) {
+function ChatTurnIndicator({
+  payload,
+  agentActive,
+  retryNowPending = false,
+  onRetryNow
+}: {
+  payload: ChatPayload
+  agentActive: boolean
+  retryNowPending?: boolean
+  onRetryNow?: () => void
+}) {
   const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
-  if (retry && agentActive) return <TurnRetryIndicator retry={retry} />
+  if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
   if (payload.switching_provider) return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
   if (agentActive) return <AgentActivityIndicator running={payload.agent_busy} />
 
