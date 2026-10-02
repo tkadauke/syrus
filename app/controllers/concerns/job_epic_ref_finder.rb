@@ -18,12 +18,14 @@ module JobEpicRefFinder
     end
   end
 
-  # Resolves an epic identifier. Accepts numeric IDs, the EPIC-{n} prefix
-  # format, and human-readable slugs.
+  # Resolves an epic identifier. Accepts numeric IDs, the EPIC-{number}
+  # display-ref format, and human-readable slugs.
   def find_epic_by_ref(scope, param)
     ref = param.to_s.strip
-    ref = ref[5..] if ref.match?(/\Aepic-/i)
-    if ref.match?(/\A\d+\z/)
+    if (match = ref.match(/\Aepic-(\d+)\z/i))
+      scope.find_by(number: match[1].to_i) ||
+        raise(ActiveRecord::RecordNotFound, "epic #{ref.inspect} not found")
+    elsif ref.match?(/\A\d+\z/)
       scope.find(ref.to_i)
     else
       scope.find_by(slug: ref) ||

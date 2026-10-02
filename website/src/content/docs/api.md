@@ -131,6 +131,16 @@ prefix format, or a human-readable slug derived from the issue or epic title
 (e.g. `/api/v1/app/jobs/repair-aqueduct`). Slugs are auto-generated at Job /
 Epic creation and are unique per instance.
 
+`GET /api/v1/app/slug_refs/:slug` resolves canonical display refs such as
+`JOB-<id>`, `EPIC-<number>`, and `CHAT-<id>` through the shared slug registry.
+The response includes the canonical ref, type, prefix, numeric id, access flag,
+app path, preview API path when available, copy/linkification defaults, and
+mobile interaction hints. Known-but-missing or inaccessible refs return a
+neutral payload with `accessible: false` and no app path; malformed known refs
+return `400`, and unknown prefixes return `404`. `/api/v1/app/slugs/:slug` is
+an alias, and browser navigation can use `/s/:slug` to redirect accessible refs
+to their app page.
+
 `POST /api/v1/app/jobs/:id/chat_feedback` lets the authenticated job owner
 submit follow-up feedback directly, without confirming a chat pending action.
 The Job must belong to the token user and be in `implemented` or `failed`

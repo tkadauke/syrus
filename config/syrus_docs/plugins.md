@@ -33,6 +33,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `repository_content_provider`
 - `workspace_git_transport`
 - `purge_contributor`
+- `slug_type`
 
 Plugins may also declare credential type names for discovery by a
 credential-management plugin. This is not an extension point with executable
@@ -2056,6 +2057,28 @@ and renders it with `<PluginUiSlot panels={...} props={...} />`. A panel whose
 component is missing from the bundle is skipped rather than throwing, so a
 stale server-side registration cannot blank the page around it.
 
+## `:slug_type`
+
+Slug type providers define canonical display refs that the backend can resolve
+without hardcoding every prefix at each call site. Core registers providers for
+`JOB-<id>`, `EPIC-<number>`, and `CHAT-<id>`.
+
+Providers include `Syrus::Plugin::SlugType` and implement:
+
+- `prefix` — the uppercase ref prefix, without the dash.
+- `display_label` — human-readable type label.
+- `record_for(id, user:)` — access-aware lookup. Return `nil` for both missing
+  and inaccessible records so callers do not leak private details.
+- `web_path(record)` — the in-app path used by `/s/:slug`.
+- Optional `api_preview_path(record)`, `copyable?`, `preview_available?`,
+  `linkifies_generated_text?`, `mobile_interaction_hints`, `id_pattern`, and
+  `type_key`.
+
+`GET /api/v1/app/slug_refs/:slug` and its `/api/v1/app/slugs/:slug` alias use
+the registry to return canonical metadata for app and mobile clients. `/s/:slug`
+uses the same resolver for browser redirects and returns a generic 404 for
+unknown, malformed, missing, or inaccessible refs.
+
 ## Slug hover preview cards
 
 Core's `SlugHoverCard` (`app/frontend/components/SlugHoverCard.tsx`) renders a
@@ -2064,10 +2087,10 @@ linkified by `linkifySlugs.tsx`. `JOB`/`EPIC` are core concepts and render
 core components directly; a plugin-owned reference kind (`DOC-<id>`, owned by
 `design_docs`) instead resolves through a small, registry-free discovery
 convention deliberately simpler than `workspace_tab`/`ui_slot`: there is no
-`Syrus::Plugin::SlugPreviewCard` module or `Syrus::PluginRegistry` extension
-point, because there is nothing here that needs enabled/disabled-state
-resolution or per-record visibility — the mapping is a fixed part of core's
-linkification grammar, not something a plugin registers at runtime.
+`Syrus::Plugin::SlugPreviewCard` module. Backend slug resolution uses the
+`:slug_type` extension point above; frontend preview-card components still use
+file discovery so adding a visual card does not require duplicating React
+registration data in Ruby.
 
 - The plugin drops its card component at
   `plugins/<name>/app/frontend/slugPreviewCards/<PREFIX>.<Component>.tsx` —
