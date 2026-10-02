@@ -169,6 +169,13 @@
     "copied": "Kopiert",
     "copy": "{{slug}} kopieren"
   },
+  "slug_reference": {
+    "surface_label": "Aktionen für {{slug}}",
+    "open_action": "{{slug}} öffnen",
+    "copy_action": "{{slug}} kopieren",
+    "close": "Schließen",
+    "preview_unavailable": "Für diese Referenz ist keine Vorschau verfügbar."
+  },
   "notice_toast": {
     "dismiss": "Benachrichtigung schließen"
   },

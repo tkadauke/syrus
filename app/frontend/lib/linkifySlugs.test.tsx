@@ -7,8 +7,8 @@ import { linkifySlugs } from "./linkifySlugs"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "./slugReferenceRegistry"
 
 vi.mock("../components/SlugHoverCard", () => ({
-  SlugReferenceCard: ({ entry, id, children }: { entry: SlugReferenceRegistryEntry; id: number; children: ReactNode }) => (
-    <span data-testid="slug-reference-card" data-prefix={entry.prefix} data-type={entry.type} data-id={String(id)}>
+  SlugReferenceCard: ({ entry, id, slug, children }: { entry: SlugReferenceRegistryEntry; id: number; slug?: string; children: ReactNode }) => (
+    <span data-testid="slug-reference-card" data-prefix={entry.prefix} data-type={entry.type} data-id={String(id)} data-slug={slug}>
       {children}
     </span>
   )
@@ -69,14 +69,14 @@ describe("linkifySlugs", () => {
     expect(screen.getAllByText("JOB-42")).toHaveLength(1)
   })
 
-  it("renders registered copy-only refs as copy controls", () => {
+  it("wraps registered copy-only refs so touch users can open actions", () => {
     setSlugReferenceRegistryForTests([registryEntry({ prefix: "INSIGHT", type: "insight", linkable: false, previewAvailable: false, hrefTemplate: null })])
 
     render(<MemoryRouter>{linkifySlugs("Captured as INSIGHT-5")}</MemoryRouter>)
 
     expect(screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "INSIGHT-5" })).not.toBeInTheDocument()
-    expect(screen.queryAllByTestId("slug-reference-card")).toHaveLength(0)
+    expect(screen.getByTestId("slug-reference-card")).toHaveAttribute("data-slug", "INSIGHT-5")
   })
 
   it("renders non-copyable registered refs as plain text when they do not linkify generated text", () => {
