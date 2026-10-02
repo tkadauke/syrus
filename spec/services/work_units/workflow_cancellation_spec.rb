@@ -43,6 +43,23 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     expect(workflow.work_unit.work_intent.reload).to be_cancelled
   end
 
+  it "cancels the work intent when a CI repair base has been superseded" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job, idempotency_key: "cancel-ci-repair-intent-sync-spec")
+
+    described_class.cancel!(
+      workflow,
+      reason: WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+      artifacts: { "cancelled_reason" => WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON }
+    )
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON
+    )
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+  end
+
   it "preserves legacy cancellation for workflows without work units" do
     workflow = Workflows::Initial.instantiate(job: job)
 

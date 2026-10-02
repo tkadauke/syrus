@@ -2,9 +2,18 @@ module WorkUnits
   module Gates
     class CiRepairSafety
       REASON = "ci_repair_safety"
+      SUPERSEDED_BASE_REASON = "superseded_ci_repair_base"
       RETRY_DELAY = 5.minutes
 
       def self.call(work_unit, **context) = new(work_unit, step: context[:step]).call
+
+      def self.superseded_base?(job, base_sha)
+        new(nil).send(:base_superseded_for?, job, base_sha)
+      end
+
+      def self.current_base_sha_for(job)
+        new(nil).send(:current_base_sha_for, job)
+      end
 
       def initialize(work_unit, step: nil)
         @work_unit = work_unit
@@ -29,7 +38,7 @@ module WorkUnits
         if require_clean_base_health? && !clean_base_health_known?
           return block("base_repair_active", active_base_repair_details) if active_base_repair?
 
-          return block("base_not_known_healthy", "base_sha" => base_sha)
+          return block("base_not_known_healthy", base_not_known_healthy_details)
         end
 
         if launch_gate_step? && (duplicate = active_duplicate_for_base)
@@ -81,6 +90,25 @@ module WorkUnits
           .where(repository: repository, sha: base_sha)
           .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
           .exists?
+      end
+
+      def base_not_known_healthy_details
+        current_base_sha = current_base_sha_for(job)
+        {
+          "base_sha" => base_sha,
+          "current_base_sha" => current_base_sha,
+          "base_superseded" => base_superseded_for?(job, base_sha)
+        }.compact
+      end
+
+      def current_base_sha_for(candidate_job)
+        candidate_job&.pr_checks_base_sha.presence || candidate_job&.mergeability_base_sha.presence
+      end
+
+      def base_superseded_for?(candidate_job, candidate_base_sha)
+        candidate_base_sha.present? &&
+          current_base_sha_for(candidate_job).present? &&
+          current_base_sha_for(candidate_job) != candidate_base_sha
       end
 
       def require_clean_base_health?

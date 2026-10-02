@@ -1050,6 +1050,75 @@ module WorkEngine
         end
       end
 
+      class CancelSupersededCiRepair < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
+          return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
+          return skipped("Workflow is #{workflow.trigger_kind}, not ci_failure") unless workflow.trigger_kind == "ci_failure"
+
+          unit = workflow.work_unit
+          return skipped("Workflow has no WorkUnit") unless unit
+          return skipped("#{work_unit_label(unit)} is #{unit.kind}, not ci_failure") unless unit.kind == "ci_failure"
+          return skipped("#{work_unit_label(unit)} is #{unit.state}, not blocked") unless unit.blocked?
+          unless unit.blocked_reason == WorkUnits::Gates::CiRepairSafety::REASON
+            return skipped("#{work_unit_label(unit)} is blocked on #{unit.blocked_reason}, not ci_repair_safety")
+          end
+          unless ci_repair_block_kind(workflow) == "base_not_known_healthy"
+            return skipped("CI repair block is #{ci_repair_block_kind(workflow)}, not base_not_known_healthy")
+          end
+
+          base_sha = ci_repair_block_base_sha(workflow)
+          return skipped("CI repair base SHA is missing") if base_sha.blank?
+          unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha)
+            return skipped("CI repair base #{base_sha} is still current")
+          end
+
+          current_base_sha = WorkUnits::Gates::CiRepairSafety.current_base_sha_for(workflow.job)
+          workflow.with_lock do
+            workflow.reload
+            return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
+            return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
+            unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha)
+              return skipped("CI repair base #{base_sha} is still current")
+            end
+
+            with_transition_reason do
+              WorkUnits::WorkflowCancellation.cancel!(
+                workflow,
+                reason: WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+                artifacts: {
+                  "cancelled_reason" => WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+                  "cancelled_by_reconciler_at" => Time.current.iso8601,
+                  "superseded_ci_repair_base_sha" => base_sha,
+                  "superseded_ci_repair_current_base_sha" => current_base_sha
+                }
+              )
+            end
+          end
+
+          success("cancelled #{workflow_label(workflow)} because CI repair base #{base_sha} was superseded by #{current_base_sha}")
+        end
+
+        private
+
+        def ci_repair_block_kind(workflow)
+          ci_repair_block_details(workflow)["kind"].presence
+        end
+
+        def ci_repair_block_base_sha(workflow)
+          ci_repair_block_details(workflow)["base_sha"].presence ||
+            workflow.artifact("base_sha").presence ||
+            workflow.work_unit&.work_intent&.payload_artifacts.to_h["base_sha"].presence
+        end
+
+        def ci_repair_block_details(workflow)
+          workflow.work_unit&.blocked_details.to_h.presence ||
+            workflow.artifact("start_blocked_details").to_h
+        end
+      end
+
       class FinishWorkUnitForClosedJob < Base
         def perform
           unit = target_work_unit

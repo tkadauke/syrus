@@ -886,6 +886,23 @@ module WorkEngine
 
       class QueuedWorkflowWithoutFirstRun < Base
         def plan
+          if issue.recommended_repair_action == "cancel_superseded_ci_repair"
+            return automatic_plan(
+              "cancel_superseded_ci_repair",
+              primary_workflow,
+              "The CI repair was blocked on a base SHA that is no longer the Job's current base, so no future health check can make this workflow meaningful.",
+              execution_steps: [ "WorkUnits::WorkflowCancellation.cancel!" ],
+              preconditions: {
+                workflow_state: "queued",
+                work_unit_kind: "ci_failure",
+                start_blocked_reason: WorkUnits::Gates::CiRepairSafety::REASON,
+                start_blocked_kind: "base_not_known_healthy",
+                base_sha: issue.evidence["ci_repair_base_sha"],
+                current_base_sha: issue.evidence["ci_repair_current_base_sha"]
+              }
+            )
+          end
+
           unless issue.safe_to_auto_repair
             return waiting_plan(
               "wait_for_start_block_to_clear",
