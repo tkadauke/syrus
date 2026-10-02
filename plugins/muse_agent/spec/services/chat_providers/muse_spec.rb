@@ -54,6 +54,13 @@ RSpec.describe ChatProviders::Muse do
             args: [ "--tier", "essential" ],
             env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
             alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+            alwaysLoad: false
           }
         }
       }.to_json)
@@ -96,7 +103,14 @@ RSpec.describe ChatProviders::Muse do
         "syrus-chat-sidecar" => {
           command: "/app/bin/syrus-chat-sidecar",
           args: [ "--tier", "essential" ],
-          env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s }
+          env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
+          required: true
+        },
+        "syrus-chat-deferred-sidecar" => {
+          command: "/app/bin/syrus-chat-sidecar",
+          args: [ "--tier", "deferred" ],
+          env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+          required: false
         }
       )
     ensure
@@ -157,6 +171,13 @@ RSpec.describe ChatProviders::Muse do
             args: [ "--tier", "evaluator" ],
             env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
             alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+            alwaysLoad: false
           }
         }
       }.to_json)
@@ -195,6 +216,10 @@ RSpec.describe ChatProviders::Muse do
         muse_home: ChatWorkspace.agent_home_for(chat, "muse")
       )
       expect(invocation_kwargs[:mcp_server]).to include("syrus-chat-evaluator-sidecar")
+      expect(invocation_kwargs[:mcp_server]).to include(
+        "syrus-chat-evaluator-sidecar" => include(required: true),
+        "syrus-chat-deferred-sidecar" => include(required: false)
+      )
     ensure
       mcp_config&.close!
     end
