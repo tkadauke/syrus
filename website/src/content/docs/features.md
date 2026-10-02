@@ -643,9 +643,10 @@ view that requires normal Syrus sign-in and does not expose compose controls,
 pending actions, or agent controls.
 At the end of a turn, the chat agent can suggest the operator's likely next
 message; the suggestion appears as muted ghost text in the empty composer
-with a `tab` hint. Pressing Tab fills the composer with the suggestion,
-typing anything hides it, and Escape dismisses it. Suggestions clear
-automatically when the operator sends a message or a new turn starts.
+with an accept button. Tapping the button or pressing Tab fills the composer
+with the suggestion, typing anything hides it, and Escape dismisses it.
+Suggestions clear automatically when the operator sends a message or a new
+turn starts.
 The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Before sending, operators can click an
 image thumbnail in the composer to mark it up with basic shapes, arrows,
