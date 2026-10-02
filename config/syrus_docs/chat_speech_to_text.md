@@ -26,16 +26,34 @@ enabled, and currently available, `ChatSpeechToText::Providers.configured`
 returns nil and the UI falls back to browser speech recognition when the
 browser supports it.
 
-Backend dictation therefore requires installing and enabling a provider plugin,
-such as the `whisper_stt` plugin. See that plugin's own docs
-(`plugins/whisper_stt/docs/syrus_docs/whisper_stt.md`) for daemon, model, and
-runtime setup. Core only owns the provider-selection contract:
-`SYRUS_STT_PROVIDER` may pin a plugin provider by `provider_key`; when unset,
-Syrus uses the first available provider in plugin registration order.
+Backend batch dictation is available when a `speech_to_text_provider` plugin is
+installed, enabled, and currently available. The bundled `whisper_stt` plugin
+provides the local whisper.cpp backend: enable Plugin Runtime, enable
+`whisper_stt`, and wait for its `whisper-stt` service to become healthy. Once
+`PluginRuntime::Services.endpoint_for("whisper-stt")` has an endpoint, the chat
+capability payload reports `modes.backend_batch.available: true` and the
+microphone button sends browser audio to the daemon.
+
+Without `whisper_stt`, with the plugin disabled, or while the daemon is absent,
+starting, unhealthy, or otherwise unreachable through Plugin Runtime,
+`ChatSpeechToText::Providers.configured` returns nil. The capability payload
+then reports backend batch unavailable with `provider_unset`, while
+`modes.browser.available` remains true when the feature flag is on. The UI uses
+that payload to fall back to browser speech recognition when the browser
+supports it.
+
+Core only owns the provider-selection contract: `SYRUS_STT_PROVIDER` may pin a
+plugin provider by `provider_key`; when unset, Syrus uses the first available
+provider in plugin registration order. To pin the bundled daemon-backed
+provider:
 
 ```
 SYRUS_STT_PROVIDER=whisper_stt
 ```
+
+See the plugin's own docs
+(`plugins/whisper_stt/docs/syrus_docs/whisper_stt.md`) for daemon, model, and
+runtime setup.
 
 The chat payload includes sanitized backend availability metadata:
 `feature_disabled`, `provider_unset`, or no reason when the backend is usable.

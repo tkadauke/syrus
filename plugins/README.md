@@ -51,6 +51,7 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:chat_mcp_tool_set` | `Syrus::Plugin::ChatMcpToolSet`    | `.tool_definitions(tier:)`, `.available_for?(session, tier:)`, `#handle` |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
 | `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
+| `:speech_to_text_provider` | `Syrus::Plugin::SpeechToTextProvider` | `.provider_key`, `.display_name`, `.available?`, `.build(user:)`; instances inherit the `ChatSpeechToText::Providers::Base` batch/streaming contract |
 
 `input_source` and `source_control_provider` are deliberately separate. A
 source plugin can poll for new work without owning PR operations, and a
