@@ -30,6 +30,8 @@
     <meta name="application-name" content="Syrus">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#c9704b">
+    <meta name="syrus-app-revision" content="<%= SyrusVersion.current %>">
+    <meta name="syrus-asset-revision" content="<%= spa_asset_version %>">
     <% if custom_color_theme %>
       <script id="syrus-custom-color-theme-data" type="application/json"><%= raw json_escape(custom_color_theme.tokens.to_json) %></script>
     <% end %>
@@ -84,6 +86,208 @@
     </script>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+
+    <script id="syrus-startup-diagnostics" nonce="<%= content_security_policy_nonce %>">
+      (function () {
+        var WATCHDOG_TIMEOUT_MS = 8000;
+        var startupAt = Date.now();
+        var reportedKeys = {};
+        var milestones = [];
+
+        function meta(name) {
+          var el = document.querySelector('meta[name="' + name + '"]');
+          return el ? el.getAttribute("content") : null;
+        }
+
+        function csrfToken() {
+          return meta("csrf-token");
+        }
+
+        function shortText(value, limit) {
+          return String(value == null ? "" : value).replace(/\s+/g, " ").slice(0, limit);
+        }
+
+        function sameOriginPath(value) {
+          try {
+            var url = new URL(value, window.location.href);
+            return url.origin === window.location.origin ? url.pathname + url.search : "cross-origin";
+          } catch (e) {
+            return "unknown";
+          }
+        }
+
+        function userAgentFamily() {
+          var ua = navigator.userAgent || "";
+          if (/CriOS/i.test(ua)) return "chrome_ios";
+          if (/FxiOS/i.test(ua)) return "firefox_ios";
+          if (/EdgiOS/i.test(ua)) return "edge_ios";
+          if (/Safari/i.test(ua) && /Mobile|iPhone|iPad|iPod/i.test(ua)) return "mobile_safari";
+          if (/Safari/i.test(ua)) return "safari";
+          if (/Chrome|Chromium/i.test(ua)) return "chromium";
+          if (/Firefox/i.test(ua)) return "firefox";
+          return "unknown";
+        }
+
+        function standaloneContext() {
+          var displayStandalone = false;
+          try {
+            displayStandalone = !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+          } catch (e) {
+            displayStandalone = false;
+          }
+          return {
+            navigator_standalone: navigator.standalone === true,
+            display_mode_standalone: displayStandalone
+          };
+        }
+
+        function context(extra) {
+          var standalone = standaloneContext();
+          var base = {
+            startup_elapsed_ms: Date.now() - startupAt,
+            current_path: window.location.pathname + window.location.search,
+            app_revision: meta("syrus-app-revision"),
+            asset_revision: meta("syrus-asset-revision"),
+            user_agent_family: userAgentFamily(),
+            navigator_standalone: standalone.navigator_standalone,
+            display_mode_standalone: standalone.display_mode_standalone,
+            visibility_state: document.visibilityState || "unknown",
+            milestones: milestones.slice(-20)
+          };
+          Object.keys(extra || {}).forEach(function (key) {
+            base[key] = extra[key];
+          });
+          return base;
+        }
+
+        function shouldReportMilestone() {
+          var standalone = standaloneContext();
+          return standalone.navigator_standalone ||
+            standalone.display_mode_standalone ||
+            /(?:\?|&)startup_diagnostics=1(?:&|$)/.test(window.location.search);
+        }
+
+        function fingerprint(kind, detail) {
+          return ["startup", kind, meta("syrus-app-revision") || "unknown", sameOriginPath(detail || window.location.href)].join(":").slice(0, 500);
+        }
+
+        function postJson(path, payload) {
+          var token = csrfToken();
+          var bodyPayload = { authenticity_token: token };
+          var headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          };
+          Object.keys(payload || {}).forEach(function (key) {
+            bodyPayload[key] = payload[key];
+          });
+          if (token) headers["X-CSRF-Token"] = token;
+          fetch(path, {
+            method: "POST",
+            credentials: "same-origin",
+            keepalive: true,
+            headers: headers,
+            body: JSON.stringify(bodyPayload)
+          }).catch(function () {});
+        }
+
+        function reportMilestone(milestone) {
+          if (!shouldReportMilestone()) return;
+
+          postJson("/api/v1/app/performance_events", {
+            performance_event: {
+              trace_id: "startup-" + startupAt + "-" + milestone,
+              name: "startup." + milestone,
+              path: window.location.pathname + window.location.search,
+              duration_ms: Date.now() - startupAt,
+              visibility_state: document.visibilityState || "unknown",
+              metadata: context({ milestone: milestone })
+            }
+          });
+        }
+
+        function report(kind, message, extra) {
+          var key = kind + ":" + (extra && extra.milestone ? extra.milestone : "") + ":" + (extra && extra.resource_url ? extra.resource_url : "");
+          if (reportedKeys[key]) return;
+          reportedKeys[key] = true;
+
+          postJson("/api/v1/app/browser_errors", {
+            browser_error: {
+              occurred_at: new Date().toISOString(),
+              app_revision: meta("syrus-app-revision"),
+              fingerprint: fingerprint(kind, extra && extra.resource_url),
+              name: kind,
+              message: shortText(message, 500),
+              url: window.location.href,
+              path: window.location.pathname + window.location.search,
+              user_agent: navigator.userAgent || "",
+              viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                device_pixel_ratio: window.devicePixelRatio
+              },
+              feature_flags: {},
+              recent_api_requests: [],
+              recent_errors: [],
+              metadata: context(extra || {})
+            }
+          });
+        }
+
+        function mark(milestone) {
+          var entry = { name: milestone, at_ms: Date.now() - startupAt };
+          milestones.push(entry);
+          if (milestones.length > 20) milestones.shift();
+          if (milestone === "react_first_render") window.__syrusReactFirstRender = true;
+          reportMilestone(milestone);
+        }
+
+        window.SyrusStartupDiagnostics = { mark: mark, report: report, context: context };
+        mark("shell_loaded");
+
+        window.addEventListener("error", function (event) {
+          var target = event.target;
+          var resourceUrl = target && (target.src || target.href);
+          if (resourceUrl) {
+            var tagName = target.tagName ? String(target.tagName).toLowerCase() : "resource";
+            if (tagName === "script" || tagName === "link") {
+              report("StartupResourceError", "SPA startup resource failed to load", {
+                resource_tag: tagName,
+                resource_url: sameOriginPath(resourceUrl)
+              });
+            }
+            return;
+          }
+
+          report("StartupWindowError", event.message || "SPA startup window error", {
+            source: sameOriginPath(event.filename || ""),
+            line: event.lineno || null,
+            column: event.colno || null,
+            error_name: event.error && event.error.name ? shortText(event.error.name, 100) : null,
+            stack: event.error && event.error.stack ? shortText(event.error.stack, 2000) : null
+          });
+        }, true);
+
+        window.addEventListener("unhandledrejection", function (event) {
+          var reason = event.reason;
+          var isError = reason && typeof reason === "object" && ("message" in reason || "name" in reason);
+          report("StartupUnhandledRejection", isError ? reason.message || "Unhandled startup rejection" : "Unhandled startup rejection", {
+            error_name: isError && reason.name ? shortText(reason.name, 100) : typeof reason,
+            stack: isError && reason.stack ? shortText(reason.stack, 2000) : null
+          });
+        });
+
+        window.setTimeout(function () {
+          if (window.__syrusReactFirstRender) return;
+          var root = document.getElementById("syrus-spa-root");
+          var rootBlank = !root || !root.textContent.trim();
+          report("StartupWatchdog", rootBlank ? "SPA startup watchdog: root still blank" : "SPA startup watchdog: first render not marked", {
+            root_present: !!root,
+            root_blank: rootBlank
+          });
+        }, WATCHDOG_TIMEOUT_MS);
+      })();
+    </script>
 
     <%# ?v= matches BRAND_ICON_VERSION in app/frontend/lib/brandIcon.ts — public/
         files are served with a 1-year max-age, so rebranded icons need a new URL. %>
