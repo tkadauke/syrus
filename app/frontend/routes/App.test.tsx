@@ -14512,6 +14512,8 @@ describe("App", () => {
   })
 
   it("renders queued pending actions as waiting without action buttons", async () => {
+    appendBootstrapScript()
+
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
@@ -14530,7 +14532,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
+    expect(await screen.findByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/JOB-44")
     expect(screen.getByText("Waiting...")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
@@ -14565,6 +14567,8 @@ describe("App", () => {
   })
 
   it("renders pending actions after their linked message in the stream", async () => {
+    appendBootstrapScript()
+
     const userMessage = {
       type: "message",
       id: 11,
@@ -14621,7 +14625,7 @@ describe("App", () => {
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(linkedArticle.compareDocumentPosition(actionCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(actionCard.compareDocumentPosition(laterArticle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/44")
+    expect(screen.getByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/JOB-44")
     expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")).toBeInTheDocument()
     expect(screen.getByText("tighten").tagName).toBe("STRONG")
     expect(screen.getByText("Use focused tests.").tagName).toBe("LI")
@@ -15235,9 +15239,66 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
     csrf_token: "csrf-token",
     unread_notifications_count: 0,
     setup_status: setupStatusOverride ?? (setupStatusPayloadOverride as ReturnType<typeof bootstrapSetupStatusPayload> | undefined) ?? defaultSetupStatus(),
+    slug_refs: {
+      types: [
+        {
+          prefix: "JOB",
+          type: "job",
+          display_label: "Job",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/jobs/JOB-:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "EPIC",
+          type: "epic",
+          display_label: "Epic",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/epics/EPIC-:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "CHAT",
+          type: "chat",
+          display_label: "Chat",
+          copyable: true,
+          linkable: false,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: null,
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        },
+        {
+          prefix: "DOC",
+          type: "design_doc",
+          display_label: "Design Doc",
+          copyable: true,
+          linkable: true,
+          preview_available: true,
+          linkifies_generated_text: true,
+          href_template: "/design_docs/:id",
+          mobile_interaction_hints: { tap: "open", long_press: "copy" }
+        }
+      ]
+    },
     feature_flags: {},
     ...payloadOverrides
   }
+}
+
+function appendBootstrapScript(payload = bootstrapPayload()) {
+  const script = document.createElement("script")
+  script.id = "syrus-bootstrap-data"
+  script.type = "application/json"
+  script.textContent = JSON.stringify(payload)
+  document.body.appendChild(script)
+  return script
 }
 
 function defaultSetupStatus() {
