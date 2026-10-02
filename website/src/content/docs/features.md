@@ -660,6 +660,12 @@ screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
 screenshot; further discussion or markup happens in chat once it's attached.
+When chat speech-to-text is enabled, the composer microphone uses the best
+available dictation mode reported by the backend: an enabled and healthy
+speech-to-text provider such as the bundled `whisper_stt` plugin receives
+recorded audio for backend batch transcription, while disabled or unavailable
+providers leave dictation on the browser's built-in speech recognition where
+the browser supports it.
 Once the current chat session has a pending or confirmed proposal, or a Job
 directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
 section at the top lists this chat's own pending Job and Epic proposals, each

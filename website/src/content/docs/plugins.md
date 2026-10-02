@@ -26,7 +26,8 @@ Plugins can contribute:
 - CI log parsers,
 - dependency-audit commands,
 - affected-test analyzers,
-- source integrations such as GitHub or Linear.
+- source integrations such as GitHub or Linear,
+- speech-to-text backends for chat dictation.
 
 The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
