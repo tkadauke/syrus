@@ -118,6 +118,47 @@ describe("contextFindSurface", () => {
   })
 })
 
+describe("chat context find", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("finds visible transcript text even when scoped FTS returns no rows", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "The seeded preview transcript is visible." },
+            text: "The seeded preview transcript is visible.",
+            bookmarkable: true
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("The seeded preview transcript is visible.")).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
+
+    expect(screen.getByText("1/1")).toBeInTheDocument()
+  })
+})
+
 describe("workspaceTabLabel", () => {
   const mockT = (key: string) => `T:${key}`
 
