@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState, type MouseEvent } from "react"
+import { useEffect, useState, type MouseEvent } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
@@ -70,6 +70,7 @@ export function RepositoryInsightsRoute() {
           page={page}
           payload={payload}
           locationSearch={location.search}
+          locationHash={location.hash}
           pathname={location.pathname}
           prefix={prefix}
         />
@@ -85,6 +86,7 @@ function InsightSuggestionsList({
   page,
   payload,
   locationSearch,
+  locationHash,
   pathname,
   prefix
 }: {
@@ -94,6 +96,7 @@ function InsightSuggestionsList({
   page: number
   payload: InsightSuggestionsPayload
   locationSearch: string
+  locationHash: string
   pathname: string
   prefix: string
 }) {
@@ -105,6 +108,25 @@ function InsightSuggestionsList({
       ? { ...folder, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }), path: repositoryInsightFolderPath(repositoryId, folder.path) }
       : { ...folder, path: repositoryInsightFolderPath(repositoryId, folder.path) }
   )
+
+  useEffect(() => {
+    if (!locationHash) return
+
+    const targetSlug = decodeURIComponent(locationHash.slice(1))
+    if (!suggestions.some((suggestion) => suggestion.slug === targetSlug)) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetSlug)
+      if (!(target instanceof HTMLElement)) return
+
+      target.focus({ preventScroll: true })
+      if (typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "center" })
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [locationHash, suggestions])
 
   return (
     <AdminFiltersLayout
@@ -270,7 +292,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
   }
 
   return (
-    <article className={surfaceClasses("panel", "none", "cursor-pointer")} id={suggestion.slug} onClick={handleCardClick}>
+    <article className={surfaceClasses("panel", "none", "cursor-pointer scroll-mt-24 focus:outline-none focus:ring-2 focus:ring-brand")} id={suggestion.slug} onClick={handleCardClick} tabIndex={-1}>
       {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">

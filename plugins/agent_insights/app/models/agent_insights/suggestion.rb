@@ -5,6 +5,7 @@ module AgentInsights
     SEVERITIES = %w[low medium high].freeze
     STATES     = %w[pending accepted dismissed retired].freeze
     PROPOSAL_TYPES = %w[create_job save_memory remove_memory revise_existing_insight informational].freeze
+    DISPLAY_ORDER_SQL = "CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC, confidence DESC, id ASC".freeze
 
     belongs_to :job
     belongs_to :repository
@@ -38,6 +39,7 @@ module AgentInsights
     scope :retired,   -> { where(state: "retired") }
     scope :active,    -> { where.not(state: "retired") }
     scope :for_repository, ->(repository) { where(repository: repository) }
+    scope :display_order, -> { order(Arel.sql(DISPLAY_ORDER_SQL)) }
     scope :pending_remove_memory, -> { pending.where(proposal_type: "remove_memory") }
     scope :with_created_job, -> { where.not(created_job_id: nil) }
     scope :without_created_job, -> { where(created_job_id: nil) }

@@ -50,7 +50,7 @@ module Api
           per_page = per_page_param
           base_relation = AgentInsights::Suggestion.for_repository(repository)
             .includes(:job, :created_job)
-            .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
+            .display_order
 
           filter      = current_filter
           relation    = filter.apply(base_relation)

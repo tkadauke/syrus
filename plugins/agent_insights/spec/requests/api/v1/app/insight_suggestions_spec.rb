@@ -407,7 +407,7 @@ RSpec.describe "App API insight suggestions", type: :request do
         "display_label" => "Insight",
         "numeric_id" => suggestion.id,
         "accessible" => true,
-        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}",
+        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all&page=1#INSIGHT-#{suggestion.id}",
         "api_preview_path" => "/api/v1/app/insight_suggestions/#{suggestion.id}/preview",
         "copyable" => true,
         "preview_available" => true,
@@ -420,7 +420,18 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       get "/s/INSIGHT-#{suggestion.id}"
 
-      expect(response).to redirect_to("/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}")
+      expect(response).to redirect_to("/repositories/#{repository.id}/plugin/insights?state=all&page=1#INSIGHT-#{suggestion.id}")
+    end
+
+    it "redirects global insight slugs to the page containing the suggestion" do
+      20.times do |index|
+        create_suggestion(title: "Earlier #{index}", severity: "high", confidence: 1.0 - (index * 0.01))
+      end
+      target = create_suggestion(title: "Later", severity: "low", confidence: 1.0)
+
+      get "/s/INSIGHT-#{target.id}"
+
+      expect(response).to redirect_to("/repositories/#{repository.id}/plugin/insights?state=all&page=2#INSIGHT-#{target.id}")
     end
 
     it "returns a lightweight preview payload for accessible insights" do
@@ -449,7 +460,7 @@ RSpec.describe "App API insight suggestions", type: :request do
         "confidence" => 0.75,
         "state" => "pending",
         "proposal_type" => "create_job",
-        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}"
+        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all&page=1#INSIGHT-#{suggestion.id}"
       )
       expect(insight.fetch("repository")).to include("slug" => repository.slug, "insights_path" => "/repositories/#{repository.id}/plugin/insights")
       expect(insight.fetch("created_job")).to include("slug" => created_job.slug, "title" => "Fix cache")
