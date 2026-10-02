@@ -25,7 +25,7 @@ class MainGraderWorkflowJob < ApplicationJob
         user: user,
         repository: repository,
         kind: "main_grader",
-        issue_title: "main_grader:#{sha}",
+        issue_title: "main_grader: #{sha.first(8)}",
         issue_number: nil
       )
 
