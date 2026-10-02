@@ -15,7 +15,10 @@ When a chat turn crashes and Syrus schedules an automatic retry, the retry
 status pill includes a manual retry control. It calls
 `POST /api/v1/app/chats/:id/retry_turn`, which performs the active pending
 retry immediately after re-checking that the chat turn has not moved on and
-that no live agent process or pending `ChatTurnJob` is already active.
+that no live agent process or pending `ChatTurnJob` is already active. Automatic
+and manual retries wake the transcript with a Retry system message and run the
+retry against the original operator message instead of appending a duplicate
+operator-authored user message.
 
 The primary new-chat form defaults its repository selector to the same backend
 rule as the create endpoint: the most recently created accessible chat with a

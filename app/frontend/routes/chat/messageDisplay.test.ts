@@ -39,6 +39,19 @@ describe("isLowPrioritySystemMessage", () => {
     expect(isLowPrioritySystemMessage(item)).toBe(false)
   })
 
+  it("does not hide chat turn retry wakeup messages by default", () => {
+    const item = renderMessage({
+      text: "Retrying the previous assistant turn now.",
+      content: {
+        text: "Retrying the previous assistant turn now.",
+        source: "chat_turn_retry"
+      },
+      system: { tone: "neutral", label: "Retry", body: "Retrying the previous assistant turn now." }
+    })
+
+    expect(isLowPrioritySystemMessage(item)).toBe(false)
+  })
+
   it("does not hide batched proposal and goal control messages by default", () => {
     const item = renderMessage({
       text: "Goal continuation started.\n\nProposal confirmed. JOB-716 was created.",

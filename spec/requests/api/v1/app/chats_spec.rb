@@ -2118,20 +2118,34 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "performs a scheduled retry immediately and returns the refreshed chat payload" do
       sign_in_as(user)
       chat, message, attempt = create_chat_turn_retry(user: user)
+      user_message_count = chat.messages.where(role: "user", content: message.content).count
+      retry_status_count = chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }
 
       expect {
         post "/api/v1/app/chats/#{chat.id}/retry_turn"
-      }.to change { chat.messages.where(role: "user").count }.by(1)
-        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).on_queue("chat")
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, message.id).on_queue("chat")
 
       expect(response).to have_http_status(:ok)
-      retry_message = attempt.reload.retry_message
+      expect(chat.messages.where(role: "user", content: message.content).count).to eq(user_message_count)
+      expect(chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }).to eq(retry_status_count + 1)
+      status_message = attempt.reload.retry_message
       expect(attempt.performed_at).to be_present
-      expect(retry_message).to have_attributes(
+      expect(status_message).to have_attributes(
         chat_session: chat,
-        role: "user",
-        content: message.content,
-        sender_user_id: user.id
+        role: "system",
+        content: hash_including(
+          "text" => "Retrying the previous assistant turn now.",
+          "source" => "chat_turn_retry",
+          "root_user_message_id" => message.id,
+          "user_message_id" => message.id,
+          "attempt_number" => 1
+        )
+      )
+      payload_status_message = parse_body["messages"].detect { |payload_message| payload_message["id"] == status_message.id }
+      expect(payload_status_message).to include(
+        "role" => "system",
+        "text" => "Retrying the previous assistant turn now.",
+        "content" => include("source" => "chat_turn_retry")
       )
       expect(parse_body["message"]).to eq("Chat turn retry started.")
       expect(parse_body["turn_retry_state"]).to be_nil

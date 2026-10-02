@@ -1,6 +1,8 @@
 class ChatTurnAutoRetryReconciler
   GRACE_PERIOD = 75.seconds
   FAILED_MESSAGE = ChatStopReconciler::FAILED_MESSAGE
+  RETRY_STARTED_MESSAGE = "Retrying the previous assistant turn now."
+  RETRY_STARTED_SOURCE = "chat_turn_retry"
   Result = Struct.new(:performed, :code, :message, keyword_init: true) do
     def performed? = performed
   end
@@ -188,7 +190,7 @@ class ChatTurnAutoRetryReconciler
 
   def perform_attempt_result!(attempt, allow_early:)
     chat = nil
-    retry_message = nil
+    status_message = nil
 
     transaction_result = ApplicationRecord.transaction do
       locked_attempt = ChatTurnAutoRetryAttempt.lock.find(attempt.id)
@@ -213,11 +215,15 @@ class ChatTurnAutoRetryReconciler
         next result(:turn_active, "The chat turn is already active.")
       end
 
-      retry_message = chat.messages.create!(
-        role: "user",
-        content: locked_attempt.user_message.content.deep_dup,
-        sender_user_id: locked_attempt.user_message.sender_user_id,
-        skip_turn_trigger: false
+      status_message = chat.messages.create!(
+        role: "system",
+        content: {
+          "text" => RETRY_STARTED_MESSAGE,
+          "source" => RETRY_STARTED_SOURCE,
+          "root_user_message_id" => locked_attempt.root_user_message_id,
+          "user_message_id" => locked_attempt.user_message_id,
+          "attempt_number" => locked_attempt.attempt_number
+        }
       )
       chat.update!(
         last_message_at: now,
@@ -225,12 +231,12 @@ class ChatTurnAutoRetryReconciler
         turn_in_flight: true
       )
       chat.pin_chat_provider!
-      ChatTurnJob.perform_later(chat.id, retry_message.id)
-      locked_attempt.update!(performed_at: now, retry_message: retry_message)
+      ChatTurnJob.perform_later(chat.id, locked_attempt.user_message_id)
+      locked_attempt.update!(performed_at: now, retry_message: status_message)
       result(:performed, "Chat turn retry started.")
     end
 
-    broadcast(chat) if retry_message.present?
+    broadcast(chat) if status_message.present?
     transaction_result
   end
 
