@@ -14,6 +14,7 @@ import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobile
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 
 const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
 
@@ -31,8 +32,34 @@ vi.mock("@rails/actioncable", () => ({
   })
 }))
 
+function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
+  return {
+    prefix: overrides.prefix,
+    type: overrides.type,
+    displayLabel: overrides.prefix,
+    copyable: true,
+    linkable: true,
+    previewAvailable: true,
+    linkifiesGeneratedText: true,
+    hrefTemplate: null,
+    mobileInteractionHints: {},
+    pluginPreviewComponent: null,
+    ...overrides
+  }
+}
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
+    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" }),
+    registryEntry({ prefix: "CHAT", type: "chat", linkable: false, hrefTemplate: null }),
+    registryEntry({ prefix: "DOC", type: "design_doc", hrefTemplate: "/design_docs/:id" })
+  ])
+})
+
 afterEach(() => {
   actionCableSubscriptions.length = 0
+  setSlugReferenceRegistryForTests(null)
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
 })
