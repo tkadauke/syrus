@@ -63,8 +63,9 @@ domain concepts. File paths are repo-relative.
   subprocess) drives a headless Chromium browser for the `visual_review`
   agent step and other agentic steps; navigation is hard-restricted to the
   worker's own loopback preview
-- **whisper.cpp** bundled into the app/worker images as a zero-config,
-  local speech-to-text default for the chat composer's microphone input
+- **Chat speech-to-text providers** resolved through the plugin registry, with
+  browser speech recognition as the no-backend fallback for the chat
+  composer's microphone input
 
 ## The big picture
 
@@ -1852,14 +1853,11 @@ Chat index records and app events carry `turn_in_flight`/`agent_busy`
 state, letting the React sidebar mark active chat turns without waiting
 for a full recent-chat refetch.
 
-The chat composer's microphone/dictation input transcribes through
-`ChatSpeechToText::Providers::WhisperCpp` by default — a zero-config,
-no-API-key local transcription path using a whisper.cpp binary and model
-bundled into the app/worker images (`/opt/whisper.cpp/`), spawned per
-utterance through `ProcessRunner`. Operators can point
-`SYRUS_STT_WHISPER_CPP_EXECUTABLE`/`_MODEL` at an alternate build; if
-neither the bundled nor a configured binary is present, dictation falls
-back to the browser's own built-in speech recognition.
+The chat composer's microphone/dictation input resolves backend
+transcription through enabled `speech_to_text_provider` plugins. Core does
+not register a backend provider by default; `SYRUS_STT_PROVIDER` can pin a
+plugin by `provider_key`, and when no plugin provider is available dictation
+falls back to the browser's own built-in speech recognition.
 
 ## External platform chat
 

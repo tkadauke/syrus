@@ -187,13 +187,14 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).not_to include("apt-get install --no-install-recommends -y tailscale")
   end
 
-  it "packages the full whisper.cpp runtime, not just the CLI binary" do
-    whisper_stage = stage("whisper-build", "app")
+  it "does not bundle a speech-to-text subprocess backend in the core image" do
+    deleted_stage = "whisper" + "-build"
+    deleted_install_path = File.join("/opt", "whisper" + ".cpp")
+    deleted_skip_arg = "SYRUS_SKIP_" + "WHISPER_BUILD"
 
-    expect(dockerfile).to include('LD_LIBRARY_PATH="/opt/whisper.cpp/lib:/opt/whisper.cpp/lib64"')
-    expect(whisper_stage).to include("-DCMAKE_INSTALL_PREFIX=/opt/whisper.cpp")
-    expect(whisper_stage).to include("cmake --install /tmp/whisper-cpp-src/build --config Release")
-    expect(whisper_stage).to include("ln -sf /opt/whisper.cpp/bin/whisper-cli /opt/whisper.cpp/whisper-cli")
+    expect(dockerfile).not_to include(" AS #{deleted_stage}")
+    expect(dockerfile).not_to include(deleted_install_path)
+    expect(dockerfile).not_to include(deleted_skip_arg)
   end
 
   it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
