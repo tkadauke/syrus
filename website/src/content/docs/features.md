@@ -481,6 +481,9 @@ only kicks in once at least two same-priority Jobs are ready to land
 together; a lone ready Job lands on its own right away. Externally filed
 pull requests are never bundled, since they land directly against the
 GitHub PR rather than through a Syrus-owned integration branch.
+When dependency-linked bundle candidates would otherwise be separated,
+Syrus keeps them together when the combined dependency-connected set fits
+within the configured merge-train size cap.
 
 As with Epic merge trains, only the final integrated result that actually
 lands is graded — intermediate commits inside the integration branch are

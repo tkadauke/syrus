@@ -245,10 +245,10 @@ RSpec.describe LandingBundleAssembler do
       expect(result.job_ids).to eq([ a.id, b.id ])
     end
 
-    it "does not shrink the cap when the current bundle includes only the prerequisite" do
+    it "coalesces a dependency-connected set that crosses the current cap when it fits" do
       AppSetting.current.update!(merge_train_max_size: 3)
-      a = approved(issue_number: 1)
-      b = approved(issue_number: 2)
+      approved(issue_number: 1)
+      approved(issue_number: 2)
       c = approved(issue_number: 3)
       d = approved(issue_number: 4)
       JobDependency.create!(job: d, depends_on_job: c, source: "manual")
@@ -256,20 +256,80 @@ RSpec.describe LandingBundleAssembler do
       result = described_class.for_repository(repository)
 
       expect(result).to be_ready
-      expect(result.job_ids).to eq([ a.id, b.id, c.id ])
+      expect(result.job_ids).to eq([ c.id, d.id ])
     end
 
-    it "can form a minimum-size bundle that includes a prerequisite without its dependent" do
-      AppSetting.current.update!(merge_train_max_size: 2)
-      a = approved(issue_number: 1)
-      b = approved(issue_number: 2)
-      c = approved(issue_number: 3)
-      JobDependency.create!(job: c, depends_on_job: b, source: "manual")
+    it "coalesces dependency-linked bundle-sized groups before unrelated candidates when the combined group fits" do
+      AppSetting.current.update!(merge_train_max_size: 4)
+      approved(issue_number: 1)
+      root = approved(issue_number: 2)
+      first_group_leaf = approved(issue_number: 3)
+      second_group_root = approved(issue_number: 4)
+      second_group_leaf = approved(issue_number: 5)
+      JobDependency.create!(job: first_group_leaf, depends_on_job: root, source: "manual")
+      JobDependency.create!(job: second_group_root, depends_on_job: first_group_leaf, source: "manual")
+      JobDependency.create!(job: second_group_leaf, depends_on_job: second_group_root, source: "manual")
 
       result = described_class.for_repository(repository)
 
       expect(result).to be_ready
-      expect(result.job_ids).to eq([ a.id, b.id ])
+      expect(result.job_ids).to eq([ root.id, first_group_leaf.id, second_group_root.id, second_group_leaf.id ])
+    end
+
+    it "coalesces a parent-linked set that crosses the current cap when it fits" do
+      AppSetting.current.update!(merge_train_max_size: 2)
+      approved(issue_number: 1)
+      parent = approved(issue_number: 2)
+      child = approved(issue_number: 3, parent_job: parent)
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to eq([ parent.id, child.id ])
+    end
+
+    it "keeps the safe split when the dependency-connected set exceeds the cap" do
+      AppSetting.current.update!(merge_train_max_size: 2)
+      root = approved(issue_number: 1)
+      middle = approved(issue_number: 2)
+      leaf = approved(issue_number: 3)
+      JobDependency.create!(job: middle, depends_on_job: root, source: "manual")
+      JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to eq([ root.id, middle.id ])
+    end
+
+    it "does not coalesce dependency-linked Jobs across priority tiers" do
+      high_a = approved(issue_number: 1, priority: "high")
+      high_b = approved(issue_number: 2, priority: "high")
+      medium_a = approved(issue_number: 3)
+      medium_b = approved(issue_number: 4)
+      JobDependency.create!(job: medium_a, depends_on_job: high_b, source: "manual")
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.priority).to eq("high")
+      expect(result.job_ids).to eq([ high_a.id, high_b.id ])
+      expect(result.job_ids).not_to include(medium_a.id, medium_b.id)
+    end
+
+    it "does not coalesce dependency-linked Jobs across effective owners" do
+      other_owner = Factories.user
+      owner_a = approved(issue_number: 1, owner_user: user)
+      owner_b = approved(issue_number: 2, owner_user: user)
+      other_a = approved(issue_number: 3, owner_user: other_owner)
+      other_b = approved(issue_number: 4, owner_user: other_owner)
+      JobDependency.create!(job: other_a, depends_on_job: owner_b, source: "manual")
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to eq([ owner_a.id, owner_b.id ])
+      expect(result.job_ids).not_to include(other_a.id, other_b.id)
     end
 
     describe ".ready_for_priority?" do
@@ -280,7 +340,7 @@ RSpec.describe LandingBundleAssembler do
         expect(described_class.ready_for_priority?(repository, "medium")).to be true
       end
 
-      it "agrees with .for_repository when the cap includes a prerequisite but excludes its dependent" do
+      it "agrees with .for_repository when dependency coalescing skips unrelated earlier candidates" do
         AppSetting.current.update!(merge_train_max_size: 2)
         approved(issue_number: 1)
         b = approved(issue_number: 2)
