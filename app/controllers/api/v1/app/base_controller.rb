@@ -71,7 +71,7 @@ module Api
         end
 
         def restrict_invocation_relation(relation)
-          context = Current.session&.invocation_context
+          context = current_invocation_context
           return relation unless context && relation.respond_to?(:klass)
 
           case relation.klass.name
@@ -96,7 +96,7 @@ module Api
         end
 
         def invocation_scoped_chat_scope(scope)
-          context = Current.session&.invocation_context
+          context = current_invocation_context
           return scope unless context
           return scope.none if context.run?
 
@@ -104,7 +104,7 @@ module Api
         end
 
         def invocation_scoped_repository_scope(scope)
-          context = Current.session&.invocation_context
+          context = current_invocation_context
           return scope unless context
 
           repository_ids = context.allowed_repository_ids
@@ -113,7 +113,7 @@ module Api
         end
 
         def enforce_invocation_context_scope
-          context = Current.session&.invocation_context
+          context = current_invocation_context
           return true unless context
 
           if disallowed_invocation_param?(context)
@@ -146,9 +146,14 @@ module Api
         def current_internal_cli_invocation
           return @current_internal_cli_invocation if defined?(@current_internal_cli_invocation)
 
-          context = Current.session&.invocation_context
+          context = current_invocation_context
           @current_internal_cli_invocation =
-            AppApi::InternalCliInvocation.active?(Current.session) ? AppApi::InternalCliInvocation.new(self, context: context) : nil
+            context ? AppApi::InternalCliInvocation.new(self, context: context) : nil
+        end
+
+        def current_invocation_context
+          session = Current.session
+          session.invocation_context if session.respond_to?(:invocation_context)
         end
 
         def disallowed_invocation_param?(context)

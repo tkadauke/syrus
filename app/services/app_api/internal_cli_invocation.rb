@@ -13,7 +13,7 @@ module AppApi
     end
 
     def self.active?(session)
-      session&.invocation_context.present?
+      session.respond_to?(:invocation_context) && session.invocation_context.present?
     end
 
     def read_only?
