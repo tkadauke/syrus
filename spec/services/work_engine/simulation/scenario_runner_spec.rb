@@ -267,7 +267,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     "cancelled_retry_until_barrier_blocks_tail" => "cancelled_retry_until_barrier_blocking_tail",
     "manual_grade_loop_restart_ignores_superseded_failures" => "grader_collect -> success",
     "requested_intent_without_active_unit" => "requested_work_intent_without_active_unit",
-    "failed_unit_running_workflow_queued_tail" => "queued_step_without_run"
+    "failed_unit_running_workflow_queued_tail" => "queued_step_without_run",
+    "queued_workflow_without_first_run" => "queued_workflow_without_first_run"
   }.each do |scenario, expected_event|
     it "recovers #{scenario}" do
       result = run_scenario(scenario)

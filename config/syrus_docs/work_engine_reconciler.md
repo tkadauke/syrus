@@ -291,7 +291,11 @@ Planner examples:
   `stack_dependencies_not_ready` persisted but the current dependency resolver
   returns no unsatisfied dependencies, the reconciler emits
   `stale_dependency_start_block` with an automatic
-  `clear_stale_start_block_and_start_workflow` repair.
+  `clear_stale_start_block_and_start_workflow` repair. Admission/resource
+  start blocks whose retry timestamp is missing or already elapsed are treated
+  as due for recheck, so the reconciler re-drives the start gate instead of
+  reporting an indefinite wait. Deliberate indefinite holds, such as manual
+  pauses, remain wait-only until the operator clears them.
 - If a Job is queued after its latest Workflow was cancelled before creating
   a first Run, and that Workflow still records an active start block such as
   broken main health, an unresolved dependency/stack wait, an urgent-job hold,

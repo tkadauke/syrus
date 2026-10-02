@@ -3128,7 +3128,15 @@ module WorkEngine
 
     def start_blocked_check_due?(workflow)
       next_check_at = start_block_next_check_at(workflow)
-      next_check_at.present? && next_check_at <= now
+      return next_check_at <= now if next_check_at.present?
+
+      missing_start_block_check_retryable?(workflow)
+    end
+
+    def missing_start_block_check_retryable?(workflow)
+      reason = start_block_reason(workflow)
+
+      admission_block_reason?(reason) || resource_admission_block_reason?(reason)
     end
 
     def stale_dependency_start_block?(workflow)
