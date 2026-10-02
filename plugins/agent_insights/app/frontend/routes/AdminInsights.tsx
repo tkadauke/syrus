@@ -13,6 +13,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
+import { InsightSlug } from "../components/InsightSlug"
 
 const QUERY_KEY = ["admin", "insights"]
 
@@ -188,6 +189,9 @@ function adminInsightColumns(
       className: "min-w-72",
       render: (suggestion, { expanded, toggleExpanded }) => (
         <div className="max-w-md">
+          <div className="mb-1">
+            <InsightSlug slug={suggestion.slug} />
+          </div>
           <button
             aria-expanded={expanded}
             className="text-left text-sm font-medium text-text-primary underline-offset-2 hover:underline"

@@ -25,8 +25,10 @@ module AgentInsights
              repo_page_tab: "AgentInsights::RepoPageTabs",
              admin_page: "AgentInsights::AdminPages",
              mcp_tool_set: "AgentInsights::McpToolSet",
-             chat_mcp_tool_set: "AgentInsights::ChatToolSet"
+             chat_mcp_tool_set: "AgentInsights::ChatToolSet",
+             slug_type: "AgentInsights::SlugType"
     route :get, "/api/v1/app/repositories/:repository_id/insight_suggestions", to: "api/v1/app/insight_suggestions#index"
+    route :get, "/api/v1/app/insight_suggestions/:id/preview", to: "api/v1/app/insight_suggestions#preview"
     route :patch, "/api/v1/app/insight_suggestions/:id", to: "api/v1/app/insight_suggestions#update"
     route :post, "/api/v1/app/insight_suggestions/:id/discuss", to: "api/v1/app/insight_suggestions#discuss"
     route :post, "/api/v1/app/repositories/:id/run_insight_analysis", to: "api/v1/app/insight_suggestions#run_insight_analysis"
@@ -38,6 +40,9 @@ module AgentInsights
     frontend routes: {
           "agent_insights/RepositoryInsights" => "app/frontend/repo_tabs/RepositoryInsights.tsx",
           "agent_insights/AdminInsights" => "app/frontend/routes/AdminInsights.tsx"
+        },
+        slug_preview_cards: {
+          "INSIGHT" => "app/frontend/slugPreviewCards/INSIGHT.InsightPreviewCard.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/agent_insights.json" ]
 

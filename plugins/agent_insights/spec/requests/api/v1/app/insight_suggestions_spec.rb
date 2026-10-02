@@ -394,6 +394,105 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
     end
 
+    it "resolves insight slugs through the global slug ref endpoint" do
+      suggestion = create_suggestion(title: "Cache misses", suggested_prompt: "Fix the caching")
+
+      get "/api/v1/app/slug_refs/INSIGHT-#{suggestion.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("slug_ref")).to include(
+        "canonical_slug" => "INSIGHT-#{suggestion.id}",
+        "type" => "insight",
+        "prefix" => "INSIGHT",
+        "display_label" => "Insight",
+        "numeric_id" => suggestion.id,
+        "accessible" => true,
+        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}",
+        "api_preview_path" => "/api/v1/app/insight_suggestions/#{suggestion.id}/preview",
+        "copyable" => true,
+        "preview_available" => true,
+        "linkifies_generated_text" => true
+      )
+    end
+
+    it "redirects global insight slugs to the focused repository insights page" do
+      suggestion = create_suggestion
+
+      get "/s/INSIGHT-#{suggestion.id}"
+
+      expect(response).to redirect_to("/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}")
+    end
+
+    it "returns a lightweight preview payload for accessible insights" do
+      created_job = Factories.job(user: user, repository: repository, issue_title: "Fix cache")
+      suggestion = create_suggestion(
+        title: "Cache misses",
+        category: "inefficiency",
+        severity: "medium",
+        confidence: 0.75,
+        suggested_prompt: "Fix the caching",
+        created_job: created_job
+      )
+
+      get "/api/v1/app/insight_suggestions/#{suggestion.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      insight = parse_body.fetch("insight")
+      expect(insight).to include(
+        "id" => suggestion.id,
+        "display_id" => "INSIGHT-#{suggestion.id}",
+        "accessible" => true,
+        "title" => "Cache misses",
+        "summary" => "Fix the caching",
+        "category" => "inefficiency",
+        "severity" => "medium",
+        "confidence" => 0.75,
+        "state" => "pending",
+        "proposal_type" => "create_job",
+        "web_path" => "/repositories/#{repository.id}/plugin/insights?state=all#INSIGHT-#{suggestion.id}"
+      )
+      expect(insight.fetch("repository")).to include("slug" => repository.slug, "insights_path" => "/repositories/#{repository.id}/plugin/insights")
+      expect(insight.fetch("created_job")).to include("slug" => created_job.slug, "title" => "Fix cache")
+    end
+
+    it "returns neutral inaccessible slug and preview payloads for hidden repository insights" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Factories.job(user: other_user, repository: other_repo, kind: "agent_insight", issue_number: nil)
+      hidden = AgentInsights::Suggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Hidden cache misses",
+        category: "private",
+        severity: "high",
+        confidence: 0.9,
+        suggested_prompt: "Secret fix"
+      )
+
+      get "/api/v1/app/slug_refs/INSIGHT-#{hidden.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("slug_ref")).to include(
+        "canonical_slug" => "INSIGHT-#{hidden.id}",
+        "type" => "insight",
+        "accessible" => false,
+        "web_path" => nil,
+        "api_preview_path" => nil
+      )
+      expect(response.body).not_to include("Hidden cache misses")
+      expect(response.body).not_to include("Secret fix")
+
+      get "/api/v1/app/insight_suggestions/#{hidden.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("insight")).to eq(
+        "display_id" => "INSIGHT-#{hidden.id}",
+        "accessible" => false
+      )
+      expect(response.body).not_to include("Hidden cache misses")
+      expect(response.body).not_to include("Secret fix")
+    end
+
     it "redacts GitHub credentials from suggestion copy before rendering" do
       create_suggestion(
         title: "Leak https://x-access-token:ghs_titlesecret@github.com/acme/widgets.git",
