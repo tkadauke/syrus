@@ -1207,7 +1207,7 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     }
   })
 
-  it("auto-hides the mobile chat header on downward chat scroll and reveals it on upward scroll or background tap", () => {
+  it("auto-hides the complete mobile chat header stack on downward chat scroll and reveals it on upward scroll or background tap", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
     try {
@@ -1222,17 +1222,16 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
-      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 200 } })
-      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 300 } })
-
       expect(header).toHaveStyle({ transform: "translateY(-72px)", marginBottom: "-72px" })
       const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
       expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
 
-      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 260 } })
-      expect(header).toHaveStyle({ transform: "translateY(-48px)" })
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 60 } })
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
+      fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 120 } })
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
       fireEvent.click(screen.getByTestId("chat-message-stream"))
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
     } finally {

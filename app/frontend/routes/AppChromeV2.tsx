@@ -212,8 +212,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const reportMobileChatScrollDelta = useCallback((delta: number) => {
     if (!mobileChatHeaderAutoHideActive || !Number.isFinite(delta) || Math.abs(delta) < 1) return
 
-    const cappedDelta = Math.max(-24, Math.min(24, delta))
-    setMobileChatHeaderOffset((current) => Math.max(0, Math.min(mobileChatHeaderHideDistance, current + cappedDelta)))
+    setMobileChatHeaderOffset(delta > 0 ? mobileChatHeaderHideDistance : 0)
   }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])
   const mobileChatHeaderContext = useMemo(() => ({
     autoHideEnabled: mobileChatHeaderAutoHideActive,
