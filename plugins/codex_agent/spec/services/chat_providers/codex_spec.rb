@@ -40,12 +40,18 @@ RSpec.describe ChatProviders::Codex do
   end
 
   describe "#invoke" do
-    it "invokes Codex with chat MCP servers, chat Codex home, and resume transcript" do
+    it "invokes Codex with chat MCP servers, chat Codex home, resume transcript, and callbacks without live auth" do
       chat.create_provider_session!(
         provider: "codex",
         session_id: "codex-thread-1",
         transcript_jsonl: "{\"type\":\"session_meta\"}\n"
       )
+      codex_auth = instance_double(CodexAuth, prepare!: CodexAuth::Result.new(api_key: "sk-fake"), persist_updated_auth_json: nil)
+      allow(CodexAuth).to receive(:new)
+        .with(user: user, codex_home: ChatWorkspace.agent_home_for(chat, "codex"))
+        .and_return(codex_auth)
+      allow(CodexAuth).to receive(:with_refresh_lock).with(user: user).and_yield
+      allow(CodexUsageProbe).to receive(:refresh_for)
       mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
       mcp_config.write({
         mcpServers: {
@@ -76,25 +82,31 @@ RSpec.describe ChatProviders::Codex do
         received = kwargs
         result_fixture(session_id: "codex-thread-2", transcript_jsonl: "{\"type\":\"turn\"}\n")
       }
+      log_sink = ->(*, **) { }
+      stop_requested = -> { false }
+      process_started = ->(_process) { }
 
       result = described_class.new(chat: chat, runner: runner).invoke(
         workspace_path: "/tmp/chat-workspace",
         prompt: "What is the plan?",
-        log_sink: ->(*, **) { },
+        log_sink: log_sink,
         mcp_config: mcp_config.path,
         resume_session_id: "codex-thread-1",
-        stop_requested: -> { false },
-        process_started: ->(_process) { }
+        stop_requested: stop_requested,
+        process_started: process_started
       )
 
       expect(result.session_id).to eq("codex-thread-2")
       expect(received).to include(
         workspace_path: "/tmp/chat-workspace",
         prompt: "What is the plan?",
-        api_key: "sk-test",
+        api_key: "sk-fake",
+        log_sink: log_sink,
         codex_home: ChatWorkspace.agent_home_for(chat, "codex").to_s,
         resume_session_id: "codex-thread-1",
-        resume_transcript_jsonl: "{\"type\":\"session_meta\"}\n"
+        resume_transcript_jsonl: "{\"type\":\"session_meta\"}\n",
+        stop_requested: stop_requested,
+        process_started: process_started
       )
       expect(received[:mcp_servers]).to include(
         "syrus-chat-sidecar" => include(
@@ -115,6 +127,9 @@ RSpec.describe ChatProviders::Codex do
         'stage="auth_prepare"',
         'stage="auth_persist"'
       )
+      expect(codex_auth).to have_received(:prepare!)
+      expect(codex_auth).to have_received(:persist_updated_auth_json)
+      expect(CodexUsageProbe).not_to have_received(:refresh_for)
     ensure
       mcp_config&.close!
     end
