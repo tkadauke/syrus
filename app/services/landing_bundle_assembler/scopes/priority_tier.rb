@@ -106,15 +106,20 @@ class LandingBundleAssembler::Scopes::PriorityTier
   end
 
   # Cap the ordered candidate list at AppSetting.merge_train_max_size.
-  # If the cap would include a dependent while excluding its prerequisite,
-  # shrink the cut back so the later bundle cannot land out of order. The
-  # reverse split is valid: landing a prerequisite now while leaving its
-  # dependent for a later bundle preserves dependency order.
+  # If the cap cuts through a dependency-connected set that can land on its
+  # own, prefer that connected set so linked Jobs can land atomically instead
+  # of being separated by unrelated candidates. When the connected set would
+  # exceed the cap, keep the older safe prefix behavior: never include a
+  # dependent while excluding its prerequisite.
   def capped_members(ordered)
     max = AppSetting.merge_train_max_size
     return ordered if ordered.size <= max
 
     linked_pairs = dependency_linked_pairs(ordered)
+    if (members = coalesced_dependency_members(ordered, max, linked_pairs))
+      return members
+    end
+
     cut = max
     cut -= 1 while cut > 0 && cuts_off_prerequisite?(ordered, cut, linked_pairs)
     ordered.first(cut)
@@ -122,12 +127,51 @@ class LandingBundleAssembler::Scopes::PriorityTier
 
   def dependency_linked_pairs(candidates)
     ids = candidates.map(&:id)
-    dependency_pairs = JobDependency.resolved
-                                    .where(job_id: ids, depends_on_job_id: ids)
-                                    .pluck(:job_id, :depends_on_job_id)
+    candidate_ids = ids.to_set
+    dependency_pairs = candidates.flat_map do |job|
+      next [] if job.dependencies_overridden_at.present?
+
+      job.dependencies.filter_map do |dependency|
+        depends_on_job_id = dependency.depends_on_job_id
+        next if dependency.pending? || depends_on_job_id.blank?
+        next unless candidate_ids.include?(depends_on_job_id)
+
+        [ job.id, depends_on_job_id ]
+      end
+    end
     parent_pairs = candidates.filter_map { |job| [ job.id, job.parent_job_id ] if job.parent_job_id.in?(ids) }
 
     dependency_pairs + parent_pairs
+  end
+
+  def coalesced_dependency_members(ordered, max, linked_pairs)
+    cut_ids = ordered.first(max).map(&:id).to_set
+    overflow_ids = ordered.drop(max).map(&:id).to_set
+    crossing_pairs = linked_pairs.select do |job_id, depends_on_job_id|
+      cut_ids.include?(job_id) && overflow_ids.include?(depends_on_job_id) ||
+        cut_ids.include?(depends_on_job_id) && overflow_ids.include?(job_id)
+    end
+    return if crossing_pairs.empty?
+
+    connected_ids = dependency_connected_ids(crossing_pairs.flatten.to_set, linked_pairs)
+    return if connected_ids.size > max || connected_ids.size < MIN_BUNDLE_SIZE
+
+    ordered.select { |job| connected_ids.include?(job.id) }
+  end
+
+  def dependency_connected_ids(seed_ids, linked_pairs)
+    connected_ids = seed_ids.dup
+
+    loop do
+      previous_size = connected_ids.size
+      linked_pairs.each do |job_id, depends_on_job_id|
+        if connected_ids.include?(job_id) || connected_ids.include?(depends_on_job_id)
+          connected_ids << job_id
+          connected_ids << depends_on_job_id
+        end
+      end
+      return connected_ids if connected_ids.size == previous_size
+    end
   end
 
   def cuts_off_prerequisite?(ordered, cut, linked_pairs)
