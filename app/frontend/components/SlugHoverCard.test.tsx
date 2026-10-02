@@ -22,9 +22,10 @@ vi.mock("../pluginSlugPreviewCards", () => ({
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
+    configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches,
+      matches: query.includes("pointer: coarse") ? !matches : matches,
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -186,6 +187,29 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
 
     expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
+  })
+})
+
+describe("SlugReferenceCard when pointer media queries are unavailable", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: undefined
+    })
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it("preserves inline copy button behavior instead of assuming a touch device", () => {
+    renderCard("plugin", 5, "INSIGHT", { displayLabel: "Insight", hrefTemplate: null, linkable: false, previewAvailable: false })
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-5")
+    expect(screen.queryByRole("dialog", { name: "Actions for INSIGHT-5" })).not.toBeInTheDocument()
   })
 })
 
