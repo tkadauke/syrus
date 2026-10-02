@@ -48,23 +48,31 @@ gracefully.
 
 ## Surface
 
-Two paths are served, both local-only:
+The served paths are local-only:
 
 - `GET /healthz` — proves the daemon booted, built an `MCP::Server` in
   memory, enumerated its tools, and round-tripped the MCP protocol's
   standard no-op `ping` method. Returns `200` with
   `{"status": "ok", "identity": {...}, "tools": ["daemon_ping"], "ping_ok": true}`
   on success, `503` otherwise.
-- `/mcp` — the real MCP transport
+- `/mcp` — the chat MCP transport
   (`MCP::Server::Transports::StreamableHTTPTransport`, stateless mode),
-  mountable by any MCP-speaking client. It exposes the known chat MCP tool
-  surface, the workflow tool surface, and two proof-of-pipe tools:
-  `daemon_ping` (`PersistentMcpDaemon::PingTool`), a no-op call that echoes
-  the daemon's identity back, and `daemon_invocation_context`
-  (`PersistentMcpDaemon::InvocationContextTool`), which resolves whatever
-  signed context (see below) the caller attached to the request and echoes
-  back what it reconstructed. The transport also independently enforces
-  DNS-rebinding/loopback host protections per the MCP spec.
+  mountable by any MCP-speaking client. Alongside the full known chat MCP
+  tool surface (see "Chat transport selection" below), it exposes two
+  proof-of-pipe tools: `daemon_ping` (`PersistentMcpDaemon::PingTool`), a
+  no-op call that echoes the daemon's identity back, and
+  `daemon_invocation_context` (`PersistentMcpDaemon::InvocationContextTool`),
+  which resolves whatever signed context (see below) the caller attached to
+  the request and echoes back what it reconstructed.
+- `/mcp/workflow/<role-token>` — workflow MCP transports, one per workflow
+  agent role (`workflow_implement`, `workflow_summary_test_plan`,
+  `workflow_adversarial_reviewer`, `workflow_visual_reviewer`,
+  `workflow_rebase_conflict`, `workflow_manual`, and `agent_insight`). Each
+  path owns a distinct static `MCP::Server` whose tool list is prefiltered for
+  that role before the agent sees `tools/list`.
+
+All MCP transports independently enforce DNS-rebinding/loopback host
+protections per the MCP spec.
 
 ## Worker-local identity
 
@@ -146,11 +154,20 @@ transport before invoking. The decision is a `transport` (`:persistent` or
 - `daemon_incompatible: ...` — the daemon is healthy but its `/healthz`
   `capabilities` array doesn't include `PersistentMcpDaemon::WORKFLOW_TOOLS_CAPABILITY`
   (`"workflow_tools"`).
+- `provider_unsupported: ...` — provider-specific. Codex's MCP config
+  (`config.toml`) has no verified remote/HTTP transport wiring in this
+  codebase; Muse reads MCP servers from `~/.config/muse/settings.json`
+  without persistent HTTP wiring; and Antigravity's MCP config
+  (`~/.gemini/config/mcp_config.json`) also models the Syrus MCP sidecar as
+  stdio today. Providers that cannot consume HTTP MCP directly use
+  `bin/syrus-mcp-proxy` to bridge stdio JSON-RPC to the daemon.
 - `nil` (persistent, no fallback) — feature on, daemon healthy, compatible,
-  and transport wiring exists. `AgentProviders::Claude` builds an
-  `http`-type `mcpServers` entry pointing at `PersistentMcpDaemon::MCP_PATH`.
-  Stdio-only workflow providers build a `stdio` entry for
-  `bin/syrus-mcp-proxy`, which forwards JSON-RPC to that same daemon URL.
+  and transport wiring exists. `AgentProviders::Claude` then
+  builds an `http`-type `mcpServers` entry pointing at the role-specific
+  `/mcp/workflow/<role-token>` path instead of the usual `stdio` entry,
+  keeping the same `"syrus-mcp-sidecar"` config key either way (required-tool
+  enforcement in `ClaudeInvocation#required_mcp_tools_update` looks up that
+  exact name in claude's init event, independent of transport).
 
 **Diagnostics**: every non-`nil` decision is recorded on `Step#details["mcp_transport"]`
 (already serialized by `Admin::JobStateSerializer`, so it shows up in existing
@@ -167,6 +184,28 @@ map carries the signed `McpInvocationContext` token
 that header into the JSON-RPC request's `params._meta` before dispatch, so
 tools keep reading `server_context[:_meta]` the same way regardless of how
 the token arrived.
+
+**Tool dispatch (`PersistentMcpDaemon::WorkflowToolDispatch`,
+`PersistentMcpDaemon::WorkflowContextResolver`)**: workflow tools are
+registered once per role, not once globally. `WorkflowMcpTransportSelector`
+derives the role from `AgentRole.for_step_kind(run.step.kind)` before the
+agent config is generated, and `PersistentMcpDaemon.workflow_role_path(role)`
+selects the corresponding daemon path. `WorkflowContextResolver` resolves
+the signed token's `"run"` surface, reconstructs the real
+`McpToolContext.from_run(run)`, then maps that to registry surface
+`:workflow` by recomputing `McpToolPolicy.for(context)` plus
+`Mcp::Sidecar.plugin_workflow_tools_for(context)`. That explicit `"run"`
+token / `:workflow` registry split is intentional: the token describes what
+runtime object the caller is bound to, while the registry describes which MCP
+surface contributes tools.
+
+**Usage logging is authoritative at this boundary.** `WorkflowToolDispatch`
+wraps every persistent workflow call with
+`McpToolUsageRecorder.record_dispatch`, tagging rows with
+`surface: "workflow"`, `sidecar_mode: "persistent"`, the daemon `worker_id`,
+the resolved Run when available, and the provider carried in the token.
+Invalid, expired, or wrong-worker invocation tokens are recorded as failed
+dispatches before the underlying tool runs.
 
 ## Chat transport selection (`ChatMcpTransportSelector`)
 
@@ -199,8 +238,9 @@ tool, not just via manual inspection of a specific chat's artifacts.
 `PersistentMcpDaemon::ChatContextResolver`,
 `PersistentMcpDaemon::WorkflowToolDispatch`,
 `PersistentMcpDaemon::WorkflowContextResolver`)**: the daemon registers the
-full known chat and workflow tool surfaces once at boot, each tool wrapped so
-a call resolves its own per-invocation context. Chat dispatch rebuilds the
+known chat tool surface once at boot and registers one workflow tool surface
+per role, each tool wrapped so a call resolves its own per-invocation context.
+Chat dispatch rebuilds the
 same `{chat_session:, current_message:, evaluator:, scoped_event_id:,
 evaluator_session_id:}` shape `Mcp::Sidecar.chat_context` builds for stdio
 mode, and workflow dispatch rebuilds the same run-scoped
@@ -227,13 +267,11 @@ before-dispatch rejection ends up as a `status: "failed"` row with no
 **Known gap: `tools/list` advertises a superset.** The underlying `mcp` gem
 builds a server's tool list once at `MCP::Server.new(tools:)` time with no
 per-request hook, so unlike stdio mode's genuinely tier-scoped process, the
-persistent daemon's `tools/list` response is the same full known tool surface
-for every chat tier and workflow step. This does not weaken the security
-boundary (enforced per call by the dispatch wrappers, above) but does mean an
-MCP client may discover tools that a specific invocation cannot call.
-Narrowing `tools/list` itself would need either patching the vendored `mcp`
-gem or splitting the daemon into multiple `MCP::Server` instances server-side;
-out of scope for this milestone.
+persistent daemon's `/mcp` `tools/list` response is the same full known chat
+tool surface for every chat tier. This does not weaken the security boundary
+(enforced per call by the dispatch wrappers, above) but does mean an MCP
+client may discover chat tools that a specific invocation cannot call.
+Workflow `tools/list` is split by role-specific MCP paths.
 
 **Evaluator tier stays stdio-only.** `ChatEventEvaluator::ProviderRunner` (the
 disposable scoped-event evaluator, distinct from `ChatTurnJob`) is not
@@ -245,4 +283,7 @@ at all, so it isn't part of the daemon's registered chat tool surface either.
 
 ## What this is not (yet)
 
+- Codex and Muse chat sessions have no persistent HTTP transport wiring (see
+  `provider_unsupported` above) — only `ChatProviders::Claude` builds
+  `http`-type MCP config when the chat selector picks `:persistent`.
 - The chat evaluator tier (see above) is out of scope for this milestone.

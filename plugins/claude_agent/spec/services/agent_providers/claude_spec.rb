@@ -373,7 +373,7 @@ RSpec.describe AgentProviders::Claude do
 
       server = mcp_config.dig("mcpServers", "syrus-mcp-sidecar")
       expect(server["type"]).to eq("http")
-      expect(server["url"]).to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}")
+      expect(server["url"]).to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}/mcp/workflow/workflow_implement")
 
       token = server.dig("headers", PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER)
       resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
@@ -383,6 +383,27 @@ RSpec.describe AgentProviders::Claude do
       expect(details["transport"]).to eq("persistent")
       expect(details["reason"]).to be_nil
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("[mcp_transport] transport=persistent daemon_worker_id=w-1")
+    end
+
+    it "routes non-implement workflow roles to their role-specific persistent daemon path" do
+      review_step = Step.create!(workflow: run.step.workflow, kind: "adversarial_review", position: 99)
+      review_run = review_step.runs.create!(job: job, trigger_kind: run.trigger_kind, agent_provider: "claude")
+      review_adapter = described_class.new(run: review_run, workspace: workspace, parent_session_id: nil)
+      set_feature(true)
+      stub_request(:get, health_url).to_return(
+        status: 200,
+        body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [ "workflow_tools" ] }.to_json
+      )
+      mcp_config = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        mcp_config = JSON.parse(File.read(kwargs[:mcp_config]))
+        success_result
+      }
+
+      review_adapter.run(prompt: "review it", log_sink: ->(*, **) { }, max_turns: 7)
+
+      expect(mcp_config.dig("mcpServers", "syrus-mcp-sidecar", "url"))
+        .to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}/mcp/workflow/workflow_adversarial_reviewer")
     end
   end
 

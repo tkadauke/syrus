@@ -14,6 +14,8 @@
 # verifies it per dispatch and reconstructs the same McpToolContext
 # (McpToolContext.from_run / .from_chat_session) stdio mode builds, so tool
 # availability stays governed by the existing McpToolPolicy either way.
+# Run tokens remain valid past their timestamp only while the referenced Run is
+# active; once the Run reaches a terminal state, replay is rejected as expired.
 class McpInvocationContext
   MESSAGE_VERIFIER_PURPOSE = :mcp_invocation
   DEFAULT_EXPIRES_IN = 5.minutes
@@ -76,7 +78,6 @@ class McpInvocationContext
     # exists or no longer matches the token's claims (Unauthorized).
     def resolve(token, worker_id:)
       payload = decode(token)
-      validate_expiry!(payload)
       validate_worker!(payload, worker_id)
       build_resolved(payload)
     rescue InvalidContext => e
@@ -135,6 +136,7 @@ class McpInvocationContext
       end
       raise Unauthorized, "run #{payload['run_id']} not found" unless run
       raise Unauthorized, "invocation token job_id does not match run #{run.id}'s job" if payload["job_id"] && run.job_id != payload["job_id"]
+      validate_run_expiry!(payload, run)
 
       Resolved.new(
         tool_context: McpToolContext.from_run(run),
@@ -144,6 +146,8 @@ class McpInvocationContext
     end
 
     def build_resolved_for_chat(payload)
+      validate_expiry!(payload)
+
       chat_session = Mcp::Tools.with_database_connection do
         ChatSession.find_by(id: payload["chat_session_id"])
       end
@@ -158,6 +162,21 @@ class McpInvocationContext
         scoped_event_id: payload["scoped_event_id"],
         evaluator_session_id: payload["evaluator_session_id"]
       )
+    end
+
+    def validate_run_expiry!(payload, run)
+      if run.terminal?
+        finished_at = run.finished_at&.utc || Time.current.utc
+        raise Expired, "invocation token run #{run.id} ended at #{finished_at}"
+      end
+
+      validate_expiry!(payload)
+    rescue Expired
+      raise unless run_active?(run)
+    end
+
+    def run_active?(run)
+      Run::ACTIVE_STATES.include?(run.state)
     end
 
     def log_rejection(error, worker_id:)

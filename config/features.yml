@@ -71,7 +71,7 @@ features:
     category: "Labs"
     name: "Persistent MCP sidecar"
     name_i18n_key: "features.slugs.persistent_mcp_sidecar.name"
-    description: "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns and workflow agent runs can route MCP tool calls to it. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon; workflow agents can fall back to direct stdio when needed, while chat MCP requires the daemon."
+    description: "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes local-only MCP transports and a health check. Chat turns and workflow agent runs can route MCP tool calls to it. Stdio-only agent CLIs use a secret-free proxy process to reach the daemon; workflow agents can fall back to direct stdio when needed, while chat MCP requires the daemon."
     description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
     default: true
   - slug: emergency_land

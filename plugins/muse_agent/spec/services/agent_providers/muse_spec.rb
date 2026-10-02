@@ -138,7 +138,7 @@ RSpec.describe AgentProviders::Muse do
       args: []
     )
     expect(proxy_server[:env]).to include(
-      "SYRUS_MCP_PROXY_URL" => "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+      "SYRUS_MCP_PROXY_URL" => "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}/mcp/workflow/workflow_summary_test_plan"
     )
     token = proxy_server.dig(:env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
     resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
