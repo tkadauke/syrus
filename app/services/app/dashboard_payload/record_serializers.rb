@@ -252,7 +252,7 @@ module App
       def delivery_status_for(job)
         @delivery_policies_by_repository_id ||= {}
         policy = (@delivery_policies_by_repository_id[job.repository_id] ||= DeliveryPolicy.for(repository: job.repository))
-        DeliveryStatus.for(job: job, policy: policy)
+        DeliveryStatus.for(job: job, policy: policy, latest_workflow_state: latest_workflow_state_for(job))
       end
 
       def workflows_count_for(job)
