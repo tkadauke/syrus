@@ -17,8 +17,17 @@ RSpec.describe K8sCluster::ChatToolSet do
     expect(described_class.available_for?(chat_session, tier: :essential)).to be(true)
   end
 
-  it "is unavailable when no cluster has been configured" do
+  it "is available without a saved cluster when credential-backed kubectl can run" do
     allow(K8sCluster).to receive(:enabled?).and_return(true)
+    allow(CredentialStore).to receive(:enabled?).and_return(true)
+
+    expect(described_class.available_for?(chat_session, tier: :essential)).to be(true)
+    expect(described_class.tool_definitions(tier: :essential).map { |tool| tool.fetch(:name) }).to include("k8s_cluster_kubectl")
+  end
+
+  it "is unavailable when no cluster has been configured and credential_store is disabled" do
+    allow(K8sCluster).to receive(:enabled?).and_return(true)
+    allow(CredentialStore).to receive(:enabled?).and_return(false)
 
     expect(described_class.available_for?(chat_session, tier: :essential)).to be(false)
   end
@@ -62,7 +71,8 @@ RSpec.describe K8sCluster::ChatToolSet do
       "k8s_cluster_restart_rollout",
       "k8s_cluster_scale_deployment",
       "k8s_cluster_delete_pod",
-      "k8s_cluster_set_node_cordon"
+      "k8s_cluster_set_node_cordon",
+      "k8s_cluster_kubectl"
     )
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pods" }.fetch(:description)).to include("k8s_cluster_list_clusters")
     expect(tools.find { |tool| tool.fetch(:name) == "k8s_cluster_pod_logs" }.dig(:input_schema, :required)).to eq([ "cluster_id", "name", "namespace" ])

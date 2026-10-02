@@ -38,11 +38,16 @@ module K8sCluster
       RestartRolloutTool,
       ScaleDeploymentTool,
       DeletePodTool,
-      SetNodeCordonTool
+      SetNodeCordonTool,
+      KubectlTool
     ].freeze
 
     def self.available_for?(_chat_session, tier:)
-      %i[essential deferred].include?(tier.to_sym) && gated?
+      %i[essential deferred].include?(tier.to_sym) && (gated? || credential_backed_tool_available?)
+    end
+
+    def self.credential_backed_tool_available?
+      K8sCluster.enabled? && defined?(CredentialStore) && CredentialStore.enabled?
     end
   end
 end
