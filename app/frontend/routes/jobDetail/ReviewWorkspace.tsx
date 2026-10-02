@@ -467,7 +467,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             reviewAnnotationRanges={activeReviewAnnotations.ranges}
             highlightedReviewAnnotationId={highlightedReviewAnnotationId}
             activeDiffLineMetricProviderId={activeMetricGutterId}
-            diffLineMetricProviders={diffMetricProviders}
+            diffLineMetricProviders={diffLineMetricProviders}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders
@@ -520,6 +520,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
       ) : null}
       {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
     </div>
+    </>
   )
 }
 

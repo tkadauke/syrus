@@ -21,11 +21,11 @@ export type CognitiveReviewNotesPayload = {
 }
 
 export function acknowledgeCognitiveReviewNote(jobId: number, noteId: number) {
-  return postJson<CognitiveReviewNotesPayload>(`/api/v1/app/jobs/${jobId}/cognitive_review_notes/${noteId}/acknowledge`)
+  return postJson<CognitiveReviewNotesPayload>(`/api/v1/app/jobs/${jobId}/review_notes/${noteId}/acknowledge`)
 }
 
 export function discussCognitiveReviewNote(jobId: number, noteId: number, body: string) {
-  return postJson<CognitiveReviewNotesPayload>(`/api/v1/app/jobs/${jobId}/cognitive_review_notes/${noteId}/discussion_entries`, {
+  return postJson<CognitiveReviewNotesPayload>(`/api/v1/app/jobs/${jobId}/review_notes/${noteId}/discussion_entries`, {
     body,
     metadata: { source: "review_tab" }
   })

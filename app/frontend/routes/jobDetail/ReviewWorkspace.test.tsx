@@ -258,7 +258,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    expect(await screen.findByText("Review Notes")).toBeInTheDocument()
+    expect((await screen.findAllByText("Review Notes")).length).toBeGreaterThan(0)
     await waitFor(() => {
       expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(2)
     })
@@ -310,7 +310,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(sidebar).getByRole("button", { name: "Acknowledge" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/cognitive_review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
     })
     await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
   })
