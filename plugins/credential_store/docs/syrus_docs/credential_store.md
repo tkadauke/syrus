@@ -2,7 +2,8 @@
 
 The `credential_store` plugin owns generic credential records that should not
 be added as one-off encrypted columns on `User`. It is installed and enabled
-by default, but it does not expose agent tools by itself.
+by default, and exposes broker-backed agent tools for generic credential
+operations such as SSH command execution.
 
 Operators manage records from **Credential Store** in the sidebar, or from
 **Admin > Credential Store** when they are global admins. The page and
@@ -12,13 +13,14 @@ Payload material is write-only. Create, edit, and rotate forms accept new
 secret material, but list/show responses never include existing payload
 values.
 
-`CredentialStore::Credential` stores `credential_type` as a lowercase,
-dot-separated plugin credential type name such as `k8s_cluster.kubeconfig`,
-not as a storage strategy. Every credential payload is kept in one Active
-Record Encryption text column (`payload`), regardless of type. Display and
-probing data belongs in `safe_metadata`, which only accepts a small allowlist
-of non-secret keys such as `host`, `username`, `cluster`, `context`,
-`fingerprint`, and `base_url`.
+`CredentialStore::Credential` stores `credential_type` as a lowercase type
+name such as `ssh_private_key`, `token`, `json`, `env`, `file_blob`, or a
+plugin-namespaced name such as `k8s_cluster.kubeconfig`, not as a storage
+strategy. Every credential payload is kept in one Active Record Encryption
+text column (`payload`), regardless of type. Display and probing data belongs
+in `safe_metadata`, which only accepts a small allowlist of non-secret keys
+such as `host`, `username`, `cluster`, `context`, `fingerprint`, `known_host`,
+and `base_url`.
 
 Scopes use existing Syrus ownership entities:
 
@@ -34,12 +36,12 @@ Management authorization follows the same scopes:
 - A team owner may manage credentials scoped to that team.
 - Only global admins may manage instance-scoped credentials.
 
-Credential types are strings. The store offers default
-`credential_store.*` types and also lists type names declared by enabled
-plugins, such as Kubernetes credential types from `k8s_cluster` when that
-plugin is enabled. Plugins declare type names and safe descriptions only; they
-do not provide payload forms, parsers, storage handlers, or authorization
-rules.
+Credential types are strings. The store offers default types including
+`ssh_private_key`, `token`, `json`, `env`, and `file_blob`, legacy
+`credential_store.*` aliases, and type names declared by enabled plugins, such
+as Kubernetes credential types from `k8s_cluster` when that plugin is enabled.
+Plugins declare type names and safe descriptions only; they do not provide
+payload forms, parsers, storage handlers, or authorization rules.
 
 The plugin also owns append-only `CredentialStore::CredentialAccessEvent`
 rows. Access events record which credential was used or denied, the actor and
@@ -94,3 +96,32 @@ common unsafe probe output shapes before a dependent MCP tool returns results
 or persistent dispatch records an error summary. Dependent tools should still
 avoid printing command environments or raw files; the broker is the last guard,
 not a substitute for careful tool design.
+
+## SSH MCP Tools
+
+`credential_store_ssh_exec` is available to workflow agents and as a deferred
+chat tool when the plugin is enabled. It accepts a credential id or name,
+`host`, `user`, optional `port`, and a remote `command`. The tool requests an
+`ssh_private_key` broker lease, materializes the key into a temporary `0600`
+file only for the duration of the SSH process, and returns sanitized
+`stdout`, `stderr`, and exit status. Payloads may be a raw private key or JSON
+with `private_key` and optional `passphrase`; passphrases are passed through a
+temporary askpass helper and redacted from results.
+
+Use target policy on SSH credentials:
+
+- Set `safe_metadata.host` and `safe_metadata.username` when a key belongs to
+  one target account.
+- Set `target_constraints.allowed_hosts` for host allowlists.
+- Set `safe_metadata.known_host` to a full public known-hosts line when the
+  tool must enforce a specific host key.
+- Set `safe_metadata.fingerprint` for operator-visible fingerprint tracking;
+  use `known_host` when the tool must enforce host identity.
+
+The tool refuses credentials that have no host, known-host, or `allowed_hosts`
+constraint unless the caller explicitly sets
+`allow_unconstrained_host: true`. Commands matching obviously destructive
+patterns are refused unless `allow_risky_command: true` is supplied. All access
+attempts are audited by the broker, including denials for revoked credentials,
+wrong credential types, surface/tool policy mismatches, and target constraint
+failures.

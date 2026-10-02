@@ -1194,7 +1194,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   owned by the bundled `credential_store` plugin. It stores payload material as
   encrypted write-only blobs, exposes only safe metadata and last-used audit
   details, and lets operators scope credentials to a user, repository, team, or
-  the whole instance.
+  the whole instance. Its brokered MCP tools include deferred SSH command
+  execution with `ssh_private_key` credentials, host/user constraints,
+  temporary key files, known-host enforcement, redacted output, and access
+  audit events.
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
 - **Preferences** stores account-level toggles such as scheduling pause and the optional mobile chat focus mode that auto-hides the top app header while scrolling down in a chat.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).

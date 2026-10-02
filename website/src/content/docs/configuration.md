@@ -333,7 +333,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns, selected from enabled chat-provider plugins such as `claude`, `codex`, `agy`, or `muse`; when blank, chat follows the user's default agent provider |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
-| Generic scoped credential | Encrypted write-only payload owned by the `credential_store` plugin, with safe metadata, target constraints, last-used audit metadata, and user/repository/team/instance scope; managed from Credential Store in the sidebar or Admin > Credential Store |
+| Generic scoped credential | Encrypted write-only payload owned by the `credential_store` plugin, with safe metadata, target constraints, last-used audit metadata, and user/repository/team/instance scope; default type names include `ssh_private_key`, `token`, `json`, `env`, and `file_blob`; managed from Credential Store in the sidebar or Admin > Credential Store |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
 | Antigravity credential | Encrypted Gemini API key shared by Antigravity and Gemini-backed features such as walkthrough-video analysis; configured on `/credentials` |
 | Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created at [ai.developer.meta.com](https://ai.developer.meta.com/) under API keys and configured on `/credentials` |
@@ -577,12 +577,15 @@ Per-user credentials use Active Record Encryption:
 
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display
-metadata outside the encrypted payload. The encrypted values live in the
-primary database. The encryption keys can come from Rails credentials via
-`RAILS_MASTER_KEY`, or directly from the `ACTIVE_RECORD_ENCRYPTION_*`
-environment variables. Any process that reads or writes encrypted credentials
-needs one complete, stable key source. This is why smoke tests or console
-sessions that create users fail loudly when encryption keys are missing.
+metadata outside the encrypted payload. The plugin also exposes brokered MCP
+tools for controlled credential use, including SSH command execution backed by
+`ssh_private_key` leases, temporary key files, target constraints, redaction,
+and audit rows. The encrypted values live in the primary database. The
+encryption keys can come from Rails credentials via `RAILS_MASTER_KEY`, or
+directly from the `ACTIVE_RECORD_ENCRYPTION_*` environment variables. Any
+process that reads or writes encrypted credentials needs one complete, stable
+key source. This is why smoke tests or console sessions that create users fail
+loudly when encryption keys are missing.
 
 GitHub push tokens are not written into clone remotes. Syrus keeps clone
 remotes anonymous and constructs a token-bearing push URL only for the

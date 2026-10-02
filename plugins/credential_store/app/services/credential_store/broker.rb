@@ -145,7 +145,7 @@ module CredentialStore
     end
 
     def metadata_for(credential, lease)
-      lease.metadata.merge(safe_metadata: credential.safe_metadata)
+      lease.metadata.merge(safe_metadata: credential.safe_metadata, target_constraints: credential.target_constraints)
     end
 
     def record_event!(credential, result:, denial_reason: nil)
