@@ -67,7 +67,18 @@ RSpec.describe Syrus::PluginRecommendations do
 
   describe "the declarations bundled plugins actually ship" do
     it "registers a suggestion for the language plugins" do
-      expect(described_class.registered_plugin_names).to include("python", "go", "javascript", "ruby")
+      expect(described_class.registered_plugin_names).to include("python", "go", "javascript", "ruby", "syrus_dev")
+    end
+
+    it "recommends Syrus Dev when this instance has an active Syrus repository" do
+      allow(Syrus::PluginRegistry).to receive(:all_plugins)
+        .and_return([ instance_double(Syrus::Plugin::Manifest, name: "syrus_dev", enabled?: false) ])
+      allow(signals).to receive(:syrus_repositories).and_return([ "tkadauke/syrus" ])
+
+      recommendation = described_class.call(signals: signals).sole
+
+      expect(recommendation.plugin).to eq("syrus_dev")
+      expect(recommendation.evidence_summary).to eq("tkadauke/syrus")
     end
   end
 end

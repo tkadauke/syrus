@@ -11,6 +11,11 @@ module SyrusDev
     category "tooling"
     default_enabled false
     disableable true
+
+    suggests_enabling "Syrus repositories can use internal diagnostics, performance data, and operational log search while developing Syrus itself." do |signals|
+      signals.syrus_repositories
+    end
+
     provides admin_page: "SyrusDev::AdminPages",
              mcp_tool_set: "SyrusDev::WorkflowToolSet"
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"

@@ -32,6 +32,22 @@ RSpec.describe Syrus::PluginSignals do
     end
   end
 
+  describe "#syrus_repositories" do
+    it "names active repositories that are Syrus itself" do
+      Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+      Factories.repository(user: user, owner: "acme", name: "fork", upstream_owner: "tkadauke", upstream_name: "syrus")
+      Factories.repository(user: user, owner: "acme", name: "other")
+
+      expect(described_class.new.syrus_repositories).to contain_exactly("tkadauke/syrus", "acme/fork")
+    end
+
+    it "ignores archived Syrus repositories" do
+      Factories.repository(user: user, owner: "tkadauke", name: "syrus", archived_at: Time.current)
+
+      expect(described_class.new.syrus_repositories).to be_empty
+    end
+  end
+
   describe "#database_adapters" do
     it "reports every configured adapter, not just the one serving this request" do
       expect(described_class.new.database_adapters).to all(be_a(String))
