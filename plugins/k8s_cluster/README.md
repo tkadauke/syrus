@@ -4,7 +4,7 @@ K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed
 
 ## What It Adds
 
-- Admin UI and API endpoints for Kubernetes/k3s cluster connection management.
+- Admin UI and API endpoints for Kubernetes/k3s cluster connection management, with kubeconfig payloads stored through the `credential_store` plugin.
 - A kubeconfig parser that resolves the current-context's cluster/user and extracts only the connection info Syrus needs (server URL, bearer token or client-certificate/key, CA data).
 - A lightweight connection test (`GET /version`) before saving.
 - A `kubeclient`-backed API client and one read-only service per resource kind (namespaces, pods, deployments, StatefulSets, DaemonSets, Jobs, services, ingresses, events, PersistentVolumeClaims, nodes, CronJobs), plus a `metrics.k8s.io`-backed cluster overview that soft-fails when metrics-server isn't installed.
@@ -19,7 +19,7 @@ Enable this plugin when Syrus operators need to register Kubernetes/k3s clusters
 
 ## Operational Notes
 
-Treat configured credentials (bearer tokens, client certificates/keys) as sensitive cluster access. Prefer narrowly scoped service account tokens for each registered cluster. `insecure_skip_tls_verify` should stay off unless the cluster's API server uses a self-signed certificate you trust on your own network.
+Treat configured credentials (bearer tokens, client certificates/keys, or pasted kubeconfigs) as sensitive cluster access. Prefer narrowly scoped service account tokens for each registered cluster. `insecure_skip_tls_verify` should stay off unless the cluster's API server uses a self-signed certificate you trust on your own network. Cluster registration stores the pasted kubeconfig in Credential Store as type `k8s_cluster.kubeconfig`; the cluster row keeps only non-secret metadata and a credential reference.
 
 For ad hoc kubectl access, create a Credential Store record with type `k8s_cluster.kubeconfig`, paste the kubeconfig as the payload, and keep display metadata to safe names such as `cluster`, `context`, `namespace`, and `host`. For a typical k3s cluster, prefer a service-account kubeconfig constrained to the exact context, cluster, or namespace via target constraints such as `{ "allowed_kube_contexts": ["prod"], "allowed_kube_namespaces": ["default"] }`, allow only the `workflow` or `chat` surface needed, and add `k8s_cluster_kubectl` to `allowed_tools`.
 

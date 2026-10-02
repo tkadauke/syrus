@@ -4,11 +4,9 @@ require "base64"
 
 module K8sCluster
   # Builds authenticated Kubeclient::Client instances for a KubernetesCluster,
-  # one per Kubernetes API group, translating the cluster's stored
-  # credentials (bearer token, or client cert/key, either possibly paired
-  # with CA data) into Kubeclient's ssl_options/auth_options shape - the same
-  # credential fields ConnectionTester already knows how to turn into
-  # OpenSSL objects, base64-decoded from the parsed kubeconfig.
+  # one per Kubernetes API group, translating brokered credential-store
+  # kubeconfig material (or a legacy encrypted cluster credential during
+  # migration) into Kubeclient's ssl_options/auth_options shape.
   #
   # Every client is built with `as: :parsed` so entity calls (get_pods,
   # get_deployments, ...) return plain parsed JSON hashes/lists instead of
@@ -25,8 +23,10 @@ module K8sCluster
 
     class_attribute :client_factory, default: ->(uri, version, options) { Kubeclient::Client.new(uri, version, **options) }
 
-    def initialize(cluster)
+    def initialize(cluster, context: nil, tool_name: nil)
       @cluster = cluster
+      @context = context
+      @tool_name = tool_name
       @clients = {}
     end
 
@@ -38,31 +38,34 @@ module K8sCluster
 
     private
 
-    attr_reader :cluster
+    attr_reader :cluster, :context, :tool_name
 
     def build(group_path:, version:)
       base = cluster.api_server_url.to_s.chomp("/")
       uri = group_path.present? ? "#{base}/#{group_path}" : base
 
-      self.class.client_factory.call(
-        uri,
-        version,
-        ssl_options: ssl_options,
-        auth_options: auth_options,
-        timeouts: { open: CONNECT_TIMEOUT_SECONDS, read: CONNECT_TIMEOUT_SECONDS },
-        as: :parsed
-      )
+      ClusterCredential.with_material(cluster, context: context, tool_name: tool_name) do |material|
+        self.class.client_factory.call(
+          uri,
+          version,
+          ssl_options: ssl_options(material),
+          auth_options: auth_options(material),
+          timeouts: { open: CONNECT_TIMEOUT_SECONDS, read: CONNECT_TIMEOUT_SECONDS },
+          as: :parsed
+        )
+      end
     end
 
-    def ssl_options
+    def ssl_options(material)
       options = { verify_ssl: cluster.insecure_skip_tls_verify ? OpenSSL::SSL::VERIFY_NONE : OpenSSL::SSL::VERIFY_PEER }
+      credentials = material.credentials.to_h
 
-      if cluster.client_cert.present? && cluster.client_key.present?
-        options[:client_cert] = OpenSSL::X509::Certificate.new(Base64.decode64(cluster.client_cert))
-        options[:client_key] = OpenSSL::PKey.read(Base64.decode64(cluster.client_key))
+      if credentials["client_cert"].present? && credentials["client_key"].present?
+        options[:client_cert] = OpenSSL::X509::Certificate.new(Base64.decode64(credentials["client_cert"]))
+        options[:client_key] = OpenSSL::PKey.read(Base64.decode64(credentials["client_key"]))
       end
 
-      options[:cert_store] = build_cert_store(cluster.ca_data) if cluster.ca_data.present?
+      options[:cert_store] = build_cert_store(credentials["ca_data"]) if credentials["ca_data"].present?
 
       options
     end
@@ -73,8 +76,9 @@ module K8sCluster
       store
     end
 
-    def auth_options
-      cluster.token.present? ? { bearer_token: cluster.token } : {}
+    def auth_options(material)
+      token = material.credentials.to_h["token"]
+      token.present? ? { bearer_token: token } : {}
     end
   end
 end

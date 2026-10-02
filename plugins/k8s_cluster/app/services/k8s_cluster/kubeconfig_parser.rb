@@ -1,15 +1,24 @@
+require "uri"
 require "yaml"
 
 module K8sCluster
   # Resolves a pasted kubeconfig YAML's current-context to a single
   # cluster/user pair and extracts only the connection info Syrus needs
   # (server URL + whichever auth material the context's user carries).
-  # The raw, possibly multi-context kubeconfig is never persisted -- only
-  # this resolved result is.
+  # The raw, possibly multi-context kubeconfig is persisted only as write-only
+  # credential-store payload; display and runtime paths use this resolved
+  # result.
   class KubeconfigParser
     class ParseError < StandardError; end
 
-    Result = Data.define(:api_server_url, :credentials)
+    Result = Data.define(:api_server_url, :credentials, :context_name, :cluster_name, :host) do
+      def credential_kind
+        return "token" if credentials.to_h["token"].present?
+        return "client_cert" if credentials.to_h["client_cert"].present?
+
+        nil
+      end
+    end
 
     def self.parse(kubeconfig_yaml)
       new(kubeconfig_yaml).parse
@@ -28,7 +37,13 @@ module K8sCluster
       server = cluster["server"]
       raise ParseError, "cluster #{context['cluster'].inspect} has no server URL" if server.blank?
 
-      Result.new(api_server_url: server, credentials: credentials_for(cluster, user))
+      Result.new(
+        api_server_url: server,
+        credentials: credentials_for(cluster, user),
+        context_name: context_name,
+        cluster_name: context["cluster"],
+        host: host_for(server)
+      )
     end
 
     private
@@ -92,6 +107,12 @@ module K8sCluster
       else
         raise ParseError, "user has no supported credentials (expected a bearer token, or client-certificate-data + client-key-data)"
       end
+    end
+
+    def host_for(server)
+      URI.parse(server).host
+    rescue URI::InvalidURIError
+      nil
     end
   end
 end

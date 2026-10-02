@@ -17,15 +17,17 @@ module K8sCluster
       end
     }
 
-    def self.test(cluster)
-      new.test(
-        api_server_url: cluster.api_server_url,
-        token: cluster.token,
-        client_cert: cluster.client_cert,
-        client_key: cluster.client_key,
-        ca_data: cluster.ca_data,
-        insecure_skip_tls_verify: cluster.insecure_skip_tls_verify
-      )
+    def self.test(cluster, context: nil)
+      ClusterCredential.with_material(cluster, context: context, purpose: "kubernetes cluster connection test") do |material|
+        new.test(
+          api_server_url: cluster.api_server_url,
+          token: material.credentials.to_h["token"],
+          client_cert: material.credentials.to_h["client_cert"],
+          client_key: material.credentials.to_h["client_key"],
+          ca_data: material.credentials.to_h["ca_data"],
+          insecure_skip_tls_verify: cluster.insecure_skip_tls_verify
+        )
+      end
     end
 
     def self.test_params(api_server_url:, token: nil, client_cert: nil, client_key: nil, ca_data: nil, insecure_skip_tls_verify: false)
@@ -55,7 +57,7 @@ module K8sCluster
       else
         { success: false, error: "Kubernetes API returned HTTP #{response.status}" }
       end
-    rescue Faraday::Error, OpenSSL::OpenSSLError => e
+    rescue Faraday::Error, OpenSSL::OpenSSLError, ClusterCredential::DependencyDisabled, ClusterCredential::MissingCredential, CredentialStore::Broker::Error => e
       { success: false, error: e.message }
     end
 
