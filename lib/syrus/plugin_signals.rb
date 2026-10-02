@@ -60,6 +60,18 @@ module Syrus
       @repository_count ||= safely(0) { Repository.where(archived_at: nil).count }
     end
 
+    def syrus_repositories
+      @syrus_repositories ||= safely([]) do
+        Repository.where(archived_at: nil)
+          .where(
+            "((LOWER(owner) = ? AND LOWER(name) = ?) OR (LOWER(upstream_owner) = ? AND LOWER(upstream_name) = ?))",
+            "tkadauke", "syrus", "tkadauke", "syrus"
+          )
+          .pluck(:owner, :name)
+          .map { |owner, name| "#{owner}/#{name}" }
+      end
+    end
+
     private
 
     # `{ "python" => ["acme/api", "acme/tools"] }`, built once from the
