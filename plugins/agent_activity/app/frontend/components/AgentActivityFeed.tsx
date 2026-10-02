@@ -75,6 +75,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
       ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) }
       : folder
   ))
+  const activeFolderLabel = smartFolders.find((folder) => folder.id === sessions.data?.active_smart_folder_id)?.name ?? t("smart_folder_all")
   const inlineFolders = (
     <AdminSmartFolderNav
       activeFolderId={sessions.data?.active_smart_folder_id ?? null}
@@ -144,6 +145,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
       {scope === "admin" || !isDesktop ? (
         <AdminFiltersLayout
           filterBar={filterBar}
+          mobileSummaryLabel={activeFolderLabel}
           smartFolders={inlineFolders}
         >
           {sessionList}
