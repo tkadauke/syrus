@@ -480,14 +480,14 @@ describe("RepositoriesIndex smart folders", () => {
     expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
   })
 
-  it("falls back to an in-page Folders and filters panel below the lg breakpoint, since the app sidebar's subnav is unreachable there", async () => {
+  it("falls back to an in-page smart folder panel below the lg breakpoint, since the app sidebar's subnav is unreachable there", async () => {
     const restoreMatchMedia = mockNarrowViewport()
     try {
       renderRoute()
 
       await screen.findByRole("link", { name: /acme\/widgets/ })
 
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(screen.getByText("All Repositories", { selector: "summary > span" }))
 
       const folderNav = await screen.findByRole("navigation", { name: "Repositories smart folders" })
       expect(within(folderNav).getByRole("link", { name: "All 1" })).toHaveAttribute("href", "/app-shell/repositories?smart_folder_id=1")
