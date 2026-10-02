@@ -10,20 +10,20 @@ module ChatSessionLifecycle
   BRANCH_TITLE_SUFFIX = " (branch)".freeze
 
   def most_recent_chat_repository
-    recent_repo_id = Current.user.accessible_chat_sessions
+    recent_repo_id = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
       .joins(:repository_attachments)
       .order("chat_sessions.created_at DESC")
       .limit(1)
       .pick("chat_attachments.attachable_id")
 
-    Repository.accessible_to(Current.user).active.find_by(id: recent_repo_id) if recent_repo_id
+    invocation_scoped_repository_scope(Repository.accessible_to(Current.user)).active.find_by(id: recent_repo_id) if recent_repo_id
   end
 
   def repository_from_params
     id = params[:repository_id].presence
     return unless id
 
-    Repository.accessible_to(Current.user).active.find(id)
+    invocation_scoped_repository_scope(Repository.accessible_to(Current.user)).active.find(id)
   end
 
   def create_chat_session
@@ -141,7 +141,7 @@ module ChatSessionLifecycle
   end
 
   def find_chat_session
-    Current.user.accessible_chat_sessions.active.find(params[:id])
+    invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).active.find(params[:id])
   end
 
   # Rename enforces ChatSession::TITLE_MAX_LENGTH (in characters,
@@ -158,7 +158,7 @@ module ChatSessionLifecycle
   end
 
   def find_branch_source_chat_session
-    chat_session = Current.user.accessible_chat_sessions.active.find_by(id: params[:id])
+    chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).active.find_by(id: params[:id])
     return chat_session if chat_session
 
     render_error("forbidden", "You cannot branch this chat.", status: :forbidden)

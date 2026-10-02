@@ -61,6 +61,64 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
   end
 
+  it "scopes run invocation-context CLI access to the current repository and no chats" do
+    prepare_search_tables
+    job = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
+    other_repository = Factories.repository(user: user, owner: "acme", name: "private")
+    other_chat = ChatSession.create!(user: user, repository: other_repository, title: "Unrelated chat")
+    create_indexed_message(other_chat, text: "needle private")
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+    headers = { "Authorization" => "Bearer #{token}" }
+
+    get "/api/v1/app/chats", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
+
+    get "/api/v1/app/chats/new", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body.to_s).not_to include("acme/private")
+
+    get "/api/v1/app/chats/search", params: { q: "needle" }, headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("results" => [], "total" => 0)
+  end
+
+  it "scopes chat invocation-context CLI access to the current chat and attached repositories" do
+    prepare_search_tables
+    current_chat = ChatSession.create!(user: user, repository: repository, title: "Current chat")
+    other_repository = Factories.repository(user: user, owner: "acme", name: "private")
+    other_chat = ChatSession.create!(user: user, repository: other_repository, title: "Unrelated chat")
+    current_message = create_indexed_message(current_chat, text: "needle current", role: "user")
+    create_indexed_message(other_chat, text: "needle private")
+    token = McpInvocationContext.issue_for_app_chat(current_chat, current_message: current_message, expires_in: 5.minutes)
+    headers = { "Authorization" => "Bearer #{token}" }
+
+    get "/api/v1/app/chats", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body.to_s).to include("Current chat")
+    expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
+
+    get "/api/v1/app/chats/new", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body.to_s).not_to include("acme/private")
+
+    get "/api/v1/app/chats/search", params: { q: "needle" }, headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["total"]).to eq(1)
+    expect(parse_body["results"]).to contain_exactly(include("chat_session_id" => current_chat.id))
+    expect(parse_body.to_s).not_to include("Unrelated chat")
+  end
+
   describe "GET /api/v1/app/chats/new" do
     it "returns the repository from the most recently created chat session with one attached" do
       sign_in_as(user)
