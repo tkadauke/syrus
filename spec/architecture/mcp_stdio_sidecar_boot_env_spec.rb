@@ -13,16 +13,13 @@ require "rails_helper"
 # handed to the agent (see spec/jobs/chat_turn_job_spec.rb, which requires the
 # chat sidecar env to contain none of them).
 #
-# But a sidecar that boots Rails still needs those secrets to start. So pairing a
-# Rails-booting command with a scrubbed environment is unsatisfiable: the process
-# dies on startup and the agent turn silently runs with zero MCP tools -- chat
-# reports "MCP unavailable" and every tool is gone.
+# But a sidecar that boots Rails still needs those secrets to start. So pairing
+# a Rails-booting command with a scrubbed environment is unsatisfiable: the
+# process dies on startup and the agent turn silently runs with zero MCP tools.
 #
-# The resolution is NOT to put the secrets back. It is to stop spawning a Rails
-# process under agent-visible configuration at all: point the agent at the
-# secret-free bin/syrus-mcp-proxy, which bridges to the worker-owned persistent
-# daemon. A stdio path that can only be configured one of two unacceptable ways
-# should refuse loudly rather than spawn a process that cannot boot.
+# The resolution is NOT to put the secrets back. Chat stdio fallback points the
+# agent at the secret-free bin/syrus-mcp-proxy, which bridges to a worker-owned
+# daemon started outside the agent-visible environment.
 #
 # This spec asserts the pairing rule directly, because the failure is invisible
 # in development and test: SQLite needs no password and `config/master.key`
@@ -33,6 +30,10 @@ RSpec.describe "stdio MCP sidecar boot environment" do
   # the environment rather than from disk. All three are in
   # AgentSidecarEnvironment::SECRET_ENV_KEYS, i.e. `.build` removes them.
   REQUIRED_BOOT_SECRETS = %w[SECRET_KEY_BASE SYRUS_DATABASE_PASSWORD RAILS_MASTER_KEY].freeze
+
+  after do
+    ChatMcpStdioFallback.reset_for_test!
+  end
 
   # Populate the secrets in the real ENV so the builders have something to
   # forward. Without this the assertion is vacuous: `.build_boot` would also
@@ -88,8 +89,8 @@ RSpec.describe "stdio MCP sidecar boot environment" do
     expect(boots_rails?(Rails.root.join("bin/syrus-chat-deferred-sidecar"))).to be(true)
     expect(boots_rails?(Rails.root.join("bin/syrus-mcp-sidecar"))).to be(true)
 
-    # The secret-free bridge to the persistent daemon is deliberately NOT a
-    # Rails process, which is why it is safe under a scrubbed environment.
+    # The secret-free bridge to the selected daemon is deliberately NOT a Rails
+    # process, which is why it is safe under a scrubbed environment.
     expect(boots_rails?(Rails.root.join("bin/syrus-mcp-proxy"))).to be(false)
   end
 
@@ -117,8 +118,7 @@ RSpec.describe "stdio MCP sidecar boot environment" do
         Do NOT fix this by restoring the secrets: the MCP config is agent-readable,
         and spec/jobs/chat_turn_job_spec.rb requires the chat sidecar env to carry
         none of them. Point the agent at the secret-free bin/syrus-mcp-proxy, or
-        make this path refuse with a clear "persistent daemon required" instead of
-        spawning a process that cannot boot.
+        make this path refuse clearly instead of spawning a process that cannot boot.
       MSG
     end
   end
