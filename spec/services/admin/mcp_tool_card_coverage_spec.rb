@@ -375,6 +375,21 @@ RSpec.describe "chat MCP custom-card coverage inventory" do
     expect(tools_by_context.fetch("anonymous")).not_to include("admin_read_memory_audit_history", "browser_snapshot")
   end
 
+  it "does not keep explicit non-card decisions for registered strong cards" do
+    explicit_tool_names = Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES.keys
+    registered_tool_names = Dir.glob(Rails.root.join(Admin::McpToolCardCoverage::CORE_CARD_GLOB).to_s)
+      .concat(Dir.glob(Rails.root.join(Admin::McpToolCardCoverage::PLUGIN_CARD_GLOB).to_s))
+      .reject { |path| path.match?(Admin::McpToolCardCoverage::TEST_CARD_PATTERN) }
+      .filter_map do |path|
+        source = File.read(path)
+        next unless source.include?("collapsedSummary") || source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN)
+
+        source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] || source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1]
+      end
+
+    expect(explicit_tool_names & registered_tool_names).to eq([])
+  end
+
   def advertised_chat_contexts
     [
       [ "anonymous", nil ],

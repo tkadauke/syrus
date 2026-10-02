@@ -16,16 +16,13 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
     TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["']\)/
     EXPLICIT_CARD_STATUSES = {
-      "analyze_walkthrough_segment" => "deferred",
       "assign_job_to_epic" => "generic",
       "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
       "get_spending" => "deferred",
-      "get_walkthrough_analysis" => "deferred",
       "manual_agentic_run" => "generic",
       "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
-      "read_walkthrough_frame" => "deferred",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic"
     }.freeze
