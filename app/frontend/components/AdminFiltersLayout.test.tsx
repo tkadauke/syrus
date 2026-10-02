@@ -43,6 +43,21 @@ describe("AdminFiltersLayout", () => {
     expect(results.className).not.toContain("mx-4 sm:mx-0")
   })
 
+  it("shows the active smart folder name in the mobile disclosure summary", () => {
+    mockMobileViewport()
+
+    render(
+      <Page.Root gutter="responsive">
+        <AdminFiltersLayout filterBar={<div>Filter controls</div>} mobileSummaryLabel="Running queue" smartFolders={<aside>Saved queues</aside>}>
+          <section>Results table</section>
+        </AdminFiltersLayout>
+      </Page.Root>
+    )
+
+    expect(screen.getByText("Running queue").closest("summary")).toBeInTheDocument()
+    expect(screen.queryByText("Folders and filters")).not.toBeInTheDocument()
+  })
+
   it("places a short description above the FilterBar area", () => {
     render(
       <Page.Root gutter="responsive">

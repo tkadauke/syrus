@@ -171,6 +171,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
       subjectType="design_doc"
     />
   ) : null
+  const mobileFolderLabel = indexQuery.data?.smart_folders.find((folder) => folder.id === activeSmartFolderId)?.name ?? t("smart_folder_all")
 
   useEffect(() => {
     if (mode !== "chat") return
@@ -218,7 +219,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <div className="px-0">
           <details className="group rounded border border-border bg-surface">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-              <span>{tNav("filters_layout.folders_and_filters")}</span>
+              <span className="min-w-0 truncate">{mobileFolderLabel}</span>
               <span className="text-gray-400 group-open:hidden dark:text-gray-500">{tNav("filters_layout.show")}</span>
               <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{tNav("filters_layout.hide")}</span>
             </summary>

@@ -4138,6 +4138,7 @@ describe("App", () => {
     mockDashboardFetch(dashboardPayload({
       subject: "job",
       view: "list",
+      active_smart_folder_id: 7,
       items: [dashboardJobItem()]
     }))
 
@@ -4158,9 +4159,11 @@ describe("App", () => {
       expect(within(controls).getByRole("navigation", { name: "Dashboard view" })).toBeInTheDocument()
       expect(within(controls).queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
 
-      const disclosure = screen.getByText("Folders and filters").closest("details")
+      const disclosureLabel = screen.getByText("My work", { selector: "summary > span" })
+      const disclosure = disclosureLabel.closest("details")
       expect(disclosure).not.toHaveAttribute("open")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByText("Folders and filters")).not.toBeInTheDocument()
+      fireEvent.click(disclosureLabel)
       expect(disclosure).toHaveAttribute("open")
       expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "My work 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=7")
