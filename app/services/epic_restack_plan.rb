@@ -15,13 +15,14 @@ class EpicRestackPlan
       "slug" => @epic.slug,
       "strategy" => "dependency_topology",
       "branch_order" => branch_order,
+      "actions" => actions,
       "skipped_nodes" => skipped_nodes,
       "expected_landing_impact" => expected_landing_impact
     }
   end
 
   def actions
-    branch_order
+    @actions ||= branch_order.select { |entry| entry.fetch("repair_reasons").present? }
   end
 
   private
@@ -43,7 +44,9 @@ class EpicRestackPlan
         "commits_behind" => job.commits_behind_base,
         "state" => job.state,
         "checks_state" => job.pr_checks_state,
-        "mergeable_state" => job.github_mergeable_state || job.local_mergeable_state
+        "mergeable_state" => job.github_mergeable_state || job.local_mergeable_state,
+        "current_parent_job_id" => job.parent_job_id,
+        "repair_reasons" => repair_reasons(job, parent)
       }
     end
   end
@@ -65,10 +68,30 @@ class EpicRestackPlan
   end
 
   def expected_landing_impact
-    return "no open child PR branches need restacking" if branch_order.empty?
+    return "no open child PR branches need restacking" if actions.empty?
 
-    roots = branch_order.count { |entry| entry["target_parent_job_id"].blank? }
+    roots = rebase_root_ids_for(actions).size
     "updates stack parents to dependency topology and dispatches #{roots} rebase root(s)"
+  end
+
+  def repair_reasons(job, parent)
+    reasons = []
+    target_parent_id = parent&.id
+    target_base = parent&.branch_name.presence || job.base_default_branch
+    current_base = job.mergeability_base_ref.presence || job.effective_base_branch
+
+    reasons << "parent_metadata" if job.parent_job_id != target_parent_id
+    reasons << "base_ref" if current_base != target_base
+    reasons << "behind_base" if job.commits_behind_base.to_i.positive?
+    reasons
+  end
+
+  def rebase_root_ids_for(actions)
+    action_ids = actions.map { |entry| entry.fetch("job_id") }.to_set
+    actions.filter_map do |entry|
+      parent_id = entry["target_parent_job_id"]
+      entry.fetch("job_id") if parent_id.blank? || !action_ids.include?(parent_id)
+    end
   end
 
   def skipped_reason(job)

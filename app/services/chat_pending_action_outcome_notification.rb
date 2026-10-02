@@ -11,6 +11,8 @@ class ChatPendingActionOutcomeNotification
 
     case outcome.to_sym
     when :confirmed
+      return "Pending action confirmed: #{kind} (#{detail}). #{no_op_message}" if no_op?
+
       [
         "Pending action confirmed: #{kind} (#{detail}). The action has been applied.",
         github_result_notice
@@ -55,6 +57,14 @@ class ChatPendingActionOutcomeNotification
     when "not_applicable"
       "No tracked PR needed cleanup."
     end
+  end
+
+  def no_op?
+    pending_action.payload.to_h["no_op"] == true
+  end
+
+  def no_op_message
+    pending_action.payload.to_h["no_op_message"].presence || "No changes were needed."
   end
 
   def github_failure_summary(result)
