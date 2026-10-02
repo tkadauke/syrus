@@ -82,7 +82,7 @@ export function usePageGutterRestoreClassName(kind: "padding" | "margin" = "padd
 function Root({ size = "default", gutter = "always", className = "", ...props }: PageRootProps) {
   return (
     <PageGutterContext.Provider value={gutter}>
-      <main className={classes("mx-auto w-full space-y-6", PAGE_GUTTER_CLASSES[gutter], PAGE_SIZE_CLASSES[size], className)} {...props} />
+      <main className={classes("mx-auto w-full min-w-0 max-w-full space-y-6 overflow-x-clip", PAGE_GUTTER_CLASSES[gutter], PAGE_SIZE_CLASSES[size], className)} {...props} />
     </PageGutterContext.Provider>
   )
 }

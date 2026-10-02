@@ -5,12 +5,13 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-rou
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
-import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobRun, JobSourceDiffPayload, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { ShortcutsProvider } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
+import { Page } from "../components/ui"
 import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
@@ -3356,6 +3357,38 @@ describe("ArtifactsTab", () => {
     expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x")
   })
 
+  it("clips the mobile review page shell without disabling per-file diff scrolling", async () => {
+    const restoreMobileViewport = mockMediaQuery(true)
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, "innerWidth")
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    try {
+      mockReviewWorkspaceRequests([
+        {
+          additions: 1,
+          deletions: 0,
+          is_image: false,
+          patch: "@@ -1,0 +1,1 @@\n+" + "x".repeat(240),
+          path: "app/models/wide_review_line.rb",
+          status: "modified"
+        }
+      ])
+
+      renderJobDetail(jobPayload(), { activeTab: "review", wrapInPageRoot: true })
+
+      const page = await screen.findByRole("main", { name: "Job" })
+      const diffViewer = await screen.findByTestId("agent-diff-viewer")
+      expect(page).toHaveClass("min-w-0", "max-w-full", "overflow-x-clip")
+      expect(screen.getByTestId("job-header-title")).toHaveClass("break-words")
+      expect(screen.getByTestId("job-header-toolbar")).toHaveClass("min-w-0", "flex-wrap")
+      expect(screen.getByRole("button", { name: "Summary" }).parentElement).toHaveClass("overflow-x-auto")
+      expect(diffViewer).toHaveClass("min-w-0", "max-w-full", "[contain:inline-size]")
+      expect(screen.getByTestId("diff-file-scroll")).toHaveClass("overflow-x-scroll", "overscroll-x-contain")
+    } finally {
+      if (originalInnerWidth) Object.defineProperty(window, "innerWidth", originalInnerWidth)
+      restoreMobileViewport()
+    }
+  })
+
   it("shows the Artifacts tab in the TabNav with count", () => {
     renderJobDetail(
       jobPayload({
@@ -4365,23 +4398,34 @@ function renderJobDetail(
     activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"
     initialEntry?: string
     showLocation?: boolean
+    wrapInPageRoot?: boolean
   } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+  const detailView = (
+    <JobDetailView
+      activeTab={options.activeTab || "summary"}
+      onSelectTab={() => {}}
+      payload={payload}
+      prefix="/app-shell"
+      queryKey={["jobs", String(payload.job.id), "detail", ""]}
+    />
+  )
 
   return render(
     <QueryClientProvider client={queryClient}>
       <ShortcutsProvider>
         <MemoryRouter initialEntries={[options.initialEntry ?? "/app-shell/jobs/1"]}>
           {options.showLocation ? <LocationProbe /> : null}
-          <JobDetailView
-            activeTab={options.activeTab || "summary"}
-            onSelectTab={() => {}}
-            payload={payload}
-            prefix="/app-shell"
-            queryKey={["jobs", String(payload.job.id), "detail", ""]}
-          />
+          {options.wrapInPageRoot ? (
+            <Page.Root aria-label="Job" gutter="responsive" size="wide">
+              {detailView}
+            </Page.Root>
+          ) : (
+            detailView
+          )}
         </MemoryRouter>
       </ShortcutsProvider>
     </QueryClientProvider>
@@ -4471,7 +4515,7 @@ function mockJobSourceRequests() {
   })
 }
 
-function mockReviewWorkspaceRequests() {
+function mockReviewWorkspaceRequests(files: JobSourceDiffPayload["files"] = []) {
   return vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = requestUrl(input)
     if (url.includes("/diff_review_comments")) {
@@ -4490,7 +4534,7 @@ function mockReviewWorkspaceRequests() {
         diff_error: null,
         version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
         versions: [{ id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }],
-        files: []
+        files
       })
     )
   })

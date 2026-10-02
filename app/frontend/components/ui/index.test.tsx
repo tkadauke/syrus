@@ -399,6 +399,9 @@ describe("@app/components/ui", () => {
     expect(defaultClasses).toContain("px-[var(--space-page-x)]")
     expect(responsiveClasses).toContain("px-0")
     expect(responsiveClasses).toContain("sm:px-[var(--space-page-x)]")
+    expect(responsiveClasses).toContain("min-w-0")
+    expect(responsiveClasses).toContain("max-w-full")
+    expect(responsiveClasses).toContain("overflow-x-clip")
     // The unprefixed "always" class must be fully absent, not just shadowed --
     // its presence is exactly the bug: two classes targeting the same
     // property with no guaranteed winner.
