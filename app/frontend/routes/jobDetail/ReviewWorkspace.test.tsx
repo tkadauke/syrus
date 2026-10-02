@@ -385,16 +385,20 @@ describe("ReviewWorkspace", () => {
 
     await screen.findByText("Implementation review")
     expect(screen.queryByLabelText("Metric gutter")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }))
+    expect(screen.queryByLabelText("Metric gutter")).not.toBeInTheDocument()
     expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument()
   })
 
-  it("shows a metric gutter selector when review metrics are available", async () => {
+  it("shows the metric gutter selector in review settings when review metrics are available", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCognitiveReviewRisk())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
     await screen.findByText("Implementation review")
+    expect(screen.queryByLabelText("Metric gutter")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }))
     const selector = screen.getByLabelText("Metric gutter")
 
     expect(selector).toHaveValue("cognitive_review.risk")
@@ -410,6 +414,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace(jobPayload(), { diffLineMetricProviders: [coverageMetricProvider] })
 
     await screen.findByText("Implementation review")
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }))
     const selector = screen.getByLabelText("Metric gutter")
     const row = screen.getByText("new").closest("tr") as HTMLElement
 
@@ -437,6 +442,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Implementation review")
     expect(screen.getAllByTestId("diff-metric-gutter-cell").length).toBeGreaterThan(0)
 
+    fireEvent.click(screen.getByRole("button", { name: "Review settings" }))
     fireEvent.change(screen.getByLabelText("Metric gutter"), { target: { value: "off" } })
 
     await waitFor(() => expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument())
