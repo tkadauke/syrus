@@ -295,7 +295,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
 | `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent`, `muse_agent` |
-| `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory` |
+| `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory`, `credential_store` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
