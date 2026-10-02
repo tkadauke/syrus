@@ -2,7 +2,7 @@ import i18n from "i18next"
 import type { ReactNode } from "react"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EmptyState, FilterableList, PreviewTextBlock, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
+import { CardShell, EmptyState, FilterableList, LargeTextPreview, PreviewTextBlock, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
 import { formatBytes, formatAge, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -28,6 +28,7 @@ type K8sActionToolName =
   | "k8s_cluster_scale_deployment"
   | "k8s_cluster_delete_pod"
   | "k8s_cluster_set_node_cordon"
+type K8sKubectlToolName = "k8s_cluster_kubectl"
 
 type K8sRow = Record<string, unknown>
 type Column = { key: string; label: string; render?: (row: K8sRow) => string | ReactNode; tone?: (row: K8sRow) => "success" | "warning" | "failure" | "neutral" | "info" }
@@ -60,6 +61,16 @@ type ParsedActionCard = {
   generatedAt: string | null
   followUpChecks: string[]
   errorKind: ActionErrorKind | null
+  errorMessage: string | null
+}
+type ParsedKubectlCard = {
+  ok: boolean
+  status: string
+  command: string
+  scope: string
+  credential: string
+  stdout: string
+  stderr: string
   errorMessage: string | null
 }
 
@@ -110,6 +121,47 @@ export function kubernetesActionToolCard(toolName: K8sActionToolName): ToolCardR
     collapsedSummary: collapsedActionSummary,
     renderExpanded: renderExpandedAction
   }
+}
+
+export function kubernetesKubectlToolCard(toolName: K8sKubectlToolName): ToolCardRenderer {
+  return {
+    toolName,
+    collapsedSummary: collapsedKubectlSummary,
+    renderExpanded: renderExpandedKubectl
+  }
+}
+
+function collapsedKubectlSummary(context: ToolCardContext) {
+  const card = parseKubectlCard(context)
+  if (!card) return null
+
+  return t("kubectl_card_summary", {
+    command: card.command,
+    scope: card.scope,
+    status: card.errorMessage ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")
+  })
+}
+
+function renderExpandedKubectl(context: ToolCardContext) {
+  const card = parseKubectlCard(context)
+  if (!card) return null
+
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatePill state={card.errorMessage ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")} tone={card.errorMessage ? "warning" : card.ok ? "success" : "failure"} />
+        <span className="font-mono text-xs text-text-primary">{card.command}</span>
+      </div>
+      {card.errorMessage ? <Notice tone="danger">{card.errorMessage}</Notice> : null}
+      <div className="grid gap-2 sm:grid-cols-3">
+        <DetailRow label={t("action_card_scope")} value={card.scope} />
+        <DetailRow label={t("kubectl_card_status")} value={card.status} />
+        <DetailRow label={t("kubectl_card_credential")} value={card.credential} />
+      </div>
+      {card.stdout ? <LargeTextPreview label={t("kubectl_card_stdout")} text={card.stdout} /> : null}
+      {card.stderr ? <LargeTextPreview label={t("kubectl_card_stderr")} text={card.stderr} /> : null}
+    </CardShell>
+  )
 }
 
 function collapsedActionSummary(context: ToolCardContext) {
@@ -202,6 +254,46 @@ function renderExpanded(context: ToolCardContext) {
       {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
     </div>
   )
+}
+
+function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
+  const errorMessage = parseErrorMessage(context)
+  const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const command = kubectlCommand(parsed, context.input || {})
+  const statusValue = displayValue(parsed.status)
+  const credential = isPlainObject(parsed.credential) ? displayValue(parsed.credential.credential_name) || displayValue(parsed.credential.credential_id) : null
+
+  return {
+    ok: parsed.ok === true,
+    status: statusValue || (errorMessage ? t("tool_card_error") : t("action_card_unknown")),
+    command,
+    scope: kubectlScope(parsed, context.input || {}),
+    credential: credential || displayValue((context.input || {}).credential) || t("action_card_unknown"),
+    stdout: textBlockValue(parsed.stdout),
+    stderr: textBlockValue(parsed.stderr),
+    errorMessage
+  }
+}
+
+function kubectlCommand(parsed: Record<string, unknown>, input: Record<string, unknown>) {
+  const parsedCommand = isPlainObject(parsed.command) && Array.isArray(parsed.command.args) ? parsed.command.args.map(displayValue).filter(Boolean).join(" ") : null
+  const inputCommand = Array.isArray(input.args) ? input.args.map(displayValue).filter(Boolean).join(" ") : null
+  return `kubectl ${parsedCommand || inputCommand || ""}`.trim()
+}
+
+function kubectlScope(parsed: Record<string, unknown>, input: Record<string, unknown>) {
+  const target = isPlainObject(parsed.target) ? parsed.target : {}
+  const kubeContext = displayValue(target.kube_context) || displayValue(input.kube_context)
+  const namespace = displayValue(target.kube_namespace) || displayValue(target.namespace) || displayValue(input.namespace)
+  if (kubeContext && namespace) return t("kubectl_card_scope_context_namespace", { context: kubeContext, namespace })
+  if (kubeContext) return t("kubectl_card_scope_context", { context: kubeContext })
+  if (namespace) return t("kubectl_card_scope_namespace", { namespace })
+  return t("tool_card_scope_all_clusters")
+}
+
+function textBlockValue(value: unknown) {
+  if (isPlainObject(value)) return displayValue(value.text) || ""
+  return displayValue(value) || ""
 }
 
 function parseCard(context: ToolCardContext): ParsedCard | null {
@@ -884,6 +976,32 @@ export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): T
     { id: "validation_failure", label: "Validation failure", input: actionExampleInput(kind, "validation"), resultBody: "Error: replicas must be a non-negative integer", resultError: true },
     { id: "api_failure", label: "API failure", input: actionExampleInput(kind), resultBody: "Error: Kubeclient::HttpError: apiserver timed out", resultError: true },
     { id: "permission_denied", label: "Permission denied", input: actionExampleInput(kind), resultBody: "Error: Write access is disabled for Kubernetes cluster 7. Enable write access in K8s Cluster connection settings.", resultError: true }
+  ]
+}
+
+export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName): ToolCardExample[] {
+  return [
+    {
+      id: "successful_get",
+      label: "Successful get",
+      input: { credential: "prod-k3s", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
+      parsedResult: {
+        ok: true,
+        status: 0,
+        stdout: { text: "NAME READY STATUS\nweb 1/1 Running\n", truncated: false },
+        stderr: { text: "", truncated: false },
+        command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
+        target: { kube_context: "prod", kube_namespace: "default" },
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
+      }
+    },
+    {
+      id: "policy_denied",
+      label: "Policy denied",
+      input: { credential: "prod-k3s", kube_context: "prod", args: ["get", "secrets", "-o", "yaml"] },
+      resultBody: "Error: kubectl command could expose secret values",
+      resultError: true
+    }
   ]
 }
 

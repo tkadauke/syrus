@@ -9,6 +9,7 @@ import deploymentsToolCard from "./k8s_cluster_deployments"
 import eventsToolCard, { examples as eventExamples } from "./k8s_cluster_events"
 import ingressesToolCard from "./k8s_cluster_ingresses"
 import jobsToolCard from "./k8s_cluster_jobs"
+import kubectlToolCard, { examples as kubectlExamples } from "./k8s_cluster_kubectl"
 import listClustersToolCard from "./k8s_cluster_list_clusters"
 import namespacesToolCard from "./k8s_cluster_namespaces"
 import nodesToolCard from "./k8s_cluster_nodes"
@@ -64,7 +65,8 @@ describe("Kubernetes cluster tool cards", () => {
       "k8s_cluster_restart_rollout",
       "k8s_cluster_scale_deployment",
       "k8s_cluster_delete_pod",
-      "k8s_cluster_set_node_cordon"
+      "k8s_cluster_set_node_cordon",
+      "k8s_cluster_kubectl"
     ].forEach((toolName) => {
       expect(pluginToolCardRendererFor(toolName)).not.toBeNull()
     })
@@ -77,6 +79,30 @@ describe("Kubernetes cluster tool cards", () => {
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
+    expect(kubectlExamples.map((example) => example.id)).toEqual(["successful_get", "policy_denied"])
+  })
+
+  it("summarizes credential-backed kubectl output without rendering raw credential payloads", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { credential: "prod-k3s", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
+      parsedResult: {
+        ok: true,
+        status: 0,
+        stdout: { text: "NAME READY STATUS\nweb 1/1 Running\n", truncated: false },
+        stderr: { text: "", truncated: false },
+        command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
+        target: { kube_context: "prod", kube_namespace: "default" },
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
+      }
+    })
+
+    expect(kubectlToolCard.collapsedSummary?.(cardContext)).toBe("kubectl --context prod --namespace default get pods in Context prod / default · succeeded")
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("prod-k3s")).toBeInTheDocument()
+    expect(screen.getByText(/web 1\/1 Running/)).toBeInTheDocument()
+    expect(screen.queryByText(/token/)).not.toBeInTheDocument()
   })
 
   it("summarizes successful action acknowledgements with action, target, scope, and result", () => {

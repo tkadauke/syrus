@@ -19,8 +19,8 @@ plugin-namespaced name such as `k8s_cluster.kubeconfig`, not as a storage
 strategy. Every credential payload is kept in one Active Record Encryption
 text column (`payload`), regardless of type. Display and probing data belongs
 in `safe_metadata`, which only accepts a small allowlist of non-secret keys
-such as `host`, `username`, `cluster`, `context`, `fingerprint`, `known_host`,
-and `base_url`.
+such as `host`, `username`, `cluster`, `context`, `namespace`,
+`fingerprint`, `known_host`, and `base_url`.
 
 Scopes use existing Syrus ownership entities:
 
@@ -89,6 +89,13 @@ tool name, expected credential type, target constraints, revocation, and
 expiry. A successful call issues a short-lived local lease, materializes the
 payload only inside the block as either a restrictive temporary file or a
 per-call env hash, and cleans that local material in `ensure`.
+
+Target constraints are deliberately small and broker-owned. Supported keys are
+`allowed_hosts`, `allowed_url_prefixes`, `allowed_kube_contexts`,
+`allowed_kube_clusters`, and `allowed_kube_namespaces`. Dependent tools pass a
+target hash such as `host`, `url`, `kube_context`, `kube_cluster`, and
+`kube_namespace`; the broker records allowed/denied audit rows without storing
+payload material.
 
 Broker return values and broker-wrapped exceptions are scrubbed with
 `CredentialStore::Redaction`, which removes the known credential payload and
