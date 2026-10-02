@@ -349,6 +349,15 @@
     "pr_checks_failing_inherited": "PR checks failing on {{slug}} — already failing on the base ({{checks}})"
   },
   "close": "Close",
+  "find_bar": {
+    "close": "Close find",
+    "input_label": "Find",
+    "next_match": "Next match",
+    "next_short": "Next",
+    "placeholder": "Find...",
+    "previous_match": "Previous match",
+    "previous_short": "Prev"
+  },
   "search_aria": "Search",
   "search_type_filters_aria": "Search type filters",
   "loading_search_aria": "Loading search results",

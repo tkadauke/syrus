@@ -60,6 +60,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/components/Checkbox.tsx|jsx_text|in a
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
       app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
+      app/frontend/components/FilePreviewModal.tsx|jsx_text|cursor) parts.push(
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
