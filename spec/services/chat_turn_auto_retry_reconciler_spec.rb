@@ -38,7 +38,7 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     expect(chat.reload).to be_turn_in_flight
   end
 
-  it "performs due retries by resending the failed user message and enqueuing a chat turn" do
+  it "performs due retries by waking the chat and enqueuing the original user message" do
     chat, message = create_stuck_chat
     attempt = ChatTurnAutoRetryAttempt.create!(
       chat_session: chat,
@@ -48,22 +48,33 @@ RSpec.describe ChatTurnAutoRetryReconciler do
       scheduled_at: 1.minute.ago
     )
 
+    user_message_count = chat.messages.where(role: "user", content: message.content).count
+    retry_status_count = chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }
+
     expect {
       described_class.sweep!
-    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).on_queue("chat")
+    }.to have_enqueued_job(ChatTurnJob).with(chat.id, message.id).on_queue("chat")
 
-    retry_message = attempt.reload.retry_message
+    expect(chat.messages.where(role: "user", content: message.content).count).to eq(user_message_count)
+    expect(chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }).to eq(retry_status_count + 1)
+
+    status_message = attempt.reload.retry_message
     expect(attempt.performed_at).to be_present
-    expect(retry_message).to have_attributes(
+    expect(status_message).to have_attributes(
       chat_session: chat,
-      role: "user",
-      content: message.content,
-      sender_user_id: user.id
+      role: "system",
+      content: hash_including(
+        "text" => "Retrying the previous assistant turn now.",
+        "source" => "chat_turn_retry",
+        "root_user_message_id" => message.id,
+        "user_message_id" => message.id,
+        "attempt_number" => 1
+      )
     )
     expect(chat.reload).to be_turn_in_flight
   end
 
-  it "performs a scheduled retry immediately before its automatic retry time" do
+  it "performs a scheduled retry immediately before its automatic retry time without replaying the user message" do
     chat, message = create_stuck_chat
     now = Time.current
     attempt = ChatTurnAutoRetryAttempt.create!(
@@ -75,18 +86,29 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     )
 
     result = nil
+    user_message_count = chat.messages.where(role: "user", content: message.content).count
+    retry_status_count = chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }
+
     expect {
       travel_to(now) { result = described_class.perform_now!(chat) }
-    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).on_queue("chat")
+    }.to have_enqueued_job(ChatTurnJob).with(chat.id, message.id).on_queue("chat")
 
-    retry_message = attempt.reload.retry_message
+    expect(chat.messages.where(role: "user", content: message.content).count).to eq(user_message_count)
+    expect(chat.messages.where(role: "system").count { |chat_message| chat_message.content["source"] == "chat_turn_retry" }).to eq(retry_status_count + 1)
+
+    status_message = attempt.reload.retry_message
     expect(result).to be_performed
     expect(attempt.performed_at.to_i).to eq(now.to_i)
-    expect(retry_message).to have_attributes(
+    expect(status_message).to have_attributes(
       chat_session: chat,
-      role: "user",
-      content: message.content,
-      sender_user_id: user.id
+      role: "system",
+      content: hash_including(
+        "text" => "Retrying the previous assistant turn now.",
+        "source" => "chat_turn_retry",
+        "root_user_message_id" => message.id,
+        "user_message_id" => message.id,
+        "attempt_number" => 1
+      )
     )
   end
 
@@ -132,19 +154,18 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
 
-  it "uses the shared retry budget and exponential backoff across retried user messages" do
+  it "uses the shared retry budget and exponential backoff across retry status messages" do
     chat, root_message = create_stuck_chat(message_created_at: 40.minutes.ago)
-    first_retry_message = chat.messages.create!(
-      role: "user",
-      content: root_message.content,
-      sender_user_id: user.id,
+    retry_status_message = chat.messages.create!(
+      role: "system",
+      content: { "text" => "Retrying the previous assistant turn now.", "source" => "chat_turn_retry" },
       created_at: 30.minutes.ago
     )
     ChatTurnAutoRetryAttempt.create!(
       chat_session: chat,
       root_user_message: root_message,
       user_message: root_message,
-      retry_message: first_retry_message,
+      retry_message: retry_status_message,
       attempt_number: 1,
       scheduled_at: 25.minutes.ago,
       performed_at: 20.minutes.ago
@@ -157,7 +178,7 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     attempt = ChatTurnAutoRetryAttempt.order(:attempt_number).last
     expect(attempt).to have_attributes(
       root_user_message: root_message,
-      user_message: first_retry_message,
+      user_message: root_message,
       attempt_number: 2
     )
     expect(attempt.scheduled_at.to_i).to eq((now + 20.minutes).to_i)
@@ -165,25 +186,22 @@ RSpec.describe ChatTurnAutoRetryReconciler do
 
   it "exhausts the budget once and posts the terminal failure message" do
     chat, root_message = create_stuck_chat
-    latest_message = root_message
 
     ChatTurnAutoRetryAttempt::MAX_ATTEMPTS.times do |index|
-      retry_message = chat.messages.create!(
-        role: "user",
-        content: root_message.content,
-        sender_user_id: user.id,
+      retry_status_message = chat.messages.create!(
+        role: "system",
+        content: { "text" => "Retrying the previous assistant turn now.", "source" => "chat_turn_retry" },
         created_at: (20 - index).minutes.ago
       )
       ChatTurnAutoRetryAttempt.create!(
         chat_session: chat,
         root_user_message: root_message,
-        user_message: latest_message,
-        retry_message: retry_message,
+        user_message: root_message,
+        retry_message: retry_status_message,
         attempt_number: index + 1,
         scheduled_at: (19 - index).minutes.ago,
         performed_at: (18 - index).minutes.ago
       )
-      latest_message = retry_message
     end
     chat.update!(last_message_at: 2.minutes.ago, turn_in_flight: true)
 
