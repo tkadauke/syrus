@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, decimalCost, displayValue, durationLabel, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, decimalCost, displayValue, durationLabel, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_workflow (the Tier 1 tool-card work). Renders the
 // Workflow header plus a Step/Run timeline: state, duration/timestamps,
@@ -108,7 +108,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">WF-{workflow.id}</span>
+        <EntityReference id={workflow.id} jobId={workflow.jobId} kind="workflow" />
         <StatePill state={workflow.state} />
         {workflow.triggerKind ? <Badge>{workflow.triggerKind}</Badge> : null}
         {workflow.agentProvider ? <Badge>{workflow.agentProvider}</Badge> : null}
@@ -116,7 +116,12 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {workflow.jobId || workflow.duration ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {workflow.jobId ? <Row label="Job" value={`JOB-${workflow.jobId}`} /> : null}
+          {workflow.jobId ? (
+            <div className="min-w-0">
+              <SectionLabel>Job</SectionLabel>
+              <EntityReference id={workflow.jobId} kind="job" />
+            </div>
+          ) : null}
           {workflow.duration ? <Row label="Duration" value={workflow.duration} /> : null}
         </dl>
       ) : null}
@@ -136,7 +141,7 @@ function renderExpanded(context: ToolCardContext) {
                   <ul className="mt-1 space-y-1 pl-3">
                     {step.runs.map((run) => (
                       <li className="flex flex-wrap items-center gap-2 text-2xs text-gray-600 dark:text-gray-300" key={run.key}>
-                        <span className="font-mono">RUN-{run.id}</span>
+                        <EntityReference id={run.id} jobId={workflow.jobId} kind="run" workflowId={workflow.id} />
                         <StatePill state={run.state} />
                         {run.agentOutcome ? <Badge>{run.agentOutcome}</Badge> : null}
                         {run.cost ? <span>{run.cost}</span> : null}
@@ -162,3 +167,53 @@ const readWorkflowToolCard: ToolCardRenderer = {
 }
 
 export default readWorkflowToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "workflow_with_run_timeline",
+    label: "Workflow with Run timeline",
+    input: { workflow_id: 25606 },
+    parsedResult: {
+      workflow: {
+        id: 25606,
+        job_id: 4221,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "codex",
+        summary: "Adding linked entity refs to representative tool cards.",
+        total_cost_usd: "1.75",
+        started_at: "2026-01-01T00:00:00Z",
+        finished_at: "2026-01-01T00:05:00Z",
+        steps: [
+          {
+            id: 1,
+            kind: "implement",
+            state: "succeeded",
+            started_at: "2026-01-01T00:00:00Z",
+            finished_at: "2026-01-01T00:02:00Z",
+            runs: [
+              {
+                id: 9,
+                state: "succeeded",
+                agent_outcome: "success",
+                agent_summary: "Updated the card and its tests.",
+                started_at: "2026-01-01T00:00:00Z",
+                finished_at: "2026-01-01T00:02:00Z",
+                cost_usd: "0.42"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    id: "queued_workflow_without_job",
+    label: "Queued Workflow without Job link",
+    description: "No job_id is present, so the workflow slug remains copyable without a derived route.",
+    input: { workflow_id: 25607 },
+    parsedResult: { workflow: { id: 25607, state: "queued", trigger_kind: "retry" } }
+  }
+]

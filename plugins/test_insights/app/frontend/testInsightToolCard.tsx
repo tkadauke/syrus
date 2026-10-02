@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import i18n from "i18next"
 import { CodeSurface, Pill, Text } from "@app/components/ui"
 import { isPlainObject } from "@app/pluginToolCards"
-import { displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
+import { displayValue, EntityReference, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the test_insights plugin's chat tool cards
 // (the pending-action tool-card work). list_repository_test_insights, read_test_insight, and
@@ -102,7 +102,11 @@ export function parseRunJobRef(value: unknown): RunJobRef | null {
 
 export function RefLink({ target }: { target: RunJobRef | null }) {
   if (!target) return null
-  if (!target.path) return <span className="font-mono text-gray-600 dark:text-gray-300">{target.slug}</span>
+  const job = target.slug.match(/^JOB-(\d+)$/)
+  const run = target.slug.match(/^RUN-(\d+)$/)
+  if (job) return <EntityReference href={target.path} id={job[1]} kind="job" slug={target.slug} wrap="nowrap" />
+  if (run) return <EntityReference href={target.path} id={run[1]} kind="run" slug={target.slug} wrap="nowrap" />
+  if (!target.path) return <EntityReference kind="artifact" slug={target.slug} wrap="nowrap" />
   return <InternalLink href={target.path}>{target.slug}</InternalLink>
 }
 

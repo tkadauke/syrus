@@ -1,6 +1,6 @@
 import { Fragment } from "react"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, numberValue, SectionLabel } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, SectionLabel } from "@app/routes/chat/toolCardUi"
 import { FailureSnippet, Flakiness, formatMs, parseFailure, t, TableShell, TestStatusPill } from "./testInsightToolCard"
 
 // Shared presentation for read_job_test_results and read_run_test_results
@@ -86,7 +86,9 @@ function parseTestRunRow(value: unknown): TestRunRow | null {
 }
 
 export type RunResultsPayload = {
+  jobId: string | null
   jobSlug: string | null
+  workflowId: string | null
   runId: string | null
   graderName: string | null
   testRuns: TestRunRow[]
@@ -97,7 +99,9 @@ export function parseRunResultsPayload(context: ToolCardContext): RunResultsPayl
   if (!isPlainObject(parsed) || !Array.isArray(parsed.test_runs)) return null
 
   return {
+    jobId: displayValue(parsed.job_id),
     jobSlug: displayValue(parsed.job_slug),
+    workflowId: displayValue(parsed.workflow_id),
     runId: displayValue(parsed.run_id),
     graderName: displayValue(parsed.grader_name),
     testRuns: parsed.test_runs.flatMap((testRun) => {
@@ -121,8 +125,8 @@ export function RunResultsBody({ payload }: { payload: RunResultsPayload }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {payload.jobSlug ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{payload.jobSlug}</span> : null}
-        {payload.runId ? <span className="font-mono text-gray-600 dark:text-gray-300">RUN-{payload.runId}</span> : null}
+        {payload.jobSlug || payload.jobId ? <EntityReference id={payload.jobId} kind="job" slug={payload.jobSlug} wrap="nowrap" /> : null}
+        {payload.runId ? <EntityReference id={payload.runId} jobId={payload.jobId} kind="run" workflowId={payload.workflowId} wrap="nowrap" /> : null}
         {payload.graderName ? <Badge>{payload.graderName}</Badge> : null}
       </div>
       {payload.testRuns.map((testRun) => <TestRunSection key={testRun.id} testRun={testRun} />)}

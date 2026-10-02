@@ -1,6 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { CopyIcon } from "../../components/CopyableSlug"
+import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { CodeSurface, Input, Pill, Surface, Text, ToolCard } from "../../components/ui"
 import type { SemanticTone } from "../../components/ui"
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
+import { useT } from "../../hooks/useT"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -96,6 +100,164 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
+export type ToolCardEntityKind =
+  | "job"
+  | "epic"
+  | "design_doc"
+  | "chat"
+  | "run"
+  | "workflow"
+  | "pull_request"
+  | "artifact"
+  | "repository"
+  | "proposal"
+
+export type EntityReferenceProps = {
+  kind: ToolCardEntityKind
+  id?: number | string | null
+  slug?: string | null
+  label?: string | null
+  href?: string | null
+  jobId?: number | string | null
+  workflowId?: number | string | null
+  repositoryId?: number | string | null
+  repositorySlug?: string | null
+  prUrl?: string | null
+  className?: string
+  wrap?: "break" | "nowrap"
+}
+
+function compactEntityValue(value: number | string | null | undefined): string | null {
+  return displayValue(value)
+}
+
+function prefixedEntityLabel(prefix: string, id: number | string | null | undefined) {
+  const displayed = compactEntityValue(id)
+  return displayed ? `${prefix}-${displayed}` : null
+}
+
+type EntityReferenceDefinition = {
+  label: (reference: EntityReferenceProps) => string | null
+  href: (reference: EntityReferenceProps) => string | null
+  copyValue?: (reference: EntityReferenceProps, label: string) => string | null
+  hoverKind?: "job" | "epic" | "chat" | "plugin"
+  hoverPrefix?: string
+}
+
+const slugCopyValue = (reference: EntityReferenceProps, label: string) => displayValue(reference.slug) ?? label
+const noHref = () => null
+const idHref = (prefix: string) => (reference: EntityReferenceProps) => {
+  const id = compactEntityValue(reference.id)
+  return id ? `${prefix}/${id}` : null
+}
+const repositoryHref = (reference: EntityReferenceProps) => {
+  const id = compactEntityValue(reference.repositoryId) ?? compactEntityValue(reference.id)
+  return id ? `/repositories/${id}` : null
+}
+
+const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDefinition> = {
+  job: { label: (reference) => prefixedEntityLabel("JOB", reference.id), href: idHref("/jobs"), copyValue: slugCopyValue, hoverKind: "job" },
+  epic: { label: (reference) => prefixedEntityLabel("EPIC", reference.id), href: idHref("/epics"), copyValue: slugCopyValue, hoverKind: "epic" },
+  design_doc: { label: (reference) => prefixedEntityLabel("DOC", reference.id), href: idHref("/design_docs"), copyValue: slugCopyValue, hoverKind: "plugin", hoverPrefix: "DOC" },
+  chat: { label: (reference) => prefixedEntityLabel("CHAT", reference.id), href: idHref("/chats"), copyValue: slugCopyValue, hoverKind: "chat" },
+  run: { label: (reference) => prefixedEntityLabel("RUN", reference.id), href: (reference) => {
+    const jobId = compactEntityValue(reference.jobId)
+    const workflowId = compactEntityValue(reference.workflowId)
+    return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+  }, copyValue: slugCopyValue },
+  workflow: { label: (reference) => prefixedEntityLabel("WF", reference.id), href: (reference) => {
+    const id = compactEntityValue(reference.id)
+    const jobId = compactEntityValue(reference.jobId)
+    return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
+  }, copyValue: slugCopyValue },
+  pull_request: { label: (reference) => {
+    const id = compactEntityValue(reference.id)
+    return id ? `PR #${id}` : null
+  }, href: (reference) => displayValue(reference.prUrl), copyValue: slugCopyValue },
+  artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
+  proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
+}
+
+export function entityReferenceLabel(reference: EntityReferenceProps): string | null {
+  const explicit = displayValue(reference.label) ?? displayValue(reference.slug)
+  return explicit ?? ENTITY_REFERENCE_DEFINITIONS[reference.kind].label(reference)
+}
+
+export function entityReferenceHref(reference: EntityReferenceProps): string | null {
+  const explicit = displayValue(reference.href)
+  if (explicit) return explicit
+  return ENTITY_REFERENCE_DEFINITIONS[reference.kind].href(reference)
+}
+
+function entityCopyValue(reference: EntityReferenceProps, label: string): string | null {
+  return ENTITY_REFERENCE_DEFINITIONS[reference.kind].copyValue?.(reference, label) ?? null
+}
+
+function hoverWrapper(reference: EntityReferenceProps, children: ReactNode) {
+  const id = numberValue(reference.id)
+  if (id == null) return children
+  const definition = ENTITY_REFERENCE_DEFINITIONS[reference.kind]
+  return definition.hoverKind ? <SlugHoverCard id={id} kind={definition.hoverKind} prefix={definition.hoverPrefix}>{children}</SlugHoverCard> : children
+}
+
+const COPY_ICON_BUTTON_CLASS = [
+  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded",
+  "text-text-subtle hover:bg-surface-raised hover:text-text-primary",
+  "focus:outline-none focus:ring-2 focus:ring-brand"
+].join(" ")
+
+function CopyOnlyIconButton({ value }: { value: string }) {
+  const { t } = useT("common")
+  const { copied, copy } = useCopyToClipboard()
+
+  return (
+    <button
+      aria-label={t("copy.copy_to_clipboard", { slug: value })}
+      className={COPY_ICON_BUTTON_CLASS}
+      onClick={() => copy(value)}
+      title={copied ? t("copy.copied") : t("copy.copy", { slug: value })}
+      type="button"
+    >
+      <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-success-text" : ""}`} />
+    </button>
+  )
+}
+
+function entityLabelWrapClass(reference: EntityReferenceProps) {
+  return reference.wrap === "nowrap" ? "whitespace-nowrap" : "break-all"
+}
+
+function linkedEntityReference(label: string, href: string, external: boolean, reference: EntityReferenceProps) {
+  const className = `min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`
+  return <a className={className} href={href} rel={external ? "noreferrer" : undefined} target={external ? "_blank" : undefined}>{label}</a>
+}
+
+export function EntityReference(reference: EntityReferenceProps) {
+  const label = entityReferenceLabel(reference)
+  if (!label) return null
+
+  const href = entityReferenceHref(reference)
+  const copyValue = entityCopyValue(reference, label)
+  const external = Boolean(href?.match(/^https?:\/\//))
+
+  const content = href ? (
+    <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
+      {linkedEntityReference(label, href, external, reference)}
+      {copyValue ? <CopyOnlyIconButton value={copyValue} /> : null}
+    </span>
+  ) : copyValue ? (
+    <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
+      <span className={`min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary`}>{label}</span>
+      <CopyOnlyIconButton value={copyValue} />
+    </span>
+  ) : (
+    <span className={`${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary ${reference.className ?? ""}`}>{label}</span>
+  )
+
+  return hoverWrapper(reference, content)
+}
+
 // Collapsed-by-default detail section for content a card should not dump
 // into the main body by default (file contents, command output, long
 // lists) — the raw JSON "Raw details" disclosure always covers the full
@@ -151,7 +313,7 @@ export function FilterableList<T,>({ children, emptyLabel = "No matching rows.",
       <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label={placeholder}
-          className="min-w-0 flex-1 px-2 py-1 text-xs dark:bg-gray-950"
+          className="min-w-0 flex-1 px-2 py-1 text-xs"
           fullWidth={false}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={placeholder}

@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, Row } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EntityReference, Row } from "../toolCardUi"
 
 // Core-owned tool card for classify_pull_request (the tool-card work).
 type ClassifyResult = {
@@ -46,7 +46,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">PR #{result.prNumber}</span>
+        <EntityReference id={result.prNumber} kind="pull_request" />
         <Badge>{result.classification}</Badge>
         {result.forkPr != null ? <Badge>{result.forkPr ? "fork" : "same-repo"}</Badge> : null}
         {result.markerKind ? <Badge>marker: {result.markerKind}</Badge> : null}

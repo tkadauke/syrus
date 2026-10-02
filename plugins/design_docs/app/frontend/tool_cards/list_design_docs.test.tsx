@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listDesignDocsToolCard from "./list_design_docs"
 
@@ -14,6 +14,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("list_design_docs tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(listDesignDocsToolCard.toolName).toBe("list_design_docs")
   })
@@ -33,7 +39,9 @@ describe("list_design_docs tool card", () => {
 
     render(<>{listDesignDocsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("DOC-20")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "DOC-20" })).toHaveAttribute("href", "/design_docs/20")
+    fireEvent.click(screen.getByRole("button", { name: "Copy DOC-20 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("DOC-20")
     expect(screen.getByText("Target Graphs for Project-Aware Workflows")).toBeInTheDocument()
     expect(screen.getByText("draft")).toBeInTheDocument()
   })

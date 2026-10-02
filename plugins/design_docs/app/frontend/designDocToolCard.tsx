@@ -1,6 +1,6 @@
 import { isPlainObject } from "@app/pluginToolCards"
 import i18n from "i18next"
-import { Badge, displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, displayValue, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
 // / read_design_doc, propose_design_doc, suggest_design_doc_change,
@@ -39,21 +39,12 @@ export function parseDesignDocSummary(value: unknown): DesignDocSummary | null {
   }
 }
 
-function docHref(docRef: string): string | null {
-  const match = docRef.match(/(\d+)\s*$/)
-  return match ? `/design_docs/${match[1]}` : null
-}
-
 export function DesignDocHeader({ doc }: { doc: DesignDocSummary }) {
-  const href = docHref(doc.docRef)
+  const match = doc.docRef.match(/(\d+)\s*$/)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {href ? (
-        <InternalLink href={href}>{doc.docRef}</InternalLink>
-      ) : (
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{doc.docRef}</span>
-      )}
+      {match ? <EntityReference id={match[1]} kind="design_doc" /> : <EntityReference kind="design_doc" slug={doc.docRef} />}
       {doc.state ? <StatePill state={doc.state} /> : null}
       {doc.visibility ? <Badge>{doc.visibility}</Badge> : null}
     </div>

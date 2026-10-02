@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { CardShell, EntityReference, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
@@ -74,13 +74,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {pr.htmlUrl ? (
-          <a className="font-mono font-semibold text-brand hover:underline dark:text-brand-emphasis" href={pr.htmlUrl} rel="noreferrer" target="_blank">
-            #{pr.number}
-          </a>
-        ) : (
-          <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{pr.number}</span>
-        )}
+        <EntityReference id={pr.number} kind="pull_request" prUrl={pr.htmlUrl} />
         <StatePill state={pr.state} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>
@@ -110,6 +104,33 @@ const readPrToolCard: ToolCardRenderer = {
 }
 
 export default readPrToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "open_pr_with_diff",
+    label: "Open PR with diff",
+    input: { pr_number: 407 },
+    parsedResult: {
+      pr: {
+        number: 407,
+        title: "Add linked entity refs to tool cards",
+        body: "Updates representative cards and examples so entity references are linked and copyable.",
+        state: "open",
+        html_url: "https://github.com/tkadauke/syrus/pull/407",
+        diff: { text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs", truncated: false, bytes: 112 }
+      }
+    }
+  },
+  {
+    id: "pr_without_html_url",
+    label: "PR without GitHub URL",
+    description: "The PR number remains copyable when no external URL is available.",
+    input: { pr_number: 408 },
+    parsedResult: { pr: { number: 408, title: "Local PR metadata", state: "open" } }
+  }
+]
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"

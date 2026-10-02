@@ -32,7 +32,7 @@ describe("search_jobs tool card", () => {
     render(<>{searchJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
   })
 

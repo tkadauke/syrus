@@ -6,6 +6,7 @@ module McpToolPayloads
     def job_detail_payload(job, deployment_stages_plan: nil)
       {
         id: job.id,
+        repository_slug: job.repository&.slug,
         kind: job.kind,
         issue_number: job.issue_number,
         pr_number: job.pr_number || job.external_pr_number,
