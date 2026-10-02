@@ -16,6 +16,10 @@ module CredentialStore
         raise NotImplementedError
       end
 
+      def usable_by?(_credential, _context)
+        raise NotImplementedError
+      end
+
       def record_for(scope_id)
         return nil if scope_id.blank?
 
