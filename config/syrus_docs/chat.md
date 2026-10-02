@@ -43,12 +43,18 @@ per action. The card shows the shared action name plus member count (e.g.
 "Reopen job (11)"), an expandable list of the affected targets, and one
 Confirm all/Reject all control backed by
 `POST /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm`
-and `.../reject`. A member of a group never renders its own standalone
-pending-action card — `pending_actions_json` filters out any
+and `.../reject`. Once the group is confirmed or rejected, the terminal card
+shows a compact dismiss control backed by
+`DELETE /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id`;
+dismissing hides the group from future chat payloads without reusing reject
+semantics. A member of a group never renders its own standalone pending-action
+card — `pending_actions_json` filters out any
 `ChatPendingAction` with a `pending_action_group_id` — and the group card
-itself anchors to the chat message that created it the same way an
-individual pending action does, or appends at the end of the stream when
-unanchored.
+itself anchors to the chat message that created it the same way an individual
+pending action does. The stream builder also falls back to member anchors, so
+a grouped card still renders immediately below the collapsed tool group that
+created it when a member has the usable tool-call anchor; only groups with no
+renderable anchor append at the end of the stream.
 
 Confirming applies every still-pending member independently, in its own
 transaction, so one member failing (e.g. a Job that no longer meets the
@@ -57,9 +63,11 @@ resulting state (`confirmed`/`failed`, with `execution_error` when failed) is
 what the card's expandable list renders per target, and unlike a lone
 pending action (which drops out of the payload shortly after it confirms —
 a separate per-action chat notification already announces that outcome) the
-group's card stays in the payload at every state, since it is the only place
-that per-item breakdown is visible. Rejecting discards every still-pending
-member without applying any.
+group's card stays in the payload after confirmation or rejection until the
+operator dismisses it, since it is the only place that per-item breakdown is
+visible. Confirming or rejecting the group emits one group outcome chat
+message and one follow-up turn, rather than one per successful member.
+Rejecting discards every still-pending member without applying any.
 
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,

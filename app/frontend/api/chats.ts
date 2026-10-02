@@ -480,12 +480,13 @@ export type ChatPendingAction = {
 
 export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"
 
-export type ChatPendingActionGroupState = "pending" | "confirming" | "confirmed" | "rejected"
+export type ChatPendingActionGroupState = "pending" | "confirming" | "confirmed" | "rejected" | "dismissed"
 
 export type ChatPendingActionGroupMember = {
   id: number
   label: string
   state: ChatPendingActionState
+  chat_message_id?: number | null
   execution_error?: string | null
 }
 
@@ -498,6 +499,7 @@ export type ChatPendingActionGroup = {
   members: ChatPendingActionGroupMember[]
   app_confirm_path: string
   app_reject_path: string
+  app_dismiss_path: string
 }
 
 export type ChatAgentSubQuestion = {

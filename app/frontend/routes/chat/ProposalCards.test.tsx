@@ -48,6 +48,7 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
     ],
     app_confirm_path: "/api/v1/app/chats/122/pending_action_groups/7/confirm",
     app_reject_path: "/api/v1/app/chats/122/pending_action_groups/7/reject",
+    app_dismiss_path: "/api/v1/app/chats/122/pending_action_groups/7",
     ...overrides
   }
 }
@@ -135,6 +136,27 @@ describe("PendingActionGroupCard", () => {
     expect(screen.queryByRole("button", { name: "Confirm all" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject all" })).not.toBeInTheDocument()
     expect(screen.getByText("Rejected")).toBeInTheDocument()
+  })
+
+  it("dismisses a resolved group through its dismiss path", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_action_groups: [],
+      message: "Pending action group dismissed."
+    }))
+    const { onNotice } = renderGroupCard(pendingActionGroup({ state: "confirmed" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss batch pending action" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Pending action group dismissed."))
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/chats/122/pending_action_groups/7")
+    expect(init?.method).toBe("DELETE")
+  })
+
+  it("does not show a dismiss button before a group is resolved", () => {
+    renderGroupCard(pendingActionGroup({ state: "pending" }))
+
+    expect(screen.queryByRole("button", { name: "Dismiss batch pending action" })).not.toBeInTheDocument()
   })
 })
 

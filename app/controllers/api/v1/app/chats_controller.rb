@@ -898,6 +898,17 @@ module Api
           end
         end
 
+        def destroy_pending_action_group
+          chat_session = find_chat_session
+          group = find_pending_action_group(chat_session)
+
+          if group.dismiss!
+            render json: chat_payload(chat_session.reload, message: "Pending action group dismissed.")
+          else
+            render_error("validation_failed", "Pending action group is not resolved.", status: :unprocessable_content)
+          end
+        end
+
         def confirm_proposal
           chat_session = find_chat_session
           proposal = find_proposal(chat_session)
