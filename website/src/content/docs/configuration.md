@@ -574,12 +574,14 @@ Per-user credentials use Active Record Encryption:
 - `codex_auth_json`
 - `api_token`
 
-The encrypted values live in the primary database. The encryption keys can
-come from Rails credentials via `RAILS_MASTER_KEY`, or directly from the
-`ACTIVE_RECORD_ENCRYPTION_*` environment variables. Any process that reads
-or writes users needs one complete, stable key source. This is why smoke
-tests or console sessions that create users fail loudly when encryption
-keys are missing.
+Generic plugin-managed credentials live in the bundled `credential_store`
+plugin, which stores payloads as encrypted blobs and keeps only safe display
+metadata outside the encrypted payload. The encrypted values live in the
+primary database. The encryption keys can come from Rails credentials via
+`RAILS_MASTER_KEY`, or directly from the `ACTIVE_RECORD_ENCRYPTION_*`
+environment variables. Any process that reads or writes encrypted credentials
+needs one complete, stable key source. This is why smoke tests or console
+sessions that create users fail loudly when encryption keys are missing.
 
 GitHub push tokens are not written into clone remotes. Syrus keeps clone
 remotes anonymous and constructs a token-bearing push URL only for the
