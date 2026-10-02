@@ -19,8 +19,17 @@ RSpec.describe K8sCluster::WorkflowToolSet do
     expect(described_class.available_for_context?(context)).to be(true)
   end
 
-  it "is unavailable when no cluster has been configured" do
+  it "is available without a saved cluster when credential-backed kubectl can run" do
     allow(K8sCluster).to receive(:enabled?).and_return(true)
+    allow(CredentialStore).to receive(:enabled?).and_return(true)
+
+    expect(described_class.available_for_context?(context)).to be(true)
+    expect(described_class.tool_definitions(context: context).map { |tool| tool.fetch(:name) }).to include("k8s_cluster_kubectl")
+  end
+
+  it "is unavailable when no cluster has been configured and credential_store is disabled" do
+    allow(K8sCluster).to receive(:enabled?).and_return(true)
+    allow(CredentialStore).to receive(:enabled?).and_return(false)
 
     expect(described_class.available_for_context?(context)).to be(false)
   end
@@ -51,7 +60,8 @@ RSpec.describe K8sCluster::WorkflowToolSet do
       "k8s_cluster_restart_rollout",
       "k8s_cluster_scale_deployment",
       "k8s_cluster_delete_pod",
-      "k8s_cluster_set_node_cordon"
+      "k8s_cluster_set_node_cordon",
+      "k8s_cluster_kubectl"
     )
   end
 

@@ -14,8 +14,8 @@ RSpec.describe CredentialStore::Credential do
       created_by: owner,
       owner_user: owner,
       payload: { "token" => "ghp_secret-token" }.to_json,
-      safe_metadata: { "host" => "github.com", "username" => "deploy-bot", "fingerprint" => "SHA256:abc" },
-      target_constraints: { "allowed_hosts" => [ "github.com" ], "allowed_url_prefixes" => [ "https://github.com/acme/" ] },
+      safe_metadata: { "host" => "github.com", "username" => "deploy-bot", "fingerprint" => "SHA256:abc", "namespace" => "default" },
+      target_constraints: { "allowed_hosts" => [ "github.com" ], "allowed_url_prefixes" => [ "https://github.com/acme/" ], "allowed_kube_clusters" => [ "prod" ], "allowed_kube_namespaces" => [ "default" ] },
       allowed_surfaces: [ "workflow" ],
       allowed_tools: [ "git.push" ],
       last_rotated_at: 1.day.ago

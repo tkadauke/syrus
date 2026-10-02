@@ -7,6 +7,8 @@ RSpec.describe K8sCluster::Engine do
     expect(manifest).to be_present
     expect(manifest.default_enabled?).to be(false)
     expect(manifest.enabled?).to be(false)
+    expect(manifest.depends_on).to eq([ "credential_store" ])
+    expect(manifest.credential_types.map { |entry| entry.fetch("name") }).to include("k8s_cluster.kubeconfig")
     expect(manifest.metadata[:frontend]).to eq(
       routes: { "k8s_cluster/KubernetesClusters" => "app/frontend/routes/KubernetesClusters.tsx" },
       i18n: [ "app/frontend/i18n/locales/*/k8s_cluster.json" ]
