@@ -9,7 +9,12 @@ current Run. The `syrus` CLI prefers that internal context over
 `~/.syrus/credentials`, so agent shells can call app API commands without a
 long-lived human API token. The token resolves to the Run's user and is scoped
 to the current run/job/repository boundary; app API requests that try to cross
-that boundary are rejected or filtered.
+that boundary are rejected or filtered. Invocation-context CLI requests are
+read-only by default: mutating app API calls return `403` and must go through
+the MCP/admin confirmation path instead. Each internal CLI request writes an
+operational audit event with user, repository, job, workflow, run, command
+namespace, and high-level outcome, with invocation tokens and lease identifiers
+redacted.
 
 `Step` is also the workflow DAG node record for the distributed-workflow
 foundation; Syrus does not create a separate node table. Every Step has a

@@ -94,6 +94,12 @@ invocation context through `SYRUS_CLI_URL` and
 or chat and are scoped to that invocation's user and resources. If that
 internal context is missing or expires, the CLI reports a runtime
 configuration error instead of telling the agent to run `syrus login`.
+Internal invocation contexts are read-only by default. Commands that would
+mutate Jobs, chats, admin state, or repository settings are rejected and
+must use the MCP/admin confirmation flow. Syrus audits each internal CLI
+request with command namespace, outcome, and run/job/repository context,
+while redacting invocation tokens, credential lease ids, and secret-shaped
+values.
 
 Syrus Desktop reads and writes the same credentials file. If you have
 already run `syrus login`, the desktop app starts authenticated. If the
