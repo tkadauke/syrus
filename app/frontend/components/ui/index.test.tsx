@@ -316,10 +316,10 @@ describe("@app/components/ui", () => {
       </>
     )
 
-    expect(screen.getByTestId("form-page").className).toContain("max-w-3xl")
-    expect(screen.getByTestId("medium-page").className).toContain("max-w-5xl")
-    expect(screen.getByTestId("large-page").className).toContain("max-w-7xl")
-    expect(screen.getByTestId("extra-wide-page").className).toContain("max-w-[100rem]")
+    expect(maxWidthClasses(screen.getByTestId("form-page"))).toEqual(["max-w-3xl"])
+    expect(maxWidthClasses(screen.getByTestId("medium-page"))).toEqual(["max-w-5xl"])
+    expect(maxWidthClasses(screen.getByTestId("large-page"))).toEqual(["max-w-7xl"])
+    expect(maxWidthClasses(screen.getByTestId("extra-wide-page"))).toEqual(["max-w-[100rem]"])
   })
 
   it("exports DataTable and DescriptionList compound primitives", () => {
@@ -399,6 +399,8 @@ describe("@app/components/ui", () => {
     expect(defaultClasses).toContain("px-[var(--space-page-x)]")
     expect(responsiveClasses).toContain("px-0")
     expect(responsiveClasses).toContain("sm:px-[var(--space-page-x)]")
+    expect(responsiveClasses).toContain("min-w-0")
+    expect(responsiveClasses).toContain("overflow-x-clip")
     // The unprefixed "always" class must be fully absent, not just shadowed --
     // its presence is exactly the bug: two classes targeting the same
     // property with no guaranteed winner.
@@ -530,3 +532,7 @@ describe("@app/components/ui", () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+function maxWidthClasses(element: HTMLElement): string[] {
+  return element.className.split(" ").filter((className) => className.startsWith("max-w-"))
+}
