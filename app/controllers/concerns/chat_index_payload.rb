@@ -282,7 +282,7 @@ module ChatIndexPayload
     chats_by_id = ChatSession.where(id: chat_ids)
       .preload(:chat_participants, repository_attachments: :attachable)
       .index_by(&:id)
-    repositories_by_id = Current.user.repositories.where(id: repository_ids).index_by(&:id)
+    repositories_by_id = invocation_scoped_repository_scope(Current.user.repositories).where(id: repository_ids).index_by(&:id)
     grouped_rows = rows.group_by { |row| row.fetch("group_key").to_s }
     specs = grouped_rows.filter_map do |group_key, group_rows|
       ordered_rows = group_rows.sort_by { |row| row.fetch("group_position").to_i }
@@ -404,7 +404,7 @@ module ChatIndexPayload
   end
 
   def chat_index_base_scope
-    scope = Current.user.accessible_chat_sessions
+    scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
     scope = case chat_index_settings.fetch(:status)
     when "hidden"
       scope.hidden
@@ -444,7 +444,7 @@ module ChatIndexPayload
   def chat_index_empty_group_specs(repositories_by_id:)
     case chat_index_settings.fetch(:group_by)
     when "repository"
-      repositories = Current.user.repositories.active.order(:owner, :name).to_a
+      repositories = invocation_scoped_repository_scope(Current.user.repositories).active.order(:owner, :name).to_a
       repository_specs = repositories.map do |repository|
         repositories_by_id[repository.id] ||= repository
         { key: "repository-#{repository.id}", label: repository.slug, repository_id: repository.id, group_by: "repository", group_value: repository.id.to_s, chats: [], has_more: false }

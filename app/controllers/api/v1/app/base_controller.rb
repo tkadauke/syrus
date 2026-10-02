@@ -93,6 +93,23 @@ module Api
           relation
         end
 
+        def invocation_scoped_chat_scope(scope)
+          context = Current.session&.invocation_context
+          return scope unless context
+          return scope.none if context.run?
+
+          scope.where(id: context.chat_session.id)
+        end
+
+        def invocation_scoped_repository_scope(scope)
+          context = Current.session&.invocation_context
+          return scope unless context
+
+          repository_ids = context.allowed_repository_ids
+          repository_ids = [ context.repository.id ].compact if repository_ids.blank? && context.repository
+          repository_ids.present? ? scope.where(id: repository_ids) : scope.none
+        end
+
         def enforce_invocation_context_scope
           context = Current.session&.invocation_context
           return true unless context
