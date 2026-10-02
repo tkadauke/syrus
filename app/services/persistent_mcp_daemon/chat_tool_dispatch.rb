@@ -1,12 +1,11 @@
 require "mcp"
 
 # Wraps a chat MCP::Tool class so it can be safely dispatched from the
-# persistent MCP sidecar daemon , which registers ONE static tool
-# list for its whole process lifetime (MCP::Server has no per-request tool
-# list hook) even though chat tool availability legitimately varies per
-# chat session, tier (essential/deferred), role (planner/coding/local/
-# admin), and feature flag -- exactly what
-# Mcp::Sidecar.chat_tools_for computes once per stdio subprocess.
+# persistent MCP sidecar daemon, whose long-lived MCP::Server must keep a
+# static dispatch table even though chat tool availability varies per chat
+# session, tier (essential/deferred), role (planner/coding/local/admin), and
+# feature flag -- exactly what Mcp::Sidecar.chat_tools_for computes once per
+# stdio subprocess.
 #
 # The daemon instead registers the full known chat tool surface (see
 # PersistentMcpDaemon#chat_tools) and this module enforces the same
@@ -15,12 +14,9 @@ require "mcp"
 # carried in this request's `_meta`, rebuilds the stdio-equivalent
 # {chat_session:, current_message:, ...} server_context, and denies
 # (not_authorized) any tool not in that session/tier/role's allowed set. So
-# `tools/list` over the persistent transport advertises a superset of what
-# any single chat turn can actually call -- a known, documented gap (see
-# config/syrus_docs/persistent_mcp_sidecar.md) versus stdio mode's exactly
-# tier-scoped list; the SECURITY boundary (which tools a given chat turn can
-# actually invoke) is unaffected because it is enforced here, not by list
-# visibility.
+# `tools/list` requests carrying an invocation token are answered by a
+# context-scoped temporary server (see PersistentMcpDaemon#context_scoped_chat_tools_list_response);
+# this wrapper enforces the same boundary again at call time.
 module PersistentMcpDaemon::ChatToolDispatch
   class << self
     # Idempotent: safe to call for the same tool class more than once. Layers
@@ -87,7 +83,7 @@ module PersistentMcpDaemon::ChatToolDispatch
         sidecar_mode: "persistent", daemon_identity: daemon_identity,
         chat_session: chat_session, provider: chat_session&.effective_chat_provider
       ) do
-        next Mcp::Tools.not_authorized unless resolved.allowed_tools.include?(self)
+        next Mcp::Tools.not_authorized unless resolved.allowed_tool_names.include?(name_value)
 
         super(*args, server_context: resolved.server_context, **kwargs, &block)
       end

@@ -240,16 +240,18 @@ tool, not just via manual inspection of a specific chat's artifacts.
 `PersistentMcpDaemon::WorkflowContextResolver`)**: the daemon registers the
 known chat tool surface once at boot and registers one workflow tool surface
 per role, each tool wrapped so a call resolves its own per-invocation context.
-Chat dispatch rebuilds the
-same `{chat_session:, current_message:, evaluator:, scoped_event_id:,
-evaluator_session_id:}` shape `Mcp::Sidecar.chat_context` builds for stdio
-mode, and workflow dispatch rebuilds the same run-scoped
+Chat `tools/list` requests that carry an invocation token are answered from a
+temporary, context-scoped MCP server whose tools match the stdio sidecar's
+current chat/tier list, including plugin chat toolsets from enabled plugins.
+Chat dispatch rebuilds the same `{chat_session:, current_message:, evaluator:,
+scoped_event_id:, evaluator_session_id:}` shape `Mcp::Sidecar.chat_context`
+builds for stdio mode, and workflow dispatch rebuilds the same run-scoped
 `McpToolContext.from_run` used by `Mcp::Sidecar.workflow_context`. Each call
 computes the context-scoped allowed tool set before invoking the underlying
 tool. A call to a tool outside that set is denied (`not_authorized`)
-regardless of what the daemon's static tool list contains, so tiering,
-admin-only gating, feature flags, plugin state, and per-step tool policy stay
-enforced at dispatch time.
+regardless of what the daemon's static dispatch table contains, so tiering,
+admin-only gating, feature flags, plugin state, plugin runtime availability,
+and per-step tool policy stay enforced at dispatch time.
 
 **Usage logging is authoritative at this boundary.** `ChatToolDispatch` wraps
 every call (success, `not_authorized`, and an invalid/expired/wrong-worker
@@ -264,22 +266,23 @@ this path and stdio's transcript-derived recording, including how a
 before-dispatch rejection ends up as a `status: "failed"` row with no
 `chat_session` when the invocation context couldn't even be resolved.
 
-**Known gap: `tools/list` advertises a superset.** The underlying `mcp` gem
-builds a server's tool list once at `MCP::Server.new(tools:)` time with no
-per-request hook, so unlike stdio mode's genuinely tier-scoped process, the
-persistent daemon's `/mcp` `tools/list` response is the same full known chat
-tool surface for every chat tier. This does not weaken the security boundary
-(enforced per call by the dispatch wrappers, above) but does mean an MCP
-client may discover chat tools that a specific invocation cannot call.
-Workflow `tools/list` is split by role-specific MCP paths.
+**Tool listing parity.** The daemon keeps a static dispatch table containing
+all core chat tools and all enabled plugin chat tool definitions it may need
+to call, but tokenized `/mcp` `tools/list` requests are narrowed by
+`PersistentMcpDaemon::ChatContextResolver` before they reach the MCP client.
+That keeps persistent chat discovery aligned with stdio mode for essential,
+deferred, admin, coding, local, evaluator, and plugin-gated tools. Health and
+unauthenticated diagnostic enumeration still list the broad daemon table so
+operators can verify what the process has loaded. Workflow `tools/list` is
+split by role-specific MCP paths.
 
 **Evaluator tier stays stdio-only.** `ChatEventEvaluator::ProviderRunner` (the
 disposable scoped-event evaluator, distinct from `ChatTurnJob`) is not
 wired to `ChatMcpTransportSelector` and always spawns
 `bin/syrus-chat-sidecar --tier evaluator`; its tool set
-(`McpToolPolicy#chat_evaluator_tools`) includes at least one tool
-(`SubmitScopedEventDecisionTool`) that isn't registered in `McpToolRegistry`
-at all, so it isn't part of the daemon's registered chat tool surface either.
+(`McpToolPolicy#chat_evaluator_tools`) is still reconstructed by the
+persistent resolver for tokenized list/call parity, but normal chat turns do
+not receive evaluator-scoped invocation tokens.
 
 ## What this is not (yet)
 

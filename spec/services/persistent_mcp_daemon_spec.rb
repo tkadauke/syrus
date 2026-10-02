@@ -46,7 +46,7 @@ RSpec.describe PersistentMcpDaemon do
         body = json_body(response)
         expect(body["status"]).to eq("ok")
         expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow")
-        expect(body["tools"].size).to eq(McpToolRegistry.tools(surface: :chat).uniq.size + 2)
+        expect(body["tools"].size).to be >= McpToolRegistry.tools(surface: :chat).uniq.size + 2
         expect(body["workflow_tools"]).to include("read_live_state", "submit_adversarial_review")
         expect(body["ping_ok"]).to be true
         expect(body["identity"]).to include(
@@ -247,6 +247,82 @@ RSpec.describe PersistentMcpDaemon do
           }.to_json,
           headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
         )
+      end
+
+      def list_tools(token:)
+        response = call(
+          "/mcp",
+          method: "POST",
+          body: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json,
+          headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
+        )
+
+        json_body(response).dig("result", "tools").map { |tool| tool["name"] }
+      end
+
+      def chat_token(session, tier:, evaluator: false)
+        McpInvocationContext.issue_for_chat(session, worker_id: worker_id, tier: tier.to_s, evaluator: evaluator)
+      end
+
+      def persistent_chat_tool_names(session, tier:, evaluator: false)
+        list_tools(token: chat_token(session, tier: tier, evaluator: evaluator)) - %w[daemon_ping daemon_invocation_context]
+      end
+
+      it "matches the stdio sidecar's allowed chat tool names for representative chat contexts" do
+        Feature.find_or_create_by!(slug: "coding_mode") { |feature| feature.category = "Labs"; feature.name = "Coding Mode" }
+               .update!(enabled: true)
+        Feature.clear_enabled_cache!("coding_mode")
+        admin_chat = ChatSession.create!(user: bootstrap_admin, repository: Factories.repository(user: bootstrap_admin))
+        coding_chat = ChatSession.create!(user: user, repository: repository, mode: "coding")
+        local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+        [
+          [ chat, :essential, false ],
+          [ chat, :deferred, false ],
+          [ admin_chat, :essential, false ],
+          [ admin_chat, :deferred, false ],
+          [ coding_chat, :essential, false ],
+          [ coding_chat, :deferred, false ],
+          [ local_chat, :essential, false ],
+          [ local_chat, :deferred, false ],
+          [ chat, :evaluator, true ]
+        ].each do |session, tier, evaluator|
+          expect(persistent_chat_tool_names(session, tier: tier, evaluator: evaluator)).to match_array(Mcp::Sidecar.chat_tool_names(session, tier: tier))
+        end
+      end
+
+      it "advertises Mockups plugin tools to planning chats in essential and deferred tiers" do
+        expected_names = %w[write_preview_file edit_preview_file show_preview close_preview]
+
+        expect(persistent_chat_tool_names(chat, tier: :essential)).to include(*expected_names)
+        expect(persistent_chat_tool_names(chat, tier: :deferred)).to include(*expected_names)
+      end
+
+      it "does not advertise Mockups plugin tools when the plugin gate rejects the chat mode" do
+        local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+        expect(persistent_chat_tool_names(local_chat, tier: :essential)).not_to include(
+          "write_preview_file",
+          "edit_preview_file",
+          "show_preview",
+          "close_preview"
+        )
+      end
+
+      it "dispatches a plugin chat tool authorized by stable tool name" do
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+        response = call_tool("show_preview", token: token, arguments: { title: "Widget preview" })
+
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be_falsey
+        expect(JSON.parse(result.dig("content", 0, "text"))).to include("state" => "open", "file_count" => 0)
+      end
+
+      it "does not expose worker-only workflow tools to ordinary planning chat list requests" do
+        names = persistent_chat_tool_names(chat, tier: :essential) + persistent_chat_tool_names(chat, tier: :deferred)
+
+        expect(names).not_to include("submit_adversarial_review")
       end
 
       it "dispatches an ordinary essential-tier chat tool for a ChatMcpTransportSelector-selected turn" do
