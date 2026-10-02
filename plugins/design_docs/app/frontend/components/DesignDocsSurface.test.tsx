@@ -932,7 +932,7 @@ describe("DesignDocsSurface", () => {
     }
   })
 
-  it("creates a new comment from a text selection through the narrow-view drawer composer", async () => {
+  it("creates a new comment from a native text selection through the narrow-view drawer composer", async () => {
     const fetchSpy = mockFetch()
     mockMobileViewport()
     renderSurface("/design_docs/1")
@@ -945,10 +945,11 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
 
-    fireEvent.mouseUp(body)
+    fireEvent(document, new Event("selectionchange"))
+    fireEvent.touchEnd(body)
     expect(screen.queryByRole("textbox", { name: "New thread comment" })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on selection" }))
 
     const toggle = await screen.findByRole("button", { name: "2 comments" })
     expect(toggle).toHaveAttribute("aria-expanded", "true")
@@ -961,7 +962,13 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
     const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
     expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
-      comment: { body: "Drawer comment" }
+      comment: {
+        body: "Drawer comment",
+        end_offset: 5,
+        selected_markdown: "Alpha",
+        selected_text: "Alpha",
+        start_offset: 0
+      }
     })
   })
 
