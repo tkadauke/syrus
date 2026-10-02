@@ -2547,6 +2547,18 @@ RSpec.describe ChatTurnJob, :ci_only do
   describe "persistent MCP transport (EPIC-20 chat routing)" do
     let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
 
+    def mark_agent_busy!(chat_session, workdir: workspace_path)
+      SpawnedProcess.create!(
+        chat_session: chat_session,
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-1",
+        pid: 12_345,
+        started_at: Time.current,
+        workdir: workdir.to_s
+      )
+    end
+
     def set_persistent_mcp_feature(enabled)
       feature = Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |record|
         record.category = "Labs"
@@ -2604,6 +2616,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(deferred_token).to be_present
       expect(essential_token).not_to eq(deferred_token)
 
+      mark_agent_busy!(chat)
       resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
       expect(resolved_essential.tier).to eq("essential")
       expect(resolved_essential.tool_context.chat_session).to eq(chat)
@@ -2692,6 +2705,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(deferred_token).to be_present
       expect(essential_token).not_to eq(deferred_token)
 
+      mark_agent_busy!(codex_chat, workdir: codex_workspace_path)
       resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
       expect(resolved_essential.tier).to eq("essential")
       expect(resolved_essential.provider).to eq("codex")
