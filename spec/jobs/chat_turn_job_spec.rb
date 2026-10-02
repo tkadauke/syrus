@@ -2064,10 +2064,10 @@ RSpec.describe ChatTurnJob, :ci_only do
     job = described_class.new
     job.instance_variable_set(:@chat, chat)
 
-    expect(job.send(:mcp_tool_names_for, "syrus-chat-sidecar")).to include("propose_job", "repo_info", "rename_chat")
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-sidecar")).to include("propose_job", "repo_info", "rename_chat", "pin_chat", "unpin_chat")
     expect(job.send(:mcp_tool_names_for, "syrus-chat-sidecar")).not_to include("draw_shape")
     expect(job.send(:mcp_tool_names_for, "syrus-chat-deferred-sidecar")).to include("draw_shape", "read_workflow", "assign_job_to_epic")
-    expect(job.send(:mcp_tool_names_for, "syrus-chat-deferred-sidecar")).not_to include("repo_info", "rename_chat")
+    expect(job.send(:mcp_tool_names_for, "syrus-chat-deferred-sidecar")).not_to include("repo_info", "rename_chat", "pin_chat", "unpin_chat")
     expect(job.send(:mcp_tool_names_for, "unknown-sidecar")).to eq([])
   end
 
