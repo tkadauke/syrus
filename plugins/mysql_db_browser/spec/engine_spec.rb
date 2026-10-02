@@ -7,6 +7,8 @@ RSpec.describe MysqlDbBrowser::Engine do
     expect(manifest).to be_present
     expect(manifest.default_enabled?).to be(false)
     expect(manifest.enabled?).to be(false)
+    expect(manifest.depends_on).to eq([ "credential_store" ])
+    expect(manifest.credential_types.map { |entry| entry.fetch("name") }).to include("mysql_db_browser.connection")
     expect(manifest.metadata[:frontend]).to eq(
       routes: { "mysql_db_browser/MysqlConnections" => "app/frontend/routes/MysqlConnections.tsx" },
       i18n: [ "app/frontend/i18n/locales/*/mysql_db_browser.json" ]
@@ -40,6 +42,13 @@ RSpec.describe MysqlDbBrowser::Engine do
       PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
 
       expect(MysqlDbBrowser.enabled?).to be(true)
+    end
+
+    it "is false when credential_store is disabled" do
+      PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+      PluginRecord.find_by!(name: "credential_store").update!(enabled: false)
+
+      expect(MysqlDbBrowser.enabled?).to be(false)
     end
   end
 end
