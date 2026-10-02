@@ -101,6 +101,21 @@ request with command namespace, outcome, and run/job/repository context,
 while redacting invocation tokens, credential lease ids, and secret-shaped
 values.
 
+Useful runtime-safe examples are the same read commands operators use
+locally, but authenticated by the invocation context instead of a credentials
+file:
+
+```bash
+syrus job show JOB-<id> --json
+syrus job log JOB-<id>
+syrus job diff JOB-<id>
+syrus whoami --json
+```
+
+New in-runtime CLI surfaces, such as future target graph query commands or
+credential wrapper helpers, should reuse this availability and authentication
+layer rather than adding a separate runtime token mechanism.
+
 Syrus Desktop reads and writes the same credentials file. If you have
 already run `syrus login`, the desktop app starts authenticated. If the
 file is missing or incomplete, the desktop app prompts for the same URL
