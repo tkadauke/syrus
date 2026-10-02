@@ -257,6 +257,52 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(pr_link_queries.size).to eq(1)
     end
 
+    it "uses preloaded latest workflow state for infrastructure delivery status" do
+      PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: true, disableable: true)
+      policy = instance_double(
+        DeliveryPolicy,
+        promotion_enabled?: false,
+        hotfix_sync_enabled?: false,
+        upstream_export_enabled?: false,
+        job_delivery_track: "default"
+      )
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(policy)
+      jobs = Array.new(3) do |index|
+        job = Factories.job_record(
+          user: user,
+          repository: repo,
+          kind: "agent_insight",
+          issue_number: nil,
+          state: "queued",
+          priority: "low",
+          created_at: index.minutes.ago
+        )
+        Workflow.create!(job: job, user: user, trigger_kind: "agent_insight", state: "succeeded")
+        job.update_columns(state: "closed", closure_reason: "agent_insight", finished_at: Time.current)
+        job
+      end
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA"
+        next if payload[:cached]
+
+        queries << payload[:sql].to_s.squish
+      end
+
+      result = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        result = call(subject: "job", section: "rows")
+      end
+
+      items = result[:items].index_by { |item| item[:id] }
+      expect(jobs).to all(satisfy { |job| items.fetch(job.id).fetch(:delivery_status) == :approved_for_local_landing })
+      per_row_latest_workflow_queries = queries.grep(
+        /FROM ["`]?workflows["`]? WHERE ["`]?workflows["`]?\.(?:["`]?job_id["`]?) = .*ORDER BY .*LIMIT/i
+      )
+      expect(per_row_latest_workflow_queries).to be_empty
+    end
+
     it "preloads lightweight Kanban job row associations" do
       policy = instance_double(
         DeliveryPolicy,
