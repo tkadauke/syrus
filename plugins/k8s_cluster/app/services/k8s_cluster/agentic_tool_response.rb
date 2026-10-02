@@ -20,11 +20,18 @@ module K8sCluster
       MissingNamespace
     ].freeze
 
-    def respond_with(cluster_id:, params:)
+    def respond_with(cluster_id:, params:, server_context: nil)
       Mcp::Tools.with_database_connection do
+        previous_context = Thread.current[:k8s_cluster_mcp_context]
+        previous_tool_name = Thread.current[:k8s_cluster_mcp_tool_name]
+        Thread.current[:k8s_cluster_mcp_context] = McpToolContext.from_server_context(server_context) if server_context.present?
+        Thread.current[:k8s_cluster_mcp_tool_name] = tool_name
         result = yield
         AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, result: result)
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(result) } ])
+      ensure
+        Thread.current[:k8s_cluster_mcp_context] = previous_context
+        Thread.current[:k8s_cluster_mcp_tool_name] = previous_tool_name
       end
     rescue *RESCUABLE_ERRORS => e
       AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, error: e)

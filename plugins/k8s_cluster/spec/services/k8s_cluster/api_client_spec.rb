@@ -81,6 +81,58 @@ RSpec.describe K8sCluster::ApiClient do
     end
   end
 
+  it "leases brokered kubeconfig credentials and records workflow access" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_with_run(user: user, repository: repository)
+    run = job.runs.first
+    cluster = Factories.kubernetes_cluster(api_server_url: "https://k8s.example.com:6443")
+    credential = CredentialStore::Credential.create!(
+      name: "api-client-kubeconfig",
+      credential_type: "k8s_cluster.kubeconfig",
+      scope_type: "repository",
+      scope_id: repository.id,
+      created_by: user,
+      owner_user: user,
+      payload: <<~YAML,
+        current-context: default
+        clusters:
+          - name: prod
+            cluster:
+              server: https://k8s.example.com:6443
+        users:
+          - name: deploy
+            user:
+              token: broker-token
+        contexts:
+          - name: default
+            context:
+              cluster: prod
+              user: deploy
+      YAML
+      safe_metadata: { "cluster" => "prod", "context" => "default", "host" => "k8s.example.com" },
+      target_constraints: {},
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "k8s_cluster_namespaces" ],
+      last_rotated_at: 1.hour.ago
+    )
+    cluster.update!(credential_store_credential_id: credential.id)
+
+    stub_client_factory do |received|
+      described_class.new(cluster, context: McpToolContext.from_run(run), tool_name: "k8s_cluster_namespaces").core
+
+      expect(received.first[:options][:auth_options]).to eq(bearer_token: "broker-token")
+    end
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      run: run,
+      surface: "workflow",
+      tool_name: "k8s_cluster_namespaces",
+      action: "lease",
+      result: "allowed"
+    )
+  end
+
   it "omits auth options entirely when there is no token" do
     cluster = Factories.kubernetes_cluster
 

@@ -22,20 +22,24 @@ module K8sCluster
       OpenSSL::SSL::SSLError
     ].freeze
 
-    def initialize(cluster)
+    def initialize(cluster, context: nil, tool_name: nil)
       @cluster = cluster
+      @context = context || Thread.current[:k8s_cluster_mcp_context]
+      @tool_name = tool_name || Thread.current[:k8s_cluster_mcp_tool_name]
     end
 
     private
 
-    attr_reader :cluster
+    attr_reader :cluster, :context, :tool_name
 
     def api_client
-      @api_client ||= ApiClient.new(cluster)
+      @api_client ||= ApiClient.new(cluster, context: context, tool_name: tool_name)
     end
 
     def with_client(client)
       yield client
+    rescue ClusterCredential::DependencyDisabled, ClusterCredential::MissingCredential, CredentialStore::Broker::Error => e
+      raise Unavailable, e.message
     rescue Kubeclient::ResourceNotFoundError => e
       raise NotFound, e.message
     rescue Kubeclient::HttpError => e

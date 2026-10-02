@@ -57,6 +57,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
     it "lists clusters without exposing credentials" do
       Factories.kubernetes_cluster(label: "Staging").tap do |cluster|
         cluster.token = "s3cret-token"
+        cluster.credential_kind = "token"
         cluster.save!
       end
 
@@ -71,6 +72,31 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       expect(response.body).not_to include("s3cret-token")
     end
 
+    it "lists broker-backed clusters without reading credential payloads" do
+      credential = CredentialStore::Credential.create!(
+        name: "staging-kubeconfig",
+        credential_type: "k8s_cluster.kubeconfig",
+        scope_type: "instance",
+        created_by: admin,
+        owner_user: admin,
+        payload: token_kubeconfig(token: "s3cret-token"),
+        safe_metadata: { "cluster" => "my-cluster", "context" => "default", "host" => "k8s.example.com" },
+        target_constraints: {},
+        allowed_surfaces: %w[admin workflow chat],
+        allowed_tools: [],
+        last_rotated_at: 1.hour.ago
+      )
+      Factories.kubernetes_cluster(label: "Staging", credential_store_credential_id: credential.id, credential_kind: "token")
+      expect(CredentialStore::Credential).not_to receive(:find_by)
+
+      get "/api/v1/app/admin/kubernetes_clusters"
+
+      expect(response).to have_http_status(:ok)
+      cluster = parse_body.fetch("kubernetes_clusters").first
+      expect(cluster["credential_kind"]).to eq("token")
+      expect(response.body).not_to include("s3cret-token")
+    end
+
     it "creates a cluster by parsing a pasted kubeconfig" do
       post "/api/v1/app/admin/kubernetes_clusters", params: {
         kubernetes_cluster: { label: "Prod", kubeconfig: token_kubeconfig(token: "hunter2") }
@@ -81,8 +107,21 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
 
       cluster = KubernetesCluster.find(parse_body.dig("kubernetes_cluster", "id"))
       expect(cluster.api_server_url).to eq("https://k8s.example.com:6443")
-      expect(cluster.token).to eq("hunter2")
+      expect(cluster.token).to be_nil
+      expect(cluster.credential_store_credential_id).to be_present
+      expect(cluster.credential_kind).to eq("token")
       expect(cluster.agentic_access_enabled).to be false
+
+      credential = CredentialStore::Credential.find(cluster.credential_store_credential_id)
+      expect(credential).to have_attributes(
+        credential_type: "k8s_cluster.kubeconfig",
+        scope_type: "instance",
+        created_by: admin
+      )
+      expect(credential.payload).to include("hunter2")
+      expect(credential.safe_metadata).to include("cluster" => "my-cluster", "context" => "default", "host" => "k8s.example.com")
+      expect(credential.target_constraints).to eq({})
+      expect(credential.allowed_surfaces).to match_array(%w[admin workflow chat])
     end
 
     it "rejects creation without a kubeconfig" do
@@ -132,8 +171,24 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
 
       expect(response).to have_http_status(:ok)
       cluster.reload
-      expect(cluster.token).to eq("new-token")
+      expect(cluster.token).to be_nil
       expect(cluster.api_server_url).to eq("https://new.example.com:6443")
+      expect(cluster.credential_kind).to eq("token")
+      credential = CredentialStore::Credential.find(cluster.credential_store_credential_id)
+      expect(credential.payload).to include("new-token")
+      expect(credential.payload).not_to include("old-token")
+    end
+
+    it "rejects credential rotation when credential_store is disabled" do
+      allow(CredentialStore).to receive(:enabled?).and_return(false)
+
+      post "/api/v1/app/admin/kubernetes_clusters", params: {
+        kubernetes_cluster: { label: "Prod", kubeconfig: token_kubeconfig(token: "hunter2") }
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(KubernetesCluster.count).to eq(0)
+      expect(CredentialStore::Credential.count).to eq(0)
     end
 
     it "deletes a cluster" do
@@ -173,7 +228,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
         cluster = Factories.kubernetes_cluster
         cluster.token = "stored-token"
         cluster.save!
-        allow(K8sCluster::ConnectionTester).to receive(:test).with(cluster).and_return({ success: true })
+        allow(K8sCluster::ConnectionTester).to receive(:test).with(cluster, context: instance_of(McpToolContext)).and_return({ success: true })
 
         post "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/test"
 
