@@ -189,6 +189,26 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
   })
 })
 
+describe("SlugReferenceCard when pointer media queries are unavailable", () => {
+  beforeEach(() => {
+    Reflect.deleteProperty(window, "matchMedia")
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it("preserves inline copy button behavior instead of assuming a touch device", () => {
+    renderCard("plugin", 5, "INSIGHT", { displayLabel: "Insight", hrefTemplate: null, linkable: false, previewAvailable: false })
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-5")
+    expect(screen.queryByRole("dialog", { name: "Actions for INSIGHT-5" })).not.toBeInTheDocument()
+  })
+})
+
 describe("SlugReferenceCard on a pointer:fine device", () => {
   beforeEach(() => {
     mockMatchMedia(true)

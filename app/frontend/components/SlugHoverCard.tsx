@@ -47,7 +47,9 @@ function PreviewCard({ entry, id }: { entry: SlugReferenceRegistryEntry; id: num
 }
 
 function detectPointerFine(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true
+
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches
 }
 
 export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugReferenceCardProps) {
