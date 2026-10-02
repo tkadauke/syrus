@@ -146,6 +146,7 @@ per-user/private:
   - app/controllers/api/v1/app/dashboard_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
   - app/controllers/api/v1/app/diff_review_comments_controller.rb
+  - app/controllers/api/v1/app/diff_review_versions_controller.rb
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
   - plugins/mockups/app/controllers/api/v1/app/mockups_controller.rb
@@ -207,6 +208,7 @@ per-user/private:
   - plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
+  - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
   - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
