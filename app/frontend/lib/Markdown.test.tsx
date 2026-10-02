@@ -1,7 +1,35 @@
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { Markdown, PlainText, renderLightMarkdown } from "./Markdown"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "./slugReferenceRegistry"
+
+function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
+  return {
+    prefix: overrides.prefix,
+    type: overrides.type,
+    displayLabel: overrides.prefix,
+    copyable: true,
+    linkable: true,
+    previewAvailable: true,
+    linkifiesGeneratedText: true,
+    hrefTemplate: null,
+    mobileInteractionHints: {},
+    pluginPreviewComponent: null,
+    ...overrides
+  }
+}
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
+    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" })
+  ])
+})
+
+afterEach(() => {
+  setSlugReferenceRegistryForTests(null)
+})
 
 describe("Markdown", () => {
   it("renders common chat markdown as React elements", () => {
