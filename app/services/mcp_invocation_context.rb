@@ -29,6 +29,7 @@ class McpInvocationContext
   class Expired < InvalidContext; end
   class WrongWorker < InvalidContext; end
   class Unauthorized < InvalidContext; end
+  class TurnEnded < InvalidContext; end
 
   Resolved = Struct.new(
     :tool_context, :surface, :tier, :provider,
@@ -152,6 +153,7 @@ class McpInvocationContext
         ChatSession.find_by(id: payload["chat_session_id"])
       end
       raise Unauthorized, "chat session #{payload['chat_session_id']} not found" unless chat_session
+      validate_chat_turn_active!(payload, chat_session)
 
       Resolved.new(
         tool_context: McpToolContext.from_chat_session(chat_session, evaluator: payload["evaluator"] == true),
@@ -162,6 +164,22 @@ class McpInvocationContext
         scoped_event_id: payload["scoped_event_id"],
         evaluator_session_id: payload["evaluator_session_id"]
       )
+    end
+
+    def validate_chat_turn_active!(payload, chat_session)
+      current_message_id = payload["current_message_id"]
+      return if current_message_id.blank?
+
+      active_message_id = active_chat_turn_message_id(chat_session)
+      return if active_message_id == current_message_id
+
+      raise TurnEnded, "chat turn for message #{current_message_id} is no longer active"
+    end
+
+    def active_chat_turn_message_id(chat_session)
+      return unless chat_session.turn_in_flight? || chat_session.agent_busy?
+
+      chat_session.messages.where(role: "user").order(:created_at, :id).last&.id
     end
 
     def validate_run_expiry!(payload, run)
