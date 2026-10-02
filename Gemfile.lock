@@ -255,6 +255,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/whisper_stt
+  specs:
+    whisper_stt (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/whiteboard
   specs:
     whiteboard (0.1.0)
@@ -926,6 +932,7 @@ DEPENDENCIES
   web-console
   webauthn (~> 3.0)
   webmock
+  whisper_stt!
   whiteboard!
   worker_timeline!
 
@@ -1202,6 +1209,7 @@ CHECKSUMS
   websocket (1.2.11) sha256=b7e7a74e2410b5e85c25858b26b3322f29161e300935f70a0e0d3c35e0462737
   websocket-driver (0.8.2) sha256=97c556b019bf3410b4961002ac501621e9322d3f8a7bc02161a09301cc4c4146
   websocket-extensions (0.1.5) sha256=1c6ba63092cda343eb53fc657110c71c754c56484aad42578495227d717a8241
+  whisper_stt (0.1.0)
   whiteboard (0.1.0)
   worker_timeline (0.1.0)
   xpath (3.2.0) sha256=6dfda79d91bb3b949b947ecc5919f042ef2f399b904013eb3ef6d20dd3a4082e
