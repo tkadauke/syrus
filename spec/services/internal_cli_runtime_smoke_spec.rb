@@ -80,7 +80,7 @@ RSpec.describe "Syrus CLI inside workflow runtime", :ci_only do
       end
 
       AgentProviders.for("claude").new(run: run, workspace: workspace, parent_session_id: nil)
-        .run(prompt: "exercise the runtime CLI", log_sink: ->(_) {})
+        .run(prompt: "exercise the runtime CLI", log_sink: ->(_) { })
     ensure
       RunJob.agent_runner = nil
     end
