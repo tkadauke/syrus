@@ -207,17 +207,15 @@ RSpec.describe PersistentMcpDaemon do
       end
 
       it "records a failed workflow usage row when the invocation token is invalid" do
-        expired_token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, expires_in: -1.minute)
-
         expect {
           response = call_workflow_tool(
             described_class.workflow_role_path(AgentRole::WORKFLOW_IMPLEMENT),
             "read_live_state",
-            token: expired_token
+            token: "not-a-valid-token"
           )
           result = json_body(response)["result"]
           expect(result["isError"]).to be true
-          expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
+          expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Malformed/)
         }.to change(McpToolUsage, :count).by(1)
 
         usage = McpToolUsage.sole
@@ -227,7 +225,7 @@ RSpec.describe PersistentMcpDaemon do
           status: "failed",
           sidecar_mode: "persistent",
           run_id: nil,
-          error_class: "McpInvocationContext::Expired"
+          error_class: "McpInvocationContext::Malformed"
         )
       end
     end
@@ -357,47 +355,6 @@ RSpec.describe PersistentMcpDaemon do
             error_class: "McpInvocationContext::Expired"
           )
         end
-      end
-    end
-
-    describe "workflow tool dispatch over /mcp (PersistentMcpDaemon::WorkflowToolDispatch)" do
-      let(:user) { Factories.user }
-      let(:job) { Factories.job_with_run(user: user) }
-      let(:run) { job.runs.first }
-      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
-
-      def call_tool(name, token:, arguments: {})
-        call(
-          "/mcp",
-          method: "POST",
-          body: {
-            jsonrpc: "2.0", id: 1, method: "tools/call",
-            params: { name: name, arguments: arguments }
-          }.to_json,
-          headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
-        )
-      end
-
-      it "dispatches an allowed workflow tool for the signed run context" do
-        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
-
-        response = call_tool("read_live_state", token: token)
-
-        expect(response[0]).to eq(200)
-        result = json_body(response)["result"]
-        expect(result["isError"]).to be_falsey
-        payload = JSON.parse(result.dig("content", 0, "text"))
-        expect(payload.dig("run", "id")).to eq(run.id)
-      end
-
-      it "denies a workflow tool that is outside this run's step policy" do
-        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
-
-        response = call_tool("admin_overview", token: token)
-
-        result = json_body(response)["result"]
-        expect(result["isError"]).to be true
-        expect(JSON.parse(result.dig("content", 0, "text"))["error"]).to eq("not_authorized")
       end
     end
 

@@ -207,14 +207,15 @@ module AgentProviders
 
     def persistent_proxy_env(decision)
       {
-        "SYRUS_MCP_PROXY_URL" => persistent_mcp_url,
+        "SYRUS_MCP_PROXY_URL" => persistent_mcp_url(decision),
         "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => mint_invocation_context_token(decision),
         "PATH" => ENV["PATH"]
       }.compact
     end
 
-    def persistent_mcp_url
-      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    def persistent_mcp_url(decision = nil)
+      path = decision&.mcp_path.presence || PersistentMcpDaemon::MCP_PATH
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{path}"
     end
 
     def mint_invocation_context_token(decision)
