@@ -1,0 +1,36 @@
+name: queued workflow without first run
+repository:
+  owner: simulation
+  name: queued-workflow-without-first-run
+jobs:
+  job:
+    title: Queued workflow without first run
+    state: queued
+    workflow:
+      kind: initial
+      state: queued
+      created_at: "2026-09-09T13:20:00Z"
+      work_unit:
+        state: queued
+        kind: initial
+      steps:
+        - kind: prepare
+          state: queued
+          created_at: "2026-09-09T13:20:00Z"
+        - kind: implement
+          state: queued
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - queued_workflow_without_first_run
