@@ -82,6 +82,7 @@ function SlugReferenceControl({ copyOnly, entry, id, slug }: { copyOnly: boolean
 function LinkedCopyableSlug({ href, slug }: { href: string; slug: string }) {
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
+  const linkClassName = `${slugLinkClassName} min-w-0 break-all`
 
   const handleCopy = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -91,9 +92,15 @@ function LinkedCopyableSlug({ href, slug }: { href: string; slug: string }) {
 
   return (
     <span className={`${linkedSlugClassName} ${linkedSlugToneClassName}`}>
-      <Link className={`${slugLinkClassName} min-w-0 break-all`} to={href}>
-        {slug}
-      </Link>
+      {href.startsWith("/s/") ? (
+        <a className={linkClassName} href={href}>
+          {slug}
+        </a>
+      ) : (
+        <Link className={linkClassName} to={href}>
+          {slug}
+        </Link>
+      )}
       <button
         aria-label={t("copy.copy_to_clipboard", { slug })}
         className={linkedSlugCopyButtonClassName}

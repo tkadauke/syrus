@@ -47,14 +47,16 @@ describe("linkifySlugs", () => {
     setSlugReferenceRegistryForTests([
       registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
       registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" }),
-      registryEntry({ prefix: "DOC", type: "design_doc", hrefTemplate: "/design_docs/:id" })
+      registryEntry({ prefix: "DOC", type: "design_doc", hrefTemplate: "/design_docs/:id" }),
+      registryEntry({ prefix: "INSIGHT", type: "insight", hrefTemplate: "/s/INSIGHT-:id" })
     ])
 
-    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
+    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, DOC-9, and INSIGHT-5")}</MemoryRouter>)
 
     expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/epics/EPIC-7")
     expect(screen.getByRole("link", { name: "DOC-9" })).toHaveAttribute("href", "/design_docs/9")
+    expect(screen.getByRole("link", { name: "INSIGHT-5" })).toHaveAttribute("href", "/s/INSIGHT-5")
   })
 
   it("keeps one polished control for registered refs that are both linked and copyable", () => {

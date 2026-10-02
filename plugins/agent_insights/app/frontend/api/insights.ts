@@ -122,6 +122,28 @@ export type AdminInsightsPayload = {
   meta: PaginationMeta
 }
 
+export type InsightPreviewPayload = {
+  insight: ({
+    id: number
+    display_id: string
+    accessible: true
+    title: string
+    summary?: string | null
+    category: string
+    severity: InsightSuggestion["severity"]
+    confidence: number
+    state: InsightSuggestion["state"]
+    proposal_type: InsightSuggestion["proposal_type"]
+    repository: InsightSuggestionsPayload["repository"]
+    created_job?: InsightJobSummary | null
+    created_at: string
+    web_path: string
+  } | {
+    display_id: string
+    accessible: false
+  })
+}
+
 export function fetchInsightSuggestions(repositoryId: string | number, search = "", page = 1, perPage = 20) {
   const params = new URLSearchParams(search)
   params.set("page", String(page))
@@ -171,6 +193,10 @@ export function fetchAdminInsights(search = "", page = 1, perPage = 20) {
   params.set("page", String(page))
   params.set("per_page", String(perPage))
   return getJson<AdminInsightsPayload>(`/api/v1/app/admin/insights?${params.toString()}`)
+}
+
+export function fetchInsightPreview(id: string | number) {
+  return getJson<InsightPreviewPayload>(`/api/v1/app/insight_suggestions/${id}/preview`)
 }
 
 export function promoteInsightMemory(id: number) {
