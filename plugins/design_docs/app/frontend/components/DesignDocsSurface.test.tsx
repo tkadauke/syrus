@@ -30,7 +30,8 @@ const docDetail = {
     can_write_canonical: true,
     can_suggest: true,
     can_review_suggestions: true,
-    can_archive: true
+    can_archive: true,
+    can_unarchive: false
   },
   collaborator_ids: [2],
   pending_suggestions_count: 1,
@@ -188,7 +189,8 @@ const reviewerDocDetail = {
     can_write_canonical: false,
     can_suggest: true,
     can_review_suggestions: false,
-    can_archive: false
+    can_archive: false,
+    can_unarchive: false
   }
 }
 
@@ -201,7 +203,8 @@ const archivedDocDetail = {
     can_write_canonical: false,
     can_suggest: false,
     can_review_suggestions: false,
-    can_archive: false
+    can_archive: false,
+    can_unarchive: true
   }
 }
 
@@ -451,6 +454,15 @@ function mockFetch(detail = docDetail) {
     }
     if (url.pathname === "/api/v1/app/design_docs/5" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: archivedDocDetail })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/5" && init?.method === "PATCH") {
+      const payload = JSON.parse(String(init?.body ?? "{}"))
+      const nextDetail = payload.design_doc?.state === "draft" ? {
+        ...archivedDocDetail,
+        state: "draft",
+        permissions: docDetail.permissions
+      } : archivedDocDetail
+      return jsonResponse({ design_doc: nextDetail, mode: "canonical", message: "Design doc updated." })
     }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
       return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
@@ -2403,6 +2415,7 @@ describe("DesignDocsSurface", () => {
     expect(editor).toHaveAttribute("contenteditable", "false")
     expect(screen.getByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unarchive" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
@@ -2413,6 +2426,27 @@ describe("DesignDocsSurface", () => {
     const markdown = screen.getByRole("textbox", { name: "Markdown editor" })
     expect(markdown).toHaveAttribute("readonly")
     expect(screen.getByText("Read only")).toBeInTheDocument()
+  })
+
+  it("lets owners unarchive an archived design doc from the mobile title bar overflow menu", async () => {
+    const fetchSpy = mockFetch()
+    mockMobileViewport()
+    renderSurface("/design_docs/5")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(titleBar).queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument()
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "More actions" }))
+    const menu = within(titleBar).getByTestId("design-doc-title-bar-menu")
+    expect(within(menu).queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole("button", { name: "Unarchive" }))
+
+    await waitFor(() => {
+      const unarchiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/5" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "draft")
+      expect(unarchiveRequest).toBeTruthy()
+    })
+    expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument()
+    expect(screen.queryByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).not.toBeInTheDocument()
   })
 
   it("uses the shared temporary toast for design doc notices", async () => {

@@ -185,4 +185,6 @@ archived immediately. Older docs, docs past version 1, and docs with discussion
 or suggestions create a `ChatPendingAction` confirmation before archiving, with
 payload fields for the DOC reference, title, state, age, version, discussion
 counts, repository ids/slugs, and confirmation reason. Workflow agents do not
-receive this tool.
+receive this tool. Owners can unarchive an archived doc from the title-bar
+action where active docs show `Archive`; unarchive is a state-only transition
+back to `draft`, not an opportunity to edit archived content in the same write.

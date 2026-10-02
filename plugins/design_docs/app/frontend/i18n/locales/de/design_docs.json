@@ -4,6 +4,7 @@
   "accept": "Annehmen",
   "archive": "Archivieren",
   "archived_read_only": "Dieses Designdokument ist archiviert. Inhalt, Kommentare, Vorschlaege und Reviews sind schreibgeschuetzt.",
+  "unarchive": "Wiederherstellen",
   "agent_run": {
     "canceled": "Syrus hat abgebrochen.",
     "drafting": "Syrus entwirft...",

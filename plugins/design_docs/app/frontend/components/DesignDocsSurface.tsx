@@ -626,6 +626,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const canSuggest = !isArchived && doc.permissions.can_suggest
   const canReviewSuggestions = !isArchived && doc.permissions.can_review_suggestions
   const canArchive = !isArchived && doc.permissions.can_archive
+  const canUnarchive = isArchived && doc.permissions.can_unarchive
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? t("save") : t("suggest_changes")
@@ -1115,6 +1116,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
         onArchive={() => metadataMutation.mutate({ state: "archived" })}
+        onUnarchive={() => metadataMutation.mutate({ state: "draft" })}
         onSave={() => {
           if (effectiveChangeMode === "edit" && !summaryVisible) {
             setSummaryVisible(true)
@@ -1127,6 +1129,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         saveDisabled={saveDisabled || isArchived}
         archiveDisabled={metadataMutation.isPending}
         canArchive={canArchive}
+        canUnarchive={canUnarchive}
         canManageMetadata={canWriteCanonical}
         isArchived={isArchived}
         onVersionChange={selectVersion}
@@ -1280,9 +1283,10 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   )
 }
 
-function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, canUnarchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onUnarchive, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   archiveDisabled: boolean
   canArchive: boolean
+  canUnarchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
@@ -1307,6 +1311,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
   onArchive: () => void
   onMetadataSave: () => void
   onSave: () => void
+  onUnarchive: () => void
   saveLabel: string
   saveDisabled: boolean
   onVersionChange: (versionId: string) => void
@@ -1437,6 +1442,12 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
     </Select>
   )
 
+  const archiveControl = canArchive ? (
+    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
+  ) : canUnarchive ? (
+    <Button disabled={archiveDisabled} onClick={onUnarchive} size="sm" variant="secondary">{t("unarchive")}</Button>
+  ) : null
+
   if (narrowView) {
     return (
       <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
@@ -1462,9 +1473,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
                 {repositoryPicker}
                 <div className="flex flex-wrap items-center gap-2">
                   {shareControl}
-                  {canArchive ? (
-                    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
-                  ) : null}
+                  {archiveControl}
                   {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
                 </div>
                 {versionSelector}
@@ -1490,9 +1499,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
         <StatusLabel value={doc.state} />
         {repositoryPicker}
         {shareControl}
-        {canArchive ? (
-          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
-        ) : null}
+        {archiveControl}
         {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
         {versionSelector}
       </div>
