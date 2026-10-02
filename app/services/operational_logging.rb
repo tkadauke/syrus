@@ -12,7 +12,9 @@ module OperationalLogging
   SECRET_FILTERS = [
     /(authorization:\s*bearer\s+)[^\s,;]+/i,
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
-    /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i
+    /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
+    /((?:SYRUS_(?:CLI|MCP_PROXY)_INVOCATION_CONTEXT|invocation_context)["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
+    /((?:credential_)?lease_id["']?\s*[:=]\s*["']?)[^"',\s}]+/i
   ].freeze
   PLUGIN_ROUTE_DISPATCHER_CONTROLLERS = [
     "Api::V1::App::PluginRoutesController",

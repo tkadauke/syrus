@@ -18,6 +18,9 @@ func TestListJobsSendsBearerToken(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {
 			t.Fatalf("Authorization = %q", got)
 		}
+		if got := r.Header.Get("X-Syrus-CLI-Command"); got != "get.jobs" {
+			t.Fatalf("X-Syrus-CLI-Command = %q", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"count":0,"jobs":[]}`))
 	}))
