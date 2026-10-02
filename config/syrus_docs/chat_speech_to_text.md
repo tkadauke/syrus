@@ -19,64 +19,23 @@ the frontend keeps the buffered audio blob while streaming so an `error` frame's
 ## Backend deployment
 
 Chat dictation is feature-gated by `chat_speech_to_text`. With the flag off,
-all modes are reported unavailable. With the flag on, the official
-`syrus-backend` image works with zero extra env configuration: it bundles a
-CPU-only whisper.cpp build and a default model at fixed paths
-(`/opt/whisper.cpp/whisper-cli` and `/opt/whisper.cpp/models/ggml-base.en.bin`),
-and `ChatSpeechToText::Providers.configured` uses those paths automatically
-when `SYRUS_STT_PROVIDER`/`SYRUS_STT_WHISPER_CPP_EXECUTABLE`/
-`SYRUS_STT_WHISPER_CPP_MODEL` are unset — but only if the baked-in files
-actually exist, so bare-metal/non-bundled installs still correctly fall
-through to browser speech recognition when the browser supports it.
+all modes are reported unavailable. With the flag on, Syrus core reports
+browser speech recognition as available and resolves backend dictation through
+enabled `speech_to_text_provider` plugins. If no plugin provider is installed,
+enabled, and currently available, `ChatSpeechToText::Providers.configured`
+returns nil and the UI falls back to browser speech recognition when the
+browser supports it.
 
-The backend provider is `whisper_cpp`. All three env vars are optional
-overrides, not required setup — set them to point at a different
-binary/model (e.g. bare-metal installs or a custom model):
-
-```
-SYRUS_STT_PROVIDER=whisper_cpp
-SYRUS_STT_WHISPER_CPP_EXECUTABLE=/opt/whisper.cpp/whisper-cli
-SYRUS_STT_WHISPER_CPP_MODEL=/models/ggml-base.en.bin
-SYRUS_STT_BACKEND_STREAMING=false
-```
-
-Explicit env vars always take precedence over the baked-in defaults. To use a
-different model than the bundled `ggml-base.en.bin` (a larger model for
-accuracy, a smaller one for speed, or a non-English model), download the
-desired `ggml-*.bin` into the running container/volume and point
-`SYRUS_STT_WHISPER_CPP_MODEL` at that path — the executable does not need to
-change.
-
-CPU-only deployments can use batch transcription, but latency depends heavily on
-host CPU and model size. The bundled `whisper_cpp` adapter uses the CLI batch
-path only; keep `SYRUS_STT_BACKEND_STREAMING=false` unless the configured
-provider implements `stream_transcription` and can keep up with live audio.
-
-### Building without the bundled binary/model
-
-The Dockerfile's `whisper-build` stage compiles whisper.cpp from source and
-downloads the default model, which adds build time and ~148MB to the image.
-Operators building a custom, lean image that doesn't need local dictation
-(e.g. they only use browser speech recognition, or plan to supply their own
-`whisper_cpp` binary/model via the env vars above) can skip that stage with
-the `SYRUS_SKIP_WHISPER_BUILD=1` build arg:
+Backend dictation therefore requires installing and enabling a provider plugin,
+such as the `whisper_stt` plugin. See that plugin's own docs
+(`plugins/whisper_stt/docs/syrus_docs/whisper_stt.md`) for daemon, model, and
+runtime setup. Core only owns the provider-selection contract:
+`SYRUS_STT_PROVIDER` may pin a plugin provider by `provider_key`; when unset,
+Syrus uses the first available provider in plugin registration order.
 
 ```
-docker build --build-arg SYRUS_SKIP_WHISPER_BUILD=1 -t syrus-backend:lean .
+SYRUS_STT_PROVIDER=whisper_stt
 ```
-
-This produces a stub `whisper-cli` that always fails, so
-`ChatSpeechToText::Providers.configured` correctly falls back to browser
-speech recognition (or a manually configured provider) instead of reporting a
-broken backend as available. `bin/publish-image` and `bin/deploy` never set
-this arg, so published/deployed images always bundle the real build; it's
-meant for local dev loops (`bin/build-local-image`, `bin/compose-up` default
-to it) and custom lean builds only.
-
-### License note
-
-The bundled whisper.cpp build (https://github.com/ggml-org/whisper.cpp) and
-the ggml/OpenAI Whisper models it downloads are MIT-licensed.
 
 The chat payload includes sanitized backend availability metadata:
 `feature_disabled`, `provider_unset`, or no reason when the backend is usable.
@@ -86,16 +45,7 @@ UI chose backend streaming, backend batch, browser fallback, or no mode.
 Operational logs are structured as `chat_speech_to_text.*` events and include
 mode, provider name, latency, fallback reason, and error class/code. They must
 not include transcript text, prompts, uploaded audio bytes, executable paths, or
-model paths.
-
-Batch transcription via the `whisper_cpp` provider shells out through
-`ProcessRunner`, so each invocation registers a `SpawnedProcess` row
-(`kind: "chat_stt"`) visible in `/admin/processes` and `read_worker_health` —
-operators can confirm a transcription actually ran, see its duration/outcome,
-and kill a wedged invocation the same way as any other tracked subprocess. The
-recorded command omits the per-request audio tempfile path (replaced with
-`[audio]`) so local worker paths don't leak into the admin UI; the executable
-and model paths are shown.
+model paths. Provider-specific diagnostics belong in the provider plugin's docs.
 
 ## Querying STT operational logs from chat
 

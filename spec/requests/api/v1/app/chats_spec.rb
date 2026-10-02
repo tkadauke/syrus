@@ -2163,11 +2163,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       feature.category = "Labs"
       feature.name = "Chat speech-to-text"
     end.update!(enabled: true)
-    allow(ENV).to receive(:[]).and_call_original
-    allow(ENV).to receive(:[]).with("SYRUS_STT_PROVIDER").and_return("whisper_cpp")
-    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_EXECUTABLE").and_return("/opt/private/whisper-cli")
-    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_MODEL").and_return("/models/private/ggml.bin")
-    allow(ENV).to receive(:[]).with("SYRUS_STT_BACKEND_STREAMING").and_return("true")
+    provider = instance_double(ChatSpeechToText::Providers::Base, batch?: true, streaming?: false)
+    allow(ChatSpeechToText::Providers).to receive(:configured).with(user: user).and_return(provider)
 
     get "/api/v1/app/chats/#{chat.id}"
 
@@ -2177,7 +2174,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "browser" => { "available" => true }
     )
     expect(parse_body.dig("speech_to_text", "backend")).to eq("configured" => true)
-    expect(response.body).not_to include("/opt/private/whisper-cli", "/models/private/ggml.bin")
+    expect(response.body).not_to include("backend-secret")
   end
 
   it "includes walkthrough videos in the payload for the media panel" do

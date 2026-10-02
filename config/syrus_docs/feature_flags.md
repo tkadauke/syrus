@@ -16,7 +16,7 @@ A hidden flag must default to `false`. The moment a flag is code-complete enough
 
 Enables microphone dictation in Syrus Chat. `ChatSpeechToText::Capability` combines the flag with a configured backend provider to expose up to three modes: `backend_streaming` (an ActionCable channel, `ChatDictationChannel`, which rejects the subscription unless the flag is enabled), `backend_batch` (`POST /api/v1/app/chats/:chat_id/speech_to_text`, gated by a `require_speech_to_text_feature` `before_action`), and a client-side Web Speech API `browser` fallback that needs no backend.
 
-The only registered backend today is `whisper_cpp`, a local subprocess (via `ProcessRunner`), not a hosted API — there is no encrypted API key involved. It supports batch transcription only (no streaming), so streaming mode is currently always unavailable and falls back to batch or browser. `SYRUS_STT_PROVIDER` selects the backend (default `whisper_cpp`); `SYRUS_STT_WHISPER_CPP_EXECUTABLE` / `SYRUS_STT_WHISPER_CPP_MODEL` override the binary/model paths, otherwise Syrus tries the baked-in image paths and reports the backend unavailable (`unavailable_reason: "provider_unset"`) if neither resolves. Audio is capped at 10 MB / 120s per request.
+Backend providers are supplied by enabled `speech_to_text_provider` plugins; core registers none by default. `SYRUS_STT_PROVIDER` optionally pins a plugin provider by `provider_key`, otherwise Syrus uses the first available plugin provider. When no backend provider is available, backend modes report `unavailable_reason: "provider_unset"` and the UI falls back to browser speech recognition when possible. Audio is capped at 10 MB / 120s per request.
 
 ## coding_mode
 
