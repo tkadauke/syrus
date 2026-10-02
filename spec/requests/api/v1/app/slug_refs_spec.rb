@@ -69,6 +69,38 @@ RSpec.describe "App API slug refs", type: :request do
     )
   end
 
+  it "resolves plugin-owned Design Doc refs through the slug type registry" do
+    design_doc = DesignDocs::DesignDoc.create!(
+      owner_user: user,
+      title: "Bridge plan",
+      markdown: "# Bridge",
+      visibility: "private"
+    )
+    version = design_doc.versions.create!(
+      markdown: design_doc.markdown,
+      version_number: 1,
+      actor_kind: "user",
+      actor_user: user
+    )
+    design_doc.update!(current_version: version)
+
+    get "/api/v1/app/slug_refs/DOC-#{design_doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("slug_ref")).to include(
+      "canonical_slug" => "DOC-#{design_doc.id}",
+      "type" => "doc",
+      "prefix" => "DOC",
+      "display_label" => "Design Doc",
+      "numeric_id" => design_doc.id,
+      "accessible" => true,
+      "web_path" => "/design_docs/#{design_doc.id}",
+      "api_preview_path" => "/api/v1/app/design_docs/#{design_doc.id}/preview",
+      "copyable" => true,
+      "preview_available" => true
+    )
+  end
+
   it "returns a neutral inaccessible payload for known private records" do
     other_user = Factories.user(global_role: "user")
     private_repo = Factories.repository(user: other_user, owner: "private", name: "repo")

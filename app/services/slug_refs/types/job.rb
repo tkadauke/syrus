@@ -6,6 +6,7 @@ module SlugRefs
       def self.prefix = "JOB"
       def self.display_label = "Job"
       def self.preview_available? = true
+      def self.client_path(id) = "/jobs/#{canonical_slug(id)}"
 
       def self.record_for(id, user:)
         record = ::Job.find_by(id: id)

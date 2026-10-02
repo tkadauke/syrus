@@ -21,18 +21,17 @@ function collaboratorSummary(collaborators: DesignDocUser[]) {
   return `${shown.join(", ")} +${names.length - MAX_COLLABORATOR_NAMES}`
 }
 
-// Registered for the "DOC" slug prefix purely by this filename convention
-// (see app/frontend/pluginSlugPreviewCards.tsx) -- core never references
-// design_docs directly. Rendered by core's SlugHoverCard whenever a DOC-<id>
-// slug is linkified anywhere in the app -- chat messages, job/epic bodies,
-// design doc comments, etc. Fetches the lightweight `/preview` payload rather
-// than the full DesignDocDetail, since a single page can reference many docs.
+// Preview card for the DOC slug type registered by the design_docs plugin.
+// Core discovers this component by filename and renders it through
+// SlugReferenceCard without importing design_docs directly. Fetches the
+// lightweight `/preview` payload rather than the full DesignDocDetail, since a
+// single page can reference many docs.
 export function DesignDocPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("design_docs")
   const { data, isPending } = useQuery({
     queryKey: ["design_docs", "preview", String(id)],
     queryFn: () => fetchDesignDocPreview(id),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (isPending) return <DesignDocPreviewSkeleton />
@@ -61,16 +60,12 @@ export function DesignDocPreviewCard({ id, compact = false }: { id: number; comp
         {doc.title}
       </Link>
       {!compact && doc.preview_text ? (
-        <div className="mb-3 line-clamp-6 break-words text-xs text-gray-600 dark:text-gray-400">
-          {renderLightMarkdown(doc.preview_text)}
-        </div>
+        <div className="mb-3 line-clamp-6 break-words text-xs text-gray-600 dark:text-gray-400">{renderLightMarkdown(doc.preview_text)}</div>
       ) : null}
       {!compact ? (
         <div className="mb-3 space-y-1 text-xs text-gray-600 dark:text-gray-400">
           <p>{t("preview_owner", { name: doc.owner ? collaboratorLabel(doc.owner) : t("preview_unknown_owner") })}</p>
-          {doc.collaborators && doc.collaborators.length > 0 ? (
-            <p>{t("preview_collaborators", { names: collaboratorSummary(doc.collaborators) })}</p>
-          ) : null}
+          {doc.collaborators && doc.collaborators.length > 0 ? <p>{t("preview_collaborators", { names: collaboratorSummary(doc.collaborators) })}</p> : null}
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
