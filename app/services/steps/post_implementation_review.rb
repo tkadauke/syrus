@@ -1,7 +1,10 @@
 module Steps
-  # Generic best-effort host step for plugin-supplied review-note generation.
+  # Generic host step for plugin-supplied review-note generation.
   # Core owns the workflow slot and agent invocation; plugins own the prompt,
   # MCP tool set, persistence, and later review-tab rendering.
+  # Providers that request this step must expose their required submission
+  # tools in the same run MCP context, and the agent must call them even for an
+  # empty result.
   class PostImplementationReview < Base
     TURN_BUDGET = 25
 
@@ -20,10 +23,9 @@ module Steps
       run_agent(
         prompt: run.prompt,
         max_turns: TURN_BUDGET,
-        required_mcp_tools: tools.presence
+        required_mcp_tools: tools.presence,
+        enforce_required_mcp_tools: tools.present?
       )
-    rescue StepFailed => e
-      log("[post_implementation_review] best-effort step did not complete - not failing the workflow: #{e.class}: #{e.message}")
     end
 
     private

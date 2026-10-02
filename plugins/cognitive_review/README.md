@@ -1,9 +1,9 @@
 # Review Notes
 
 Review Notes is a bundled Syrus plugin for agent-authored review notes on
-changed diff ranges. After implementation-style workflows, it can run a
-best-effort review pass that flags code ranges worth operator attention and
-surfaces concise notes in the Job review tab.
+changed diff ranges. After implementation-style workflows, it can run a review
+pass that flags code ranges worth operator attention and surfaces concise notes
+in the Job review tab.
 
 Notes are stored as plugin-owned records scoped to the Job, Workflow, Run, and
 DiffReviewVersion that produced them. Open notes count as unresolved PR-level
@@ -16,6 +16,9 @@ post-implementation review provider, the `submit_review_notes`
 workflow MCP tool, review-tab diff annotations, and app API routes for listing,
 reading, acknowledging, and discussing notes. The legacy
 `submit_cognitive_review_notes` tool name remains accepted for compatibility.
+Agents must call `submit_review_notes` even when the result is an empty
+`notes` array; missing required submission-tool calls fail the review step
+rather than producing an indistinguishable empty result.
 
 In the review tab, open notes appear as warning-tinted diff ranges for the
 displayed version plus agent-authored note cards in the unified Review

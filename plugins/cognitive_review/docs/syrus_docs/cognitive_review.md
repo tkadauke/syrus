@@ -5,7 +5,7 @@ generation for changed diff ranges.
 
 When enabled, the plugin contributes three providers:
 
-- `post_implementation_review_provider` appends the generic best-effort
+- `post_implementation_review_provider` appends the generic
   post-implementation review step to implementation-style workflows.
 - `mcp_tool_set` exposes `submit_review_notes` only to that review
   step.
@@ -20,17 +20,19 @@ their diff version is selected.
 ## Operator Behavior
 
 After an implementation workflow finishes its final diff, Syrus starts a
-best-effort review-note pass when the plugin is enabled and the workflow kind
-is an implementation or feedback kind. The pass asks the agent to flag only
-ranges that deserve operator attention: risky behavior, subtle coupling,
-missing verification, migration or data concerns, or other review guidance.
+review-note pass when the plugin is enabled and the workflow kind is an
+implementation or feedback kind. The pass asks the agent to flag only ranges
+that deserve operator attention: risky behavior, subtle coupling, missing
+verification, migration or data concerns, or other review guidance.
 
 If there are no such ranges, the agent must still call
-`submit_review_notes` with an empty `notes` array. The host step is
-best-effort: provider or agent failures are logged but do not fail the parent
-workflow. The plugin records that empty submission as durable evidence for the
-diff version; a diff version with no notes and no submission marker is treated
-as "no review-note result yet," not as no debt.
+`submit_review_notes` with an empty `notes` array. Providers that request this
+step must expose their required submission tools in the same run MCP context.
+If a provider declares required tools and the agent run completes without
+calling them, the review step fails instead of reporting a clean success. The
+plugin records an empty submission as durable evidence for the diff version; a
+diff version with no notes and no submission marker is treated as "no
+review-note result yet," not as no debt.
 
 Submitted notes are durable plugin-owned records scoped to the Job, Workflow,
 Run, and DiffReviewVersion that produced them. A note anchors to a repository
