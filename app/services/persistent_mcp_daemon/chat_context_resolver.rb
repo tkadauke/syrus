@@ -11,7 +11,7 @@
 # McpInvocationContext token the dispatching request attached to `_meta`
 # (see PersistentMcpDaemon::ChatToolDispatch, the wrapper that calls this).
 class PersistentMcpDaemon::ChatContextResolver
-  Resolved = Struct.new(:server_context, :allowed_tools, :tool_context, keyword_init: true)
+  Resolved = Struct.new(:server_context, :allowed_tools, :allowed_tool_names, :tool_context, keyword_init: true)
 
   class << self
     # Raises McpInvocationContext::InvalidContext (a caller-visible rejection
@@ -44,9 +44,12 @@ class PersistentMcpDaemon::ChatContextResolver
         _meta: meta
       }.compact
 
+      allowed_tools = allowed_tools_for(tool_context, tier: invocation.tier)
+
       Resolved.new(
         server_context: server_context,
-        allowed_tools: allowed_tools_for(tool_context, tier: invocation.tier),
+        allowed_tools: allowed_tools,
+        allowed_tool_names: allowed_tools.map { |tool| McpToolRegistry.tool_name_for(tool) }.to_set,
         tool_context: tool_context
       )
     end
@@ -62,14 +65,16 @@ class PersistentMcpDaemon::ChatContextResolver
     # Mirrors Mcp::Sidecar.chat_tools_for's gating exactly (McpToolPolicy for
     # the evaluator role; McpToolRegistry.tools_for_context otherwise) so a
     # tool that's off-limits for this session/tier/role is rejected
-    # identically regardless of transport, even though the daemon's
-    # tools/list advertises the full known chat tool surface (see
-    # PersistentMcpDaemon::ChatToolDispatch for why).
+    # identically regardless of transport.
     def allowed_tools_for(tool_context, tier:)
-      return McpToolPolicy.for(tool_context) if tool_context.role == AgentRole::CHAT_EVALUATOR
+      if tool_context.role == AgentRole::CHAT_EVALUATOR
+        return McpToolPolicy.for(tool_context) +
+          Mcp::Sidecar.plugin_tools_for(tool_context.chat_session, tier: :evaluator, policy: :evaluator)
+      end
 
       registry_tier = tier.to_s == "deferred" ? :deferred : :essential
-      McpToolRegistry.tools_for_context(tool_context, surface: :chat, tier: registry_tier)
+      McpToolRegistry.tools_for_context(tool_context, surface: :chat, tier: registry_tier) +
+        Mcp::Sidecar.plugin_tools_for(tool_context.chat_session, tier: registry_tier)
     end
   end
 end
