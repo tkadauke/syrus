@@ -1,7 +1,9 @@
 require "open3"
 require "socket"
+require "ipaddr"
 require "fileutils"
 require "pathname"
+require "tempfile"
 
 # Small shared wrapper for subprocess lifetime management. Callers still own
 # command construction and output parsing; this class owns the boring parts:
@@ -10,6 +12,8 @@ require "pathname"
 # a common result shape.
 class ProcessRunner
   class WorkspaceAttributionError < StandardError; end
+  class MountAssertionError < StandardError; end
+  class NetworkAssertionError < StandardError; end
 
   Result = Data.define(
     :exit_status, :timed_out, :stopped, :silent_timed_out, :operator_killed,
@@ -35,8 +39,302 @@ class ProcessRunner
   # sparingly while running; finalization always writes the final attribution.
   RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 5 * 60
 
+  Mount = Data.define(:host_path, :mount_path) do
+    def initialize(host_path:, mount_path: nil)
+      host = Pathname.new(host_path.to_s).expand_path
+      super(host_path: host.to_s, mount_path: (mount_path || host).to_s)
+    end
+
+    def include?(path)
+      path = Pathname.new(path.to_s).expand_path
+      root = Pathname.new(host_path).expand_path
+      relative = path.relative_path_from(root).to_s
+      relative == "." || !relative.start_with?("../")
+    rescue ArgumentError
+      false
+    end
+
+    def to_h
+      { host_path: host_path, mount_path: mount_path }
+    end
+  end
+
+  Mounts = Data.define(:workdir, :read_write, :read_only, :artifacts) do
+    def initialize(workdir:, read_write:, read_only: [], artifacts: nil)
+      workdir_path = Pathname.new(workdir.to_s).expand_path.to_s
+      rw = Array(read_write).map { |mount| ProcessRunner.normalize_mount(mount) }
+      ro = Array(read_only).map { |mount| ProcessRunner.normalize_mount(mount) }
+      artifact_mount = artifacts ? ProcessRunner.normalize_mount(artifacts) : nil
+      super(workdir: workdir_path, read_write: rw, read_only: ro, artifacts: artifact_mount)
+    end
+
+    def writable_mounts
+      [ *read_write, artifacts ].compact
+    end
+
+    def declared_mounts
+      [ *read_write, *read_only, artifacts ].compact
+    end
+
+    def writable?(path)
+      writable_mounts.any? { |mount| mount.include?(path) }
+    end
+
+    def read_only?(path)
+      read_only.any? { |mount| mount.include?(path) }
+    end
+
+    def declared?(path)
+      declared_mounts.any? { |mount| mount.include?(path) }
+    end
+
+    def to_h
+      {
+        workdir: workdir,
+        read_write: read_write.map(&:to_h),
+        read_only: read_only.map(&:to_h),
+        artifacts: artifacts&.to_h
+      }.compact
+    end
+  end
+
+  MountAccess = Data.define(:path, :mode) do
+    def write?
+      mode == :write
+    end
+  end
+
+  NetworkAccess = Data.define(:address, :port, :family) do
+    LOOPBACK_V4 = IPAddr.new("127.0.0.0/8")
+    LOOPBACK_V6 = IPAddr.new("::1")
+
+    def loopback?
+      return true if address.to_s == "localhost"
+
+      ip = IPAddr.new(address)
+      LOOPBACK_V4.include?(ip) || LOOPBACK_V6.include?(ip)
+    rescue IPAddr::InvalidAddressError
+      false
+    end
+  end
+
+  module NetworkProfile
+    class Base
+      attr_reader :name
+
+      def initialize(name)
+        @name = name
+      end
+
+      def network_access_violation(_access)
+        nil
+      end
+    end
+
+    class Grader < Base
+      def initialize = super("grader")
+
+      def network_access_violation(access)
+        return nil if access.loopback?
+
+        "non-local egress to #{access.address}#{":#{access.port}" if access.port}"
+      end
+    end
+
+    class Prepare < Base
+      def initialize = super("prepare")
+    end
+
+    class Agent < Base
+      def initialize = super("agent")
+    end
+
+    class GitFetch < Base
+      def initialize = super("git_fetch")
+    end
+
+    PROFILES = {
+      "grader" => Grader.new,
+      "prepare" => Prepare.new,
+      "agent" => Agent.new,
+      "git_fetch" => GitFetch.new
+    }.freeze
+
+    def self.for(value)
+      PROFILES.fetch(value.to_s) do
+        raise ArgumentError, "unknown ProcessRunner network profile #{value.inspect}; expected #{PROFILES.keys.join(', ')}"
+      end
+    end
+  end
+
+  class MountTraceParser
+    DESTINATION_WRITE_SYSCALLS = %w[
+      link linkat rename renameat renameat2 symlink symlinkat
+    ].freeze
+    ALL_PATH_WRITE_SYSCALLS = %w[
+      rename renameat renameat2
+    ].freeze
+    WRITE_SYSCALLS = %w[
+      creat mkdir mkdirat mknod mknodat open openat openat2 rename renameat
+      renameat2 rmdir symlink symlinkat link linkat unlink unlinkat truncate
+      ftruncate chmod fchmodat chown fchownat lchown utime utimes utimensat
+    ].freeze
+    READ_SYSCALLS = %w[
+      access faccessat faccessat2 stat statx lstat newfstatat readlink
+      readlinkat execve
+    ].freeze
+    PATH_ARGUMENT_SYSCALLS = (WRITE_SYSCALLS + READ_SYSCALLS + %w[chdir]).uniq.freeze
+
+    def initialize(trace_path, initial_cwd:)
+      @trace_path = trace_path
+      @initial_cwd = Pathname.new(initial_cwd.to_s).expand_path.to_s
+      @cwd_by_pid = Hash.new(@initial_cwd)
+    end
+
+    def accesses
+      return [] unless File.exist?(@trace_path)
+
+      File.readlines(@trace_path, chomp: true).flat_map { |line| accesses_for(line) }
+    end
+
+    private
+
+    def accesses_for(line)
+      pid, syscall, args, success = parse_line(line)
+      return [] unless success
+      return [] unless PATH_ARGUMENT_SYSCALLS.include?(syscall)
+
+      paths = path_args(args)
+      return [] if paths.empty?
+
+      if syscall == "chdir"
+        record_chdir(pid, absolute_path(paths.first, cwd: @cwd_by_pid[pid]))
+        return []
+      end
+
+      paths.each_with_index.map do |path, index|
+        MountAccess.new(
+          path: absolute_path(path, cwd: @cwd_by_pid[pid]),
+          mode: access_mode(syscall, args, index, paths.length)
+        )
+      end
+    end
+
+    def parse_line(line)
+      text = line.to_s
+      pid = text[/\A\d+/]&.to_i
+      text = text.sub(/\A\d+\s+/, "")
+      match = text.match(/\A(?<syscall>\w+)\((?<args>.*)\)\s+=\s+(?<result>-?\d+|0x[0-9a-f]+|\?)/)
+      return [ pid || 0, nil, nil, false ] unless match
+
+      result = match[:result]
+      success = result == "?" || result.to_i >= 0
+      [ pid || 0, match[:syscall], match[:args], success ]
+    end
+
+    def path_args(args)
+      args.to_s.scan(/"((?:\\.|[^"\\])*)"/).flatten.reject { |path| path == "." || path == ".." }
+    end
+
+    def absolute_path(path, cwd:)
+      decoded = path.to_s.gsub(/\\x([0-9a-fA-F]{2})/) { Regexp.last_match(1).hex.chr }
+      pathname = Pathname.new(decoded)
+      pathname = Pathname.new(cwd).join(pathname) unless pathname.absolute?
+      pathname.cleanpath.to_s
+    end
+
+    def record_chdir(pid, path)
+      @cwd_by_pid[pid] = path
+    end
+
+    def access_mode(syscall, args, index, path_count)
+      return :write if ALL_PATH_WRITE_SYSCALLS.include?(syscall)
+      return index == path_count - 1 ? :write : :read if DESTINATION_WRITE_SYSCALLS.include?(syscall)
+      write_access?(syscall, args) ? :write : :read
+    end
+
+    def write_access?(syscall, args)
+      return true if WRITE_SYSCALLS.include?(syscall) && syscall != "open" && syscall != "openat" && syscall != "openat2"
+
+      args.to_s.match?(/\b(O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND)\b/)
+    end
+  end
+
+  class NetworkTraceParser
+    def initialize(trace_path)
+      @trace_path = trace_path
+    end
+
+    def accesses
+      return [] unless File.exist?(@trace_path)
+
+      File.readlines(@trace_path, chomp: true).filter_map { |line| access_for(line) }
+    end
+
+    private
+
+    def access_for(line)
+      return nil unless line.match?(/\bconnect\(/)
+
+      address = ipv4_address(line) || ipv6_address(line) || localhost_address(line)
+      return nil unless address
+
+      NetworkAccess.new(address: address, port: port(line), family: family(line))
+    end
+
+    def ipv4_address(line)
+      line[/inet_addr\("([^"]+)"\)/, 1]
+    end
+
+    def ipv6_address(line)
+      line[/inet_pton\(AF_INET6,\s*"([^"]+)"/, 1]
+    end
+
+    def localhost_address(line)
+      "localhost" if line.include?("AF_UNIX")
+    end
+
+    def port(line)
+      raw = line[/sin6?_port=htons\((\d+)\)/, 1]
+      raw&.to_i
+    end
+
+    def family(line)
+      line[/sa_family=(AF_[A-Z0-9_]+)/, 1]
+    end
+  end
+
   def self.forwarded_env(keys, extra: {})
     ENV.slice(*keys).merge(extra.compact)
+  end
+
+  def self.mounts(workdir, read_write: nil, read_only: [], artifacts: nil)
+    Mounts.new(workdir: workdir, read_write: read_write || workdir, read_only: read_only, artifacts: artifacts)
+  end
+
+  def self.normalize_mounts(value)
+    return value if value.is_a?(Mounts)
+
+    hash = value.to_h
+    Mounts.new(
+      workdir: hash[:workdir] || hash["workdir"],
+      read_write: hash[:read_write] || hash["read_write"],
+      read_only: hash[:read_only] || hash["read_only"] || [],
+      artifacts: hash[:artifacts] || hash["artifacts"]
+    )
+  end
+
+  def self.normalize_mount(value)
+    return value if value.is_a?(Mount)
+
+    if value.respond_to?(:to_h)
+      hash = value.to_h
+      host_path = hash[:host_path] || hash["host_path"]
+      mount_path = hash[:mount_path] || hash["mount_path"]
+      return Mount.new(host_path: host_path, mount_path: mount_path)
+    end
+
+    Mount.new(host_path: value)
   end
 
   # `kind:` is the SpawnedProcess kind (one of SpawnedProcess::KINDS) —
@@ -56,7 +354,7 @@ class ProcessRunner
   # `bundle install` or `git clone` — those have natural silent
   # phases longer than any sensible threshold. Reserve for streaming
   # agent invocations where continuous output is the norm.
-  def initialize(env:, command:, chdir:, timeout:, stdin_data: nil,
+  def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
                  stop_requested: -> { false },
                  on_output_chunk: nil,
@@ -72,7 +370,9 @@ class ProcessRunner
                  on_spawned_process: nil)
     @env = env
     @command = command
-    @chdir = chdir.to_s
+    @mounts = self.class.normalize_mounts(mounts)
+    @network = NetworkProfile.for(network)
+    @chdir = @mounts.workdir
     @timeout = timeout
     @stdin_data = stdin_data
     @unsetenv_others = unsetenv_others
@@ -160,13 +460,14 @@ class ProcessRunner
     aliveness_failed = false
     result = nil
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    effective_command = command_with_local_execution_request_assertions
 
     @spawned_process = register_spawned_process
     @on_spawned_process&.call(@spawned_process) if @spawned_process
 
     spawn_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     begin
-      Open3.popen2e(@env, *@command,
+      Open3.popen2e(@env, *effective_command,
                     chdir: @chdir,
                     unsetenv_others: @unsetenv_others,
                     pgroup: @pgroup) do |stdin, output, wait_thread|
@@ -286,6 +587,8 @@ class ProcessRunner
           spawned_process_id: @spawned_process&.id
         )
       end
+
+      assert_local_execution_request! if result
     rescue StandardError
       finalize_spawned_process!(outcome: "failed", exit_status: nil)
       raise
@@ -296,6 +599,85 @@ class ProcessRunner
   end
 
   private
+
+  def command_with_local_execution_request_assertions
+    return @command unless local_execution_request_assertions_enabled?
+
+    strace = find_executable("strace")
+    unless strace
+      raise MountAssertionError, "execution_request_assertions requires strace on the local backend"
+    end
+
+    @execution_request_assertion_trace_path = Tempfile.new([ "syrus-process-runner-execution-request-", ".strace" ])
+    @execution_request_assertion_trace_path.close
+    [ strace, "-f", "-e", "trace=file,network", "-qq", "-o", @execution_request_assertion_trace_path.path, "--", *@command ]
+  end
+
+  def local_execution_request_assertions_enabled?
+    Feature.execution_request_assertions_enabled?
+  rescue StandardError
+    false
+  end
+
+  def find_executable(name)
+    ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |dir|
+      path = File.join(dir, name)
+      return path if File.executable?(path) && !File.directory?(path)
+    end
+    nil
+  end
+
+  def assert_local_execution_request!
+    return unless @execution_request_assertion_trace_path
+
+    assert_local_mount_accesses!
+    assert_local_network_accesses!
+  ensure
+    @execution_request_assertion_trace_path&.unlink
+  end
+
+  def assert_local_mount_accesses!
+    accesses = MountTraceParser.new(@execution_request_assertion_trace_path.path, initial_cwd: @chdir).accesses
+    violations = accesses.filter_map { |access| mount_access_violation(access) }
+    return if violations.empty?
+
+    raise MountAssertionError, "execution request mount declaration mismatch: #{violations.uniq.first(5).join('; ')}"
+  end
+
+  def assert_local_network_accesses!
+    accesses = NetworkTraceParser.new(@execution_request_assertion_trace_path.path).accesses
+    violations = accesses.filter_map { |access| @network.network_access_violation(access) }
+    return if violations.empty?
+
+    raise NetworkAssertionError, "execution request network declaration mismatch for #{@network.name}: #{violations.uniq.first(5).join('; ')}"
+  end
+
+  def mount_access_violation(access)
+    return nil unless assertion_scoped_path?(access.path)
+
+    if access.write? && @mounts.read_only?(access.path)
+      return "write to read-only mount #{access.path}"
+    end
+
+    if access.write? && !@mounts.writable?(access.path)
+      return "write outside writable mounts #{access.path}"
+    end
+
+    return nil if @mounts.declared?(access.path)
+
+    "access outside declared mounts #{access.path}"
+  end
+
+  def assertion_scoped_path?(path)
+    return true if @mounts.declared?(path)
+
+    data_root = WorkflowWorkspace.data_root.expand_path
+    absolute = Pathname.new(path.to_s).expand_path
+    relative = absolute.relative_path_from(data_root).to_s
+    relative == "." || !relative.start_with?("../")
+  rescue ArgumentError
+    false
+  end
 
   # Only chat-attributed spawns (the "process spawn" stage of chat startup
   # latency) report here -- workflow/grader spawns already have separate

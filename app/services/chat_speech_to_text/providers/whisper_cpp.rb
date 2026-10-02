@@ -60,7 +60,8 @@ module ChatSpeechToText
             "-np",
             "-otxt"
           ],
-          chdir: File.dirname(audio.path),
+          mounts: ProcessRunner.mounts(File.dirname(audio.path)),
+          network: "grader",
           timeout: DEFAULT_TIMEOUT_SECONDS,
           kind: "chat_stt",
           display_command: display_command,

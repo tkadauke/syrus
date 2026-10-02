@@ -32,7 +32,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "puts 'one'; print 'two'" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       on_output_line: ->(line) { lines << line },
       on_output_chunk: ->(chunk) { chunks << chunk }
@@ -48,7 +49,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "sleep 10" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 0.05,
       kill_grace_seconds: 0
     ).run
@@ -65,7 +67,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "STDOUT.sync = true; puts 'ready'; sleep 10" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kill_grace_seconds: 0,
       stop_requested: -> { stop_after_first_line },
@@ -89,7 +92,8 @@ RSpec.describe ProcessRunner, :ci_only do
     described_class.new(
       env: { "VISIBLE" => "yes", "PATH" => ENV.fetch("PATH") },
       command: [ ruby, "-e", "puts ENV.fetch('VISIBLE'); puts ENV.key?('SHOULD_NOT_LEAK')" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       on_output_chunk: ->(chunk) { chunks << chunk }
     ).run
@@ -99,13 +103,213 @@ RSpec.describe ProcessRunner, :ci_only do
     ENV.replace(saved)
   end
 
+  it "builds a mount declaration that preserves the old single-workdir case" do
+    mounts = described_class.mounts(@dir)
+
+    expect(mounts.workdir).to eq(Pathname.new(@dir).expand_path.to_s)
+    expect(mounts.read_write.map(&:host_path)).to eq([ Pathname.new(@dir).expand_path.to_s ])
+    expect(mounts.read_only).to eq([])
+    expect(mounts.artifacts).to be_nil
+    expect(mounts).to be_writable(File.join(@dir, "generated.txt"))
+  end
+
+  it "normalizes serialized mount declarations with string keys" do
+    mounts = described_class.normalize_mounts(
+      "workdir" => @dir,
+      "read_write" => [ { "host_path" => @dir, "mount_path" => "/workspace" } ],
+      "read_only" => [],
+      "artifacts" => nil
+    )
+
+    expect(mounts.workdir).to eq(Pathname.new(@dir).expand_path.to_s)
+    expect(mounts.read_write.first).to have_attributes(
+      host_path: Pathname.new(@dir).expand_path.to_s,
+      mount_path: "/workspace"
+    )
+  end
+
+  it "parses local filesystem traces into read and write accesses" do
+    trace_path = File.join(@dir, "trace.log")
+    File.write(trace_path, <<~TRACE)
+      123 chdir("nested") = 0
+      123 openat(AT_FDCWD, "output.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
+      123 newfstatat(AT_FDCWD, "../Gemfile", {st_mode=S_IFREG|0644}, 0) = 0
+    TRACE
+
+    accesses = described_class::MountTraceParser.new(trace_path, initial_cwd: @dir).accesses
+
+    expect(accesses.map { |access| [ access.path, access.mode ] }).to eq([
+      [ File.join(@dir, "nested", "output.txt"), :write ],
+      [ File.join(@dir, "Gemfile"), :read ]
+    ])
+  end
+
+  it "treats destination path arguments as writes in local filesystem traces" do
+    trace_path = File.join(@dir, "trace.log")
+    File.write(trace_path, <<~TRACE)
+      123 rename("tmp.txt", "../outside.txt") = 0
+      123 linkat(AT_FDCWD, "source.txt", AT_FDCWD, "../linked.txt", 0) = 0
+      123 symlink("target.txt", "../symlinked.txt") = 0
+    TRACE
+
+    accesses = described_class::MountTraceParser.new(trace_path, initial_cwd: File.join(@dir, "nested")).accesses
+
+    expect(accesses.map { |access| [ access.path, access.mode ] }).to eq([
+      [ File.join(@dir, "nested", "tmp.txt"), :write ],
+      [ File.join(@dir, "outside.txt"), :write ],
+      [ File.join(@dir, "nested", "source.txt"), :read ],
+      [ File.join(@dir, "linked.txt"), :write ],
+      [ File.join(@dir, "nested", "target.txt"), :read ],
+      [ File.join(@dir, "symlinked.txt"), :write ]
+    ])
+  end
+
+  it "parses local network traces into connect accesses" do
+    trace_path = File.join(@dir, "trace.log")
+    File.write(trace_path, <<~TRACE)
+      123 connect(3, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("93.184.216.34")}, 16) = -1 EINPROGRESS (Operation now in progress)
+      124 connect(4, {sa_family=AF_INET6, sin6_port=htons(3000), inet_pton(AF_INET6, "::1", &sin6_addr)}, 28) = 0
+    TRACE
+
+    accesses = described_class::NetworkTraceParser.new(trace_path).accesses
+
+    expect(accesses.map { |access| [ access.address, access.port, access.family ] }).to eq([
+      [ "93.184.216.34", 443, "AF_INET" ],
+      [ "::1", 3000, "AF_INET6" ]
+    ])
+  end
+
+  it "flags non-local grader egress during local assertion checks" do
+    runner = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5
+    )
+    external = described_class::NetworkAccess.new(address: "93.184.216.34", port: 443, family: "AF_INET")
+    loopback = described_class::NetworkAccess.new(address: "127.0.0.1", port: 3000, family: "AF_INET")
+
+    expect(runner.instance_variable_get(:@network).network_access_violation(loopback)).to be_nil
+    expect(runner.instance_variable_get(:@network).network_access_violation(external)).to eq("non-local egress to 93.184.216.34:443")
+  end
+
+  it "flags writes to read-only declared mounts during local assertion checks" do
+    read_only_path = File.join(@dir, "layer")
+    FileUtils.mkdir_p(read_only_path)
+    runner = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      mounts: described_class.mounts(@dir, read_only: [ read_only_path ]),
+      network: "grader",
+      timeout: 5
+    )
+    access = described_class::MountAccess.new(path: File.join(read_only_path, "file.txt"), mode: :write)
+
+    expect(runner.send(:mount_access_violation, access)).to eq("write to read-only mount #{File.join(read_only_path, "file.txt")}")
+  end
+
+  it "records a failed spawned process when local mount assertions fail after a zero exit" do
+    Feature.create!(
+      slug: "execution_request_assertions",
+      category: "Operations",
+      name: "Execution request assertions",
+      enabled: true
+    )
+    layer_path = File.join(@dir, "layer")
+    fake_bin = File.join(@dir, "bin")
+    fake_strace = File.join(fake_bin, "strace")
+    FileUtils.mkdir_p([ layer_path, fake_bin ])
+    File.write(fake_strace, <<~SH)
+      #!/bin/sh
+      output=""
+      while [ "$1" != "--" ]; do
+        if [ "$1" = "-o" ]; then
+          shift
+          output="$1"
+        fi
+        shift
+      done
+      shift
+      "$@"
+      status=$?
+      printf '%s\\n' '123 openat(AT_FDCWD, "layer/generated.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3' > "$output"
+      exit "$status"
+    SH
+    FileUtils.chmod(0o755, fake_strace)
+    saved_path = ENV["PATH"]
+    ENV["PATH"] = [ fake_bin, saved_path ].compact.join(File::PATH_SEPARATOR)
+
+    expect do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "exit 0" ],
+        mounts: described_class.mounts(@dir, read_only: [ layer_path ]),
+        network: "grader",
+        timeout: 5,
+        kind: "agent"
+      ).run
+    end.to raise_error(ProcessRunner::MountAssertionError, /write to read-only mount/)
+
+    expect(SpawnedProcess.order(:id).last).to have_attributes(outcome: "failed", exit_status: nil)
+  ensure
+    saved_path ? ENV["PATH"] = saved_path : ENV.delete("PATH")
+  end
+
+  it "records a failed spawned process when local network assertions catch grader egress" do
+    Feature.create!(
+      slug: "execution_request_assertions",
+      category: "Operations",
+      name: "Execution request assertions",
+      enabled: true
+    )
+    fake_bin = File.join(@dir, "bin")
+    fake_strace = File.join(fake_bin, "strace")
+    FileUtils.mkdir_p(fake_bin)
+    File.write(fake_strace, <<~SH)
+      #!/bin/sh
+      output=""
+      while [ "$1" != "--" ]; do
+        if [ "$1" = "-o" ]; then
+          shift
+          output="$1"
+        fi
+        shift
+      done
+      shift
+      "$@"
+      status=$?
+      printf '%s\\n' '123 connect(3, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("93.184.216.34")}, 16) = 0' > "$output"
+      exit "$status"
+    SH
+    FileUtils.chmod(0o755, fake_strace)
+    saved_path = ENV["PATH"]
+    ENV["PATH"] = [ fake_bin, saved_path ].compact.join(File::PATH_SEPARATOR)
+
+    expect do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "exit 0" ],
+        mounts: described_class.mounts(@dir),
+        network: "grader",
+        timeout: 5,
+        kind: "grader"
+      ).run
+    end.to raise_error(ProcessRunner::NetworkAssertionError, /non-local egress to 93\.184\.216\.34:443/)
+
+    expect(SpawnedProcess.order(:id).last).to have_attributes(outcome: "failed", exit_status: nil)
+  ensure
+    saved_path ? ENV["PATH"] = saved_path : ENV.delete("PATH")
+  end
+
   it "calls back when a spawned process row is registered" do
     spawned_processes = []
 
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent",
       on_spawned_process: ->(process) { spawned_processes << process }
@@ -125,7 +329,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "chat_prepare",
       chat_session: chat_session
@@ -139,13 +344,17 @@ RSpec.describe ProcessRunner, :ci_only do
   it "reports a chat_startup.process_spawn phase when a chat session is attributed and performance logging is enabled" do
     chat_session = ChatSession.create!(user: Factories.user)
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Feature.clear_enabled_cache!("performance_logging")
+    Current.performance_logging_enabled = nil
+    allow(PerformanceLogging).to receive(:enabled?).and_return(true)
     allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
     PerformanceLogging::Store.clear!
 
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent",
       chat_session: chat_session
@@ -160,13 +369,17 @@ RSpec.describe ProcessRunner, :ci_only do
 
   it "does not report a chat_startup.process_spawn phase for a spawn with no chat session" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Feature.clear_enabled_cache!("performance_logging")
+    Current.performance_logging_enabled = nil
+    allow(PerformanceLogging).to receive(:enabled?).and_return(true)
     allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
     PerformanceLogging::Store.clear!
 
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "grader"
     ).run
@@ -183,7 +396,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent",
       agent: agent
@@ -211,7 +425,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "grader",
       run: run,
@@ -257,7 +472,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "sleep 0.2" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "prepare",
       run: run,
@@ -282,7 +498,7 @@ RSpec.describe ProcessRunner, :ci_only do
       started_at: Time.zone.parse("2026-08-20T11:59:00Z"),
       last_heartbeat_at: nil
     )
-    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5, run: run)
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir), network: "grader", timeout: 5, run: run)
 
     runner.send(:heartbeat_run!, Time.zone.parse("2026-08-20T12:00:00Z"))
     runner.send(:heartbeat_run!, Time.zone.parse("2026-08-20T12:00:05Z"))
@@ -314,7 +530,7 @@ RSpec.describe ProcessRunner, :ci_only do
     # so this assertion isn't sensitive to sub-microsecond float rounding
     # across the DB round-trip -- only whether heartbeat! left it untouched.
     process_last_chunk_at = process.reload.last_chunk_at
-    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5, run: run)
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir), network: "grader", timeout: 5, run: run)
     runner.instance_variable_set(:@spawned_process, process)
 
     runner.send(:heartbeat!)
@@ -339,7 +555,7 @@ RSpec.describe ProcessRunner, :ci_only do
       resource_attribution: { "method" => "initial" }
     )
     sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })
-    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5)
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir), network: "grader", timeout: 5)
     runner.instance_variable_set(:@spawned_process, process)
     runner.instance_variable_set(:@resource_sampler, sampler)
     runner.instance_variable_set(:@last_resource_attribution_persisted_at, Time.current)
@@ -367,7 +583,7 @@ RSpec.describe ProcessRunner, :ci_only do
       resource_attribution: { "method" => "initial" }
     )
     sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })
-    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5)
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], mounts: described_class.mounts(@dir), network: "grader", timeout: 5)
     runner.instance_variable_set(:@spawned_process, process)
     runner.instance_variable_set(:@resource_sampler, sampler)
     runner.instance_variable_set(
@@ -389,7 +605,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent"
     ).run
@@ -409,7 +626,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0", "#{filler}€tail" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent"
     ).run
@@ -424,7 +642,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "git",
       display_command: "git clone https://x-access-token:ghp_storesecret@github.com/acme/widgets.git"
@@ -450,7 +669,8 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {},
         command: [ ruby, "-e", "sleep 0.5" ],
-        chdir: @dir,
+        mounts: described_class.mounts(@dir),
+        network: "grader",
         timeout: 5,
         workflow: workflow
       ).run
@@ -486,7 +706,8 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {},
         command: [ ruby, "-e", "sleep 0.5" ],
-        chdir: workspace_path.join("nested"),
+        mounts: described_class.mounts(workspace_path.join("nested")),
+        network: "grader",
         timeout: 5
       ).run
     end
@@ -515,7 +736,8 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {},
         command: [ ruby, "-e", "exit 0" ],
-        chdir: WorkflowWorkspace.path_for(first),
+        mounts: described_class.mounts(WorkflowWorkspace.path_for(first)),
+      network: "grader",
         timeout: 5,
         workflow: second
       )
@@ -531,7 +753,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5
     ).run
 
@@ -547,7 +770,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "STDOUT.sync = true; puts 'starting'; sleep 10" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 30,
       silent_timeout: 0.5,
       kill_grace_seconds: 0
@@ -571,7 +795,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ "bash", "-c", "sleep 10 & disown; exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 30,
       silent_timeout: nil,
       kill_grace_seconds: 0
@@ -601,7 +826,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", script ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 30,
       silent_timeout: 2
     ).run
@@ -626,7 +852,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "print STDIN.read.bytesize" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       stdin_data: "hello stdin",
       on_output_line: ->(line) { lines << line }
@@ -665,7 +892,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", script ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       stdin_data: prompt,
       on_output_line: ->(line) { lines << line }
@@ -688,7 +916,8 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {},
         command: [ ruby, "-e", script ],
-        chdir: @dir,
+        mounts: described_class.mounts(@dir),
+        network: "grader",
         timeout: 15,
         stdin_data: big + "\n",
         on_output_line: ->(line) { total_bytes = line.to_i }
@@ -700,7 +929,7 @@ RSpec.describe ProcessRunner, :ci_only do
   end
 
   def run_command(*command)
-    described_class.new(env: {}, command: command, chdir: @dir, timeout: 5).run
+    described_class.new(env: {}, command: command, mounts: described_class.mounts(@dir), network: "grader", timeout: 5).run
   end
 
   def ruby

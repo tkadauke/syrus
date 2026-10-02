@@ -56,7 +56,8 @@ class PreviewPreparation
     result = ProcessRunner.new(
       env: process_env,
       command: [ "bash", "-c", command ],
-      chdir: preview_workdir,
+      mounts: ProcessRunner.mounts(preview_workdir, read_write: @workspace_path),
+      network: "prepare",
       timeout: TIMEOUT_SECONDS,
       kind: "preview",
       run: @run,

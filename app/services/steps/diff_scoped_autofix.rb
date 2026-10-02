@@ -97,7 +97,8 @@ module Steps
       result = ProcessRunner.new(
         env: env,
         command: [ "bash", "-c", cmd ],
-        chdir: workspace.path,
+        mounts: ProcessRunner.mounts(workspace.path),
+        network: "grader",
         timeout: PER_COMMAND_TIMEOUT,
         kind: step.kind,
         run: run,

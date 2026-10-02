@@ -59,7 +59,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
     result = ProcessRunner.new(
       env: env(chat_session, repository, path),
       command: [ "bash", "-c", cmd ],
-      chdir: path,
+      mounts: ProcessRunner.mounts(path),
+      network: "prepare",
       timeout: PER_COMMAND_TIMEOUT,
       kind: "chat_prepare",
       chat_session: chat_session

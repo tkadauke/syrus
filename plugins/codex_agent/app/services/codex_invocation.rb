@@ -171,7 +171,8 @@ class CodexInvocation
       env: env,
       command: cmd,
       stdin_data: prompt,
-      chdir: workspace_path,
+      mounts: ProcessRunner.mounts(workspace_path),
+      network: "agent",
       timeout: timeout,
       # See AgentInvocation::SILENT_TIMEOUT_SECONDS — same rationale
       # for codex: continuous JSONL streaming, prolonged silence is

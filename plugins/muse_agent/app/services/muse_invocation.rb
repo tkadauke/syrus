@@ -108,7 +108,8 @@ class MuseInvocation
             max_model_steps: max_model_steps
           ),
           stdin_data: api_key,
-          chdir: workspace_path,
+          mounts: ProcessRunner.mounts(workspace_path),
+          network: "agent",
           timeout: timeout,
           silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
           kind: "agent",
@@ -776,7 +777,8 @@ class MuseInvocation
     result = ProcessRunner.new(
       env: muse_env(workspace_path, muse_home: @muse_home),
       command: muse_export_command(session_id: session_id, path: path, redacted: policy == :redacted_export),
-      chdir: workspace_path,
+      mounts: ProcessRunner.mounts(workspace_path),
+      network: "agent",
       timeout: 60,
       silent_timeout: 15,
       kind: "agent",

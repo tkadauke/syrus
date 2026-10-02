@@ -23,7 +23,8 @@ module ChatShellCommandExecutor
       result = ProcessRunner.new(
         env: ChatWorkspaceEnv.for(chat_session: chat_session, repository: repository, workspace_path: path),
         command: [ "bash", "-c", command_record.command ],
-        chdir: path,
+        mounts: ProcessRunner.mounts(path),
+        network: "agent",
         timeout: ChatShellCommandJob::MAX_RUNTIME_SECONDS,
         kind: "chat_shell_command",
         chat_session: chat_session,

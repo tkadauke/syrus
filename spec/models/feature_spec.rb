@@ -154,6 +154,19 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".execution_request_assertions_enabled?" do
+    it "returns the flag value" do
+      Feature.create!(
+        slug: "execution_request_assertions",
+        category: "Operations",
+        name: "Execution request assertions",
+        enabled: true
+      )
+
+      expect(Feature.execution_request_assertions_enabled?).to be true
+    end
+  end
+
   describe "declarations" do
     it "does not declare a visual_review flag in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
@@ -202,9 +215,9 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
-    it "declares the emergency_land labs flag default-off in config/features.yml" do
-      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "emergency_land" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
+    it "declares the execution request assertions operations flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "execution_request_assertions" }
+      expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
     end
   end
 end

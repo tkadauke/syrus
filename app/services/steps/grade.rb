@@ -69,7 +69,8 @@ module Steps
         result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", grader.command ],
-          chdir: workspace.path,
+          mounts: ProcessRunner.mounts(workspace.path),
+          network: "grader",
           timeout: grader.timeout_minutes.minutes,
           kind: "grader",
           run: run,

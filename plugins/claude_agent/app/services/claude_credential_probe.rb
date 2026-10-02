@@ -34,7 +34,8 @@ class ClaudeCredentialProbe
           "--max-turns", "1",
           "Reply with OK."
         ],
-        chdir: workspace,
+        mounts: ProcessRunner.mounts(workspace),
+        network: "agent",
         timeout: CredentialProbe::TIMEOUT_SECONDS,
         silent_timeout: 15,
         kind: "agent",

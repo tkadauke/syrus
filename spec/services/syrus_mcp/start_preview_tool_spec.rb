@@ -210,7 +210,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       expect(ProcessRunner).to receive(:new).with(hash_including(
         env: hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
         command: [ "bash", "-c", "bin/rails db:seed" ],
-        chdir: workspace_path
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path)
       )).and_return(double(run: process_result))
       call
     end

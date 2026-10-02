@@ -17,6 +17,7 @@ class GitRunner
   # the realistic upper end. ProcessRunner's aliveness probe still
   # catches the "git process died, child held the pipe" case faster.
   DEFAULT_TIMEOUT = 10.minutes
+  REMOTE_NETWORK_SUBCOMMANDS = %w[clone fetch pull push ls-remote].freeze
 
   def self.redact(text)
     CommandRedactor.redact(text)
@@ -84,7 +85,8 @@ class GitRunner
     result = ProcessRunner.new(
       env: @env.merge(env),
       command: cmd,
-      chdir: chdir || Dir.pwd,
+      mounts: ProcessRunner.mounts(chdir || Dir.pwd),
+      network: network_profile_for(args),
       timeout: timeout.to_i,
       kind: "git",
       run: current_run,
@@ -111,5 +113,11 @@ class GitRunner
   def configure_author(identity, chdir:)
     run("config", "--local", "user.name", identity.git_name, chdir: chdir)
     run("config", "--local", "user.email", identity.git_email, chdir: chdir)
+  end
+
+  private
+
+  def network_profile_for(args)
+    REMOTE_NETWORK_SUBCOMMANDS.include?(args.first.to_s) ? "git_fetch" : "grader"
   end
 end

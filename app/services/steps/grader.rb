@@ -288,7 +288,8 @@ module Steps
       ProcessRunner.new(
         env: env,
         command: [ "bash", "-c", runner_command ],
-        chdir: workspace.path,
+        mounts: ProcessRunner.mounts(workspace.path),
+        network: "grader",
         timeout: timeout_minutes.minutes,
         kind: "grader",
         run: run,
