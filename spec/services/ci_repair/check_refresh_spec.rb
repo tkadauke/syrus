@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe CiRepair::CheckRefresh do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
-  let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 7) }
+  let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 7, pr_checks_state: "pending") }
   let(:sha) { "abc1234567890000000000000000000000000000" }
   let(:base_sha) { "base123456789000000000000000000000000000" }
   let(:client) { instance_double(GithubClient) }
@@ -19,17 +19,26 @@ RSpec.describe CiRepair::CheckRefresh do
       pending?: false,
       any_failed?: true,
       all_passed?: false,
+      completed_checks: [
+        { name: "build", conclusion: "failure", summary: "failed", html_url: "https://github.com/checks/1", app_slug: "github-actions" },
+        { name: "lint", conclusion: "success", summary: "passed", html_url: "https://github.com/checks/2", app_slug: "github-actions" }
+      ],
       failed_checks: [
-        { name: "build", conclusion: "failure", summary: "failed", html_url: "https://github.com/checks/1" }
+        { name: "build", conclusion: "failure", summary: "failed", html_url: "https://github.com/checks/1", app_slug: "github-actions" }
       ]
     )
 
     result = described_class.call(job)
 
     expect(job.reload).to have_attributes(pr_checks_sha: sha, pr_checks_state: "failing")
-    expect(result.payload).to include(job_id: job.id, head_sha: sha, base_sha: base_sha, pr_checks_state: "failing")
+    expect(result.payload).to include(job_id: job.id, head_sha: sha, base_sha: base_sha, previous_pr_checks_state: "pending", pr_checks_state: "failing")
+    expect(result.payload.fetch(:refreshed_providers)).to eq([ "github-actions" ])
+    expect(result.payload.fetch(:refreshed_checks)).to include(
+      include(name: "build", provider: "github-actions", details_url: "https://github.com/checks/1"),
+      include(name: "lint", provider: "github-actions", details_url: "https://github.com/checks/2")
+    )
     expect(result.payload.fetch(:failing_checks)).to include(
-      include(name: "build", details_url: "https://github.com/checks/1")
+      include(name: "build", provider: "github-actions", details_url: "https://github.com/checks/1")
     )
   end
 end

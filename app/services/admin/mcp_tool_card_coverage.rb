@@ -20,14 +20,12 @@ module Admin
       "assign_job_to_epic" => "generic",
       "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
-      "force_rebase" => "generic",
       "get_spending" => "deferred",
       "get_walkthrough_analysis" => "deferred",
       "manual_agentic_run" => "generic",
       "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
       "read_walkthrough_frame" => "deferred",
-      "refresh_pr_checks" => "generic",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic"
     }.freeze
