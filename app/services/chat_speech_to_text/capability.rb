@@ -3,7 +3,7 @@ module ChatSpeechToText
     def self.for(user:)
       new(
         feature_enabled: Feature.chat_speech_to_text_enabled?,
-        backend_provider: Providers.configured
+        backend_provider: Providers.configured(user: user)
       )
     end
 
