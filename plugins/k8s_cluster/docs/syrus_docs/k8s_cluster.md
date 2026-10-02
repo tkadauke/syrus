@@ -24,19 +24,17 @@ MCP tools - restart a deployment rollout, scale a deployment, delete a pod,
 cordon/uncordon a node - gated by a separate, stricter `allow_writes` opt-in
 per DOC-21 phase 2; see "Write-capable agentic tools" and "Minimal RBAC for
 agentic access" below. The plugin also depends on `credential_store` for
-credential-backed kubectl access; see "Credential-backed kubectl" below.
+registered cluster credentials and credential-backed kubectl access; see
+"Credential storage" and "Credential-backed kubectl" below.
 
 ## Clusters (`KubernetesCluster`)
 
-`app/models/kubernetes_cluster.rb` stores `label`, `api_server_url`, and
-encrypted `credentials` (`encrypts :credentials`, same pattern as
-`MysqlConnection#credentials` and `InputSource#credentials`: an
-`attribute :credentials, :json` cast backed by a `t.text` column, since
-MySQL cannot store ciphertext in a genuine JSON column, plus an
-`after_initialize` seed to `{}` - never a DB-level default, since JSON
-columns can't have one on MySQL 8). The plaintext token or client
-certificate/key lives only inside that encrypted blob, never in a plain
-column. Three independent booleans, all default `false`:
+`app/models/kubernetes_cluster.rb` stores `label`, `api_server_url`, a
+`credential_store_credential_id` reference, and legacy encrypted
+`credentials` only for temporary backward compatibility with rows that have
+not yet been migrated. New and rotated cluster secrets are written as
+Credential Store `k8s_cluster.kubeconfig` payloads; the cluster row keeps
+only non-secret metadata. Three independent booleans, all default `false`:
 
 - `agentic_access_enabled` - reserved for a later Job that adds MCP tools
   mirroring `mysql_db_browser`'s per-connection agentic gating. Not wired to
@@ -83,13 +81,31 @@ fields directly - only a pasted `kubeconfig` YAML string (as the
    that reference external files (`client-certificate`, `client-key`,
    `tokenFile`) instead of inline `-data` fields.
 
-Only the resolved single-cluster connection info is ever persisted - the
-raw, possibly multi-context kubeconfig blob is discarded after parsing. On
-`create`, a kubeconfig is required. On `update`, omitting `kubeconfig`
-leaves the cluster's existing `api_server_url`/credentials untouched (the
-same "leave blank to keep the current value" pattern
+On `create`, a kubeconfig is required. On `update`, omitting `kubeconfig`
+leaves the cluster's existing `api_server_url`/credential reference
+untouched (the same "leave blank to keep the current value" pattern
 `MysqlConnectionsController` uses for password rotation); supplying a new
-one re-parses and replaces both.
+one re-parses and replaces both the metadata and the Credential Store
+payload. Responses never include the kubeconfig or extracted token/key
+material.
+
+## Credential storage
+
+Cluster registration requires the `credential_store` dependency to be
+enabled. Pasted kubeconfigs are stored as `CredentialStore::Credential`
+records with type `k8s_cluster.kubeconfig`, instance scope, safe metadata
+limited to the resolved cluster name, context name, and API host, and no
+target constraints. The Kubernetes browsing API and MCP tools materialize
+that payload through `CredentialStore::Broker`; workflow/chat tool access
+therefore records normal Credential Store lease audit events without
+including payload material in responses, logs, or transcripts.
+
+The migration path preserves existing configured clusters by backfilling
+legacy encrypted token/cert hashes into Credential Store kubeconfig payloads
+and stamping `credential_store_credential_id`. Runtime code still supports a
+legacy encrypted hash when no credential reference is present, so a cluster
+is not stranded if backfill cannot create a credential before an operator
+rotates it.
 
 ## Connection testing (`K8sCluster::ConnectionTester`)
 
@@ -125,11 +141,12 @@ StatefulSets, DaemonSets),
 with `as: :parsed`, so entity calls (`get_pods`, `get_deployment`, ...) hand
 back plain parsed JSON hashes instead of `RecursiveOpenStruct` wrappers -
 resource services just dig into hashes, the same style as the rest of
-Syrus. Credentials translate the same way `ConnectionTester` already does:
-a bearer token becomes `auth_options: { bearer_token: }`; client
-cert/key and CA data are base64-decoded into `OpenSSL::X509::Certificate` /
-`OpenSSL::PKey` / `OpenSSL::X509::Store` `ssl_options`; `insecure_skip_tls_verify`
-maps to `OpenSSL::SSL::VERIFY_NONE`. Clients are memoized per `ApiClient`
+Syrus. Credentials are leased through Credential Store and then translated
+the same way `ConnectionTester` already does: a bearer token becomes
+`auth_options: { bearer_token: }`; client cert/key and CA data are
+base64-decoded into `OpenSSL::X509::Certificate` / `OpenSSL::PKey` /
+`OpenSSL::X509::Store` `ssl_options`; `insecure_skip_tls_verify` maps to
+`OpenSSL::SSL::VERIFY_NONE`. Clients are memoized per `ApiClient`
 instance, one per Kubernetes API group, but a fresh `ApiClient` (and fresh
 Kubeclient discovery round-trip - see below) is built per request; there is
 no persistent connection pool.

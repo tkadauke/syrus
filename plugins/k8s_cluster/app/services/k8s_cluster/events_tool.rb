@@ -30,7 +30,7 @@ module K8sCluster
     class << self
       def call(server_context:, cluster_id: nil, namespace: nil)
         params = { cluster_id: cluster_id, namespace: namespace }
-        respond_with(cluster_id: cluster_id, params: params) do
+        respond_with(cluster_id: cluster_id, params: params, server_context: server_context) do
           cluster = AgenticAccess.cluster!(cluster_id)
           Events.new(cluster).list(namespace: namespace)
         end
