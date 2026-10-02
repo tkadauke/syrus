@@ -22,6 +22,7 @@ module AppApi
           system_alerts: PerformanceLogging.phase("bootstrap.system_alerts") { system_alerts_payload },
           unread_notifications_count: PerformanceLogging.phase("bootstrap.unread_notifications_count") { unread_notifications_count },
           csrf_token: @csrf_token,
+          slug_refs: PerformanceLogging.phase("bootstrap.slug_refs") { slug_refs_payload },
           feature_flags: PerformanceLogging.phase("bootstrap.feature_flags") { feature_flags_payload }
         }
       end
@@ -154,6 +155,12 @@ module AppApi
         slug = feature.fetch(:slug)
         [ slug, Feature.enabled?(slug) ]
       end
+    end
+
+    def slug_refs_payload
+      {
+        types: Syrus::PluginRegistry.providers_for(:slug_type).map(&:client_metadata)
+      }
     end
 
     def app_revision

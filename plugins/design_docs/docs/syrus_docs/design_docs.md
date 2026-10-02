@@ -278,8 +278,9 @@ dump remains in `db/schema.rb`.
 ## Slug Hover Preview
 
 `DOC-<id>` references linkified anywhere in the app (chat messages, job/epic
-bodies, design doc comments) get a rich hover/click preview popup, the same
-interaction core already has for `JOB-<id>`/`EPIC-<id>` (`SlugHoverCard`).
+bodies, design doc comments) come from the shared slug type registry and get a
+rich hover/click preview popup, the same interaction core already has for
+`JOB-<id>`/`EPIC-<id>` (`SlugReferenceCard`).
 `GET /api/v1/app/design_docs/:id/preview` backs the popup with a payload
 lighter than `DesignDocDetail`: copyable `display_id`, `title`, `owner`,
 `collaborators`, `comments_count` (across all threads), `latest_version_number`,
@@ -293,17 +294,18 @@ false }` instead of an error — enough for the popup to render a minimal
 "Not accessible" state without leaking whether the doc exists, its title, or
 any other field.
 
-The frontend card
+The slug type is registered through the plugin's `:slug_type` provider. The
+frontend card
 (`plugins/design_docs/app/frontend/slugPreviewCards/DOC.DesignDocPreviewCard.tsx`)
-is discovered by core's generic filename-convention glob lookup
+is discovered separately by core's generic filename-convention glob lookup
 (`app/frontend/pluginSlugPreviewCards.tsx`, the same `import.meta.glob`
 convention `workspace_tab`/`ui_slot` use): the leading `DOC.` segment of the
-filename is what registers this component for `DOC-<id>` slugs — core does
-not name `design_docs` or `"doc"` anywhere. `linkifySlugs.tsx` derives the
-prefix directly from the matched slug text and passes it to `SlugHoverCard`
-as `kind="plugin" prefix="DOC"`, which resolves the component via
-`pluginSlugPreviewCardComponentForPrefix(prefix)` without `SlugHoverCard.tsx`
-ever importing plugin code or hardcoding a plugin-owned kind. The card
+filename associates this component with registered `DOC-<id>` slugs — core
+does not name `design_docs` or `"doc"` anywhere. `linkifySlugs.tsx` derives the
+prefix directly from the matched slug text, looks it up in the bootstrap slug
+registry, and passes that entry to `SlugReferenceCard`, which resolves the
+component via `pluginSlugPreviewCardComponentForPrefix(prefix)` without ever
+importing plugin code or hardcoding a plugin-owned kind. The card
 renders a condensed collaborator list (first three names, then `+N`) when
 there are many collaborators.
 

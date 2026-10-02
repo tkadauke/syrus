@@ -6,6 +6,7 @@ module SlugRefs
       def self.prefix = "EPIC"
       def self.display_label = "Epic"
       def self.preview_available? = true
+      def self.client_path(number) = "/epics/#{canonical_slug(number)}"
 
       def self.record_for(number, user:)
         scope = user&.admin? ? ::Epic.all : ::Epic.accessible_to(user)

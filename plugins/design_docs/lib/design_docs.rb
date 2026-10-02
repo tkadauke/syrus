@@ -23,6 +23,7 @@ module DesignDocs
              mcp_tool_set: "DesignDocs::WorkflowToolSet",
              callbacks: "DesignDocs::Callbacks",
              domain_subscriber: "DesignDocs::Subscribers",
+             slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
     route :get, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#index"
     route :patch, "/api/v1/app/design_docs/preferences", to: "api/v1/app/design_docs#preferences"

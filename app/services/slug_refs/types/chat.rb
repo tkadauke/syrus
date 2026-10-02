@@ -6,6 +6,7 @@ module SlugRefs
       def self.prefix = "CHAT"
       def self.display_label = "Chat"
       def self.preview_available? = true
+      def self.linkable? = false
 
       def self.record_for(id, user:)
         return nil unless user

@@ -137,6 +137,24 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "coding_mode" => false,
       "local_mode" => false
     )
+    expect(body.dig("slug_refs", "types")).to include(
+      include(
+        "prefix" => "JOB",
+        "type" => "job",
+        "display_label" => "Job",
+        "copyable" => true,
+        "linkable" => true,
+        "preview_available" => true,
+        "href_template" => "/jobs/JOB-:id"
+      ),
+      include(
+        "prefix" => "CHAT",
+        "type" => "chat",
+        "copyable" => true,
+        "linkable" => false,
+        "href_template" => nil
+      )
+    )
   end
 
   it "reuses the unread notification count across bootstrap fields" do
