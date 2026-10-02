@@ -218,6 +218,7 @@ suggestions cost nothing beyond a closure.
 | `database_adapters` | Every configured adapter, across all four databases |
 | `agent_spend_usd` / `completed_runs` | Recent agent activity |
 | `repository_count` | Active repositories |
+| `syrus_repositories` | Active repositories that are `tkadauke/syrus` or track it as their upstream |
 
 `repositories_detecting` is fed by `Steps::Prepare`, which runs the detectors
 against every fresh clone anyway and stamps the widened result -- installed
