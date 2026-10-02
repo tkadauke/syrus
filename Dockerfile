@@ -152,6 +152,43 @@ RUN SYRUS_APP_HOST=syrus.invalid \
     SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile && \
     rm -rf node_modules
 
+# Build the same Go CLI shipped by bin/release-cli. Keep this in its own
+# source-thin stage so Go module downloads cache independently from Rails and
+# asset changes, and so the final app/worker images receive only the static
+# binary.
+FROM docker.io/library/golang:1.26.5-bookworm AS cli-build
+
+WORKDIR /src
+
+COPY go.work go.work.sum ./
+COPY cli/go.mod cli/go.sum ./cli/
+COPY plugins/scheduled_tasks/cli/go.mod ./plugins/scheduled_tasks/cli/
+COPY plugins/k8s_cluster/cli/go.mod ./plugins/k8s_cluster/cli/
+COPY plugins/global_search/cli/go.mod ./plugins/global_search/cli/
+COPY plugins/design_docs/cli/go.mod ./plugins/design_docs/cli/
+COPY plugins/spending_insights/cli/go.mod ./plugins/spending_insights/cli/
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    cd cli && go mod download
+
+COPY cli/ ./cli/
+COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/
+COPY plugins/k8s_cluster/cli/ ./plugins/k8s_cluster/cli/
+COPY plugins/global_search/cli/ ./plugins/global_search/cli/
+COPY plugins/design_docs/cli/ ./plugins/design_docs/cli/
+COPY plugins/spending_insights/cli/ ./plugins/spending_insights/cli/
+
+ARG TARGETOS
+ARG TARGETARCH
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eu; \
+    target_os="${TARGETOS:-linux}"; \
+    target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
+    cd cli; \
+    env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
+      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .
+
 # Final stage for app image
 FROM base AS app
 
@@ -159,6 +196,8 @@ FROM base AS app
 USER 1000:1000
 
 # Copy built artifacts: gems, application
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
+RUN /usr/local/bin/syrus --help >/dev/null
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
 
@@ -463,6 +502,8 @@ RUN cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check fail
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
+RUN /usr/local/bin/syrus --help >/dev/null
 
 # Bake the git SHA the image was built from. .git/ is excluded via
 # .dockerignore so the running container can't compute it itself —

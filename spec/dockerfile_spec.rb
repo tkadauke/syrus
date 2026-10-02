@@ -81,6 +81,30 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("install -m 0755 /tmp/antigravity /usr/local/bin/agy")
   end
 
+  it "builds and installs the Syrus CLI into app and worker runtime images" do
+    cli_stage = stage("cli-build", "base AS app")
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+    worker_stage = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    plugin_cli_modules = Rails.root.join("go.work").read.scan(%r{use \./(plugins/[^/]+/cli)}).flatten
+
+    expect(dockerfile).to include("FROM docker.io/library/golang:1.26.5-bookworm AS cli-build")
+    expect(cli_stage).to include("COPY go.work go.work.sum ./")
+    expect(cli_stage).to include("COPY cli/go.mod cli/go.sum ./cli/")
+    expect(cli_stage).to include("cd cli && go mod download")
+    expect(cli_stage).to include('env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch"')
+    expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .')
+
+    plugin_cli_modules.each do |module_path|
+      expect(cli_stage).to include("COPY #{module_path}/go.mod ./#{module_path}/")
+      expect(cli_stage).to include("COPY #{module_path}/ ./#{module_path}/")
+    end
+
+    expect(app_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus")
+    expect(app_stage).to include("RUN /usr/local/bin/syrus --help >/dev/null")
+    expect(worker_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus")
+    expect(worker_stage).to include("RUN /usr/local/bin/syrus --help >/dev/null")
+  end
+
   it "keeps Ruby runtimes in their own exact-pinned cache stage, installed prebuilt" do
     ruby_stage = stage("runtime-ruby-cache")
     node_stage = stage("runtime-node-cache")
