@@ -44,6 +44,7 @@ RSpec.describe "brand icons" do
     # Versioned (?v=N): public/ files are cached for a year, so rebranded
     # icons must change URL — see app/frontend/lib/brandIcon.ts.
     expect(layout).to match(%r{href="/icon\.png\?v=\d+"})
+    expect(layout).to match(%r{href="/apple-touch-icon\.png\?v=\d+"})
     expect(layout).not_to include("icon.svg")
     manifest = File.read(File.join(repo_root, "app/views/pwa/manifest.json.erb"), encoding: "UTF-8")
     expect(manifest).to include("/icon-192.png")
@@ -61,7 +62,7 @@ RSpec.describe "brand icons" do
     expect(ts_version).not_to be_nil
 
     layout = File.read(File.join(repo_root, "app/views/layouts/spa.html.erb"), encoding: "UTF-8")
-    layout_version = layout[%r{href="/icon\.png\?v=(\d+)"}, 1]
-    expect(layout_version).to eq(ts_version)
+    layout_versions = layout.scan(%r{href="/(?:icon|apple-touch-icon)\.png\?v=(\d+)"}).flatten
+    expect(layout_versions).to eq([ ts_version, ts_version ])
   end
 end

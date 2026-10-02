@@ -134,8 +134,11 @@ RSpec.describe "SPA shell", type: :request do
     get app_shell_path
 
     expect(response).to have_http_status(:ok)
+    expect(response.body).to include('<meta name="apple-mobile-web-app-title" content="Syrus">')
+    expect(response.body).to include('<meta name="apple-mobile-web-app-status-bar-style" content="default">')
+    expect(response.body).to include('<meta name="theme-color" content="#c9704b">')
     expect(response.body).to include('<link rel="icon" href="/icon.png?v=2" type="image/png">')
-    expect(response.body).to include('<link rel="apple-touch-icon" href="/icon-192.png?v=2">')
+    expect(response.body).to include('<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">')
     expect(response.body).to include('<link rel="manifest" href="/manifest.json">')
   end
 
@@ -143,6 +146,7 @@ RSpec.describe "SPA shell", type: :request do
     get pwa_manifest_path
 
     expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("application/json")
     manifest = JSON.parse(response.body)
     expect(manifest.fetch("icons")).to contain_exactly(
       include("src" => "/icon-192.png", "type" => "image/png", "sizes" => "192x192"),
@@ -150,6 +154,17 @@ RSpec.describe "SPA shell", type: :request do
     )
     expect(manifest.fetch("theme_color")).to eq("#c9704b")
     expect(manifest.fetch("background_color")).to eq("#f7ead5")
+  end
+
+  it "serves canonical Apple touch icon probes as PNG assets instead of the SPA shell" do
+    [ apple_touch_icon_path, apple_touch_icon_precomposed_path ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to start_with("\x89PNG\r\n\x1A\n".b)
+      expect(response.body).not_to include('id="syrus-spa-root"')
+    end
   end
 
   it "serves nested React routes through the SPA shell" do
