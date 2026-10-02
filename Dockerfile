@@ -111,7 +111,7 @@ COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
 COPY plugins/ ./plugins/
 # Every bundled plugin's gemspec is `Syrus.plugin_gemspec(__FILE__)`, which
-# require_relatives this file. Bundler evaluates all 31 gemspecs during
+# require_relatives this file. Bundler evaluates every bundled plugin gemspec during
 # `bundle install`, so it has to be here before that runs -- long before
 # `COPY . .` brings the rest of lib/ in. Kept to the single file the gemspecs
 # need so the layer cache does not turn over on unrelated lib/ edits.

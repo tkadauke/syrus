@@ -1,0 +1,9 @@
+project:
+  id: whisper_stt
+  label: "whisper_stt plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

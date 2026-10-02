@@ -130,6 +130,7 @@ gem "k8s_cluster", path: "plugins/k8s_cluster"
 gem "agent_activity", path: "plugins/agent_activity"
 gem "plugin_runtime", path: "plugins/plugin_runtime"
 gem "git_mirror", path: "plugins/git_mirror"
+gem "whisper_stt", path: "plugins/whisper_stt"
 gem "cognitive_review", path: "plugins/cognitive_review"
 
 group :development, :test do
