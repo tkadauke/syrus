@@ -1850,6 +1850,7 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
 // is `running`, so the one banner that would have explained the wait was the
 // one surface guaranteed not to show it. The gate is now the block itself.
 const MAIN_HEALTH_REASONS = [ "main_branch_health", "main_branch_broken" ]
+const EPIC_DEPENDENCY_OPTION_CLASS = "block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
 const EPIC_DEPENDENCY_NO_MATCHES_CLASS = "absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
 const ATTACHMENT_REMOVE_BUTTON_CLASS = "absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
 
@@ -2312,7 +2313,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
                     {filteredOptions.map((option) => (
                       <button
-                        className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className={EPIC_DEPENDENCY_OPTION_CLASS}
                         disabled={command.isPending}
                         key={option.value}
                         onClick={() => choose(option.value)}
@@ -2368,7 +2369,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedEpicQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>
                     {t("epic_dependency_no_matches")}
                   </div>
                 ) : null}
