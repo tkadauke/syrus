@@ -7,8 +7,10 @@ import { describe, expect, it, vi, afterEach } from "vitest"
 import { AdminInsightsRoute } from "./AdminInsights"
 
 function makeSuggestion(overrides: Record<string, unknown> = {}) {
+  const id = Number(overrides.id ?? 1)
   return {
-    id: 1,
+    id,
+    slug: `INSIGHT-${id}`,
     title: "Cross-repo cache miss",
     category: "inefficiency",
     severity: "medium",
@@ -227,6 +229,12 @@ describe("AdminInsightsRoute", () => {
 
       expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
       expect(screen.getByText("Admin")).toBeInTheDocument()
+    })
+
+    it("renders insight slugs with the shared copyable slug control", async () => {
+      renderRoute([makeSuggestion({ id: 42 })])
+
+      expect(await screen.findByRole("button", { name: "Copy INSIGHT-42 to clipboard" })).toBeInTheDocument()
     })
   })
 
