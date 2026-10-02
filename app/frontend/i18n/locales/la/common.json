@@ -169,6 +169,13 @@
     "copied": "Descriptum",
     "copy": "Describe {{slug}}"
   },
+  "slug_reference": {
+    "surface_label": "Actiones pro {{slug}}",
+    "open_action": "Aperi {{slug}}",
+    "copy_action": "Describe {{slug}}",
+    "close": "Claude",
+    "preview_unavailable": "Nulla praevia species huic relationi praesto est."
+  },
   "notice_toast": {
     "dismiss": "Dimitte nuntium"
   },
