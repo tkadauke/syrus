@@ -552,6 +552,47 @@ RSpec.describe MuseInvocation do
     end
   end
 
+  it "writes required Muse mode for absent or true MCP requiredness and optional mode for false" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      stub_process_runners(lines: completed_lines_with)
+
+      result = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: {
+          "syrus-chat-sidecar" => {
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "essential" ],
+            env: {},
+            required: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: {},
+            required: false
+          },
+          "syrus-workflow-sidecar" => {
+            command: "/app/bin/syrus-mcp-sidecar",
+            args: [],
+            env: {}
+          }
+        }
+      ).run
+
+      settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
+      expect(result).to be_success
+      expect(settings.fetch("mcpServers")).to include(
+        "syrus-chat-sidecar" => include("mode" => "required"),
+        "syrus-chat-deferred-sidecar" => include("mode" => "optional"),
+        "syrus-workflow-sidecar" => include("mode" => "required")
+      )
+    end
+  end
+
   it "repairs a legacy Syrus-written settings file that is missing schema_version, without crashing" do
     Dir.mktmpdir("muse-home") do |muse_home|
       config_dir = File.join(muse_home, ".config", "muse")

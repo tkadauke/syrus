@@ -358,7 +358,7 @@ function RepositoriesView({ payload, prefix, pathname, search }: { payload: Repo
           {!isDesktop ? (
             <details className={classes("group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900", marginGutterRestore)}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
-                <span>{tNav("filters_layout.folders_and_filters")}</span>
+                <span className="min-w-0 truncate">{activeFolder?.name ?? tNav("sidebar_smart_folders_all", { label: t("repositories.heading") })}</span>
                 <Text as="span" className="group-open:hidden" muted variant="caption">
                   {tNav("filters_layout.show")}
                 </Text>

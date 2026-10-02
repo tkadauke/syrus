@@ -1144,7 +1144,7 @@ describe("DesignDocsSurface", () => {
     expect(within(mobileList).queryByText("v1")).not.toBeInTheDocument()
     expect(screen.queryByTestId("design-docs-table")).not.toBeInTheDocument()
 
-    fireEvent.click(await screen.findByText("Folders and filters"))
+    fireEvent.click(await screen.findByText("All design docs", { selector: "summary > span" }))
 
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()

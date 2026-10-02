@@ -2,13 +2,14 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
-import type { FormEvent, ReactNode } from "react"
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { ChevronIcon } from "../components/ChevronIcon"
+import { CloseIcon } from "../components/CloseIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
@@ -32,6 +33,7 @@ import {
   openJobInCodingMode,
   replacePendingFeedback,
   retryPendingFeedback,
+  startJobDiscussionChat,
   stopPreview as stopPreviewRequest,
   submitJobFeedback,
   updateJobPriority,
@@ -381,7 +383,7 @@ export function JobDetailView({
                 : null,
               headerChatAffordanceVisible
                 ? {
-                    node: <HeaderChatAffordance command={command} payload={payload} prefix={prefix} />,
+                    node: <HeaderChatAffordance payload={payload} prefix={prefix} />,
                     separatorClassName: "hidden sm:inline"
                   }
                 : null
@@ -510,14 +512,26 @@ function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
 
 function HeaderChatAffordance({
   payload,
-  prefix,
-  command
+  prefix
 }: {
   payload: JobDetailPayload
   prefix: string
-  command: ReturnType<typeof useJobCommand>
 }) {
   const { t } = useT("jobs")
+  const navigate = useNavigate()
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false)
+  const startChat = useMutation({
+    mutationFn: (message: string) => startJobDiscussionChat(payload.job.id, message),
+    onSuccess: (result) => {
+      setPromptDialogOpen(false)
+      navigate(withRoutePrefix(result.redirect_to, prefix))
+    }
+  })
+
+  function closePromptDialog() {
+    startChat.reset()
+    setPromptDialogOpen(false)
+  }
 
   if (payload.job.source_chat) {
     return (
@@ -559,21 +573,91 @@ function HeaderChatAffordance({
 
   if (payload.actions.can_start_chat) {
     return (
-      <button
-        aria-label={t("chat_about_this")}
-        className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={command.isPending}
-        onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })}
-        type="button"
-      >
-        <ChatBubbleIcon />
-        <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
-        <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
-      </button>
+      <>
+        <button
+          aria-label={t("chat_about_this")}
+          className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={startChat.isPending}
+          onClick={() => setPromptDialogOpen(true)}
+          type="button"
+        >
+          <ChatBubbleIcon />
+          <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
+          <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
+        </button>
+        {promptDialogOpen ? (
+          <StartDiscussionChatDialog
+            error={startChat.error}
+            isPending={startChat.isPending}
+            onClose={closePromptDialog}
+            onSubmit={(message) => startChat.mutate(message)}
+          />
+        ) : null}
+      </>
     )
   }
 
   return null
+}
+
+function StartDiscussionChatDialog({ error, isPending, onClose, onSubmit }: { error: Error | null; isPending: boolean; onClose: () => void; onSubmit: (message: string) => void }) {
+  const { t } = useT("jobs")
+  const [prompt, setPrompt] = useState("")
+  const trimmedPrompt = prompt.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedPrompt || isPending) return
+
+    onSubmit(trimmedPrompt)
+  }
+
+  function submitOnShortcut(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if (isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+
+    event.preventDefault()
+    event.currentTarget.requestSubmit()
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 p-4" role="presentation">
+      <section aria-labelledby="start-discussion-chat-title" aria-modal="true" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="start-discussion-chat-title">{t("start_discussion_chat_title")}</h2>
+          <button
+            aria-label={t("close_start_discussion_chat")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            disabled={isPending}
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <form className="mt-4 space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="start-discussion-chat-prompt">
+            {t("start_discussion_chat_prompt_label")}
+          </label>
+          <textarea
+            autoFocus
+            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            disabled={isPending}
+            id="start-discussion-chat-prompt"
+            onChange={(event) => setPrompt(event.target.value)}
+            required
+            value={prompt}
+          />
+          {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("start_discussion_chat_error"))}</p> : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button disabled={isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
+            <Button disabled={isPending || !trimmedPrompt} type="submit" variant="primary">
+              {isPending ? t("submitting") : t("start_discussion_chat_submit")}
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
 }
 
 function JobNavigationControl({ context, currentJobId, prefix }: { context: JobNavigationContext | null; currentJobId: number; prefix: string }) {
@@ -1766,6 +1850,7 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
 // is `running`, so the one banner that would have explained the wait was the
 // one surface guaranteed not to show it. The gate is now the block itself.
 const MAIN_HEALTH_REASONS = [ "main_branch_health", "main_branch_broken" ]
+const EPIC_DEPENDENCY_OPTION_CLASS = "block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
 const EPIC_DEPENDENCY_NO_MATCHES_CLASS = "absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
 const ATTACHMENT_REMOVE_BUTTON_CLASS = "absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
 
@@ -2228,7 +2313,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
                     {filteredOptions.map((option) => (
                       <button
-                        className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className={EPIC_DEPENDENCY_OPTION_CLASS}
                         disabled={command.isPending}
                         key={option.value}
                         onClick={() => choose(option.value)}
@@ -2284,7 +2369,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedEpicQuery.length > 0 ? (
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
+                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>
                     {t("epic_dependency_no_matches")}
                   </div>
                 ) : null}

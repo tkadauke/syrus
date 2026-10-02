@@ -80,6 +80,30 @@ RSpec.describe "SPA shell", type: :request do
     expect(js_paths).to include(a_string_matching(%r{\A/assets/spa-[^"]+\.js\?v=cache-sha\z}))
   end
 
+  it "installs startup diagnostics before the SPA module entrypoint" do
+    allow(SyrusVersion).to receive(:current).and_return("startup-sha")
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('<meta name="syrus-app-revision" content="startup-sha">')
+    expect(response.body).to include('<meta name="syrus-asset-revision" content="startup-sha">')
+    diagnostics_index = response.body.index('id="syrus-startup-diagnostics"')
+    module_index = response.body.index('type="module"')
+    expect(diagnostics_index).to be_present
+    expect(module_index).to be_present
+    expect(diagnostics_index).to be < module_index
+    expect(response.body).to include('window.SyrusStartupDiagnostics')
+    expect(response.body).to include('/api/v1/app/performance_events')
+    expect(response.body).to include('/api/v1/app/browser_errors')
+    expect(response.body).to include('StartupWatchdog')
+    expect(response.body).to include('StartupResourceError')
+    expect(response.body).to include('navigator.standalone')
+    expect(response.body).to include('display-mode: standalone')
+  end
+
   it "serves the authenticated app shell at root when signed in" do
     user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)

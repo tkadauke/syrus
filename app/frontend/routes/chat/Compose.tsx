@@ -11,7 +11,7 @@ import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, fetchNewChat, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, switchChatProvider, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateChatRepository, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatRepository, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, enqueueChatMessage, fetchChatWhiteboard, fetchNewChat, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateChatRepository, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatRepository, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -34,7 +34,7 @@ import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDes
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
-import { PencilIcon, UploadIcon } from "./icons"
+import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
 import { storeWorkspacePreference } from "./workspaceTabs"
 import { JobEpicPickerPopup } from "./JobEpicPickerPopup"
@@ -44,6 +44,7 @@ type SubmittedChatDraft = {
   messageText: string
   composerText: string
   attachments: ChatComposeAttachment[]
+  chatProvider?: string | null
 }
 
 type ComposerDraftSnapshot = {
@@ -71,7 +72,7 @@ const COMPOSER_SELECTOR_TRIGGER_CLASS = "min-h-11 !border-transparent !bg-transp
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, hideScratchpadControls = false, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; hideScratchpadControls?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -141,11 +142,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const composerBannerStackRef = useRef<HTMLDivElement | null>(null)
+  const selectedChatProviderChatIdRef = useRef(chatId)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const newChatForm = payload.messages.length === 0 && payload.pending_actions.length === 0 && !agentActive
   const [newChatRepositoryId, setNewChatRepositoryId] = useState(() => payload.chat.repository ? String(payload.chat.repository.id) : "")
+  const [selectedChatProvider, setSelectedChatProvider] = useState(() => payload.chat.chat_provider || payload.chat.effective_chat_provider || "")
   const queuedMessages = payload.queued_messages || []
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
@@ -237,6 +240,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setNewChatRepositoryId(payload.chat.repository ? String(payload.chat.repository.id) : "")
   }, [chatId, payload.chat.repository])
 
+  useEffect(() => {
+    if (selectedChatProviderChatIdRef.current === chatId && newChatForm) return
+
+    selectedChatProviderChatIdRef.current = chatId
+    setSelectedChatProvider(payload.chat.chat_provider || payload.chat.effective_chat_provider || "")
+  }, [chatId, newChatForm, payload.chat.chat_provider, payload.chat.effective_chat_provider])
+
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
   useEffect(() => {
@@ -285,7 +295,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const draft = {
       messageText,
       composerText,
-      attachments
+      attachments,
+      chatProvider: newChatForm ? selectedChatProvider : null
     }
     clearComposerDraft()
     setHistoryMode(null)
@@ -300,7 +311,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const send = useMutation({
     mutationFn: (draft: SubmittedChatDraft) => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
     onSuccess: (updated, draft) => {
       rememberSubmittedPrompt(draft.messageText)
       queryClient.setQueryData(queryKey, updated)
@@ -331,7 +342,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
-      if (action.kind === "new") return createChat({ repositoryId: newChatForm ? newChatRepositoryId : (payload.chat.repository ? String(payload.chat.repository.id) : ""), text: "", chatProvider: payload.chat.effective_chat_provider ?? payload.chat.chat_provider })
+      if (action.kind === "new") return createChat({ repositoryId: newChatForm ? newChatRepositoryId : (payload.chat.repository ? String(payload.chat.repository.id) : ""), text: "", chatProvider: selectedChatProvider || payload.chat.effective_chat_provider || payload.chat.chat_provider })
       if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
@@ -477,7 +488,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setAttachmentError(null)
     }
   })
-  const canStashDraft = text.trim().length > 0 || attachments.length > 0
+  const canStashDraft = !hideScratchpadControls && (text.trim().length > 0 || attachments.length > 0)
   const commandPaletteOpen = commandQuery != null
     && matchingCommands.length > 0
     && !send.isPending
@@ -1290,6 +1301,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (!textarea) return
 
     window.requestAnimationFrame(() => {
+      textarea.focus()
       textarea.setSelectionRange(suggestion.length, suggestion.length)
     })
   }
@@ -1917,9 +1929,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             value={text}
           />
           {ghostSuggestion ? (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
-              <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden py-1.5 pl-3 pr-1.5 text-base leading-6 sm:py-1 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+              <span aria-hidden="true" className="min-w-0 flex-1 truncate pr-2 text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+              <button
+                aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
+                className="pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus-visible:ring-offset-gray-950"
+                onClick={() => acceptGhostSuggestion(ghostSuggestion)}
+                title={t("suggestion_accept")}
+                type="button"
+              >
+                <AcceptSuggestionIcon className="h-4 w-4" />
+              </button>
             </div>
           ) : null}
           <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
@@ -1954,7 +1974,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
-          <ChatProviderSelector payload={payload} queryKey={queryKey} />
+          <ChatProviderSelector payload={payload} selectedProvider={selectedChatProvider} onChange={setSelectedChatProvider} />
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
@@ -2024,22 +2044,26 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                   </span>
                 </button>
               ) : null}
-              <div className="border-t border-gray-100 dark:border-gray-800" />
-              <button
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                onClick={() => {
-                  setAttachmentPopoverOpen(false)
-                  setScratchpadOpen((prev) => !prev)
-                }}
-                type="button"
-              >
-                <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                  <rect height="4" rx="1" width="6" x="9" y="3" />
-                  <path d="M9 12h6M9 16h4" />
-                </svg>
-                {t("scratchpad_title")}
-              </button>
+              {!hideScratchpadControls ? (
+                <>
+                  <div className="border-t border-gray-100 dark:border-gray-800" />
+                  <button
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={() => {
+                      setAttachmentPopoverOpen(false)
+                      setScratchpadOpen((prev) => !prev)
+                    }}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                      <rect height="4" rx="1" width="6" x="9" y="3" />
+                      <path d="M9 12h6M9 16h4" />
+                    </svg>
+                    {t("scratchpad_title")}
+                  </button>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -2597,21 +2621,13 @@ function NewChatRepositorySelector({ currentRepository, enabled, isError, isLoad
 // is sent, the provider is pinned and chat settings display it read-only, so
 // this inline control intentionally disappears the moment the landing composer
 // stops being a landing composer.
-function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; queryKey: ChatQueryKey }) {
+function ChatProviderSelector({ payload, selectedProvider, onChange }: { payload: ChatPayload; selectedProvider: string; onChange: (provider: string) => void }) {
   const { t } = useT("chat")
-  const queryClient = useQueryClient()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   const configuredOptions = (payload.chat.chat_provider_options || []).filter((option) => option.configured)
-
-  const switchProvider = useMutation({
-    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-    }
-  })
 
   useEffect(() => {
     if (!dropdownOpen) return
@@ -2628,7 +2644,7 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
 
   if (configuredOptions.length <= 1 || payload.messages.length > 0 || isAgentActive(payload)) return null
 
-  const currentProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
+  const currentProvider = selectedProvider || payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
   const currentLabel = configuredOptions.find((option) => option.value === currentProvider)?.label ?? currentProvider
 
   return (
@@ -2639,7 +2655,6 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
         aria-label={t("provider_selector_label")}
         className={`${COMPOSER_SELECTOR_TRIGGER_CLASS} max-w-[6rem] sm:max-w-none`}
         data-open={dropdownOpen ? "true" : "false"}
-        disabled={switchProvider.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         size="sm"
@@ -2666,7 +2681,7 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
               }`}
               key={value}
               onClick={() => {
-                switchProvider.mutate(value)
+                onChange(value)
                 setDropdownOpen(false)
               }}
               role="option"
@@ -2675,10 +2690,6 @@ function ChatProviderSelector({ payload, queryKey }: { payload: ChatPayload; que
               {label}
             </button>
           ))}
-        </div>
-      ) : switchProvider.isError ? (
-        <div className={TOOLBAR_DROPDOWN_ERROR_CLASS}>
-          {t("provider_update_error")}
         </div>
       ) : null}
     </div>

@@ -1,3 +1,32 @@
+module Syrus
+  module SpecSupport
+    module BundledPlugins
+      TEST_PROVIDER_PLUGIN_NAMES = %w[claude_agent codex_agent agy_agent].freeze
+
+      module_function
+
+      def restore_test_provider_records
+        # Rails can load this support file before test database maintenance has
+        # replaced the schema. Enable the providers only after that maintenance
+        # finishes; doing it in an initializer creates rows that db:prepare can
+        # immediately erase, leaving every registry-backed validation disabled.
+        # all_plugins materializes missing PluginRecord rows from the boot snapshot.
+        Syrus::PluginRegistry.all_plugins
+
+        TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+          record = PluginRecord.find_or_create_by!(name: plugin_name)
+          record.update!(enabled: true) unless record.enabled?
+        end
+        Syrus::PluginRegistry.clear_plugin_record_cache!
+      rescue ActiveRecord::ActiveRecordError
+        # The registry itself fails open when plugin_records is unreadable.
+        # Match that behavior here so database maintenance failures surface in
+        # the example that needs the database, not in this global support hook.
+      end
+    end
+  end
+end
+
 # Restore the bundled plugin registry around each example so registry-backed
 # model validations, settings payloads, and provider lookups behave the way
 # they do at runtime.
@@ -15,18 +44,7 @@
 # teardown or process-level hooks.
 RSpec.configure do |config|
   restore_test_provider_records = proc do
-    # Rails can load this support file before test database maintenance has
-    # replaced the schema. Enable the providers only after that maintenance
-    # finishes; doing it in an initializer creates rows that db:prepare can
-    # immediately erase, leaving every registry-backed validation disabled.
-    # all_plugins materializes missing PluginRecord rows from the boot snapshot.
-    Syrus::PluginRegistry.all_plugins
-
-    %w[claude_agent codex_agent agy_agent].each do |plugin_name|
-      record = PluginRecord.find_or_create_by!(name: plugin_name)
-      record.update!(enabled: true) unless record.enabled?
-    end
-    Syrus::PluginRegistry.clear_plugin_record_cache!
+    Syrus::SpecSupport::BundledPlugins.restore_test_provider_records
   end
 
   config.before(:suite, &restore_test_provider_records)

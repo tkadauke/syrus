@@ -4138,6 +4138,7 @@ describe("App", () => {
     mockDashboardFetch(dashboardPayload({
       subject: "job",
       view: "list",
+      active_smart_folder_id: 7,
       items: [dashboardJobItem()]
     }))
 
@@ -4158,9 +4159,11 @@ describe("App", () => {
       expect(within(controls).getByRole("navigation", { name: "Dashboard view" })).toBeInTheDocument()
       expect(within(controls).queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
 
-      const disclosure = screen.getByText("Folders and filters").closest("details")
+      const disclosureLabel = screen.getByText("My work", { selector: "summary > span" })
+      const disclosure = disclosureLabel.closest("details")
       expect(disclosure).not.toHaveAttribute("open")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      expect(screen.queryByText("Folders and filters")).not.toBeInTheDocument()
+      fireEvent.click(disclosureLabel)
       expect(disclosure).toHaveAttribute("open")
       expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "My work 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=7")
@@ -6312,9 +6315,9 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: "Queue" }).closest("header")).toHaveClass("items-end", "justify-between")
       expect(screen.getByRole("button", { name: "Run stale-run reaper" })).toHaveClass("shrink-0")
       expect(await screen.findByText("RunJob")).toBeInTheDocument()
-      const disclosure = screen.getByText("Folders and filters").closest("details")
+      const disclosure = mobileFiltersSummary("Runs").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Runs"))
       expect(disclosure).toHaveAttribute("open")
       expect(screen.getByText("runs")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /Queue is Runs/ })).toBeInTheDocument()
@@ -6384,7 +6387,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByText("RunJob")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("All queue"))
       fireEvent.click(screen.getByRole("button", { name: "Job class contains Run" }))
 
       const valueInput = screen.getByLabelText("Value")
@@ -6439,7 +6442,7 @@ describe("App", () => {
       const updateView = renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10&q=dGVzdA")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Run repairs"))
       expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "Update Run repairs" }))
 
@@ -6471,7 +6474,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10&q=dGVzdA")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Run repairs"))
       fireEvent.change(screen.getByLabelText("Folder name"), { target: { value: "Chat repairs" } })
       fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
 
@@ -6578,8 +6581,8 @@ describe("App", () => {
       )
 
       await screen.findByText("RunJob")
-      const disclosure = screen.getByText("Folders and filters").closest("details")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      const disclosure = mobileFiltersSummary("Runs").closest("details")
+      fireEvent.click(mobileFiltersSummary("Runs"))
       expect(disclosure).toHaveAttribute("open")
       const folderNameInput = screen.getByLabelText("Folder name")
       fireEvent.change(folderNameInput, { target: { value: "Runs queue" } })
@@ -6622,7 +6625,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/queue/active")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("All queue"))
       expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
     } finally {
@@ -6646,7 +6649,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Run repairs"))
       expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Queue is Runs" }))
@@ -6673,7 +6676,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
 
       expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Run repairs"))
       expect(screen.queryByRole("button", { name: "Update Run repairs" })).not.toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
@@ -7024,9 +7027,9 @@ describe("App", () => {
       expect(await screen.findByText("claude --print")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Operator (operator@example.com)" })).toHaveAttribute("href", "/app-shell/admin/users/1")
       expect(screen.getByRole("link", { name: "JOB-9 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-2")
-      const disclosure = screen.getByText("Folders and filters").closest("details")
+      const disclosure = mobileFiltersSummary("Running").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Running"))
       expect(disclosure).toHaveAttribute("open")
       expect(screen.getByText("worker-a")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /State is Running/ })).toBeInTheDocument()
@@ -7058,7 +7061,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/processes?smart_folder_id=11&q=dGVzdA")
 
       expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Live agents"))
       expect(screen.getByRole("button", { name: "Update Live agents" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
     } finally {
@@ -7080,7 +7083,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/processes")
 
       expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Active + recent"))
       expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
     } finally {
@@ -7104,7 +7107,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
 
       expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Live agents"))
       expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "State is Running" }))
@@ -7131,7 +7134,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
 
       expect(await screen.findByText("No processes match this filter.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Live agents"))
       expect(screen.queryByRole("button", { name: "Update Live agents" })).not.toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
@@ -7311,9 +7314,9 @@ describe("App", () => {
 
       expect(screen.getByRole("main", { name: "Admin users" })).toBeInTheDocument()
       expect(await screen.findByText("Operator")).toBeInTheDocument()
-      const disclosure = screen.getByText("Folders and filters").closest("details")
+      const disclosure = mobileFiltersSummary("Rate limit low").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Rate limit low"))
       expect(disclosure).toHaveAttribute("open")
       expect(screen.getByText("operator@example.com")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /GH rate is Low/ })).toBeInTheDocument()
@@ -7344,7 +7347,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/users?smart_folder_id=12&q=dGVzdA")
 
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Low rate users"))
       expect(screen.getByRole("button", { name: "Update Low rate users" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
     } finally {
@@ -7366,7 +7369,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/users")
 
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("All users"))
       expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Save as new folder" })).not.toBeInTheDocument()
     } finally {
@@ -7390,7 +7393,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/users?smart_folder_id=12")
 
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Low rate users"))
       expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: /GH rate is Low/ }))
@@ -7417,7 +7420,7 @@ describe("App", () => {
       renderAppAt("/app-shell/admin/users?smart_folder_id=12")
 
       expect(await screen.findByText("No users match these filters.")).toBeInTheDocument()
-      fireEvent.click(screen.getByText("Folders and filters"))
+      fireEvent.click(mobileFiltersSummary("Low rate users"))
       expect(screen.queryByRole("button", { name: "Update Low rate users" })).not.toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
@@ -11758,7 +11761,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: "Build a planning console" } })
+          body: JSON.stringify({ chat_provider: "claude", chat_message: { text: "Build a planning console" } })
         })
       )
     })
@@ -11766,6 +11769,31 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "What would you like to build?" })).not.toBeInTheDocument())
     expect(screen.getByTestId("chat-message-stream").parentElement?.parentElement).toHaveClass("flex-1", "opacity-100")
     expect(within(input.closest("form") as HTMLElement).queryByText("acme/widgets")).not.toBeInTheDocument()
+  })
+
+  it("hides scratch pad controls from the initial composer", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: "Build the operator briefing" } })
+    expect(screen.queryByRole("button", { name: "Stash" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    expect(screen.getByRole("dialog", { name: "Add attachment" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Upload file" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Scratch pad" })).not.toBeInTheDocument()
   })
 
   it("renders non-empty chats in the standard layout immediately", async () => {
@@ -16476,6 +16504,10 @@ function renderAppAt(path: string) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function mobileFiltersSummary(label: string) {
+  return screen.getByText(label, { selector: "summary > span" })
 }
 
 function currentAdminQueueFilter() {

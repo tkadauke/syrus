@@ -180,6 +180,7 @@ function QueueContent({
   const smartFolders = "smart_folders" in payload ? payload.smart_folders : []
   const activeFolderId = "active_smart_folder_id" in payload ? payload.active_smart_folder_id : null
   const activeUserFolderId = smartFolders.find((folder) => folder.id === activeFolderId && folder.kind === "user_defined")?.id
+  const activeFolderLabel = smartFolders.find((folder) => folder.id === activeFolderId)?.name ?? t("queue.all_queue")
   const filterBar = isFilteredQueuePayload(payload) ? (
     <FilterBar
       filter={payload.filter}
@@ -193,6 +194,7 @@ function QueueContent({
   return (
     <AdminFiltersLayout
       filterBar={filterBar}
+      mobileSummaryLabel={activeFolderLabel}
       smartFolders={
         smartFolders.length > 0 ? (
           <AdminSmartFolderNav

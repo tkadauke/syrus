@@ -43,6 +43,53 @@ RSpec.describe ChatProviders::Muse do
   end
 
   describe "#invoke" do
+    it "preserves required and optional chat MCP tiers when building the Muse invocation" do
+      mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
+      mcp_config.write({
+        mcpServers: {
+          "syrus-chat-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "essential" ],
+            env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
+            alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+            alwaysLoad: false
+          }
+        }
+      }.to_json)
+      mcp_config.flush
+
+      invocation_kwargs = nil
+      expect(MuseInvocation).to receive(:new) do |_workspace_path, **kwargs|
+        invocation_kwargs = kwargs
+        instance_double(MuseInvocation, run: result_fixture(session_id: "muse-thread-1"))
+      end
+
+      described_class.new(chat: chat).invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "What is the plan?",
+        log_sink: ->(*, **) { },
+        mcp_config: mcp_config.path,
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(invocation_kwargs[:api_key]).to eq("muse-secret")
+      expect(invocation_kwargs[:mcp_server]).to match(
+        "syrus-chat-sidecar" => include(required: true),
+        "syrus-chat-deferred-sidecar" => include(required: false)
+      )
+    ensure
+      mcp_config&.close!
+    end
+
     it "invokes Muse with chat MCP servers, chat Muse home, callbacks, model, and effort" do
       chat.update!(chat_model: "muse-spark-test", chat_effort: "high")
       mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
@@ -54,6 +101,13 @@ RSpec.describe ChatProviders::Muse do
             args: [ "--tier", "essential" ],
             env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
             alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+            alwaysLoad: false
           }
         }
       }.to_json)
@@ -96,7 +150,14 @@ RSpec.describe ChatProviders::Muse do
         "syrus-chat-sidecar" => {
           command: "/app/bin/syrus-chat-sidecar",
           args: [ "--tier", "essential" ],
-          env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s }
+          env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
+          required: true
+        },
+        "syrus-chat-deferred-sidecar" => {
+          command: "/app/bin/syrus-chat-sidecar",
+          args: [ "--tier", "deferred" ],
+          env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+          required: false
         }
       )
     ensure
@@ -157,6 +218,13 @@ RSpec.describe ChatProviders::Muse do
             args: [ "--tier", "evaluator" ],
             env: { "SYRUS_CHAT_SESSION_ID" => chat.id.to_s },
             alwaysLoad: true
+          },
+          "syrus-chat-deferred-sidecar" => {
+            type: "stdio",
+            command: "/app/bin/syrus-chat-sidecar",
+            args: [ "--tier", "deferred" ],
+            env: { "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred" },
+            alwaysLoad: false
           }
         }
       }.to_json)
@@ -195,6 +263,10 @@ RSpec.describe ChatProviders::Muse do
         muse_home: ChatWorkspace.agent_home_for(chat, "muse")
       )
       expect(invocation_kwargs[:mcp_server]).to include("syrus-chat-evaluator-sidecar")
+      expect(invocation_kwargs[:mcp_server]).to include(
+        "syrus-chat-evaluator-sidecar" => include(required: true),
+        "syrus-chat-deferred-sidecar" => include(required: false)
+      )
     ensure
       mcp_config&.close!
     end

@@ -1346,7 +1346,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       </div>
       {landing ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
-          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} hideScratchpadControls onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
         </div>
       ) : null}
     </section>

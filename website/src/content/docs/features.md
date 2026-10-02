@@ -42,10 +42,10 @@ When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message. A Job
 with no chat link at all yet — a bug report, or a Job ingested from an
 external PR — instead shows a "Chat about this" action; using it starts a
-new chat scoped to the Job's repository, seeds an opening "I would like to
-chat about JOB-<id>." user turn so the agent responds immediately,
-permanently attaches the Job to it (visible in that chat's Jobs list), and
-the Job page then links to that chat going forward.
+new chat only after the operator enters an initial prompt. The first user
+turn includes generated Job context plus that prompt so the agent responds
+immediately, permanently attaches the Job to it (visible in that chat's Jobs
+list), and the Job page then links to that chat going forward.
 A chat's right-sidebar Jobs tab shows a "Proposed" section above its
 confirmed Job/Epic status cards, listing that chat's own pending Job and Epic
 proposals; each card links straight to the message where the proposal was
@@ -643,9 +643,10 @@ view that requires normal Syrus sign-in and does not expose compose controls,
 pending actions, or agent controls.
 At the end of a turn, the chat agent can suggest the operator's likely next
 message; the suggestion appears as muted ghost text in the empty composer
-with a `tab` hint. Pressing Tab fills the composer with the suggestion,
-typing anything hides it, and Escape dismisses it. Suggestions clear
-automatically when the operator sends a message or a new turn starts.
+with an accept button. Tapping the button or pressing Tab fills the composer
+with the suggestion, typing anything hides it, and Escape dismisses it.
+Suggestions clear automatically when the operator sends a message or a new
+turn starts.
 The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Before sending, operators can click an
 image thumbnail in the composer to mark it up with basic shapes, arrows,

@@ -1,4 +1,8 @@
 module SpaAssetsHelper
+  def spa_asset_version
+    ERB::Util.url_encode(SyrusVersion.current.presence || Rails.application.config.assets.version)
+  end
+
   def spa_stylesheet_link_tags
     append_spa_asset_version(stylesheet_link_tag(:app))
   end
@@ -14,7 +18,7 @@ module SpaAssetsHelper
   private
 
   def append_spa_asset_version(tags)
-    version = ERB::Util.url_encode(SyrusVersion.current.presence || Rails.application.config.assets.version)
+    version = spa_asset_version
     return tags if version.blank?
 
     tags.to_s.gsub(/(href|src)="([^"]+)"/) do |match|

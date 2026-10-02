@@ -330,12 +330,19 @@ module Api
           content = message_content(text)
           return if performed?
 
+          chat_provider = nil
+          if params[:chat_provider].present? && !chat_session.messages.exists?
+            chat_provider = validated_chat_provider_param(params[:chat_provider])
+            return if performed?
+          end
+
           user_message = nil
           turn_triggered = chat_session.should_trigger_agent?(text)
           ApplicationRecord.transaction do
             chat_session.update!(
               last_message_at: Time.current,
-              title: chat_session.title.presence
+              title: chat_session.title.presence,
+              chat_provider: chat_provider || chat_session.chat_provider
             )
             user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!

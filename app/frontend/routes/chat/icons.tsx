@@ -20,3 +20,11 @@ export function UploadIcon({ className = "h-4 w-4" }: { className?: string }) {
     </svg>
   )
 }
+
+export function AcceptSuggestionIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  )
+}

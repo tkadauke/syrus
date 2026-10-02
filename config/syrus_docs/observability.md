@@ -127,6 +127,18 @@ Payloads are sanitized and size-capped in `BrowserErrorEvent` before storage so
 large stacks or recent-error blobs cannot create a second incident while being
 reported.
 
+The SPA shell also installs a very early startup diagnostic hook before the
+Vite module entrypoint loads. During startup it captures global `error` and
+`unhandledrejection` events, including failed script/stylesheet loads, and
+reports them to this same browser-error stream as `StartupWindowError`,
+`StartupUnhandledRejection`, or `StartupResourceError`. If React never marks its
+first committed render after the short startup timeout, the shell reports
+`StartupWatchdog`. These startup payloads include bounded launch context:
+current path, app revision, asset revision, user-agent family,
+`navigator.standalone`, `display-mode: standalone`, visibility state, recent
+startup milestones, and resource paths for same-origin failed assets. They do
+not include arbitrary promise rejection payloads or cross-origin resource URLs.
+
 The Vite production build emits JavaScript source maps so captured stack frames
 can be mapped back to frontend source while debugging. Source maps are generated
 with the normal SPA assets, so this is appropriate for Syrus' internal admin
@@ -200,6 +212,16 @@ of a parallel stream, so marker events show up in the same
 `grouped_browser_traces` summaries the passive `PerformanceObserver`-driven
 traces (`browser.long_task`, `browser.slow_input`, `browser.event_loop_lag`)
 already use.
+
+SPA startup milestones use the same browser trace ingestion path with
+`startup.*` names. To keep volume bounded, normal Safari tabs keep milestones
+in memory only; milestones are posted when the launch appears to be an iOS/Home
+Screen standalone session (`navigator.standalone` or `display-mode:
+standalone`) or when an operator explicitly opens a URL with
+`startup_diagnostics=1`. The milestone metadata mirrors the browser-error
+startup context so operators can compare `startup.shell_loaded`,
+`startup.react_module_loaded`, and `startup.react_first_render` for standalone
+launches without filing browser-error jobs for successful starts.
 
 Helpers: `measureSync`/`measureAsync` (time a block, sync or async),
 `startMarker`/`endMarker` (an explicit span that doesn't fit one function
