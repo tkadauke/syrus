@@ -10,7 +10,7 @@ import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
-const corePreviewCards: Record<string, ComponentType<{ id: number; compact?: boolean }>> = {
+const corePreviewCards: Record<string, ComponentType<{ id: number; compact?: boolean; slug?: string }>> = {
   chat: ChatPreviewCard,
   epic: EpicPreviewCard,
   job: JobPreviewCard
@@ -39,9 +39,9 @@ function PluginPreviewCard({ Component, id }: { Component: ComponentType<PluginS
   )
 }
 
-function PreviewCard({ entry, id }: { entry: SlugReferenceRegistryEntry; id: number }) {
+function PreviewCard({ entry, id, slug }: { entry: SlugReferenceRegistryEntry; id: number; slug: string }) {
   const Component = corePreviewCards[entry.type]
-  if (Component) return <Component id={id} />
+  if (Component) return <Component id={id} slug={slug} />
 
   return <PluginPreviewCard Component={entry.pluginPreviewComponent} id={id} />
 }
@@ -207,7 +207,7 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
             {surfaceMode === "actions" ? (
               <SlugReferenceActionSurface close={close} entry={entry} href={href} id={id} slug={slug} />
             ) : (
-              <PreviewCard entry={entry} id={id} />
+              <PreviewCard entry={entry} id={id} slug={slug} />
             )}
           </div>
         </FloatingPortal>
@@ -252,7 +252,7 @@ function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: (
 
       {entry.previewAvailable ? (
         <div className="max-h-[65vh] overflow-auto sm:max-h-[28rem]">
-          <PreviewCard entry={entry} id={id} />
+          <PreviewCard entry={entry} id={id} slug={slug} />
         </div>
       ) : (
         <p className="rounded border border-dashed border-border bg-surface-subtle px-3 py-2 text-sm text-text-secondary">{t("slug_reference.preview_unavailable")}</p>

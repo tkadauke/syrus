@@ -6,8 +6,6 @@ import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } fro
 
 function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
   return {
-    prefix: overrides.prefix,
-    type: overrides.type,
     displayLabel: overrides.prefix,
     copyable: true,
     linkable: true,
@@ -16,7 +14,9 @@ function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<Slu
     hrefTemplate: null,
     mobileInteractionHints: {},
     pluginPreviewComponent: null,
-    ...overrides
+    ...overrides,
+    prefix: overrides.prefix,
+    type: overrides.type
   }
 }
 

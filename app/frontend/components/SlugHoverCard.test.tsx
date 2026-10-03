@@ -12,7 +12,7 @@ vi.mock("./JobPreviewCard", () => ({
   JobPreviewSkeleton: () => <div data-testid="job-skeleton" />
 }))
 vi.mock("./EpicPreviewCard", () => ({
-  EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-card">EPIC-{id}</div>,
+  EpicPreviewCard: ({ id, slug }: { id: number; slug?: string }) => <div data-testid="epic-card">{slug ?? `EPIC-${id}`}</div>,
   EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />
 }))
 vi.mock("../pluginSlugPreviewCards", () => ({
@@ -272,6 +272,30 @@ describe("SlugReferenceCard on a pointer:fine device", () => {
 
     expect(screen.getByTestId("epic-card")).toBeInTheDocument()
     expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-7")
+  })
+
+  it("passes the canonical slug to registry-backed epic previews", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const entry = registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" })
+
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <SlugReferenceCard entry={entry} id={51} slug="EPIC-51">
+            <Link to="/epics/EPIC-51">EPIC-51</Link>
+          </SlugReferenceCard>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const span = screen.getByRole("link", { name: "EPIC-51" }).parentElement!
+    fireEvent.mouseEnter(span)
+
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-51")
   })
 
   it("shows the plugin-provided doc card for kind=plugin, prefix=DOC", async () => {

@@ -37,11 +37,12 @@ function attentionPriority(state: string): number {
   return ATTENTION_ORDER[state] ?? 3
 }
 
-export function EpicPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
+export function EpicPreviewCard({ id, compact = false, slug }: { id: number; compact?: boolean; slug?: string }) {
   const { t } = useT("epics")
+  const epicRef = slug ?? String(id)
   const { data, isPending } = useQuery({
-    queryKey: ["epics", String(id)],
-    queryFn: ({ signal }) => fetchEpicDetail(String(id), { signal }),
+    queryKey: ["epics", epicRef],
+    queryFn: ({ signal }) => fetchEpicDetail(epicRef, { signal }),
     staleTime: 30_000,
   })
 
@@ -61,7 +62,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.landing ? "landing" : epic.state} />
       </div>
-      <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={`/epics/${id}`}>
+      <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={epic.epic_path}>
         {epic.title}
       </Link>
       {!compact && data.deployment_stages?.length ? (
@@ -103,7 +104,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
         </ul>
       )}
       {!compact && (
-        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${id}`}>
+        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={epic.epic_path}>
           {t("preview_see_more")}
         </Link>
       )}
