@@ -19,6 +19,9 @@ describe("mobileHeaderScrollDeltaForMessageStream", () => {
 
     stream.scrollTop = 0
     expect(mobileHeaderScrollDeltaForMessageStream(stream, 24)).toBe(-24)
+
+    stream.scrollTop = 8
+    expect(mobileHeaderScrollDeltaForMessageStream(stream, 40)).toBe(-32)
   })
 })
 
