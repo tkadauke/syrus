@@ -19,6 +19,10 @@ redacted.
 Safe examples inside an agentic Run include `syrus job show JOB-<id> --json`,
 `syrus job log JOB-<id>`, `syrus job diff JOB-<id>`, and read-only repository
 or identity commands such as `syrus repo list --json` and `syrus whoami --json`.
+The bundled credential store plugin also exposes
+`syrus credential_store lease`, a narrow runtime-authenticated exception to the
+read-only default: it records a broker lease audit row and returns only lease
+metadata, never credential payload material.
 Human operators still use `syrus login` and `~/.syrus/credentials` outside
 Syrus-managed runtimes; a workflow subprocess should not create or depend on
 that file. Future CLI work that needs in-runtime data, such as target graph

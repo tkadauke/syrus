@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
+	credentialstore "github.com/tkadauke/syrus/plugins/credential_store/cli"
 	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
 	globalsearch "github.com/tkadauke/syrus/plugins/global_search/cli"
 	k8scluster "github.com/tkadauke/syrus/plugins/k8s_cluster/cli"
@@ -60,6 +61,7 @@ func NewRootCommand() *cobra.Command {
 	// instance already answers its routes with a "plugin_disabled" error.
 	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
 	rootCmd.AddCommand(k8scluster.NewK8sCommand())
+	rootCmd.AddCommand(credentialstore.NewCredentialStoreCommand())
 	rootCmd.AddCommand(globalsearch.NewSearchCommand())
 	rootCmd.AddCommand(designdocs.NewDocsCommand())
 	insightsCmd := NewInsightsCommand()

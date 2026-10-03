@@ -34,6 +34,7 @@ module CredentialStore
     route :post, "/api/v1/app/credential_store/credentials/:id/rotate", to: "api/v1/app/credential_store/credentials#rotate"
     route :post, "/api/v1/app/credential_store/credentials/:id/revoke", to: "api/v1/app/credential_store/credentials#revoke"
     route :delete, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#revoke"
+    route :post, "/api/v1/app/credential_store/leases", to: "api/v1/app/credential_store/leases#create"
     route :get, "/credential_store", to: "spa#show"
     route :get, "/admin/credential_store", to: "spa#show"
     frontend routes: {

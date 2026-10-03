@@ -563,6 +563,34 @@ pod, restarting a rollout, scaling a deployment, cordoning a node) are
 only exposed as MCP tools today, with no backing REST endpoint for the
 CLI to call — the CLI does not duplicate them.
 
+## Credential Store
+
+`syrus credential_store` is contributed by the bundled `credential_store`
+plugin. It provides safe discovery for credential type declarations and
+credential handles without printing encrypted payloads:
+
+```bash
+syrus credential_store types
+syrus credential_store credentials
+syrus credential_store credentials --type credential_store.url_token
+```
+
+The command group also has a runtime lease client:
+
+```bash
+syrus credential_store lease deploy-token \
+  --type credential_store.url_token \
+  --purpose deploy \
+  --tool deploy.push \
+  --target-json '{"host":"api.example.com"}'
+```
+
+`lease` requires Syrus-managed runtime authentication through
+`SYRUS_CLI_INVOCATION_CONTEXT`; a normal saved CLI API token can list safe
+metadata but cannot request broker leases. Lease output contains only metadata
+such as lease id, credential id/name/type, safe metadata, purpose, tool, and
+expiry. It does not print credential payload material.
+
 ## Search
 
 `syrus search` is contributed by the bundled `global_search` plugin and

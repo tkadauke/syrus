@@ -104,6 +104,38 @@ or persistent dispatch records an error summary. Dependent tools should still
 avoid printing command environments or raw files; the broker is the last guard,
 not a substitute for careful tool design.
 
+## CLI
+
+The bundled `syrus` binary includes a static `credential_store` namespace owned
+by this plugin:
+
+```bash
+syrus credential_store types
+syrus credential_store credentials
+syrus credential_store credentials --type credential_store.url_token
+syrus credential_store lease deploy-token \
+  --type credential_store.url_token \
+  --purpose deploy \
+  --tool deploy.push \
+  --target-json '{"host":"api.example.com"}'
+```
+
+`types` and `credentials` are discovery commands over the same app API used by
+the management page. They return credential type declarations, accessible
+credential ids/names, scope labels, safe metadata, target constraints, allowed
+surfaces/tools, and active/revoked/expiry status. They do not return payload
+material.
+
+`lease` is only available inside a Syrus-managed runtime authenticated by
+`SYRUS_CLI_INVOCATION_CONTEXT`; a normal saved CLI API token receives a
+forbidden response. The command asks the existing broker for a scoped lease
+using the current run/chat context, records the normal credential access audit
+row, and prints lease metadata such as lease id, credential id/name/type, safe
+metadata, purpose, tool, and expiry. The response intentionally omits the
+credential payload. Future wrapper commands can build on that runtime-auth
+path to materialize credentials inside a child process without putting secret
+material in agent-visible stdout or stderr.
+
 ## SSH MCP Tools
 
 `credential_store_ssh_exec` is available to workflow agents and as a deferred
