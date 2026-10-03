@@ -47,6 +47,19 @@ describe("ErdDiagramRenderer", () => {
     expect(screen.getAllByText("string").length).toBeGreaterThan(0)
   })
 
+  it("keeps table boxes intrinsically wide so artifact chrome can scroll them horizontally", () => {
+    const wideTable = {
+      ...usersTable,
+      name: "credential_store_credential_access_events",
+      columns: [{ name: "credential_store_credential_access_event_metadata", type: "json" }]
+    }
+    const { container } = render(<ErdDiagramRenderer payload={{ tables: [wideTable] }} />)
+
+    expect(container.firstElementChild).toHaveClass("min-w-max")
+    expect(screen.getByText(wideTable.name)).toHaveClass("whitespace-nowrap")
+    expect(screen.getByText("credential_store_credential_access_event_metadata")).toHaveClass("whitespace-nowrap")
+  })
+
   it("renders an FK arrow indicator on the FK source column", () => {
     const { container } = render(<ErdDiagramRenderer payload={{ tables: [usersTable] }} />)
 
