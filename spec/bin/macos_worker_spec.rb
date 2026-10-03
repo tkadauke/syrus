@@ -83,6 +83,31 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  it "stamps the packaged release sha when the env file omits GIT_SHA" do
+    packaged_sha = File.join(root, "GIT_SHA")
+
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file)
+      File.write(packaged_sha, "packaged123\n")
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => ENV.fetch("PATH"), "HOME" => ENV.fetch("HOME") },
+        "bash",
+        entrypoint,
+        "--env-file",
+        env_file,
+        "--dry-run",
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("GIT_SHA=packaged123")
+    ensure
+      FileUtils.rm_f(packaged_sha)
+    end
+  end
+
   it "validates a macOS/Xcode host and production credentials without booting Rails" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")

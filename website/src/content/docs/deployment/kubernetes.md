@@ -197,3 +197,10 @@ file under `/etc/syrus`. That env file must include the normal production app
 identity and secrets, including `SYRUS_APP_HOST`, `SECRET_KEY_BASE`, Active
 Record encryption keys or `RAILS_MASTER_KEY`, DB credentials, storage
 credentials, `SYRUS_WORKER_POOL_NAME`, and `SYRUS_WORKER_CAPABILITIES`.
+Release builds publish a source artifact named
+`syrus-worker-macos-arm64-<git_sha>.tar.gz` with checksums. It carries the
+tracked app source, binstubs, lockfiles, package manifests, launchd template,
+`GIT_SHA`, `SYRUS_VERSION`, and worker release metadata; native gems and other
+host-specific dependencies are installed on each Mac during activation. Mac
+workers should update only after the k3s cluster has deployed schema-compatible
+code and run migrations; the Mac workers themselves should not run migrations.

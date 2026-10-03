@@ -1,12 +1,13 @@
 # The shared build spine for BOTH the Release (release.yml) and Test build
 # (test-build.yml) pipelines. Those two entry points were ~90% identical — they
 # build and sign every shippable component (backend image, CLI, macOS desktop
-# app) the same way — so that spine lives here ONCE, as a reusable
+# app, native macOS worker source artifact) the same way — so that spine lives here ONCE, as a reusable
 # `workflow_call` workflow, and each caller is a thin wrapper that computes its
 # version and passes inputs.
 #
 # What this module owns: build-backend (native per-arch matrix, NO QEMU) →
-# merge-backend (multi-arch manifest) plus build-cli and build-mac
+# merge-backend (multi-arch manifest) plus build-cli, build-mac, and
+# build-macos-worker
 # (all parallel with the backend). What it does NOT own: version computation
 # (the callers' `prepare` job) and publishing (release.yml's `publish` /
 # `publish-website`). It stages artifacts by name; the callers consume them.
@@ -64,7 +65,7 @@ on:
         type: boolean
         default: false
       artifact_prefix:
-        description: "Prefix for staged run artifacts: <prefix>-mac / <prefix>-cli."
+        description: "Prefix for staged run artifacts: <prefix>-mac / <prefix>-cli / <prefix>-macos-worker."
         type: string
         required: true
       artifact_retention_days:
@@ -306,6 +307,29 @@ jobs:
         with:
           name: ${{ inputs.artifact_prefix }}-cli
           path: dist/releases/v${{ inputs.version }}/cli/
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact_retention_days }}
+
+  # ---------------------------------------------------------------------------
+  # Native macOS worker: source-only tarball for external Mac hosts. Activation
+  # on the Mac installs native gems and host-specific dependencies; the archive
+  # carries the app source, binstubs, lockfiles, launchd template, and release
+  # metadata stamped with the same GIT_SHA as the backend image.
+  # ---------------------------------------------------------------------------
+  build-macos-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build native macOS worker source artifact
+        env:
+          TAG: v${{ inputs.version }}
+        run: bin/release-macos-worker "$TAG"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact_prefix }}-macos-worker
+          path: dist/releases/v${{ inputs.version }}/macos-worker/
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}
 
