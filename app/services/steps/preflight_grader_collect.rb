@@ -53,6 +53,8 @@ module Steps
         {
           "name" => details["name"],
           "command" => details["command"],
+          "capabilities" => details["capabilities"],
+          "required_capabilities" => details["required_capabilities"],
           "required" => details["required"],
           "status" => "failed",
           "exit_code" => details["exit_code"],

@@ -1226,6 +1226,62 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
     end
 
+    it "queues mixed-capability immutable grader siblings independently and keeps collect blocked until both finish" do
+      clear_live_worker_queues!
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(
+        state: "running",
+        started_at: 1.minute.ago,
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "inferred",
+        worker_storage_key: "storage-mac"
+      )
+      live_capable_worker_queue!(
+        "runs-linux-amd64",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] },
+        hostname: "syrus-worker-linux"
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        hostname: "syrus-worker-mac"
+      )
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(
+        kind: "grader",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ s1.id ],
+        details: { "name" => "backend-tests", "required_capabilities" => { "os" => [ "linux" ] } }
+      )
+      s3.update!(
+        kind: "grader",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ s1.id ],
+        details: { "name" => "ios-tests", "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] } }
+      )
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      clear_enqueued_jobs
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+        .and change { s3.runs.count }.by(1)
+
+      expect(enqueued_jobs).to include(
+        include("job_class" => "RunJob", "queue_name" => "runs-linux-amd64"),
+        include("job_class" => "RunJob", "queue_name" => "runs-macos-arm64")
+      )
+      expect(collect.runs.count).to eq(0)
+    end
+
     it "continues past a blocked immutable sibling to enqueue unrelated ready siblings" do
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(state: "running", started_at: 1.minute.ago)
