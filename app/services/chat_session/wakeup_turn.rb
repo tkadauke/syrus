@@ -21,7 +21,6 @@ class ChatSession::WakeupTurn
       )
       locked_chat.update!(
         last_message_at: Time.current,
-        title: locked_chat.title.presence,
         turn_in_flight: true
       )
     end

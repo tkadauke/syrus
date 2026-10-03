@@ -17,10 +17,7 @@ class ScheduledChatMessageFireJob < ApplicationJob
           "scheduled_message_id" => message.id
         }
       )
-      chat.update!(
-        last_message_at: Time.current,
-        title: chat.title.presence
-      )
+      chat.update!(last_message_at: Time.current)
       message.update!(sent_at: Time.current)
       message
     end

@@ -3,7 +3,7 @@ require "json"
 class ChatTitleGenerator
   DEFAULT_TIMEOUT_SECONDS = 1.minute.to_i
 
-  Result = Data.define(:title, :error) do
+  Result = Data.define(:title, :error, :problem_code) do
     def success? = error.nil?
   end
 
@@ -37,16 +37,16 @@ class ChatTitleGenerator
   end
 
   def parse(judgment)
-    return failure(judgment.error) if judgment.failed?
+    return failure(judgment.error, problem_code: judgment.problem&.code) if judgment.failed?
 
     title = judgment.value["title"].to_s.squish
     return failure("empty title") if title.blank?
     return failure("title too long (#{title.length} chars)") if title.length > ChatSession::TITLE_MAX_LENGTH
 
-    Result.new(title: title, error: nil)
+    Result.new(title: title, error: nil, problem_code: nil)
   end
 
-  def failure(reason)
-    Result.new(title: nil, error: reason)
+  def failure(reason, problem_code: nil)
+    Result.new(title: nil, error: reason, problem_code: problem_code)
   end
 end

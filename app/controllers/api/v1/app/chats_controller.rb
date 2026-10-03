@@ -341,12 +341,12 @@ module Api
           ApplicationRecord.transaction do
             chat_session.update!(
               last_message_at: Time.current,
-              title: chat_session.title.presence,
               chat_provider: chat_provider || chat_session.chat_provider
             )
             user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
+          chat_session.reload
           if (chat_session.title.blank? || chat_session.title_auto_fallback?) && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
           end
@@ -1686,7 +1686,6 @@ module Api
             locked_queued_message.update!(delivered_at: Time.current)
             locked_chat.update!(
               last_message_at: Time.current,
-              title: locked_chat.title.presence,
               turn_in_flight: trigger_turn
             )
             locked_chat.pin_chat_provider!
