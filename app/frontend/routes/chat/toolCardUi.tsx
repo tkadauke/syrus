@@ -7,6 +7,7 @@ import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
+import { workerCapabilityEntries, workerCapabilitiesText } from "../../lib/workerCapabilities"
 
 // Shared presentation primitives for the Workflow/Run/PR/diff/ops tool cards
 // (the Tier 1 tool-card work). Lives outside `tool_cards/` on purpose: the
@@ -65,6 +66,19 @@ export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
 
 export function Badge({ children }: { children: ReactNode }) {
   return <Pill className="text-2xs" tone="neutral">{children}</Pill>
+}
+
+export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
+  const entries = workerCapabilityEntries(capabilities)
+  if (entries.length === 0) return <span className="text-text-subtle">—</span>
+
+  return (
+    <div className="flex flex-wrap gap-1" title={workerCapabilitiesText(capabilities)}>
+      {entries.map((entry) => (
+        <Badge key={`${entry.dimension}:${entry.value}`}>{entry.dimension}: {entry.value}</Badge>
+      ))}
+    </div>
+  )
 }
 
 export function Row({ label, value }: { label: string; value: string }) {

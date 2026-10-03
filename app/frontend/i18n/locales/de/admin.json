@@ -938,6 +938,7 @@
     "col_host": "Rechner",
     "col_pid": "PID",
     "col_queues": "Warteschlangen",
+    "col_capabilities": "Fähigkeiten",
     "col_threads": "Threads",
     "col_heartbeat": "Lebenszeichen",
     "col_state": "Status",
