@@ -366,6 +366,44 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "resolves canonical DOC refs through the same visible scope as numeric ids" do
+    doc = create_design_doc(title: "Slug route")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs/DOC-#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("design_doc", "id")).to eq(doc.id)
+    expect(parse_body.dig("design_doc", "display_id")).to eq("DOC-#{doc.id}")
+  end
+
+  it "uses canonical DOC refs for nested comment creation without bypassing authorization" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    sign_in_as(owner)
+
+    post "/api/v1/app/design_docs/DOC-#{doc.id}/comments", params: {
+      comment: {
+        body: "Needs evidence",
+        start_offset: 0,
+        end_offset: 5,
+        selected_markdown: "Alpha"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("design_doc", "id")).to eq(doc.id)
+    expect(parse_body.dig("comment", "body")).to eq("Needs evidence")
+  end
+
+  it "keeps canonical DOC refs scoped to docs visible to the current user" do
+    doc = create_design_doc(title: "Secret plan")
+    sign_in_as(outsider)
+
+    get "/api/v1/app/design_docs/DOC-#{doc.id}"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   describe "GET /api/v1/app/design_docs/:id/preview" do
     it "returns a compact preview with owner, collaborators, counts, and clamped body text" do
       doc = create_design_doc(title: "Checkout design", markdown: "# Checkout\n\n#{(['word'] * 150).join(' ')}")
@@ -415,6 +453,15 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       sign_in_as(owner)
 
       get "/api/v1/app/design_docs/999999/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("design_doc")).to eq("id" => 999999, "display_id" => "DOC-999999", "accessible" => false)
+    end
+
+    it "returns the same minimal unavailable shape for a nonexistent DOC ref" do
+      sign_in_as(owner)
+
+      get "/api/v1/app/design_docs/DOC-999999/preview"
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("design_doc")).to eq("id" => 999999, "display_id" => "DOC-999999", "accessible" => false)
