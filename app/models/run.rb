@@ -363,11 +363,32 @@ class Run < ApplicationRecord
       return if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
     end
 
-    queue = resume_worker_queue || workflow_template_class.queue_name
-    RunJob.set(queue: queue, priority: solid_queue_priority).perform_later(id)
+    decision = RunQueueResolver.resolve(run: self)
+    return block_for_missing_capable_worker!(decision) if decision.blocked?
+
+    RunJob.set(queue: decision.queue_name, priority: solid_queue_priority).perform_later(id)
   end
 
   def workflow_template_class
     Workflows.for(trigger_kind: workflow&.trigger_kind || trigger_kind)
+  end
+
+  def block_for_missing_capable_worker!(decision)
+    message = "no live worker can satisfy Run queue requirements for #{decision.queue_name}: #{decision.requirements.inspect}"
+    Rails.logger.warn("[Run##{id}] #{message}")
+    workflow&.set_artifact!(
+      "run_queue_blocked",
+      decision.details.merge(
+        "reason" => decision.blocked_reason,
+        "blocked_at" => Time.current.iso8601
+      )
+    )
+    JobLog.append!(run: self, kind: "system", chunk: message)
+    self.agent_outcome = RunQueueResolver::BLOCKED_OUTCOME
+    fail! if may_fail?
+    save!
+    step&.fail! if step&.may_fail?
+    step&.save!
+    workflow&.record_run_failure!
   end
 end
