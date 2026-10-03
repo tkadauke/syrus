@@ -1,7 +1,17 @@
 require "digest"
 
 class NotificationService
-  def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, chat_work_event_dedupe_key: nil)
+  def self.create_for(
+    user:,
+    kind:,
+    job: nil,
+    repository: nil,
+    actor: nil,
+    pr_url: nil,
+    body:,
+    dedupe_key: nil,
+    chat_work_event_dedupe_key: nil
+  )
     raise ArgumentError, "unknown notification kind: #{kind}" unless Notification::KINDS.include?(kind)
     return nil unless user&.id && User.exists?(user.id)
 
@@ -17,14 +27,18 @@ class NotificationService
     )
 
     return nil unless user.notification_preference_for(kind)
+    return nil if duplicate_notification?(user: user, kind: kind, repository: repository, dedupe_key: dedupe_key)
 
-    notification = Notification.create!(
+    notification = create_notification!(
       user: user,
       kind: kind,
       job: job,
+      repository: repository,
       pr_url: pr_url,
-      body: body
+      body: body,
+      dedupe_key: dedupe_key
     )
+    return nil unless notification
 
     ActionCable.server.broadcast(
       AppUserChannel.broadcasting_for(user),
@@ -119,4 +133,33 @@ class NotificationService
     end
   end
   private_class_method :default_dedupe_key
+
+  def self.duplicate_notification?(user:, kind:, repository:, dedupe_key:)
+    return false if dedupe_key.blank? || repository.blank?
+
+    Notification.exists?(
+      user: user,
+      kind: kind,
+      repository: repository,
+      dedupe_key: dedupe_key
+    )
+  end
+  private_class_method :duplicate_notification?
+
+  def self.create_notification!(user:, kind:, job:, repository:, pr_url:, body:, dedupe_key:)
+    Notification.create!(
+      user: user,
+      kind: kind,
+      job: job,
+      repository: repository,
+      pr_url: pr_url,
+      body: body,
+      dedupe_key: dedupe_key
+    )
+  rescue ActiveRecord::RecordNotUnique
+    raise unless duplicate_notification?(user: user, kind: kind, repository: repository, dedupe_key: dedupe_key)
+
+    nil
+  end
+  private_class_method :create_notification!
 end

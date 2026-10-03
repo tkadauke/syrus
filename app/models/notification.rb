@@ -8,9 +8,11 @@ class Notification < ApplicationRecord
 
   belongs_to :user
   belongs_to :job, optional: true
+  belongs_to :repository, optional: true
 
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :body, presence: true
+  validates :dedupe_key, length: { maximum: 191 }, allow_nil: true
 
   configurable_retention setting_key: :notification_retention_days, unit: :days
 
