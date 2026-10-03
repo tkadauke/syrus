@@ -48,6 +48,8 @@ export type QueueWorker = {
   last_heartbeat_at: string | null
   stale: boolean
   status?: "current" | "stale" | string
+  capabilities?: Record<string, string[]>
+  capability_diagnostics?: Record<string, unknown>
 }
 
 export type QueueProcess = {
@@ -57,6 +59,8 @@ export type QueueProcess = {
   last_heartbeat_at: string | null
   stale?: boolean
   status?: "current" | "stale" | string
+  capabilities?: Record<string, string[]>
+  capability_diagnostics?: Record<string, unknown>
 }
 
 export type QueueSort = {

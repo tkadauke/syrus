@@ -32,7 +32,9 @@ module Api
             last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
             seconds_since_heartbeat: instance.seconds_since_heartbeat,
             stale: instance.stale?,
-            data_root_usage: instance.data_root_usage_json
+            data_root_usage: instance.data_root_usage_json,
+            capabilities: instance.capabilities || {},
+            capability_diagnostics: instance.capability_diagnostics || {}
           }
         end
       end

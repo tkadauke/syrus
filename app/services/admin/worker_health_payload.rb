@@ -87,6 +87,8 @@ module Admin
         last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
         seconds_since_heartbeat: instance.seconds_since_heartbeat,
         stale: instance.stale?,
+        capabilities: instance.capabilities || {},
+        capability_diagnostics: instance.capability_diagnostics || {},
         health: health,
         sample: latest ? sample_payload(latest) : nil
       }
@@ -113,7 +115,9 @@ module Admin
         cpu_pressure_some: sample.cpu_pressure_some,
         cpu_pressure_full: sample.cpu_pressure_full,
         io_pressure_some: sample.io_pressure_some,
-        io_pressure_full: sample.io_pressure_full
+        io_pressure_full: sample.io_pressure_full,
+        capabilities: sample.capabilities || {},
+        capability_diagnostics: sample.capability_diagnostics || {}
       }
       payload[:raw_metrics] = sample.raw_metrics || {} if include_raw_metrics?
       payload

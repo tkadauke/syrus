@@ -33,6 +33,33 @@ queues across two worker configs and select one per pod with the
   queue, so retry-from-failed-step affinity (below) works on whichever worker
   can see the workspace.
 
+## Worker capability advertisement
+
+Workers advertise normalized execution capabilities on their heartbeat and
+worker-health samples. Syrus detects `os` and `arch` automatically and probes
+for common optional capabilities when the tools are present: Docker
+(`features:docker`), Xcode (`toolchains:xcode`), and visible iOS simulator
+runtimes (`runtimes:ios_simulator`). Operators can override or extend that
+with `SYRUS_WORKER_CAPABILITIES`, using comma or space separated
+`dimension:value` pairs:
+
+```dotenv
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+```
+
+Use the singular aliases `toolchain`, `runtime`, and `feature` for readability
+or the stored plural dimensions `toolchains`, `runtimes`, and `features`.
+Explicit values win over detected defaults for constrained dimensions such as
+`os` and `arch`, so a native macOS worker should set the variable even though
+the heartbeat also probes the host. Linux k3s and Docker Compose workers can
+usually rely on detected `os:linux` plus their CPU architecture, adding only
+extra features or toolchains that the image actually contains.
+
+Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
+and `read_queue` all include the normalized capability map and probe
+diagnostics. Historical health samples keep the capability snapshot that was
+true when the sample was recorded.
+
 Search schema is not part of the primary MySQL schema. It lives in
 `db/search_migrate` and is applied to the local SQLite search database by
 `bin/rails syrus:prepare_search`. Container boot runs this task before web and

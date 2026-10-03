@@ -34,6 +34,13 @@ RSpec.describe InstanceVersion do
     end
   end
 
+  it "defaults capability payloads to empty hashes" do
+    instance = fixture(capabilities: nil, capability_diagnostics: nil)
+
+    expect(instance.capabilities).to eq({})
+    expect(instance.capability_diagnostics).to eq({})
+  end
+
   describe ".fresh" do
     it "returns running rows whose last_heartbeat_at is within the threshold" do
       fresh = fixture(last_heartbeat_at: 10.seconds.ago)

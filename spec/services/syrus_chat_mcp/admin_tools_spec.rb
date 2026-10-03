@@ -1490,7 +1490,9 @@ RSpec.describe "Mcp::Tools admin tools" do
       role: "worker",
       version: "abc123",
       started_at: 5.minutes.ago,
-      last_heartbeat_at: 10.seconds.ago
+      last_heartbeat_at: 10.seconds.ago,
+      capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+      capability_diagnostics: { "docker" => true }
     )
 
     response = call_tool(admin_session, "admin_version")
@@ -1503,7 +1505,9 @@ RSpec.describe "Mcp::Tools admin tools" do
       hostname: "syrus-worker-a",
       role: "worker",
       version: "abc123",
-      started_at: instance.started_at.iso8601
+      started_at: instance.started_at.iso8601,
+      capabilities: { os: [ "linux" ], features: [ "docker" ] },
+      capability_diagnostics: { docker: true }
     )
   end
 
@@ -1513,7 +1517,9 @@ RSpec.describe "Mcp::Tools admin tools" do
       role: "worker",
       version: "abc123",
       started_at: 5.minutes.ago,
-      last_heartbeat_at: 10.seconds.ago
+      last_heartbeat_at: 10.seconds.ago,
+      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      capability_diagnostics: { "docker" => false }
     )
     WorkerHostHealthSample.create!(
       hostname: "syrus-worker-a",
@@ -1522,7 +1528,9 @@ RSpec.describe "Mcp::Tools admin tools" do
       observed_at: 1.minute.ago,
       cpu_used_percent: 99,
       memory_used_percent: 70,
-      data_root_used_percent: 60
+      data_root_used_percent: 60,
+      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      capability_diagnostics: { "docker" => false }
     )
 
     response = call_tool(admin_session, "read_worker_health", { hostname: "syrus-worker-a", sample_limit_per_host: 1 })
@@ -1531,8 +1539,10 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload.fetch(:current).first).to include(
       hostname: "syrus-worker-a",
+      capabilities: { os: [ "linux" ], arch: [ "x86_64" ] },
       health: include(level: "critical")
     )
+    expect(payload.dig(:hosts, 0, :recent_samples, 0, :capabilities)).to include(os: [ "linux" ])
     expect(payload.dig(:hosts, 0, :recent_samples).length).to eq(1)
   end
 

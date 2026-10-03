@@ -264,6 +264,19 @@ their toolchains. Two layers cover this:
   For anything beyond apt, edit `Dockerfile.local` (it just extends the base
   worker image).
 
+Compose workers advertise `os:linux` and their CPU architecture automatically.
+If you bake additional host capabilities into the local worker image, set
+`SYRUS_WORKER_CAPABILITIES` in `.env` so admin health, queue diagnostics, and
+future capability-aware routing see the same shape:
+
+```dotenv
+SYRUS_WORKER_CAPABILITIES=os:linux,arch:arm64,feature:docker
+```
+
+For native macOS workers outside Compose, set the same variable on the worker
+process, for example
+`os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`.
+
 Local source builds use the Docker cache on your machine by default. To also
 reuse the registry-backed BuildKit cache written by production deploys, provide
 a GHCR token (`$GHCR_TOKEN` or `~/.config/syrus/ghcr-token`) and run:

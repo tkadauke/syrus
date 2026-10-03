@@ -1,6 +1,17 @@
 require "rails_helper"
 
 RSpec.describe InstanceVersionSupervisor do
+  let(:capability_snapshot) do
+    {
+      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      diagnostics: { "configured" => false }
+    }
+  end
+
+  before do
+    allow(WorkerCapabilities).to receive(:current).and_return(capability_snapshot)
+  end
+
   describe ".heartbeat" do
     it "bumps last_heartbeat_at on the supplied instance" do
       sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",
@@ -29,7 +40,9 @@ RSpec.describe InstanceVersionSupervisor do
       expect(sp.data_root_used_percent).to eq(94)
       expect(sp.data_root_available_bytes).to eq(6.gigabytes)
       expect(sp.data_root_alert_level).to eq(:warning)
-      expect(WorkerHostHealthSampler).to have_received(:record!).with(instance: sp, observed_at: kind_of(Time), data_root_snapshot: snapshot)
+      expect(sp.capabilities).to eq("os" => [ "linux" ], "arch" => [ "x86_64" ])
+      expect(sp.capability_diagnostics).to eq("configured" => false)
+      expect(WorkerHostHealthSampler).to have_received(:record!).with(instance: sp, observed_at: kind_of(Time), data_root_snapshot: snapshot, capability_snapshot: capability_snapshot)
     end
 
     it "does not measure disk on a web pod" do

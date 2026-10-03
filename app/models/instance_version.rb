@@ -18,6 +18,8 @@ class InstanceVersion < ApplicationRecord
   HEARTBEAT_STALE_THRESHOLD = 2.minutes
   REAPER_STALE_THRESHOLD = 5.minutes
 
+  before_validation :default_capability_payloads
+
   validates :hostname, :role, :version, :started_at, presence: true
 
   scope :fresh, ->(threshold = HEARTBEAT_STALE_THRESHOLD) {
@@ -116,5 +118,12 @@ class InstanceVersion < ApplicationRecord
     return false if last_heartbeat_at.nil? && started_at && started_at > threshold.ago
 
     last_heartbeat_at.nil? || last_heartbeat_at < threshold.ago
+  end
+
+  private
+
+  def default_capability_payloads
+    self.capabilities ||= {}
+    self.capability_diagnostics ||= {}
   end
 end

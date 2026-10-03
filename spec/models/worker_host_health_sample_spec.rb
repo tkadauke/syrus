@@ -19,6 +19,14 @@ RSpec.describe WorkerHostHealthSample, type: :model do
     end
   end
 
+  it "defaults raw metrics and capability payloads to empty hashes" do
+    health_sample = sample(raw_metrics: nil, capabilities: nil, capability_diagnostics: nil)
+
+    expect(health_sample.raw_metrics).to eq({})
+    expect(health_sample.capabilities).to eq({})
+    expect(health_sample.capability_diagnostics).to eq({})
+  end
+
   describe ".prunable scope" do
     it "includes samples older than the retention window" do
       old = sample(observed_at: (described_class.retention_window + 1.day).ago)
