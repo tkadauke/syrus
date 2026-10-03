@@ -25,6 +25,7 @@ class AgyInvocation
                  mcp_servers: nil,
                  model: nil,
                  effort_level: nil,
+                 env: nil,
                  required_mcp_tools: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
@@ -42,6 +43,7 @@ class AgyInvocation
     @mcp_servers = mcp_servers
     @model = model.to_s.strip.presence || self.class.configured_model
     @effort_level = effort_level.to_s.strip.presence || self.class.configured_effort
+    @env = env || {}
     @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
     @stop_requested = stop_requested
     @process_started = process_started
@@ -62,6 +64,7 @@ class AgyInvocation
       mcp_servers: @mcp_servers,
       model: @model,
       effort_level: @effort_level,
+      env: @env,
       required_mcp_tools: @required_mcp_tools,
       stop_requested: @stop_requested,
       process_started: @process_started,
@@ -74,6 +77,7 @@ class AgyInvocation
   def default_runner(workspace_path:, prompt:, api_key: nil, log_sink:, timeout:, agy_home: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
                      mcp_server: nil, mcp_servers: nil, model: nil, effort_level: nil,
+                     env: nil,
                      required_mcp_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      on_session_id: ->(_session_id) { })
@@ -110,7 +114,7 @@ class AgyInvocation
       (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
 
     runner_result = ProcessRunner.new(
-      env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level),
+      env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level).merge(env || {}),
       command: agy_command(resume_session_id: effective_resume_session_id),
       stdin_data: stdin_event(prompt),
       mounts: ProcessRunner.mounts(workspace_path),

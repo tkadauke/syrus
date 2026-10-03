@@ -201,7 +201,7 @@ module Api
             return
           end
 
-          chat_session = Current.user.accessible_chat_sessions.visible.active.find(params[:chat_session_id])
+          chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).visible.active.find(params[:chat_session_id])
           render json: {
             matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
           }
@@ -209,7 +209,7 @@ module Api
 
         def hidden
           page = [ Integer(params[:page], exception: false).to_i, 1 ].max
-          scope = Current.user.accessible_chat_sessions.hidden.active
+          scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).hidden.active
           total = scope.count
           chats = scope
             .preload(repository_attachments: :attachable)
@@ -1396,7 +1396,7 @@ module Api
         # than a new membership rule) means a shared-chat viewer inherits
         # panel access automatically.
         def preview_panel_access_chat_session
-          chat_session = Current.user.accessible_chat_sessions.active.find_by(id: params[:id])
+          chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).active.find_by(id: params[:id])
           return chat_session if chat_session
 
           share_token = params[:share_token].presence
@@ -1899,7 +1899,7 @@ module Api
         end
 
         def chat_repository_scope
-          Repository.accessible_to(Current.user).active.order(:owner, :name)
+          invocation_scoped_repository_scope(Repository.accessible_to(Current.user)).active.order(:owner, :name)
         end
 
         def update_chat_repository(chat_session, repository_id)

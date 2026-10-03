@@ -185,9 +185,9 @@ That script:
 1. Generates `.env` if it does not exist, using the same local secrets
    rules as the prebuilt installer.
 2. Builds the base worker image — the fat agent toolchain (Ruby/Node/Go via
-   `mise`, Python + poetry/uv, build tools, db clients, and the `claude-code`
-   CLI). **The first build is slow** (it compiles language runtimes); later
-   builds are cached.
+   `mise`, Python + poetry/uv, build tools, db clients, external agent CLIs,
+   and the `syrus` CLI). **The first build is slow** (it compiles language
+   runtimes); later builds are cached.
 3. Builds `Dockerfile.local` on top of that base image, applying
    `EXTRA_APT_PACKAGES` when present.
 4. Starts the same Compose stack.
@@ -250,6 +250,9 @@ their toolchains. Two layers cover this:
   and add `mise install` to its `.syrus.yml` `prepare:`. Out of the box you
   get Ruby, Node, Go, and Python; `mise` can install more (Rust, Java, other
   versions) on demand.
+- **Syrus CLI** — `/usr/local/bin/syrus` is already present in the web and
+  worker containers, so workflow subprocesses and repository scripts can call
+  it without rebuilding the CLI themselves.
 - **System packages (apt)** — set `EXTRA_APT_PACKAGES` in `.env`
   (space-separated) and rerun `bin/compose-up`. They're baked into the worker
   image — reproducible and cached.

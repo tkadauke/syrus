@@ -11,13 +11,15 @@ import (
 )
 
 var (
-	ErrMissingCredentials    = errors.New("credentials file is missing")
-	ErrIncompleteCredentials = errors.New("credentials are incomplete")
+	ErrMissingCredentials       = errors.New("credentials file is missing")
+	ErrIncompleteCredentials    = errors.New("credentials are incomplete")
+	ErrMissingInvocationContext = errors.New("Syrus invocation context is missing")
 )
 
 type Credentials struct {
-	URL   string
-	Token string
+	URL      string
+	Token    string
+	Internal bool
 }
 
 func (c Credentials) Validate() error {
@@ -39,11 +41,32 @@ func DefaultCredentialsPath() (string, error) {
 }
 
 func LoadDefaultCredentials() (Credentials, error) {
+	if creds, ok, err := LoadInvocationCredentialsFromEnv(); ok || err != nil {
+		return creds, err
+	}
+
 	path, err := DefaultCredentialsPath()
 	if err != nil {
 		return Credentials{}, err
 	}
 	return LoadCredentials(path)
+}
+
+func LoadInvocationCredentialsFromEnv() (Credentials, bool, error) {
+	url := strings.TrimSpace(os.Getenv("SYRUS_CLI_URL"))
+	token := strings.TrimSpace(os.Getenv("SYRUS_CLI_INVOCATION_CONTEXT"))
+	runtime := truthy(os.Getenv("SYRUS_CLI_INTERNAL"))
+	if url == "" && token == "" && !runtime {
+		return Credentials{}, false, nil
+	}
+	if url == "" || token == "" {
+		return Credentials{}, true, ErrMissingInvocationContext
+	}
+	creds := Credentials{URL: url, Token: token, Internal: true}
+	if err := creds.Validate(); err != nil {
+		return Credentials{}, true, ErrMissingInvocationContext
+	}
+	return creds, true, nil
 }
 
 func SaveDefaultCredentials(creds Credentials) error {
@@ -119,4 +142,13 @@ func ParseCredentials(r io.Reader) (Credentials, error) {
 		return Credentials{}, err
 	}
 	return creds, nil
+}
+
+func truthy(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

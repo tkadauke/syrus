@@ -127,6 +127,106 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body.to_s).not_to include("Private")
   end
 
+  it "scopes invocation-context CLI clients to the current run's job", :skip_sign_in do
+    current_job = Factories.job_with_run(
+      repository: repo,
+      issue_number: 101,
+      issue_title: "Current scoped work",
+      run_attrs: { state: "running" }
+    )
+    other_job = Factories.job_record(
+      repository: repo,
+      issue_number: 102,
+      issue_title: "Same repository but outside the run",
+      state: "queued"
+    )
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+
+    get "/api/v1/app/jobs", params: { state: "all", limit: 10 },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["jobs"]).to contain_exactly(include(
+      "id" => current_job.id,
+      "title" => "Current scoped work"
+    ))
+    expect(body.to_s).not_to include("Same repository but outside the run")
+
+    get "/api/v1/app/jobs/#{other_job.id}", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "audits allowed read-only internal CLI invocations without storing invocation secrets", :skip_sign_in do
+    current_job = Factories.job_with_run(
+      repository: repo,
+      issue_number: 103,
+      issue_title: "Current scoped work",
+      run_attrs: { state: "running" }
+    )
+    run = current_job.runs.first
+    token = McpInvocationContext.issue_for_app_run(run, expires_in: 5.minutes)
+    allow(OperationalLogging).to receive(:ingest)
+
+    get "/api/v1/app/jobs", params: { state: "all", limit: 10 },
+      headers: {
+        "Authorization" => "Bearer #{token}",
+        AppApi::InternalCliInvocation::HEADER => "get.jobs?SYRUS_CLI_INVOCATION_CONTEXT=#{token}"
+      }
+
+    expect(response).to have_http_status(:ok)
+    expect(OperationalLogging).to have_received(:ingest).with(hash_including(
+      source: "internal_cli",
+      message: "internal CLI get.jobs?SYRUS_CLI_INVOCATION_CONTEXT=[REDACTED] allowed",
+      context: hash_including(
+        method: "GET",
+        path: "/api/v1/app/jobs",
+        outcome: "allowed",
+        command_namespace: "get.jobs?SYRUS_CLI_INVOCATION_CONTEXT=[REDACTED]",
+        user_id: user.id,
+        repository_id: repo.id,
+        job_id: current_job.id,
+        workflow_id: run.workflow_id,
+        run_id: run.id
+      )
+    ))
+  end
+
+  it "denies mutating internal CLI invocations before approval side effects", :skip_sign_in do
+    current_job = Factories.job_with_run(
+      repository: repo,
+      issue_number: 104,
+      issue_title: "Current scoped work",
+      run_attrs: { state: "running" }
+    )
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+    allow(OperationalLogging).to receive(:ingest)
+
+    expect {
+      post "/api/v1/app/jobs/#{current_job.id}/approve",
+        headers: {
+          "Authorization" => "Bearer #{token}",
+          AppApi::InternalCliInvocation::HEADER => "post.jobs.approve credential_lease_id=lease-secret"
+        }
+    }.not_to change { JobApproval.count }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("read-only app API commands")
+    expect(OperationalLogging).to have_received(:ingest).with(hash_including(
+      source: "internal_cli",
+      message: "internal CLI post.jobs.approve credential_lease_id=[REDACTED] denied",
+      context: hash_including(
+        method: "POST",
+        path: "/api/v1/app/jobs/#{current_job.id}/approve",
+        status: 403,
+        outcome: "denied",
+        command_namespace: "post.jobs.approve credential_lease_id=[REDACTED]",
+        job_id: current_job.id
+      )
+    ))
+  end
+
   it "includes epic_title for jobs with an epic and nil for epicless jobs" do
     user.update!(api_token: "syrus_cli_token")
     epic = Factories.epic(user: user, repository: repo, title: "Fix the pipes")

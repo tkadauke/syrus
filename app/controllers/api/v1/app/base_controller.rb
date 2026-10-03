@@ -8,12 +8,15 @@ module Api
         include JobEpicRefFinder
         include JsonErrorRendering
 
-        TokenSession = Struct.new(:user, keyword_init: true) do
+        TokenSession = Struct.new(:user, :invocation_context, keyword_init: true) do
           def destroy; end
         end
 
         skip_before_action :compute_system_alerts
         skip_forgery_protection if: :authenticated_bearer_token_request?
+        around_action :audit_internal_cli_invocation
+        before_action :enforce_invocation_context_scope
+        before_action :authorize_internal_cli_invocation
 
         rescue_from ActiveRecord::RecordNotFound do |e|
           render_error("not_found", e.message, status: :not_found)
@@ -30,25 +33,141 @@ module Api
         end
 
         def resume_api_token_session
-          user = bearer_token_user
-          return unless user
+          token_session = bearer_token_session
+          return unless token_session
 
-          Current.session = TokenSession.new(user: user)
+          Current.session = token_session
         end
 
         def authenticated_bearer_token_request?
-          bearer_token_user.present?
+          bearer_token_session.present?
         end
 
-        def bearer_token_user
+        def bearer_token_session
           token = request.authorization.to_s[/\ABearer\s+(.+)\z/i, 1]
           return if token.blank?
 
-          @bearer_token_user ||= User.find_by(api_token: token)
+          @bearer_token_session ||= begin
+            if (user = User.find_by(api_token: token))
+              TokenSession.new(user: user)
+            elsif (context = bearer_token_invocation_context(token))
+              TokenSession.new(user: context.user, invocation_context: context)
+            end
+          end
+        end
+
+        def bearer_token_invocation_context(token)
+          McpInvocationContext.resolve_for_app_api(token).tool_context
+        rescue McpInvocationContext::InvalidContext
+          nil
         end
 
         def request_authentication
           render_error("unauthorized", I18n.t("api.base.sign_in_required"), status: :unauthorized)
+        end
+
+        def policy_scope(scope, policy_scope_class: nil)
+          restrict_invocation_relation(super)
+        end
+
+        def restrict_invocation_relation(relation)
+          context = current_invocation_context
+          return relation unless context && relation.respond_to?(:klass)
+
+          case relation.klass.name
+          when "Job"
+            relation = relation.where(repository_id: context.allowed_repository_ids) if context.allowed_repository_ids.present?
+            relation = relation.where(id: context.run? ? context.job.id : context.allowed_job_ids) if context.run? || context.allowed_job_ids
+          when "Repository"
+            relation = relation.where(id: context.allowed_repository_ids) if context.allowed_repository_ids.present?
+          when "Epic"
+            relation = relation.where(repository_id: context.allowed_repository_ids) if context.allowed_repository_ids.present?
+          when "Workflow"
+            relation = relation.joins(:job).where(jobs: { repository_id: context.allowed_repository_ids }) if context.allowed_repository_ids.present?
+            relation = relation.where(id: context.run? ? context.workflow.id : context.allowed_workflow_ids) if context.run? || context.allowed_workflow_ids
+          when "Run"
+            relation = relation.joins(:job).where(jobs: { repository_id: context.allowed_repository_ids }) if context.allowed_repository_ids.present?
+            relation = relation.where(id: context.run? ? context.run.id : context.allowed_run_ids) if context.run? || context.allowed_run_ids
+          when "ChatSession"
+            relation = relation.where(id: context.chat? ? context.chat_session.id : context.allowed_chat_session_ids) if context.chat? || context.allowed_chat_session_ids
+          end
+
+          relation
+        end
+
+        def invocation_scoped_chat_scope(scope)
+          context = current_invocation_context
+          return scope unless context
+          return scope.none if context.run?
+
+          scope.where(id: context.chat_session.id)
+        end
+
+        def invocation_scoped_repository_scope(scope)
+          context = current_invocation_context
+          return scope unless context
+
+          repository_ids = context.allowed_repository_ids
+          repository_ids = [ context.repository.id ].compact if repository_ids.blank? && context.repository
+          repository_ids.present? ? scope.where(id: repository_ids) : scope.none
+        end
+
+        def enforce_invocation_context_scope
+          context = current_invocation_context
+          return true unless context
+
+          if disallowed_invocation_param?(context)
+            render_error(
+              "forbidden",
+              "This Syrus invocation context is scoped to the current run or chat and cannot access that resource.",
+              status: :forbidden
+            )
+            return false
+          end
+
+          true
+        end
+
+        def authorize_internal_cli_invocation
+          invocation = current_internal_cli_invocation
+          return true unless invocation
+          return true if invocation.allowed?
+
+          render_error("forbidden", AppApi::InternalCliInvocation::DENIED_MESSAGE, status: :forbidden)
+          false
+        end
+
+        def audit_internal_cli_invocation
+          yield
+        ensure
+          current_internal_cli_invocation&.audit(status: response.status)
+        end
+
+        def current_internal_cli_invocation
+          return @current_internal_cli_invocation if defined?(@current_internal_cli_invocation)
+
+          context = current_invocation_context
+          @current_internal_cli_invocation =
+            context ? AppApi::InternalCliInvocation.new(self, context: context) : nil
+        end
+
+        def current_invocation_context
+          session = Current.session
+          session.invocation_context if session.respond_to?(:invocation_context)
+        end
+
+        def disallowed_invocation_param?(context)
+          invocation_param_id(:repository_id).then { |id| return true if id && context.allowed_repository_ids.present? && !context.allowed_repository_ids.include?(id) }
+          invocation_param_id(:job_id).then { |id| return true if id && context.allowed_job_ids && !context.allowed_job_ids.include?(id) }
+          invocation_param_id(:workflow_id).then { |id| return true if id && context.allowed_workflow_ids && !context.allowed_workflow_ids.include?(id) }
+          invocation_param_id(:run_id).then { |id| return true if id && context.allowed_run_ids && !context.allowed_run_ids.include?(id) }
+          invocation_param_id(:chat_id).then { |id| return true if id && context.allowed_chat_session_ids && !context.allowed_chat_session_ids.include?(id) }
+          return true if context.chat? && params[:id].present? && controller_path.end_with?("/chats") && invocation_param_id(:id) != context.chat_session.id
+          false
+        end
+
+        def invocation_param_id(key)
+          Integer(params[key], exception: false) if params[key].present?
         end
 
         def require_admin

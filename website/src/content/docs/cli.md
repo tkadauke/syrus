@@ -87,6 +87,35 @@ If any command answers `401 Unauthorized`, the saved token is stale
 `syrus login`, and the desktop app heals its own copy automatically the
 next time its window is open and signed in.
 
+Inside Syrus-managed workflow and chat runtimes, the CLI does not read a
+human user's `~/.syrus/credentials` file. Syrus injects a short-lived
+invocation context through `SYRUS_CLI_URL` and
+`SYRUS_CLI_INVOCATION_CONTEXT`; commands authenticate as the current run
+or chat and are scoped to that invocation's user and resources. If that
+internal context is missing or expires, the CLI reports a runtime
+configuration error instead of telling the agent to run `syrus login`.
+Internal invocation contexts are read-only by default. Commands that would
+mutate Jobs, chats, admin state, or repository settings are rejected and
+must use the MCP/admin confirmation flow. Syrus audits each internal CLI
+request with command namespace, outcome, and run/job/repository context,
+while redacting invocation tokens, credential lease ids, and secret-shaped
+values.
+
+Useful runtime-safe examples are the same read commands operators use
+locally, but authenticated by the invocation context instead of a credentials
+file:
+
+```bash
+syrus job show JOB-<id> --json
+syrus job log JOB-<id>
+syrus job diff JOB-<id>
+syrus whoami --json
+```
+
+New in-runtime CLI surfaces, such as future target graph query commands or
+credential wrapper helpers, should reuse this availability and authentication
+layer rather than adding a separate runtime token mechanism.
+
 Syrus Desktop reads and writes the same credentials file. If you have
 already run `syrus login`, the desktop app starts authenticated. If the
 file is missing or incomplete, the desktop app prompts for the same URL
@@ -637,6 +666,11 @@ If credentials are missing or incomplete, the CLI prints:
 ```text
 Run 'syrus login' to set up your Syrus instance URL and API token.
 ```
+
+If a command is running inside a Syrus worker and the internal invocation
+context is missing, the CLI instead reports that `SYRUS_CLI_URL` or
+`SYRUS_CLI_INVOCATION_CONTEXT` is missing. That is an instance runtime
+configuration issue, not something to fix with `syrus login`.
 
 If a repository-scoped command cannot detect a checkout, run it from a
 GitHub repository or pass `--repo owner/name` when the command supports

@@ -81,7 +81,7 @@ class ChatTurnJob < ApplicationJob
 
     result = with_chat_mcp_config(provider) do |mcp_config|
       with_git_askpass_env do |agent_env|
-        provider_with_turn_context(provider, attachment_context, agent_env).invoke(
+        provider_with_turn_context(provider, attachment_context, agent_env.merge(cli_invocation_env(provider))).invoke(
           workspace_path: workspace_path,
           prompt: prompt_for(parent_session_id, user_text: attachment_context.fetch(:user_text)),
           log_sink: method(:record_agent_event),
@@ -189,6 +189,27 @@ class ChatTurnJob < ApplicationJob
       file_paths: attachment_context.fetch(:file_paths),
       env: agent_env
     )
+  end
+
+  def cli_invocation_env(provider)
+    {
+      "SYRUS_CLI_URL" => app_api_url,
+      "SYRUS_CLI_INVOCATION_CONTEXT" => McpInvocationContext.issue_for_app_chat(
+        @chat,
+        current_message: @user_message,
+        provider: provider.provider,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+    }.compact
+  end
+
+  def app_api_url
+    host = ENV["SYRUS_APP_HOST"].to_s.sub(%r{/\z}, "")
+    return if host.blank?
+    return host if host.match?(%r{\Ahttps?://}i)
+
+    scheme = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SYRUS_ASSUME_SSL", "true")) ? "https" : "http"
+    "#{scheme}://#{host}"
   end
 
   def resume_session_id_for(_provider)

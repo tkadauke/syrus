@@ -537,7 +537,7 @@ func apiClient() (*api.Client, config.Credentials, error) {
 	if err != nil {
 		return nil, config.Credentials{}, err
 	}
-	client, err := api.NewClient(creds.URL, creds.Token)
+	client, err := api.NewClientWithOptions(creds.URL, creds.Token, api.ClientOptions{InternalAuth: creds.Internal})
 	return client, creds, err
 }
 
@@ -546,6 +546,9 @@ func loadCredentials() (config.Credentials, error) {
 	if err != nil {
 		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
 			return config.Credentials{}, errors.New(loginMessage)
+		}
+		if errors.Is(err, config.ErrMissingInvocationContext) {
+			return config.Credentials{}, errors.New(invocationContextMessage)
 		}
 		return config.Credentials{}, err
 	}

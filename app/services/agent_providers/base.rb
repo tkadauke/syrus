@@ -177,6 +177,26 @@ module AgentProviders
       AgentSidecarEnvironment.build_boot
     end
 
+    def cli_invocation_env
+      {
+        "SYRUS_CLI_URL" => app_api_url,
+        "SYRUS_CLI_INVOCATION_CONTEXT" => McpInvocationContext.issue_for_app_run(
+          @run,
+          provider: provider,
+          expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+        )
+      }.compact
+    end
+
+    def app_api_url
+      host = ENV["SYRUS_APP_HOST"].to_s.sub(%r{/\z}, "")
+      return if host.blank?
+      return host if host.match?(%r{\Ahttps?://}i)
+
+      scheme = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SYRUS_ASSUME_SSL", "true")) ? "https" : "http"
+      "#{scheme}://#{host}"
+    end
+
     def sidecar_command
       Rails.root.join("bin/syrus-mcp-sidecar").to_s
     end

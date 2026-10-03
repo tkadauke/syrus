@@ -8,7 +8,9 @@ class CommandRedactor
   GITHUB_TOKEN_PATTERN = /\b(?:ghp|github_pat|gho|ghu|ghs|ghr)_[A-Za-z0-9_]+\b/.freeze
   SECRET_ASSIGNMENT_PATTERNS = [
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
-    /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i
+    /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
+    /((?:SYRUS_(?:CLI|MCP_PROXY)_INVOCATION_CONTEXT|invocation_context)["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
+    /((?:credential_)?lease_id["']?\s*[:=]\s*["']?)[^"',\s}]+/i
   ].freeze
 
   def self.redact(text)

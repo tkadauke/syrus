@@ -21,6 +21,7 @@ class CodexInvocation
                  mcp_servers: nil,
                  model: nil,
                  effort_level: nil,
+                 env: nil,
                  resume_session_id: nil,
                  resume_transcript_jsonl: nil,
                  stop_requested: -> { false },
@@ -37,6 +38,7 @@ class CodexInvocation
     @mcp_servers = mcp_servers
     @model = model.presence || self.class.configured_model
     @effort_level = effort_level.to_s.strip.presence
+    @env = env || {}
     @resume_session_id = resume_session_id
     @resume_transcript_jsonl = resume_transcript_jsonl
     @stop_requested = stop_requested
@@ -56,6 +58,7 @@ class CodexInvocation
       mcp_servers: @mcp_servers,
       model: @model,
       effort_level: @effort_level,
+      env: @env,
       resume_session_id: @resume_session_id,
       resume_transcript_jsonl: @resume_transcript_jsonl,
       stop_requested: @stop_requested,
@@ -132,6 +135,7 @@ class CodexInvocation
 
   def default_runner(workspace_path:, prompt:, api_key:, log_sink:, timeout:,
                      codex_home:, mcp_server: nil, mcp_servers: nil, model: nil, effort_level: nil,
+                     env: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      startup_timing: StartupTiming.new(source: "codex"))
@@ -143,7 +147,7 @@ class CodexInvocation
     end
     effective_resume_session_id = restored_resume == :resume_unavailable ? nil : resume_session_id
 
-    env = codex_env(api_key: api_key, codex_home: codex_home)
+    env = codex_env(api_key: api_key, codex_home: codex_home).merge(env || {})
     cmd = codex_command(workspace_path: workspace_path,
                         resume_session_id: effective_resume_session_id)
 

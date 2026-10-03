@@ -18,6 +18,9 @@ func TestListJobsSendsBearerToken(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {
 			t.Fatalf("Authorization = %q", got)
 		}
+		if got := r.Header.Get("X-Syrus-CLI-Command"); got != "get.jobs" {
+			t.Fatalf("X-Syrus-CLI-Command = %q", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"count":0,"jobs":[]}`))
 	}))
@@ -60,6 +63,31 @@ func TestAPIErrorUsesJSONMessage(t *testing.T) {
 	// A 401 must point at the fix, not just restate the server's rejection.
 	if !strings.Contains(apiErr.Message, "syrus login") {
 		t.Fatalf("expected 401 message to suggest 'syrus login', got %q", apiErr.Message)
+	}
+}
+
+func TestAPIErrorForInternalAuthDoesNotSuggestLogin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":{"code":"unauthorized","message":"Sign in to use the app API."}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClientWithOptions(server.URL, "bad-token", ClientOptions{InternalAuth: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.GetJob(context.Background(), "123")
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *Error, got %T: %v", err, err)
+	}
+	if strings.Contains(apiErr.Message, "syrus login") {
+		t.Fatalf("internal auth message suggested login: %q", apiErr.Message)
+	}
+	if !strings.Contains(apiErr.Message, "invocation context") {
+		t.Fatalf("expected invocation context hint, got %q", apiErr.Message)
 	}
 }
 
