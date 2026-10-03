@@ -3,10 +3,25 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "@app/lib/slugReferenceRegistry"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
+  return {
+    displayLabel: overrides.prefix,
+    copyable: true,
+    linkable: true,
+    previewAvailable: true,
+    linkifiesGeneratedText: true,
+    hrefTemplate: `/${overrides.type}s/:id`,
+    mobileInteractionHints: { tap: "open", long_press: "copy" },
+    pluginPreviewComponent: null,
+    ...overrides
+  }
+}
 
 const docDetail = {
   id: 1,
@@ -609,6 +624,7 @@ describe("DesignDocsSurface", () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    setSlugReferenceRegistryForTests(null)
     if (originalMatchMedia) {
       Object.defineProperty(window, "matchMedia", originalMatchMedia)
     } else {
@@ -683,6 +699,29 @@ describe("DesignDocsSurface", () => {
     // The slug sits immediately before the title button within the shared
     // title cell -- not merely present anywhere in the row.
     expect(slugButton.compareDocumentPosition(titleButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("linkifies registered slug refs in design doc comments", async () => {
+    setSlugReferenceRegistryForTests([
+      registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
+      registryEntry({ prefix: "DOC", type: "doc", hrefTemplate: "/design_docs/:id" })
+    ])
+    const detail = {
+      ...docDetail,
+      threads: [{
+        ...docDetail.threads[0],
+        comments: [{
+          ...docDetail.threads[0].comments[0],
+          body: "Compare JOB-42 with DOC-9."
+        }]
+      }],
+      suggestions: []
+    }
+    mockFetch(detail)
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
+    expect(screen.getByRole("link", { name: "DOC-9" })).toHaveAttribute("href", "/design_docs/9")
   })
 
   it("links the repository column to the repo page instead of opening the doc", async () => {

@@ -2,10 +2,35 @@ import { jsonResponse } from "../../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
+
+function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
+  return {
+    displayLabel: overrides.prefix,
+    copyable: true,
+    linkable: true,
+    previewAvailable: false,
+    linkifiesGeneratedText: true,
+    hrefTemplate: null,
+    mobileInteractionHints: {},
+    pluginPreviewComponent: null,
+    ...overrides,
+    prefix: overrides.prefix,
+    type: overrides.type
+  }
+}
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
+})
+
+afterEach(() => {
+  setSlugReferenceRegistryForTests(null)
+})
 
 function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
   return {

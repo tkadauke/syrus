@@ -1,125 +1,130 @@
 import { render, screen } from "@testing-library/react"
 import { isValidElement, type ReactElement, type ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
-import { SlugHoverCard } from "../components/SlugHoverCard"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { SlugReferenceCard } from "../components/SlugHoverCard"
 import { linkifySlugs } from "./linkifySlugs"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "./slugReferenceRegistry"
 
-// Stub SlugHoverCard so tests focus on linkifySlugs wiring, not hover behaviour.
-// This also avoids jsdom's lack of window.matchMedia.
 vi.mock("../components/SlugHoverCard", () => ({
-  SlugHoverCard: ({ kind, prefix, id, children }: { kind: string; prefix?: string; id: number; children: ReactNode }) => (
-    <span data-testid="slug-hover-card" data-kind={kind} data-prefix={prefix} data-id={String(id)}>
+  SlugReferenceCard: ({ entry, id, slug, children }: { entry: SlugReferenceRegistryEntry; id: number; slug?: string; children: ReactNode }) => (
+    <span data-testid="slug-reference-card" data-prefix={entry.prefix} data-type={entry.type} data-id={String(id)} data-slug={slug}>
       {children}
     </span>
-  ),
+  )
 }))
 
+const registryEntry = (overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry => ({
+  displayLabel: overrides.prefix,
+  copyable: true,
+  linkable: true,
+  previewAvailable: true,
+  linkifiesGeneratedText: true,
+  hrefTemplate: `/${overrides.type}s/:id`,
+  mobileInteractionHints: { tap: "open", long_press: "copy" },
+  pluginPreviewComponent: null,
+  ...overrides
+})
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
+
 describe("linkifySlugs", () => {
-  it("wraps JOB slugs in SlugHoverCard with kind=job and numeric id", () => {
-    const nodes = linkifySlugs("Submit feedback on JOB-42")
-    const hoverCard = nodes.find((node) => isValidElement(node) && node.type === SlugHoverCard)
+  it("wraps registered slugs in SlugReferenceCard with registry metadata and numeric id", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "TASK", type: "task", hrefTemplate: "/tasks/:id" })])
+
+    const nodes = linkifySlugs("Submit feedback on TASK-42")
+    const card = nodes.find((node) => isValidElement(node) && node.type === SlugReferenceCard)
 
     expect(nodes[0]).toBe("Submit feedback on ")
-    expect(hoverCard).toBeTruthy()
-    const card = hoverCard as ReactElement<{ kind: string; id: number; children: ReactElement<{ to: string }> }>
-    expect(card.props.kind).toBe("job")
-    expect(card.props.id).toBe(42)
-    expect(card.props.children.props.to).toBe("/jobs/42")
+    expect(card).toBeTruthy()
+    const reference = card as ReactElement<{ entry: SlugReferenceRegistryEntry; id: number }>
+    expect(reference.props.entry.prefix).toBe("TASK")
+    expect(reference.props.entry.type).toBe("task")
+    expect(reference.props.id).toBe(42)
   })
 
-  it("wraps EPIC slugs in SlugHoverCard with kind=epic and numeric id", () => {
-    const nodes = linkifySlugs("See EPIC-7 for context")
-    const hoverCard = nodes.find((node) => isValidElement(node) && node.type === SlugHoverCard)
+  it("renders registered slug links with hrefs from the registry template", () => {
+    setSlugReferenceRegistryForTests([
+      registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
+      registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" }),
+      registryEntry({ prefix: "DOC", type: "design_doc", hrefTemplate: "/design_docs/:id" }),
+      registryEntry({ prefix: "INSIGHT", type: "insight", hrefTemplate: "/s/INSIGHT-:id" })
+    ])
 
-    expect(hoverCard).toBeTruthy()
-    const card = hoverCard as ReactElement<{ kind: string; id: number; children: ReactElement<{ to: string }> }>
-    expect(card.props.kind).toBe("epic")
-    expect(card.props.id).toBe(7)
-    expect(card.props.children.props.to).toBe("/epics/7")
-  })
+    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, DOC-9, and INSIGHT-5")}</MemoryRouter>)
 
-  it("wraps DOC slugs in SlugHoverCard with kind=plugin, prefix=DOC, and numeric id", () => {
-    const nodes = linkifySlugs("See DOC-20 for context")
-    const hoverCard = nodes.find((node) => isValidElement(node) && node.type === SlugHoverCard)
-
-    expect(hoverCard).toBeTruthy()
-    const card = hoverCard as ReactElement<{ kind: string; prefix?: string; id: number; children: ReactElement<{ to: string }> }>
-    expect(card.props.kind).toBe("plugin")
-    expect(card.props.prefix).toBe("DOC")
-    expect(card.props.id).toBe(20)
-    expect(card.props.children.props.to).toBe("/design_docs/20")
-  })
-
-  it("wraps CHAT slugs in SlugHoverCard with kind=chat and numeric id, rendered as a copyable slug", () => {
-    render(<MemoryRouter>{linkifySlugs("See CHAT-3 for context")}</MemoryRouter>)
-
-    const hoverCard = screen.getByTestId("slug-hover-card")
-    expect(hoverCard).toHaveAttribute("data-kind", "chat")
-    expect(hoverCard).toHaveAttribute("data-id", "3")
-    expect(screen.getByRole("button", { name: "Copy CHAT-3 to clipboard" })).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "CHAT-3" })).not.toBeInTheDocument()
-  })
-
-  it("returns plain text unchanged when there are no slugs", () => {
-    expect(linkifySlugs("plain text with no slugs")).toEqual(["plain text with no slugs"])
-  })
-
-  it("renders slug links with the expected hrefs", () => {
-    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
-
-    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
-    expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/epics/7")
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
+    expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/epics/EPIC-7")
     expect(screen.getByRole("link", { name: "DOC-9" })).toHaveAttribute("href", "/design_docs/9")
+    expect(screen.getByRole("link", { name: "INSIGHT-5" })).toHaveAttribute("href", "/s/INSIGHT-5")
   })
 
-  it("renders slug links with semantic brand color tokens", () => {
-    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
+  it("keeps one polished control for registered refs that are both linked and copyable", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
 
-    for (const slug of ["JOB-42", "EPIC-7", "DOC-9"]) {
-      const link = screen.getByRole("link", { name: slug })
+    render(<MemoryRouter>{linkifySlugs("See JOB-42")}</MemoryRouter>)
 
-      expect(link).toHaveClass("text-brand", "hover:underline", "dark:text-brand-emphasis")
-      expect(link.className).not.toMatch(/\b(?:text-)?blue-\d{2,3}\b/)
-    }
-  })
-
-  it("can render JOB slugs as copyable hover-card references", () => {
-    render(<MemoryRouter>{linkifySlugs("Filed as JOB-42", { jobStyle: "copyable" })}</MemoryRouter>)
-
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/JOB-42")
     expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
+    expect(screen.getAllByText("JOB-42")).toHaveLength(1)
   })
 
-  it("can render every known slug kind as a copyable hover-card reference", () => {
-    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42, EPIC-7, DOC-9, and CHAT-3", { slugStyle: "copyable" })}</MemoryRouter>)
+  it("wraps registered copy-only refs so touch users can open actions", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "INSIGHT", type: "insight", linkable: false, previewAvailable: false, hrefTemplate: null })])
 
-    for (const slug of ["JOB-42", "EPIC-7", "DOC-9", "CHAT-3"]) {
-      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
-      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
-    }
+    render(<MemoryRouter>{linkifySlugs("Captured as INSIGHT-5")}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy INSIGHT-5 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "INSIGHT-5" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("slug-reference-card")).toHaveAttribute("data-slug", "INSIGHT-5")
   })
 
-  it("renders unknown uppercase Syrus-style slugs as copyable text only when requested", () => {
-    render(<MemoryRouter>{linkifySlugs("Blocked by WF-10, WU-22, RUN-33, and STEP-44", { slugStyle: "copyable" })}</MemoryRouter>)
+  it("renders non-copyable registered refs as plain text when they do not linkify generated text", () => {
+    setSlugReferenceRegistryForTests([
+      registryEntry({
+        prefix: "SECRET",
+        type: "secret",
+        copyable: false,
+        linkable: false,
+        previewAvailable: false,
+        linkifiesGeneratedText: false,
+        hrefTemplate: null
+      })
+    ])
 
-    for (const slug of ["WF-10", "WU-22", "RUN-33", "STEP-44"]) {
-      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
-      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
-    }
+    const { container } = render(<MemoryRouter>{linkifySlugs("Hidden SECRET-1")}</MemoryRouter>)
 
-    expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
+    expect(container).toHaveTextContent("Hidden SECRET-1")
+    expect(screen.queryByRole("button", { name: "Copy SECRET-1 to clipboard" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "SECRET-1" })).not.toBeInTheDocument()
   })
 
-  it("can render known slugs as copy-only controls without hover cards", () => {
+  it("can render registered slugs as copy-only controls without preview cards", () => {
+    setSlugReferenceRegistryForTests([
+      registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
+      registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" })
+    ])
+
     render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42 and EPIC-7", { hoverCards: false, slugStyle: "copyable" })}</MemoryRouter>)
 
     expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
-    expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
+    expect(screen.queryAllByTestId("slug-reference-card")).toHaveLength(0)
   })
 
-  it("leaves unknown uppercase Syrus-style slugs as plain text by default", () => {
+  it("keeps preview wrappers for registered copyable refs unless hover cards are disabled", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
+
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42", { jobStyle: "copyable" })}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByTestId("slug-reference-card")).toHaveAttribute("data-prefix", "JOB")
+    expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
+  })
+
+  it("leaves unregistered uppercase Syrus-style slugs as plain text by default", () => {
+    setSlugReferenceRegistryForTests([])
+
     const { container } = render(<MemoryRouter>{linkifySlugs("Blocked by WF-10")}</MemoryRouter>)
 
     expect(container).toHaveTextContent("Blocked by WF-10")
@@ -127,16 +132,14 @@ describe("linkifySlugs", () => {
     expect(screen.queryByRole("link", { name: "WF-10" })).not.toBeInTheDocument()
   })
 
-  it("renders one SlugHoverCard per slug with correct kind and id attributes", () => {
-    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
+  it("renders unregistered uppercase Syrus-style slugs as copyable text only when requested", () => {
+    setSlugReferenceRegistryForTests([])
 
-    const cards = screen.getAllByTestId("slug-hover-card")
-    const jobCard = cards.find((el) => el.getAttribute("data-kind") === "job")
-    const epicCard = cards.find((el) => el.getAttribute("data-kind") === "epic")
-    const docCard = cards.find((el) => el.getAttribute("data-kind") === "plugin" && el.getAttribute("data-prefix") === "DOC")
+    render(<MemoryRouter>{linkifySlugs("Blocked by WF-10, WU-22, RUN-33, and STEP-44", { slugStyle: "copyable" })}</MemoryRouter>)
 
-    expect(jobCard).toHaveAttribute("data-id", "42")
-    expect(epicCard).toHaveAttribute("data-id", "7")
-    expect(docCard).toHaveAttribute("data-id", "9")
+    for (const slug of ["WF-10", "WU-22", "RUN-33", "STEP-44"]) {
+      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
+    }
   })
 })

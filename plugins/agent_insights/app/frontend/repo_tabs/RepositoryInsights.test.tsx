@@ -211,12 +211,12 @@ function renderRouteByState(
   renderRepositoryInsightsRoute()
 }
 
-function renderRepositoryInsightsRoute() {
+function renderRepositoryInsightsRoute(initialEntry = "/app-shell/repositories/1/plugin/insights") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/insights"]}>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <Routes>
             <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/plugin/insights" />
           </Routes>
@@ -971,6 +971,40 @@ describe("RepositoryInsightsRoute", () => {
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
       })
+    })
+
+    it("focuses and scrolls a hash-targeted suggestion after the target page loads", async () => {
+      const scrollIntoView = vi.fn()
+      const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+        callback(0)
+        return 1
+      })
+      vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined)
+      const page2Suggestions = [makeSuggestion({ id: 21, title: "Suggestion 21" })]
+      const fetchSpy = vi
+        .spyOn(window, "fetch")
+        .mockResolvedValue(jsonResponse(payload(page2Suggestions, makeMeta({ total: 21, page: 2, per_page: 20, total_pages: 2 }))))
+
+      try {
+        renderRepositoryInsightsRoute("/app-shell/repositories/1/plugin/insights?state=all&page=2#INSIGHT-21")
+
+        const heading = await screen.findByRole("heading", { name: "Suggestion 21" })
+        const card = heading.closest("article")
+
+        await waitFor(() => {
+          expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
+          expect(card).toHaveFocus()
+          expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" })
+        })
+      } finally {
+        if (originalScrollIntoView) {
+          Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: originalScrollIntoView })
+        } else {
+          Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+        }
+      }
     })
 
     it("fetches and paginates the selected state tab", async () => {

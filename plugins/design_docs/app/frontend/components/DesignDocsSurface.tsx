@@ -22,7 +22,7 @@ import { RepositorySlugLink, useMediaQuery } from "@app/routes/dashboard/compone
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
-import { renderLightMarkdown } from "@app/lib/Markdown"
+import { Markdown, renderLightMarkdown } from "@app/lib/Markdown"
 import { routePrefix } from "@app/lib/routing"
 import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
 import { useT } from "@app/hooks/useT"
@@ -2347,7 +2347,7 @@ function ThreadComments({ comments }: { comments: DesignDocThread["comments"] })
     <div className="mt-2 space-y-2 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
       {comments.map((comment) => (
         <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
-          <p>{comment.body}</p>
+          <Markdown className="text-sm text-gray-800 dark:text-gray-200" text={comment.body} />
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || (comment.author_kind === "agent" ? "Syrus" : comment.author_kind)}</p>
         </div>
       ))}

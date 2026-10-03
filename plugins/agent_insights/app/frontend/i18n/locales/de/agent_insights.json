@@ -108,5 +108,6 @@
   "col_superseded_ids": "Superseded IDs",
   "col_flags": "Flags",
   "flag_memory": "memory",
-  "flag_proposal": "proposal"
+  "flag_proposal": "proposal",
+  "preview_not_accessible": "Sie haben keinen Zugriff auf diesen Einblick."
 }
