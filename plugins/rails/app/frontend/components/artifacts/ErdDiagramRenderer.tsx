@@ -13,7 +13,7 @@ export function ErdDiagramRenderer({ payload }: { payload: SchemaErdPayload }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-4">
+    <div className="flex min-w-0 flex-wrap gap-4">
       {tables.map((table) => (
         <ErdTableBox key={table.name} table={table} />
       ))}
@@ -29,8 +29,8 @@ function ErdTableBox({ table }: { table: ErdTable }) {
   const hasFks = foreignKeys.length > 0
 
   return (
-    <div className="min-w-[200px] rounded border border-gray-300 bg-white text-sm shadow-sm">
-      <div className="rounded-t bg-brand-emphasis px-3 py-1.5 font-mono font-semibold text-white">
+    <div className="w-max min-w-[200px] rounded border border-gray-300 bg-white text-sm shadow-sm">
+      <div className="whitespace-nowrap rounded-t bg-brand-emphasis px-3 py-1.5 font-mono font-semibold text-white">
         {table.name}
       </div>
       <table className="w-full border-collapse">
@@ -39,7 +39,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
             const isFkSource = foreignKeys.some((fk) => fk.from_column === col.name)
             return (
               <tr key={col.name} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="px-3 py-0.5 font-mono text-gray-800">
+                <td className="whitespace-nowrap px-3 py-0.5 font-mono text-gray-800">
                   {col.name}
                   {isFkSource && (
                     <span className="ml-1 text-brand" title={t("foreign_key")}>
@@ -47,7 +47,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-0.5 text-right font-mono text-xs text-gray-500">{col.type}</td>
+                <td className="whitespace-nowrap px-3 py-0.5 text-right font-mono text-xs text-gray-500">{col.type}</td>
               </tr>
             )
           })}

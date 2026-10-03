@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { TypedArtifact } from "../../api/artifacts"
-import { TypedArtifactPanel } from "./TypedArtifactPanel"
+import { ArtifactBody, TypedArtifactPanel } from "./TypedArtifactPanel"
 
 describe("TypedArtifactPanel", () => {
   it("keeps long artifact chrome and bodies constrained to a horizontal scroller", () => {
@@ -25,5 +25,19 @@ describe("TypedArtifactPanel", () => {
     expect(screen.getByText(artifact.title).parentElement).toHaveClass("flex-wrap")
     expect(screen.getByText(artifact.type)).toHaveClass("break-all")
     expect(container.querySelector(".overflow-x-auto")).toBeInTheDocument()
+  })
+
+  it("wraps directly rendered artifact bodies in a horizontal scroller", () => {
+    const artifact: TypedArtifact = {
+      type: "long_raw_payload",
+      title: "Long raw payload",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: null,
+      payload: { long_key: "x".repeat(160) }
+    }
+
+    const { container } = render(<ArtifactBody artifact={artifact} />)
+
+    expect(container.firstElementChild).toHaveClass("min-w-0", "overflow-x-auto")
   })
 })
