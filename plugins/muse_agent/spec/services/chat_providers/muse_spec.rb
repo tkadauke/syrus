@@ -324,6 +324,46 @@ RSpec.describe ChatProviders::Muse do
       expect(adapter.credentials_missing_message).to include("Muse credentials are missing")
     end
   end
+
+  describe ".mcp_server_for" do
+    it "rejects non-stdio MCP server entries with an explicit configuration error" do
+      mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
+      mcp_config.write({
+        mcpServers: {
+          "syrus-chat-sidecar" => {
+            type: "http",
+            url: "http://127.0.0.1:4805/mcp",
+            headers: { "X-Syrus-Invocation-Context" => "token" }
+          }
+        }
+      }.to_json)
+      mcp_config.flush
+
+      expect { described_class.mcp_server_for(mcp_config.path) }
+        .to raise_error(ArgumentError, /syrus-chat-sidecar.*http.*stdio/)
+    ensure
+      mcp_config&.close!
+    end
+
+    it "rejects stdio MCP server entries that omit the command" do
+      mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
+      mcp_config.write({
+        mcpServers: {
+          "syrus-chat-sidecar" => {
+            type: "stdio",
+            args: [ "--tier", "essential" ]
+          }
+        }
+      }.to_json)
+      mcp_config.flush
+
+      expect { described_class.mcp_server_for(mcp_config.path) }
+        .to raise_error(ArgumentError, /syrus-chat-sidecar.*missing a stdio command/)
+    ensure
+      mcp_config&.close!
+    end
+  end
+
   # Chat gets --trust-workspace (and every other exec flag) only because it
   # builds its command through MuseInvocation rather than assembling its own.
   # A chat path that shelled out to `muse exec` directly would quietly go back
