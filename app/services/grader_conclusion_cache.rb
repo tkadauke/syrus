@@ -228,6 +228,7 @@ class GraderConclusionCache
         "label" => target.label.to_s,
         "kind" => target.kind,
         "project_id" => target.project_id,
+        "capabilities" => target.capabilities&.to_h.to_h,
         "source_scope" => Array(target.source_scope).map(&:to_s).sort,
         "command" => target.command.to_s,
         "dependencies" => Array(target.dependencies).map(&:to_s).sort,
@@ -265,7 +266,8 @@ class GraderConclusionCache
       artifacts: target_artifacts_for(details),
       metadata: metadata_for(workflow: workflow, step: step).merge(
         "grader_name" => details["name"],
-        "required" => details["required"]
+        "required" => details["required"],
+        "target_fingerprint_metadata" => details.dig("target_fingerprints", "metadata")
       ).compact
     )
   end

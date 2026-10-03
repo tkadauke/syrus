@@ -19,11 +19,12 @@ class PreparedWorkspaceArchive
   MAX_BYTES = 1.gigabyte
   COMPRESSION_LEVEL = 1
   READ_CHUNK_SIZE = 1.megabyte
-  PREPARE_CACHE_FORMAT_VERSION = 2
+  PREPARE_CACHE_FORMAT_VERSION = 3
 
   def self.prepare_fingerprint_for(plan)
     Digest::SHA256.hexdigest(JSON.generate(
       "cache_format_version" => PREPARE_CACHE_FORMAT_VERSION,
+      "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
       "source" => plan.source,
       "note" => plan.note,
       "guessed" => plan.guessed?,
@@ -44,6 +45,7 @@ class PreparedWorkspaceArchive
       "tree_sha" => snapshot.tree_sha,
       "prepare_cache_format_version" => PREPARE_CACHE_FORMAT_VERSION,
       "prepare_fingerprint" => prepare_fingerprint_for(plan),
+      "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
       "prepare_source" => plan.source,
       "max_bytes" => MAX_BYTES,
       "compressor" => (pigz_available? ? "pigz" : "gzip"),
