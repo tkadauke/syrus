@@ -55,6 +55,11 @@ features:
     description: "Speculatively runs landing graders for the next eligible same-repository Job after the current Job's landing graders pass. Actual merge remains serialized."
     description_i18n_key: "features.slugs.landing_validation_prefetch.description"
     default: false
+  - slug: grader_fanout_overlay
+    category: "Operations"
+    name: "Grader fan-out overlay"
+    description: "Mounts local overlayfs workspaces for immutable grader checkouts when the worker kernel and filesystem support it; falls back to full copies with an explicit recorded reason."
+    default: false
   - slug: distributed_workflow_dag
     category: "Operations"
     name: "Distributed workflow DAG"
