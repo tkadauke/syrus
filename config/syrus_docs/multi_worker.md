@@ -84,15 +84,32 @@ worker consumes the Windows lanes. This keeps scarce native workers from
 claiming ordinary Linux work while still documenting every queue Syrus may
 select.
 
-`Run#enqueue_run_job` checks the live Solid Queue worker metadata before it
-places a Run on a capability-specific queue, and also checks broad `runs` /
-`merges` queues when explicit Linux requirements add dimensions such as
-`features:docker` or `toolchains:node`. If no fresh worker both consumes the
-selected queue and advertises compatible capabilities, the Run is failed with
+Before a workflow phase starts, `StepDispatcher` uses the same queue resolver
+as `Run#enqueue_run_job` to check live Solid Queue worker metadata. Pinned
+workspace phases such as implementation, response, rebase repair, visual
+review, and adversarial review inherit the Workflow's planned primary
+capabilities. Immutable distributed grader steps use their target-specific
+requirements. Control-plane phases such as grader fanout and collection stay on
+the broad `runs` / `merges` queues, so scarce native workers do not claim
+orchestration work just because the primary workflow runs on macOS or Windows.
+
+The resolver checks capability-specific queues, and also checks broad queues
+when explicit Linux requirements add dimensions such as `features:docker` or
+`toolchains:node`. If no fresh worker both consumes the selected queue and
+advertises compatible capabilities, the Workflow stays queued with
+`start_blocked_reason: no_capable_worker`; `start_blocked_details` and
+`run_queue_admission_decision` record the selected queue, requirements, and
+phase step so operators can see why it is waiting. Syrus schedules a normal
+phase-admission recheck instead of creating a Run that would sit on an
+unconsumed or incompatible queue.
+
+`Run#enqueue_run_job` repeats that check at enqueue time as a backstop. When it
+does enqueue, the Workflow appends a `run_queue_decisions` artifact recording
+the queue and requirements used for the Run. If live capacity disappears
+between admission and enqueue, the Run is failed with
 `agent_outcome: no_capable_worker`, a system log line is written, and the
 Workflow records a `run_queue_blocked` artifact with the queue and requirement
-details. That makes missing host or tool capacity visible immediately instead
-of leaving work hidden on an unconsumed or incompatible queue.
+details.
 
 Search schema is not part of the primary MySQL schema. It lives in
 `db/search_migrate` and is applied to the local SQLite search database by
