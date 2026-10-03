@@ -941,7 +941,7 @@ RSpec.describe Run, :ci_only do
       expect { grader_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
     end
 
-    it "routes immutable distributed backend graders to Linux even when the parent workflow is macOS-planned" do
+    it "routes immutable distributed backend graders to any Linux worker when the parent workflow is macOS-planned" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"
         feature.name = "Distributed workflow DAG"
@@ -965,14 +965,14 @@ RSpec.describe Run, :ci_only do
         capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
       )
       live_capable_worker_queue!(
-        "runs-linux-amd64",
-        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] },
+        "runs",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "arm64" ] },
         hostname: "syrus-worker-linux"
       )
       backend_run = backend_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
 
       clear_enqueued_jobs
-      expect { backend_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-linux-amd64")
+      expect { backend_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
     end
 
     it "fails visibly instead of enqueueing to an unconsumed capability queue" do
