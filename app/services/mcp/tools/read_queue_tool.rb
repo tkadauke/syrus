@@ -79,7 +79,9 @@ module Mcp::Tools
             threads: worker.metadata&.dig("thread_pool_size"),
             last_heartbeat_at: worker.last_heartbeat_at,
             stale: false,
-            status: "current"
+            status: "current",
+            capabilities: process_capabilities(worker),
+            capability_diagnostics: process_capability_diagnostics(worker)
           }
         end
       end
@@ -140,6 +142,26 @@ module Mcp::Tools
         else
           [ queues.to_s ]
         end
+      end
+
+      def process_capabilities(process)
+        WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+      rescue ArgumentError
+        {}
+      end
+
+      def process_capability_diagnostics(process)
+        process.metadata&.dig("capability_diagnostics").presence || instance_for_process(process)&.capability_diagnostics || {}
+      end
+
+      def instance_for_process(process)
+        return nil if process.hostname.blank?
+
+        worker_instances_by_hostname[process.hostname]
+      end
+
+      def worker_instances_by_hostname
+        @worker_instances_by_hostname ||= InstanceVersion.fresh.where(role: "worker").index_by(&:hostname)
       end
     end
   end

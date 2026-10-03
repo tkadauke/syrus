@@ -339,6 +339,8 @@ export type WorkerHealthSample = {
   cpu_pressure_full: number | null
   io_pressure_some: number | null
   io_pressure_full: number | null
+  capabilities?: Record<string, string[]>
+  capability_diagnostics?: Record<string, unknown>
   raw_metrics?: Record<string, unknown>
 }
 
@@ -374,6 +376,8 @@ export type CurrentWorkerHealth = {
   last_heartbeat_at: string | null
   seconds_since_heartbeat: number | null
   stale: boolean
+  capabilities?: Record<string, string[]>
+  capability_diagnostics?: Record<string, unknown>
   health: {
     level: WorkerHealthLevel
     reasons: string[]

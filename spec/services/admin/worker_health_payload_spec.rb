@@ -49,6 +49,37 @@ RSpec.describe Admin::WorkerHealthPayload do
     end
   end
 
+  it "includes capabilities for current workers and recent samples" do
+    now = Time.zone.parse("2026-09-18 16:00:00 UTC")
+    travel_to(now) do
+      InstanceVersion.create!(
+        hostname: "syrus-worker-a",
+        role: "worker",
+        version: "abc123",
+        started_at: now - 5.minutes,
+        last_heartbeat_at: now,
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        capability_diagnostics: { "xcode" => true }
+      )
+      WorkerHostHealthSample.create!(
+        hostname: "syrus-worker-a",
+        worker_storage_key: "storage-a",
+        role: "worker",
+        version: "abc123",
+        observed_at: now - 1.minute,
+        cpu_used_percent: 20,
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        capability_diagnostics: { "xcode" => true }
+      )
+
+      payload = described_class.new(since: (now - 1.hour).iso8601, until_time: now.iso8601).as_json
+
+      expect(payload.dig(:current, 0, :capabilities)).to include("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+      expect(payload.dig(:current, 0, :capability_diagnostics)).to include("xcode" => true)
+      expect(payload.dig(:hosts, 0, :recent_samples, 0, :capabilities)).to include("arch" => [ "arm64" ])
+    end
+  end
+
   it "falls back to hostname for legacy rows without a worker storage key" do
     now = Time.zone.parse("2026-09-18 16:00:00 UTC")
     travel_to(now) do

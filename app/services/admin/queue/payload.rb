@@ -409,7 +409,9 @@ module Admin
           threads: worker.metadata&.dig("thread_pool_size"),
           last_heartbeat_at: worker.last_heartbeat_at,
           stale: process_stale?(worker),
-          status: process_status(worker)
+          status: process_status(worker),
+          capabilities: process_capabilities(worker),
+          capability_diagnostics: process_capability_diagnostics(worker)
         }
       end
 
@@ -440,6 +442,26 @@ module Admin
         end
       end
 
+      def process_capabilities(process)
+        WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+      rescue ArgumentError
+        {}
+      end
+
+      def process_capability_diagnostics(process)
+        process.metadata&.dig("capability_diagnostics").presence || instance_for_process(process)&.capability_diagnostics || {}
+      end
+
+      def instance_for_process(process)
+        return nil if process.hostname.blank?
+
+        worker_instances_by_hostname[process.hostname]
+      end
+
+      def worker_instances_by_hostname
+        @worker_instances_by_hostname ||= InstanceVersion.fresh.where(role: "worker").index_by(&:hostname)
+      end
+
       def serialize_process(process)
         {
           kind: process.kind,
@@ -447,7 +469,9 @@ module Admin
           hostname: process.hostname,
           last_heartbeat_at: process.last_heartbeat_at,
           stale: process_stale?(process),
-          status: process_status(process)
+          status: process_status(process),
+          capabilities: process_capabilities(process),
+          capability_diagnostics: process_capability_diagnostics(process)
         }
       end
     end

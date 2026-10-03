@@ -19,5 +19,7 @@ class WorkerHostHealthSample < ApplicationRecord
 
   def default_raw_metrics
     self.raw_metrics ||= {}
+    self.capabilities ||= {}
+    self.capability_diagnostics ||= {}
   end
 end

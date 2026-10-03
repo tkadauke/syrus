@@ -959,6 +959,7 @@
     "worker_health_ok": "Keine aktuellen Warnungen",
     "worker_health_historical": "Historische Samples in diesem Zeitraum; der Host sendet aktuell kein Lebenszeichen.",
     "worker_health_historical_workers": "Historische Worker ({{count}})",
+    "worker_capabilities": "Worker-Fähigkeiten",
     "no_worker_health": "Keine Worker-Host-Health-Samples aufgezeichnet.",
     "no_worker_health_buckets": "Keine Minuten-Buckets für diesen Zeitraum.",
     "worker_warning": "Warnung",
