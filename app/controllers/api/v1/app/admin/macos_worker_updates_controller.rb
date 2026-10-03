@@ -9,7 +9,8 @@ module Api
 
           def desired
             release = AppSetting.macos_worker_desired_release
-            render json: desired_payload(release).merge(drain: drain_directive)
+            drain = drain_for_request
+            render json: desired_payload(release, drain: drain).merge(drain: drain_directive(drain))
           end
 
           def report
@@ -64,8 +65,8 @@ module Api
 
           private
 
-          def desired_payload(release)
-            enabled = release["artifact_url"].present? && release["git_sha"].present?
+          def desired_payload(release, drain:)
+            enabled = release["artifact_url"].present? && release["git_sha"].present? && !!drain&.update_permitted?
             {
               enabled: enabled,
               component: "macos-worker",
@@ -84,11 +85,14 @@ module Api
             }
           end
 
-          def drain_directive
-            drain = ::MacosWorkerDrain.for_identity(
+          def drain_for_request
+            ::MacosWorkerDrain.for_identity(
               worker_storage_key: params[:worker_storage_key],
               hostname: params[:hostname]
             ).active.first
+          end
+
+          def drain_directive(drain)
             drain&.directive_payload || { state: "none" }
           end
 

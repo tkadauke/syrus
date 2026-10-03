@@ -14,7 +14,7 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
     expect(response).to have_http_status(:forbidden)
   end
 
-  it "returns configured desired macOS worker release metadata" do
+  it "returns configured desired macOS worker release metadata without enabling unselected workers" do
     sign_in_as(admin)
     AppSetting.current.update!(
       macos_worker_desired_release: {
@@ -31,7 +31,7 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include(
-      "enabled" => true,
+      "enabled" => false,
       "component" => "macos-worker",
       "retention_count" => 4,
       "poll_interval_seconds" => 120
@@ -42,6 +42,59 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
       "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
       "artifact_sha256" => "f" * 64
     )
+  end
+
+  it "enables the desired release only for the worker currently marked updating" do
+    sign_in_as(admin)
+    AppSetting.current.update!(
+      macos_worker_desired_release: {
+        "version" => "1.2.3",
+        "git_sha" => "abc123",
+        "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
+        "artifact_sha256" => "f" * 64
+      }
+    )
+    MacosWorkerDrain.create!(
+      worker_storage_key: "storage-a",
+      hostname: "mac-mini-a",
+      state: "updating",
+      desired_git_sha: "abc123",
+      desired_version: { "git_sha" => "abc123" },
+      drain_started_at: Time.current,
+      update_started_at: Time.current
+    )
+
+    get "/api/v1/app/admin/macos_worker_update", params: { worker_storage_key: "storage-a", hostname: "mac-mini-a" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("enabled" => true)
+    expect(parse_body.fetch("drain")).to include("state" => "updating")
+  end
+
+  it "keeps a selected worker disabled while it is still draining active work" do
+    sign_in_as(admin)
+    AppSetting.current.update!(
+      macos_worker_desired_release: {
+        "version" => "1.2.3",
+        "git_sha" => "abc123",
+        "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
+        "artifact_sha256" => "f" * 64
+      }
+    )
+    MacosWorkerDrain.create!(
+      worker_storage_key: "storage-a",
+      hostname: "mac-mini-a",
+      state: "draining",
+      desired_git_sha: "abc123",
+      desired_version: { "git_sha" => "abc123" },
+      drain_started_at: Time.current
+    )
+
+    get "/api/v1/app/admin/macos_worker_update", params: { worker_storage_key: "storage-a", hostname: "mac-mini-a" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("enabled" => false)
+    expect(parse_body.fetch("drain")).to include("state" => "draining")
   end
 
   it "records updater status on the worker instance row" do

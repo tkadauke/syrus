@@ -52,8 +52,16 @@ class MacosWorkerDrain < ApplicationRecord
     state.in?(%w[draining updating])
   end
 
+  def updating?
+    state == UPDATING
+  end
+
   def force_termination_requested?
     force_terminate_at.present?
+  end
+
+  def update_permitted?
+    updating? || force_termination_requested?
   end
 
   def directive_payload

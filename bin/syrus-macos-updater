@@ -88,12 +88,47 @@ metadata_url() {
   fi
 
   if [[ -n "${SYRUS_APP_HOST:-}" ]]; then
-    printf '%s/api/v1/app/admin/macos_worker_update' "${SYRUS_APP_HOST%/}"
+    WORKER_HOSTNAME="$(worker_hostname)" \
+      WORKER_STORAGE_KEY="$(worker_storage_key)" \
+      ruby -ruri -e '
+        base = "#{ENV.fetch("SYRUS_APP_HOST").sub(%r{/+\z}, "")}/api/v1/app/admin/macos_worker_update"
+        params = {
+          hostname: ENV["WORKER_HOSTNAME"],
+          worker_storage_key: ENV["WORKER_STORAGE_KEY"]
+        }.delete_if { |_key, value| value.to_s.empty? }
+        query = URI.encode_www_form(params)
+        print query.empty? ? base : "#{base}?#{query}"
+      '
     return
   fi
 
   echo "syrus-macos-updater: SYRUS_UPDATE_METADATA_URL or SYRUS_APP_HOST is required" >&2
   exit 2
+}
+
+worker_hostname() {
+  hostname -s 2>/dev/null || hostname
+}
+
+worker_storage_key() {
+  if [[ -n "${SYRUS_WORKER_STORAGE_KEY:-}" ]]; then
+    sanitize_worker_storage_key "$SYRUS_WORKER_STORAGE_KEY"
+    return
+  fi
+
+  if [[ -n "${SYRUS_DATA_ROOT:-}" && -f "$SYRUS_DATA_ROOT/.syrus-worker-storage-id" ]]; then
+    sanitize_worker_storage_key "$(head -n 1 "$SYRUS_DATA_ROOT/.syrus-worker-storage-id")"
+    return
+  fi
+
+  return 0
+}
+
+sanitize_worker_storage_key() {
+  ruby -e '
+    value = ARGV.fetch(0, "").to_s.strip.gsub(/[^a-zA-Z0-9_.-]/, "-").byteslice(0, 128)
+    print value.to_s
+  ' "$1"
 }
 
 fetch_metadata() {
@@ -112,6 +147,10 @@ extract_metadata() {
     payload = JSON.parse(File.read(ARGV.fetch(0)))
     desired = payload["desired"].is_a?(Hash) ? payload["desired"] : payload
     enabled = payload.key?("enabled") ? payload["enabled"] : true
+    drain = payload["drain"].is_a?(Hash) ? payload["drain"] : nil
+    if drain && drain["state"] != "updating" && drain["force_terminate"] != true
+      enabled = false
+    end
     values = {
       "UPDATE_ENABLED" => enabled ? "1" : "0",
       "TARGET_VERSION" => desired["version"].to_s,

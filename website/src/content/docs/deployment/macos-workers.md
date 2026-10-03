@@ -37,6 +37,11 @@ specific storage identity or hostname as draining, stops routing new compatible
 Runs to that worker, waits for active Runs and spawned processes to finish,
 then asks the host updater to activate the desired release.
 
+The updater identifies itself when it polls Syrus for release metadata. Syrus
+keeps desired release details visible to every Mac worker, but only returns
+`enabled: true` to the selected worker once that worker is ready to update or
+has been explicitly forced.
+
 After the worker heartbeats at the desired `git_sha`, Syrus verifies the host
 still advertises macOS and Xcode capabilities before clearing the drain and
 moving to the next Mac. Admin worker health and queue views show drain/update

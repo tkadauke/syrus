@@ -3,7 +3,8 @@
 Native macOS workers use a pull-based updater instead of SSH-first
 deployment. Each host runs `com.syrus.updater` under launchd. The updater
 reads the same `/etc/syrus/worker.env` file as `com.syrus.worker`, polls
-Syrus or `SYRUS_UPDATE_METADATA_URL` for desired release metadata, and
+Syrus or `SYRUS_UPDATE_METADATA_URL` for desired release metadata, including
+its hostname and worker storage identity when polling Syrus directly, and
 activates releases locally.
 
 Required metadata:
@@ -68,7 +69,9 @@ Repair affordances:
 `hostname` query parameters. Its response includes a `drain` directive
 (`none`, `draining`, `updating`, or `failed`) so a polling updater can tell the
 difference between ordinary release metadata and an operator-requested rolling
-update step.
+update step. Desired release metadata is published for visibility, but
+`enabled` is true only for the selected worker once its drain reaches
+`updating` or an operator has requested forced termination.
 
 This design avoids assuming the cluster can initiate SSH sessions into Mac
 hardware. The k3s control plane only publishes desired release metadata and

@@ -31,10 +31,11 @@ RSpec.describe "native macOS worker updater" do
     stdout.split.first
   end
 
-  def write_metadata(path, artifact:, sha:, artifact_sha: sha256(artifact), retention_count: 2)
-    File.write(path, JSON.generate(
+  def write_metadata(path, artifact:, sha:, artifact_sha: sha256(artifact), retention_count: 2, drain: nil)
+    payload = {
       enabled: true,
       retention_count: retention_count,
+      drain: drain,
       desired: {
         version: "1.2.3",
         git_sha: sha,
@@ -42,7 +43,8 @@ RSpec.describe "native macOS worker updater" do
         artifact_sha256: artifact_sha,
         artifact_name: File.basename(artifact)
       }
-    ))
+    }.compact
+    File.write(path, JSON.generate(payload))
   end
 
   def write_env(path, metadata:)
@@ -59,6 +61,41 @@ RSpec.describe "native macOS worker updater" do
     write_executable(File.join(bin_dir, "bundle"), "#!/usr/bin/env bash\nexit 0\n")
     write_executable(File.join(bin_dir, "npm"), "#!/usr/bin/env bash\nexit 0\n")
     bin_dir
+  end
+
+  it "passes worker identity when polling the Syrus metadata endpoint" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      data_root = File.join(dir, "data")
+      request_file = File.join(dir, "request.txt")
+      FileUtils.mkdir_p(data_root)
+      File.write(File.join(data_root, ".syrus-worker-storage-id"), "storage a\n")
+      File.write(env_file, <<~ENV)
+        SYRUS_APP_HOST=https://syrus.example.test/
+        SYRUS_DATA_ROOT=#{data_root}
+      ENV
+      bin_dir = stub_prepare_commands(dir)
+      write_executable(File.join(bin_dir, "curl"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\\n' "$*" > "#{request_file}"
+        printf '{"enabled":false,"desired":{}}'
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}" },
+        "bash",
+        script,
+        "--env-file",
+        env_file,
+        "--once"
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      request = File.read(request_file)
+      expect(request).to include("https://syrus.example.test/api/v1/app/admin/macos_worker_update?")
+      expect(request).to include("hostname=")
+      expect(request).to include("worker_storage_key=storage-a")
+    end
   end
 
   it "downloads, verifies, activates, and prunes releases" do
@@ -169,6 +206,39 @@ RSpec.describe "native macOS worker updater" do
 
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(stdout).to include("already current at #{same_sha}")
+      expect(File.realpath(current_link)).to eq(current_release)
+    end
+  end
+
+  it "does not activate a desired release until the drain directive allows updating" do
+    Dir.mktmpdir do |dir|
+      install_root = File.join(dir, "install")
+      releases_dir = File.join(install_root, "releases")
+      current_release = File.join(releases_dir, "aaa1111")
+      current_link = File.join(install_root, "current")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "abc1234")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "abc1234", drain: { state: "draining" })
+      write_env(env_file, metadata: metadata)
+
+      stdout, stderr, status = Open3.capture3(
+        { "SYRUS_MACOS_INSTALL_ROOT" => install_root, "SYRUS_MACOS_CURRENT_LINK" => current_link },
+        "bash",
+        script,
+        "--env-file",
+        env_file,
+        "--once",
+        "--dry-run"
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("no desired macOS worker release configured")
+      expect(stdout).not_to include("would install abc1234")
       expect(File.realpath(current_link)).to eq(current_release)
     end
   end

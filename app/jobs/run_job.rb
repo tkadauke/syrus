@@ -71,6 +71,7 @@ class RunJob < ApplicationJob
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
+  MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   # A spend budget resets on a day boundary, so retrying in fifteen seconds
   # would just burn queue cycles until midnight.
   SPEND_BUDGET_RETRY_DELAY = 15.minutes
@@ -96,6 +97,7 @@ class RunJob < ApplicationJob
     @step = @run.step
     @workflow = @step&.workflow
     @job = @run.job
+    return if defer_for_macos_worker_drain?
 
     # Record the worker pod for diagnostics and the durable storage key for
     # later resume routing to a worker that can see the on-disk workspace.
@@ -112,6 +114,7 @@ class RunJob < ApplicationJob
 
     loop do
       break if @shutdown_requested
+      break if defer_for_macos_worker_drain?
       perform_step
       next_run = next_inline_run
       break unless next_run
@@ -221,6 +224,59 @@ class RunJob < ApplicationJob
     )
     defer_run(@run.id, admission.delay)
     true
+  end
+
+  def defer_for_macos_worker_drain?
+    return false unless @run&.queued?
+    return false unless compute_run?
+    return false unless local_macos_worker?
+
+    worker_storage_key = WorkerStorageIdentity.queue_key
+    hostname = SyrusVersion.hostname
+    drain = MacosWorkerDrain
+      .for_identity(worker_storage_key: worker_storage_key, hostname: hostname)
+      .blocking_admission
+      .first
+    return false unless drain
+
+    record_macos_worker_drain_deferral!(drain, worker_storage_key: worker_storage_key, hostname: hostname)
+    Rails.logger.info(
+      "[RunJob] macOS worker #{hostname}/#{worker_storage_key} is #{drain.state} - " \
+        "deferring Run ##{@run.id} by #{MACOS_WORKER_DRAIN_RETRY_DELAY.inspect}"
+    )
+    defer_run(@run.id, MACOS_WORKER_DRAIN_RETRY_DELAY)
+    true
+  end
+
+  def record_macos_worker_drain_deferral!(drain, worker_storage_key:, hostname:)
+    @workflow.update!(
+      artifacts: (@workflow.artifacts || {}).merge(
+        "macos_worker_drain_admission" => {
+          "action" => "defer",
+          "reason" => "macos_worker_#{drain.state}",
+          "worker_storage_key" => worker_storage_key,
+          "hostname" => hostname,
+          "drain_id" => drain.id,
+          "desired_git_sha" => drain.desired_git_sha,
+          "deferred_at" => Time.current.iso8601,
+          "retry_at" => (Time.current + MACOS_WORKER_DRAIN_RETRY_DELAY).iso8601
+        }.compact
+      )
+    )
+    chunk = "macOS worker drain deferred before #{@step.kind}: #{drain.state}"
+    JobLog.append!(run: @run, kind: "system", chunk: chunk) unless admission_deferral_log_exists?(chunk)
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] failed to record macOS worker drain deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
+  end
+
+  def compute_run?
+    Workflows.for(trigger_kind: @run.trigger_kind).queue_name.to_s.in?(%w[runs merges])
+  rescue ArgumentError
+    false
+  end
+
+  def local_macos_worker?
+    Array(WorkerCapabilities.current.fetch(:capabilities).fetch("os", [])).map(&:to_s).include?("macos")
   end
 
   def record_host_admission_deferral!(admission)
