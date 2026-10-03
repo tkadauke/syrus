@@ -77,6 +77,8 @@ module AppApi
     def credential_lease_request?
       request.post? && [
         "/api/v1/app/credential_store/leases",
+        "/api/v1/app/credential_store/exec_material",
+        "/api/v1/app/credential_store/exec/audit",
         "/api/v1/app/credential_store/ssh_agent",
         "/api/v1/app/credential_store/ssh_agent/audit"
       ].include?(request.path)

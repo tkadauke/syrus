@@ -118,6 +118,21 @@ syrus credential lease deploy-token \
   --purpose deploy \
   --tool deploy.push \
   --target-json '{"host":"api.example.com"}'
+syrus credential exec \
+  --credential deploy-token \
+  --type credential_store.url_token \
+  --env-var SERVICE_TOKEN \
+  -- ./script.sh
+syrus credential exec \
+  --credential kubeconfig \
+  --type credential_store.kubeconfig \
+  --file-env KUBECONFIG \
+  -- kubectl get pods
+syrus credential exec \
+  --credential signing-token \
+  --type credential_store.generic \
+  --stdin \
+  -- ./read-token-from-stdin.sh
 syrus credential ssh-agent --credential homeassistant-ssh -- ./deploy.sh
 ```
 
@@ -134,6 +149,20 @@ using the current run/chat context, records the normal credential access audit
 row, and prints lease metadata such as lease id, credential id/name/type, safe
 metadata, purpose, tool, and expiry. The response intentionally omits the
 credential payload.
+
+`exec` is also runtime-only and is for bespoke scripts that need non-SSH
+credential material in a tightly scoped process-local form. The caller must
+choose exactly one materialization mode: `--env-var NAME` exports the payload
+as `NAME` for the child process, `--file-env NAME` writes it to a temporary
+`0600` file outside the repository and exports that path as `NAME`, and
+`--stdin` provides the payload as the child process standard input. The wrapper
+uses the same broker authorization, target constraints, and access audit rows
+as `lease`, then records a completion audit row with the lease id, mode, exit
+status, and duration. It removes temporary files after the child process exits,
+does not print command previews containing credential-derived values, and
+redacts the exact payload from child stdout/stderr before streaming it back.
+There is intentionally no mode that echoes plaintext credentials or writes them
+to a caller-selected persistent path.
 
 `ssh-agent` is also runtime-only. It requests an `ssh_private_key` lease,
 starts a short-lived local `ssh-agent`, writes the private key only to a
