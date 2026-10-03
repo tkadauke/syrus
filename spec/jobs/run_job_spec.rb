@@ -1012,6 +1012,42 @@ RSpec.describe RunJob, :ci_only do
   # ----- Pre-pickup cancellation ---------------------------------
 
   describe "guards" do
+    %w[draining updating].each do |drain_state|
+      it "defers a queued Run before start when the local macOS worker is #{drain_state}" do
+        job
+        wf = job.workflows.last
+        run = wf.first_step.runs.first
+        MacosWorkerDrain.create!(
+          worker_storage_key: "storage-a",
+          hostname: "mac-mini-a",
+          state: drain_state,
+          drain_started_at: Time.current,
+          desired_git_sha: "abc1234"
+        )
+        allow(WorkerCapabilities).to receive(:current).and_return(
+          capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+          diagnostics: {}
+        )
+        allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-a")
+        allow(SyrusVersion).to receive(:hostname).and_return("mac-mini-a")
+        expect(RunHostAdmission).not_to receive(:call)
+
+        expect {
+          RunJob.perform_now(run.id)
+        }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+        expect(run.reload).to be_queued
+        expect(wf.reload.artifact("macos_worker_drain_admission")).to include(
+          "action" => "defer",
+          "reason" => "macos_worker_#{drain_state}",
+          "worker_storage_key" => "storage-a",
+          "hostname" => "mac-mini-a",
+          "desired_git_sha" => "abc1234"
+        )
+        expect(JobLog.where(run: run).pluck(:chunk)).to include("macOS worker drain deferred before prepare: #{drain_state}")
+      end
+    end
+
     it "defers a queued Run before start when the selected compute host is saturated" do
       job
       wf = job.workflows.last
