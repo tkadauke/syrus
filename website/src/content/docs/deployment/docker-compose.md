@@ -267,7 +267,7 @@ their toolchains. Two layers cover this:
 Compose workers advertise `os:linux` and their CPU architecture automatically.
 If you bake additional host capabilities into the local worker image, set
 `SYRUS_WORKER_CAPABILITIES` in `.env` so admin health, queue diagnostics, and
-future capability-aware routing see the same shape:
+capability-aware routing see the same shape:
 
 ```dotenv
 SYRUS_WORKER_CAPABILITIES=os:linux,arch:arm64,feature:docker
@@ -276,6 +276,18 @@ SYRUS_WORKER_CAPABILITIES=os:linux,arch:arm64,feature:docker
 For native macOS workers outside Compose, set the same variable on the worker
 process, for example
 `os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`.
+
+Syrus routes non-default Run requirements onto capability-specific worker
+queues such as `runs-macos-arm64`, `runs-windows-amd64`, and the matching
+`merges-*` queues. Docker Compose's default worker consumes the broad Linux
+queues from `config/queue.yml`; native Mac or Windows workers consume only the
+matching capability lanes when they advertise their host class. Split
+deployments should run `config/queue.compute.yml` on compute workers so those
+queues are consumed without moving chat, polling, or indexing work onto native
+compute hosts.
+If a Run requires a host class or explicit Linux feature/toolchain that no live
+worker advertises, Syrus fails it with a visible queue-capability diagnostic
+instead of leaving it stranded.
 
 Local source builds use the Docker cache on your machine by default. To also
 reuse the registry-backed BuildKit cache written by production deploys, provide
