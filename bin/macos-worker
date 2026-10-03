@@ -60,7 +60,11 @@ export SOLID_QUEUE_CONFIG="config/queue.compute.yml"
 export SOLID_QUEUE_SKIP_RECURRING="1"
 
 if [[ -z "${GIT_SHA:-}" ]]; then
-  GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+  if [[ -f "$ROOT/GIT_SHA" ]]; then
+    GIT_SHA="$(head -n 1 "$ROOT/GIT_SHA")"
+  else
+    GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+  fi
   export GIT_SHA="${GIT_SHA:-dev}"
 fi
 

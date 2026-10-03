@@ -103,6 +103,19 @@ credentials: `SYRUS_APP_HOST`; `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or a
 MinIO attachment credentials (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
 `S3_BUCKET`, `S3_ENDPOINT`) unless `SYRUS_SQLITE` is set.
 
+Release builds publish a source artifact named
+`syrus-worker-macos-arm64-<git_sha>.tar.gz` with
+`SHA256SUMS-macos-worker.txt`. The archive contains the tracked app source,
+`bin/macos-worker`, `bin/macos-worker-check`, `config/launchd/com.syrus.worker.plist`,
+Gemfile and lockfiles, package manifests, `GIT_SHA`, `SYRUS_VERSION`, and
+`config/syrus-worker-release.json` metadata. It deliberately does not bundle
+native gems, npm installs, workflow workspaces, logs, storage, or local release
+output; activation on each Mac installs host-specific dependencies into the
+shared paths below. Verify the checksum before switching `/opt/syrus/current`.
+Mac workers must not run database migrations. Deploy the k3s cluster first,
+let it run migrations, and only then roll Mac workers onto a schema-compatible
+artifact.
+
 Before enabling launchd, run:
 
 ```bash

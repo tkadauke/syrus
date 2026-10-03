@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Build the native macOS worker source artifact.
+#
+# Usage:
+#   bin/release-macos-worker [VERSION] [--upload] [--skip-clean-check]
+#
+# The artifact is source-only and host-neutral: macOS workers install native
+# gems, node modules, and other host-specific dependencies during activation.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/bin/release-lib"
+
+VERSION=""
+UPLOAD=0
+SKIP_CLEAN_CHECK=0
+
+usage() {
+  awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --upload) UPLOAD=1 ;;
+    --skip-clean-check) SKIP_CLEAN_CHECK=1 ;;
+    --help|-h) usage; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "Unexpected argument: $arg" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$arg"
+      ;;
+  esac
+done
+
+if [ -z "$VERSION" ] && [ "$UPLOAD" = 0 ]; then
+  VERSION="$(syrus_release_local_version)"
+fi
+
+syrus_release_validate_version "$VERSION"
+syrus_release_require_command git
+syrus_release_require_command tar
+syrus_release_require_command shasum
+
+cd "$ROOT"
+
+if [ "$SKIP_CLEAN_CHECK" = 0 ] && [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
+  echo "uncommitted changes - commit or stash before building a release artifact" >&2
+  exit 1
+fi
+
+GIT_SHA="$(git rev-parse --short HEAD)"
+FULL_GIT_SHA="$(git rev-parse HEAD)"
+BUILT_AT="${SYRUS_BUILT_AT:-$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"
+OUT_DIR="$(syrus_release_output_dir "$VERSION" macos-worker)"
+TMP_DIR="$(mktemp -d)"
+NAME="syrus-worker-macos-arm64-${GIT_SHA}"
+STAGING="$TMP_DIR/$NAME"
+MANIFEST="$STAGING/config/syrus-worker-release.json"
+
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+syrus_release_prepare_output_dir "$OUT_DIR"
+
+echo "== Staging native macOS worker: $NAME =="
+mkdir -p "$STAGING"
+
+git archive --format=tar HEAD | tar -C "$STAGING" -xf -
+
+mkdir -p "$(dirname "$MANIFEST")"
+cat > "$MANIFEST" <<JSON
+{
+  "artifact": "$NAME.tar.gz",
+  "component": "macos-worker",
+  "platform": "macos",
+  "arch": "arm64",
+  "version": "$(syrus_release_semver "$VERSION")",
+  "git_sha": "$GIT_SHA",
+  "full_git_sha": "$FULL_GIT_SHA",
+  "built_at": "$BUILT_AT",
+  "entrypoint": "bin/macos-worker",
+  "health_check": "bin/macos-worker-check",
+  "launchd_plist": "config/launchd/com.syrus.worker.plist",
+  "queue_config": "config/queue.compute.yml",
+  "dependency_policy": "host_activation"
+}
+JSON
+
+printf '%s\n' "$GIT_SHA" > "$STAGING/GIT_SHA"
+printf '%s\n' "$(syrus_release_semver "$VERSION")" > "$STAGING/SYRUS_VERSION"
+
+test -x "$STAGING/bin/macos-worker"
+test -x "$STAGING/bin/macos-worker-check"
+test -f "$STAGING/config/launchd/com.syrus.worker.plist"
+test -f "$STAGING/Gemfile"
+test -f "$STAGING/Gemfile.lock"
+test -f "$STAGING/package.json"
+test -f "$STAGING/package-lock.json"
+test ! -d "$STAGING/vendor/bundle"
+test ! -d "$STAGING/node_modules"
+test ! -d "$STAGING/dist"
+
+tar -C "$TMP_DIR" -czf "$OUT_DIR/$NAME.tar.gz" "$NAME"
+syrus_release_checksums "$OUT_DIR" SHA256SUMS-macos-worker.txt
+
+echo
+echo "Native macOS worker release artifacts:"
+find "$OUT_DIR" -maxdepth 1 -type f -print | sort
+
+if [ "$UPLOAD" = 1 ]; then
+  echo
+  echo "== Uploading native macOS worker artifacts to GitHub release $VERSION =="
+  syrus_release_upload_dir "$VERSION" "$OUT_DIR"
+fi

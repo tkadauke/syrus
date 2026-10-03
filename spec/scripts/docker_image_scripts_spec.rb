@@ -5,9 +5,34 @@ RSpec.describe "Docker image scripts" do
   let(:helper) { File.read(File.join(root, "bin/docker-image-lib")) }
   let(:compose_up) { File.read(File.join(root, "bin/compose-up")) }
   let(:publish_image) { File.read(File.join(root, "bin/publish-image")) }
+  let(:release) { File.read(File.join(root, "bin/release")) }
+  let(:release_macos_worker) { File.read(File.join(root, "bin/release-macos-worker")) }
   let(:deploy) { File.read(File.join(root, "bin/deploy")) }
   let(:test_docker) { File.read(File.join(root, "bin/test-docker")) }
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
+
+  it "stages native macOS worker artifacts alongside release components" do
+    build_yml = File.read(File.join(root, ".github/workflows/_build-app.yml"))
+    releasing = File.read(File.join(root, "docs/releasing.md"))
+
+    expect(release).to include("--macos-worker")
+    expect(release).to include("SELECTED=(cli desktop macos-worker)")
+    expect(release).to include('"$ROOT/bin/release-macos-worker" "$VERSION"')
+
+    expect(release_macos_worker).to include('NAME="syrus-worker-macos-arm64-${GIT_SHA}"')
+    expect(release_macos_worker).to include('"git_sha": "$GIT_SHA"')
+    expect(release_macos_worker).to include('"dependency_policy": "host_activation"')
+    expect(release_macos_worker).to include("SHA256SUMS-macos-worker.txt")
+    expect(release_macos_worker).to include("git archive --format=tar HEAD")
+
+    expect(build_yml).to include("build-macos-worker:")
+    expect(build_yml).to include('run: bin/release-macos-worker "$TAG"')
+    expect(build_yml).to include("name: ${{ inputs.artifact_prefix }}-macos-worker")
+    expect(build_yml).to include("path: dist/releases/v${{ inputs.version }}/macos-worker/")
+
+    expect(releasing).to include("syrus-worker-macos-arm64-<git_sha>.tar.gz")
+    expect(releasing).to match(/Mac workers must\s+not run migrations\./)
+  end
 
   it "centralizes Docker build, login, and registry cache helpers" do
     expect(helper).to include("syrus_docker_cache_ref()")
