@@ -17,8 +17,14 @@ class CreateMacosWorkerDrains < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :macos_worker_drains, :worker_storage_key, unique: true
-    add_index :macos_worker_drains, :hostname, unique: true
-    add_index :macos_worker_drains, [ :state, :updated_at ]
+    unless index_exists?(:macos_worker_drains, :worker_storage_key)
+      add_index :macos_worker_drains, :worker_storage_key, unique: true
+    end
+    unless index_exists?(:macos_worker_drains, :hostname)
+      add_index :macos_worker_drains, :hostname, unique: true
+    end
+    unless index_exists?(:macos_worker_drains, [ :state, :updated_at ])
+      add_index :macos_worker_drains, [ :state, :updated_at ]
+    end
   end
 end
