@@ -25,9 +25,9 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
   const changeMap = new Map(changes.map((c) => [c.column.name, c.type]))
 
   return (
-    <div className="space-y-3">
+    <div className="w-max min-w-full space-y-3">
       <div className="font-mono text-sm font-semibold text-gray-700">{migration_name}</div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid w-max min-w-full grid-cols-[minmax(22rem,1fr)_minmax(22rem,1fr)] gap-4">
         <ColumnTable title={t("migration_before")} tableName={before?.table_name} columns={beforeColumns} changeMap={changeMap} side="before" />
         <ColumnTable title={t("migration_after")} tableName={after?.table_name} columns={afterColumns} changeMap={changeMap} side="after" />
       </div>
@@ -63,7 +63,7 @@ function ColumnTable({
   side: "before" | "after"
 }) {
   return (
-    <div className="rounded border border-gray-200 text-sm">
+    <div className="min-w-0 rounded border border-gray-200 text-sm">
       <div className="rounded-t bg-gray-100 px-3 py-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title} — </span>
         <span className="font-mono text-gray-700">{tableName}</span>
@@ -75,8 +75,8 @@ function ColumnTable({
             const rowClass = rowHighlight(changeType, side, i)
             return (
               <tr key={col.name} className={rowClass}>
-                <td className="px-3 py-0.5 font-mono">{col.name}</td>
-                <td className="px-3 py-0.5 text-right font-mono text-xs text-gray-500">{col.type}</td>
+                <td className="whitespace-nowrap px-3 py-0.5 font-mono">{col.name}</td>
+                <td className="whitespace-nowrap px-3 py-0.5 text-right font-mono text-xs text-gray-500">{col.type}</td>
               </tr>
             )
           })}

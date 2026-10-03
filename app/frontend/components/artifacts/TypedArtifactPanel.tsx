@@ -31,7 +31,7 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
         <span className="min-w-0 break-words font-semibold text-gray-800">{artifact.title}</span>
         <span className="min-w-0 break-all text-xs text-gray-400">{artifact.type}</span>
       </div>
-      <div className="overflow-x-auto p-4">
+      <div className="p-4">
         <ArtifactBody artifact={artifact} />
       </div>
     </div>
@@ -41,5 +41,5 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
 // Exported so other tabs (e.g. ArtifactsTab) render the same set of
 // renderer_type -> component mappings instead of duplicating this switch.
 export function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
-  return <>{renderArtifactBody(artifact)}</>
+  return <div className="min-w-0 overflow-x-auto">{renderArtifactBody(artifact)}</div>
 }
