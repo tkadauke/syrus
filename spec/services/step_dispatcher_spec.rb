@@ -45,6 +45,24 @@ RSpec.describe StepDispatcher, :ci_only do
     s2.update!(next_step_id: s3.id)
   end
 
+  def clear_live_worker_queues!
+    ensure_solid_queue_test_tables!
+    clear_solid_queue_test_tables!
+  end
+
+  def live_capable_worker_queue!(queue_name, capabilities:, hostname: "syrus-worker-1")
+    ensure_solid_queue_test_tables!
+    SolidQueue::Process.create!(
+      hostname: hostname,
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => [ queue_name ], "capabilities" => capabilities },
+      name: "#{hostname}:1",
+      pid: 123,
+      created_at: Time.current
+    )
+  end
+
   describe ".start_workflow" do
     it "creates a Run on the first step" do
       expect {
@@ -71,6 +89,137 @@ RSpec.describe StepDispatcher, :ci_only do
       described_class.start_workflow(workflow)
       expect(s1.runs.last.model).to be_nil
       expect(s1.runs.last.effort_level).to be_nil
+    end
+
+    it "blocks capability-specific workflows before creating the first Run when no compatible worker is live" do
+      clear_live_worker_queues!
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+
+      clear_enqueued_jobs
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { s1.runs.count }
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq(RunQueueResolver::BLOCKED_OUTCOME)
+      expect(workflow.artifact("start_blocked_details")).to include(
+        "queue_name" => "runs-macos-arm64",
+        "requirements" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        "reason" => "no_live_worker_for_capabilities",
+        "phase_step_kind" => "implement"
+      )
+      expect(workflow.artifact("run_queue_admission_decision")).to include(
+        "queue_name" => "runs-macos-arm64",
+        "blocked" => true
+      )
+      expect(enqueued_jobs).to include(
+        include("job_class" => "WorkflowPhaseAdmissionJob", "queue_name" => "control_plane")
+      )
+    end
+
+    it "routes pinned implementation and review starts to the planned primary capability queue" do
+      clear_live_worker_queues!
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+
+      %w[implement visual_review adversarial_review].each do |step_kind|
+        pinned_workflow = Workflow.create!(
+          job: job,
+          trigger_kind: "initial",
+          planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+          planned_execution_source: "inferred"
+        )
+        first_step = Step.create!(workflow: pinned_workflow, kind: step_kind, position: 0)
+        clear_enqueued_jobs
+
+        expect {
+          described_class.start_workflow(pinned_workflow)
+        }.to change { first_step.runs.count }.by(1)
+
+        expect(enqueued_jobs).to include(
+          include("job_class" => "RunJob", "queue_name" => "runs-macos-arm64")
+        )
+        expect(pinned_workflow.reload.artifact("run_queue_admission_decision")).to include(
+          "queue_name" => "runs-macos-arm64",
+          "requirements" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+          "step_kind" => step_kind,
+          "blocked" => false
+        )
+      end
+    end
+
+    it "honors compatible storage-affinity queues during pre-Run capability admission" do
+      clear_live_worker_queues!
+      workflow.update!(
+        worker_storage_key: "storage-mac",
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "inferred"
+      )
+      live_capable_worker_queue!(
+        "resume-storage-mac",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+
+      clear_enqueued_jobs
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(enqueued_jobs).to include(
+        include("job_class" => "RunJob", "queue_name" => "resume-storage-mac")
+      )
+      expect(workflow.reload.artifact("run_queue_admission_decision")).to include(
+        "queue_name" => "resume-storage-mac",
+        "sticky_resume_queue" => true,
+        "blocked" => false
+      )
+    end
+
+    it "keeps control-plane workflow phases on broad compute queues for macOS-planned workflows" do
+      clear_live_worker_queues!
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "inferred"
+      )
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+
+      clear_enqueued_jobs
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(enqueued_jobs).to include(
+        include("job_class" => "RunJob", "queue_name" => "runs")
+      )
+      expect(workflow.reload.artifact("run_queue_admission_decision")).to include(
+        "queue_name" => "runs",
+        "requirements" => { "os" => [ "linux" ] },
+        "placement_policy" => Step::PlacementPolicy::CONTROL_PLANE,
+        "blocked" => false
+      )
+    end
+
+    it "keeps default Linux workflows on the broad runs queue without requiring a live worker heartbeat" do
+      clear_live_worker_queues!
+
+      clear_enqueued_jobs
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(enqueued_jobs).to include(
+        include("job_class" => "RunJob", "queue_name" => "runs")
+      )
+      expect(workflow.reload.artifact("run_queue_admission_decision")).to include(
+        "queue_name" => "runs",
+        "requirements" => { "os" => [ "linux" ] },
+        "blocked" => false
+      )
     end
 
     it "refreshes a default-backed workflow to the current repo provider before the first Run" do

@@ -178,3 +178,6 @@ compute workers can usually rely on detected `os:linux` and architecture,
 while a native macOS worker pool should advertise explicit values such as
 `os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`. The normalized
 capability map appears in Admin Workers, worker health, and queue diagnostics.
+When no live worker matches a planned workflow phase, Syrus pauses that
+workflow with queue-capability details and retries admission; enqueue-time
+checks remain as a backstop if capacity changes after admission.

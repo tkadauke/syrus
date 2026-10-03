@@ -168,6 +168,12 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)
 
+    if capability_worker_deferred?(first, workflow, backoff: START_BLOCKED_BACKOFF)
+      warn_if_stuck_queued(workflow, RunQueueResolver::BLOCKED_OUTCOME)
+      return
+    end
+    clear_start_blocked!(workflow, RunQueueResolver::BLOCKED_OUTCOME)
+
     admission = WorkflowAdmissionBudget.call(workflow: workflow)
     unless admission.admit?
       reason = ADMISSION_BLOCK_REASON
@@ -519,6 +525,10 @@ class StepDispatcher
       workflow.reload
       run_provider_candidate = run_provider_candidate_for(step, workflow)
 
+      if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
+        return nil
+      end
+
       if check_phase_admission && phase_admission_deferred?(step, workflow)
         return nil
       end
@@ -659,6 +669,51 @@ class StepDispatcher
     append_provider_availability_deferral_log!(workflow, step, provider_pause)
     WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait_until: provider_pause.retry_at, priority: workflow.solid_queue_priority)
     true
+  end
+
+  def self.capability_worker_deferred?(step, workflow, backoff:)
+    return false if step.runs.any?
+
+    decision = RunQueueResolver.resolve_candidate(workflow: workflow, step: step)
+    record_run_queue_admission_decision!(workflow, decision)
+    unless decision.blocked?
+      clear_start_blocked!(workflow, RunQueueResolver::BLOCKED_OUTCOME)
+      return false
+    end
+
+    details = decision.details.merge(
+      "reason" => decision.blocked_reason,
+      "phase_step_id" => step.id,
+      "phase_step_kind" => step.kind,
+      "phase_step_position" => step.position
+    )
+    if start_blocked_backoff_active?(workflow, RunQueueResolver::BLOCKED_OUTCOME)
+      return true
+    end
+
+    record_start_blocked!(
+      workflow,
+      RunQueueResolver::BLOCKED_OUTCOME,
+      backoff: backoff,
+      details: details
+    )
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait: backoff, priority: workflow.solid_queue_priority)
+    true
+  end
+
+  def self.record_run_queue_admission_decision!(workflow, decision)
+    current = workflow.artifacts || {}
+    entry = decision.details.merge(
+      "blocked" => decision.blocked?,
+      "blocked_reason" => decision.blocked_reason,
+      "decided_at" => Time.current.iso8601
+    ).compact
+    workflow.update!(
+      artifacts: current.merge(
+        "run_queue_admission_decision" => entry,
+        "run_queue_admission_decisions" => (Array(current["run_queue_admission_decisions"]) + [ entry ]).last(50)
+      )
+    )
   end
 
   def self.phase_admission_deferred?(step, workflow)

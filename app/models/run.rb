@@ -366,6 +366,7 @@ class Run < ApplicationRecord
     decision = RunQueueResolver.resolve(run: self)
     return block_for_missing_capable_worker!(decision) if decision.blocked?
 
+    record_run_queue_decision!(decision)
     RunJob.set(queue: decision.queue_name, priority: solid_queue_priority).perform_later(id)
   end
 
@@ -390,5 +391,23 @@ class Run < ApplicationRecord
     step&.fail! if step&.may_fail?
     step&.save!
     workflow&.record_run_failure!
+  end
+
+  def record_run_queue_decision!(decision)
+    entry = decision.details.merge(
+      "blocked" => false,
+      "decided_at" => Time.current.iso8601
+    )
+    Workflow.transaction do
+      locked = Workflow.lock.find_by(id: workflow_id)
+      return unless locked
+
+      locked.artifacts = locked.artifacts.to_h.merge(
+        "run_queue_decisions" => (Array(locked.artifact("run_queue_decisions")) + [ entry ]).last(50)
+      )
+      locked.save!
+      workflow.artifacts = locked.artifacts
+      workflow.clear_attribute_changes([ :artifacts ])
+    end
   end
 end

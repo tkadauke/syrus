@@ -841,6 +841,11 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+      expect(workflow.reload.artifact("run_queue_decisions").last).to include(
+        "queue_name" => "runs-macos-arm64",
+        "requirements" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        "blocked" => false
+      )
     end
 
     it "normalizes Windows x64 implementation work to the amd64 queue suffix" do
