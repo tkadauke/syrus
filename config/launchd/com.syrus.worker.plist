@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.syrus.worker</string>
+
+  <key>UserName</key>
+  <string>syrus-worker</string>
+  <key>GroupName</key>
+  <string>syrus-worker</string>
+
+  <key>WorkingDirectory</key>
+  <string>/opt/syrus/current</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/syrus/current/bin/macos-worker</string>
+    <string>--env-file</string>
+    <string>/etc/syrus/worker.env</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>BUNDLE_APP_CONFIG</key>
+    <string>/opt/syrus/shared/bundle-config</string>
+    <key>BUNDLE_PATH</key>
+    <string>/opt/syrus/shared/bundle</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/var/log/syrus/worker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/log/syrus/worker.err.log</string>
+
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>Umask</key>
+  <integer>18</integer>
+  <key>SoftResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>65536</integer>
+  </dict>
+  <key>HardResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>65536</integer>
+  </dict>
+</dict>
+</plist>

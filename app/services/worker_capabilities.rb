@@ -50,7 +50,8 @@ class WorkerCapabilities
         capabilities: capabilities.to_h,
         diagnostics: detected.fetch(:diagnostics).merge(
           "configured" => configured.any?,
-          "env_key" => ENV_KEY
+          "env_key" => ENV_KEY,
+          "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"])
         )
       }
     end
@@ -197,6 +198,10 @@ class WorkerCapabilities
 
     def present_value?(value)
       !blank_value?(value)
+    end
+
+    def presence(value)
+      present_value?(value) ? value : nil
     end
 
     def debug_log(&block)

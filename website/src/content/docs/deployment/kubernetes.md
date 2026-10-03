@@ -181,3 +181,16 @@ capability map appears in Admin Workers, worker health, and queue diagnostics.
 When no live worker matches a planned workflow phase, Syrus pauses that
 workflow with queue-capability details and retries admission; enqueue-time
 checks remain as a backstop if capacity changes after admission.
+
+Native macOS workers run outside Kubernetes under launchd. They should use
+`bin/macos-worker --env-file /etc/syrus/worker.env`, which forces
+`SYRUS_ROLE=worker`, `SOLID_QUEUE_CONFIG=config/queue.compute.yml`, and
+`SOLID_QUEUE_SKIP_RECURRING=1` so the host consumes only compute/capability
+queues. Use `bin/macos-worker-check --env-file /etc/syrus/worker.env` before
+loading the LaunchDaemon to validate Ruby/Bundler, Node/npm, Git, Xcode Command
+Line Tools, full Xcode, simulator runtimes, and required production
+credentials. The launchd template is checked in at
+`config/launchd/com.syrus.worker.plist`; install it for a dedicated
+`syrus-worker` user with a persistent `/var/lib/syrus` data root, release
+symlink `/opt/syrus/current`, logs under `/var/log/syrus`, and a root-owned env
+file under `/etc/syrus`.
