@@ -593,9 +593,11 @@ class CodexInvocation
 
   def restore_resume_transcript(codex_home, session_id, jsonl, log_sink)
     return if session_id.blank?
-    return if rollout_path_for(codex_home, session_id).present?
 
-    path = canonical_rollout_path_for(codex_home, session_id)
+    existing_path = rollout_path_for(codex_home, session_id)
+    return existing_path if existing_path.present? && jsonl.blank?
+
+    path = existing_path || canonical_rollout_path_for(codex_home, session_id)
     unless path
       log_sink.call(
         "[codex resume] could not derive a canonical rollout path for session #{session_id}; starting a fresh Codex session",
