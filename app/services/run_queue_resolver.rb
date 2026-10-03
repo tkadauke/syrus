@@ -138,10 +138,9 @@ class RunQueueResolver
   def defaulted_requirements?(requirements)
     return true if default_step_requirements?
     return false if explicit_target_requirements?
-    return false unless requirements == DEFAULT_RUN_CAPABILITIES
+    return true if requirements == DEFAULT_RUN_CAPABILITIES
 
-    source = workflow&.planned_execution_source.to_s
-    source.blank? || source == "defaulted"
+    false
   end
 
   def default_step_requirements?

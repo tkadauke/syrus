@@ -829,6 +829,24 @@ RSpec.describe Run, :ci_only do
       expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
     end
 
+    it "keeps planner-recorded default Linux requirements on the broad runs queue" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "linux" ] },
+        planned_execution_source: "prompt"
+      )
+      run
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+      expect(workflow.reload.artifact("run_queue_decisions").last).to include(
+        "queue_name" => "runs",
+        "requirements" => { "os" => [ "linux" ] },
+        "blocked" => false
+      )
+    end
+
     it "routes macOS implementation work to a capable compute queue" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },

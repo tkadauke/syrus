@@ -13,7 +13,8 @@ module WorkUnits
       "stack_fan_in_base_unavailable" => "stack_fan_in_base_unavailable",
       "job_not_ready_for_execution" => "job_not_ready_for_execution",
       "urgent_job_active" => "urgent_job_active",
-      "epic_wide_workflow_active" => "epic_wide_workflow_active"
+      "epic_wide_workflow_active" => "epic_wide_workflow_active",
+      "no_capable_worker" => "no_capable_worker"
     }.freeze
 
     def self.record!(workflow, start_blocked_reason:, blocked_until:, details: nil)
