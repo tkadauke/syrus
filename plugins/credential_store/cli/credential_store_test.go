@@ -229,6 +229,86 @@ func TestCredentialStoreExecEnvVarRunsChildAuditsAndRedactsOutput(t *testing.T) 
 	}
 }
 
+func TestCredentialStoreExecFileEnvSmokeRunsChildAuditsRedactsAndCleansUp(t *testing.T) {
+	var materialRequest map[string]any
+	var auditRequest map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/app/credential_store/exec_material":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected material method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&materialRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.Write([]byte(`{"lease":{"lease_id":"lease-exec","credential_id":7,"credential_name":"deploy-token","credential_type":"credential_store.url_token","issued_at":"2026-10-03T00:00:00Z","expires_at":"2026-10-03T00:02:00Z","purpose":"deploy","tool_name":"credential.exec"},"material":{"payload":"super-secret-token-123"}}`))
+		case "/api/v1/app/credential_store/exec/audit":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected audit method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&auditRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	marker := filepath.Join(t.TempDir(), "credential-path")
+	output := &bytes.Buffer{}
+	original := credentialExecRunner
+	credentialExecRunner = execCommandRunner{stdin: strings.NewReader(""), stdout: output, stderr: output}
+	t.Cleanup(func() { credentialExecRunner = original })
+
+	command := NewCredentialStoreCommand()
+	command.SetOut(output)
+	command.SetErr(output)
+	command.SetArgs([]string{
+		"exec",
+		"--credential", "deploy-token",
+		"--type", "credential_store.url_token",
+		"--file-env", "SERVICE_TOKEN_FILE",
+		"--purpose", "deploy",
+		"--target-json", `{"host":"api.example.com"}`,
+		"--", "sh", "-c", `test -f "$SERVICE_TOKEN_FILE" && cat "$SERVICE_TOKEN_FILE" && printf "%s" "$SERVICE_TOKEN_FILE" > "$1"`, "sh", marker,
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if strings.Contains(got, "super-secret-token-123") {
+		t.Fatalf("output included secret material: %q", got)
+	}
+	if !strings.Contains(got, "[credential redacted]") {
+		t.Fatalf("expected redacted child output, got %q", got)
+	}
+	tempPathBytes, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("read child marker: %v", err)
+	}
+	tempPath := string(tempPathBytes)
+	if tempPath == "" {
+		t.Fatal("expected child to receive credential file path")
+	}
+	if _, err := os.Stat(tempPath); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary credential file cleanup, stat err = %v", err)
+	}
+	material := materialRequest["credential_exec"].(map[string]any)
+	if material["credential"] != "deploy-token" || material["type"] != "credential_store.url_token" || material["tool_name"] != "credential.exec" {
+		t.Fatalf("material request = %#v", material)
+	}
+	audit := auditRequest["credential_exec_audit"].(map[string]any)
+	if audit["credential"] != "deploy-token" || audit["lease_id"] != "lease-exec" || audit["mode"] != "file-env" || audit["exit_status"].(float64) != 0 {
+		t.Fatalf("audit request = %#v", audit)
+	}
+}
+
 func TestCredentialStoreExecFileEnvUsesPrivateTempFileAndCleansUp(t *testing.T) {
 	runner := &fakeProcessRunner{childStatus: 0}
 	status, _ := runWithCredentialExecMaterial(context.Background(), runner, credentialExecInput{
