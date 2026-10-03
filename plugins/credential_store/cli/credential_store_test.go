@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 )
 
@@ -228,6 +230,12 @@ func TestCredentialStoreSSHAgentRunsChildAuditsAndCleansUp(t *testing.T) {
 	if got := envValue(runner.childEnv, "SSH_AUTH_SOCK"); got != "/tmp/syrus-agent.sock" {
 		t.Fatalf("SSH_AUTH_SOCK = %q", got)
 	}
+	if got := envValue(runner.childEnv, "SYRUS_CLI_INVOCATION_CONTEXT"); got != "" {
+		t.Fatalf("child inherited invocation context: %q", got)
+	}
+	if got := envValue(runner.childEnv, "SYRUS_CREDENTIAL_STORE_SSH_PASSPHRASE"); got != "" {
+		t.Fatalf("child inherited SSH passphrase env: %q", got)
+	}
 	sshAgent := materialRequest["ssh_agent"].(map[string]any)
 	if sshAgent["credential"] != "homeassistant-ssh" || sshAgent["tool_name"] != "credential.ssh-agent" {
 		t.Fatalf("material request = %#v", sshAgent)
@@ -278,6 +286,10 @@ func TestCredentialStoreSSHAgentPropagatesChildFailureAndStillAudits(t *testing.
 	if err == nil || !strings.Contains(err.Error(), "status 37") {
 		t.Fatalf("expected child status error, got %v", err)
 	}
+	var exitStatus cliplugin.ExitStatusError
+	if !errors.As(err, &exitStatus) || exitStatus.ExitStatus() != 37 {
+		t.Fatalf("expected exit status 37 error, got %#v", err)
+	}
 	if !audited {
 		t.Fatal("expected audit request for nonzero child exit")
 	}
@@ -311,6 +323,55 @@ func TestCredentialStoreSSHAgentSurfacesAuthorizationFailureWithoutStartingAgent
 	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("expected no process starts, got %#v", runner.calls)
+	}
+}
+
+func TestCredentialStoreSSHAgentChildEnvironmentIsSanitized(t *testing.T) {
+	t.Setenv("PATH", "/usr/bin")
+	t.Setenv("HOME", "/tmp/syrus-home")
+	t.Setenv("LANG", "C.UTF-8")
+	t.Setenv("LC_ALL", "C.UTF-8")
+	t.Setenv("SYRUS_CLI_URL", "https://syrus.example.test")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "runtime-token")
+	t.Setenv("SYRUS_CLI_INTERNAL", "1")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "cloud-secret")
+
+	runner := &fakeProcessRunner{childStatus: 0}
+	status, _ := runWithSSHAgent(
+		context.Background(),
+		runner,
+		SSHKeyData{PrivateKey: "secret-key-material", Passphrase: "key-passphrase"},
+		[]string{"./deploy.sh"},
+	)
+
+	if status != 0 {
+		t.Fatalf("status = %d", status)
+	}
+	expected := map[string]string{
+		"PATH":          "/usr/bin",
+		"HOME":          "/tmp/syrus-home",
+		"LANG":          "C.UTF-8",
+		"LC_ALL":        "C.UTF-8",
+		"SSH_AUTH_SOCK": "/tmp/syrus-agent.sock",
+		"SSH_AGENT_PID": "123",
+	}
+	for key, want := range expected {
+		if got := envValue(runner.childEnv, key); got != want {
+			t.Fatalf("%s = %q, want %q in child env %#v", key, got, want, runner.childEnv)
+		}
+	}
+	for _, key := range []string{
+		"SYRUS_CLI_URL",
+		"SYRUS_CLI_INVOCATION_CONTEXT",
+		"SYRUS_CLI_INTERNAL",
+		"AWS_SECRET_ACCESS_KEY",
+		"SYRUS_CREDENTIAL_STORE_SSH_PASSPHRASE",
+		"SSH_ASKPASS",
+		"SSH_ASKPASS_REQUIRE",
+	} {
+		if got := envValue(runner.childEnv, key); got != "" {
+			t.Fatalf("child env included %s=%q", key, got)
+		}
 	}
 }
 

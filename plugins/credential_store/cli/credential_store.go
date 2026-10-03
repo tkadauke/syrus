@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -28,6 +27,17 @@ import (
 )
 
 const sshAgentToolName = "credential.ssh-agent"
+
+var sshAgentBaseEnvAllowlist = map[string]bool{
+	"HOME":    true,
+	"LANG":    true,
+	"LOGNAME": true,
+	"PATH":    true,
+	"SHELL":   true,
+	"TERM":    true,
+	"TMPDIR":  true,
+	"USER":    true,
+}
 
 type processResult struct {
 	Stdout string
@@ -267,7 +277,10 @@ func runSSHAgentCommand(ctx context.Context, runner commandRunner, client apiCli
 		return auditErr
 	}
 	if status != 0 {
-		return childExitError(status)
+		return cliplugin.ExitStatusError{
+			Status:  status,
+			Message: fmt.Sprintf("child command exited with status %d", status),
+		}
 	}
 	return auditErr
 }
@@ -278,7 +291,8 @@ type apiClient interface {
 
 func runWithSSHAgent(ctx context.Context, runner commandRunner, key SSHKeyData, command []string) (int, time.Duration) {
 	start := time.Now()
-	agent := runner.Run(ctx, os.Environ(), "ssh-agent", "-s")
+	baseEnv := sanitizedSSHAgentBaseEnv(os.Environ())
+	agent := runner.Run(ctx, baseEnv, "ssh-agent", "-s")
 	if agent.Status != 0 {
 		return agent.Status, time.Since(start)
 	}
@@ -287,7 +301,7 @@ func runWithSSHAgent(ctx context.Context, runner commandRunner, key SSHKeyData, 
 		fmt.Fprintln(os.Stderr, "ssh-agent did not return SSH_AUTH_SOCK")
 		return 1, time.Since(start)
 	}
-	env := mergedEnv(os.Environ(), agentEnv)
+	env := mergedEnv(baseEnv, agentEnv)
 	defer runner.Run(context.Background(), env, "ssh-agent", "-k")
 
 	keyPath, cleanupKey, err := writeTempSecret("syrus-ssh-agent-key-*", key.PrivateKey, 0o600)
@@ -323,6 +337,20 @@ func runWithSSHAgent(ctx context.Context, runner commandRunner, key SSHKeyData, 
 	}
 	child := runner.Run(ctx, env, command[0], command[1:]...)
 	return child.Status, time.Since(start)
+}
+
+func sanitizedSSHAgentBaseEnv(source []string) []string {
+	var env []string
+	for _, entry := range source {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if sshAgentBaseEnvAllowlist[key] || strings.HasPrefix(key, "LC_") {
+			env = append(env, entry)
+		}
+	}
+	return env
 }
 
 func parseSSHAgentOutput(output string) map[string]string {
@@ -382,12 +410,6 @@ func mergedEnv(base []string, values map[string]string) []string {
 		}
 	}
 	return merged
-}
-
-type childExitError int
-
-func (err childExitError) Error() string {
-	return "child command exited with status " + strconv.Itoa(int(err))
 }
 
 func renderTypes(out io.Writer, types []CredentialType) {
