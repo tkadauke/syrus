@@ -45,7 +45,7 @@ STDIN.each_line do |line|
   end
 
   if response.is_a?(Net::HTTPSuccess)
-    STDOUT.puts(response.body)
+    STDOUT.puts(response.body) unless response.body.to_s.strip.empty?
   else
     STDOUT.puts(error_response(id, -32_603, "MCP proxy upstream HTTP #{response.code}"))
   end

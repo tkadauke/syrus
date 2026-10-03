@@ -115,9 +115,19 @@ module ChatProviders
 
     def self.mcp_server_for(path)
       raw = JSON.parse(File.read(path))
-      raw.fetch("mcpServers").transform_values do |server|
-        {
-          command: server.fetch("command"),
+      raw.fetch("mcpServers").each_with_object({}) do |(name, server), servers|
+        server_type = server.fetch("type", "stdio")
+        unless server_type == "stdio"
+          raise ArgumentError, "Muse MCP server #{name.inspect} uses #{server_type.inspect} transport; Muse chat supports stdio MCP server entries only"
+        end
+
+        command = server["command"].presence
+        unless command
+          raise ArgumentError, "Muse MCP server #{name.inspect} is missing a stdio command"
+        end
+
+        servers[name] = {
+          command: command,
           args: Array(server["args"]),
           env: server.fetch("env", {}),
           required: server["alwaysLoad"] != false
