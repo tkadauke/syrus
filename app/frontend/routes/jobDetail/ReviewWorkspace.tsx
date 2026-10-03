@@ -444,7 +444,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             reviewAnnotationRanges={activeReviewAnnotations.ranges}
             highlightedReviewAnnotationId={highlightedReviewAnnotationId}
             activeDiffLineMetricProviderId={activeMetricGutterId}
-            diffLineMetricProviders={diffLineMetricProviders}
+            diffLineMetricProviders={diffMetricProviders}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders
