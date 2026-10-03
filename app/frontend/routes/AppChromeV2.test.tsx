@@ -1239,6 +1239,36 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     }
   })
 
+  it("ignores tiny mobile chat header scroll deltas", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<MobileChatHeaderTestDriver />, {
+        initialEntries: ["/chats/5"],
+        bootstrap: bootstrapPayload({
+          current_user: { ...bootstrapPayload().current_user!, mobile_chat_auto_hide_header: true }
+        })
+      })
+
+      const stream = screen.getByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+
+      fireEvent.scroll(stream, { target: { scrollTop: 6 } })
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.scroll(stream, { target: { scrollTop: 100 } })
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+
+      fireEvent.scroll(stream, { target: { scrollTop: 94 } })
+      expect(header).toHaveStyle({ transform: "translateY(-72px)" })
+
+      fireEvent.scroll(stream, { target: { scrollTop: 40 } })
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("does not auto-hide the mobile chat header when the preference is disabled", () => {
     const restoreMatchMedia = mockNarrowViewport()
 

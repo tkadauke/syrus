@@ -5,7 +5,13 @@
 // scroll-to-bottom, message anchor lookup, scroll-into-view, and parsing a
 // message id out of a #message-N hash. They read only the shared scroll
 // thresholds, so they live outside the 6k-line Chat.tsx.
-import { CHAT_BOTTOM_THRESHOLD_PX, CHAT_INITIAL_FILL_MARGIN_PX, CHAT_TOP_LOAD_THRESHOLD_PX } from "./constants"
+import {
+  CHAT_BOTTOM_THRESHOLD_PX,
+  CHAT_INITIAL_FILL_MARGIN_PX,
+  CHAT_MOBILE_HEADER_BOUNDARY_THRESHOLD_PX,
+  CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX,
+  CHAT_TOP_LOAD_THRESHOLD_PX
+} from "./constants"
 
 export function isMessageStreamAtBottom(element: HTMLElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= CHAT_BOTTOM_THRESHOLD_PX
@@ -17,6 +23,23 @@ export function isMessageStreamNearTop(element: HTMLElement) {
 
 export function messageStreamNeedsOlderMessages(element: HTMLElement) {
   return element.clientHeight > 0 && element.scrollHeight <= element.clientHeight + CHAT_INITIAL_FILL_MARGIN_PX
+}
+
+export function mobileHeaderScrollDeltaForMessageStream(element: HTMLElement, previousScrollTop: number) {
+  const scrollTop = element.scrollTop
+  const delta = scrollTop - previousScrollTop
+  if (!Number.isFinite(delta) || Math.abs(delta) < CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX) return null
+
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight)
+  const atTopBoundary = scrollTop <= CHAT_MOBILE_HEADER_BOUNDARY_THRESHOLD_PX
+  const wasAtTopBoundary = previousScrollTop <= CHAT_MOBILE_HEADER_BOUNDARY_THRESHOLD_PX
+  const atBottomBoundary = maxScrollTop - scrollTop <= CHAT_MOBILE_HEADER_BOUNDARY_THRESHOLD_PX
+  const wasAtBottomBoundary = maxScrollTop - previousScrollTop <= CHAT_MOBILE_HEADER_BOUNDARY_THRESHOLD_PX
+
+  if (delta > 0 && (atBottomBoundary || wasAtBottomBoundary)) return null
+  if (delta > 0 && atTopBoundary && wasAtTopBoundary) return null
+
+  return delta
 }
 
 export function scrollMessageStreamToBottom(element: HTMLElement | null, options: { smooth?: boolean } = {}) {
