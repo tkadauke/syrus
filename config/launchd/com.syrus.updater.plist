@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.syrus.updater</string>
+
+  <key>UserName</key>
+  <string>root</string>
+  <key>GroupName</key>
+  <string>wheel</string>
+
+  <key>WorkingDirectory</key>
+  <string>/opt/syrus/current</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/syrus/current/bin/syrus-macos-updater</string>
+    <string>--env-file</string>
+    <string>/etc/syrus/worker.env</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/var/log/syrus/updater.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/log/syrus/updater.err.log</string>
+
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

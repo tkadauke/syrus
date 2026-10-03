@@ -370,6 +370,8 @@ Rails.application.routes.draw do
         namespace :admin do
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
+          get "macos_worker_update", to: "macos_worker_updates#desired"
+          post "macos_worker_update/report", to: "macos_worker_updates#report"
           get "plugins", to: "plugins#index"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
