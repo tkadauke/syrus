@@ -22,8 +22,9 @@ const HEALTHY_PAYLOAD = {
       version: "abc123",
       stale: false,
       last_heartbeat_at: "2026-09-06T00:00:00Z",
+      capabilities: { os: ["linux"], features: ["docker"] },
       health: { level: "ok", reasons: [] },
-      sample: { cpu_used_percent: 12.5, memory_used_percent: 40.0, data_root_used_percent: 30.0, io_pressure_some: 0.0 }
+      sample: { cpu_used_percent: 12.5, memory_used_percent: 40.0, data_root_used_percent: 30.0, io_pressure_some: 0.0, capabilities: { os: ["linux"], features: ["docker"] } }
     }
   ],
   hosts: [
@@ -46,6 +47,8 @@ describe("read_worker_health tool card", () => {
     expect(screen.getAllByText("worker-1").length).toBeGreaterThan(0)
     expect(screen.getByText("12.5%")).toBeInTheDocument()
     expect(screen.getByText("40.0%")).toBeInTheDocument()
+    expect(screen.getByText("os: linux")).toBeInTheDocument()
+    expect(screen.getByText("features: docker")).toBeInTheDocument()
     expect(screen.getByText("2026-09-06T00:00:00Z")).toBeInTheDocument()
   })
 

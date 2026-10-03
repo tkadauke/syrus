@@ -1,6 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
+import { CapabilityBadges, CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead, type HealthLevel } from "../adminToolCard"
+import { workerCapabilitiesText } from "../../../lib/workerCapabilities"
 
 // Core-owned tool card for read_worker_health (the tool-card work). Renders
 // the live per-worker rollup (health level, pressure indicators, timing) as
@@ -20,6 +21,7 @@ type CurrentWorker = {
   diskPercent: number | null
   ioPressureSome: number | null
   lastHeartbeatAt: string | null
+  capabilities: unknown
 }
 
 type WindowSummary = { sampleCount: number; warningCount: number; criticalCount: number }
@@ -58,7 +60,8 @@ function parseCurrentWorker(value: unknown, index: number): CurrentWorker | null
     memoryPercent: sample && typeof sample.memory_used_percent === "number" ? sample.memory_used_percent : null,
     diskPercent: sample && typeof sample.data_root_used_percent === "number" ? sample.data_root_used_percent : null,
     ioPressureSome: sample && typeof sample.io_pressure_some === "number" ? sample.io_pressure_some : null,
-    lastHeartbeatAt: displayValue(value.last_heartbeat_at)
+    lastHeartbeatAt: displayValue(value.last_heartbeat_at),
+    capabilities: value.capabilities ?? sample?.capabilities
   }
 }
 
@@ -128,13 +131,13 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No live workers found.</EmptyState>
       ) : (
         <FilterableList
-          itemText={(worker) => [worker.hostname, worker.role, worker.version, worker.healthLevel, worker.healthReasons.join(" "), worker.lastHeartbeatAt].filter(Boolean).join(" ")}
+          itemText={(worker) => [worker.hostname, worker.role, worker.version, worker.healthLevel, workerCapabilitiesText(worker.capabilities), worker.healthReasons.join(" "), worker.lastHeartbeatAt].filter(Boolean).join(" ")}
           items={card.current}
           placeholder="Filter live workers"
         >
           {(workers) => (
             <Table>
-              <THead columns={["Host", "Role", "Health", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
+              <THead columns={["Host", "Role", "Health", "Capabilities", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
               <TBody>
                 {workers.map((worker) => (
                   <tr key={worker.key}>
@@ -146,6 +149,7 @@ function renderExpanded(context: ToolCardContext) {
                         {worker.stale ? <span className="text-2xs text-gray-500 dark:text-gray-400">(stale)</span> : null}
                       </span>
                     </Td>
+                    <Td><CapabilityBadges capabilities={worker.capabilities} /></Td>
                     <Td mono>{formatPercent(worker.cpuPercent)}</Td>
                     <Td mono>{formatPercent(worker.memoryPercent)}</Td>
                     <Td mono>{formatPercent(worker.diskPercent)}</Td>
