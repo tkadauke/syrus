@@ -10,6 +10,20 @@ RSpec.describe GithubClient do
     expect { GithubClient.new(bare) }.to raise_error(ArgumentError)
   end
 
+  describe "#repository_default_branch" do
+    it "returns the repository metadata default branch" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { default_branch: "trunk" }.to_json
+        )
+
+      expect(described_class.new(user).repository_default_branch("acme/widgets")).to eq("trunk")
+    end
+  end
+
   describe ".for" do
     it "records GitHub API usage by credential, repository, and operation" do
       reset_at = 1.hour.from_now.change(usec: 0)

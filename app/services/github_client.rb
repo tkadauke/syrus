@@ -400,6 +400,13 @@ class GithubClient
     raise
   end
 
+  def repository_default_branch(repo_slug)
+    track_rate_limits { @client.repo(repo_slug) }.default_branch
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited fetching #{repo_slug} default branch: #{e.message}")
+    raise
+  end
+
   def commit_tree_sha(repo_slug, ref)
     commit = track_rate_limits { @client.commit(repo_slug, ref) }
     commit.commit.tree.sha
