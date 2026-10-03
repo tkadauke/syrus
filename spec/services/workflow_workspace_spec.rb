@@ -807,6 +807,29 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("HEAD")
       end
 
+      it "uses the main_grader base-branch artifact without changing the configured repository branch" do
+        repository.update!(default_branch: "develop")
+        main_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
+        main_grader_job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "main_grader",
+          issue_title: "main_grader:#{main_sha}",
+          issue_number: nil
+        )
+        main_grader_workflow = Workflow.create!(
+          job: main_grader_job,
+          trigger_kind: "main_grader",
+          artifacts: { "main_sha" => main_sha, RebaseTarget::BASE_BRANCH_ARTIFACT => "main" }
+        )
+
+        ws = described_class.new(main_grader_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(repository.reload.default_branch).to eq("develop")
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(main_sha)
+      end
+
       it "checks out a continuous-deploy anchor workflow at the resolved default-branch SHA" do
         deploy_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
         anchor_job = Job.create!(

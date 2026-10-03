@@ -421,6 +421,14 @@ target records with matching inputs are reused; unaffected target health is
 left intact and still contributes to the repository-level `grader_health`
 summary when the workflow settles.
 
+Main-health polling normally uses the repository's configured default branch
+from Syrus settings. If GitHub reports that configured branch no longer exists,
+the poller uses GitHub's current repository metadata default branch for that
+single health check and stamps it onto the `main_grader` Workflow as the base
+branch artifact. It does not rewrite `Repository#default_branch`; an operator
+can intentionally configure a non-GitHub-default branch such as `develop`, and
+Syrus will keep using it as long as GitHub still has that branch.
+
 If there is no previous main SHA, the workflow logs that it is establishing a
 baseline and selects every configured grader target. That baseline/broad sweep
 does not reuse target-health records or a cached successful full-plan grader

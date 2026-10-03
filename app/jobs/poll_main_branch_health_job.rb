@@ -34,8 +34,8 @@ class PollMainBranchHealthJob < ApplicationJob
     client = GithubClient.for(repository: repository, user: identity.user)
 
     with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: manual, retry_args: [ repository_id ]) do
-      sha = begin
-        client.branch_head_sha(repository.slug, repository.default_branch)
+      health_branch, sha = begin
+        main_health_head(repository, client)
       rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
         handle_transient_github_error!(repository, e)
         return
@@ -72,13 +72,9 @@ class PollMainBranchHealthJob < ApplicationJob
       # retry on the next tick (grading_needed stays true until the workflow
       # records a settled grader result).
       if grading_needed && sha_changed && previous_main_sha
-        MainGraderWorkflowJob.perform_later(
-          repository.id,
-          sha,
-          previous_main_sha: previous_main_sha
-        )
+        enqueue_main_grader(repository, sha, previous_main_sha: previous_main_sha, health_branch: health_branch)
       elsif grading_needed
-        MainGraderWorkflowJob.perform_later(repository.id, sha)
+        enqueue_main_grader(repository, sha, health_branch: health_branch)
       end
 
       # Skip CI health check when SHA unchanged, health is already known, and
@@ -169,6 +165,32 @@ class PollMainBranchHealthJob < ApplicationJob
   end
 
   private
+
+  def enqueue_main_grader(repository, sha, previous_main_sha: nil, health_branch: nil)
+    kwargs = {}
+    kwargs[:previous_main_sha] = previous_main_sha if previous_main_sha.present?
+    kwargs[:base_branch] = health_branch if health_branch.present? && health_branch != repository.default_branch
+    if kwargs.empty?
+      MainGraderWorkflowJob.perform_later(repository.id, sha)
+    else
+      MainGraderWorkflowJob.perform_later(repository.id, sha, **kwargs)
+    end
+  end
+
+  def main_health_head(repository, client)
+    branch = repository.default_branch
+    sha = client.branch_head_sha(repository.slug, branch)
+    [ branch, sha ]
+  rescue Octokit::NotFound
+    fallback = client.repository_default_branch(repository.slug).to_s.strip
+    raise if fallback.blank? || fallback == branch
+
+    Rails.logger.warn(
+      "[PollMainBranchHealthJob] #{repository.slug} configured main-health branch #{branch.inspect} " \
+      "was not found on GitHub; checking GitHub default branch #{fallback.inspect} for this poll"
+    )
+    [ fallback, client.branch_head_sha(repository.slug, fallback) ]
+  end
 
   # A single failed request is normal poll-to-poll noise — the next scheduled
   # tick retries. Only a sustained streak of consecutive failures degrades an
