@@ -183,6 +183,7 @@ module Steps
           "display_name" => grader.display_name,
           "required" => grader.required,
           "target_label" => target_label_for(grader),
+          "capabilities" => target_capabilities_for(grader),
           "affected" => selection.affected,
           "reason" => selection.reason,
           "target_fingerprints" => fingerprints.to_h
@@ -199,7 +200,7 @@ module Steps
     def log_selections(selections)
       selections.each do |grader, selection|
         verb = selection.affected ? "selected" : "skipped"
-        log("[grader_fanout] #{verb} #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}]")
+        log("[grader_fanout] #{verb} #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}] capabilities: #{capabilities_description_for(grader)}")
       end
     end
 
@@ -661,7 +662,8 @@ module Steps
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],
         "filter_capabilities" => grader.metadata["filter_capabilities"],
-        "capabilities" => target_graph.target(target_label_for(grader)).capabilities.to_h,
+        "capabilities" => target_capabilities_for(grader),
+        "required_capabilities" => target_capabilities_for(grader),
         "description" => grader.description,
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
@@ -866,6 +868,17 @@ module Steps
 
     def target_label_for(grader)
       grader.metadata["target_label"].presence || "//:grade/#{grader.name}"
+    end
+
+    def target_capabilities_for(grader)
+      target_graph.target(target_label_for(grader)).capabilities.to_h
+    end
+
+    def capabilities_description_for(grader)
+      capabilities = target_capabilities_for(grader)
+      return "default linux" if capabilities.blank?
+
+      capabilities.map { |dimension, values| "#{dimension}=#{Array(values).join('/')}" }.join(", ")
     end
 
     def target_graph

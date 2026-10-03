@@ -99,7 +99,7 @@ class RunQueueResolver
 
   def required_capabilities
     raw = if target_step_requirements?
-      step&.details.to_h["capabilities"].presence || step&.details.to_h["required_capabilities"].presence
+      target_requirement_payload
     elsif workflow_primary_requirements?
       workflow&.planned_execution_capabilities
     end
@@ -114,7 +114,7 @@ class RunQueueResolver
     return nil if os.blank? || os == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
     arch = single_token(requirements["arch"])
-    arch = WorkerCapabilities::DEFAULT_QUEUE_ARCH_BY_OS[os] if arch.blank?
+    arch = default_queue_arch_for(os) if arch.blank?
     return nil if arch.blank? || arch == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
     [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")
@@ -122,7 +122,7 @@ class RunQueueResolver
 
   def capability_specific_requirements?(requirements)
     return false if requirements.blank?
-    return false if requirements == DEFAULT_RUN_CAPABILITIES
+    return false if requirements == DEFAULT_RUN_CAPABILITIES && !explicit_target_requirements?
 
     requirements["os"].present? || requirements["arch"].present?
   end
@@ -145,6 +145,15 @@ class RunQueueResolver
 
   def default_step_requirements?
     !target_step_requirements? && !workflow_primary_requirements?
+  end
+
+  def explicit_target_requirements?
+    target_step_requirements? && target_requirement_payload.present?
+  end
+
+  def target_requirement_payload
+    details = step&.details.to_h
+    details["required_capabilities"].presence || details["capabilities"].presence
   end
 
   def target_step_requirements?
@@ -234,6 +243,12 @@ class RunQueueResolver
 
   def single_token(values)
     Array(values).first.to_s.presence
+  end
+
+  def default_queue_arch_for(os)
+    return "amd64" if os == "linux" && explicit_target_requirements?
+
+    WorkerCapabilities::DEFAULT_QUEUE_ARCH_BY_OS[os]
   end
 
   def queue_token(value)

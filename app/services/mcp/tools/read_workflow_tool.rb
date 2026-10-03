@@ -54,6 +54,7 @@ module Mcp::Tools
           kind: step.kind,
           state: step.state,
           position: step.position,
+          details: step.details.presence,
           run_count: step.runs.size,
           started_at: step.started_at&.iso8601,
           finished_at: step.finished_at&.iso8601,

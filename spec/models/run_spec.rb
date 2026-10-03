@@ -941,6 +941,40 @@ RSpec.describe Run, :ci_only do
       expect { grader_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
     end
 
+    it "routes immutable distributed backend graders to Linux even when the parent workflow is macOS-planned" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      Feature.clear_enabled_cache!
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "inferred",
+        worker_storage_key: "storage-mac"
+      )
+      backend_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 99,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "name" => "backend-tests", "required_capabilities" => { "os" => [ "linux" ] } }
+      )
+      live_capable_worker_queue!(
+        "resume-storage-mac",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+      live_capable_worker_queue!(
+        "runs-linux-amd64",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] },
+        hostname: "syrus-worker-linux"
+      )
+      backend_run = backend_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      clear_enqueued_jobs
+      expect { backend_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-linux-amd64")
+    end
+
     it "fails visibly instead of enqueueing to an unconsumed capability queue" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },

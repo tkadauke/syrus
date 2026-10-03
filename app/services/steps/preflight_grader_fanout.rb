@@ -169,6 +169,8 @@ module Steps
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],
         "filter_capabilities" => grader.metadata["filter_capabilities"],
+        "capabilities" => target_capabilities_for(grader),
+        "required_capabilities" => target_capabilities_for(grader),
         "description" => grader.description,
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
@@ -325,6 +327,10 @@ module Steps
 
     def target_label_for(grader)
       grader.metadata["target_label"].presence || "//:grade/#{grader.name}"
+    end
+
+    def target_capabilities_for(grader)
+      target_graph.target(target_label_for(grader)).capabilities.to_h
     end
 
     def target_graph
