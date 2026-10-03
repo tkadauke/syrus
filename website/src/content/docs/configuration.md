@@ -588,6 +588,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `DB_HOST` | Production yes | MySQL host; defaults to `127.0.0.1` |
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
+| `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
 | `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement such as `os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`; detected defaults cover Linux/local OS and architecture |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |

@@ -17,6 +17,7 @@ class InstanceVersion < ApplicationRecord
   ROLES = %w[ web worker local ].freeze
   HEARTBEAT_STALE_THRESHOLD = 2.minutes
   REAPER_STALE_THRESHOLD = 5.minutes
+  MACOS_UPDATER_STALE_THRESHOLD = 15.minutes
 
   before_validation :default_capability_payloads
 
@@ -120,10 +121,33 @@ class InstanceVersion < ApplicationRecord
     last_heartbeat_at.nil? || last_heartbeat_at < threshold.ago
   end
 
+  def macos_updater_state
+    status = macos_updater_status || {}
+    desired = desired_version || status["desired"] || {}
+    state = status["state"].presence || "unknown"
+    observed_at = parse_updater_time(status["observed_at"])
+
+    return "stale" if observed_at && observed_at < MACOS_UPDATER_STALE_THRESHOLD.ago
+    return "current" if desired["git_sha"].present? && desired["git_sha"].to_s == version.to_s && state != "failed"
+
+    state
+  end
+
   private
 
   def default_capability_payloads
     self.capabilities ||= {}
     self.capability_diagnostics ||= {}
+    self.desired_version ||= {}
+    self.macos_updater_status ||= {}
+  end
+
+  def parse_updater_time(value)
+    return value if value.respond_to?(:to_time)
+    return nil if value.blank?
+
+    Time.iso8601(value.to_s)
+  rescue ArgumentError
+    nil
   end
 end

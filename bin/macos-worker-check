@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEFAULT_ENV_FILE="/etc/syrus/worker.env"
+ENV_FILE="${SYRUS_WORKER_ENV_FILE:-$DEFAULT_ENV_FILE}"
+FAILURES=0
+
+usage() {
+  cat <<'USAGE'
+Usage: bin/macos-worker-check [--env-file PATH]
+
+Validates a native macOS Syrus worker host without booting Rails or starting
+Solid Queue. Intended for launchd setup and release cutover checks.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      ENV_FILE="${2:?--env-file requires a path}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "macos-worker-check: unknown argument $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$ENV_FILE"
+  set +a
+elif [[ "${SYRUS_WORKER_ENV_FILE:-}" || "$ENV_FILE" != "$DEFAULT_ENV_FILE" ]]; then
+  echo "FAIL env_file: $ENV_FILE does not exist"
+  exit 1
+fi
+
+export RAILS_ENV="${RAILS_ENV:-production}"
+export SYRUS_ROLE="${SYRUS_ROLE:-worker}"
+export SOLID_QUEUE_CONFIG="${SOLID_QUEUE_CONFIG:-config/queue.compute.yml}"
+export SOLID_QUEUE_SKIP_RECURRING="${SOLID_QUEUE_SKIP_RECURRING:-1}"
+
+ok() {
+  echo "OK   $1"
+}
+
+fail() {
+  echo "FAIL $1"
+  FAILURES=$((FAILURES + 1))
+}
+
+warn() {
+  echo "WARN $1"
+}
+
+have_command() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+require_command() {
+  local name="$1"
+  local label="${2:-$1}"
+  if have_command "$name"; then
+    ok "$label: $("$name" --version 2>&1 | head -n 1 || true)"
+  else
+    fail "$label: command not found"
+  fi
+}
+
+require_env() {
+  local name="$1"
+  if [[ -n "${!name:-}" ]]; then
+    ok "env $name"
+  else
+    fail "env $name is required"
+  fi
+}
+
+require_one_env() {
+  local label="$1"
+  shift
+  local name
+  for name in "$@"; do
+    if [[ -n "${!name:-}" ]]; then
+      ok "env $label via $name"
+      return
+    fi
+  done
+  fail "env $label requires one of: $*"
+}
+
+require_all_or_master_key() {
+  if [[ -n "${RAILS_MASTER_KEY:-}" ]]; then
+    ok "env Active Record encryption via RAILS_MASTER_KEY"
+    return
+  fi
+
+  require_env "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"
+  require_env "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"
+  require_env "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT"
+}
+
+require_storage_credentials() {
+  if [[ -n "${SYRUS_SQLITE:-}" ]]; then
+    ok "storage credentials: skipped for SYRUS_SQLITE"
+    return
+  fi
+
+  require_env "S3_ACCESS_KEY_ID"
+  require_env "S3_SECRET_ACCESS_KEY"
+  require_env "S3_BUCKET"
+  require_env "S3_ENDPOINT"
+}
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  ok "host os: Darwin"
+else
+  fail "host os: expected Darwin, got $(uname -s)"
+fi
+
+require_command ruby Ruby
+require_command bundle Bundler
+require_command node Node
+require_command npm NPM
+require_command git Git
+
+if xcode_select_path="$(xcode-select -p 2>/dev/null)"; then
+  ok "Xcode command line tools: $xcode_select_path"
+  if [[ "$xcode_select_path" == *"/Xcode"*".app/Contents/Developer"* ]]; then
+    ok "full Xcode selected"
+  else
+    fail "full Xcode must be selected with xcode-select, got $xcode_select_path"
+  fi
+else
+  fail "Xcode command line tools are not installed or xcode-select failed"
+fi
+
+if xcode_version="$(xcodebuild -version 2>/dev/null | tr '\n' ' ')"; then
+  ok "xcodebuild: $xcode_version"
+else
+  fail "xcodebuild is unavailable"
+fi
+
+if runtimes_json="$(xcrun simctl list runtimes -j 2>/dev/null)"; then
+  if grep -Eq '"isAvailable"[[:space:]]*:[[:space:]]*true' <<<"$runtimes_json"; then
+    ok "iOS simulator runtimes: at least one available runtime"
+  else
+    fail "iOS simulator runtimes: none are available"
+  fi
+else
+  fail "iOS simulator runtimes: simctl list failed"
+fi
+
+if [[ -d "$ROOT/.git" ]]; then
+  ok "release checkout: $ROOT"
+else
+  warn "release checkout: $ROOT has no .git directory; set GIT_SHA explicitly"
+fi
+
+require_env "SYRUS_DATA_ROOT"
+require_env "SYRUS_APP_HOST"
+require_env "SYRUS_WORKER_POOL_NAME"
+require_env "SYRUS_WORKER_CAPABILITIES"
+require_env "SECRET_KEY_BASE"
+require_one_env "Rails credentials" "RAILS_MASTER_KEY" "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"
+require_all_or_master_key
+require_storage_credentials
+
+if [[ -z "${SYRUS_SQLITE:-}" ]]; then
+  require_env "DB_HOST"
+  require_env "SYRUS_DATABASE_PASSWORD"
+fi
+
+if [[ "$SYRUS_ROLE" == "worker" ]]; then
+  ok "SYRUS_ROLE=worker"
+else
+  fail "SYRUS_ROLE must be worker, got $SYRUS_ROLE"
+fi
+
+if [[ "$SOLID_QUEUE_CONFIG" == "config/queue.compute.yml" ]]; then
+  ok "SOLID_QUEUE_CONFIG=config/queue.compute.yml"
+else
+  fail "SOLID_QUEUE_CONFIG must be config/queue.compute.yml"
+fi
+
+if [[ "$SOLID_QUEUE_SKIP_RECURRING" == "1" ]]; then
+  ok "SOLID_QUEUE_SKIP_RECURRING=1"
+else
+  fail "SOLID_QUEUE_SKIP_RECURRING must be 1"
+fi
+
+worker_capabilities="${SYRUS_WORKER_CAPABILITIES:-}"
+if [[ "$worker_capabilities" == *"os:macos"* && "$worker_capabilities" == *"toolchain:xcode"* ]]; then
+  ok "worker capabilities include macOS and Xcode"
+else
+  fail "SYRUS_WORKER_CAPABILITIES should include os:macos and toolchain:xcode"
+fi
+
+if [[ "$FAILURES" -gt 0 ]]; then
+  echo "macos-worker-check: $FAILURES failure(s)"
+  exit 1
+fi
+
+echo "macos-worker-check: ok"

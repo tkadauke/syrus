@@ -335,6 +335,18 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :macos_worker_desired_release,
+      type: :json,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Desired native macOS worker release metadata consumed by pull-based external Mac worker updaters.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
       key: :workflow_admission_control_changed_at,
       type: :datetime,
       default: nil,

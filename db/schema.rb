@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_180857) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -223,6 +223,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
     t.string "workflow_admission_policy", default: "whole_workflow", null: false
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
+    t.json "macos_worker_desired_release"
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1465,6 +1466,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
     t.string "version", null: false
     t.json "capabilities"
     t.json "capability_diagnostics"
+    t.json "desired_version"
+    t.json "macos_updater_status"
     t.index ["finished_at"], name: "index_instance_versions_on_finished_at"
     t.index ["hostname", "role"], name: "index_instance_versions_on_hostname_and_role", unique: true
     t.index ["last_heartbeat_at"], name: "index_instance_versions_on_last_heartbeat_at"
@@ -1832,6 +1835,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
     t.integer "user_id", null: false
     t.index ["user_id", "status"], name: "index_local_tunnel_sessions_on_user_id_and_status"
     t.index ["user_id"], name: "index_local_tunnel_sessions_on_user_id"
+  end
+
+  create_table "macos_worker_drains", force: :cascade do |t|
+    t.string "worker_storage_key"
+    t.string "hostname"
+    t.string "state", null: false
+    t.string "desired_git_sha"
+    t.json "desired_version"
+    t.datetime "force_terminate_at"
+    t.datetime "drain_started_at"
+    t.datetime "update_started_at"
+    t.datetime "completed_at"
+    t.datetime "failed_at"
+    t.text "last_error"
+    t.json "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname"], name: "index_macos_worker_drains_on_hostname", unique: true
+    t.index ["state", "updated_at"], name: "index_macos_worker_drains_on_state_and_updated_at"
+    t.index ["worker_storage_key"], name: "index_macos_worker_drains_on_worker_storage_key", unique: true
   end
 
   create_table "main_branch_health_checks", force: :cascade do |t|
@@ -3647,6 +3670,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
     t.string "worker_storage_key"
     t.json "capabilities"
     t.json "capability_diagnostics"
+    t.json "desired_version"
+    t.json "macos_updater_status"
     t.index ["hostname", "observed_at"], name: "idx_worker_health_hostname_observed"
     t.index ["hostname", "role", "observed_at"], name: "idx_worker_host_health_samples_host_role_observed", unique: true
     t.index ["observed_at"], name: "index_worker_host_health_samples_on_observed_at"

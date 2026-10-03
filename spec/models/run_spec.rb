@@ -866,6 +866,31 @@ RSpec.describe Run, :ci_only do
       )
     end
 
+    it "does not route new macOS work to a draining worker" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+      MacosWorkerDrain.create!(
+        hostname: "syrus-worker-1",
+        state: "draining",
+        drain_started_at: Time.current,
+        desired_git_sha: "newsha"
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
+      expect(run.reload).to be_failed
+      expect(workflow.reload.artifact("run_queue_blocked")).to include(
+        "queue_name" => "runs-macos-arm64",
+        "reason" => "no_live_worker_for_capabilities"
+      )
+    end
+
     it "normalizes Windows x64 implementation work to the amd64 queue suffix" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
