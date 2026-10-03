@@ -1237,8 +1237,8 @@ RSpec.describe StepDispatcher, :ci_only do
         worker_storage_key: "storage-mac"
       )
       live_capable_worker_queue!(
-        "runs-linux-amd64",
-        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] },
+        "runs",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "arm64" ] },
         hostname: "syrus-worker-linux"
       )
       live_capable_worker_queue!(
@@ -1276,7 +1276,7 @@ RSpec.describe StepDispatcher, :ci_only do
         .and change { s3.runs.count }.by(1)
 
       expect(enqueued_jobs).to include(
-        include("job_class" => "RunJob", "queue_name" => "runs-linux-amd64"),
+        include("job_class" => "RunJob", "queue_name" => "runs"),
         include("job_class" => "RunJob", "queue_name" => "runs-macos-arm64")
       )
       expect(collect.runs.count).to eq(0)
