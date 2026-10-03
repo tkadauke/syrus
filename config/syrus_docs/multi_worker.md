@@ -88,6 +88,7 @@ SYRUS_ROLE=worker
 SOLID_QUEUE_CONFIG=config/queue.compute.yml
 SOLID_QUEUE_SKIP_RECURRING=1
 SYRUS_DATA_ROOT=/var/lib/syrus
+SYRUS_APP_HOST=syrus.example.internal
 SYRUS_WORKER_POOL_NAME=macos-xcode
 SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 GIT_SHA=<release sha>
@@ -96,7 +97,7 @@ GIT_SHA=<release sha>
 If `GIT_SHA` is absent, the wrapper derives it from the release checkout with
 `git rev-parse --short HEAD`; immutable package installs should set it
 explicitly. The same env file must also contain the normal production Rails
-credentials: `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or all three
+credentials: `SYRUS_APP_HOST`; `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or all three
 `ACTIVE_RECORD_ENCRYPTION_*` keys; MySQL settings such as `DB_HOST` and
 `SYRUS_DATABASE_PASSWORD` unless this is a SQLite local-mode install; and S3 or
 MinIO attachment credentials (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
