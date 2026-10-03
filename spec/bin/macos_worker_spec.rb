@@ -53,6 +53,11 @@ RSpec.describe "native macOS worker scripts" do
     bin_dir
   end
 
+  it "defaults to the shared launchd worker env file path" do
+    expect(File.read(entrypoint)).to include('DEFAULT_ENV_FILE="/etc/syrus/worker.env"')
+    expect(File.read(check)).to include('DEFAULT_ENV_FILE="/etc/syrus/worker.env"')
+  end
+
   it "starts the compute worker contract without consuming home queues" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")

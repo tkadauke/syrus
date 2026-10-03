@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_ENV_FILE="/Library/Application Support/Syrus/worker.env"
+DEFAULT_ENV_FILE="/etc/syrus/worker.env"
 ENV_FILE="${SYRUS_WORKER_ENV_FILE:-$DEFAULT_ENV_FILE}"
 FAILURES=0
 
