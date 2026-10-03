@@ -2170,7 +2170,17 @@ export function diffLineMetricProvidersForReview(
   t: (key: string, options?: Record<string, unknown>) => string,
   providers: DiffLineMetricProvider[] | null | undefined = []
 ) {
-  return [...cognitiveReviewRiskMetricProviders(counts, t), ...(providers ?? [])]
+  return uniqueDiffLineMetricProviders([...cognitiveReviewRiskMetricProviders(counts, t), ...(providers ?? [])])
+}
+
+function uniqueDiffLineMetricProviders(providers: DiffLineMetricProvider[]) {
+  const seen = new Set<string>()
+  return providers.filter((provider) => {
+    if (seen.has(provider.id)) return false
+
+    seen.add(provider.id)
+    return true
+  })
 }
 
 function cognitiveReviewRiskMetricProviders(

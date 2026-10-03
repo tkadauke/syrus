@@ -12,14 +12,15 @@ module CognitiveReview
 
     attr_reader :job, :diff_review_version
 
-    def self.for(job:, diff_review_version:, notes: nil)
-      new(job: job, diff_review_version: diff_review_version, notes: notes)
+    def self.for(job:, diff_review_version:, notes: nil, comment_diff_review_versions: [])
+      new(job: job, diff_review_version: diff_review_version, notes: notes, comment_diff_review_versions: comment_diff_review_versions)
     end
 
-    def initialize(job:, diff_review_version:, notes: nil)
+    def initialize(job:, diff_review_version:, notes: nil, comment_diff_review_versions: [])
       @job = job
       @diff_review_version = diff_review_version
       @notes = notes
+      @comment_diff_review_versions = comment_diff_review_versions
     end
 
     def as_json(*)
@@ -75,9 +76,13 @@ module CognitiveReview
 
     def covering_user_comments
       @covering_user_comments ||= CognitiveReview::Note
-        .review_comments_for(notes)
+        .review_comments_for(notes, diff_review_version_ids: extra_comment_diff_review_version_ids)
         .where(state: COMMENT_STATES_THAT_HANDLE_NOTES)
         .to_a
+    end
+
+    def extra_comment_diff_review_version_ids
+      Array(@comment_diff_review_versions).filter_map(&:id)
     end
 
     def comment_covers_note?(comment, note)

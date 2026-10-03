@@ -274,6 +274,9 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByText("Handled")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
+    const riskMetric = within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")
+    expect(riskMetric).toHaveAttribute("data-diff-metric-id", "cognitive_review.risk")
+    expect(riskMetric).toHaveClass("bg-danger")
 
     expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
     const noteCard = within(sidebar).getByText("Inspect this branch").closest("article")!
@@ -404,7 +407,7 @@ describe("ReviewWorkspace", () => {
     expect(selector).toHaveValue("cognitive_review.risk")
     expect(within(selector).getByRole("option", { name: "Off" })).toBeInTheDocument()
     expect(within(selector).getByRole("option", { name: "Review-note risk" })).toBeInTheDocument()
-    expect(screen.getAllByTestId("diff-metric-gutter-cell").length).toBeGreaterThan(0)
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
   })
 
   it("shows future metric providers in the same selector", async () => {
