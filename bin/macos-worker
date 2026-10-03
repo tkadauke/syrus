@@ -73,6 +73,7 @@ require_env() {
 }
 
 require_env "SYRUS_DATA_ROOT"
+require_env "SYRUS_APP_HOST"
 require_env "SYRUS_WORKER_POOL_NAME"
 require_env "SYRUS_WORKER_CAPABILITIES"
 
@@ -87,6 +88,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf 'SYRUS_ROLE=%s\n' "$SYRUS_ROLE"
   printf 'GIT_SHA=%s\n' "$GIT_SHA"
   printf 'SYRUS_DATA_ROOT=%s\n' "$SYRUS_DATA_ROOT"
+  printf 'SYRUS_APP_HOST=%s\n' "$SYRUS_APP_HOST"
   printf 'SYRUS_WORKER_POOL_NAME=%s\n' "$SYRUS_WORKER_POOL_NAME"
   printf 'SYRUS_WORKER_CAPABILITIES=%s\n' "$SYRUS_WORKER_CAPABILITIES"
   printf 'SOLID_QUEUE_CONFIG=%s\n' "$SOLID_QUEUE_CONFIG"

@@ -17,6 +17,7 @@ RSpec.describe "native macOS worker scripts" do
   def write_env(path, overrides = {})
     values = {
       "SYRUS_DATA_ROOT" => "/var/lib/syrus",
+      "SYRUS_APP_HOST" => "syrus.example.internal",
       "SYRUS_WORKER_POOL_NAME" => "macos-xcode",
       "SYRUS_WORKER_CAPABILITIES" => "os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator",
       "SECRET_KEY_BASE" => "secret",
@@ -74,6 +75,7 @@ RSpec.describe "native macOS worker scripts" do
       expect(stdout).to include("SYRUS_ROLE=worker")
       expect(stdout).to include("GIT_SHA=abc123")
       expect(stdout).to include("SYRUS_DATA_ROOT=/var/lib/syrus")
+      expect(stdout).to include("SYRUS_APP_HOST=syrus.example.internal")
       expect(stdout).to include("SYRUS_WORKER_POOL_NAME=macos-xcode")
       expect(stdout).to include("SOLID_QUEUE_CONFIG=config/queue.compute.yml")
       expect(stdout).to include("SOLID_QUEUE_SKIP_RECURRING=1")
@@ -123,6 +125,26 @@ RSpec.describe "native macOS worker scripts" do
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include("FAIL full Xcode must be selected")
       expect(stdout).to include("macos-worker-check: 1 failure(s)")
+    end
+  end
+
+  it "fails validation before boot when production app host is missing" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      write_env(env_file, "SYRUS_APP_HOST" => nil)
+      bin_dir = with_stubbed_host_bin(dir)
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash",
+        check,
+        "--env-file",
+        env_file,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL env SYRUS_APP_HOST is required")
     end
   end
 end

@@ -193,4 +193,7 @@ credentials. The launchd template is checked in at
 `config/launchd/com.syrus.worker.plist`; install it for a dedicated
 `syrus-worker` user with a persistent `/var/lib/syrus` data root, release
 symlink `/opt/syrus/current`, logs under `/var/log/syrus`, and a root-owned env
-file under `/etc/syrus`.
+file under `/etc/syrus`. That env file must include the normal production app
+identity and secrets, including `SYRUS_APP_HOST`, `SECRET_KEY_BASE`, Active
+Record encryption keys or `RAILS_MASTER_KEY`, DB credentials, storage
+credentials, `SYRUS_WORKER_POOL_NAME`, and `SYRUS_WORKER_CAPABILITIES`.
