@@ -105,7 +105,13 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       job = Factories.job(repository: repository)
       workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running", started_at: 30.minutes.ago)
       first = workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
-      second = workflow.steps.create!(kind: "respond", position: 1, state: "running", started_at: 28.minutes.ago)
+      second = workflow.steps.create!(
+        kind: "respond",
+        position: 1,
+        state: "running",
+        started_at: 28.minutes.ago,
+        details: { "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] } }
+      )
       first.runs.create!(job: job, trigger_kind: "pr_comment", state: "succeeded", agent_summary: "prepared", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
       second.runs.create!(job: job, trigger_kind: "pr_comment", state: "running", agent_outcome: "in_progress", agent_summary: "x" * 600, cost_usd: BigDecimal("0.5"), started_at: 28.minutes.ago)
 
@@ -115,6 +121,7 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       expect(response[:result][:isError]).to be_falsey
       expect(payload[:workflow]).to include(id: workflow.id, job_id: job.id, trigger_kind: "pr_comment", state: "running", step_count: 2, run_count: 2)
       expect(payload[:workflow][:steps].map { |step| step[:kind] }).to eq(%w[prepare respond])
+      expect(payload[:workflow][:steps].last[:details]).to eq(capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] })
       expect(payload[:workflow][:steps].last[:runs].first).to include(state: "running", agent_outcome: "in_progress", cost_usd: "0.5")
       expect(payload[:workflow][:steps].last[:runs].first[:agent_summary].length).to eq(500)
     end
