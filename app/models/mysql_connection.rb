@@ -1,4 +1,6 @@
 class MysqlConnection < ApplicationRecord
+  ADMIN_SURFACE = :admin
+
   attribute :credentials, :json
   attribute :agentic_access_enabled, :boolean, default: false
   encrypts :credentials
@@ -16,6 +18,10 @@ class MysqlConnection < ApplicationRecord
 
   def password=(value)
     self.credentials = credentials.to_h.merge("password" => value)
+  end
+
+  def has_password?
+    credential_store_credential_id.present? || password.present?
   end
 
   private

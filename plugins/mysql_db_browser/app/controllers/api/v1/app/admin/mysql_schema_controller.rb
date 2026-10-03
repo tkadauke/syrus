@@ -29,7 +29,11 @@ module Api
           private
 
           def inspector
-            @inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection)
+            @inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection, context: admin_credential_context)
+          end
+
+          def admin_credential_context
+            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
           end
 
           def set_connection

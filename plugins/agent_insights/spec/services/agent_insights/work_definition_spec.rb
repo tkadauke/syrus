@@ -14,7 +14,23 @@ RSpec.describe AgentInsights::WorkDefinition do
     expect(definition).to be_infrastructure
     expect(definition.workflow_trigger_kind).to eq("agent_insight")
     expect(definition.scope).to eq("repository")
+    expect(definition.lock_scope).to eq("none")
+    expect(definition.lock_conflicts_enforced?).to be(true)
     expect(definition.manages_own_job_lifecycle?).to be(true)
+  end
+
+  it "uses a sweep-specific repository key instead of the exclusive repository mutex" do
+    enable!(true)
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+
+    definition = WorkDefinitions.for("agent_insight")
+    keys = definition.lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})
+
+    expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: "repository", id: repository.id)
+    expect(keys).to contain_exactly("job:#{job.id}", "agent_insight:repository:#{repository.id}")
+    expect(keys).not_to include("repository:#{repository.id}", "landing:repository:#{repository.id}")
   end
 
   it "leaves the registry consistent when the plugin is disabled" do
@@ -62,5 +78,17 @@ RSpec.describe AgentInsights::WorkDefinition do
 
     expect(job).not_to be_valid
     expect(job.errors[:issue_number]).to include("must be blank for agent_insight Jobs")
+  end
+
+  it "does not block job bundle landing while an insight sweep is running" do
+    enable!(true)
+
+    result = WorkEngine::Simulation::ScenarioRunner.call(
+      path: Rails.root.join("spec/fixtures/work_engine_simulations/agent_insight_sweep_does_not_block_job_bundle.yml"),
+      max_ticks: 50
+    )
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("merge_train_land")
   end
 end

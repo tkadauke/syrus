@@ -36,6 +36,7 @@ module WorkDefinitions
     class_attribute :workflow_trigger_kind, instance_accessor: false
     class_attribute :runtime_role, instance_accessor: false
     class_attribute :scope, instance_accessor: false
+    class_attribute :lock_scope, instance_accessor: false
     class_attribute :parent_kind, instance_accessor: false
     class_attribute :review_publication_step_kinds, instance_accessor: false
     class_attribute :display_label, instance_accessor: false
@@ -59,6 +60,7 @@ module WorkDefinitions
     def workflow_trigger_kind = self.class.workflow_trigger_kind
     def runtime_role = self.class.runtime_role
     def scope = self.class.scope
+    def lock_scope = self.class.lock_scope.presence || scope
     def parent_kind = self.class.parent_kind
     def label = self.class.display_label.presence || Workflow::TriggerKind.label_for(workflow_trigger_kind)
     def review_publication_step_kinds = Array(self.class.review_publication_step_kinds).map(&:to_s)
@@ -142,8 +144,8 @@ module WorkDefinitions
 
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
-      keys << "epic:#{job.epic_id}" if scope == "epic" && job.epic_id.present?
-      keys << "repository:#{job.repository_id}" if scope == "repository" && job.repository_id.present?
+      keys << "epic:#{job.epic_id}" if lock_scope == "epic" && job.epic_id.present?
+      keys << "repository:#{job.repository_id}" if lock_scope == "repository" && job.repository_id.present?
       keys << WorkDefinitions.landing_lock_key_for(job) if landing_lock? && !child?
       keys.uniq
     end

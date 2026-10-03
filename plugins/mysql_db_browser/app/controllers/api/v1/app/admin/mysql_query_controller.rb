@@ -127,11 +127,15 @@ module Api
           end
 
           def executor
-            @executor ||= ::MysqlDbBrowser::QueryExecutor.new(@connection)
+            @executor ||= ::MysqlDbBrowser::QueryExecutor.new(@connection, context: admin_credential_context)
           end
 
           def schema_inspector
-            @schema_inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection)
+            @schema_inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection, context: admin_credential_context)
+          end
+
+          def admin_credential_context
+            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
           end
 
           def build_select(client:, filter_tree:, filter_schema:, sort_column:, sort_direction:, per_page:, offset:)

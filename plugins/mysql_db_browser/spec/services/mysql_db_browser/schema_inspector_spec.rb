@@ -21,7 +21,7 @@ RSpec.describe MysqlDbBrowser::SchemaInspector do
 
   let(:connection) { Factories.mysql_connection(host: "db.internal", port: 3307, username: "app", password: "s3cret", default_database: "app_prod") }
 
-  it "builds its Mysql2::Client from the connection's decrypted credentials, not ActiveRecord::Base.connection" do
+  it "builds its Mysql2::Client from the connection's configured credentials, not ActiveRecord::Base.connection" do
     client = fake_client(rows_by_sql: { /information_schema\.SCHEMATA/ => [] })
     received_options = nil
     original = described_class.client_factory

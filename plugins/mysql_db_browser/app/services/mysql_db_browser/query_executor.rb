@@ -33,8 +33,10 @@ module MysqlDbBrowser
 
     class_attribute :client_factory, default: ->(options) { Mysql2::Client.new(**options) }
 
-    def initialize(connection)
+    def initialize(connection, context: nil, tool_name: nil)
       @connection = connection
+      @context = context
+      @tool_name = tool_name
     end
 
     # Raw-statement path: the Query tab and the Live-diagnostics tab's
@@ -82,15 +84,19 @@ module MysqlDbBrowser
 
     private
 
-    attr_reader :connection
+    attr_reader :connection, :context, :tool_name
 
     def with_client
-      client = build_client
-      yield client
+      CredentialMaterial.with_password(connection, context: credential_context, purpose: "execute MySQL query", tool_name: tool_name) do |password, _metadata|
+        client = build_client(password)
+        yield client
+      ensure
+        client&.close
+      end
     rescue Mysql2::Error => e
       raise Unavailable, e.message
-    ensure
-      client&.close
+    rescue CredentialMaterial::CredentialStoreUnavailable, CredentialStore::Broker::Error => e
+      raise Unavailable, e.message
     end
 
     def run_and_audit(client, statement, read_only:, user:, limit:)
@@ -240,16 +246,20 @@ module MysqlDbBrowser
       len - 1
     end
 
-    def build_client
+    def build_client(password)
       self.class.client_factory.call(
         host: connection.host,
         port: connection.port,
         username: connection.username,
-        password: connection.password,
+        password: password,
         database: connection.default_database.presence,
         connect_timeout: CONNECT_TIMEOUT_SECONDS,
         read_timeout: CONNECT_TIMEOUT_SECONDS
       )
+    end
+
+    def credential_context
+      context || McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
     end
 
     def run_select(client, statement, limit)
