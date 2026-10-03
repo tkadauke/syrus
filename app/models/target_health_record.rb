@@ -48,6 +48,14 @@ class TargetHealthRecord < ApplicationRecord
       environment_fingerprint: environment_fingerprint
     )
   }
+  scope :for_reusable_command_inputs, ->(repository:, target_label:, input_fingerprint:, command_fingerprint:) {
+    where(
+      repository: repository,
+      target_label: target_label,
+      input_fingerprint: input_fingerprint,
+      command_fingerprint: command_fingerprint
+    )
+  }
   scope :passed, -> { where(status: "passed") }
   scope :failed, -> { where(status: "failed") }
   scope :stale, -> { where(status: "stale") }
