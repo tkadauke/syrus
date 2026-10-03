@@ -3,7 +3,7 @@ class AddDedupeIdentityToNotifications < ActiveRecord::Migration[8.1]
 
   def up
     unless column_exists?(:notifications, :repository_id)
-      add_reference :notifications, :repository, null: true, foreign_key: true
+      add_reference :notifications, :repository, null: true, foreign_key: false
     end
 
     add_column :notifications, :dedupe_key, :string, limit: 191 unless column_exists?(:notifications, :dedupe_key)
@@ -18,7 +18,7 @@ class AddDedupeIdentityToNotifications < ActiveRecord::Migration[8.1]
 
   def down
     remove_index :notifications, name: INDEX_NAME if index_exists?(:notifications, name: INDEX_NAME)
-    remove_reference :notifications, :repository, foreign_key: true if column_exists?(:notifications, :repository_id)
+    remove_reference :notifications, :repository, foreign_key: false if column_exists?(:notifications, :repository_id)
     remove_column :notifications, :dedupe_key if column_exists?(:notifications, :dedupe_key)
   end
 end
