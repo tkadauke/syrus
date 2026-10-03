@@ -581,6 +581,7 @@ Rails.application.routes.draw do
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }
   get "s/:slug", to: "slug_redirects#show", as: :slug_ref_redirect, constraints: { slug: /[^\/]+/ }
+  get ":slug", to: "slug_redirects#show", constraints: { slug: /[A-Z][A-Z0-9_]*-\d+/ }
 
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings

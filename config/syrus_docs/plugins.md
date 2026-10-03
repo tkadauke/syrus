@@ -2103,7 +2103,8 @@ Providers include `Syrus::Plugin::SlugType` and implement:
 - `display_label` — human-readable type label.
 - `record_for(id, user:)` — access-aware lookup. Return `nil` for both missing
   and inaccessible records so callers do not leak private details.
-- `web_path(record)` — the in-app path used by `/s/:slug`.
+- `web_path(record)` — the in-app path used by `/s/:slug` and root-level
+  slug redirects such as `/JOB-<id>`.
 - Optional `api_preview_path(record)`, `copyable?`, `preview_available?`,
   `linkable?`, `client_path(id)`, `linkifies_generated_text?`,
   `mobile_interaction_hints`, `id_pattern`, and `type_key`.
@@ -2117,8 +2118,8 @@ copyable refs get a copy affordance by default; a provider can opt out with
 
 `GET /api/v1/app/slug_refs/:slug` and its `/api/v1/app/slugs/:slug` alias use
 the registry to return canonical metadata for app and mobile clients. `/s/:slug`
-uses the same resolver for browser redirects and returns a generic 404 for
-unknown, malformed, missing, or inaccessible refs.
+and root-level slug refs use the same resolver for browser redirects and return
+a generic 404 for unknown, malformed, missing, or inaccessible refs.
 
 ## Slug hover preview cards
 
