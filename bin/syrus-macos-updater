@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEFAULT_ENV_FILE="/etc/syrus/worker.env"
+ENV_FILE="${SYRUS_WORKER_ENV_FILE:-$DEFAULT_ENV_FILE}"
+INSTALL_ROOT="${SYRUS_MACOS_INSTALL_ROOT:-/opt/syrus}"
+RELEASES_DIR="${SYRUS_MACOS_RELEASES_DIR:-$INSTALL_ROOT/releases}"
+CURRENT_LINK="${SYRUS_MACOS_CURRENT_LINK:-$INSTALL_ROOT/current}"
+SHARED_DIR="${SYRUS_MACOS_SHARED_DIR:-$INSTALL_ROOT/shared}"
+SERVICE_LABEL="${SYRUS_MACOS_WORKER_SERVICE_LABEL:-system/com.syrus.worker}"
+RETENTION_COUNT="${SYRUS_MACOS_RELEASE_RETENTION_COUNT:-3}"
+DRY_RUN=0
+ONCE=0
+SKIP_RESTART=0
+
+usage() {
+  cat <<'USAGE'
+Usage: bin/syrus-macos-updater [--env-file PATH] [--once] [--dry-run] [--skip-restart]
+
+Polls Syrus or SYRUS_UPDATE_METADATA_URL for the desired native macOS worker
+release, verifies and installs the artifact under /opt/syrus/releases/<sha>,
+atomically flips /opt/syrus/current, and restarts the launchd worker service.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      ENV_FILE="${2:?--env-file requires a path}"
+      shift 2
+      ;;
+    --once)
+      ONCE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --skip-restart)
+      SKIP_RESTART=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "syrus-macos-updater: unknown argument $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$ENV_FILE"
+  set +a
+elif [[ "${SYRUS_WORKER_ENV_FILE:-}" || "$ENV_FILE" != "$DEFAULT_ENV_FILE" ]]; then
+  echo "syrus-macos-updater: env file not found: $ENV_FILE" >&2
+  exit 2
+fi
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "syrus-macos-updater: $1 not found" >&2
+    exit 1
+  fi
+}
+
+require_command curl
+require_command ruby
+require_command shasum
+require_command tar
+
+CURL_AUTH_ARGS=()
+if [[ -n "${SYRUS_API_TOKEN:-}" ]]; then
+  CURL_AUTH_ARGS=(-H "Authorization: Bearer $SYRUS_API_TOKEN")
+fi
+
+metadata_url() {
+  if [[ -n "${SYRUS_UPDATE_METADATA_URL:-}" ]]; then
+    printf '%s' "$SYRUS_UPDATE_METADATA_URL"
+    return
+  fi
+
+  if [[ -n "${SYRUS_APP_HOST:-}" ]]; then
+    printf '%s/api/v1/app/admin/macos_worker_update' "${SYRUS_APP_HOST%/}"
+    return
+  fi
+
+  echo "syrus-macos-updater: SYRUS_UPDATE_METADATA_URL or SYRUS_APP_HOST is required" >&2
+  exit 2
+}
+
+fetch_metadata() {
+  local url="$1"
+  if [[ "$url" == file://* ]]; then
+    cat "${url#file://}"
+    return
+  fi
+
+  curl -fsSL "$url" "${CURL_AUTH_ARGS[@]}"
+}
+
+extract_metadata() {
+  local file="$1"
+  ruby -rjson -rshellwords -e '
+    payload = JSON.parse(File.read(ARGV.fetch(0)))
+    desired = payload["desired"].is_a?(Hash) ? payload["desired"] : payload
+    enabled = payload.key?("enabled") ? payload["enabled"] : true
+    values = {
+      "UPDATE_ENABLED" => enabled ? "1" : "0",
+      "TARGET_VERSION" => desired["version"].to_s,
+      "TARGET_SHA" => desired["git_sha"].to_s,
+      "ARTIFACT_URL" => desired["artifact_url"].to_s,
+      "ARTIFACT_SHA256" => desired["artifact_sha256"].to_s,
+      "ARTIFACT_NAME" => (desired["artifact_name"] || File.basename(desired["artifact_url"].to_s)).to_s,
+      "POLL_INTERVAL_SECONDS" => (payload["poll_interval_seconds"] || ENV["SYRUS_MACOS_UPDATE_POLL_INTERVAL"] || 300).to_s,
+      "RETENTION_COUNT" => (payload["retention_count"] || ENV["SYRUS_MACOS_RELEASE_RETENTION_COUNT"] || 3).to_s
+    }
+    values.each { |key, value| puts "#{key}=#{Shellwords.escape(value)}" }
+  ' "$file"
+}
+
+current_sha() {
+  if [[ -f "$CURRENT_LINK/GIT_SHA" ]]; then
+    head -n 1 "$CURRENT_LINK/GIT_SHA"
+  else
+    printf '%s' "${GIT_SHA:-}"
+  fi
+}
+
+report_url() {
+  if [[ -n "${SYRUS_UPDATE_REPORT_URL:-}" ]]; then
+    printf '%s' "$SYRUS_UPDATE_REPORT_URL"
+  elif [[ -n "${SYRUS_APP_HOST:-}" ]]; then
+    printf '%s/api/v1/app/admin/macos_worker_update/report' "${SYRUS_APP_HOST%/}"
+  fi
+}
+
+report_state() {
+  local state="$1"
+  local message="${2:-}"
+  local url
+  url="$(report_url)"
+  [[ -n "$url" && -n "${SYRUS_API_TOKEN:-}" ]] || return 0
+
+  CURRENT_VERSION="$(current_sha)" \
+    TARGET_VERSION="${TARGET_VERSION:-}" \
+    TARGET_SHA="${TARGET_SHA:-}" \
+    ARTIFACT_URL="${ARTIFACT_URL:-}" \
+    ARTIFACT_SHA256="${ARTIFACT_SHA256:-}" \
+    ARTIFACT_NAME="${ARTIFACT_NAME:-}" \
+    RELEASE_PATH="${RELEASE_PATH:-}" \
+    PREVIOUS_RELEASE_PATH="${PREVIOUS_RELEASE_PATH:-}" \
+    STATE="$state" \
+    MESSAGE="$message" \
+    HOSTNAME_VALUE="$(hostname)" \
+    WORKER_STORAGE_KEY="${SYRUS_WORKER_STORAGE_KEY:-}" \
+    WORKER_POOL="${SYRUS_WORKER_POOL_NAME:-}" \
+    ruby -rjson -e '
+      desired = {
+        version: ENV["TARGET_VERSION"],
+        git_sha: ENV["TARGET_SHA"],
+        artifact_url: ENV["ARTIFACT_URL"],
+        artifact_sha256: ENV["ARTIFACT_SHA256"],
+        artifact_name: ENV["ARTIFACT_NAME"]
+      }.delete_if { |_k, v| v.to_s.empty? }
+      status = {
+        hostname: ENV["HOSTNAME_VALUE"],
+        worker_storage_key: ENV["WORKER_STORAGE_KEY"],
+        pool: ENV["WORKER_POOL"],
+        state: ENV["STATE"],
+        message: ENV["MESSAGE"],
+        current_version: ENV["CURRENT_VERSION"],
+        target_version: ENV["TARGET_VERSION"],
+        release_path: ENV["RELEASE_PATH"],
+        previous_release_path: ENV["PREVIOUS_RELEASE_PATH"],
+        desired: desired
+      }.delete_if { |_k, v| v.respond_to?(:empty?) && v.empty? }
+      print JSON.generate(status: status)
+    ' |
+    curl -fsS -X POST "$url" "${CURL_AUTH_ARGS[@]}" -H "Content-Type: application/json" --data-binary @- >/dev/null || true
+}
+
+verify_artifact() {
+  local artifact="$1"
+  local expected="$2"
+  local actual
+
+  actual="$(shasum -a 256 "$artifact" | awk '{print $1}')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "syrus-macos-updater: checksum mismatch for $artifact: expected $expected, got $actual" >&2
+    return 1
+  fi
+}
+
+prepare_release() {
+  local release_path="$1"
+
+  (
+    cd "$release_path"
+    BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" bundle config set --local path "$SHARED_DIR/bundle"
+    BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
+    npm ci
+    bin/macos-worker-check --env-file "$ENV_FILE"
+  )
+}
+
+activate_release() {
+  local release_path="$1"
+  local tmp_link
+  tmp_link="$CURRENT_LINK.next.$$"
+  ln -s "$release_path" "$tmp_link"
+  ruby -e 'File.rename(ARGV.fetch(0), ARGV.fetch(1))' "$tmp_link" "$CURRENT_LINK"
+}
+
+restart_worker() {
+  if [[ "$SKIP_RESTART" == "1" ]]; then
+    echo "syrus-macos-updater: restart skipped"
+    return
+  fi
+
+  launchctl kickstart -k "$SERVICE_LABEL"
+}
+
+prune_releases() {
+  local keep_count="$1"
+  local current_real
+  [[ -d "$RELEASES_DIR" ]] || return 0
+
+  current_real="$(cd "$CURRENT_LINK" 2>/dev/null && pwd -P || true)"
+  find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -print |
+    while IFS= read -r release; do
+      printf '%s\t%s\n' "$(stat -f '%m' "$release" 2>/dev/null || stat -c '%Y' "$release")" "$release"
+    done |
+    sort -rn |
+    awk -F '\t' -v keep="$keep_count" -v current="$current_real" '{
+      if ($2 == current) next
+      seen += 1
+      if (seen >= keep) print $2
+    }' |
+    while IFS= read -r stale_release; do
+      rm -rf "$stale_release"
+    done
+}
+
+run_once() {
+  local metadata_file tmp_dir artifact extracted_root
+
+  tmp_dir="$(mktemp -d)"
+  metadata_file="$tmp_dir/metadata.json"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  fetch_metadata "$(metadata_url)" > "$metadata_file"
+  eval "$(extract_metadata "$metadata_file")"
+
+  if [[ "$UPDATE_ENABLED" != "1" ]]; then
+    echo "syrus-macos-updater: no desired macOS worker release configured"
+    report_state "current" "no desired release configured"
+    return 0
+  fi
+
+  if [[ -z "$TARGET_SHA" || -z "$ARTIFACT_URL" || -z "$ARTIFACT_SHA256" ]]; then
+    echo "syrus-macos-updater: desired metadata requires git_sha, artifact_url, and artifact_sha256" >&2
+    report_state "failed" "desired metadata is incomplete"
+    return 1
+  fi
+
+  if [[ "$(current_sha)" == "$TARGET_SHA" ]]; then
+    echo "syrus-macos-updater: already current at $TARGET_SHA"
+    report_state "current" "already current"
+    return 0
+  fi
+
+  RELEASE_PATH="$RELEASES_DIR/$TARGET_SHA"
+  PREVIOUS_RELEASE_PATH="$(cd "$CURRENT_LINK" 2>/dev/null && pwd -P || true)"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "syrus-macos-updater: would install $TARGET_SHA from $ARTIFACT_URL into $RELEASE_PATH"
+    report_state "updating" "dry run"
+    return 0
+  fi
+
+  report_state "updating" "downloading release"
+  mkdir -p "$RELEASES_DIR" "$SHARED_DIR"
+  artifact="$tmp_dir/$ARTIFACT_NAME"
+  if [[ "$ARTIFACT_URL" == file://* ]]; then
+    cp "${ARTIFACT_URL#file://}" "$artifact"
+  else
+    curl -fL "$ARTIFACT_URL" "${CURL_AUTH_ARGS[@]}" -o "$artifact"
+  fi
+  if ! verify_artifact "$artifact" "$ARTIFACT_SHA256"; then
+    report_state "failed" "artifact checksum mismatch"
+    return 1
+  fi
+
+  if [[ ! -d "$RELEASE_PATH" ]]; then
+    mkdir -p "$tmp_dir/extract"
+    tar -xzf "$artifact" -C "$tmp_dir/extract"
+    extracted_root="$(find "$tmp_dir/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [[ -z "$extracted_root" ]]; then
+      echo "syrus-macos-updater: artifact did not contain a release directory" >&2
+      report_state "failed" "artifact did not contain a release directory"
+      return 1
+    fi
+    mv "$extracted_root" "$RELEASE_PATH"
+  fi
+
+  report_state "updating" "preparing release dependencies"
+  prepare_release "$RELEASE_PATH"
+  report_state "updating" "activating release"
+  activate_release "$RELEASE_PATH"
+  restart_worker
+  prune_releases "$RETENTION_COUNT"
+  report_state "current" "activated release"
+  echo "syrus-macos-updater: activated $TARGET_SHA"
+}
+
+if [[ "$ONCE" == "1" ]]; then
+  if ! run_once; then
+    report_state "failed" "update attempt failed"
+    exit 1
+  fi
+else
+  while true; do
+    if ! run_once; then
+      report_state "failed" "update attempt failed"
+    fi
+    sleep "${POLL_INTERVAL_SECONDS:-${SYRUS_MACOS_UPDATE_POLL_INTERVAL:-300}}"
+  done
+fi

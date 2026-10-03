@@ -80,6 +80,38 @@ RSpec.describe Admin::WorkerHealthPayload do
     end
   end
 
+  it "includes macOS updater state for current workers and recent samples" do
+    now = Time.zone.parse("2026-10-03 16:00:00 UTC")
+    travel_to(now) do
+      InstanceVersion.create!(
+        hostname: "mac-mini-a",
+        role: "worker",
+        version: "oldsha",
+        started_at: now - 5.minutes,
+        last_heartbeat_at: now,
+        desired_version: { "version" => "1.2.3", "git_sha" => "newsha" },
+        macos_updater_status: { "state" => "failed", "message" => "checksum mismatch", "observed_at" => now.iso8601 }
+      )
+      WorkerHostHealthSample.create!(
+        hostname: "mac-mini-a",
+        worker_storage_key: "storage-a",
+        role: "worker",
+        version: "oldsha",
+        observed_at: now - 1.minute,
+        cpu_used_percent: 20,
+        desired_version: { "version" => "1.2.3", "git_sha" => "newsha" },
+        macos_updater_status: { "state" => "failed", "message" => "checksum mismatch", "observed_at" => now.iso8601 }
+      )
+
+      payload = described_class.new(since: (now - 1.hour).iso8601, until_time: now.iso8601).as_json
+
+      expect(payload.dig(:current, 0, :macos_updater_state)).to eq("failed")
+      expect(payload.dig(:current, 0, :desired_version)).to include("git_sha" => "newsha")
+      expect(payload.dig(:current, 0, :macos_updater_status)).to include("message" => "checksum mismatch")
+      expect(payload.dig(:hosts, 0, :recent_samples, 0, :macos_updater_state)).to eq("failed")
+    end
+  end
+
   it "falls back to hostname for legacy rows without a worker storage key" do
     now = Time.zone.parse("2026-09-18 16:00:00 UTC")
     travel_to(now) do
