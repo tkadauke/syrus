@@ -187,6 +187,7 @@ per-user/private:
   - plugins/global_search/app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/sidebar_nav_order_controller.rb
+  - app/controllers/api/v1/app/slug_refs_controller.rb
   - app/controllers/api/v1/app/skills_controller.rb
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/speech_to_text_controller.rb
@@ -201,6 +202,7 @@ per-user/private:
   - app/controllers/api/v1/app/workflow_warnings_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
+  - app/controllers/slug_redirects_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
   - plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb
@@ -412,6 +414,7 @@ instead of broader model scopes.
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `plugins/global_search/app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
+| `app/controllers/api/v1/app/slug_refs_controller.rb` | per-user/private | Resolves registered slug refs with the current user so inaccessible records return a neutral payload without leaking titles or paths. |
 | `app/controllers/api/v1/app/skills_controller.rb` | per-user/private | The skill picker/launch endpoints find the parent repository through `Current.user.repositories` and create skill Jobs via `SkillJobs::Creator` scoped to `Current.user`, so only the repository owner can list or launch skills. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/speech_to_text_controller.rb` | per-user/private | Speech-to-text endpoint access is gated through `Current.user.chat_sessions` so backend transcription requests stay scoped to the current user's chats. |
@@ -424,6 +427,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `plugins/video_walkthroughs/app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
 | `app/controllers/api/v1/app/workflow_warnings_controller.rb` | per-user/private | Warnings are found through jobs scoped to `Current.user.jobs`; filing a fix Job creates it as `Current.user`. |
+| `app/controllers/slug_redirects_controller.rb` | per-user/private | Short slug redirects resolve through the current user and return 404 for unknown or inaccessible refs instead of revealing target paths. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
 | `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |

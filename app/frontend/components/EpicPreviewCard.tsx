@@ -51,6 +51,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
 
   const { epic, jobs } = data
   const description = epic.description ?? ""
+  const epicPath = epic.epic_path ?? `/epics/${epicRef}`
   const totalCount = epic.jobs_count
 
   const sortedJobs = [...jobs].sort((a, b) => attentionPriority(a.state) - attentionPriority(b.state))
@@ -62,7 +63,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.landing ? "landing" : epic.state} />
       </div>
-      <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={epic.epic_path}>
+      <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={epicPath}>
         {epic.title}
       </Link>
       {!compact && data.deployment_stages?.length ? (
@@ -104,7 +105,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
         </ul>
       )}
       {!compact && (
-        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={epic.epic_path}>
+        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={epicPath}>
           {t("preview_see_more")}
         </Link>
       )}
