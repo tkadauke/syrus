@@ -58,9 +58,9 @@ module CognitiveReview
     scope :handled, -> { where(state: %w[acknowledged discussed]) }
     scope :dismissed, -> { where(state: "dismissed") }
 
-    def self.review_comments_for(notes)
+    def self.review_comments_for(notes, diff_review_version_ids: [])
       note_records = Array(notes)
-      version_ids = note_records.filter_map(&:diff_review_version_id).uniq
+      version_ids = (note_records.filter_map(&:diff_review_version_id) + Array(diff_review_version_ids)).compact.uniq
       return DiffReviewComment.none if note_records.empty? || version_ids.empty?
 
       DiffReviewComment
@@ -68,14 +68,14 @@ module CognitiveReview
         .where.not(state: "superseded")
     end
 
-    def self.open_for_pr_debt(notes, review_comments: review_comments_for(notes))
+    def self.open_for_pr_debt(notes, review_comments: review_comments_for(notes), diff_review_version_ids: [])
       comment_records = review_comments.to_a
-      Array(notes).select { |note| note.open_for_pr_debt?(review_comments: comment_records) }
+      Array(notes).select { |note| note.open_for_pr_debt?(review_comments: comment_records, diff_review_version_ids: diff_review_version_ids) }
     end
 
-    def self.handled_for_pr_debt(notes, review_comments: review_comments_for(notes))
+    def self.handled_for_pr_debt(notes, review_comments: review_comments_for(notes), diff_review_version_ids: [])
       comment_records = review_comments.to_a
-      Array(notes).select { |note| note.handled_for_pr_debt?(review_comments: comment_records) }
+      Array(notes).select { |note| note.handled_for_pr_debt?(review_comments: comment_records, diff_review_version_ids: diff_review_version_ids) }
     end
 
     def self.upsert_from_submission!(run:, diff_review_version:, attributes:)
@@ -152,11 +152,12 @@ module CognitiveReview
 
     def open? = state == "open"
     def handled? = %w[acknowledged discussed].include?(state)
-    def open_for_pr_debt?(review_comments:) = open? && !covered_by_user_comment?(review_comments)
-    def handled_for_pr_debt?(review_comments:) = handled? || covered_by_user_comment?(review_comments)
+    def open_for_pr_debt?(review_comments:, diff_review_version_ids: []) = open? && !covered_by_user_comment?(review_comments, diff_review_version_ids: diff_review_version_ids)
+    def handled_for_pr_debt?(review_comments:, diff_review_version_ids: []) = handled? || covered_by_user_comment?(review_comments, diff_review_version_ids: diff_review_version_ids)
 
-    def covered_by_user_comment?(review_comments)
-      Array(review_comments).any? { |comment| covered_by_user_comment_range?(comment) }
+    def covered_by_user_comment?(review_comments, diff_review_version_ids: [])
+      allowed_version_ids = ([ diff_review_version_id ] + Array(diff_review_version_ids)).compact.uniq
+      Array(review_comments).any? { |comment| covered_by_user_comment_range?(comment, diff_review_version_ids: allowed_version_ids) }
     end
 
     private
@@ -173,8 +174,8 @@ module CognitiveReview
       self.state = state.to_s.strip.presence || "open"
     end
 
-    def covered_by_user_comment_range?(comment)
-      return false unless comment.diff_review_version_id == diff_review_version_id
+    def covered_by_user_comment_range?(comment, diff_review_version_ids:)
+      return false unless diff_review_version_ids.include?(comment.diff_review_version_id)
       return false unless comment.path == path
       return false unless comment.side == COMMENT_SIDE_BY_NOTE_SIDE[side]
 

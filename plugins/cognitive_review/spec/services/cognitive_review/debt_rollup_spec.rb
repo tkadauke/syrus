@@ -105,6 +105,63 @@ RSpec.describe CognitiveReview::DebtRollup do
     )
   end
 
+  it "treats selected aggregate-version comments as handling projected older-version notes" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    user = Factories.user
+    run_version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "run-base",
+      head_sha: "run-head",
+      files: []
+    )
+    all_changes = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: [],
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
+    )
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: run_version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 8,
+      title: "Projected note",
+      explanation: "The aggregate diff includes this older-version note.",
+      state: "open",
+      source_metadata: {}
+    )
+    job.diff_review_comments.create!(
+      user: user,
+      diff_review_version: all_changes,
+      surface: "job_review_workspace",
+      anchor_kind: "line",
+      path: note.path,
+      side: "right",
+      new_line: 6,
+      body: "I responded from the selected aggregate review.",
+      state: "draft"
+    )
+
+    expect(described_class.for(job: job, diff_review_version: all_changes, notes: [ note ], comment_diff_review_versions: [ all_changes ]).as_json).to include(
+      total_flagged_ranges: 1,
+      open_unhandled_count: 0,
+      user_commented_count: 1,
+      handled_count: 1
+    )
+  end
+
   it "treats an empty submission as a zero-note no-debt state" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
