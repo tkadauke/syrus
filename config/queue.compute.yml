@@ -11,7 +11,10 @@
                    main_grader / ...), minutes each. Never touch the search
                    index (they enqueue Index*Job onto `indexing`, which the
                    home worker consumes).
+      - `runs-<os>-<arch>` — capability-specific compute lanes such as
+                   `runs-macos-arm64` and `runs-windows-amd64`.
       - `merges` — deterministic landing / rebase / stack-rebase Workflows.
+      - `merges-<os>-<arch>` — capability-specific landing/validation lanes.
     Each pod also consumes its storage-affinity
     `resume-<worker-storage-key>` queue: a workspace lives on the data root
     that first ran it, so "Retry from failed step" and post-crash re-enqueues
@@ -24,11 +27,15 @@
     Set SOLID_QUEUE_SKIP_RECURRING=1 on compute pods: recurring tasks enqueue to
     home-tier queues, so only the home worker should schedule them.
 
-    WorkerStorageIdentity is required explicitly so the ERB is self-contained
-    when rendered by queue/config checks outside normal Rails autoload paths. %>
+    WorkerStorageIdentity and WorkerCapabilities are required explicitly so the
+    ERB is self-contained when rendered by queue/config checks outside normal
+    Rails autoload paths. %>
 <% services_path = File.expand_path("app/services", Dir.pwd) %>
 <% $LOAD_PATH.unshift(services_path) unless $LOAD_PATH.include?(services_path) %>
 <% require "worker_storage_identity" %>
+<% require "worker_capabilities" %>
+<% run_queues = WorkerCapabilities.queue_names_for("runs") %>
+<% merge_queues = WorkerCapabilities.queue_names_for("merges") %>
 default: &default
   dispatchers:
     - polling_interval: 1
@@ -44,14 +51,18 @@ default: &default
     # space-joined string (`Array("resume-x runs")` is one literal queue), so a
     # string here would claim zero agent jobs.
     - queues:
-        - "<%= WorkerStorageIdentity.queue_name %>"
-        - "runs"
+<% ([WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
+        - "<%= queue_name %>"
+<% end %>
       threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
     # Deterministic landing / rebase work runs outside the agent pool so quick
     # non-agentic steps do not consume Claude slots.
-    - queues: "merges"
+    - queues:
+<% merge_queues.each do |queue_name| %>
+        - "<%= queue_name %>"
+<% end %>
       threads: <%= ENV.fetch("MERGE_CONCURRENCY", 5) %>
       processes: 1
       polling_interval: 0.1

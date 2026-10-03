@@ -3,6 +3,7 @@ import { Button, DataTable, DescriptionList, Input, Notice, Page, SectionHeading
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
+import { workerCapabilityEntries, workerCapabilitiesText } from "../lib/workerCapabilities"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -585,6 +586,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
   const oneHour = host.windows["1h"]
   const minuteBuckets = host.minute_buckets ?? []
   const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
+  const capabilityEntries = workerCapabilityEntries(current?.capabilities || sample?.capabilities)
 
   return (
     <details className={`rounded-[var(--radius-panel)] border ${workerHealthBorder(level)} bg-surface`} open={level === "critical" || level === "warning"}>
@@ -612,6 +614,15 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </div>
       </summary>
       <div className="border-t border-border px-4 py-3">
+        {capabilityEntries.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5" aria-label={t("queue.worker_capabilities")}>
+            {capabilityEntries.map((entry) => (
+              <span className="rounded border border-border bg-surface-subtle px-2 py-0.5 font-mono text-xs text-text-secondary" key={`${entry.dimension}:${entry.value}`}>
+                {entry.dimension}:{entry.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <DescriptionList.Root className="text-xs sm:grid-cols-3" density="compact">
           <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.col_version")}>
             {current?.version || sample?.version || "-"}
@@ -673,6 +684,21 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </details>
       </div>
     </details>
+  )
+}
+
+function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
+  const entries = workerCapabilityEntries(capabilities)
+  if (entries.length === 0) return <span className="text-gray-400 dark:text-gray-500">-</span>
+
+  return (
+    <div className="flex flex-wrap gap-1" title={workerCapabilitiesText(capabilities)}>
+      {entries.map((entry) => (
+        <span className="rounded border border-border bg-surface-subtle px-1.5 py-0.5 font-mono text-2xs text-text-secondary" key={`${entry.dimension}:${entry.value}`}>
+          {entry.dimension}:{entry.value}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -873,6 +899,12 @@ function WorkerTable({ onNavigate, search, sort, workers }: { onNavigate: (param
       className: "font-mono text-xs text-gray-600 dark:text-gray-300",
       render: (worker) => formatQueues(worker.queues)
     },
+    {
+      key: "capabilities",
+      header: t("queue.col_capabilities"),
+      className: "min-w-48 text-gray-700 dark:text-gray-200",
+      render: (worker) => <CapabilityBadges capabilities={worker.capabilities} />
+    },
     { key: "threads", header: t("queue.col_threads"), sort: "threads", className: "text-gray-700 dark:text-gray-200", render: (worker) => worker.threads ?? "-" },
     {
       key: "heartbeat",
@@ -916,6 +948,12 @@ function ProcessTable({ onNavigate, processes, search }: { onNavigate: (params: 
     { key: "kind", header: t("queue.col_kind"), required: true, sort: "kind", className: "font-medium text-gray-900 dark:text-gray-100", render: (process) => process.kind },
     { key: "host", header: t("queue.col_host"), sort: "host", className: "text-gray-700 dark:text-gray-200", render: (process) => process.hostname || "-" },
     { key: "pid", header: t("queue.col_pid"), sort: "pid", className: "text-gray-700 dark:text-gray-200", render: (process) => process.pid },
+    {
+      key: "capabilities",
+      header: t("queue.col_capabilities"),
+      className: "min-w-48 text-gray-700 dark:text-gray-200",
+      render: (process) => <CapabilityBadges capabilities={process.capabilities} />
+    },
     {
       key: "heartbeat",
       header: t("queue.col_heartbeat"),

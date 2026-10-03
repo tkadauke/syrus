@@ -79,6 +79,33 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
   end
 
+  it "snapshots each preflight grader target's required capabilities" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+        - name: backend-tests
+          run: bin/rspec
+          capabilities:
+            os: linux
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").index_by { |grader_step| grader_step.details["name"] }
+    expect(grader_steps.fetch("ios-tests").details).to include(
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+    )
+    expect(grader_steps.fetch("backend-tests").details).to include(
+      "capabilities" => { "os" => [ "linux" ] },
+      "required_capabilities" => { "os" => [ "linux" ] }
+    )
+  end
+
   it "materializes nested preflight grader targets" do
     write_grade_config("grade: []\n")
     FileUtils.mkdir_p(@ws_path.join("cli"))

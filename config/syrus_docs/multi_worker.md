@@ -33,6 +33,84 @@ queues across two worker configs and select one per pod with the
   queue, so retry-from-failed-step affinity (below) works on whichever worker
   can see the workspace.
 
+## Worker capability advertisement
+
+Workers advertise normalized execution capabilities on their heartbeat and
+worker-health samples. Syrus detects `os` and `arch` automatically and probes
+for common optional capabilities when the tools are present: Docker
+(`features:docker`), Xcode (`toolchains:xcode`), and visible iOS simulator
+runtimes (`runtimes:ios_simulator`). Operators can override or extend that
+with `SYRUS_WORKER_CAPABILITIES`, using comma or space separated
+`dimension:value` pairs:
+
+```dotenv
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+```
+
+Use the singular aliases `toolchain`, `runtime`, and `feature` for readability
+or the stored plural dimensions `toolchains`, `runtimes`, and `features`.
+Explicit values win over detected defaults for constrained dimensions such as
+`os` and `arch`, so a native macOS worker should set the variable even though
+the heartbeat also probes the host. Linux k3s and Docker Compose workers can
+usually rely on detected `os:linux` plus their CPU architecture, adding only
+extra features or toolchains that the image actually contains.
+
+Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
+and `read_queue` all include the normalized capability map and probe
+diagnostics. Historical health samples keep the capability snapshot that was
+true when the sample was recorded.
+
+## Capability-aware Run queues
+
+Runs with the default Linux implementation requirement stay on the broad
+`runs` queue. When a mutable workflow or immutable distributed grader records
+host requirements for a distinct execution class, Syrus routes the Run to a
+capability-specific queue derived from the workflow template's base queue:
+
+- `runs-linux-amd64`, `runs-macos-arm64`, `runs-windows-amd64`
+- `merges-linux-amd64`, `merges-macos-arm64`, `merges-windows-amd64`
+
+Architecture tokens are normalized for queue names: `x86_64`, `x64`, and
+`amd64` all resolve to the `amd64` suffix; `aarch64` and `arm64` resolve to
+`arm64`. macOS requirements without an explicit architecture use the
+`macos-arm64` lane, and Windows requirements without an explicit architecture
+use `windows-amd64`.
+
+`config/queue.yml` and `config/queue.compute.yml` render their compute queues
+from the worker's advertised capabilities. A default Linux worker consumes
+`runs`, `runs-linux-amd64`, `merges`, and `merges-linux-amd64`; a macOS worker
+advertising `os:macos,arch:arm64` consumes the macOS lanes; a Windows x64
+worker consumes the Windows lanes. This keeps scarce native workers from
+claiming ordinary Linux work while still documenting every queue Syrus may
+select.
+
+Before a workflow phase starts, `StepDispatcher` uses the same queue resolver
+as `Run#enqueue_run_job` to check live Solid Queue worker metadata. Pinned
+workspace phases such as implementation, response, rebase repair, visual
+review, and adversarial review inherit the Workflow's planned primary
+capabilities. Immutable distributed grader steps use their target-specific
+requirements. Control-plane phases such as grader fanout and collection stay on
+the broad `runs` / `merges` queues, so scarce native workers do not claim
+orchestration work just because the primary workflow runs on macOS or Windows.
+
+The resolver checks capability-specific queues, and also checks broad queues
+when explicit Linux requirements add dimensions such as `features:docker` or
+`toolchains:node`. If no fresh worker both consumes the selected queue and
+advertises compatible capabilities, the Workflow stays queued with
+`start_blocked_reason: no_capable_worker`; `start_blocked_details` and
+`run_queue_admission_decision` record the selected queue, requirements, and
+phase step so operators can see why it is waiting. Syrus schedules a normal
+phase-admission recheck instead of creating a Run that would sit on an
+unconsumed or incompatible queue.
+
+`Run#enqueue_run_job` repeats that check at enqueue time as a backstop. When it
+does enqueue, the Workflow appends a `run_queue_decisions` artifact recording
+the queue and requirements used for the Run. If live capacity disappears
+between admission and enqueue, the Run is failed with
+`agent_outcome: no_capable_worker`, a system log line is written, and the
+Workflow records a `run_queue_blocked` artifact with the queue and requirement
+details.
+
 Search schema is not part of the primary MySQL schema. It lives in
 `db/search_migrate` and is applied to the local SQLite search database by
 `bin/rails syrus:prepare_search`. Container boot runs this task before web and
@@ -316,9 +394,13 @@ data root.
   (`workflows.worker_storage_key`).
 - On reopen / post-crash re-enqueue, `Run#enqueue_run_job` routes to
   `resume-<worker-storage-key>` only when a fresh Solid Queue worker advertises
-  that queue. If no worker currently consumes it — node gone, storage gone, or
-  old deployment without the queue — routing falls back to the normal workflow
-  queue and recovery relies on durable transcript rehydration or fresh retry.
+  that queue and, for capability-specific work, advertises compatible
+  capabilities. Immutable distributed grader Runs are intentionally non-sticky:
+  they ignore the workflow storage key and route by their target capabilities.
+  If no worker currently consumes a compatible resume queue — node gone,
+  storage gone, old deployment without the queue, or incompatible host class —
+  routing falls back to the normal capability queue and recovery relies on
+  durable transcript rehydration or fresh retry.
 
 This needs no deployment-specific node naming. With node-local `hostPath`, each
 node gets a different storage key that survives pod replacement on that node.

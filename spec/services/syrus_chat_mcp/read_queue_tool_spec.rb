@@ -28,6 +28,15 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
 
   it "returns a compact Solid Queue health snapshot" do
     solid_queue_process(hostname: "worker-a", pid: 101, metadata: { "queues" => "runs,chat", "thread_pool_size" => 2 })
+    InstanceVersion.create!(
+      hostname: "worker-a",
+      role: "worker",
+      version: "abc123",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: 10.seconds.ago,
+      capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+      capability_diagnostics: { "docker" => true }
+    )
     run_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
     chat_job = solid_queue_job(class_name: "ChatTurnJob", queue_name: "chat")
     failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
@@ -57,7 +66,15 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(payload.fetch(:active_workers)).to include(count: 1, queues: %w[chat runs])
-    expect(payload.dig(:active_workers, :workers).first).to include(hostname: "worker-a", pid: 101, queues: %w[runs chat], threads: 2, stale: false)
+    expect(payload.dig(:active_workers, :workers).first).to include(
+      hostname: "worker-a",
+      pid: 101,
+      queues: %w[runs chat],
+      threads: 2,
+      stale: false,
+      capabilities: { os: [ "linux" ], features: [ "docker" ] },
+      capability_diagnostics: { docker: true }
+    )
     expect(payload.fetch(:pending_jobs)).to include(runs: 1, chat: 1, merges: 0, videos: 0, control_plane: 0, polling: 0, indexing: 0, cleanup: 0, low_priority_maintenance: 0)
     expect(payload.fetch(:failed_jobs)).to eq(count: 1)
     expect(payload.fetch(:recurring_tasks)).to eq(count: 1)

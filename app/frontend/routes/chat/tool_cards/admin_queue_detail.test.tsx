@@ -60,13 +60,15 @@ describe("admin_queue_detail tool card", () => {
   it("renders the workers tab, flagging a stale worker", () => {
     const parsedResult = {
       tab: "workers",
-      workers: [{ hostname: "worker-1", pid: 42, queues: ["runs"], threads: 3, last_heartbeat_at: "2026-09-06T00:00:00Z", stale: true, status: "stale" }],
-      all_processes: [{ kind: "Worker", hostname: "worker-1", pid: 42, last_heartbeat_at: "2026-09-06T00:00:00Z", stale: true, status: "stale" }]
+      workers: [{ hostname: "worker-1", pid: 42, queues: ["runs"], threads: 3, last_heartbeat_at: "2026-09-06T00:00:00Z", stale: true, status: "stale", capabilities: { os: ["linux"], arch: ["x86_64"] } }],
+      all_processes: [{ kind: "Worker", hostname: "worker-1", pid: 42, last_heartbeat_at: "2026-09-06T00:00:00Z", stale: true, status: "stale", capabilities: { os: ["linux"], arch: ["x86_64"] } }]
     }
     expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 worker, 1 process")
 
     render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getAllByText("stale")).toHaveLength(2)
+    expect(screen.getAllByText("os: linux")).toHaveLength(2)
+    expect(screen.getAllByText("arch: x86_64")).toHaveLength(2)
   })
 
   it("falls back to null for an unknown tab", () => {

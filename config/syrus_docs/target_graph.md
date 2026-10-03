@@ -597,11 +597,15 @@ fingerprint covers declared source files for the target and its dependency
 closure plus each owning `.syrus.yml`; changing a source file, dependency
 target source, or config file changes the input key. The command fingerprint
 covers command text and execution config such as dependencies, phases,
-requiredness, timeout, file scope, owner config path, and target metadata. The
-environment fingerprint covers relevant local runtime metadata, prepare target
-dependencies and commands, and common toolchain files such as `Gemfile.lock`,
+requiredness, timeout, file scope, owner config path, target metadata, and
+declared execution capabilities. The environment fingerprint covers relevant
+local runtime metadata, normalized worker execution capabilities, OS,
+architecture, runtime/toolchain version probes, prepare target dependencies and
+commands, and common toolchain files such as `Gemfile.lock`,
 `package-lock.json`, `pnpm-lock.yaml`, `go.sum`, `.ruby-version`, and
-`.tool-versions`.
+`.tool-versions`. A macOS worker with Xcode and iOS simulator support therefore
+does not share target-health environment fingerprints with a Linux worker even
+when the command text and source inputs are identical.
 
 `grader_collect` copies those stamped fingerprints into the target-health row.
 The older source-snapshot behavior is now only a compatibility fallback for
@@ -642,6 +646,12 @@ and forced-rerun decisions are recorded in workflow logs and artifacts:
 target label, reason, current fingerprints, and any target-health record
 references. Health-skip entries also include the producing commit SHA and
 checked timestamp for the reused proof.
+
+When Syrus finds a record for the same target input and command fingerprints
+but a different environment fingerprint, the forced-rerun reason calls out an
+environment/capability mismatch and summarizes the cached and current
+capability classes. This is the expected diagnostic when a Linux grader reaches
+target health produced by a macOS-native dependency install, or the reverse.
 
 ### Agent-requested prepare targets
 
@@ -790,8 +800,9 @@ Fixes:
 - If a reusable health record exists but was not used, compare the target's
   input, command, and environment fingerprints in the cached/forced-rerun
   explanation. A changed lockfile, `.syrus.yml`, prepare target, command,
-  source glob, timeout, requiredness, phase, or dependency edge intentionally
-  invalidates reuse.
+  source glob, timeout, requiredness, phase, capability requirement, dependency
+  edge, worker OS, architecture, or relevant toolchain/runtime version
+  intentionally invalidates reuse.
 
 ### Why was a target skipped or cached?
 
@@ -836,8 +847,8 @@ skipped.
 Common causes:
 
 - A source file, dependency source, lockfile, tool-version file, prepare target,
-  command, timeout, phase, requiredness, or `.syrus.yml` changed and produced a
-  new fingerprint.
+  command, timeout, phase, requiredness, declared capability, worker capability
+  class, or `.syrus.yml` changed and produced a new fingerprint.
 - The target has never run on the current graph shape.
 - The health record came from old compatibility data without stable target
   fingerprints.

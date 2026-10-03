@@ -27,6 +27,7 @@ class WorkUnit < ApplicationRecord
     ci_repair_safety
     active_work_lock
     auto_retry_backoff
+    no_capable_worker
     visual_diff_obsolete
     preempted
   ].freeze

@@ -288,6 +288,30 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
   end
 
+  it "rejects a prepared archive from a different worker capability environment" do
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return(worker_environment("macos"))
+    described_class.new(step).setup
+    first_cache_details = step.reload.details.fetch("prepare_cache")
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return(worker_environment("linux"))
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    second_cache_details = second_step.reload.details.fetch("prepare_cache")
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_cache_details).to include(
+      "status" => "miss",
+      "worker_storage_key" => "storage-b",
+      "source_snapshot_sha" => main_sha
+    )
+    expect(second_cache_details.fetch("prepare_fingerprint")).not_to eq(first_cache_details.fetch("prepare_fingerprint"))
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "skips prepared archive upload when the archive exceeds the size cap" do
     stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)
@@ -423,5 +447,13 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
     raise "shell failed: #{cmd}\n#{out}\n#{err}" unless status.success?
     out
+  end
+
+  def worker_environment(os)
+    {
+      "capabilities" => { "os" => [ os ], "arch" => [ "arm64" ] },
+      "runtime" => { "ruby_platform" => "#{os}-ruby" },
+      "tool_versions" => { "ruby" => "ruby 3.4.10" }
+    }
   end
 end

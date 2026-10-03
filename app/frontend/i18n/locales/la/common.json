@@ -288,6 +288,7 @@
     "ci_repair_safety": "Reparatio CI agitur",
     "active_work_lock": "Seram exspectat",
     "auto_retry_backoff": "Mora ante iterationem",
+    "no_capable_worker": "Facultatem operarii exspectat",
     "visual_diff_obsolete": "Comparatio non iam necessaria",
     "preempted": "Praeoccupatum",
     "landing_paused": "Descensus suspensus"
@@ -309,6 +310,7 @@
     "ci_repair_safety": "Cursus reparationis CI hunc commissum basis iam tractat.",
     "active_work_lock": "Alia unitas operis seram necessariam tenet.",
     "auto_retry_backoff": "Syrus moram exspectat antequam iterum automatice conetur.",
+    "no_capable_worker": "Nullus operarius vivus nunc facultates huic operi necessarias nuntiat.",
     "visual_diff_obsolete": "Opus statum praeteriit cui haec comparatio disposita erat.",
     "preempted": "Unitas operis potioris ordinis hanc substituit.",
     "landing_paused": "Descensus huic receptaculo suspensus est."

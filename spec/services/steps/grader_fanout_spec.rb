@@ -159,13 +159,62 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
-      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true),
-      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false)
+      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true, "capabilities" => {}),
+      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false, "capabilities" => {})
     )
     expect(step.reload.details[Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY]).to contain_exactly(
-      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true),
-      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false)
+      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true, "capabilities" => {}),
+      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false, "capabilities" => {})
     )
+  end
+
+  it "records target capabilities in selection artifacts, materialized Step details, and fanout logs" do
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+        - name: backend-tests
+          run: bin/rspec
+          when_files_changed: ["app/**/*.rb"]
+          capabilities:
+            os: linux
+    YAML
+    stub_changed_files("ios/App/View.swift", "app/models/user.rb")
+
+    handler.call
+
+    selections = workflow.reload.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)
+    expect(selections).to include(
+      include(
+        "name" => "ios-tests",
+        "target_label" => "//:grade/ios-tests",
+        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      ),
+      include(
+        "name" => "backend-tests",
+        "target_label" => "//:grade/backend-tests",
+        "capabilities" => { "os" => [ "linux" ] }
+      )
+    )
+
+    materialized = workflow.steps.where(kind: "grader").index_by { |grader_step| grader_step.details["name"] }
+    expect(materialized.fetch("ios-tests").details).to include(
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+    )
+    expect(materialized.fetch("backend-tests").details).to include(
+      "capabilities" => { "os" => [ "linux" ] },
+      "required_capabilities" => { "os" => [ "linux" ] }
+    )
+    log_text = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(log_text).to include("selected ios-tests")
+    expect(log_text).to include("[//:grade/ios-tests] capabilities: os=macos, toolchains=xcode")
+    expect(log_text).to include("selected backend-tests")
+    expect(log_text).to include("[//:grade/backend-tests] capabilities: os=linux")
   end
 
   it "records a capability escalation warning when Linux-planned implementation touched an iOS target" do

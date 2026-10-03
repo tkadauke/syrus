@@ -68,7 +68,8 @@ class TargetGraph
           "source_file_count" => source_file_entries(relevant_targets).size,
           "config_file_count" => config_file_entries(relevant_targets).size,
           "dependency_labels" => dependencies.map { |dependency| dependency.label.to_s },
-          "prepare_target_labels" => prepare_targets.map { |dependency| dependency.label.to_s }
+          "prepare_target_labels" => prepare_targets.map { |dependency| dependency.label.to_s },
+          "worker_environment" => worker_environment_metadata
         }
       )
     end
@@ -99,6 +100,7 @@ class TargetGraph
         "ruby" => RUBY_VERSION,
         "ruby_platform" => RUBY_PLATFORM,
         "bundler_version" => bundler_version,
+        "worker_environment" => worker_environment_metadata,
         "env" => {
           "BUNDLE_WITHOUT" => ENV["BUNDLE_WITHOUT"].to_s,
           "RAILS_ENV" => ENV["RAILS_ENV"].to_s,
@@ -114,6 +116,7 @@ class TargetGraph
         "label" => target.label.to_s,
         "kind" => target.kind,
         "project_id" => target.project_id,
+        "capabilities" => target.capabilities&.to_h.to_h,
         "source_scope" => sorted_strings(target.source_scope),
         "command" => target.command.to_s,
         "dependencies" => sorted_strings(target.dependencies.map(&:to_s)),
@@ -123,6 +126,10 @@ class TargetGraph
         "owner_config_path" => target.owner_config_path.to_s,
         "metadata" => normalize_hash(target.metadata)
       }
+    end
+
+    def worker_environment_metadata
+      @worker_environment_metadata ||= WorkerCapabilities.environment_fingerprint_metadata
     end
 
     def source_file_entries(relevant_targets)

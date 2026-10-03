@@ -30,7 +30,8 @@ RSpec.describe WorkUnits::WorkflowBlockProjection do
       StepDispatcher::JOB_BLOCK_REASON => "job_not_ready_for_execution",
       StepDispatcher::URGENT_BLOCK_REASON => "urgent_job_active",
       StepDispatcher::EPIC_WIDE_BLOCK_REASON => "epic_wide_workflow_active",
-      StepDispatcher::MAIN_HEALTH_BLOCK_REASON => "main_branch_health"
+      StepDispatcher::MAIN_HEALTH_BLOCK_REASON => "main_branch_health",
+      RunQueueResolver::BLOCKED_OUTCOME => "no_capable_worker"
     }
 
     mappings.each do |start_blocked_reason, blocked_reason|

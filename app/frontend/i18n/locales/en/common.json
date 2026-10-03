@@ -288,6 +288,7 @@
     "ci_repair_safety": "CI repair in progress",
     "active_work_lock": "Waiting on a lock",
     "auto_retry_backoff": "Retry backoff",
+    "no_capable_worker": "Waiting on worker capability",
     "visual_diff_obsolete": "Comparison no longer needed",
     "preempted": "Preempted",
     "landing_paused": "Landing paused"
@@ -309,6 +310,7 @@
     "ci_repair_safety": "A CI repair workflow is already handling this base commit.",
     "active_work_lock": "Another work unit holds the lock this one needs.",
     "auto_retry_backoff": "Syrus is waiting out the backoff window before the next automatic retry.",
+    "no_capable_worker": "No live worker currently advertises the capabilities required for this work.",
     "visual_diff_obsolete": "The job moved past the state this comparison was queued for.",
     "preempted": "A higher-priority work unit replaced this one.",
     "landing_paused": "Landing is paused for this repository."

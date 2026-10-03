@@ -58,6 +58,9 @@ The chart should expose, at minimum, values for:
 - MySQL host, database, username, and password secret references.
 - `RAILS_MASTER_KEY`, `SECRET_KEY_BASE`, and Active Record Encryption
   secret references.
+- Optional per-worker `SYRUS_WORKER_CAPABILITIES` values when some worker
+  pools provide platform-specific toolchains such as Xcode, iOS simulator
+  runtimes, Docker, or non-default architectures.
 - `$SYRUS_DATA_ROOT` and `syrus-search` PVC size, storage class, access mode,
   and retention policy.
 - Hostname, ingress class, TLS secret, and cert-manager issuer.
@@ -168,3 +171,13 @@ queue/run throughput, worker CPU/memory/disk and admission decisions, and fleet
 (pod version, spawned process) gauges and counters. Route container logs to
 your cluster logging stack, scrape `/metrics` from a Prometheus instance, and
 alert on repeated worker failures or growing queue depth.
+
+For split k3s worker pools, set `SYRUS_WORKER_CAPABILITIES` on each worker
+Deployment or DaemonSet to match the node image and mounted toolchains. Linux
+compute workers can usually rely on detected `os:linux` and architecture,
+while a native macOS worker pool should advertise explicit values such as
+`os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`. The normalized
+capability map appears in Admin Workers, worker health, and queue diagnostics.
+When no live worker matches a planned workflow phase, Syrus pauses that
+workflow with queue-capability details and retries admission; enqueue-time
+checks remain as a backstop if capacity changes after admission.

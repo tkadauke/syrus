@@ -185,6 +185,7 @@ RSpec.describe Steps::PreflightGraderCollect do
         state: "failed",
         details: {
           "command" => "bin/rspec-ci",
+          "capabilities" => { "os" => [ "linux" ] },
           "exit_code" => 1,
           "duration_s" => 12.3,
           "timed_out" => false,
@@ -200,6 +201,7 @@ RSpec.describe Steps::PreflightGraderCollect do
         {
           "name" => "rspec-ci",
           "command" => "bin/rspec-ci",
+          "capabilities" => { "os" => [ "linux" ] },
           "required" => true,
           "status" => "failed",
           "exit_code" => 1,
