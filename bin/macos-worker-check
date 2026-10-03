@@ -165,6 +165,7 @@ else
 fi
 
 require_env "SYRUS_DATA_ROOT"
+require_env "SYRUS_APP_HOST"
 require_env "SYRUS_WORKER_POOL_NAME"
 require_env "SYRUS_WORKER_CAPABILITIES"
 require_env "SECRET_KEY_BASE"
