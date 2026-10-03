@@ -313,12 +313,11 @@ module Steps
     end
 
     def normalize_coverage_path(path, workspace_prefix, plan)
-      path = path.to_s
-      return path.delete_prefix(workspace_prefix) if path.start_with?(workspace_prefix)
-      return path if plan.coverage_base_path.blank?
-      return path if path == plan.coverage_base_path || path.start_with?("#{plan.coverage_base_path}/")
-
-      "#{plan.coverage_base_path}/#{path}"
+      CodeFacts::PathNormalizer.normalize(
+        path,
+        workspace_path: workspace_prefix.to_s.delete_suffix("/"),
+        base_path: plan.coverage_base_path
+      )
     end
 
     def merged_hit_map(project_artifacts)
