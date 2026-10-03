@@ -36,6 +36,7 @@ const preferredOrder = [
   "deployment",
   "deployment/docker-compose",
   "deployment/kubernetes",
+  "deployment/macos-workers",
   "scheduling-and-recovery",
   "observability",
   "recipes",

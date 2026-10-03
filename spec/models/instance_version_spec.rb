@@ -41,6 +41,25 @@ RSpec.describe InstanceVersion do
     expect(instance.capability_diagnostics).to eq({})
   end
 
+  it "classifies macOS updater state from desired version and report freshness" do
+    travel_to(Time.zone.parse("2026-10-03 12:00:00 UTC")) do
+      instance = fixture(
+        role: "worker",
+        version: "abc123",
+        desired_version: { "git_sha" => "abc123" },
+        macos_updater_status: { "state" => "updating", "observed_at" => 1.minute.ago.iso8601 }
+      )
+
+      expect(instance.macos_updater_state).to eq("current")
+
+      instance.update!(macos_updater_status: { "state" => "failed", "observed_at" => 1.minute.ago.iso8601 })
+      expect(instance.macos_updater_state).to eq("failed")
+
+      instance.update!(macos_updater_status: { "state" => "current", "observed_at" => 20.minutes.ago.iso8601 })
+      expect(instance.macos_updater_state).to eq("stale")
+    end
+  end
+
   describe ".fresh" do
     it "returns running rows whose last_heartbeat_at is within the threshold" do
       fresh = fixture(last_heartbeat_at: 10.seconds.ago)
