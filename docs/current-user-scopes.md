@@ -264,6 +264,7 @@ admin-only:
   - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
+  - plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_clusters_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_connections_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb
@@ -490,6 +491,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb` | per-user/private | Throughput metrics resolve the repository through `Repository.accessible_to(Current.user)`. |
 | `plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
 | `plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
+| `plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_clusters_controller.rb` | admin-only | Cluster management and connection testing are gated on admin access; `Current.user` is recorded as the credential-store actor for stored Kubernetes kubeconfigs and admin credential leases. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_connections_controller.rb` | admin-only | Connection management and password testing are gated on `Current.user.admin?`; `Current.user` is recorded as the credential-store actor for stored MySQL passwords. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb` | admin-only | Schema browsing is gated on `Current.user.admin?`; `Current.user` is passed to credential-store lease auditing for admin schema reads. |
