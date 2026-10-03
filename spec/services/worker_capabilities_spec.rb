@@ -67,6 +67,18 @@ RSpec.describe WorkerCapabilities do
         )
       end
     end
+
+    it "includes the external worker pool name in diagnostics when configured" do
+      previous = ENV["SYRUS_WORKER_POOL_NAME"]
+      ENV["SYRUS_WORKER_POOL_NAME"] = "macos-xcode"
+      allow(described_class).to receive(:command_available?).and_return(false)
+
+      expect(described_class.current.fetch(:diagnostics)).to include(
+        "worker_pool_name" => "macos-xcode"
+      )
+    ensure
+      previous.nil? ? ENV.delete("SYRUS_WORKER_POOL_NAME") : ENV["SYRUS_WORKER_POOL_NAME"] = previous
+    end
   end
 
   describe ".queue_names_for" do
