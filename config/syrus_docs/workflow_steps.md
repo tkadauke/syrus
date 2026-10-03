@@ -72,12 +72,18 @@ normal repository prepare plan once per worker storage key, Workflow, source
 snapshot SHA, and prepare fingerprint. Later immutable-source Steps on the same
 worker with the same snapshot and fingerprint reuse that prepared state instead
 of rerunning prepare. A changed source snapshot SHA or changed resolved prepare
-plan naturally produces a different cache key. Each immutable-source Step records
-its cache hit or miss in `steps.details["prepare_cache"]`, including
+plan naturally produces a different cache key. The prepare fingerprint also
+includes the normalized worker capability environment: OS, architecture,
+declared capability probes, runtime identifiers, and relevant toolchain
+versions. Prepared archives and local prepare caches from a different
+capability class are rejected before restore, with a log line naming the
+metadata mismatch, so macOS-native dependency artifacts are not reused by Linux
+graders or vice versa. Each immutable-source Step records its cache hit or miss
+in `steps.details["prepare_cache"]`, including
 `worker_storage_key`, `workflow_id`, `source_snapshot_sha`,
-`prepare_fingerprint`, `cache_key`, `cache_path`, `prepare_source`, and
-`command_count`. Target-specific prepare is intentionally not part of this
-rollout.
+`prepare_fingerprint`, worker environment metadata, `cache_key`, `cache_path`,
+`prepare_source`, and `command_count`. Target-specific prepare is intentionally
+not part of this rollout.
 
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
@@ -808,10 +814,12 @@ target's declared source files, dependency target source files, dependency
 labels, and owning `.syrus.yml` files. The command fingerprint covers the
 target command and execution config, including dependencies, phases,
 requiredness, timeout, file scope, owner config path, and target metadata. The
+command fingerprint also includes declared execution capabilities. The
 environment fingerprint covers locally available runtime/toolchain inputs,
-prepare dependency targets, prepare commands, common lockfiles, and version
-files such as `Gemfile.lock`, `package-lock.json`, `.ruby-version`, and
-`.tool-versions`.
+normalized worker capabilities, OS, architecture, runtime identifiers, relevant
+toolchain version probes, prepare dependency targets, prepare commands, common
+lockfiles, and version files such as `Gemfile.lock`, `package-lock.json`,
+`.ruby-version`, and `.tool-versions`.
 
 `grader_collect` copies those stamped fingerprints into `TargetHealthRecord`.
 Older or already-materialized grader Steps that do not have
@@ -830,6 +838,10 @@ current target fingerprints must have a latest healthy record, and every
 executable dependency target must also be healthy for its current fingerprints.
 A cache hit skips Step materialization, logs the reason, and records an entry
 in `target_health_skipped_targets` on the workflow and fanout Step details.
+If a record exists for the same target input and command but a different
+environment fingerprint, the forced-rerun reason says the target-health proof
+was rejected for an environment/capability mismatch and summarizes the cached
+and current capability classes.
 Review-phase focused graders should stay scoped to project surfaces with real
 workflow execution today; temporary root backstops are appropriate only while a
 nested target is visible to TargetGraph but not yet materialized as its own

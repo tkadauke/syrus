@@ -52,6 +52,7 @@ class ImmutableSourceCheckout
     elsif restored_from_archive && prepared_archive_matches_prepare_cache?(snapshot, prepare_cache)
       finalize_restored_prepared_archive!(snapshot, prepare_cache)
     else
+      rematerialize_restored_checkout!(snapshot) if restored_from_prepare_cache || restored_from_archive
       prepare_with_cache!(snapshot, prepare_cache)
     end
     record_checkout_details!(snapshot)
@@ -288,6 +289,7 @@ class ImmutableSourceCheckout
       "worker_storage_key" => prepare_cache.worker_storage_key,
       "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION,
       "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
+      "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
       "prepare_cache_key" => prepare_cache.cache_key,
       "prepared_at" => Time.current.iso8601,
       "prepare_source" => plan.source,
@@ -463,6 +465,15 @@ class ImmutableSourceCheckout
     log("[immutable_source_checkout] prepare archive hit: #{prepare_cache.short_cache_key}")
   end
 
+  def rematerialize_restored_checkout!(snapshot)
+    log("[immutable_source_checkout] restored prepared state did not match current prepare key; rematerializing clean checkout")
+    FileUtils.rm_rf(path.to_s)
+    materialize!(snapshot)
+    verify_head!(snapshot)
+    ensure_base_ref!
+    ensure_exclude_entry
+  end
+
   def prepared_archive_matches_prepare_cache?(snapshot, prepare_cache)
     prepared_archive_metadata_matches?(snapshot.prepared_workspace_archive.blob.metadata, snapshot, prepare_cache)
   end
@@ -484,47 +495,76 @@ class ImmutableSourceCheckout
   end
 
   def prepared_archive_metadata_matches?(metadata, snapshot, prepare_cache)
-    metadata.to_h.slice(
+    metadata = metadata.to_h
+    expected = prepared_archive_metadata(snapshot, prepare_cache)
+    matches = metadata.slice(
       "workflow_id",
       "source_snapshot_id",
       "source_sha",
       "prepare_fingerprint"
-    ) == prepared_archive_metadata(snapshot, prepare_cache).slice(
+    ) == expected.slice(
       "workflow_id",
       "source_snapshot_id",
       "source_sha",
       "prepare_fingerprint"
     )
+    log_metadata_mismatch("prepared archive", metadata, expected) unless matches
+    matches
   end
 
   def prepared_archive_snapshot_metadata_matches?(metadata, snapshot)
-    metadata.to_h.slice(
-      "workflow_id",
-      "source_snapshot_id",
-      "source_sha",
-      "prepare_cache_format_version"
-    ) == {
+    metadata = metadata.to_h
+    expected = {
       "workflow_id" => @workflow.id,
       "source_snapshot_id" => snapshot.id,
       "source_sha" => snapshot.source_sha,
-      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION
+      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION,
+      "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata
     }
+    matches = metadata.slice(
+      "workflow_id",
+      "source_snapshot_id",
+      "source_sha",
+      "prepare_cache_format_version",
+      "worker_environment"
+    ) == expected
+    log_metadata_mismatch("prepared archive", metadata, expected) unless matches
+    matches
   end
 
   def prepared_marker_snapshot_metadata_matches?(marker_path, snapshot)
-    JSON.parse(marker_path.read).slice(
-      "worker_storage_key",
-      "workflow_id",
-      "source_sha",
-      "prepare_cache_format_version"
-    ) == {
+    metadata = JSON.parse(marker_path.read)
+    expected = {
       "worker_storage_key" => WorkerStorageIdentity.queue_key,
       "workflow_id" => @workflow.id,
       "source_sha" => snapshot.source_sha,
-      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION
+      "prepare_cache_format_version" => PreparedWorkspaceArchive::PREPARE_CACHE_FORMAT_VERSION,
+      "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata
     }
+    matches = metadata.slice(
+      "worker_storage_key",
+      "workflow_id",
+      "source_sha",
+      "prepare_cache_format_version",
+      "worker_environment"
+    ) == expected.slice(
+      "worker_storage_key",
+      "workflow_id",
+      "source_sha",
+      "prepare_cache_format_version",
+      "worker_environment"
+    )
+    log_metadata_mismatch("local prepare cache", metadata, expected) unless matches
+    matches
   rescue Errno::ENOENT, JSON::ParserError
     false
+  end
+
+  def log_metadata_mismatch(source, metadata, expected)
+    mismatched = expected.keys.select { |key| metadata[key] != expected[key] }
+    return if mismatched.empty?
+
+    log("[immutable_source_checkout] rejected #{source} hit: #{mismatched.join(', ')} mismatch")
   end
 
   def sanitized_worker_storage_key
@@ -669,6 +709,7 @@ class ImmutableSourceCheckout
         "source_snapshot_id" => snapshot.id,
         "source_snapshot_sha" => snapshot.source_sha,
         "prepare_fingerprint" => prepare_fingerprint,
+        "worker_environment" => WorkerCapabilities.environment_fingerprint_metadata,
         "cache_key" => cache_key,
         "cache_path" => path.to_s,
         "prepare_source" => plan.source,

@@ -134,6 +134,42 @@ RSpec.describe TargetGraph::Fingerprints do
     expect(fingerprints_for("//:grade/tests").environment_fingerprint).not_to eq(first.environment_fingerprint)
   end
 
+  it "invalidates command fingerprints when execution capability requirements change" do
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+          capabilities:
+            os: linux
+    YAML
+    first = fingerprints_for("//:grade/tests")
+
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+    YAML
+
+    expect(fingerprints_for("//:grade/tests").command_fingerprint).not_to eq(first.command_fingerprint)
+  end
+
+  it "invalidates environment fingerprints when worker capabilities change" do
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+    YAML
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata)
+      .and_return(worker_environment("linux"), worker_environment("macos"))
+
+    first = fingerprints_for("//:grade/tests")
+
+    expect(fingerprints_for("//:grade/tests").environment_fingerprint).not_to eq(first.environment_fingerprint)
+  end
+
   def fingerprints_for(label)
     described_class.for_target(
       workspace_path: @dir,
@@ -146,5 +182,13 @@ RSpec.describe TargetGraph::Fingerprints do
     path = @dir.join(relative_path)
     FileUtils.mkdir_p(path.dirname)
     path.write(contents)
+  end
+
+  def worker_environment(os)
+    {
+      "capabilities" => { "os" => [ os ], "arch" => [ "arm64" ] },
+      "runtime" => { "ruby_platform" => "#{os}-ruby" },
+      "tool_versions" => { "ruby" => "ruby 3.4.10" }
+    }
   end
 end

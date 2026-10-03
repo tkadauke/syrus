@@ -1,11 +1,12 @@
 class TargetHealthReuse
-  Result = Data.define(:target, :fingerprints, :record, :dependency_results) do
+  Result = Data.define(:target, :fingerprints, :record, :dependency_results, :environment_mismatch_record) do
     def reusable?
       healthy_record? && dependency_results.all?(&:reusable?)
     end
 
     def reason
       return "latest target health record passed" if reusable?
+      return environment_mismatch_reason if environment_mismatch_record && !record
       return "target health is unknown" unless record
       return "latest target health is #{record.status}" unless healthy_record?
 
@@ -34,6 +35,37 @@ class TargetHealthReuse
 
     def healthy_record?
       record&.healthy?
+    end
+
+    def environment_mismatch_reason
+      cached = environment_summary(environment_mismatch_record.metadata.to_h)
+      current = environment_summary(fingerprints.metadata.to_h)
+      "target health environment/capability mismatch (cached #{cached}; current #{current})"
+    end
+
+    def environment_summary(metadata)
+      environment = metadata["target_fingerprint_metadata"].presence ||
+        metadata.dig("target_fingerprints", "metadata").presence ||
+        metadata["fingerprint_metadata"].presence ||
+        metadata
+      worker = environment.dig("worker_environment") || environment.dig("environment", "worker_environment") || {}
+      capabilities = worker["capabilities"].presence || {}
+      runtime = worker["runtime"].presence || {}
+      [
+        capability_token(capabilities, "os"),
+        capability_token(capabilities, "arch"),
+        capability_token(capabilities, "toolchains"),
+        capability_token(capabilities, "runtimes"),
+        capability_token(capabilities, "features"),
+        runtime["ruby_platform"].presence
+      ].compact_blank.join(" ")
+    end
+
+    def capability_token(capabilities, key)
+      values = Array(capabilities[key]).map(&:to_s).reject(&:blank?)
+      return nil if values.empty?
+
+      "#{key}=#{values.join('+')}"
     end
   end
 
@@ -66,7 +98,8 @@ class TargetHealthReuse
         target: target,
         fingerprints: fingerprints,
         record: latest_record_for(target, fingerprints),
-        dependency_results: executable_dependency_results_for(target)
+        dependency_results: executable_dependency_results_for(target),
+        environment_mismatch_record: latest_environment_mismatch_record_for(target, fingerprints)
       )
     end
   end
@@ -86,5 +119,18 @@ class TargetHealthReuse
       command_fingerprint: fingerprints.command_fingerprint,
       environment_fingerprint: fingerprints.environment_fingerprint
     )
+  end
+
+  def latest_environment_mismatch_record_for(target, fingerprints)
+    TargetHealthRecord
+      .for_reusable_command_inputs(
+        repository: repository,
+        target_label: target.label.to_s,
+        input_fingerprint: fingerprints.input_fingerprint,
+        command_fingerprint: fingerprints.command_fingerprint
+      )
+      .where.not(environment_fingerprint: fingerprints.environment_fingerprint)
+      .latest_first
+      .first
   end
 end
