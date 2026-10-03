@@ -11,6 +11,8 @@ import (
 
 const credentialsPath = "/api/v1/app/credential_store/credentials"
 const leasesPath = "/api/v1/app/credential_store/leases"
+const sshAgentPath = "/api/v1/app/credential_store/ssh_agent"
+const sshAgentAuditPath = "/api/v1/app/credential_store/ssh_agent/audit"
 
 type CredentialType struct {
 	Name        string `json:"name"`
@@ -97,6 +99,55 @@ func RequestLease(ctx context.Context, c *api.Client, input LeaseRequestBody) (L
 	var out LeaseResponse
 	err := c.Do(ctx, http.MethodPost, leasesPath, LeaseRequest{Lease: input}, &out)
 	return out, err
+}
+
+type SSHAgentMaterialRequest struct {
+	SSHAgent SSHAgentMaterialRequestBody `json:"ssh_agent"`
+}
+
+type SSHAgentMaterialRequestBody struct {
+	Credential string         `json:"credential"`
+	Purpose    string         `json:"purpose,omitempty"`
+	ToolName   string         `json:"tool_name,omitempty"`
+	Target     map[string]any `json:"target,omitempty"`
+	ExpiresIn  int            `json:"expires_in,omitempty"`
+}
+
+type SSHAgentMaterialResponse struct {
+	Lease  Lease      `json:"lease"`
+	SSHKey SSHKeyData `json:"ssh_key"`
+}
+
+type SSHKeyData struct {
+	PrivateKey string `json:"private_key"`
+	Passphrase string `json:"passphrase"`
+}
+
+func RequestSSHAgentMaterial(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, input SSHAgentMaterialRequestBody) (SSHAgentMaterialResponse, error) {
+	var out SSHAgentMaterialResponse
+	err := c.Do(ctx, http.MethodPost, sshAgentPath, SSHAgentMaterialRequest{SSHAgent: input}, &out)
+	return out, err
+}
+
+type SSHAgentAuditRequest struct {
+	SSHAgentAudit SSHAgentAuditRequestBody `json:"ssh_agent_audit"`
+}
+
+type SSHAgentAuditRequestBody struct {
+	Credential string `json:"credential"`
+	LeaseID    string `json:"lease_id,omitempty"`
+	Purpose    string `json:"purpose,omitempty"`
+	ToolName   string `json:"tool_name,omitempty"`
+	ExitStatus int    `json:"exit_status"`
+	DurationMS int64  `json:"duration_ms"`
+}
+
+func RecordSSHAgentAudit(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, input SSHAgentAuditRequestBody) error {
+	return c.Do(ctx, http.MethodPost, sshAgentAuditPath, SSHAgentAuditRequest{SSHAgentAudit: input}, nil)
 }
 
 func credentialRef(credential Credential) string {

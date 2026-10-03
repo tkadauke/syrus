@@ -565,20 +565,21 @@ CLI to call — the CLI does not duplicate them.
 
 ## Credential Store
 
-`syrus credential_store` is contributed by the bundled `credential_store`
-plugin. It provides safe discovery for credential type declarations and
-credential handles without printing encrypted payloads:
+`syrus credential` is contributed by the bundled `credential_store` plugin.
+`syrus credential_store` remains an alias for older scripts. The command group
+provides safe discovery for credential type declarations and credential handles
+without printing encrypted payloads:
 
 ```bash
-syrus credential_store types
-syrus credential_store credentials
-syrus credential_store credentials --type credential_store.url_token
+syrus credential types
+syrus credential credentials
+syrus credential credentials --type credential_store.url_token
 ```
 
 The command group also has a runtime lease client:
 
 ```bash
-syrus credential_store lease deploy-token \
+syrus credential lease deploy-token \
   --type credential_store.url_token \
   --purpose deploy \
   --tool deploy.push \
@@ -590,6 +591,19 @@ syrus credential_store lease deploy-token \
 metadata but cannot request broker leases. Lease output contains only metadata
 such as lease id, credential id/name/type, safe metadata, purpose, tool, and
 expiry. It does not print credential payload material.
+
+For SSH deployment scripts, `ssh-agent` requests an `ssh_private_key` lease,
+starts a short-lived local agent, loads the key through `ssh-add`, exports only
+`SSH_AUTH_SOCK` to the child command, and tears down the agent and temporary
+files on exit:
+
+```bash
+syrus credential ssh-agent --credential homeassistant-ssh -- ./deploy.sh
+```
+
+The wrapper audits the credential handle, current runtime context, wrapper
+command namespace, child exit status, and duration without logging the private
+key, passphrase, or child command arguments.
 
 ## Search
 

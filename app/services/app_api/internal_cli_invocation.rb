@@ -75,7 +75,11 @@ module AppApi
     end
 
     def credential_lease_request?
-      request.post? && request.path == "/api/v1/app/credential_store/leases"
+      request.post? && [
+        "/api/v1/app/credential_store/leases",
+        "/api/v1/app/credential_store/ssh_agent",
+        "/api/v1/app/credential_store/ssh_agent/audit"
+      ].include?(request.path)
     end
   end
 end
