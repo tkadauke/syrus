@@ -22,6 +22,15 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  def default_planned_execution
+    {
+      project_label: nil,
+      target_label: nil,
+      capabilities: { os: [ "linux" ] },
+      source: "defaulted"
+    }
+  end
+
   it "lists every proposal with content, state, labels, and dependencies through JSON-RPC" do
     root = ChatProposal.create!(
       chat_session: chat_session,
@@ -61,6 +70,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         initial_job_state: "default",
         investigation: false,
         provider_setting: "default",
+        planned_execution: default_planned_execution,
         goal_provenance: nil,
         target_epic: nil,
         materialized: nil
@@ -82,6 +92,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         initial_job_state: "default",
         investigation: false,
         provider_setting: "default",
+        planned_execution: default_planned_execution,
         goal_provenance: nil,
         target_epic: nil,
         materialized: {
