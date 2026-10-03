@@ -195,6 +195,114 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.name).to eq("tests")
   end
 
+  it "parses credential-aware script declarations without secret material" do
+    config = parse(<<~YAML)
+      scripts:
+        deploy:
+          run: ./deploy.sh
+          description: Deploy the appliance.
+          allow_agent_invocation: true
+          credentials:
+            - name: ssh
+              credential: homeassistant-ssh
+              type: ssh_private_key
+              wrapper: ssh-agent
+              purpose: deploy
+              tool: credential.ssh-agent
+              target:
+                host: ha.example.com
+            - name: api
+              credential: deploy-api
+              type: credential_store.url_token
+              wrapper: exec
+              env: SERVICE_TOKEN
+              purpose: deploy
+              tool: credential.exec
+              target:
+                base_url: https://ha.example.com
+    YAML
+
+    script = config.scripts.fetch("deploy")
+    expect(script).to eq(
+      described_class::ScriptConfig.new(
+        name: "deploy",
+        command: "./deploy.sh",
+        description: "Deploy the appliance.",
+        allow_agent_invocation: true,
+        credentials: [
+          described_class::ScriptCredentialRequirement.new(
+            name: "ssh",
+            credential: "homeassistant-ssh",
+            type: "ssh_private_key",
+            wrapper: "ssh-agent",
+            env: nil,
+            purpose: "deploy",
+            tool: "credential.ssh-agent",
+            target: { "host" => "ha.example.com" }
+          ),
+          described_class::ScriptCredentialRequirement.new(
+            name: "api",
+            credential: "deploy-api",
+            type: "credential_store.url_token",
+            wrapper: "exec",
+            env: "SERVICE_TOKEN",
+            purpose: "deploy",
+            tool: "credential.exec",
+            target: { "base_url" => "https://ha.example.com" }
+          )
+        ]
+      )
+    )
+  end
+
+  it "rejects script credential declarations that look like secret material" do
+    expect {
+      parse(<<~YAML)
+        scripts:
+          deploy:
+            run: ./deploy.sh
+            credentials:
+              - credential: supersecrettokenmaterialthatlookspasted1234567890
+                type: token
+      YAML
+    }.to raise_error(described_class::ParseError, /must be a credential handle/)
+  end
+
+  it "allows safe script credential target values that contain auth in hostnames or URLs" do
+    config = parse(<<~YAML)
+      scripts:
+        deploy:
+          run: ./deploy.sh
+          credentials:
+            - credential: deploy-token
+              type: credential_store.url_token
+              target:
+                host: auth.example.com
+                base_url: https://auth.example.com
+    YAML
+
+    target = config.scripts.fetch("deploy").credentials.first.target
+    expect(target).to eq(
+      "host" => "auth.example.com",
+      "base_url" => "https://auth.example.com"
+    )
+  end
+
+  it "rejects script credential target keys that describe secret material" do
+    expect {
+      parse(<<~YAML)
+        scripts:
+          deploy:
+            run: ./deploy.sh
+            credentials:
+              - credential: deploy-token
+                type: credential_store.url_token
+                target:
+                  token: hidden
+      YAML
+    }.to raise_error(described_class::ParseError, /must not include secret-bearing keys/)
+  end
+
   it "parses explicit builder target controls and artifact references" do
     config = parse(<<~YAML)
       targets:
