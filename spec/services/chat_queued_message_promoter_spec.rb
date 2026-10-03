@@ -57,6 +57,18 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(message.content["text"]).to eq("pending message")
     end
 
+    it "preserves an existing generated title while promoting queued messages" do
+      chat.update!(title: "Generated title", title_auto_fallback: false)
+      enqueue_message("pending message")
+
+      expect(described_class.deliver_one_if_idle!(chat)).to be true
+
+      expect(chat.reload).to have_attributes(
+        title: "Generated title",
+        title_auto_fallback: false
+      )
+    end
+
     it "promotes goal continuations as system messages while still triggering a turn" do
       chat.chat_queued_messages.create!(
         content: {

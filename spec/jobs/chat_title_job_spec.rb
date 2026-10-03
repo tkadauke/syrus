@@ -27,6 +27,7 @@ RSpec.describe ChatTitleJob do
 
   it "stores the generated title once" do
     ChatTitleJob.agent_runner = ->(**_) { result('{"title":"Habit Tracker"}') }
+    allow(OperationalLogging).to receive(:ingest)
 
     described_class.perform_now(chat.id, message.id)
 
@@ -34,6 +35,21 @@ RSpec.describe ChatTitleJob do
     expect(chat).not_to be_title_pending
     expect(chat.title_auto_fallback).to eq(false)
     expect(chat.chat_provider).to eq("claude")
+    expect(OperationalLogging).to have_received(:ingest).with(
+      level: "info",
+      source: "chat_title_job",
+      message: "ChatTitleJob success for chat #{chat.id}",
+      context: hash_including(
+        chat_session_id: chat.id,
+        user_message_id: message.id,
+        seed_source: "message_id",
+        provider: "claude",
+        status: "success",
+        title_write: "generated",
+        title_auto_fallback: false,
+        elapsed_ms: be_a(Numeric)
+      )
+    )
   end
 
   it "uses the chat's pinned Codex provider when generating a title" do
@@ -67,6 +83,7 @@ RSpec.describe ChatTitleJob do
 
   it "does not overwrite an existing title" do
     chat.update!(title: "Existing title")
+    allow(OperationalLogging).to receive(:ingest)
     called = false
     ChatTitleJob.agent_runner = ->(**_) {
       called = true
@@ -77,15 +94,65 @@ RSpec.describe ChatTitleJob do
 
     expect(chat.reload.title).to eq("Existing title")
     expect(called).to eq(false)
+    expect(OperationalLogging).to have_received(:ingest).with(
+      level: "info",
+      source: "chat_title_job",
+      message: "ChatTitleJob skipped for chat #{chat.id}",
+      context: hash_including(
+        chat_session_id: chat.id,
+        user_message_id: message.id,
+        seed_source: "message_id",
+        provider: "claude",
+        status: "skipped",
+        title_write: "existing_title",
+        title_auto_fallback: false,
+        elapsed_ms: be_a(Numeric)
+      )
+    )
   end
 
   it "falls back to the repository name when generation fails" do
     ChatTitleJob.agent_runner = ->(**_) { result("not json") }
+    allow(OperationalLogging).to receive(:ingest)
 
     described_class.perform_now(chat.id, message.id)
 
     expect(chat.reload.title).to eq("widgets")
     expect(chat.title_auto_fallback).to eq(true)
+    expect(chat).not_to be_title_pending
+    expect(OperationalLogging).to have_received(:ingest).with(
+      level: "warn",
+      source: "chat_title_job",
+      message: "ChatTitleJob failure for chat #{chat.id}",
+      context: hash_including(
+        chat_session_id: chat.id,
+        user_message_id: message.id,
+        seed_source: "message_id",
+        provider: "claude",
+        status: "failure",
+        failure_reason: a_string_including("invalid JSON"),
+        problem_code: "validation_or_user_error",
+        title_write: "fallback",
+        title_auto_fallback: true,
+        elapsed_ms: be_a(Numeric)
+      )
+    )
+  end
+
+  it "falls back to the current attached repository when generation fails" do
+    first_repo = Factories.repository(user: user, owner: "acme", name: "api")
+    current_repo = Factories.repository(user: user, owner: "acme", name: "web")
+    attached_chat = ChatSession.create!(user: user, title: nil)
+    attached_chat.chat_attachments.create!(attachable: first_repo)
+    attached_chat.chat_attachments.create!(attachable: current_repo)
+    attached_message = attached_chat.messages.create!(role: "user", content: { "text" => "Name this" })
+    ChatTitleJob.agent_runner = ->(**_) { result("not json") }
+
+    described_class.perform_now(attached_chat.id, attached_message.id)
+
+    expect(attached_chat.reload.title).to eq("web")
+    expect(attached_chat.title_auto_fallback).to eq(true)
+    expect(attached_chat).not_to be_title_pending
   end
 
   it "retries generation when the stored title is a previous failed-generation fallback" do
