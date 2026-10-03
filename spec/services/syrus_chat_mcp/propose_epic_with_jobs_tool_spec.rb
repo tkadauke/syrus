@@ -212,6 +212,40 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(schema.body).to eq("Steps:\n1. Rename the 'body' column.")
   end
 
+  it "stores explicit planned execution overrides on child Job proposals" do
+    response = call_tool(
+      epic: {
+        slug: "mobile-bundle",
+        title: "Mobile bundle",
+        description: "Repair mobile delivery.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "ios-build",
+          target_repo: repository.slug,
+          title: "Fix iOS build",
+          description: "Repair the Xcode project.",
+          planned_execution: {
+            project_label: "iOS App",
+            target_label: "//ios:app",
+            capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+          }
+        }
+      ]
+    )
+
+    child = chat_session.proposals.find_by!(slug: "ios-build")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(child.planned_execution_json).to include(
+      "project_label" => "iOS App",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "operator"
+    )
+  end
+
   it "does not attach active goal provenance to bundled Epic and child Job proposals by default" do
     ChatGoal.create!(
       chat_session: chat_session,

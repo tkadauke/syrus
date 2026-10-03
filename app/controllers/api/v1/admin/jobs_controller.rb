@@ -120,6 +120,18 @@ module Api
           title = attrs[:title].to_s.strip.presence
           target_branch = attrs[:target_branch].to_s.strip.presence
           delivery_track = attrs[:delivery_track].to_s.strip.presence
+          planned_execution_attrs = PlannedExecutionParams.from_params(attrs.to_h)
+          if planned_execution_attrs.blank?
+            probe = repository.user.jobs.new(repository: repository, issue_title: title || GenerateJobTitleJob::PENDING_TITLE, issue_body: prompt_text)
+            requirement = PlannedExecutionPlanner.for_job(probe)
+            planned_execution_attrs = {
+              planned_execution_project_label: requirement.project_label,
+              planned_execution_target_label: requirement.target_label,
+              planned_execution_capabilities: requirement.capabilities,
+              planned_execution_source: requirement.source
+            }
+          end
+
           job = repository.user.jobs.create!(
             repository: repository,
             kind: "direct",
@@ -132,7 +144,8 @@ module Api
             epic: epic,
             owner_user: owner_user,
             target_branch: target_branch,
-            delivery_track: delivery_track
+            delivery_track: delivery_track,
+            **planned_execution_attrs
           )
           GenerateJobTitleJob.perform_later(job) if job.title_pending?
           job.advance_after_triage! if job.may_advance_after_triage?
@@ -141,8 +154,12 @@ module Api
             message: I18n.t("api.direct_jobs.created"),
             job: serialize(job.reload)
           }, status: :created
+        rescue PlannedExecutionPlanner::AmbiguousRequest => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         private
@@ -157,7 +174,11 @@ module Api
 
         def job_params
           source = params[:job].present? ? params.require(:job) : params
-          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id, :target_branch, :delivery_track)
+          source.permit(
+            :repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id,
+            :target_branch, :delivery_track, :planned_execution_project_label, :planned_execution_target_label,
+            :planned_execution_source, planned_execution_capabilities: {}, planned_execution: [ :project_label, :target_label, :source, { capabilities: {} } ]
+          )
         end
 
         def find_active_repository(attrs)

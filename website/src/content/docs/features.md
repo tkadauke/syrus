@@ -1126,7 +1126,12 @@ explicitly requested.
 Direct Jobs are for work that should start from an operator prompt instead
 of a GitHub issue. Choose a repository, title, priority, optional provider,
 prompt, and attachments. Syrus creates a `direct` Job and runs the normal
-Initial workflow.
+Initial workflow. API clients and chat proposal cards can also supply a planned
+execution override. Without an override, Syrus infers primary implementation
+capabilities conservatively before the Workflow starts: backend work stays on
+default/Linux compute, iOS/Xcode work uses macOS/Xcode, mixed iOS plus backend
+work uses macOS/Xcode as the primary placement, and ambiguous cross-host
+requests ask for a split or explicit host instead of guessing.
 
 Chat proposal cards for a single direct Job can be routed to Backlog before
 confirmation. The default remains Start normally. A Backlog-routed direct Job

@@ -168,6 +168,104 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "records a capability escalation warning when Linux-planned implementation touched an iOS target" do
+    workflow.update!(
+      planned_execution_capabilities: { "os" => [ "linux" ] },
+      planned_execution_source: "defaulted"
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+        - name: backend-tests
+          run: bin/rspec
+          when_files_changed: ["app/**/*.rb"]
+          capabilities:
+            os: linux
+    YAML
+    stub_changed_files("ios/App/View.swift")
+
+    handler.call
+
+    warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
+    expect(warning).to have_attributes(severity: "high", step: step)
+    expect(warning.evidence).to include(
+      "planned_capabilities" => { "os" => [ "linux" ] },
+      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+    )
+    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/ios-tests")
+    expect(warning.suggested_prompt).to include("Do not move a mutable workspace across platforms")
+  end
+
+  it "does not warn when macOS primary placement covers mixed iOS and backend target changes" do
+    workflow.update!(
+      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_source: "inferred"
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+        - name: backend-tests
+          run: bin/rspec
+          when_files_changed: ["app/**/*.rb"]
+          capabilities:
+            os: linux
+    YAML
+    stub_changed_files("ios/App/View.swift", "app/models/user.rb")
+
+    handler.call
+
+    expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
+    expect(workflow.steps.where(kind: "grader").map { |grader_step| grader_step.details["name"] }).to contain_exactly("ios-tests", "backend-tests")
+  end
+
+  it "warns when an equally constrained affected target is not covered by the primary placement" do
+    workflow.update!(
+      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_source: "inferred"
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+            toolchains: [xcode]
+        - name: windows-package
+          run: msbuild
+          when_files_changed: ["windows/**/*"]
+          capabilities:
+            os: windows
+            arch: [x64]
+    YAML
+    stub_changed_files("ios/App/View.swift", "windows/App/App.sln")
+
+    handler.call
+
+    warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
+    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/windows-package")
+    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
+      "//:grade/ios-tests",
+      "//:grade/windows-package"
+    )
+    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
+      .to eq([ "//:grade/windows-package" ])
+    expect(warning.evidence.fetch("mismatches")).to include(
+      include("target_label" => "//:grade/windows-package", "dimension" => "os", "missing" => [ "windows" ]),
+      include("target_label" => "//:grade/windows-package", "dimension" => "arch", "missing" => [ "x64" ])
+    )
+  end
+
   it "carries a resolved grader display_name onto both the materialized Step and the target selection entries" do
     write_config(<<~YAML)
       grade:

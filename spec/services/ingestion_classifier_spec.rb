@@ -22,6 +22,12 @@ RSpec.describe IngestionClassifier do
     described_class.call(job: job, github_client: client)
   end
 
+  before do
+    allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+      RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "no .syrus.yml", outcome: :absent)
+    )
+  end
+
   it "marks a duplicate issue invalid with the original issue URL as evidence" do
     original = Job.create!(
       user: user,
@@ -130,6 +136,55 @@ RSpec.describe IngestionClassifier do
     expect(job.reload.state).to eq("queued")
     expect(job.validity).to eq("valid")
     expect(job.runs.count).to eq(1)
+  end
+
+  it "persists a classifier-selected planned execution requirement before queueing" do
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 141,
+      issue_title: "Fix iOS build",
+      issue_body: "The Xcode project no longer builds."
+    )
+
+    classify(job, {
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] },
+      "planned_execution" => {
+        "project_label" => "iOS",
+        "target_label" => "//ios:app",
+        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      }
+    })
+
+    expect(job.reload.planned_execution_json).to include(
+      "project_label" => "iOS",
+      "target_label" => "//ios:app",
+      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "source" => "classifier"
+    )
+    expect(job.state).to eq("queued")
+  end
+
+  it "leaves incompatible host requests in triage for an operator decision" do
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 142,
+      issue_title: "Build iOS and Windows apps",
+      issue_body: "Update the Xcode project and Windows installer."
+    )
+
+    classify(job, {
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] },
+      "planned_execution" => nil
+    })
+
+    expect(job.reload).to be_triaging
+    expect(job.triaging_reason).to eq("classifier_uncertain")
+    expect(job.triaging_uncertainty_reason).to include("mutually incompatible")
+    expect(job.runs).to be_empty
   end
 
   it "marks classifier failures as uncertain without queueing the job" do

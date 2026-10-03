@@ -63,6 +63,10 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
+      Set jobs[].planned_execution to explicitly choose a child Job's primary
+      implementation placement when the request is ambiguous. Omit it for
+      conservative automatic inference from that child Job's title/body and
+      repository capability metadata.
       epic.description and jobs[].description are stored and rendered as
       Markdown after JSON decoding of this tool call, so write them as plain
       Markdown prose: real newline characters between paragraphs, lists, and
@@ -100,6 +104,16 @@ module Mcp::Tools
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
+              planned_execution: {
+                type: "object",
+                properties: {
+                  project_label: { type: "string" },
+                  target_label: { type: "string" },
+                  capabilities: { type: "object" },
+                  source: { type: "string" }
+                },
+                description: "Optional explicit primary implementation placement override. Use capabilities like {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+              },
               media: {
                 type: "array",
                 items: { type: "string" },
@@ -158,6 +172,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("unknown job target_repo for #{job[:slug]}: #{job[:target_repo]}") unless repository
           return Mcp::Tools.invalid("proposal item #{job[:slug]} target_repo must match the Epic target_repo") unless repository.id == epic_repository.id
 
+          job[:planned_execution_attrs] = planned_execution_attributes(repository, job)
           job_repositories[job[:slug]] = repository
         end
 
@@ -178,6 +193,8 @@ module Mcp::Tools
         Mcp::Tools.success(payload_for(proposal.reload))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      rescue PlannedExecutionPlanner::AmbiguousRequest, ArgumentError => e
+        Mcp::Tools.invalid(e.message)
       end
 
       private
@@ -227,7 +244,22 @@ module Mcp::Tools
           depends_on: normalize_string_list(job["depends_on"]),
           provider_setting: provider_setting,
           provider_error: provider_error,
+          planned_execution: job["planned_execution"],
           media_ids: Array(job["media"])
+        }
+      end
+
+      def planned_execution_attributes(repository, job)
+        explicit = PlannedExecutionParams.from_params({ "planned_execution" => job[:planned_execution] }.compact)
+        return explicit if explicit.present?
+
+        probe = repository.user.jobs.new(repository: repository, issue_title: job[:title], issue_body: job[:description])
+        requirement = PlannedExecutionPlanner.for_job(probe)
+        {
+          planned_execution_project_label: requirement.project_label,
+          planned_execution_target_label: requirement.target_label,
+          planned_execution_capabilities: requirement.capabilities,
+          planned_execution_source: requirement.source
         }
       end
 
@@ -478,6 +510,7 @@ module Mcp::Tools
             depends_on_epic_ids: job[:depends_on_epic_ids],
             depends_on_job_ids: job[:depends_on_job_ids],
             provider_setting: job[:provider_setting],
+            **job.fetch(:planned_execution_attrs),
             media_ids: job[:media_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil,

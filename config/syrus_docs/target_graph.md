@@ -51,7 +51,95 @@ Buck/Bazel/Pants-style targets from repository structure on its own. When an
 import is active, the imported Buck/Bazel/Pants graph is the precise base graph:
 Syrus adds its workflow nodes and metadata on top, but it does not reinterpret
 or replace imported dependency edges. The `project:` primitive described below
-names/labels the project that owns a config file's targets.
+names/labels the project that owns a config file's targets and may carry
+implementation capability hints.
+
+## Execution capabilities
+
+Projects and executable targets can declare normalized execution capabilities.
+They are constraints for worker/backend placement, not source materialization
+policy: `placement_policy` still describes how a workspace is checked out,
+while capabilities describe what kind of host can run the work.
+
+Supported dimensions are:
+
+| Dimension | Meaning |
+|---|---|
+| `os` | Host operating system such as `linux`, `macos`, or `windows`. |
+| `arch` | CPU architecture such as `x86_64` or `arm64`. |
+| `toolchains` | Required installed toolchains such as `xcode`, `go`, `ruby`, or `node`. |
+| `runtimes` | Required execution runtimes such as `ios_simulator`, `docker`, or `android_emulator`. |
+| `features` | Free-form normalized feature tokens for local instance needs. |
+
+Each dimension accepts a string or array of strings. Values are normalized to
+lowercase, deduplicated, and must be token-like (`letters`, `digits`, `_`,
+`.`, `+`, `-`). The special value `any` can stand alone but cannot be combined
+with more specific values.
+
+Project-level capabilities are implementation hints. For example, an iOS
+project can ask the initial implementation workflow to land on a Mac-capable
+worker:
+
+```yaml
+project:
+  id: ios
+  label: iOS App
+  capabilities:
+    os: macos
+    toolchains: [xcode]
+    runtimes: [ios_simulator]
+```
+
+Before a Job's first Workflow is launched, Syrus persists the planned primary
+execution requirements it will use for pinned implementation work. The stored
+plan includes the selected project or target label when one is known, the
+normalized capability requirements, and whether the plan was inferred,
+explicitly requested, or defaulted. Each Workflow snapshots those Job-level
+requirements at creation time, so later `.syrus.yml` changes do not silently
+move an in-flight workflow to a different worker class. Jobs and Workflows
+without a stored plan are treated as ordinary Linux/default execution.
+Planning should be conservative: if a change is expected to touch iOS and
+backend code, the implementation workflow should start on the Mac/Xcode-capable
+primary worker, while backend graders can still fan out to their own target
+requirements later.
+
+After implementation, grader fanout recomputes the affected target set from the
+actual diff and compares the most constrained affected target's capabilities
+with the Workflow's planned primary implementation capabilities. A mismatch
+records a `kind: "implementation_capability_escalation"` workflow warning. This
+is a backstop for under-planned work, not the primary placement mechanism:
+Syrus does not silently migrate a mutable implementation workspace across
+platforms. Operators should retry or continue through an explicit checkpoint or
+handoff on a capable worker, split the work by platform, or let
+platform-specific graders continue only when they fully validate the change.
+
+Target-level capabilities are executable requirements. They apply to the
+target that carries them, whether it is an explicit `builder`/`grader`/`prepare`
+target or a legacy grader compiled into `//package:grade/name`:
+
+```yaml
+targets:
+  - name: ios-build
+    kind: builder
+    run: xcodebuild build -scheme MobileApp
+    capabilities:
+      os: macos
+      toolchains: [xcode]
+
+grade:
+  - name: backend
+    run: bin/rspec
+    capabilities:
+      os: linux
+```
+
+Imported build-system providers may return capability metadata directly on
+`TargetGraph::Project` or `TargetGraph::Target` objects. A `.syrus.yml`
+overlay on an imported target may add Syrus execution metadata, including
+`capabilities`, without redefining imported sources, commands, or dependency
+edges. The target graph API returns capabilities with the project/target and
+overlay diagnostics record the owning `.syrus.yml` path and declaration that
+added them.
 
 ## Adoption paths
 
@@ -71,8 +159,9 @@ mobile, shared-code, and mixed-product examples, see
    implicit project and its legacy sections compile into that package's
    targets, with file selectors resolved relative to the declaring directory.
 3. **Explicit project names**: add `project:` when the directory-derived id,
-   label, or kind is not the right operator-facing identity. This renames the
-   project boundary; it does not make commands run differently.
+   label, kind, or implementation capability hint is not the right
+   operator-facing identity. This renames the project boundary; it does not
+   make commands run differently.
 4. **Explicit targets**: add `targets:` when the repo needs reusable graph
    nodes or dependency edges that legacy sections cannot express clearly:
    libraries, applications, binaries, prepare actions, builders, repo checks,
@@ -174,6 +263,7 @@ Explicit target fields:
 | `phases` | no | `[]` | Optional phase metadata for executable validation targets. Values use the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+| `capabilities` | no | — | Execution requirements for this target: `os`, `arch`, `toolchains`, `runtimes`, and/or `features`. |
 | `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. |
 | `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
 | `github_checks` | no | `[]` | Alias for `ci_checks`. |

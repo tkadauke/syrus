@@ -298,6 +298,7 @@ module App
           visual_review: project.visual_review,
           adversarial_review: project.adversarial_review,
           coverage: project.coverage,
+          capabilities: capabilities_json(project.capabilities),
           target_count: graph.targets_for_project(project.id).size
         }.compact
       end
@@ -327,6 +328,7 @@ module App
           phases: target.phases,
           required: target.required,
           timeout_minutes: target.timeout_minutes,
+          capabilities: capabilities_json(target.capabilities),
           metadata: target.metadata
         }.compact,
         owner_config_path: target.owner_config_path,
@@ -523,8 +525,13 @@ module App
         id: project.id,
         label: project.label,
         path: project.path,
-        owner_config_path: project.owner_config_path
+        owner_config_path: project.owner_config_path,
+        capabilities: capabilities_json(project.capabilities)
       }.compact
+    end
+
+    def capabilities_json(capabilities)
+      capabilities&.to_h&.presence
     end
 
     def selection_entries

@@ -23,9 +23,9 @@ class RepoGradePlan
   # `SyrusYml::GradeStep`); nil means "no explicit or type-generated label --
   # fall back to a humanized `name`," which downstream display code (the
   # workflow serializer) already handles.
-  Grader = Data.define(:name, :display_name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata) do
-    def initialize(display_name: nil, **rest)
-      super(display_name: display_name, **rest)
+  Grader = Data.define(:name, :display_name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities) do
+    def initialize(display_name: nil, capabilities: nil, **rest)
+      super(display_name: display_name, capabilities: capabilities, **rest)
     end
   end
   Result = Data.define(:graders, :source, :note, :max_iterations, :rerun_only_failed) do
@@ -100,7 +100,8 @@ class RepoGradePlan
       failures: step.failures,
       base_retry: step.base_retry,
       deps: step.deps,
-      metadata: metadata
+      metadata: metadata,
+      capabilities: step.capabilities
     )
   end
 

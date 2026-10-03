@@ -75,12 +75,39 @@ Schema:
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
+| `project.capabilities` / target `capabilities` | Mapping | Execution host/toolchain constraints such as `os: macos`, `toolchains: [xcode]`, or `runtimes: [ios_simulator]` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
 | `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |
 | `visual_review.when_files_changed` | Array of globs | Only run visual review when matching files changed |
 | `preview` | Mapping | Commands and metadata used by the preview action and visual review |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
+
+Project and target capabilities are normalized when Syrus plans primary
+execution placement before launching a Job's workflow. Jobs store the planned
+project or target label when known, the capability requirements, and whether
+the placement was inferred, explicitly requested, or defaulted. Each Workflow
+snapshots that plan when it is created, so later `.syrus.yml` edits do not move
+work that is already in flight. Jobs without a stored plan use the ordinary
+Linux/default execution class. Direct Job API calls and chat proposal cards can
+set an explicit planned execution override; otherwise Syrus infers
+conservatively from the request and repository capability metadata. Backend-only
+work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS with
+Xcode, and mixed iOS plus backend work should use macOS/Xcode for the primary
+implementation placement while backend graders fan out separately later.
+Windows work uses Windows. If a single Job looks like it needs mutually
+incompatible primary hosts, Syrus asks for a split or an explicit primary host
+instead of guessing. Missing capability metadata is a warning rather than a
+blocker.
+
+After implementation, Syrus compares the actual changed files against the
+target graph as a safety net. If the diff affects a more constrained target
+than the implementation workflow was planned for, Syrus records an
+`implementation_capability_escalation` workflow warning instead of silently
+moving the mutable workspace across platforms. Treat that warning as a prompt
+to retry or continue through an explicit checkpoint or handoff on a capable
+worker, split the work by platform, or confirm that target-specific graders
+fully validate the change.
 
 ### `prepare`
 

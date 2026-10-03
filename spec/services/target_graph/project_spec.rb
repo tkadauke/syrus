@@ -22,6 +22,17 @@ RSpec.describe TargetGraph::Project do
       expect(project.owner_config_path).to eq("desktop/.syrus.yml")
     end
 
+    it "stores implementation capability hints" do
+      capabilities = TargetGraph::ExecutionCapabilities.new(os: "macos", toolchains: [ "xcode" ])
+      project = described_class.new(id: "ios", capabilities: capabilities)
+
+      expect(project.capabilities).to eq(capabilities)
+      expect(project.capabilities.to_h).to eq(
+        "os" => [ "macos" ],
+        "toolchains" => [ "xcode" ]
+      )
+    end
+
     it "rejects a blank id" do
       expect { described_class.new(id: "") }.to raise_error(ArgumentError)
     end

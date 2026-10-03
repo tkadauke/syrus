@@ -625,6 +625,8 @@ targets:
     phases: [review, landing]
     required: true
     timeout_minutes: 20
+    capabilities:
+      os: linux
 
 grade:
   - name: web-build
@@ -633,7 +635,8 @@ grade:
     phases: [landing, ci]
 ```
 
-Use overlays for workflow phases, requiredness, timeouts, Syrus-only prepare
+Use overlays for workflow phases, requiredness, timeouts, target capabilities,
+Syrus-only prepare
 targets, Syrus-only graders, previews, visual review, adversarial review,
 coverage, local checkout hooks, and operator-facing project labels.
 

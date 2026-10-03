@@ -9,7 +9,7 @@ class IngestionClassifier
   DUPLICATE_TEXT_BYTES = 20_000
   DUPLICATE_TOKEN_LIMIT = 400
 
-  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :error) do
+  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :planned_execution, :error) do
     def success? = error.nil?
     def invalid? = invalid_kind.present?
   end
@@ -65,7 +65,8 @@ class IngestionClassifier
       job: job,
       epics: epic_index,
       merged_pull_requests: merged_pull_request_index,
-      duplicate_candidates: duplicate_candidate_index
+      duplicate_candidates: duplicate_candidate_index,
+      repository_capabilities: repository_capability_index
     ).to_s
 
     judgment = Judgment.call(
@@ -98,6 +99,7 @@ class IngestionClassifier
       invalid_kind: kind,
       reason: invalid["reason"].to_s.strip.presence,
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
+      planned_execution: planned_execution_attributes(parsed["planned_execution"]),
       error: nil
     )
   rescue ArgumentError
@@ -111,9 +113,27 @@ class IngestionClassifier
       if result.invalid?
         invalidate!(result)
       else
+        apply_planned_execution!(result)
         job.advance_after_triage! if job.may_advance_after_triage?
       end
     end
+  end
+
+  def apply_planned_execution!(result)
+    requirement =
+      if result.planned_execution.present?
+        PlannedExecutionRequirement.new(**result.planned_execution.merge(source: "classifier").symbolize_keys)
+      else
+        PlannedExecutionPlanner.for_job(job)
+      end
+    requirement.assign_to(job)
+    job.save! if job.planned_execution_changed?
+  rescue PlannedExecutionPlanner::AmbiguousRequest => e
+    raise e
+  rescue StandardError => e
+    Rails.logger.warn("[IngestionClassifier] planned execution classification failed for #{job.slug}: #{e.class}: #{e.message}")
+    PlannedExecutionPlanner.for_job(job).assign_to(job)
+    job.save! if job.planned_execution_changed?
   end
 
   def assign_epic(epic_id)
@@ -214,6 +234,51 @@ class IngestionClassifier
               .map { |_score, candidate| duplicate_candidate_payload(candidate) }
   end
 
+  def repository_capability_index
+    loaded = RepoDefaultBranchSyrusYml.for_job(job)
+    return { status: loaded.outcome.to_s, warning: "repository capability metadata unavailable", facts: [] } unless loaded.loaded?
+
+    facts = []
+    project = loaded.config.project
+    if project&.capabilities&.to_h.present?
+      facts << {
+        kind: "project",
+        label: project.label.presence || project.id.presence || "Repository",
+        target_label: TargetGraph.root_label.to_s,
+        capabilities: project.capabilities.to_h
+      }
+    end
+    Array(loaded.config.targets).each do |target|
+      next unless target.capabilities&.to_h.present?
+
+      facts << {
+        kind: "target",
+        label: target.name,
+        target_label: TargetGraph::Label.root(target.name).to_s,
+        capabilities: target.capabilities.to_h
+      }
+    end
+    Array(loaded.config.grade&.steps).each do |step|
+      next unless step.capabilities&.to_h.present?
+
+      facts << {
+        kind: "grader",
+        label: step.display_name.presence || step.name,
+        target_label: TargetGraph::Label.root("grade/#{step.name}").to_s,
+        capabilities: step.capabilities.to_h
+      }
+    end
+
+    {
+      status: "loaded",
+      warning: (facts.empty? ? "repository has no capability metadata; infer conservatively from the issue text" : nil),
+      facts: facts
+    }
+  rescue StandardError => e
+    Rails.logger.warn("[IngestionClassifier] capability index failed for #{repository.slug}: #{e.class}: #{e.message}")
+    { status: "unavailable", warning: "repository capability metadata unavailable", facts: [] }
+  end
+
   def duplicate_candidate_payload(candidate)
     {
       job_id: candidate.id,
@@ -254,6 +319,19 @@ class IngestionClassifier
   end
 
   def failure(reason)
-    Result.new(epic_id: nil, invalid_kind: nil, reason: nil, evidence_urls: [], error: reason)
+    Result.new(epic_id: nil, invalid_kind: nil, reason: nil, evidence_urls: [], planned_execution: nil, error: reason)
+  end
+
+  def planned_execution_attributes(value)
+    return nil unless value.is_a?(Hash)
+
+    capabilities = value["capabilities"]
+    return nil unless capabilities.is_a?(Hash) && capabilities.present?
+
+    {
+      project_label: value["project_label"],
+      target_label: value["target_label"],
+      capabilities: capabilities
+    }
   end
 end

@@ -185,6 +185,7 @@ module WorkUnits
       @source_type = source_type
       @source_id = source_id
       @options = options
+      @planned_execution_override = @options.delete(:planned_execution_requirements)
       @member_jobs_override = Array(@options.delete(:member_jobs)).presence
       @parent_work_unit = @options.delete(:parent_work_unit)
       @existing_intent = existing_intent
@@ -195,6 +196,7 @@ module WorkUnits
 
     def instantiate
       WorkIntent.transaction do
+        job.ensure_planned_execution_requirements!
         intent = find_or_create_intent!
         if (workflow = active_workflow_for(intent))
           return workflow
@@ -418,12 +420,20 @@ module WorkUnits
       {
         job: job,
         artifacts: raw_artifacts,
-        agent_provider: agent_provider
+        agent_provider: agent_provider,
+        planned_execution_requirements: planned_execution_requirements
       }.merge(options)
     end
 
     def scope
       @scope
+    end
+
+    def planned_execution_requirements
+      @planned_execution_requirements ||= PlannedExecutionRequirement.for_workflow(
+        job: job,
+        override: @planned_execution_override
+      )
     end
   end
 end

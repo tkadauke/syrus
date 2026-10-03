@@ -39,9 +39,11 @@ class Workflow < ApplicationRecord
   validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
   validates_agent_provider
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
+  validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create
+  before_validation :default_planned_execution_requirements, on: :create
   before_save :sync_workflow_admission_override_metadata
 
   # Free-form bag of artifacts produced during this workflow. The
@@ -123,6 +125,32 @@ class Workflow < ApplicationRecord
 
   def coding_takeover_hold?
     queued? && Workflow::TriggerKind.coding_takeover_hold?(trigger_kind)
+  end
+
+  def planned_execution_requirement
+    PlannedExecutionRequirement.from_record(self)
+  end
+
+  def planned_execution_json
+    planned_execution_requirement.as_json
+  end
+
+  def default_planned_execution_requirements
+    return unless job
+
+    requirement = if planned_execution_fields_present?
+      PlannedExecutionRequirement.from_record(self)
+    else
+      PlannedExecutionRequirement.from_record(job)
+    end
+    requirement.assign_to(self)
+  end
+
+  def planned_execution_fields_present?
+    planned_execution_source.present? ||
+      planned_execution_capabilities.present? ||
+      planned_execution_project_label.present? ||
+      planned_execution_target_label.present?
   end
 
   def enforce_job_workflow_runaway_limits_on_create!
