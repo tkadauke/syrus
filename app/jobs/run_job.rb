@@ -151,7 +151,7 @@ class RunJob < ApplicationJob
   def defer_run(run_id, delay)
     run = ::Run.find_by(id: run_id)
     sq_num = run&.solid_queue_priority || ::Job::PRIORITY_TO_SQ["medium"]
-    queue = run&.resume_worker_queue || queue_name
+    queue = run ? RunQueueResolver.resolve(run: run).queue_name : queue_name
     self.class.set(queue: queue, wait: delay, priority: sq_num).perform_later(run_id)
   end
 
