@@ -14,6 +14,8 @@ class WorkerHostHealthSampler
           role: instance.role,
           version: instance.version,
           observed_at: observed_at,
+          desired_version: instance.desired_version || {},
+          macos_updater_status: instance.macos_updater_status || {},
           capabilities: capability_snapshot.fetch(:capabilities),
           capability_diagnostics: capability_snapshot.fetch(:diagnostics)
         )

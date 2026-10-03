@@ -95,6 +95,10 @@ class AppSetting < ApplicationRecord
     current.show_work_unit_debug
   end
 
+  def self.macos_worker_desired_release
+    current.macos_worker_desired_release.presence || {}
+  end
+
   def self.rebase_failure_cooldown_minutes
     current.rebase_failure_cooldown_minutes
   end
