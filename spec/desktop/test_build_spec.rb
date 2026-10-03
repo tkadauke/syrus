@@ -55,7 +55,7 @@ RSpec.describe "desktop test-build pipeline" do
     expect(workflow["jobs"].keys).to contain_exactly("prepare", "build")
     # The build spine's jobs live in the shared module.
     expect(build_yaml["jobs"].keys).to contain_exactly(
-      "build-backend", "merge-backend", "build-cli", "build-mac"
+      "build-backend", "merge-backend", "build-cli", "build-macos-worker", "build-mac"
     )
   end
 
