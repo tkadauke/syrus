@@ -230,6 +230,40 @@ describe("renderChatMessages tool grouping", () => {
     })
   })
 
+  it("renders structured object tool results as JSON instead of object coercion text", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash", toolName: "bash", input: { command: "bin/rails test" } }),
+      toolResult(2, {
+        toolUseId: "tu_bash",
+        content: { exit_status: 1, stderr: "No such file or directory" },
+        isError: true
+      })
+    ])
+
+    const call = group(items[0]).calls[0]
+
+    expect(call.result_body).toContain('"exit_status": 1')
+    expect(call.result_body).toContain('"stderr": "No such file or directory"')
+    expect(call.result_body).not.toContain("[object Object]")
+  })
+
+  it("renders standalone structured object tool results without object coercion text", () => {
+    const items = renderChatMessages([
+      toolResult(1, {
+        toolUseId: "missing_tool_use",
+        content: { exit_status: 1, stderr: "No such file or directory" },
+        isError: true,
+        tool_name: "bash"
+      })
+    ])
+
+    const item = items[0]
+    if (!item || item.type !== "message") throw new Error("expected a standalone tool result message")
+
+    expect(item.tool?.result_summary).toContain("No such file or directory")
+    expect(item.tool?.result_summary).not.toContain("[object Object]")
+  })
+
   it("groups consecutive same-tool calls into one tool_group and pairs each result by adjacency", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

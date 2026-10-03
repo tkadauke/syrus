@@ -44,7 +44,13 @@ RSpec.describe ChatProviders::Codex do
       chat.create_provider_session!(
         provider: "codex",
         session_id: "codex-thread-1",
-        transcript_jsonl: "{\"type\":\"session_meta\"}\n"
+        transcript_jsonl: "{\"type\":\"raw_rollout_with_stale_mcp_token\"}\n"
+      )
+      chat.messages.create!(
+        role: "assistant",
+        content: [
+          { "type" => "text", "text" => "Previous answer." }
+        ]
       )
       codex_auth = instance_double(CodexAuth, prepare!: CodexAuth::Result.new(api_key: "sk-fake"), persist_updated_auth_json: nil)
       allow(CodexAuth).to receive(:new)
@@ -104,10 +110,11 @@ RSpec.describe ChatProviders::Codex do
         log_sink: log_sink,
         codex_home: ChatWorkspace.agent_home_for(chat, "codex").to_s,
         resume_session_id: "codex-thread-1",
-        resume_transcript_jsonl: "{\"type\":\"session_meta\"}\n",
         stop_requested: stop_requested,
         process_started: process_started
       )
+      expect(received[:resume_transcript_jsonl]).to include("Previous answer.")
+      expect(received[:resume_transcript_jsonl]).not_to include("raw_rollout_with_stale_mcp_token")
       expect(received[:mcp_servers]).to include(
         "syrus-chat-sidecar" => include(
           command: "/app/bin/syrus-chat-sidecar",

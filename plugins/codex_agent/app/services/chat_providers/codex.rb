@@ -126,13 +126,10 @@ module ChatProviders
         return ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
       end
 
-      # Fast path: provider matches and transcript is cached
-      session = chat.provider_session
-      if session&.provider == provider && session.session_id == session_id && session.transcript_jsonl.present?
-        return session.transcript_jsonl
-      end
-
-      # Rehydrate from ChatMessage rows (cross-provider switch or missing cache)
+      # Rehydrate from ChatMessage rows rather than replaying the raw Codex
+      # rollout. Raw rollouts can include per-turn MCP startup state such as
+      # signed invocation tokens; carrying those into a later resume makes the
+      # next turn initialize MCP with a token for the previous message.
       return nil unless chat.messages.exists?
 
       ChatSessionRehydrator::Codex.new(chat, session_id: session_id).call
