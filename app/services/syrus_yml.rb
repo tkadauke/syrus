@@ -65,6 +65,9 @@ class SyrusYml
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
   DEPLOYMENT_STAGE_SCOPES = %w[repository].freeze
   DEFAULT_DEPLOYMENT_STAGE_SCOPE = "repository".freeze
+  CREDENTIAL_TYPE_NAME_PATTERN = Syrus::PluginRegistry.credential_type_name_pattern
+  SECRET_KEY_PATTERN = /(?:secret|token|password|passphrase|private[_-]?key|client[_-]?key|credential|auth)/i
+  SCRIPT_CREDENTIAL_HANDLE_SECRET_PATTERN = /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|[A-Za-z0-9_+\/=-]{40,})/
 
   # Charset for an explicit `project.id` -- matches TargetGraph::Project::ID_PATTERN
   # and TargetGraph::Label::SEGMENT_PATTERN so a validly-parsed id can never
@@ -74,7 +77,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -144,6 +147,8 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
+  ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
+  ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
@@ -283,7 +288,8 @@ class SyrusYml
       external_prs: parse_external_prs(raw["external_prs"]),
       project: parse_project(raw["project"]),
       targets: parse_targets(raw["targets"]),
-      target_graph: parse_target_graph(raw["target_graph"])
+      target_graph: parse_target_graph(raw["target_graph"]),
+      scripts: parse_scripts(raw["scripts"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -641,6 +647,93 @@ class SyrusYml
         metadata: parse_target_metadata(item, label),
         capabilities: parse_capabilities(item["capabilities"], "#{label}.capabilities")
       )
+    end
+  end
+
+  def parse_scripts(raw)
+    return {} if raw.nil?
+    raise ParseError, "scripts: must be a mapping" unless raw.is_a?(Hash)
+
+    seen = Set.new
+    raw.each_with_object({}) do |(name, item), scripts|
+      key = name.to_s.strip
+      label = "scripts.#{key.presence || '<blank>'}"
+      raise ParseError, "#{label}: name must not be blank" if key.empty?
+      raise ParseError, "#{label}: name must match #{GRADE_NAME_PATTERN.inspect}" unless key.match?(GRADE_NAME_PATTERN)
+      remember_unique_name!(seen, key, label)
+      raise ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
+
+      command = item["run"].to_s.strip.presence || item["command"].to_s.strip.presence
+      raise ParseError, "#{label}.run: is required" if command.blank?
+
+      scripts[key] = ScriptConfig.new(
+        name: key,
+        command: command,
+        description: item["description"].to_s.strip.presence,
+        credentials: parse_script_credentials(item["credentials"], "#{label}.credentials"),
+        allow_agent_invocation: item.key?("allow_agent_invocation") ? ActiveModel::Type::Boolean.new.cast(item["allow_agent_invocation"]) : false
+      )
+    end
+  end
+
+  def parse_script_credentials(raw, label)
+    return [] if raw.nil?
+    raise ParseError, "#{label}: must be an array" unless raw.is_a?(Array)
+
+    raw.each_with_index.map do |item, index|
+      item_label = "#{label}[#{index}]"
+      raise ParseError, "#{item_label}: must be a mapping" unless item.is_a?(Hash)
+
+      name = item["name"].to_s.strip.presence || "credential"
+      raise ParseError, "#{item_label}.name: must match #{GRADE_NAME_PATTERN.inspect}" unless name.match?(GRADE_NAME_PATTERN)
+
+      credential = item["credential"].to_s.strip
+      raise ParseError, "#{item_label}.credential: is required" if credential.empty?
+      if credential.include?("\n") || credential.match?(SCRIPT_CREDENTIAL_HANDLE_SECRET_PATTERN)
+        raise ParseError, "#{item_label}.credential: must be a credential handle, not secret material"
+      end
+
+      type = item["type"].to_s.strip.downcase
+      raise ParseError, "#{item_label}.type: is required" if type.empty?
+      raise ParseError, "#{item_label}.type: must match #{CREDENTIAL_TYPE_NAME_PATTERN.inspect}" unless type.match?(CREDENTIAL_TYPE_NAME_PATTERN)
+
+      wrapper = item["wrapper"].to_s.strip.presence || "exec"
+      unless %w[exec ssh-agent].include?(wrapper)
+        raise ParseError, "#{item_label}.wrapper: must be one of exec, ssh-agent"
+      end
+
+      env = item["env"].to_s.strip.presence
+      raise ParseError, "#{item_label}.env: is only valid with wrapper exec" if env && wrapper != "exec"
+
+      ScriptCredentialRequirement.new(
+        name: name,
+        credential: credential,
+        type: type,
+        wrapper: wrapper,
+        env: env,
+        purpose: item["purpose"].to_s.strip.presence,
+        tool: item["tool"].to_s.strip.presence,
+        target: parse_script_credential_target(item["target"], "#{item_label}.target")
+      )
+    end
+  end
+
+  def parse_script_credential_target(raw, label)
+    return {} if raw.nil?
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    raw.deep_stringify_keys.each_with_object({}) do |(key, value), target|
+      name = key.to_s.strip
+      raise ParseError, "#{label}: contains a blank key" if name.empty?
+      if name.match?(SECRET_KEY_PATTERN)
+        raise ParseError, "#{label}: must not include secret-bearing keys"
+      end
+      string_value = value.to_s
+      if value.is_a?(Hash) || value.is_a?(Array) || string_value.include?("\n") || string_value.match?(SCRIPT_CREDENTIAL_HANDLE_SECRET_PATTERN)
+        raise ParseError, "#{label}.#{name}: must contain only safe display values"
+      end
+
+      target[name] = string_value
     end
   end
 

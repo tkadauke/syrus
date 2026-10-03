@@ -81,6 +81,7 @@ the rest of the tree.
 | `generated:` | Legacy generator config and generator targets. | Project generator targets with relative source/output scopes; target-aware runtime is still staged. |
 | `grade:` | Legacy workflow grader plan plus grader targets. | Project grader targets for graph tooling and dependency analysis; root grader fanout remains the normal workflow validation path. |
 | `targets:` | Explicit repository/package targets. | Explicit project/package targets. |
+| `scripts:` | Named repository-owned script declarations, including any credential handles they expect wrappers to lease. | Parsed as ordinary project metadata; agent invocation policy is still evaluated against the current run/chat context and credential scope. |
 | `preview:` | Root preview, preserving legacy behavior. | Project preview; Job previews select affected preview-capable projects. |
 | `visual_review:` | Root visual review settings. | Project visual review settings used with affected project previews. |
 | `adversarial_review:` | Repo-wide criteria. | Criteria added only when the project is affected. |
@@ -139,6 +140,55 @@ Invalid capability maps fail parsing with the owning field path, such as
 Imported build-system graph providers may also supply capabilities; `.syrus.yml`
 overlays can add them to imported targets without redefining the imported
 graph structure.
+
+### scripts
+
+`scripts:` is optional metadata for repository-owned commands that humans or
+agents may run through Syrus. It is not a secret store and it does not grant
+access by itself. It names a script, the shell command, whether an agent may
+invoke it from a Job/chat-assisted runtime, and the credential handles that
+the script expects to receive through the bundled `credential_store` CLI
+wrappers.
+
+```yaml
+scripts:
+  deploy:
+    run: ./deploy.sh
+    description: Deploy the Home Assistant appliance.
+    allow_agent_invocation: true
+    credentials:
+      - name: ssh
+        credential: homeassistant-ssh
+        type: ssh_private_key
+        wrapper: ssh-agent
+        purpose: deploy
+        tool: credential.ssh-agent
+        target:
+          host: ha.example.com
+```
+
+`credential` is a high-level handle such as a credential id or unique name, not
+payload material. Syrus rejects declarations whose handle or safe target values
+look like plaintext secrets. The actual payload still lives in the
+`credential_store` plugin, encrypted and scoped to a user, repository, team, or
+instance. The broker enforces scope, allowed surface, allowed tool, type,
+target constraints, expiry, and revocation every time the wrapper requests a
+lease.
+
+Supported wrappers are:
+
+- `ssh-agent` — use with `type: ssh_private_key`; the CLI command is
+  `syrus credential ssh-agent --credential <handle> -- <script>`.
+- `exec` — use for non-SSH credentials; set `env:` when the script should
+  receive an environment variable or file path from
+  `syrus credential exec --env-var` / `--file-env`.
+
+`allow_agent_invocation: true` is repository policy metadata only. An agent may
+invoke the wrapper when the current Job/chat runtime is already authorized for
+the repository and credential, the command matches the declared script intent,
+and the credential's own allowed surfaces/tools/targets permit the request.
+When it is omitted or false, agents should ask an operator to run the script or
+file a follow-up that adds explicit policy before attempting it.
 
 ## prepare
 

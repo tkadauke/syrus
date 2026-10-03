@@ -563,6 +563,73 @@ pod, restarting a rollout, scaling a deployment, cordoning a node) are
 only exposed as MCP tools today, with no backing REST endpoint for the
 CLI to call — the CLI does not duplicate them.
 
+## Credential Store
+
+`syrus credential` is contributed by the bundled `credential_store` plugin.
+`syrus credential_store` remains an alias for older scripts. The command group
+provides safe discovery for credential type declarations and credential handles
+without printing encrypted payloads:
+
+```bash
+syrus credential types
+syrus credential credentials
+syrus credential credentials --type credential_store.url_token
+```
+
+The command group also has a runtime lease client:
+
+```bash
+syrus credential lease deploy-token \
+  --type credential_store.url_token \
+  --purpose deploy \
+  --tool deploy.push \
+  --target-json '{"host":"api.example.com"}'
+```
+
+`lease` requires Syrus-managed runtime authentication through
+`SYRUS_CLI_INVOCATION_CONTEXT`; a normal saved CLI API token can list safe
+metadata but cannot request broker leases. Lease output contains only metadata
+such as lease id, credential id/name/type, safe metadata, purpose, tool, and
+expiry. It does not print credential payload material.
+
+For SSH deployment scripts, `ssh-agent` requests an `ssh_private_key` lease,
+starts a short-lived local agent, loads the key through `ssh-add`, exports only
+`SSH_AUTH_SOCK` to the child command, and tears down the agent and temporary
+files on exit:
+
+```bash
+syrus credential ssh-agent --credential homeassistant-ssh -- ./deploy.sh
+```
+
+The wrapper audits the credential handle, current runtime context, wrapper
+command namespace, child exit status, and duration without logging the private
+key, passphrase, or child command arguments.
+
+Repository-owned deploy/debug scripts can advertise the wrapper they expect in
+`.syrus.yml` without hardcoding secrets:
+
+```yaml
+scripts:
+  deploy:
+    run: ./deploy.sh
+    allow_agent_invocation: true
+    credentials:
+      - credential: homeassistant-ssh
+        type: ssh_private_key
+        wrapper: ssh-agent
+        purpose: deploy
+        target:
+          host: ha.example.com
+```
+
+That declaration names only a credential handle and safe target metadata. The
+operator still creates the encrypted credential in Credential Store, scopes it
+to the user/repo/team/instance as appropriate, and sets allowed surfaces/tools
+such as `workflow` and `credential.ssh-agent`. Agents may invoke the wrapper
+from a Syrus runtime only when the script intent is declared or explicitly
+approved and the credential policy authorizes the current run. Transcripts show
+the wrapper command and handle, not plaintext key or token material.
+
 ## Search
 
 `syrus search` is contributed by the bundled `global_search` plugin and

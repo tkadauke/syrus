@@ -21,7 +21,7 @@ module AppApi
     end
 
     def allowed?
-      read_only?
+      read_only? || credential_lease_request?
     end
 
     def audit(status:)
@@ -67,11 +67,21 @@ module AppApi
 
     def outcome_for(status)
       status = status.to_i
-      return "denied" if status == 403 && !read_only?
+      return "denied" if status == 403 && !allowed?
       return "error" if status >= 500
       return "rejected" if status >= 400
 
       "allowed"
+    end
+
+    def credential_lease_request?
+      request.post? && [
+        "/api/v1/app/credential_store/leases",
+        "/api/v1/app/credential_store/exec_material",
+        "/api/v1/app/credential_store/exec/audit",
+        "/api/v1/app/credential_store/ssh_agent",
+        "/api/v1/app/credential_store/ssh_agent/audit"
+      ].include?(request.path)
     end
   end
 end

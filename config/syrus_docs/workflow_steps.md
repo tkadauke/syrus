@@ -19,10 +19,18 @@ redacted.
 Safe examples inside an agentic Run include `syrus job show JOB-<id> --json`,
 `syrus job log JOB-<id>`, `syrus job diff JOB-<id>`, and read-only repository
 or identity commands such as `syrus repo list --json` and `syrus whoami --json`.
+The bundled credential store plugin also exposes
+`syrus credential_store lease` plus the `syrus credential exec` and
+`syrus credential ssh-agent` wrappers as narrow runtime-authenticated
+exceptions to the read-only default. `lease` returns only metadata. The wrapper
+commands materialize credential payloads only inside the child process
+boundary, redact child output, clean up temporary material, and record
+credential access/completion audit rows without writing plaintext payload
+material to transcripts.
 Human operators still use `syrus login` and `~/.syrus/credentials` outside
 Syrus-managed runtimes; a workflow subprocess should not create or depend on
 that file. Future CLI work that needs in-runtime data, such as target graph
-query commands or credential wrapper helpers, should build on this same runtime
+query commands, should build on this same runtime
 availability layer instead of inventing a second authentication path.
 
 `Step` is also the workflow DAG node record for the distributed-workflow

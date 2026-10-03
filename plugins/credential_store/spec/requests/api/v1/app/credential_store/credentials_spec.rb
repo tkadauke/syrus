@@ -241,6 +241,347 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     PluginRecord.find_by(name: "credential_store")&.update!(enabled: true)
   end
 
+  it "issues metadata-only broker leases through runtime CLI authentication" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    run = job.runs.first
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      payload: "lease-secret-token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "deploy.push" ],
+      target_constraints: { "allowed_hosts" => [ "api.example.com" ] }
+    )
+    token = McpInvocationContext.issue_for_app_run(run, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/leases",
+      params: {
+        lease: {
+          credential: credential.name,
+          type: "credential_store.url_token",
+          purpose: "deploy",
+          tool_name: "deploy.push",
+          target: { host: "api.example.com" },
+          expires_in: 30
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body.fetch("lease")
+    expect(body).to include(
+      "credential_id" => credential.id,
+      "credential_name" => credential.name,
+      "credential_type" => "credential_store.url_token",
+      "purpose" => "deploy",
+      "tool_name" => "deploy.push",
+      "safe_metadata" => include("host" => "github.com")
+    )
+    expect(body).to include("lease_id", "issued_at", "expires_at")
+    expect(response.body).not_to include("lease-secret-token")
+    expect(body).not_to have_key("payload")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      user: operator,
+      repository: repository,
+      job: job,
+      workflow: run.workflow,
+      run: run,
+      surface: "workflow",
+      action: "lease",
+      result: "allowed"
+    )
+  end
+
+  it "rejects credential leases without runtime CLI authentication" do
+    credential = create_credential
+
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/leases", params: {
+      lease: {
+        credential: credential.name,
+        type: "credential_store.generic",
+        purpose: "deploy"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("runtime CLI authentication")
+  end
+
+  it "returns authorization failures from broker lease requests without payload material" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      payload: "forbidden-secret-token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "deploy.pull" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/leases",
+      params: {
+        lease: {
+          credential: credential.id,
+          type: "credential_store.url_token",
+          purpose: "deploy",
+          tool_name: "deploy.push"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("tool not allowed")
+    expect(response.body).not_to include("forbidden-secret-token")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "tool not allowed"
+    )
+  end
+
+  it "returns plugin_disabled for credential lease requests when disabled" do
+    PluginRecord.find_by!(name: "credential_store").update!(enabled: false)
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/leases",
+      params: {
+        lease: {
+          credential: "missing",
+          type: "credential_store.generic",
+          purpose: "deploy"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
+  ensure
+    PluginRecord.find_by(name: "credential_store")&.update!(enabled: true)
+  end
+
+  it "issues generic exec material only through runtime CLI authentication" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    run = job.runs.first
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      payload: "exec-secret-token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ],
+      target_constraints: { "allowed_hosts" => [ "api.example.com" ] }
+    )
+    token = McpInvocationContext.issue_for_app_run(run, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/exec_material",
+      params: {
+        credential_exec: {
+          credential: credential.name,
+          type: "credential_store.url_token",
+          purpose: "deploy",
+          tool_name: "credential.exec",
+          target: { host: "api.example.com" },
+          expires_in: 30
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("lease")).to include(
+      "credential_id" => credential.id,
+      "credential_name" => credential.name,
+      "credential_type" => "credential_store.url_token",
+      "purpose" => "deploy",
+      "tool_name" => "credential.exec"
+    )
+    expect(body.fetch("lease")).not_to have_key("payload")
+    expect(body.fetch("material")).to eq("payload" => "exec-secret-token")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      user: operator,
+      repository: repository,
+      job: job,
+      workflow: run.workflow,
+      run: run,
+      surface: "workflow",
+      action: "lease",
+      tool_name: "credential.exec",
+      result: "allowed"
+    )
+  end
+
+  it "rejects generic exec material requests without runtime CLI authentication" do
+    credential = create_credential(payload: "exec-secret-token")
+
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/exec_material", params: {
+      credential_exec: {
+        credential: credential.name,
+        type: "credential_store.generic",
+        tool_name: "credential.exec"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("runtime CLI authentication")
+    expect(response.body).not_to include("exec-secret-token")
+  end
+
+  it "records generic exec completion audits with materialization mode" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      payload: "exec-secret-token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/exec/audit",
+      params: {
+        credential_exec_audit: {
+          credential: credential.name,
+          lease_id: "lease-exec",
+          purpose: "deploy",
+          tool_name: "credential.exec",
+          exit_status: 37,
+          duration_ms: 1234,
+          mode: "file-env"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:no_content)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "failed",
+      action: "use",
+      tool_name: "credential.exec",
+      metadata: include(
+        "lease_id" => "lease-exec",
+        "exit_status" => 37,
+        "duration_ms" => 1234,
+        "mode" => "file-env"
+      )
+    )
+  end
+
+  it "issues SSH agent material only through runtime CLI authentication without writing payload into lease metadata" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    run = job.runs.first
+    private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nssh-agent-secret\n-----END OPENSSH PRIVATE KEY-----\n"
+    credential = create_credential(
+      name: "homeassistant-ssh",
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "ssh_private_key",
+      payload: { private_key: private_key, passphrase: "ssh-passphrase" }.to_json,
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.ssh-agent" ],
+      target_constraints: {}
+    )
+    token = McpInvocationContext.issue_for_app_run(run, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/ssh_agent",
+      params: {
+        ssh_agent: {
+          credential: credential.name,
+          purpose: "deploy",
+          tool_name: "credential.ssh-agent"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("lease")).to include(
+      "credential_id" => credential.id,
+      "credential_name" => credential.name,
+      "credential_type" => "ssh_private_key",
+      "purpose" => "deploy",
+      "tool_name" => "credential.ssh-agent"
+    )
+    expect(body.fetch("lease")).not_to have_key("payload")
+    expect(body.fetch("ssh_key")).to include(
+      "private_key" => private_key,
+      "passphrase" => "ssh-passphrase"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      user: operator,
+      repository: repository,
+      job: job,
+      workflow: run.workflow,
+      run: run,
+      surface: "workflow",
+      action: "lease",
+      tool_name: "credential.ssh-agent",
+      result: "allowed"
+    )
+  end
+
+  it "rejects SSH agent material requests without runtime CLI authentication" do
+    credential = create_credential(credential_type: "ssh_private_key", payload: "private-key")
+
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/ssh_agent", params: {
+      ssh_agent: {
+        credential: credential.name,
+        tool_name: "credential.ssh-agent"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("runtime CLI authentication")
+  end
+
+  it "records SSH agent completion audits with exit status and duration metadata" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "ssh_private_key",
+      payload: "private-key",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.ssh-agent" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/ssh_agent/audit",
+      params: {
+        ssh_agent_audit: {
+          credential: credential.name,
+          lease_id: "lease-ssh",
+          purpose: "deploy",
+          tool_name: "credential.ssh-agent",
+          exit_status: 37,
+          duration_ms: 1234
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:no_content)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "failed",
+      action: "use",
+      tool_name: "credential.ssh-agent",
+      metadata: include(
+        "lease_id" => "lease-ssh",
+        "exit_status" => 37,
+        "duration_ms" => 1234
+      )
+    )
+  end
+
   def credential_params(scope_type:, scope_id:, payload:)
     {
       name: "Scoped credential",

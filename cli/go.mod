@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
+	github.com/tkadauke/syrus/plugins/credential_store/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/design_docs/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/global_search/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/k8s_cluster/cli v0.0.0
@@ -59,6 +60,8 @@ require (
 replace github.com/tkadauke/syrus/plugins/scheduled_tasks/cli => ../plugins/scheduled_tasks/cli
 
 replace github.com/tkadauke/syrus/plugins/k8s_cluster/cli => ../plugins/k8s_cluster/cli
+
+replace github.com/tkadauke/syrus/plugins/credential_store/cli => ../plugins/credential_store/cli
 
 replace github.com/tkadauke/syrus/plugins/global_search/cli => ../plugins/global_search/cli
 

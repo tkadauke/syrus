@@ -164,6 +164,7 @@ COPY go.work go.work.sum ./
 COPY cli/go.mod cli/go.sum ./cli/
 COPY plugins/scheduled_tasks/cli/go.mod ./plugins/scheduled_tasks/cli/
 COPY plugins/k8s_cluster/cli/go.mod ./plugins/k8s_cluster/cli/
+COPY plugins/credential_store/cli/go.mod ./plugins/credential_store/cli/
 COPY plugins/global_search/cli/go.mod ./plugins/global_search/cli/
 COPY plugins/design_docs/cli/go.mod ./plugins/design_docs/cli/
 COPY plugins/spending_insights/cli/go.mod ./plugins/spending_insights/cli/
@@ -174,6 +175,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY cli/ ./cli/
 COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/
 COPY plugins/k8s_cluster/cli/ ./plugins/k8s_cluster/cli/
+COPY plugins/credential_store/cli/ ./plugins/credential_store/cli/
 COPY plugins/global_search/cli/ ./plugins/global_search/cli/
 COPY plugins/design_docs/cli/ ./plugins/design_docs/cli/
 COPY plugins/spending_insights/cli/ ./plugins/spending_insights/cli/
