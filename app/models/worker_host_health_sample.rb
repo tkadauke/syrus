@@ -21,5 +21,7 @@ class WorkerHostHealthSample < ApplicationRecord
     self.raw_metrics ||= {}
     self.capabilities ||= {}
     self.capability_diagnostics ||= {}
+    self.desired_version ||= {}
+    self.macos_updater_status ||= {}
   end
 end
