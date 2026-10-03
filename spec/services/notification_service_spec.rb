@@ -104,6 +104,59 @@ RSpec.describe NotificationService do
       }.not_to change(Notification, :count)
       expect(ActionCable.server).not_to have_received(:broadcast)
     end
+
+    it "suppresses duplicate in-app notifications for the same persisted dedupe identity" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      allow(ActionCable.server).to receive(:broadcast)
+
+      first = described_class.create_for(
+        user: user,
+        kind: "main_broken",
+        repository: repository,
+        body: "Main branch broken",
+        dedupe_key: "main_broken:sha=abc123:signals=CI"
+      )
+
+      expect(first).to be_persisted
+      expect {
+        expect(
+          described_class.create_for(
+            user: user,
+            kind: "main_broken",
+            repository: repository,
+            body: "Main branch broken",
+            dedupe_key: "main_broken:sha=abc123:signals=CI"
+          )
+        ).to be_nil
+      }.not_to change(Notification, :count)
+      expect(ActionCable.server).to have_received(:broadcast).once
+    end
+
+    it "creates a new notification when the persisted dedupe identity changes" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      allow(ActionCable.server).to receive(:broadcast)
+
+      described_class.create_for(
+        user: user,
+        kind: "main_broken",
+        repository: repository,
+        body: "Main branch broken at one SHA",
+        dedupe_key: "main_broken:sha=abc123:signals=CI"
+      )
+
+      expect {
+        described_class.create_for(
+          user: user,
+          kind: "main_broken",
+          repository: repository,
+          body: "Main branch broken at another SHA",
+          dedupe_key: "main_broken:sha=def456:signals=CI"
+        )
+      }.to change(Notification, :count).by(1)
+      expect(ActionCable.server).to have_received(:broadcast).twice
+    end
   end
 
   describe "chat work events" do
