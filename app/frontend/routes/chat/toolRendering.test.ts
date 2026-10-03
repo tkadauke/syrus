@@ -87,6 +87,8 @@ describe("toolDetail", () => {
 
   it("summarizes Muse Code's snake_case native tool calls with their own param names", () => {
     expect(toolDetail("bash", { command: "ls -la" })).toBe("ls -la")
+    expect(toolDetail("bash", { command: ["bash", "-lc", "bin/rails test"] })).toBe("bash -lc bin/rails test")
+    expect(toolDetail("bash", { command: { command: "bash", args: ["-lc", "bin/rails test"] } })).toBe("bash -lc bin/rails test")
     expect(toolDetail("read_file", { path: "app/models/run.rb" })).toBe("app/models/run.rb")
     expect(toolDetail("search", { query: "def perform" })).toBe("def perform")
     expect(toolDetail("tool_search", { query: "read_job" })).toBe("read_job")

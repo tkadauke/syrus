@@ -7,7 +7,7 @@
 // Chat.tsx; renderMessage imports structuredTool/systemMessage back.
 import type { ChatCrossChatBridge, ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
 import { batchedNoticeContents, contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
-import { toolPresentation, toolResultPresentation } from "./toolRendering"
+import { fullResultBodyUnbounded, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   const content = contentRecord(message.content)
@@ -15,7 +15,7 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   const proposal = message.proposal
   const input = contentRecord(content?.input) || {}
   const presentation = toolPresentation(name, input)
-  const resultBody = message.role === "tool_result" ? stringValue(content?.content ?? content?.result ?? message.content ?? message.text) : ""
+  const resultBody = message.role === "tool_result" ? fullResultBodyUnbounded(content?.content ?? content?.result ?? message.content ?? message.text) : ""
   const resultPresentation = resultBody ? toolResultPresentation(presentation.name, resultBody, content?.is_error === true, resultBody, input) : null
 
   return {

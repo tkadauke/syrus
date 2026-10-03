@@ -168,7 +168,7 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
     // Muse Code's native tools use snake_case names and their own param
     // vocabulary, distinct from the capitalised Claude tool names above.
     case "bash":
-      detail = firstLine(stringValue(input.command))
+      detail = firstLine(commandArgumentSummary(input.command))
       break
     case "read_file":
       detail = stringValue(input.path) || stringValue(input.file_path)
@@ -186,6 +186,21 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   }
 
   return shortenWorkspacePaths(detail)
+}
+
+function commandArgumentSummary(value: unknown) {
+  if (Array.isArray(value)) {
+    const parts = value.map((part) => stringValue(part)).filter(Boolean)
+    if (parts.length > 0) return parts.join(" ")
+  }
+
+  if (isPlainObject(value)) {
+    const shell = stringValue(value.command) || stringValue(value.cmd) || stringValue(value.program)
+    const args = Array.isArray(value.args) ? value.args.map((part) => stringValue(part)).filter(Boolean).join(" ") : ""
+    return [shell, args].filter(Boolean).join(" ")
+  }
+
+  return stringValue(value)
 }
 
 function runtimeToolArgumentSummary(name: string, input: Record<string, unknown>) {
@@ -392,7 +407,7 @@ export function toolResultPresentation(name: string, body: string, error = false
 
 function genericToolErrorSummary(parsed: unknown, body: string) {
   const record = firstErrorRecord(parsed)
-  const message = record ? stringErrorField(record, ["message", "error_message", "error", "detail", "details", "reason"]) : null
+  const message = record ? stringErrorField(record, ["message", "error_message", "error", "detail", "details", "reason", "stderr", "output"]) : null
   const errorClass = record ? stringErrorField(record, ["error_class", "class", "exception", "type", "code"]) : null
   const text = [errorClass, message || firstLine(body)].filter(Boolean).join(": ")
   return text.length > 160 ? `${text.slice(0, 157)}...` : text
