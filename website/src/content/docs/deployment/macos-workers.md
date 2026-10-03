@@ -30,6 +30,20 @@ Syrus records updater state in worker health. Admin views can distinguish
 current, updating, failed, and stale Mac workers from the status each host
 reports after polling or activation attempts.
 
+## Rolling Updates
+
+Mac worker updates are drain-aware and roll one host at a time. Syrus marks a
+specific storage identity or hostname as draining, stops routing new compatible
+Runs to that worker, waits for active Runs and spawned processes to finish,
+then asks the host updater to activate the desired release.
+
+After the worker heartbeats at the desired `git_sha`, Syrus verifies the host
+still advertises macOS and Xcode capabilities before clearing the drain and
+moving to the next Mac. Admin worker health and queue views show drain/update
+state, failed updates, stale versions, and force-restart requests. If all Mac
+workers are draining or updating, Syrus does not advertise Mac capacity for new
+macOS/Xcode Runs.
+
 ## Why Pull Instead Of SSH
 
 In k3s deployments, the Linux control plane should not need inbound SSH access

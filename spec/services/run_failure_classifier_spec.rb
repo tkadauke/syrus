@@ -155,6 +155,26 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
       expect(classification.classification).to eq("worker_died_under_resource_pressure")
     end
+
+    it "classifies worker death during a macOS pool update as rollout-related and retryable" do
+      run.workflow.update!(worker_storage_key: "storage-a", worker_hostname: "mac-mini-a")
+      run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+      create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "cpu 100.0% >= 98%" ])
+      MacosWorkerDrain.create!(
+        worker_storage_key: "storage-a",
+        hostname: "mac-mini-a",
+        state: "updating",
+        drain_started_at: run.finished_at - 2.minutes,
+        update_started_at: run.finished_at - 1.minute,
+        desired_git_sha: "newsha"
+      )
+
+      result = classification
+
+      expect(result.classification).to eq("worker_died")
+      expect(result.retryable).to eq(true)
+      expect(result.classifier_inputs).to include("macos_worker_update_near_failure" => true)
+    end
   end
 
   it "refreshes resource summaries before classifying a worker_died transition" do

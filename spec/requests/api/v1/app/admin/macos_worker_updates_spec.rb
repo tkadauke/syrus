@@ -76,4 +76,64 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
     )
     expect(parse_body.dig("worker", "macos_updater_state")).to eq("failed")
   end
+
+  it "returns a drain directive for the requesting worker" do
+    sign_in_as(admin)
+    MacosWorkerDrain.create!(
+      worker_storage_key: "storage-a",
+      hostname: "mac-mini-a",
+      state: "updating",
+      desired_git_sha: "newsha",
+      desired_version: { "git_sha" => "newsha" },
+      drain_started_at: Time.current
+    )
+
+    get "/api/v1/app/admin/macos_worker_update", params: { worker_storage_key: "storage-a", hostname: "mac-mini-a" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("drain")).to include(
+      "state" => "updating",
+      "worker_storage_key" => "storage-a",
+      "hostname" => "mac-mini-a",
+      "desired_git_sha" => "newsha"
+    )
+  end
+
+  it "syncs active drain identity from updater reports" do
+    sign_in_as(admin)
+    MacosWorkerDrain.create!(hostname: "mac-mini-a", state: "draining", desired_git_sha: "newsha")
+
+    post "/api/v1/app/admin/macos_worker_update/report", params: {
+      status: {
+        hostname: "mac-mini-a",
+        worker_storage_key: "storage-a",
+        state: "idle",
+        current_version: "oldsha",
+        desired: { git_sha: "newsha" }
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(MacosWorkerDrain.sole.worker_storage_key).to eq("storage-a")
+  end
+
+  it "advances rolling update orchestration" do
+    sign_in_as(admin)
+    AppSetting.current.update!(macos_worker_desired_release: { "version" => "1.2.3", "git_sha" => "newsha", "artifact_url" => "https://releases.example.test/worker.tgz" })
+    InstanceVersion.create!(
+      hostname: "mac-mini-a",
+      role: "worker",
+      version: "oldsha",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: Time.current,
+      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+    )
+    WorkerHostHealthSample.create!(hostname: "mac-mini-a", worker_storage_key: "storage-a", role: "worker", version: "oldsha", observed_at: Time.current, cpu_used_percent: 20)
+
+    post "/api/v1/app/admin/macos_worker_update/advance"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("state" => "updating")
+    expect(parse_body.dig("drain", "worker_storage_key")).to eq("storage-a")
+  end
 end

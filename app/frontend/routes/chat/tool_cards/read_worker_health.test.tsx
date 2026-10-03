@@ -23,6 +23,7 @@ const HEALTHY_PAYLOAD = {
       stale: false,
       last_heartbeat_at: "2026-09-06T00:00:00Z",
       capabilities: { os: ["linux"], features: ["docker"] },
+      macos_worker_drain: { state: "updating", desired_git_sha: "newsha" },
       health: { level: "ok", reasons: [] },
       sample: { cpu_used_percent: 12.5, memory_used_percent: 40.0, data_root_used_percent: 30.0, io_pressure_some: 0.0, capabilities: { os: ["linux"], features: ["docker"] } }
     }
@@ -49,6 +50,7 @@ describe("read_worker_health tool card", () => {
     expect(screen.getByText("40.0%")).toBeInTheDocument()
     expect(screen.getByText("os: linux")).toBeInTheDocument()
     expect(screen.getByText("features: docker")).toBeInTheDocument()
+    expect(screen.getByText("updating · newsha")).toBeInTheDocument()
     expect(screen.getByText("2026-09-06T00:00:00Z")).toBeInTheDocument()
   })
 

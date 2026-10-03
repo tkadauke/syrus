@@ -318,6 +318,21 @@ export type ChatScopedEventObservation = {
 
 export type WorkerHealthLevel = "ok" | "warning" | "critical" | "unknown" | string
 
+export type MacosWorkerDrainState = {
+  state: string
+  worker_storage_key?: string | null
+  hostname?: string | null
+  desired_git_sha?: string | null
+  desired_version?: Record<string, unknown>
+  force_terminate?: boolean
+  drain_started_at?: string | null
+  update_started_at?: string | null
+  failed_at?: string | null
+  completed_at?: string | null
+  last_error?: string | null
+  metadata?: Record<string, unknown>
+}
+
 export type WorkerHealthSample = {
   id: number
   hostname: string
@@ -341,6 +356,7 @@ export type WorkerHealthSample = {
   io_pressure_full: number | null
   capabilities?: Record<string, string[]>
   capability_diagnostics?: Record<string, unknown>
+  macos_worker_drain?: MacosWorkerDrainState | null
   raw_metrics?: Record<string, unknown>
 }
 
@@ -378,6 +394,7 @@ export type CurrentWorkerHealth = {
   stale: boolean
   capabilities?: Record<string, string[]>
   capability_diagnostics?: Record<string, unknown>
+  macos_worker_drain?: MacosWorkerDrainState | null
   health: {
     level: WorkerHealthLevel
     reasons: string[]

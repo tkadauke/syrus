@@ -86,6 +86,7 @@ module Admin
         desired_version: instance.desired_version || {},
         macos_updater_status: instance.macos_updater_status || {},
         macos_updater_state: instance.macos_updater_state,
+        macos_worker_drain: drain_payload(worker_storage_key: latest&.worker_storage_key.presence || instance.hostname, hostname: instance.hostname),
         started_at: instance.started_at&.iso8601,
         last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
         seconds_since_heartbeat: instance.seconds_since_heartbeat,
@@ -107,6 +108,7 @@ module Admin
         desired_version: sample.desired_version || {},
         macos_updater_status: sample.macos_updater_status || {},
         macos_updater_state: sample.macos_updater_status&.dig("state") || "unknown",
+        macos_worker_drain: drain_payload(worker_storage_key: sample.worker_storage_key, hostname: sample.hostname),
         observed_at: sample.observed_at&.iso8601,
         cpu_used_percent: sample.cpu_used_percent,
         load_1m: sample.load_1m,
@@ -218,6 +220,15 @@ module Admin
         .then { |scope| include_raw_metrics? ? scope : scope.select(worker_health_scalar_columns) }
         .order(observed_at: :desc)
         .to_a
+    end
+
+    def drain_payload(worker_storage_key:, hostname:)
+      drain = drains_by_identity[worker_storage_key.presence] || drains_by_identity[hostname.presence]
+      drain&.directive_payload
+    end
+
+    def drains_by_identity
+      @drains_by_identity ||= MacosWorkerDrain.active_by_identity
     end
 
     def sample_key(sample)

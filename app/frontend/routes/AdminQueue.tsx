@@ -587,6 +587,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
   const minuteBuckets = host.minute_buckets ?? []
   const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
   const capabilityEntries = workerCapabilityEntries(current?.capabilities || sample?.capabilities)
+  const drain = current?.macos_worker_drain || sample?.macos_worker_drain
 
   return (
     <details className={`rounded-[var(--radius-panel)] border ${workerHealthBorder(level)} bg-surface`} open={level === "critical" || level === "warning"}>
@@ -595,6 +596,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-semibold text-text-primary">{host.hostname}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${workerHealthBadge(level)}`}>{workerHealthLabel(level, t)}</span>
+            <MacosDrainBadge drain={drain} />
           </div>
           <Text className="mt-1" muted variant="caption">
             {current?.health.reasons.length
@@ -639,6 +641,11 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
           <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.one_hour_max")}>
             {oneHour ? compactTrend(oneHour) : "-"}
           </DescriptionList.Item>
+          {drain ? (
+            <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.macos_update")}>
+              {macosDrainDetail(drain, t)}
+            </DescriptionList.Item>
+          ) : null}
         </DescriptionList.Root>
         <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
         {/* WorkerHealthTrendTable and the minute-bucket table below are intentionally left
@@ -918,8 +925,11 @@ function WorkerTable({ onNavigate, search, sort, workers }: { onNavigate: (param
       header: t("queue.col_state"),
       sort: "state",
       render: (worker) => (
-        <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
-          {worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
+            {worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+          </span>
+          <MacosDrainBadge drain={worker.macos_worker_drain} />
         </span>
       )
     }
@@ -966,8 +976,11 @@ function ProcessTable({ onNavigate, processes, search }: { onNavigate: (params: 
       header: t("queue.col_state"),
       sort: "state",
       render: (process) => (
-        <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
-          {process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>
+            {process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}
+          </span>
+          <MacosDrainBadge drain={process.macos_worker_drain} />
         </span>
       )
     }
@@ -985,6 +998,35 @@ function ProcessTable({ onNavigate, processes, search }: { onNavigate: (params: 
       panel={queuePanel(t, processes.length)}
     />
   )
+}
+
+function MacosDrainBadge({ drain }: { drain?: QueueWorker["macos_worker_drain"] }) {
+  const { t } = useT("admin")
+  if (!drain || drain.state === "none") return null
+
+  const tone = drain.state === "failed"
+    ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
+    : drain.force_terminate
+      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+      : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+
+  return <span className={`rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{macosDrainLabel(drain, t)}</span>
+}
+
+function macosDrainLabel(drain: NonNullable<QueueWorker["macos_worker_drain"]>, t: (key: string) => string) {
+  if (drain.force_terminate) return t("queue.macos_force_terminate")
+  if (drain.state === "draining") return t("queue.macos_draining")
+  if (drain.state === "updating") return t("queue.macos_updating")
+  if (drain.state === "failed") return t("queue.macos_update_failed")
+  return drain.state
+}
+
+function macosDrainDetail(drain: NonNullable<QueueWorker["macos_worker_drain"]>, t: (key: string) => string) {
+  const target = drain.desired_git_sha || (typeof drain.desired_version?.git_sha === "string" ? drain.desired_version.git_sha : null)
+  const bits = [macosDrainLabel(drain, t)]
+  if (target) bits.push(target)
+  if (drain.last_error) bits.push(drain.last_error)
+  return bits.join(" · ")
 }
 
 function queueDefaultSort(sort: QueueSort | undefined, fallback: { column: string; direction: "asc" | "desc" }) {
