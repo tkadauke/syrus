@@ -22,8 +22,10 @@ type CurrentWorker = {
   ioPressureSome: number | null
   lastHeartbeatAt: string | null
   capabilities: unknown
+  macosDrain: MacosDrain | null
 }
 
+type MacosDrain = { state: string; desiredGitSha: string | null; forceTerminate: boolean; lastError: string | null }
 type WindowSummary = { sampleCount: number; warningCount: number; criticalCount: number }
 
 type HostHistoryRow = { key: string; hostname: string; status: string | null; window1h: WindowSummary | null; window24h: WindowSummary | null }
@@ -61,7 +63,22 @@ function parseCurrentWorker(value: unknown, index: number): CurrentWorker | null
     diskPercent: sample && typeof sample.data_root_used_percent === "number" ? sample.data_root_used_percent : null,
     ioPressureSome: sample && typeof sample.io_pressure_some === "number" ? sample.io_pressure_some : null,
     lastHeartbeatAt: displayValue(value.last_heartbeat_at),
-    capabilities: value.capabilities ?? sample?.capabilities
+    capabilities: value.capabilities ?? sample?.capabilities,
+    macosDrain: parseMacosDrain(value.macos_worker_drain ?? sample?.macos_worker_drain)
+  }
+}
+
+function parseMacosDrain(value: unknown): MacosDrain | null {
+  if (!isPlainObject(value)) return null
+  const state = displayValue(value.state)
+  if (!state || state === "none") return null
+  const desiredVersion = isPlainObject(value.desired_version) ? value.desired_version : null
+
+  return {
+    state,
+    desiredGitSha: displayValue(value.desired_git_sha) || displayValue(desiredVersion?.git_sha),
+    forceTerminate: value.force_terminate === true,
+    lastError: displayValue(value.last_error)
   }
 }
 
@@ -131,13 +148,13 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No live workers found.</EmptyState>
       ) : (
         <FilterableList
-          itemText={(worker) => [worker.hostname, worker.role, worker.version, worker.healthLevel, workerCapabilitiesText(worker.capabilities), worker.healthReasons.join(" "), worker.lastHeartbeatAt].filter(Boolean).join(" ")}
+          itemText={(worker) => [worker.hostname, worker.role, worker.version, worker.healthLevel, workerCapabilitiesText(worker.capabilities), worker.macosDrain?.state, worker.macosDrain?.desiredGitSha, worker.healthReasons.join(" "), worker.lastHeartbeatAt].filter(Boolean).join(" ")}
           items={card.current}
           placeholder="Filter live workers"
         >
           {(workers) => (
             <Table>
-              <THead columns={["Host", "Role", "Health", "Capabilities", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
+              <THead columns={["Host", "Role", "Health", "Capabilities", "Mac update", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
               <TBody>
                 {workers.map((worker) => (
                   <tr key={worker.key}>
@@ -150,6 +167,7 @@ function renderExpanded(context: ToolCardContext) {
                       </span>
                     </Td>
                     <Td><CapabilityBadges capabilities={worker.capabilities} /></Td>
+                    <Td>{worker.macosDrain ? <MacosDrainPill drain={worker.macosDrain} /> : "—"}</Td>
                     <Td mono>{formatPercent(worker.cpuPercent)}</Td>
                     <Td mono>{formatPercent(worker.memoryPercent)}</Td>
                     <Td mono>{formatPercent(worker.diskPercent)}</Td>
@@ -194,6 +212,12 @@ function renderExpanded(context: ToolCardContext) {
       ) : null}
     </CardShell>
   )
+}
+
+function MacosDrainPill({ drain }: { drain: MacosDrain }) {
+  const label = drain.forceTerminate ? "force restart" : drain.state
+  const suffix = [drain.desiredGitSha, drain.lastError].filter(Boolean).join(" · ")
+  return <span>{label}{suffix ? ` · ${suffix}` : ""}</span>
 }
 
 const readWorkerHealthToolCard: ToolCardRenderer = {

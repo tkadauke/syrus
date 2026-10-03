@@ -171,6 +171,10 @@ class RunQueueResolver
   def live_capable_worker_for?(queue, requirements, allow_unknown_default: false)
     live_worker_payloads.any? do |payload|
       next false unless WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue)
+      next false if payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
+        worker_storage_key: payload[:worker_storage_key],
+        hostname: payload[:hostname]
+      )
 
       capabilities = payload.fetch(:capabilities)
       next true if allow_unknown_default && requirements == DEFAULT_RUN_CAPABILITIES && capabilities.blank?
@@ -187,9 +191,13 @@ class RunQueueResolver
     SolidQueue::Process.where.not(last_heartbeat_at: nil).filter_map do |process|
       next if process.last_heartbeat_at < InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago
 
+      capabilities = capabilities_for_process(process)
       {
+        hostname: process.metadata&.dig("hostname").presence || process.hostname,
+        worker_storage_key: process.metadata&.dig("worker_storage_key").presence || latest_sample_for(process)&.worker_storage_key,
         queues: InstanceVersion.queue_names(process.metadata&.dig("queues")),
-        capabilities: WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+        capabilities: capabilities,
+        macos_worker: macos_worker_capabilities?(capabilities)
       }
     end
   rescue NameError, ActiveRecord::StatementInvalid
@@ -198,9 +206,13 @@ class RunQueueResolver
 
   def legacy_instance_worker_payloads
     InstanceVersion.fresh.where(role: "worker").map do |instance|
+      capabilities = WorkerCapabilities.normalize(instance.capabilities)
       {
+        hostname: instance.hostname,
+        worker_storage_key: latest_sample_by_hostname[instance.hostname]&.worker_storage_key,
         queues: [ Workflow.resume_queue_name(instance.hostname) ],
-        capabilities: WorkerCapabilities.normalize(instance.capabilities)
+        capabilities: capabilities,
+        macos_worker: macos_worker_capabilities?(capabilities)
       }
     end
   end
@@ -210,6 +222,27 @@ class RunQueueResolver
     return nil if hostname.blank?
 
     InstanceVersion.fresh.where(hostname: hostname, role: "worker").first
+  end
+
+  def latest_sample_for(process)
+    latest_sample_by_hostname[process.metadata&.dig("hostname").presence || process.hostname]
+  end
+
+  def latest_sample_by_hostname
+    @latest_sample_by_hostname ||= WorkerHostHealthSample
+      .worker_role
+      .where("observed_at >= ?", InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
+      .order(observed_at: :desc)
+      .to_a
+      .index_by(&:hostname)
+  end
+
+  def capabilities_for_process(process)
+    WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+  end
+
+  def macos_worker_capabilities?(capabilities)
+    Array(capabilities["os"]).map(&:to_s).include?("macos")
   end
 
   def satisfies?(worker_capabilities, requirements)

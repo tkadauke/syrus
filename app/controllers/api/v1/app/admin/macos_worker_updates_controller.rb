@@ -3,9 +3,13 @@ module Api
     module App
       module Admin
         class MacosWorkerUpdatesController < BaseController
+          rescue_from ArgumentError do |e|
+            render_error("bad_request", e.message, status: :bad_request)
+          end
+
           def desired
             release = AppSetting.macos_worker_desired_release
-            render json: desired_payload(release)
+            render json: desired_payload(release).merge(drain: drain_directive)
           end
 
           def report
@@ -28,6 +32,7 @@ module Api
               last_heartbeat_at: now
             )
             instance.save!
+            sync_drain_identity!(instance, attrs)
 
             render json: {
               ok: true,
@@ -39,6 +44,22 @@ module Api
                 macos_updater_state: instance.macos_updater_state
               }
             }
+          end
+
+          def advance
+            render json: ::MacosWorkerRollout.advance!.as_json
+          end
+
+          def drain
+            render json: ::MacosWorkerRollout.drain!(**rollout_identity).as_json
+          end
+
+          def clear
+            render json: ::MacosWorkerRollout.clear!(**rollout_identity).as_json
+          end
+
+          def force_terminate
+            render json: ::MacosWorkerRollout.force_terminate!(**rollout_identity).as_json
           end
 
           private
@@ -61,6 +82,32 @@ module Api
               retention_count: release["retention_count"].presence || 3,
               poll_interval_seconds: release["poll_interval_seconds"].presence || 300
             }
+          end
+
+          def drain_directive
+            drain = ::MacosWorkerDrain.for_identity(
+              worker_storage_key: params[:worker_storage_key],
+              hostname: params[:hostname]
+            ).active.first
+            drain&.directive_payload || { state: "none" }
+          end
+
+          def rollout_identity
+            {
+              worker_storage_key: params[:worker_storage_key].presence,
+              hostname: params[:hostname].presence
+            }.compact
+          end
+
+          def sync_drain_identity!(instance, attrs)
+            key = attrs["worker_storage_key"].presence
+            drain = ::MacosWorkerDrain.for_identity(worker_storage_key: key, hostname: instance.hostname).active.first
+            return unless drain
+
+            drain.update!(
+              worker_storage_key: key || drain.worker_storage_key,
+              hostname: instance.hostname
+            )
           end
 
           def status_params

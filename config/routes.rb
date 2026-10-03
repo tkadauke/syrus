@@ -372,6 +372,10 @@ Rails.application.routes.draw do
           get "worker_health", to: "worker_health#show"
           get "macos_worker_update", to: "macos_worker_updates#desired"
           post "macos_worker_update/report", to: "macos_worker_updates#report"
+          post "macos_worker_update/advance", to: "macos_worker_updates#advance"
+          post "macos_worker_update/drain", to: "macos_worker_updates#drain"
+          post "macos_worker_update/clear", to: "macos_worker_updates#clear"
+          post "macos_worker_update/force_terminate", to: "macos_worker_updates#force_terminate"
           get "plugins", to: "plugins#index"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }

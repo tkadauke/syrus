@@ -37,6 +37,8 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
       capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
       capability_diagnostics: { "docker" => true }
     )
+    WorkerHostHealthSample.create!(hostname: "worker-a", worker_storage_key: "storage-a", role: "worker", version: "abc123", observed_at: Time.current, cpu_used_percent: 20)
+    MacosWorkerDrain.create!(worker_storage_key: "storage-a", hostname: "worker-a", state: "draining", drain_started_at: Time.current, desired_git_sha: "newsha")
     run_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
     chat_job = solid_queue_job(class_name: "ChatTurnJob", queue_name: "chat")
     failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
@@ -73,7 +75,8 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
       threads: 2,
       stale: false,
       capabilities: { os: [ "linux" ], features: [ "docker" ] },
-      capability_diagnostics: { docker: true }
+      capability_diagnostics: { docker: true },
+      macos_worker_drain: include(state: "draining", desired_git_sha: "newsha")
     )
     expect(payload.fetch(:pending_jobs)).to include(runs: 1, chat: 1, merges: 0, videos: 0, control_plane: 0, polling: 0, indexing: 0, cleanup: 0, low_priority_maintenance: 0)
     expect(payload.fetch(:failed_jobs)).to eq(count: 1)

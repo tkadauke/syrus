@@ -384,6 +384,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     InstanceVersion.create!(hostname: "worker-old", role: "worker", version: "abc123",
                             started_at: 10.minutes.ago, last_heartbeat_at: 3.minutes.ago)
     WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                                   worker_storage_key: "storage-a",
                                    observed_at: 1.minute.ago,
                                    cpu_used_percent: 20,
                                    load_1m: 1.5,
@@ -395,6 +396,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
                                    data_root_total_bytes: 20.gigabytes,
                                    cpu_pressure_some: 3,
                                    io_pressure_some: 4)
+    MacosWorkerDrain.create!(worker_storage_key: "storage-a", hostname: "worker-a", state: "draining", drain_started_at: Time.current, desired_git_sha: "newsha")
     WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
                                    observed_at: 12.hours.ago,
                                    cpu_used_percent: 99,
@@ -417,7 +419,8 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "stale" => false,
       "status" => "current",
       "capabilities" => { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
-      "capability_diagnostics" => { "docker" => true }
+      "capability_diagnostics" => { "docker" => true },
+      "macos_worker_drain" => include("state" => "draining", "desired_git_sha" => "newsha")
     )
     expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher", "Worker", "Worker" ])
     expect(body["all_processes"].find { |process| process["kind"] == "Dispatcher" }).to include(
@@ -429,7 +432,8 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
     expect(body.dig("worker_health", "current", 0)).to include(
       "hostname" => "worker-a",
-      "health" => include("level" => "ok")
+      "health" => include("level" => "ok"),
+      "macos_worker_drain" => include("state" => "draining")
     )
     historical = body.dig("worker_health", "hosts").find { |host| host["hostname"] == "worker-old" }
     expect(historical).to include(

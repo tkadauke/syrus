@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_174528) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_180857) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1835,6 +1835,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_174528) do
     t.integer "user_id", null: false
     t.index ["user_id", "status"], name: "index_local_tunnel_sessions_on_user_id_and_status"
     t.index ["user_id"], name: "index_local_tunnel_sessions_on_user_id"
+  end
+
+  create_table "macos_worker_drains", force: :cascade do |t|
+    t.string "worker_storage_key"
+    t.string "hostname"
+    t.string "state", null: false
+    t.string "desired_git_sha"
+    t.json "desired_version"
+    t.datetime "force_terminate_at"
+    t.datetime "drain_started_at"
+    t.datetime "update_started_at"
+    t.datetime "completed_at"
+    t.datetime "failed_at"
+    t.text "last_error"
+    t.json "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hostname"], name: "index_macos_worker_drains_on_hostname", unique: true
+    t.index ["state", "updated_at"], name: "index_macos_worker_drains_on_state_and_updated_at"
+    t.index ["worker_storage_key"], name: "index_macos_worker_drains_on_worker_storage_key", unique: true
   end
 
   create_table "main_branch_health_checks", force: :cascade do |t|

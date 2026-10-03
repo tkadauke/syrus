@@ -88,6 +88,8 @@ class RunFailureClassifier
       result("grader_failure", 0.90, false, "A configured grader command failed.")
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
+    when process_died_during_macos_worker_update?
+      result("worker_died", 0.98, true, "The worker or agent process disappeared while its macOS worker was draining or updating.")
     when process_died_under_resource_pressure?
       result("worker_died_under_resource_pressure", 0.95, true, "The worker or agent process disappeared while the host was under critical resource pressure; retry after admission pressure settles.")
     when agent_gave_up_waiting?
@@ -301,6 +303,48 @@ class RunFailureClassifier
   rescue StandardError => e
     Rails.logger.warn("[RunFailureClassifier] could not check for a deploy rollover: #{e.class}: #{e.message}")
     @deploy_rollover_near_failure = false
+  end
+
+  def process_died_during_macos_worker_update?
+    process_died? && macos_worker_update_near_failure?
+  end
+
+  def macos_worker_update_near_failure?
+    return @macos_worker_update_near_failure if defined?(@macos_worker_update_near_failure)
+
+    moment = run.finished_at || run.updated_at
+    @macos_worker_update_near_failure =
+      if moment.blank?
+        false
+      else
+        MacosWorkerDrain
+          .where("drain_started_at BETWEEN :from AND :to OR update_started_at BETWEEN :from AND :to OR force_terminate_at BETWEEN :from AND :to OR failed_at BETWEEN :from AND :to OR completed_at BETWEEN :from AND :to", from: moment - DEPLOY_ROLLOVER_WINDOW, to: moment + DEPLOY_ROLLOVER_WINDOW)
+          .where(identity_predicate_for_macos_update)
+          .exists?
+      end
+  rescue StandardError => e
+    Rails.logger.warn("[RunFailureClassifier] could not check for a macOS worker update: #{e.class}: #{e.message}")
+    @macos_worker_update_near_failure = false
+  end
+
+  def identity_predicate_for_macos_update
+    clauses = []
+    values = {}
+    if run.workflow&.worker_storage_key.present?
+      clauses << "worker_storage_key = :worker_storage_key"
+      values[:worker_storage_key] = run.workflow.worker_storage_key
+    end
+    if run.workflow&.worker_hostname.present?
+      clauses << "hostname = :hostname"
+      values[:hostname] = run.workflow.worker_hostname
+    end
+    hostnames = spawned_processes.map(&:hostname).compact_blank.uniq
+    if hostnames.any?
+      clauses << "hostname IN (:hostnames)"
+      values[:hostnames] = hostnames
+    end
+
+    clauses.empty? ? "1=1" : [ clauses.join(" OR "), values ]
   end
 
   def grader_failure?
@@ -517,6 +561,7 @@ class RunFailureClassifier
       "host_pressure_level" => run.run_resource_summary&.host_pressure_level,
       "host_pressure_reasons" => run.run_resource_summary&.host_pressure_reasons,
       "deploy_rollover_near_failure" => deploy_rollover_near_failure?,
+      "macos_worker_update_near_failure" => macos_worker_update_near_failure?,
       "diagnostic_id" => diagnostic&.id,
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),

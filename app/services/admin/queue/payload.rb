@@ -411,7 +411,8 @@ module Admin
           stale: process_stale?(worker),
           status: process_status(worker),
           capabilities: process_capabilities(worker),
-          capability_diagnostics: process_capability_diagnostics(worker)
+          capability_diagnostics: process_capability_diagnostics(worker),
+          macos_worker_drain: drain_payload(worker)
         }
       end
 
@@ -452,6 +453,23 @@ module Admin
         process.metadata&.dig("capability_diagnostics").presence || instance_for_process(process)&.capability_diagnostics || {}
       end
 
+      def drain_payload(process)
+        drain = drains_by_identity[process_worker_storage_key(process)] || drains_by_identity[process.hostname.presence]
+        drain&.directive_payload
+      end
+
+      def process_worker_storage_key(process)
+        process.metadata&.dig("worker_storage_key").presence || latest_sample_by_hostname[process.hostname]&.worker_storage_key
+      end
+
+      def latest_sample_by_hostname
+        @latest_sample_by_hostname ||= WorkerHostHealthSample.worker_role.order(observed_at: :desc).to_a.index_by(&:hostname)
+      end
+
+      def drains_by_identity
+        @drains_by_identity ||= MacosWorkerDrain.active_by_identity
+      end
+
       def instance_for_process(process)
         return nil if process.hostname.blank?
 
@@ -471,7 +489,8 @@ module Admin
           stale: process_stale?(process),
           status: process_status(process),
           capabilities: process_capabilities(process),
-          capability_diagnostics: process_capability_diagnostics(process)
+          capability_diagnostics: process_capability_diagnostics(process),
+          macos_worker_drain: drain_payload(process)
         }
       end
     end

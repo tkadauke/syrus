@@ -1,6 +1,6 @@
 import { getJson, postJson } from "./client"
 import type { AdminFilteredPayload } from "./adminSmartFolders"
-import type { WorkerHealthPayload } from "./adminOverview"
+import type { MacosWorkerDrainState, WorkerHealthPayload } from "./adminOverview"
 
 export type { WorkerHealthPayload } from "./adminOverview"
 
@@ -50,6 +50,7 @@ export type QueueWorker = {
   status?: "current" | "stale" | string
   capabilities?: Record<string, string[]>
   capability_diagnostics?: Record<string, unknown>
+  macos_worker_drain?: MacosWorkerDrainState | null
 }
 
 export type QueueProcess = {
@@ -61,6 +62,7 @@ export type QueueProcess = {
   status?: "current" | "stale" | string
   capabilities?: Record<string, string[]>
   capability_diagnostics?: Record<string, unknown>
+  macos_worker_drain?: MacosWorkerDrainState | null
 }
 
 export type QueueSort = {

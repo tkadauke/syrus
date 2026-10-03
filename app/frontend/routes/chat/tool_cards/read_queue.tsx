@@ -4,7 +4,8 @@ import { Badge, CapabilityBadges, CardShell, displayValue, Row, SectionLabel, St
 // Core-owned tool card for read_queue (the Tier 1 tool-card work). Renders a
 // compact Solid Queue ops dashboard: worker/failed/recurring counts,
 // per-queue pending counts, blocked/paused queues, and stale workers.
-type Worker = { key: string; hostname: string; pid: string; queues: string[]; stale: boolean; capabilities: unknown }
+type MacosDrain = { state: string; desiredGitSha: string | null; forceTerminate: boolean; lastError: string | null }
+type Worker = { key: string; hostname: string; pid: string; queues: string[]; stale: boolean; capabilities: unknown; macosDrain: MacosDrain | null }
 
 type QueueCard = {
   unavailable: boolean
@@ -30,7 +31,22 @@ function parseWorker(value: unknown): Worker | null {
     pid,
     queues: Array.isArray(value.queues) ? value.queues.flatMap((queue) => { const name = displayValue(queue); return name ? [name] : [] }) : [],
     stale: value.stale === true,
-    capabilities: value.capabilities
+    capabilities: value.capabilities,
+    macosDrain: parseMacosDrain(value.macos_worker_drain)
+  }
+}
+
+function parseMacosDrain(value: unknown): MacosDrain | null {
+  if (!isPlainObject(value)) return null
+  const state = displayValue(value.state)
+  if (!state || state === "none") return null
+  const desiredVersion = isPlainObject(value.desired_version) ? value.desired_version : null
+
+  return {
+    state,
+    desiredGitSha: displayValue(value.desired_git_sha) || displayValue(desiredVersion?.git_sha),
+    forceTerminate: value.force_terminate === true,
+    lastError: displayValue(value.last_error)
   }
 }
 
@@ -132,6 +148,7 @@ function renderExpanded(context: ToolCardContext) {
                 <span className="font-mono text-gray-700 dark:text-gray-300">{worker.hostname}:{worker.pid}</span>
                 {worker.queues.map((queue) => <Badge key={queue}>{queue}</Badge>)}
                 <CapabilityBadges capabilities={worker.capabilities} />
+                {worker.macosDrain ? <Badge>{worker.macosDrain.forceTerminate ? "force restart" : worker.macosDrain.state}{worker.macosDrain.desiredGitSha ? `: ${worker.macosDrain.desiredGitSha}` : ""}</Badge> : null}
                 {worker.stale ? <StatePill state="stale" tone="warning" /> : null}
               </li>
             ))}

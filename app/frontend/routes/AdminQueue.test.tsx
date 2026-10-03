@@ -104,7 +104,13 @@ describe("AdminQueue worker health charts", () => {
   })
 
   it("renders chart-first worker health with missing sample buckets", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayload()))
+    const payload = workerQueuePayload()
+    const drain = { state: "updating", worker_storage_key: "storage-a", hostname: "worker-a", desired_git_sha: "newsha" }
+    payload.workers[0].macos_worker_drain = drain
+    payload.all_processes[0].macos_worker_drain = drain
+    payload.worker_health.current[0].macos_worker_drain = drain
+    payload.worker_health.hosts[0].recent_samples[0].macos_worker_drain = drain
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
     renderAdminQueue()
 
@@ -120,6 +126,8 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByText("Exact values")).toBeInTheDocument()
     expect(screen.getAllByText("os:linux").length).toBeGreaterThan(0)
     expect(screen.getAllByText("arch:x86_64").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("updating").length).toBeGreaterThan(0)
+    expect(screen.getByText("updating · newsha")).toBeInTheDocument()
   })
 
   it("applies quick ranges through shareable query params", async () => {

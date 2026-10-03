@@ -10,8 +10,9 @@ import { Table, TBody, Td, THead } from "../adminToolCard"
 type JobRow = { key: string; id: string; className: string | null; queueName: string | null; createdAt: string | null; claimedAt: string | null }
 type FailureRow = { key: string; id: string; createdAt: string | null; className: string | null; exceptionClass: string | null; message: string | null }
 type TaskRow = { key: string; taskKey: string; className: string | null; schedule: string | null; lastRunAt: string | null; lastFinishedAt: string | null }
-type WorkerRow = { key: string; hostname: string; pid: string | null; queues: string[]; threads: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown }
-type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown }
+type MacosDrain = { state: string; desiredGitSha: string | null; forceTerminate: boolean; lastError: string | null }
+type WorkerRow = { key: string; hostname: string; pid: string | null; queues: string[]; threads: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown; macosDrain: MacosDrain | null }
+type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown; macosDrain: MacosDrain | null }
 
 type QueueDetailCard =
   | { tab: "active"; jobs: JobRow[] }
@@ -84,7 +85,8 @@ function parseWorkerRow(value: unknown, index: number): WorkerRow | null {
     lastHeartbeatAt: displayValue(value.last_heartbeat_at),
     stale: value.stale === true,
     status: displayValue(value.status),
-    capabilities: value.capabilities
+    capabilities: value.capabilities,
+    macosDrain: parseMacosDrain(value.macos_worker_drain)
   }
 }
 
@@ -101,7 +103,22 @@ function parseProcessRow(value: unknown, index: number): ProcessRow | null {
     lastHeartbeatAt: displayValue(value.last_heartbeat_at),
     stale: value.stale === true,
     status: displayValue(value.status),
-    capabilities: value.capabilities
+    capabilities: value.capabilities,
+    macosDrain: parseMacosDrain(value.macos_worker_drain)
+  }
+}
+
+function parseMacosDrain(value: unknown): MacosDrain | null {
+  if (!isPlainObject(value)) return null
+  const state = displayValue(value.state)
+  if (!state || state === "none") return null
+  const desiredVersion = isPlainObject(value.desired_version) ? value.desired_version : null
+
+  return {
+    state,
+    desiredGitSha: displayValue(value.desired_git_sha) || displayValue(desiredVersion?.git_sha),
+    forceTerminate: value.force_terminate === true,
+    lastError: displayValue(value.last_error)
   }
 }
 
@@ -157,6 +174,13 @@ function collapsedSummary(context: ToolCardContext) {
 
 function StaleBadge({ stale }: { stale: boolean }) {
   return stale ? <StatePill state="stale" tone="warning" /> : <StatePill state="current" tone="success" />
+}
+
+function MacosDrainCell({ drain }: { drain: MacosDrain | null }) {
+  if (!drain) return <>—</>
+  const state = drain.forceTerminate ? "force restart" : drain.state
+  const suffix = [drain.desiredGitSha, drain.lastError].filter(Boolean).join(" · ")
+  return <span>{state}{suffix ? ` · ${suffix}` : ""}</span>
 }
 
 function JobsTable({ jobs }: { jobs: JobRow[] }) {
@@ -252,7 +276,7 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No active workers found.</EmptyState>
       ) : (
         <Table>
-          <THead columns={["Host", "Pid", "Queues", "Capabilities", "Threads", "Heartbeat", "Status"]} />
+          <THead columns={["Host", "Pid", "Queues", "Capabilities", "Mac update", "Threads", "Heartbeat", "Status"]} />
           <TBody>
             {card.workers.map((worker) => (
               <tr key={worker.key}>
@@ -260,6 +284,7 @@ function renderExpanded(context: ToolCardContext) {
                 <Td mono>{worker.pid || "—"}</Td>
                 <Td maxWidth title={worker.queues.join(", ")}>{worker.queues.join(", ") || "—"}</Td>
                 <Td><CapabilityBadges capabilities={worker.capabilities} /></Td>
+                <Td><MacosDrainCell drain={worker.macosDrain} /></Td>
                 <Td>{worker.threads || "—"}</Td>
                 <Td mono>{worker.lastHeartbeatAt || "—"}</Td>
                 <Td><StaleBadge stale={worker.stale} /></Td>
@@ -273,7 +298,7 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No processes found.</EmptyState>
       ) : (
         <Table>
-          <THead columns={["Kind", "Host", "Pid", "Capabilities", "Heartbeat", "Status"]} />
+          <THead columns={["Kind", "Host", "Pid", "Capabilities", "Mac update", "Heartbeat", "Status"]} />
           <TBody>
             {card.processes.map((process) => (
               <tr key={process.key}>
@@ -281,6 +306,7 @@ function renderExpanded(context: ToolCardContext) {
                 <Td mono>{process.hostname}</Td>
                 <Td mono>{process.pid || "—"}</Td>
                 <Td><CapabilityBadges capabilities={process.capabilities} /></Td>
+                <Td><MacosDrainCell drain={process.macosDrain} /></Td>
                 <Td mono>{process.lastHeartbeatAt || "—"}</Td>
                 <Td><StaleBadge stale={process.stale} /></Td>
               </tr>
