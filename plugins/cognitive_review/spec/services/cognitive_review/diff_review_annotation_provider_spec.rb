@@ -202,6 +202,77 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
   end
 
+  it "projects older-version notes into a selected All changes diff when the note range is included" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    run_version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "run-base",
+      head_sha: "run-head",
+      files: [
+        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -4,1 +4,2 @@\n context\n+new behavior" }
+      ],
+      reason: "initial"
+    )
+    all_changes = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: [
+        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -4,1 +4,2 @@\n context\n+new behavior" }
+      ],
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
+    )
+    included_note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: run_version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 5,
+      title: "Included note",
+      explanation: "This run-scoped note is visible in the aggregate diff.",
+      source_metadata: {}
+    )
+    CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: run_version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 30,
+      end_line: 30,
+      title: "Outside note",
+      explanation: "This note is not covered by the aggregate patch.",
+      source_metadata: {}
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: all_changes,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: all_changes.files_snapshot
+    )
+
+    expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
+      hash_including(id: "cognitive_review_note:#{included_note.id}", title: "Included note")
+    )
+    expect(payload[:panels]).to contain_exactly(hash_including(props: hash_including(notes: [ hash_including(note_id: included_note.id) ])))
+    expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 1, tone: "warning"))
+    expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 2))
+  end
+
   it "counts acknowledged, discussed, and user-commented notes as handled rather than unresolved debt" do
     job = Factories.job_with_run
     workflow = job.latest_workflow

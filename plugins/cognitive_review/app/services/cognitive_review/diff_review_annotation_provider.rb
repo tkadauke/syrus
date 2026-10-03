@@ -9,7 +9,7 @@ module CognitiveReview
 
     def self.review_annotations(job:, user:, version:, base_sha:, head_sha:, files:)
       all_notes = notes_for_sidebar(job: job)
-      notes = notes_for(all_notes, version: version, base_sha: base_sha, head_sha: head_sha)
+      notes = notes_for(all_notes, version: version, base_sha: base_sha, head_sha: head_sha, files: files)
       sidebar_notes = CognitiveReview::Note.open_for_pr_debt(all_notes)
       rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes)
       return {} if sidebar_notes.empty? && !rollup.submitted?
@@ -55,9 +55,9 @@ module CognitiveReview
       { id: id, label: label, value: value, tone: tone }
     end
 
-    def self.notes_for(notes, version:, base_sha:, head_sha:)
+    def self.notes_for(notes, version:, base_sha:, head_sha:, files:)
       if version
-        return notes.select { |note| note.diff_review_version_id == version.id }
+        return notes.select { |note| note.diff_review_version_id == version.id || note_included_in_all_changes_version?(note, version, files) }
       end
 
       notes.select do |note|
@@ -68,6 +68,44 @@ module CognitiveReview
 
     def self.notes_for_sidebar(job:)
       CognitiveReview::Note.where(job: job).includes(:discussion_entries).ordered.to_a
+    end
+
+    def self.note_included_in_all_changes_version?(note, version, files)
+      return false unless all_changes_version?(version)
+      return false if note.diff_review_version_id == version.id
+
+      file = Array(files).find { |candidate| file_value(candidate, :path).to_s == note.path.to_s }
+      return false unless file
+
+      range_in_patch?(file_value(file, :patch).to_s, side: note.side, start_line: note.start_line, end_line: note.end_line)
+    end
+
+    def self.all_changes_version?(version)
+      version.reason == "source_diff" || version.metadata.to_h["range_kind"] == "all_changes"
+    end
+
+    def self.range_in_patch?(patch, side:, start_line:, end_line:)
+      line_ranges_for_patch(patch, side: side).any? do |range|
+        range.cover?(start_line.to_i) && range.cover?(end_line.to_i)
+      end
+    end
+
+    def self.line_ranges_for_patch(patch, side:)
+      patch.each_line.filter_map do |line|
+        match = line.match(/\A@@ -(?<old_start>\d+)(?:,(?<old_count>\d+))? \+(?<new_start>\d+)(?:,(?<new_count>\d+))? @@/)
+        next unless match
+
+        start = match[side == "old" ? :old_start : :new_start].to_i
+        count = (match[side == "old" ? :old_count : :new_count] || "1").to_i
+        count.positive? ? (start...(start + count)) : nil
+      end
+    end
+
+    def self.file_value(file, key)
+      return file[key] if file.is_a?(Hash) && file.key?(key)
+      return file[key.to_s] if file.is_a?(Hash)
+
+      file.public_send(key) if file.respond_to?(key)
     end
 
     def self.ranges_for(notes, comments_by_note_id: {})
