@@ -176,6 +176,100 @@ job/workflow/run/repository/user context, wrapper command namespace, child exit
 status, and duration. It does not print private keys, passphrases, raw payload
 material, or child command arguments.
 
+## Repository-Owned Script Policy
+
+Repository-owned deploy/debug scripts should call credential wrappers from the
+script command line rather than reading secrets from the agent environment or
+from committed config. For a Home Assistant-style SSH deploy, the preferred
+shape is:
+
+```bash
+syrus credential ssh-agent \
+  --credential homeassistant-ssh \
+  --purpose deploy \
+  --target-json '{"host":"ha.example.com"}' \
+  -- ./deploy.sh
+```
+
+For non-SSH material, use `syrus credential exec` with exactly one
+materialization mode:
+
+```bash
+syrus credential exec \
+  --credential deploy-api-token \
+  --type credential_store.url_token \
+  --env-var SERVICE_TOKEN \
+  --purpose deploy \
+  --target-json '{"host":"api.example.com"}' \
+  -- ./deploy.sh
+```
+
+Agents may invoke a wrapper from a Job or chat-assisted runtime only when all
+of these are true:
+
+- The repository declares the script intent in `.syrus.yml` `scripts:` or the
+  operator gives an equivalent explicit instruction in the current trusted
+  context.
+- The declaration or instruction names a credential handle, type, wrapper,
+  purpose, and target metadata; it never includes payload material.
+- The credential is scoped so the current user/repository/team/instance context
+  can use it, and its `allowed_surfaces`, `allowed_tools`, type, target
+  constraints, expiry, and revocation state authorize the requested wrapper.
+- The agent is running inside Syrus runtime authentication
+  (`SYRUS_CLI_INVOCATION_CONTEXT`), not from a human's local
+  `~/.syrus/credentials`.
+- The child command matches the declared repository script intent. If the
+  script is undeclared or `allow_agent_invocation` is false, ask an operator
+  before running it.
+
+The `.syrus.yml` declaration is policy metadata, not a capability grant:
+
+```yaml
+scripts:
+  deploy:
+    run: ./deploy.sh
+    description: Deploy the Home Assistant appliance.
+    allow_agent_invocation: true
+    credentials:
+      - name: ssh
+        credential: homeassistant-ssh
+        type: ssh_private_key
+        wrapper: ssh-agent
+        purpose: deploy
+        tool: credential.ssh-agent
+        target:
+          host: ha.example.com
+```
+
+The credential handle is a stable name or id for lookup. The encrypted payload
+stays in `credential_store`; do not put private keys, tokens, passphrases, or
+inline kubeconfigs in `.syrus.yml`.
+
+Operator setup flow:
+
+1. Create the credential in Credential Store with the appropriate type, such as
+   `ssh_private_key` for `ssh-agent` or `credential_store.url_token` for
+   `exec`.
+2. Scope it as narrowly as possible: user-scoped for a personal workflow,
+   repository-scoped for one repo, team-scoped for a team-owned fleet, or
+   instance-scoped only for shared operational credentials.
+3. Add safe metadata and target constraints such as `host`,
+   `allowed_hosts`, `base_url`, or `allowed_url_prefixes`.
+4. Set `allowed_surfaces` to the intended runtime, usually `workflow` for Jobs
+   and optionally `chat` for chat-assisted runs.
+5. Set `allowed_tools` to the wrapper namespace, such as
+   `credential.ssh-agent` or `credential.exec`.
+6. Commit a `.syrus.yml` `scripts:` entry that names the handle and wrapper,
+   then invoke the wrapper command from the deploy/debug script or from the
+   trusted runtime instruction.
+
+Transcripts and audits should show the wrapper command namespace, credential
+handle, type, purpose, target metadata, exit status, and timing. They must not
+show plaintext credential payloads, passphrases, temporary file contents, or
+runtime invocation tokens. The CLI removes temporary material after the child
+process exits and redacts the exact payload from child stdout/stderr before it
+is streamed back.
+
 ## SSH MCP Tools
 
 `credential_store_ssh_exec` is available to workflow agents and as a deferred

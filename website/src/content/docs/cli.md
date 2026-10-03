@@ -605,6 +605,31 @@ The wrapper audits the credential handle, current runtime context, wrapper
 command namespace, child exit status, and duration without logging the private
 key, passphrase, or child command arguments.
 
+Repository-owned deploy/debug scripts can advertise the wrapper they expect in
+`.syrus.yml` without hardcoding secrets:
+
+```yaml
+scripts:
+  deploy:
+    run: ./deploy.sh
+    allow_agent_invocation: true
+    credentials:
+      - credential: homeassistant-ssh
+        type: ssh_private_key
+        wrapper: ssh-agent
+        purpose: deploy
+        target:
+          host: ha.example.com
+```
+
+That declaration names only a credential handle and safe target metadata. The
+operator still creates the encrypted credential in Credential Store, scopes it
+to the user/repo/team/instance as appropriate, and sets allowed surfaces/tools
+such as `workflow` and `credential.ssh-agent`. Agents may invoke the wrapper
+from a Syrus runtime only when the script intent is declared or explicitly
+approved and the credential policy authorizes the current run. Transcripts show
+the wrapper command and handle, not plaintext key or token material.
+
 ## Search
 
 `syrus search` is contributed by the bundled `global_search` plugin and
