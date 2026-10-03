@@ -337,7 +337,10 @@ class PersistentMcpDaemon
     request.body.rewind
     parsed = JSON.parse(body_string, symbolize_names: true)
     return unless parsed.is_a?(Hash) && %w[tools/list tools/call].include?(parsed[:method])
-    return if parsed[:method] == "tools/call" && static_chat_tool_name?(parsed.dig(:params, :name))
+    if parsed[:method] == "tools/call"
+      tool_name = parsed.dig(:params, :name)
+      return if static_daemon_tool_name?(tool_name) || static_chat_tool_name?(tool_name)
+    end
 
     meta = parsed.dig(:params, :_meta).is_a?(Hash) ? parsed.dig(:params, :_meta) : {}
     token = env[INVOCATION_CONTEXT_HEADER_ENV_KEY].presence || meta[INVOCATION_CONTEXT_META_KEY]
@@ -379,6 +382,14 @@ class PersistentMcpDaemon
     return false if tool_name.blank?
 
     chat_tools.any? { |tool| McpToolRegistry.tool_name_for(tool) == tool_name.to_s }
+  end
+
+  def static_daemon_tool_name?(tool_name)
+    return false if tool_name.blank?
+
+    [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ].any? do |tool|
+      McpToolRegistry.tool_name_for(tool) == tool_name.to_s
+    end
   end
 
   def wrapped_chat_tools(tools)
