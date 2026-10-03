@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
+import { CapabilityBadges, CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_queue_detail (the tool-card work). The
@@ -10,8 +10,8 @@ import { Table, TBody, Td, THead } from "../adminToolCard"
 type JobRow = { key: string; id: string; className: string | null; queueName: string | null; createdAt: string | null; claimedAt: string | null }
 type FailureRow = { key: string; id: string; createdAt: string | null; className: string | null; exceptionClass: string | null; message: string | null }
 type TaskRow = { key: string; taskKey: string; className: string | null; schedule: string | null; lastRunAt: string | null; lastFinishedAt: string | null }
-type WorkerRow = { key: string; hostname: string; pid: string | null; queues: string[]; threads: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null }
-type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null }
+type WorkerRow = { key: string; hostname: string; pid: string | null; queues: string[]; threads: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown }
+type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown }
 
 type QueueDetailCard =
   | { tab: "active"; jobs: JobRow[] }
@@ -83,7 +83,8 @@ function parseWorkerRow(value: unknown, index: number): WorkerRow | null {
     threads: displayValue(value.threads),
     lastHeartbeatAt: displayValue(value.last_heartbeat_at),
     stale: value.stale === true,
-    status: displayValue(value.status)
+    status: displayValue(value.status),
+    capabilities: value.capabilities
   }
 }
 
@@ -99,7 +100,8 @@ function parseProcessRow(value: unknown, index: number): ProcessRow | null {
     pid: displayValue(value.pid),
     lastHeartbeatAt: displayValue(value.last_heartbeat_at),
     stale: value.stale === true,
-    status: displayValue(value.status)
+    status: displayValue(value.status),
+    capabilities: value.capabilities
   }
 }
 
@@ -250,13 +252,14 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No active workers found.</EmptyState>
       ) : (
         <Table>
-          <THead columns={["Host", "Pid", "Queues", "Threads", "Heartbeat", "Status"]} />
+          <THead columns={["Host", "Pid", "Queues", "Capabilities", "Threads", "Heartbeat", "Status"]} />
           <TBody>
             {card.workers.map((worker) => (
               <tr key={worker.key}>
                 <Td mono>{worker.hostname}</Td>
                 <Td mono>{worker.pid || "—"}</Td>
                 <Td maxWidth title={worker.queues.join(", ")}>{worker.queues.join(", ") || "—"}</Td>
+                <Td><CapabilityBadges capabilities={worker.capabilities} /></Td>
                 <Td>{worker.threads || "—"}</Td>
                 <Td mono>{worker.lastHeartbeatAt || "—"}</Td>
                 <Td><StaleBadge stale={worker.stale} /></Td>
@@ -270,13 +273,14 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No processes found.</EmptyState>
       ) : (
         <Table>
-          <THead columns={["Kind", "Host", "Pid", "Heartbeat", "Status"]} />
+          <THead columns={["Kind", "Host", "Pid", "Capabilities", "Heartbeat", "Status"]} />
           <TBody>
             {card.processes.map((process) => (
               <tr key={process.key}>
                 <Td>{process.kind || "—"}</Td>
                 <Td mono>{process.hostname}</Td>
                 <Td mono>{process.pid || "—"}</Td>
+                <Td><CapabilityBadges capabilities={process.capabilities} /></Td>
                 <Td mono>{process.lastHeartbeatAt || "—"}</Td>
                 <Td><StaleBadge stale={process.stale} /></Td>
               </tr>

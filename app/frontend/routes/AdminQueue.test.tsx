@@ -118,6 +118,8 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByTestId("worker-health-chart-worker-a-io_pressure_some")).toBeInTheDocument()
     expect(screen.getAllByText("1 missing").length).toBeGreaterThan(0)
     expect(screen.getByText("Exact values")).toBeInTheDocument()
+    expect(screen.getAllByText("os:linux").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("arch:x86_64").length).toBeGreaterThan(0)
   })
 
   it("applies quick ranges through shareable query params", async () => {
@@ -271,6 +273,7 @@ describe("AdminQueue configurable columns", () => {
       expect(JSON.parse(window.localStorage.getItem("syrus.admin.queue.processes.visible_columns") ?? "[]")).toEqual([
         "pid",
         "host",
+        "capabilities",
         "heartbeat",
         "state"
       ])
@@ -335,7 +338,8 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
         threads: 2,
         last_heartbeat_at: "2026-05-30T12:00:00Z",
         stale: false,
-        status: "current"
+        status: "current",
+        capabilities: { os: ["linux"], arch: ["x86_64"] }
       }
     ],
     all_processes: [
@@ -345,7 +349,8 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
         pid: 101,
         last_heartbeat_at: "2026-05-30T12:00:00Z",
         stale: false,
-        status: "current"
+        status: "current",
+        capabilities: { os: ["linux"], arch: ["x86_64"] }
       }
     ],
     sort: { column: "host", direction: "asc" },
@@ -367,6 +372,7 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
           last_heartbeat_at: "2026-05-30T12:00:00Z",
           seconds_since_heartbeat: 120,
           stale: false,
+          capabilities: { os: ["linux"], arch: ["x86_64"] },
           health: { level: "ok", reasons: [] },
           sample: workerSample("2026-05-30T12:01:00Z", 25, 1.2, 45, 55, 3, 4),
           trend: { sample_count: 1, first_observed_at: "2026-05-30T12:01:00Z", last_observed_at: "2026-05-30T12:01:00Z", warning_count: 0, critical_count: 0 }
@@ -447,6 +453,7 @@ function workerSample(observedAt: string, cpu: number, load: number, memory: num
     cpu_pressure_full: null,
     io_pressure_some: ioPressure,
     io_pressure_full: null,
+    capabilities: { os: ["linux"], arch: ["x86_64"] },
     raw_metrics: {}
   }
 }

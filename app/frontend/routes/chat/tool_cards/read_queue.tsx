@@ -1,10 +1,10 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CapabilityBadges, CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_queue (the Tier 1 tool-card work). Renders a
 // compact Solid Queue ops dashboard: worker/failed/recurring counts,
 // per-queue pending counts, blocked/paused queues, and stale workers.
-type Worker = { key: string; hostname: string; pid: string; queues: string[]; stale: boolean }
+type Worker = { key: string; hostname: string; pid: string; queues: string[]; stale: boolean; capabilities: unknown }
 
 type QueueCard = {
   unavailable: boolean
@@ -29,7 +29,8 @@ function parseWorker(value: unknown): Worker | null {
     hostname,
     pid,
     queues: Array.isArray(value.queues) ? value.queues.flatMap((queue) => { const name = displayValue(queue); return name ? [name] : [] }) : [],
-    stale: value.stale === true
+    stale: value.stale === true,
+    capabilities: value.capabilities
   }
 }
 
@@ -130,6 +131,7 @@ function renderExpanded(context: ToolCardContext) {
               <li className="flex flex-wrap items-center gap-2" key={worker.key}>
                 <span className="font-mono text-gray-700 dark:text-gray-300">{worker.hostname}:{worker.pid}</span>
                 {worker.queues.map((queue) => <Badge key={queue}>{queue}</Badge>)}
+                <CapabilityBadges capabilities={worker.capabilities} />
                 {worker.stale ? <StatePill state="stale" tone="warning" /> : null}
               </li>
             ))}

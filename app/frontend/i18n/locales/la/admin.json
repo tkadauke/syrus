@@ -938,6 +938,7 @@
     "col_host": "Hospes",
     "col_pid": "PID",
     "col_queues": "Agmina",
+    "col_capabilities": "Facultates",
     "col_threads": "Fila",
     "col_heartbeat": "Pulsus cordis",
     "col_state": "Status",
