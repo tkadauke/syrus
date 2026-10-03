@@ -285,9 +285,11 @@ matching capability lanes when they advertise their host class. Split
 deployments should run `config/queue.compute.yml` on compute workers so those
 queues are consumed without moving chat, polling, or indexing work onto native
 compute hosts.
-If a Run requires a host class or explicit Linux feature/toolchain that no live
-worker advertises, Syrus fails it with a visible queue-capability diagnostic
-instead of leaving it stranded.
+If a workflow phase requires a host class or explicit Linux feature/toolchain
+that no live worker advertises, Syrus keeps the workflow queued with a visible
+queue-capability diagnostic and retries admission instead of creating work that
+would be stranded. Run enqueue repeats the same check as a backstop if worker
+capacity disappears between admission and dispatch.
 
 Local source builds use the Docker cache on your machine by default. To also
 reuse the registry-backed BuildKit cache written by production deploys, provide

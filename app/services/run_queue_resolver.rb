@@ -9,14 +9,34 @@ class RunQueueResolver
     "aarch64" => %w[arm64 aarch64]
   }.freeze
 
+  Candidate = Data.define(:workflow, :step, :trigger_kind) do
+    def distributed_parallel_run?
+      step&.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+        workflow&.job&.repository.present? &&
+        Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
+    end
+
+    def resume_worker_queue = nil
+    def id = nil
+    def workflow_id = workflow&.id
+    def step_id = step&.id
+  end
+
   Decision = Data.define(:queue_name, :requirements, :sticky_resume, :blocked_reason, :details) do
     def blocked? = blocked_reason.present?
   end
 
   def self.resolve(...) = new(...).resolve
 
-  def initialize(run:)
-    @run = run
+  def self.resolve_candidate(workflow:, step:)
+    new(workflow: workflow, step: step).resolve
+  end
+
+  def initialize(run: nil, workflow: nil, step: nil)
+    @run = run || Candidate.new(workflow: workflow, step: step, trigger_kind: workflow&.trigger_kind)
+    @workflow = workflow || run&.workflow
+    @step = step || run&.step
+    @trigger_kind = @workflow&.trigger_kind || run&.trigger_kind
   end
 
   def resolve
@@ -44,7 +64,7 @@ class RunQueueResolver
 
   private
 
-  attr_reader :run
+  attr_reader :run, :workflow, :step, :trigger_kind
 
   def compatible_resume_queue(requirements)
     queue = run.resume_worker_queue
@@ -63,9 +83,9 @@ class RunQueueResolver
 
   def required_capabilities
     raw = if run.distributed_parallel_run?
-      run.step&.details.to_h["capabilities"].presence || run.step&.details.to_h["required_capabilities"].presence
+      step&.details.to_h["capabilities"].presence || step&.details.to_h["required_capabilities"].presence
     else
-      run.workflow&.planned_execution_capabilities
+      workflow&.planned_execution_capabilities
     end
 
     WorkerCapabilities.normalize(raw.presence || DEFAULT_RUN_CAPABILITIES)
@@ -103,12 +123,12 @@ class RunQueueResolver
     return false if run.distributed_parallel_run?
     return false unless requirements == DEFAULT_RUN_CAPABILITIES
 
-    source = run.workflow&.planned_execution_source.to_s
+    source = workflow&.planned_execution_source.to_s
     source.blank? || source == "defaulted"
   end
 
   def base_queue_name
-    @base_queue_name ||= Workflows.for(trigger_kind: run.workflow&.trigger_kind || run.trigger_kind).queue_name.to_s
+    @base_queue_name ||= Workflows.for(trigger_kind: trigger_kind).queue_name.to_s
   end
 
   def live_capable_worker_for?(queue, requirements, allow_unknown_default: false)
@@ -179,7 +199,7 @@ class RunQueueResolver
       "run_id" => run.id,
       "workflow_id" => run.workflow_id,
       "step_id" => run.step_id,
-      "step_kind" => run.step&.kind
+      "step_kind" => step&.kind
     }.compact
   end
 
