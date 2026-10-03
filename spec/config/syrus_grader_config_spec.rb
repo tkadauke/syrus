@@ -374,7 +374,7 @@ RSpec.describe "Syrus grader configuration" do
 
     copy_files(destination, "cli", %w[go.mod go.sum])
 
-    %w[scheduled_tasks k8s_cluster global_search design_docs spending_insights].each do |plugin|
+    %w[scheduled_tasks k8s_cluster credential_store global_search design_docs spending_insights].each do |plugin|
       copy_files(destination, "plugins/#{plugin}/cli", %w[go.mod])
     end
   end
