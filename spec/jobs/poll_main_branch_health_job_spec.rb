@@ -6,6 +6,10 @@ RSpec.describe PollMainBranchHealthJob do
   let(:repository) { Factories.repository(user: user) }
   let(:sha) { "abc123def456" }
 
+  before do
+    allow_any_instance_of(GithubClient).to receive(:repository_default_branch).and_return(repository.default_branch)
+  end
+
   def stub_sha(sha)
     allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_return(sha)
   end
@@ -45,6 +49,20 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.reload.ci_health).to eq("healthy")
     expect(repository.last_health_checked_sha).to eq(sha)
     expect(repository.last_ci_evaluated_sha).to eq(sha)
+  end
+
+  it "refreshes a stale default branch before polling main health" do
+    repository.update!(default_branch: "develop")
+    allow_any_instance_of(GithubClient).to receive(:repository_default_branch).and_return("main")
+    expect_any_instance_of(GithubClient).to receive(:branch_head_sha).with(repository.slug, "main").and_return(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
+
+    expect(repository.reload.default_branch).to eq("main")
+    expect(repository.ci_health).to eq("healthy")
   end
 
   it "sets ci_health to broken when any check fails" do

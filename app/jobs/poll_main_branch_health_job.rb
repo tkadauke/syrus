@@ -34,6 +34,8 @@ class PollMainBranchHealthJob < ApplicationJob
     client = GithubClient.for(repository: repository, user: identity.user)
 
     with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: manual, retry_args: [ repository_id ]) do
+      return unless refresh_default_branch!(repository, client)
+
       sha = begin
         client.branch_head_sha(repository.slug, repository.default_branch)
       rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
@@ -169,6 +171,22 @@ class PollMainBranchHealthJob < ApplicationJob
   end
 
   private
+
+  def refresh_default_branch!(repository, client)
+    branch = client.repository_default_branch(repository.slug).to_s.strip
+    return true if branch.blank? || branch == repository.default_branch
+
+    Rails.logger.info(
+      "[PollMainBranchHealthJob] #{repository.slug} default branch changed " \
+      "from #{repository.default_branch.inspect} to #{branch.inspect}; updating repository metadata"
+    )
+    repository.update_columns(default_branch: branch, updated_at: Time.current)
+    repository.default_branch = branch
+    true
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    handle_transient_github_error!(repository, e)
+    false
+  end
 
   # A single failed request is normal poll-to-poll noise — the next scheduled
   # tick retries. Only a sustained streak of consecutive failures degrades an
