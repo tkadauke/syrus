@@ -34,7 +34,6 @@ class ChatQueuedMessagePromoter
       queued_messages.each { |queued_message| queued_message.update!(delivered_at: delivered_at) }
       chat.update!(
         last_message_at: Time.current,
-        title: chat.title.presence,
         turn_in_flight: turn_triggered
       )
       chat.pin_chat_provider!

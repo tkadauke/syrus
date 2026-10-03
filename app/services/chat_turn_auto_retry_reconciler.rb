@@ -227,7 +227,6 @@ class ChatTurnAutoRetryReconciler
       )
       chat.update!(
         last_message_at: now,
-        title: chat.title.presence,
         turn_in_flight: true
       )
       chat.pin_chat_provider!

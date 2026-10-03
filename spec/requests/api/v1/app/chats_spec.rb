@@ -6654,6 +6654,32 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("chat", "agent_busy")).to eq(false)
   end
 
+  it "does not overwrite a title generated while the message endpoint is handling a stale chat instance" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    title_written = false
+    allow_any_instance_of(ChatSession).to receive(:should_trigger_agent?).and_wrap_original do |method, *args|
+      unless title_written
+        title_written = true
+        ChatSession.where(id: method.receiver.id).update_all(title: "Generated title", title_auto_fallback: false)
+      end
+      method.call(*args)
+    end
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Now inspect proposals" } }
+    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload).to have_attributes(
+      title: "Generated title",
+      title_auto_fallback: false
+    )
+    expect(ChatTitleJob).not_to have_been_enqueued
+    expect(parse_body.dig("chat", "title")).to eq("Generated title")
+    expect(parse_body.dig("chat", "title_pending")).to eq(false)
+  end
+
   it "pins the selected provider when sending the first message to an empty chat" do
     sign_in_as(user)
     user.update!(codex_api_key: "sk-test", chat_provider: "claude")
