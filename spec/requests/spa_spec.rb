@@ -230,6 +230,31 @@ RSpec.describe "SPA shell", type: :request do
     end
   end
 
+  it "keeps normal one-segment routes ahead of root-level slug redirects" do
+    PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+    user = Factories.user
+    sign_in_as(user)
+
+    get "/jobs"
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+
+    get "/epics"
+    expect(response).to redirect_to("/dashboard/epics")
+
+    get "/briefing"
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+
+    get "/up"
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include('id="syrus-spa-root"')
+
+    get "/not-a-slug"
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+  end
+
   # Every path a plugin's sidebar page declares has to reach spa#show, or a
   # hard reload / direct navigation renders the bare bootstrap shell instead of
   # the page -- which is what /design_docs/22 did, because the plugin declared

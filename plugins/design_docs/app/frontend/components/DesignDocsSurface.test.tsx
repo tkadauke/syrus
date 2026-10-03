@@ -447,6 +447,9 @@ function mockFetch(detail = docDetail) {
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: detail })
     }
+    if (url.pathname === "/api/v1/app/design_docs/DOC-1" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: detail })
+    }
     if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
       const nextDetail = payload.design_doc?.state === "archived" ? { ...docDetail, state: "archived", permissions: archivedDocDetail.permissions } : docDetail
@@ -1342,6 +1345,14 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByText("No design docs are attached to this chat.")).toBeInTheDocument()
     expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/v1/app/design_docs/237"))).toBe(false)
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
+  })
+
+  it("loads detail data when direct navigation uses a canonical DOC ref", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/DOC-1")
+
+    expect(await screen.findByDisplayValue("Checkout design")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/DOC-1", expect.objectContaining({ credentials: "same-origin" }))
   })
 
   it("opens the Threads composer from a compact Markdown selection affordance", async () => {

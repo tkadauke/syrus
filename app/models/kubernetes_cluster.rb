@@ -1,5 +1,7 @@
 class KubernetesCluster < ApplicationRecord
   attribute :credentials, :json
+  attribute :credential_store_credential_id, :integer
+  attribute :credential_kind, :string
   attribute :agentic_access_enabled, :boolean, default: false
   attribute :allow_writes, :boolean, default: false
   attribute :insecure_skip_tls_verify, :boolean, default: false

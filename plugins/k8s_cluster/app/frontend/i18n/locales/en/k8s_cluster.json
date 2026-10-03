@@ -1,7 +1,7 @@
 {
   "nav_k8s_clusters": "K8s Clusters",
   "heading": "Kubernetes Clusters",
-  "description": "Register Kubernetes/k3s clusters from a pasted kubeconfig, with encrypted credential storage.",
+  "description": "Register Kubernetes/k3s clusters from a pasted kubeconfig, with Credential Store-backed secrets.",
   "aria_page": "Kubernetes Cluster Viewer",
   "loading": "Loading clusters…",
   "error_loading": "Unable to load clusters.",
@@ -65,7 +65,6 @@
   "create_error_fallback": "Unable to add cluster.",
   "update_error_fallback": "Unable to update cluster.",
   "delete_error_fallback": "Unable to delete cluster.",
-
   "browse_button": "Browse",
   "browse_heading": "Browsing {{label}}",
   "browse_description": "Read-only view of namespaces, workloads, and cluster resources.",
@@ -94,7 +93,6 @@
   "detail_loading": "Loading details…",
   "detail_error_loading": "Unable to load details.",
   "detail_yaml_heading": "YAML",
-
   "aria_overview_tab": "Overview",
   "aria_workloads_tab": "Workloads",
   "aria_services_tab": "Services",
@@ -104,7 +102,6 @@
   "aria_events_tab": "Events",
   "aria_logs_tab": "Logs",
   "aria_live_tab": "Live",
-
   "overview_nodes_heading": "Nodes",
   "overview_loading_nodes": "Loading nodes…",
   "overview_error_loading_nodes": "Unable to load nodes.",
@@ -119,7 +116,6 @@
   "overview_total_cpu": "CPU",
   "overview_total_memory": "Memory",
   "overview_metrics_unavailable": "Metrics unavailable. Install metrics-server on this cluster to see CPU/memory usage.",
-
   "workload_kind_label": "Workload kind",
   "workload_kind_pods": "Pods",
   "workload_kind_deployments": "Deployments",
@@ -173,7 +169,6 @@
   "cron_month_10": "October",
   "cron_month_11": "November",
   "cron_month_12": "December",
-
   "search_label": "Filter rows",
   "search_placeholder": "Filter by name…",
   "search_no_matches": "No rows match the current filter.",
@@ -220,7 +215,6 @@
   "col_selector": "Selector",
   "yes": "Yes",
   "no": "No",
-
   "network_kind_label": "Network kind",
   "network_kind_services": "Services",
   "network_kind_ingresses": "Ingresses",
@@ -231,11 +225,9 @@
   "ingresses_loading": "Loading ingresses…",
   "ingresses_error_loading": "Unable to load ingresses.",
   "ingresses_empty": "No ingresses found.",
-
   "storage_loading": "Loading persistent volume claims…",
   "storage_error_loading": "Unable to load persistent volume claims.",
   "storage_empty": "No persistent volume claims found.",
-
   "config_section_configmaps": "ConfigMaps",
   "config_section_secrets": "Secrets",
   "config_secrets_redacted_note": "Secret values are never displayed — names and metadata only.",
@@ -247,17 +239,14 @@
   "config_empty_secrets": "No Secrets found.",
   "config_show_keys": "Show {{count}} keys",
   "config_hide_keys": "Hide keys",
-
   "nodes_loading": "Loading nodes…",
   "nodes_error_loading": "Unable to load nodes.",
   "nodes_empty": "This cluster has no nodes.",
   "node_ready": "Ready",
   "node_not_ready": "Not ready",
-
   "events_loading": "Loading events…",
   "events_error_loading": "Unable to load events.",
   "events_empty": "No events found.",
-
   "logs_loading_pods": "Loading pods…",
   "logs_error_loading_pods": "Unable to load pods.",
   "logs_no_pods": "No pods found.",
@@ -276,7 +265,6 @@
   "logs_search_label": "Search logs",
   "logs_search_placeholder": "Search logs…",
   "logs_search_no_matches": "No log lines match the current search.",
-
   "live_pod_status": "Pod status",
   "live_recent_events": "Recent events",
   "live_auto_refresh": "Refreshes every 10 seconds",

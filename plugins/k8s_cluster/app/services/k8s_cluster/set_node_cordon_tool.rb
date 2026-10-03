@@ -36,7 +36,7 @@ module K8sCluster
     class << self
       def call(server_context:, cluster_id: nil, name: nil, cordoned: nil)
         params = { cluster_id: cluster_id, name: name, cordoned: cordoned }
-        respond_with(cluster_id: cluster_id, params: params) do
+        respond_with(cluster_id: cluster_id, params: params, server_context: server_context) do
           cluster = AgenticAccess.cluster_with_write_access!(cluster_id)
           Nodes.new(cluster).set_cordon(name, cordoned: cordoned)
         end

@@ -42,6 +42,14 @@ RSpec.describe MainGraderWorkflowJob do
     expect(workflow.artifact("previous_main_sha")).to eq("oldmain123")
   end
 
+  it "stores an explicit base branch artifact when provided" do
+    described_class.perform_now(repository.id, sha, base_branch: "main")
+
+    workflow = Workflow.last
+    expect(workflow.artifact("main_sha")).to eq(sha)
+    expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("main")
+  end
+
   it "materializes prepare → builder_fanout → grader_fanout → grader_collect steps" do
     described_class.perform_now(repository.id, sha)
 

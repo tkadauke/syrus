@@ -71,4 +71,23 @@ RSpec.describe OperatorBriefing::BriefingRevision do
       "evidence" => [ { "workflow_id" => 1 } ]
     )
   end
+
+  it "normalizes Design Doc link card paths while preserving visible DOC refs" do
+    block = revision.append_block!(
+      "kind" => "link_card",
+      "payload" => {
+        "entity_type" => "design_doc",
+        "entity_id" => 29,
+        "title" => "DOC-29: Public release readiness",
+        "path" => "/design_docs/DOC-29?from=briefing",
+        "description" => "Review DOC-29 before filing follow-up work."
+      }
+    )
+
+    expect(block.fetch("payload")).to include(
+      "title" => "DOC-29: Public release readiness",
+      "path" => "/design_docs/29?from=briefing",
+      "description" => "Review DOC-29 before filing follow-up work."
+    )
+  end
 end

@@ -1,7 +1,7 @@
 {
   "nav_k8s_clusters": "Acervi K8s",
   "heading": "Acervi Kubernetis",
-  "description": "Acervos Kubernetis/k3s ex kubeconfig posita registra, cum thesauris credentialium crypticis.",
+  "description": "Acervos Kubernetis/k3s ex kubeconfig posita registra, secretis in Credential Store servatis.",
   "aria_page": "Speculator Acervorum Kubernetis",
   "loading": "Acervi onerantur…",
   "error_loading": "Acervi onerari non possunt.",
@@ -65,7 +65,6 @@
   "create_error_fallback": "Acervus addi non potuit.",
   "update_error_fallback": "Acervus mutari non potuit.",
   "delete_error_fallback": "Acervus deleri non potuit.",
-
   "browse_button": "Perscrutare",
   "browse_heading": "{{label}} perscrutans",
   "browse_description": "Visus tantum ad legendum namespacium, operum, et opum acervi.",
@@ -94,7 +93,6 @@
   "detail_loading": "Singula onerantur…",
   "detail_error_loading": "Singula onerari non possunt.",
   "detail_yaml_heading": "YAML",
-
   "aria_overview_tab": "Conspectus",
   "aria_workloads_tab": "Opera",
   "aria_services_tab": "Ministeria",
@@ -104,7 +102,6 @@
   "aria_events_tab": "Eventus",
   "aria_logs_tab": "Acta",
   "aria_live_tab": "Vivum",
-
   "overview_nodes_heading": "Nodi",
   "overview_loading_nodes": "Nodi onerantur…",
   "overview_error_loading_nodes": "Nodi onerari non possunt.",
@@ -119,7 +116,6 @@
   "overview_total_cpu": "CPU",
   "overview_total_memory": "Memoria",
   "overview_metrics_unavailable": "Mensurae non praesto sunt. Instrue metrics-server in hoc acervo ut usum CPU/memoriae videas.",
-
   "workload_kind_label": "Genus operis",
   "workload_kind_pods": "Podi",
   "workload_kind_deployments": "Deploymenta",
@@ -173,7 +169,6 @@
   "cron_month_10": "Octobri",
   "cron_month_11": "Novembri",
   "cron_month_12": "Decembri",
-
   "search_label": "Versus filtra",
   "search_placeholder": "Nomine filtra…",
   "search_no_matches": "Nulli versus filtro praesenti congruunt.",
@@ -220,7 +215,6 @@
   "col_selector": "Selector",
   "yes": "Ita",
   "no": "Non",
-
   "network_kind_label": "Genus retis",
   "network_kind_services": "Ministeria",
   "network_kind_ingresses": "Ingressus",
@@ -231,11 +225,9 @@
   "ingresses_loading": "Ingressus onerantur…",
   "ingresses_error_loading": "Ingressus onerari non possunt.",
   "ingresses_empty": "Nulli ingressus inventi.",
-
   "storage_loading": "Persistent Volume Claims onerantur…",
   "storage_error_loading": "Persistent Volume Claims onerari non possunt.",
   "storage_empty": "Nullae Persistent Volume Claims inventae.",
-
   "config_section_configmaps": "ConfigMaps",
   "config_section_secrets": "Secreta",
   "config_secrets_redacted_note": "Valores secretorum numquam ostenduntur — nomina et metadata tantum.",
@@ -247,17 +239,14 @@
   "config_empty_configmaps": "Nullae ConfigMaps inventae.",
   "config_show_keys": "Monstra {{count}} claves",
   "config_hide_keys": "Claves cela",
-
   "nodes_loading": "Nodi onerantur…",
   "nodes_error_loading": "Nodi onerari non possunt.",
   "nodes_empty": "Hic acervus nullos nodos habet.",
   "node_ready": "Paratus",
   "node_not_ready": "Non paratus",
-
   "events_loading": "Eventus onerantur…",
   "events_error_loading": "Eventus onerari non possunt.",
   "events_empty": "Nulli eventus inventi.",
-
   "logs_loading_pods": "Podi onerantur…",
   "logs_error_loading_pods": "Podi onerari non possunt.",
   "logs_no_pods": "Nulli podi inventi.",
@@ -276,7 +265,6 @@
   "logs_search_label": "Acta quaere",
   "logs_search_placeholder": "Acta quaere…",
   "logs_search_no_matches": "Nulli versus actorum quaestioni congruunt.",
-
   "live_pod_status": "Status podorum",
   "live_recent_events": "Eventus recentes",
   "live_auto_refresh": "Renovatur decimo quoque secundo",

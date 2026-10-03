@@ -1,7 +1,7 @@
 {
   "nav_k8s_clusters": "K8s-Cluster",
   "heading": "Kubernetes-Cluster",
-  "description": "Kubernetes-/k3s-Cluster über eine eingefügte Kubeconfig registrieren, mit verschlüsselter Speicherung der Zugangsdaten.",
+  "description": "Kubernetes-/k3s-Cluster über eine eingefügte Kubeconfig registrieren, mit secrets im Credential Store.",
   "aria_page": "Kubernetes-Cluster-Viewer",
   "loading": "Cluster werden geladen…",
   "error_loading": "Cluster konnten nicht geladen werden.",
@@ -65,7 +65,6 @@
   "create_error_fallback": "Cluster konnte nicht hinzugefügt werden.",
   "update_error_fallback": "Cluster konnte nicht aktualisiert werden.",
   "delete_error_fallback": "Cluster konnte nicht gelöscht werden.",
-
   "browse_button": "Durchsuchen",
   "browse_heading": "{{label}} durchsuchen",
   "browse_description": "Schreibgeschützte Ansicht von Namespaces, Workloads und Cluster-Ressourcen.",
@@ -94,7 +93,6 @@
   "detail_loading": "Details werden geladen…",
   "detail_error_loading": "Details konnten nicht geladen werden.",
   "detail_yaml_heading": "YAML",
-
   "aria_overview_tab": "Übersicht",
   "aria_workloads_tab": "Workloads",
   "aria_services_tab": "Services",
@@ -104,7 +102,6 @@
   "aria_events_tab": "Ereignisse",
   "aria_logs_tab": "Logs",
   "aria_live_tab": "Live",
-
   "overview_nodes_heading": "Nodes",
   "overview_loading_nodes": "Nodes werden geladen…",
   "overview_error_loading_nodes": "Nodes konnten nicht geladen werden.",
@@ -119,7 +116,6 @@
   "overview_total_cpu": "CPU",
   "overview_total_memory": "Speicher",
   "overview_metrics_unavailable": "Metriken nicht verfügbar. Installieren Sie metrics-server auf diesem Cluster, um CPU-/Speicherauslastung zu sehen.",
-
   "workload_kind_label": "Workload-Art",
   "workload_kind_pods": "Pods",
   "workload_kind_deployments": "Deployments",
@@ -173,7 +169,6 @@
   "cron_month_10": "Oktober",
   "cron_month_11": "November",
   "cron_month_12": "Dezember",
-
   "search_label": "Zeilen filtern",
   "search_placeholder": "Nach Name filtern…",
   "search_no_matches": "Keine Zeilen passen zum aktuellen Filter.",
@@ -220,7 +215,6 @@
   "col_selector": "Selektor",
   "yes": "Ja",
   "no": "Nein",
-
   "network_kind_label": "Netzwerk-Art",
   "network_kind_services": "Services",
   "network_kind_ingresses": "Ingresses",
@@ -231,11 +225,9 @@
   "ingresses_loading": "Ingresses werden geladen…",
   "ingresses_error_loading": "Ingresses konnten nicht geladen werden.",
   "ingresses_empty": "Keine Ingresses gefunden.",
-
   "storage_loading": "Persistent Volume Claims werden geladen…",
   "storage_error_loading": "Persistent Volume Claims konnten nicht geladen werden.",
   "storage_empty": "Keine Persistent Volume Claims gefunden.",
-
   "config_section_configmaps": "ConfigMaps",
   "config_section_secrets": "Secrets",
   "config_secrets_redacted_note": "Secret-Werte werden nie angezeigt – nur Namen und Metadaten.",
@@ -247,17 +239,14 @@
   "config_empty_secrets": "Keine Secrets gefunden.",
   "config_show_keys": "{{count}} Schlüssel anzeigen",
   "config_hide_keys": "Schlüssel ausblenden",
-
   "nodes_loading": "Nodes werden geladen…",
   "nodes_error_loading": "Nodes konnten nicht geladen werden.",
   "nodes_empty": "Dieser Cluster hat keine Nodes.",
   "node_ready": "Bereit",
   "node_not_ready": "Nicht bereit",
-
   "events_loading": "Ereignisse werden geladen…",
   "events_error_loading": "Ereignisse konnten nicht geladen werden.",
   "events_empty": "Keine Ereignisse gefunden.",
-
   "logs_loading_pods": "Pods werden geladen…",
   "logs_error_loading_pods": "Pods konnten nicht geladen werden.",
   "logs_no_pods": "Keine Pods gefunden.",
@@ -276,7 +265,6 @@
   "logs_search_label": "Logs durchsuchen",
   "logs_search_placeholder": "Logs durchsuchen…",
   "logs_search_no_matches": "Keine Log-Zeilen passen zur aktuellen Suche.",
-
   "live_pod_status": "Pod-Status",
   "live_recent_events": "Letzte Ereignisse",
   "live_auto_refresh": "Aktualisiert alle 10 Sekunden",

@@ -6,6 +6,10 @@ RSpec.describe PollMainBranchHealthJob do
   let(:repository) { Factories.repository(user: user) }
   let(:sha) { "abc123def456" }
 
+  before do
+    allow_any_instance_of(GithubClient).to receive(:repository_default_branch).and_return(repository.default_branch)
+  end
+
   def stub_sha(sha)
     allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_return(sha)
   end
@@ -45,6 +49,36 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.reload.ci_health).to eq("healthy")
     expect(repository.last_health_checked_sha).to eq(sha)
     expect(repository.last_ci_evaluated_sha).to eq(sha)
+  end
+
+  it "keeps using an intentionally configured branch when it exists" do
+    repository.update!(default_branch: "develop")
+    expect_any_instance_of(GithubClient).to receive(:branch_head_sha).with(repository.slug, "develop").and_return(sha)
+    expect_any_instance_of(GithubClient).not_to receive(:repository_default_branch)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
+
+    expect(repository.reload.default_branch).to eq("develop")
+    expect(repository.ci_health).to eq("healthy")
+  end
+
+  it "falls back to GitHub's default branch for the poll when the configured branch no longer exists" do
+    repository.update!(default_branch: "develop")
+    not_found = Octokit::NotFound.new(status: 404, body: { message: "Not Found" })
+    allow_any_instance_of(GithubClient).to receive(:branch_head_sha).with(repository.slug, "develop").and_raise(not_found)
+    allow_any_instance_of(GithubClient).to receive(:repository_default_branch).with(repository.slug).and_return("main")
+    allow_any_instance_of(GithubClient).to receive(:branch_head_sha).with(repository.slug, "main").and_return(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha, base_branch: "main")
+
+    expect(repository.reload.default_branch).to eq("develop")
+    expect(repository.ci_health).to eq("healthy")
   end
 
   it "sets ci_health to broken when any check fails" do
