@@ -12344,6 +12344,7 @@ describe("App", () => {
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
 
       for (const scrollTop of [200, 300, 400, 500, 600, 700]) {
+        setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
         fireEvent.touchMove(stream)
         fireEvent.scroll(stream, { target: { scrollTop } })
       }
@@ -12365,6 +12366,7 @@ describe("App", () => {
       expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
       for (const scrollTop of [500, 600, 700, 800, 900, 1000]) {
+        setScrollMetrics(restoredStream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
         fireEvent.touchMove(restoredStream)
         fireEvent.scroll(restoredStream, { target: { scrollTop } })
       }
