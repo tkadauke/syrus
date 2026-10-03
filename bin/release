@@ -9,13 +9,14 @@
 # or packaging change) before cutting a real release through the workflow.
 #
 # Usage:
-#   bin/release [VERSION] [--cli] [--desktop] [--all]
+#   bin/release [VERSION] [--cli] [--desktop] [--macos-worker] [--all]
 #               [--skip-tests] [--skip-install] [--launch-desktop]
 #
 #   VERSION            version string for artifact naming; defaults to
 #                      v0.0.0-local. (The real version is chosen by the
 #                      Release workflow, not here.)
-#   --cli / --desktop  build only that component; --all (default) builds both.
+#   --cli / --desktop / --macos-worker
+#                      build only that component; --all (default) builds all.
 #   --skip-tests       skip the component test gates.
 #   --skip-install     desktop: skip the dependency install step.
 #   --launch-desktop   desktop: open the packaged app when the build finishes.
@@ -71,7 +72,8 @@ for arg in "$@"; do
   case "$arg" in
     --cli) select_component cli ;;
     --desktop) select_component desktop ;;
-    --all) SELECTED=(cli desktop) ;;
+    --macos-worker) select_component macos-worker ;;
+    --all) SELECTED=(cli desktop macos-worker) ;;
     --skip-tests) SKIP_TESTS=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
     --launch-desktop) LAUNCH_DESKTOP=1 ;;
@@ -95,7 +97,7 @@ for arg in "$@"; do
 done
 
 if [ "${#SELECTED[@]}" -eq 0 ]; then
-  SELECTED=(cli desktop)
+  SELECTED=(cli desktop macos-worker)
 fi
 
 if [ -z "$VERSION" ]; then
@@ -121,6 +123,10 @@ for component in "${SELECTED[@]}"; do
       [ "$LAUNCH_DESKTOP" = 1 ] && args+=(--launch)
       "$ROOT/bin/release-desktop" "${args[@]}"
       echo "   built: $(syrus_release_output_dir "$VERSION" desktop)"
+      ;;
+    macos-worker)
+      "$ROOT/bin/release-macos-worker" "$VERSION"
+      echo "   built: $(syrus_release_output_dir "$VERSION" macos-worker)"
       ;;
     *)
       echo "Unknown component: $component" >&2

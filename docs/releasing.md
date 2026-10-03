@@ -13,6 +13,11 @@ manual workflow run:
   app's **auto-update** rides `Syrus-X.Y.Z-universal.zip` + `latest-mac.yml`
   (via Squirrel.Mac), plus `.blockmap`s for delta downloads. The *versioned*
   dmg is not shipped — it would be a byte-identical twin of `Syrus.dmg`.
+- **Native macOS worker** — `syrus-worker-macos-arm64-<git_sha>.tar.gz` plus
+  `SHA256SUMS-macos-worker.txt`. This source artifact is for external Mac
+  worker hosts: it includes the app source, binstubs, lockfiles, package
+  manifests, launchd template, and release metadata, while native gems and
+  host-specific dependencies are installed on the Mac during activation.
 - **Backend image** — `ghcr.io/tkadauke/syrus-backend:X.Y.Z`, built and
   integration-tested in CI, with `:latest` moved to it.
 - **GitHub Release `vX.Y.Z`** — Claude-written highlights over GitHub's
@@ -33,7 +38,7 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 | --- | --- |
 | `bump` | `patch` / `minor` (default) / `major`. The version is computed by bumping the latest release tag (`desktop/package.json` stays a `0.0.0` sentinel, so you never hand-set a version). |
 | `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. |
-| `dry_run` | Build and stage **everything** (image built + integration-tested, app **signed + notarized**, CLI cross-compiled) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-cli`) are downloadable from the run for inspection. |
+| `dry_run` | Build and stage **everything** (image built + integration-tested, app **signed + notarized**, CLI cross-compiled, worker source packaged) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-cli` / `staged-macos-worker`) are downloadable from the run for inspection. |
 | `review_notes` | Hold the release as a **draft** so you can read the (LLM-written) notes before it goes public. Everything runs — build, sign, generate notes, move image `:latest` — but the final draft→published flip is skipped; you edit the notes and click **Publish** in the GitHub UI when ready. Default off (auto-publish). |
 
 ### The pipeline (`.github/workflows/release.yml`)
@@ -57,8 +62,9 @@ prepare ── build  (uses ./.github/workflows/_build-app.yml — the SHARED sp
                  │                                                     ▼
                  │                       merge-backend (imagetools create → the
                  │                       multi-arch :X.Y.Z tag; NOT :latest)
-                 ├─ build-cli     (cross-compile tarballs → staged)
-                 └─ build-mac     (sign + notarize + staple → staged)
+                 ├─ build-cli            (cross-compile tarballs → staged)
+                 ├─ build-mac            (sign + notarize + staple → staged)
+                 └─ build-macos-worker   (source tarball + checksum → staged)
                     │  the whole build spine must pass
                     ▼
                  publish   (NEAR-ATOMIC draft-release flow:
@@ -75,8 +81,8 @@ prepare ── build  (uses ./.github/workflows/_build-app.yml — the SHARED sp
 
 `.github/workflows/_build-app.yml` is a `workflow_call` module that builds and
 signs the whole shippable set — backend image (native per-arch matrix →
-multi-arch manifest), CLI tarballs, and the notarized macOS app — and stages
-them as run artifacts. It owns none of the
+multi-arch manifest), CLI tarballs, the notarized macOS app, and the native
+macOS worker source tarball — and stages them as run artifacts. It owns none of the
 release-specific plumbing: version computation stays in each caller's `prepare`
 job, and publishing (draft release, `:latest` move, notes, website) stays in
 `release.yml`. Callers reach it as a single job (`build:`) and pass `secrets:
@@ -188,6 +194,11 @@ a feature branch — without publishing anything:
   test installer from a green run installs end-to-end.
 - **CLI tarballs** — the same `bin/release-cli` build as a release
   (`go test ./...` gate, linux/amd64 + arm64 tarballs, `SHA256SUMS-cli.txt`).
+- **Native macOS worker tarball** — the same `bin/release-macos-worker` build
+  as a release. It is source-only and stamped with `GIT_SHA`; activation on
+  the Mac installs native gems and other host-specific dependencies after the
+  cluster has already deployed compatible database schema. Mac workers must
+  not run migrations.
 
 Auto-update is disarmed in **both directions**. Release installs never see a
 test build: the workflow stages and publishes no update-feed files. And a test
@@ -199,7 +210,8 @@ release — the app therefore skips auto-update entirely for `-test.` versions
 a deliberate manual reinstall.
 
 The built artifacts land as **workflow-run artifacts** — `test-staged-mac`
-(the versioned `.dmg`) and `test-staged-cli` (the CLI tarballs + checksums) on the run's Summary
+(the versioned `.dmg`), `test-staged-cli` (the CLI tarballs + checksums), and
+`test-staged-macos-worker` (the native worker tarball + checksums) on the run's Summary
 page, kept for **14 days**. They are deliberately **not** attached to a GitHub
 Release and carry no stable-name aliases (`Syrus.dmg` is the website permalink
 for releases only) and no auto-update feed files: the
