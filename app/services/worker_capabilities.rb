@@ -36,7 +36,7 @@ class WorkerCapabilities
       {
         capabilities: capabilities.to_h,
         diagnostics: detected.fetch(:diagnostics).merge(
-          "configured" => configured.any?,
+          "configured" => configured.present?,
           "env_key" => ENV_KEY
         )
       }
