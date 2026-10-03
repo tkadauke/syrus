@@ -48,6 +48,19 @@ RSpec.describe ChatAgentQuestion do
     expect(chat_session.reload.last_message_at).to be_present
   end
 
+  it "does not overwrite a title generated after the question loaded its chat" do
+    question = build_question(chat_session, [ { "question" => "Deploy now?", "options" => [ "Yes", "No" ], "multiple" => false } ])
+    question.chat_session
+    chat_session.update_columns(title: "Generated title", title_auto_fallback: false)
+
+    expect(question.answer_and_record!([ "Yes" ], sender_user: user)).to eq(true)
+
+    expect(chat_session.reload).to have_attributes(
+      title: "Generated title",
+      title_auto_fallback: false
+    )
+  end
+
   it "rejects an answers array with the wrong length" do
     question = build_question(chat_session, [ { "question" => "Deploy now?", "options" => nil, "multiple" => false } ])
 

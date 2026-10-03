@@ -65,6 +65,15 @@ RSpec.describe ChatTitleGenerator do
 
     expect(generated).not_to be_success
     expect(generated.error).to eq("empty title")
+    expect(generated.problem_code).to be_nil
+  end
+
+  it "keeps the judgment problem code when the provider fails" do
+    generated = call_with("", timed_out: true)
+
+    expect(generated).not_to be_success
+    expect(generated.error).to eq("timed out after 60s")
+    expect(generated.problem_code).to eq("timeout")
   end
 
   it "runs Codex chat title generation through the configured provider" do
