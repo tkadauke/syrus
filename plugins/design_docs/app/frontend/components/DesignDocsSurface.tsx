@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button, buttonClasses } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -626,6 +626,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const canSuggest = !isArchived && doc.permissions.can_suggest
   const canReviewSuggestions = !isArchived && doc.permissions.can_review_suggestions
   const canArchive = !isArchived && doc.permissions.can_archive
+  const canUnarchive = isArchived && doc.permissions.can_unarchive
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? t("save") : t("suggest_changes")
@@ -638,6 +639,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const railLayoutFrameRef = useRef<number | null>(null)
+  const selectionReadFrameRef = useRef<number | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
@@ -760,7 +762,9 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   )
   const [railLayout, setRailLayout] = useState<RailLayout>({ stackShift: 0, margins: {} })
 
-  function updateSelection(event?: ChangeEvent<HTMLTextAreaElement>) {
+  const selectionCommentsEnabled = canSuggest && !isViewingHistoricalVersion
+
+  const updateSelection = useCallback((event?: ChangeEvent<HTMLTextAreaElement>) => {
     const target = event?.target ?? textareaRef.current
     if (!target) return
     const start = target.selectionStart
@@ -772,24 +776,84 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
 
     const text = target.value.slice(start, end)
     setSelection({ start, end, text, selectedText: text, rect: textareaSelectionRect(target, start, end) })
-  }
+  }, [])
 
-  function updateWysiwygSelection() {
+  const updateWysiwygSelection = useCallback(() => {
     if (!wysiwygRef.current) return
 
     setSelection(selectionRangeFromRoot(wysiwygRef.current, draft, editorShellRef.current))
-  }
+  }, [draft])
 
   // The narrow-view read-only body renders the same markdownToWysiwygHtml
   // output (data-source-start/end spans and all) as the editable Rich Text
   // surface above, just via dangerouslySetInnerHTML instead of
   // contentEditable -- so the same offset-mapping logic applies unchanged,
   // just pointed at a different root.
-  function updateReadOnlySelection() {
+  const updateReadOnlySelection = useCallback(() => {
     if (!readOnlyBodyRef.current) return
 
     setSelection(selectionRangeFromRoot(readOnlyBodyRef.current, draft, editorShellRef.current))
-  }
+  }, [draft])
+
+  const liveSelectionBelongsToActiveSurface = useCallback(() => {
+    if (editingLocked) {
+      const root = readOnlyBodyRef.current
+      const liveSelection = document.getSelection()
+      if (!root || !liveSelection || liveSelection.rangeCount === 0) return false
+
+      return selectionRangeBelongsToRoot(root, liveSelection.getRangeAt(0))
+    }
+
+    if (editorMode === "markdown") return document.activeElement === textareaRef.current
+
+    const root = wysiwygRef.current
+    const liveSelection = document.getSelection()
+    if (!root || !liveSelection || liveSelection.rangeCount === 0) return false
+
+    return selectionRangeBelongsToRoot(root, liveSelection.getRangeAt(0))
+  }, [editingLocked, editorMode])
+
+  const updateActiveSurfaceSelection = useCallback(() => {
+    if (!selectionCommentsEnabled) {
+      setSelection(emptySelection())
+      return
+    }
+
+    if (!liveSelectionBelongsToActiveSurface()) return
+
+    if (editingLocked) {
+      updateReadOnlySelection()
+      return
+    }
+
+    if (editorMode === "markdown") updateSelection()
+    else updateWysiwygSelection()
+  }, [editingLocked, editorMode, liveSelectionBelongsToActiveSurface, selectionCommentsEnabled, updateReadOnlySelection, updateSelection, updateWysiwygSelection])
+
+  const scheduleSelectionRead = useCallback(() => {
+    if (selectionReadFrameRef.current != null) window.cancelAnimationFrame(selectionReadFrameRef.current)
+    selectionReadFrameRef.current = window.requestAnimationFrame(() => {
+      selectionReadFrameRef.current = null
+      updateActiveSurfaceSelection()
+    })
+  }, [updateActiveSurfaceSelection])
+
+  useEffect(() => {
+    if (!selectionCommentsEnabled) return
+
+    document.addEventListener("selectionchange", scheduleSelectionRead)
+    document.addEventListener("pointerup", scheduleSelectionRead)
+    document.addEventListener("touchend", scheduleSelectionRead, { passive: true })
+    return () => {
+      document.removeEventListener("selectionchange", scheduleSelectionRead)
+      document.removeEventListener("pointerup", scheduleSelectionRead)
+      document.removeEventListener("touchend", scheduleSelectionRead)
+    }
+  }, [scheduleSelectionRead, selectionCommentsEnabled])
+
+  useEffect(() => () => {
+    if (selectionReadFrameRef.current != null) window.cancelAnimationFrame(selectionReadFrameRef.current)
+  }, [])
 
   function openSelectionComposer() {
     setFocusedThreadId(null)
@@ -1115,6 +1179,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
         onArchive={() => metadataMutation.mutate({ state: "archived" })}
+        onUnarchive={() => metadataMutation.mutate({ state: "draft" })}
         onSave={() => {
           if (effectiveChangeMode === "edit" && !summaryVisible) {
             setSummaryVisible(true)
@@ -1127,6 +1192,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         saveDisabled={saveDisabled || isArchived}
         archiveDisabled={metadataMutation.isPending}
         canArchive={canArchive}
+        canUnarchive={canUnarchive}
         canManageMetadata={canWriteCanonical}
         isArchived={isArchived}
         onVersionChange={selectVersion}
@@ -1160,9 +1226,11 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                 onClick={handleAnchorMarkerClick}
                 onKeyUp={updateReadOnlySelection}
                 onMouseUp={updateReadOnlySelection}
+                onPointerUp={scheduleSelectionRead}
+                onTouchEnd={scheduleSelectionRead}
               />
               <SelectionCommentAffordance
-                disabled={selection.end <= selection.start || !canSuggest}
+                disabled={selection.end <= selection.start || !selectionCommentsEnabled}
                 selection={selection}
                 onOpenComposer={openSelectionComposer}
               />
@@ -1193,7 +1261,9 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyUp={() => updateSelection()}
                     onMouseUp={() => updateSelection()}
+                    onPointerUp={scheduleSelectionRead}
                     onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
+                    onTouchEnd={scheduleSelectionRead}
                     readOnly={isArchived}
                     ref={textareaRef}
                     value={draft}
@@ -1221,6 +1291,8 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                   }}
                   onKeyUp={updateWysiwygSelection}
                   onMouseUp={updateWysiwygSelection}
+                  onPointerUp={scheduleSelectionRead}
+                  onTouchEnd={scheduleSelectionRead}
                   ref={wysiwygRef}
                   role="textbox"
                   suppressContentEditableWarning
@@ -1228,7 +1300,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
                 />
               )}
               <SelectionCommentAffordance
-                disabled={selection.end <= selection.start || !canSuggest}
+                disabled={selection.end <= selection.start || !selectionCommentsEnabled}
                 selection={selection}
                 onOpenComposer={openSelectionComposer}
               />
@@ -1280,9 +1352,10 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   )
 }
 
-function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, canUnarchive, collaborators, doc, editEntry, narrowView, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onUnarchive, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   archiveDisabled: boolean
   canArchive: boolean
+  canUnarchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
@@ -1307,6 +1380,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
   onArchive: () => void
   onMetadataSave: () => void
   onSave: () => void
+  onUnarchive: () => void
   saveLabel: string
   saveDisabled: boolean
   onVersionChange: (versionId: string) => void
@@ -1437,6 +1511,12 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
     </Select>
   )
 
+  const archiveControl = canArchive ? (
+    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
+  ) : canUnarchive ? (
+    <Button disabled={archiveDisabled} onClick={onUnarchive} size="sm" variant="secondary">{t("unarchive")}</Button>
+  ) : null
+
   if (narrowView) {
     return (
       <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
@@ -1462,9 +1542,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
                 {repositoryPicker}
                 <div className="flex flex-wrap items-center gap-2">
                   {shareControl}
-                  {canArchive ? (
-                    <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
-                  ) : null}
+                  {archiveControl}
                   {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
                 </div>
                 {versionSelector}
@@ -1490,9 +1568,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, ed
         <StatusLabel value={doc.state} />
         {repositoryPicker}
         {shareControl}
-        {canArchive ? (
-          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
-        ) : null}
+        {archiveControl}
         {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
         {versionSelector}
       </div>
@@ -1726,7 +1802,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 // uses -- so active thread/suggestion anchors still highlight and carry
 // data-thread-id/data-suggestion-id markers a click can resolve back to the
 // bottom comment drawer (DesignDocEditor's handleAnchorMarkerClick).
-function DesignDocReadOnlyBody({ bodyRef, draft, focusedSuggestionId, focusedThreadId, highlights, onClick, onKeyUp, onMouseUp }: {
+function DesignDocReadOnlyBody({ bodyRef, draft, focusedSuggestionId, focusedThreadId, highlights, onClick, onKeyUp, onMouseUp, onPointerUp, onTouchEnd }: {
   bodyRef: React.MutableRefObject<HTMLDivElement | null>
   draft: string
   focusedSuggestionId: number | null
@@ -1735,6 +1811,8 @@ function DesignDocReadOnlyBody({ bodyRef, draft, focusedSuggestionId, focusedThr
   onClick: (event: React.MouseEvent<HTMLElement>) => void
   onKeyUp: () => void
   onMouseUp: () => void
+  onPointerUp: () => void
+  onTouchEnd: () => void
 }) {
   const { t } = useT("design_docs")
 
@@ -1747,6 +1825,8 @@ function DesignDocReadOnlyBody({ bodyRef, draft, focusedSuggestionId, focusedThr
         onClick={onClick}
         onKeyUp={onKeyUp}
         onMouseUp={onMouseUp}
+        onPointerUp={onPointerUp}
+        onTouchEnd={onTouchEnd}
         ref={bodyRef}
         tabIndex={0}
       />
@@ -3324,7 +3404,7 @@ function selectionRangeFromRoot(root: HTMLElement, draft: string, rectContainer:
   if (!range || range.rangeCount === 0) return emptySelection()
 
   const selectedRange = range.getRangeAt(0)
-  if (!root.contains(selectedRange.commonAncestorContainer)) return emptySelection()
+  if (!selectionRangeBelongsToRoot(root, selectedRange)) return emptySelection()
 
   const selectedText = selectedRange.toString()
   const sourceStart = sourceOffsetForSelectionBoundary(root, selectedRange.startContainer, selectedRange.startOffset, "start")
@@ -3342,4 +3422,12 @@ function selectionRangeFromRoot(root: HTMLElement, draft: string, rectContainer:
     selectedText,
     rect: rangeSelectionRect(selectedRange, rectContainer)
   }
+}
+
+function selectionRangeBelongsToRoot(root: HTMLElement, range: Range) {
+  return selectionBoundaryBelongsToRoot(root, range.startContainer) && selectionBoundaryBelongsToRoot(root, range.endContainer)
+}
+
+function selectionBoundaryBelongsToRoot(root: HTMLElement, node: Node) {
+  return node === root || root.contains(node)
 }

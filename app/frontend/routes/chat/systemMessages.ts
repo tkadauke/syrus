@@ -41,6 +41,9 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const wakeupAutomation = wakeupAutomationFromContent(message.content, text)
   if (wakeupAutomation) return wakeupAutomation
 
+  const chatTurnRetry = chatTurnRetryFromContent(message.content, text)
+  if (chatTurnRetry) return chatTurnRetry
+
   const providerError = providerErrorFromContent(message.content)
   if (providerError) return providerError
 
@@ -105,6 +108,13 @@ export function wakeupAutomationFromContent(content: unknown, text: string): Cha
   if (record?.requested_by !== "wakeup") return null
 
   return { tone: "neutral", label: "Automation", body: text || stringValue(record.text) || "Scheduled wakeup fired." }
+}
+
+export function chatTurnRetryFromContent(content: unknown, text: string): ChatSystemMessage | null {
+  const record = contentRecord(content)
+  if (record?.source !== "chat_turn_retry") return null
+
+  return { tone: "neutral", label: "Retry", body: text || stringValue(record.text) || "Retrying the previous assistant turn now." }
 }
 
 // Mirrors the inbound badge's i18n `cross_chat_bridge_link` fallback

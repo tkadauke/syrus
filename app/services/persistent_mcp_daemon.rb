@@ -84,8 +84,8 @@ class PersistentMcpDaemon
     ENV.fetch("SYRUS_PERSISTENT_MCP_HOST", DEFAULT_HOST)
   end
 
-  def self.start(host: self.host, port: self.port)
-    new(host: host, port: port).tap(&:start)
+  def self.start(host: self.host, port: self.port, require_feature: true)
+    new(host: host, port: port, require_feature: require_feature).tap(&:start)
   end
 
   def self.ensure_started
@@ -105,14 +105,15 @@ class PersistentMcpDaemon
     ENV.fetch("SYRUS_MCP_DAEMON_AUTO_START", Rails.env.test? ? "0" : "1") != "0"
   end
 
-  def initialize(host: self.class.host, port: self.class.port)
+  def initialize(host: self.class.host, port: self.class.port, require_feature: true)
     @host = host
     @port = port
+    @require_feature = require_feature
     @started_at = nil
   end
 
   def start
-    raise "PersistentMcpDaemon: the persistent_mcp_sidecar feature is disabled" unless Feature.persistent_mcp_sidecar_enabled?
+    raise "PersistentMcpDaemon: the persistent_mcp_sidecar feature is disabled" if @require_feature && !Feature.persistent_mcp_sidecar_enabled?
     raise "PersistentMcpDaemon: already started" if @server
 
     @started_at = Time.current
@@ -155,7 +156,11 @@ class PersistentMcpDaemon
         not_found
       end
     elsif request.path == MCP_PATH || request.path.start_with?("#{MCP_PATH}/")
-      mcp_transport.call(inject_invocation_context(env))
+      if (response = context_scoped_chat_response(env))
+        response
+      else
+        mcp_transport.call(inject_invocation_context(env))
+      end
     else
       not_found
     end
@@ -188,7 +193,7 @@ class PersistentMcpDaemon
   end
 
   # The full known chat MCP tool surface (every surface: :chat entry in
-  # McpToolRegistry, essential and deferred tiers combined), each wrapped so
+  # McpToolRegistry plus enabled plugin chat tool definitions), each wrapped so
   # a call resolves its own per-invocation chat_session/tier/role from the
   # signed McpInvocationContext token in that request's `_meta` -- see
   # PersistentMcpDaemon::ChatToolDispatch for why a single static tool list
@@ -196,8 +201,31 @@ class PersistentMcpDaemon
   # PersistentMcpDaemon::ChatContextResolver for how the security-relevant
   # tiering/role/feature-flag gate is still enforced per call.
   def chat_tools
-    @chat_tools ||= unique_tools(McpToolRegistry.tools(surface: :chat))
+    @chat_tools ||= unique_tools(McpToolRegistry.tools(surface: :chat) + evaluator_chat_tools + plugin_chat_tools)
       .map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
+  end
+
+  def evaluator_chat_tools
+    context = McpToolContext.new(
+      surface: :chat,
+      role: AgentRole::CHAT_EVALUATOR,
+      user: WORKFLOW_CONTEXT_USER.new(false)
+    )
+    McpToolPolicy.for(context)
+  end
+
+  def plugin_chat_tools
+    @plugin_chat_tools ||= unique_tools(
+      Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
+        %i[essential deferred evaluator].flat_map do |tier|
+          Mcp::Sidecar.mcp_tools_for(
+            tool_set,
+            tier: tier,
+            policy: tier == :evaluator ? :evaluator : nil
+          )
+        end
+      end
+    )
   end
 
   def workflow_mcp_server_for(role)
@@ -299,6 +327,73 @@ class PersistentMcpDaemon
 
   def dispatch(id, method, server: mcp_server)
     JSON.parse(server.handle_json({ jsonrpc: "2.0", id: id, method: method }.to_json))
+  end
+
+  def context_scoped_chat_response(env)
+    return unless env["REQUEST_METHOD"] == "POST"
+
+    request = Rack::Request.new(env)
+    body_string = request.body.read
+    request.body.rewind
+    parsed = JSON.parse(body_string, symbolize_names: true)
+    return unless parsed.is_a?(Hash) && %w[tools/list tools/call].include?(parsed[:method])
+    if parsed[:method] == "tools/call"
+      tool_name = parsed.dig(:params, :name)
+      return if static_daemon_tool_name?(tool_name) || static_chat_tool_name?(tool_name)
+    end
+
+    meta = parsed.dig(:params, :_meta).is_a?(Hash) ? parsed.dig(:params, :_meta) : {}
+    token = env[INVOCATION_CONTEXT_HEADER_ENV_KEY].presence || meta[INVOCATION_CONTEXT_META_KEY]
+    return if token.blank?
+
+    resolved = PersistentMcpDaemon::ChatContextResolver.resolve(
+      identity: identity,
+      _meta: meta.merge(INVOCATION_CONTEXT_META_KEY => token)
+    )
+    server = MCP::Server.new(
+      name: "syrus-persistent-mcp-daemon",
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + wrapped_chat_tools(resolved.allowed_tools),
+      server_context: { identity: identity }
+    )
+    body_string = body_with_invocation_context(parsed, meta: meta, token: token)
+
+    json_response(200, JSON.parse(server.handle_json(body_string)))
+  rescue JSON::ParserError
+    nil
+  rescue McpInvocationContext::InvalidContext => e
+    json_response(
+      200,
+      jsonrpc: "2.0",
+      id: parsed && parsed[:id],
+      error: { code: -32001, message: "Unauthorized: invocation context #{e.class.name.demodulize}: #{e.message}" }
+    )
+  end
+
+  def body_with_invocation_context(parsed, meta:, token:)
+    params = parsed[:params].is_a?(Hash) ? parsed[:params] : {}
+    JSON.generate(
+      parsed.merge(
+        params: params.merge(_meta: meta.merge(INVOCATION_CONTEXT_META_KEY => token))
+      )
+    )
+  end
+
+  def static_chat_tool_name?(tool_name)
+    return false if tool_name.blank?
+
+    chat_tools.any? { |tool| McpToolRegistry.tool_name_for(tool) == tool_name.to_s }
+  end
+
+  def static_daemon_tool_name?(tool_name)
+    return false if tool_name.blank?
+
+    [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ].any? do |tool|
+      McpToolRegistry.tool_name_for(tool) == tool_name.to_s
+    end
+  end
+
+  def wrapped_chat_tools(tools)
+    unique_tools(tools).map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
   end
 
   def mcp_transport

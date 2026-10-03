@@ -335,7 +335,9 @@ curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
 current Markdown. `PATCH /api/v1/admin/design_docs/:id` updates
 `title`/`markdown`/`state` and, on a canonical edit, records a new version —
 every admin `PATCH` checkpoints by default, so it always produces a version
-row the way an explicit `Save` does in the editor. `GET
+row the way an explicit `Save` does in the editor. Archived docs are
+non-destructive records; owners can restore them to `draft` from the Design
+Docs editor. `GET
 /api/v1/admin/design_docs/:id/versions` returns the version history.
 With the plugin disabled, every endpoint answers `plugin_disabled`.
 

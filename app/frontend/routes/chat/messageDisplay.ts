@@ -25,6 +25,7 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
     !isGoalContinuationSystemMessage(item) &&
     !isCrossChatBridgeSystemMessage(item) &&
     !isWakeupAutomationSystemMessage(item) &&
+    !isChatTurnRetrySystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
   )
 }
@@ -39,6 +40,10 @@ export function isCrossChatBridgeSystemMessage(item: Extract<ChatRenderItem, { t
 
 export function isWakeupAutomationSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
   return contentRecord(item.content)?.requested_by === "wakeup"
+}
+
+export function isChatTurnRetrySystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
+  return contentRecord(item.content)?.source === "chat_turn_retry"
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {

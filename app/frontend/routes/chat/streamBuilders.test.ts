@@ -72,6 +72,7 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
     members: [],
     app_confirm_path: "/api/v1/app/chats/122/pending_action_groups/7/confirm",
     app_reject_path: "/api/v1/app/chats/122/pending_action_groups/7/reject",
+    app_dismiss_path: "/api/v1/app/chats/122/pending_action_groups/7",
     ...overrides
   }
 }
@@ -93,6 +94,44 @@ describe("buildMessageStreamItems pending action groups", () => {
     const result = buildMessageStreamItems([], [], [ pendingActionGroup({ chat_message_id: 42 }) ])
 
     expect(result.map((item) => item.type)).toEqual([ "pending_action_group" ])
+  })
+
+  it("anchors a group below a rendered tool group through a member message id", () => {
+    const toolItems = renderChatMessages([
+      toolUse(10, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 } }),
+      toolResult(11, { toolUseId: "tu_reopen" })
+    ])
+    const result = buildMessageStreamItems(
+      [ assistantMessage(1), ...toolItems, assistantMessage(2) ],
+      [],
+      [
+        pendingActionGroup({
+          chat_message_id: null,
+          members: [ { id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 } ]
+        })
+      ]
+    )
+
+    expect(result.map((item) => item.type)).toEqual([ "message", "tool_group", "pending_action_group", "message" ])
+  })
+
+  it("renders a group once when multiple anchors are inside the same tool group", () => {
+    const toolItems = renderChatMessages([
+      toolUse(10, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 } }),
+      toolResult(11, { toolUseId: "tu_reopen" })
+    ])
+    const result = buildMessageStreamItems(
+      [ ...toolItems ],
+      [],
+      [
+        pendingActionGroup({
+          chat_message_id: 10,
+          members: [ { id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 } ]
+        })
+      ]
+    )
+
+    expect(result.map((item) => item.type)).toEqual([ "tool_group", "pending_action_group" ])
   })
 
   it("interleaves pending actions and pending action groups anchored to the same message", () => {

@@ -4,6 +4,7 @@
   "accept": "Accept",
   "archive": "Archive",
   "archived_read_only": "This design doc is archived. Content, comments, suggestions, and reviews are read only.",
+  "unarchive": "Unarchive",
   "agent_run": {
     "canceled": "Syrus canceled.",
     "drafting": "Syrus is drafting...",

@@ -17,7 +17,9 @@ module DesignDocs
       DesignDoc.transaction do
         design_doc.lock!
 
-        if canonical_update?
+        if unarchive_update?
+          apply_unarchive_update
+        elsif canonical_update?
           apply_canonical_update
         else
           create_suggestion
@@ -31,6 +33,19 @@ module DesignDocs
 
     def canonical_update?
       actor_kind == "user" && DesignDocPolicy.new(user, design_doc).canonical_write?
+    end
+
+    def unarchive_update?
+      actor_kind == "user" &&
+        design_doc.state == "archived" &&
+        attributes.keys == [ :state ] &&
+        attributes[:state] == "draft" &&
+        DesignDocPolicy.new(user, design_doc).unarchive?
+    end
+
+    def apply_unarchive_update
+      design_doc.update!(state: "draft")
+      Result.new(design_doc: design_doc.reload, version: nil, suggestion: nil, mode: "canonical")
     end
 
     def create_suggestion
