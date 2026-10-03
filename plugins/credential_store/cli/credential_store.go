@@ -27,8 +27,20 @@ import (
 )
 
 const sshAgentToolName = "credential.ssh-agent"
+const credentialExecToolName = "credential.exec"
 
 var sshAgentBaseEnvAllowlist = map[string]bool{
+	"HOME":    true,
+	"LANG":    true,
+	"LOGNAME": true,
+	"PATH":    true,
+	"SHELL":   true,
+	"TERM":    true,
+	"TMPDIR":  true,
+	"USER":    true,
+}
+
+var credentialExecBaseEnvAllowlist = map[string]bool{
 	"HOME":    true,
 	"LANG":    true,
 	"LOGNAME": true,
@@ -82,7 +94,36 @@ func (runner execCommandRunner) Run(ctx context.Context, env []string, name stri
 	return result
 }
 
+func (runner execCommandRunner) RunCredentialExec(ctx context.Context, env []string, stdin io.Reader, redactions []string, name string, args ...string) processResult {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Env = env
+	if stdin == nil {
+		stdin = runner.stdin
+	}
+	command.Stdin = stdin
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	err := command.Run()
+	result := processResult{Stdout: stdout.String(), Stderr: stderr.String(), Status: 0}
+	fmt.Fprint(runner.stdout, redactCredentialExecOutput(result.Stdout, redactions))
+	fmt.Fprint(runner.stderr, redactCredentialExecOutput(result.Stderr, redactions))
+	if err == nil {
+		return result
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		result.Status = exitErr.ExitCode()
+		return result
+	}
+	fmt.Fprintf(runner.stderr, "%s: %v\n", name, err)
+	result.Status = 1
+	return result
+}
+
 var sshAgentRunner commandRunner = execCommandRunner{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
+var credentialExecRunner credentialExecProcessRunner = execCommandRunner{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
 
 func NewCredentialStoreCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -90,7 +131,7 @@ func NewCredentialStoreCommand() *cobra.Command {
 		Aliases: []string{"credential_store"},
 		Short:   "Inspect Credential Store records and run credential wrappers",
 	}
-	cmd.AddCommand(newTypesCommand(), newCredentialsCommand(), newLeaseCommand(), newSSHAgentCommand())
+	cmd.AddCommand(newTypesCommand(), newCredentialsCommand(), newLeaseCommand(), newCredentialExecCommand(), newSSHAgentCommand())
 	return cmd
 }
 
@@ -243,6 +284,167 @@ func newSSHAgentCommand() *cobra.Command {
 	return cmd
 }
 
+func newCredentialExecCommand() *cobra.Command {
+	var credential, credentialType, envVar, fileEnv, purpose, toolName, targetJSON string
+	var stdinMode bool
+	var expiresIn int
+	cmd := &cobra.Command{
+		Use:   "exec --credential <credential> --type <type> (--env-var NAME | --file-env NAME | --stdin) -- <command> [args...]",
+		Short: "Run a command with a brokered credential materialized in one explicit process-local mode",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(credential) == "" {
+				return errors.New("--credential is required")
+			}
+			if strings.TrimSpace(credentialType) == "" {
+				return errors.New("--type is required")
+			}
+			if len(args) == 0 {
+				return errors.New("command is required after --")
+			}
+			modes := 0
+			if strings.TrimSpace(envVar) != "" {
+				modes++
+			}
+			if strings.TrimSpace(fileEnv) != "" {
+				modes++
+			}
+			if stdinMode {
+				modes++
+			}
+			if modes != 1 {
+				return errors.New("exactly one of --env-var, --file-env, or --stdin is required")
+			}
+			if strings.TrimSpace(envVar) != "" && !validEnvKey(envVar) {
+				return fmt.Errorf("--env-var must be a valid environment variable name")
+			}
+			if strings.TrimSpace(fileEnv) != "" && !validEnvKey(fileEnv) {
+				return fmt.Errorf("--file-env must be a valid environment variable name")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			target, err := parseTargetJSON(targetJSON)
+			if err != nil {
+				return err
+			}
+			client, err := cliplugin.Client()
+			if err != nil {
+				return err
+			}
+			runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return runCredentialExecCommand(runCtx, credentialExecRunner, client, credentialExecInput{
+				Credential: strings.TrimSpace(credential),
+				Type:       strings.TrimSpace(credentialType),
+				Purpose:    valueOrDefault(purpose, "credential exec command"),
+				ToolName:   valueOrDefault(toolName, credentialExecToolName),
+				Target:     target,
+				ExpiresIn:  expiresIn,
+				Mode:       credentialExecModeFor(envVar, fileEnv, stdinMode),
+				EnvKey:     strings.TrimSpace(valueOrDefault(envVar, fileEnv)),
+				Command:    args,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&credential, "credential", "", "credential name or id")
+	cmd.Flags().StringVar(&credentialType, "type", "", "expected credential type name")
+	cmd.Flags().StringVar(&envVar, "env-var", "", "set this environment variable to the credential payload")
+	cmd.Flags().StringVar(&fileEnv, "file-env", "", "set this environment variable to a temporary file containing the credential payload")
+	cmd.Flags().BoolVar(&stdinMode, "stdin", false, "write the credential payload to the child process standard input")
+	cmd.Flags().StringVar(&purpose, "purpose", "", "lease purpose recorded in the access audit")
+	cmd.Flags().StringVar(&toolName, "tool", credentialExecToolName, "tool name checked against credential policy")
+	cmd.Flags().StringVar(&targetJSON, "target-json", "", "target constraints as a JSON object")
+	cmd.Flags().IntVar(&expiresIn, "expires-in", 0, "requested lease TTL in seconds, capped by the server")
+	return cmd
+}
+
+type credentialExecMode string
+
+const (
+	credentialExecModeEnv     credentialExecMode = "env-var"
+	credentialExecModeFileEnv credentialExecMode = "file-env"
+	credentialExecModeStdin   credentialExecMode = "stdin"
+)
+
+type credentialExecInput struct {
+	Credential string
+	Type       string
+	Purpose    string
+	ToolName   string
+	Target     map[string]any
+	ExpiresIn  int
+	Mode       credentialExecMode
+	EnvKey     string
+	Command    []string
+}
+
+type credentialExecProcessRunner interface {
+	RunCredentialExec(ctx context.Context, env []string, stdin io.Reader, redactions []string, name string, args ...string) processResult
+}
+
+func runCredentialExecCommand(ctx context.Context, runner credentialExecProcessRunner, client apiClient, input credentialExecInput) error {
+	response, err := RequestCredentialExecMaterial(ctx, client, CredentialExecMaterialRequestBody{
+		Credential: input.Credential,
+		Type:       input.Type,
+		Purpose:    input.Purpose,
+		ToolName:   input.ToolName,
+		Target:     input.Target,
+		ExpiresIn:  input.ExpiresIn,
+	})
+	if err != nil {
+		return err
+	}
+
+	status, duration := runWithCredentialExecMaterial(ctx, runner, input, response.Material.Payload)
+	auditErr := RecordCredentialExecAudit(ctx, client, CredentialExecAuditRequestBody{
+		Credential: input.Credential,
+		LeaseID:    response.Lease.LeaseID,
+		Purpose:    input.Purpose,
+		ToolName:   input.ToolName,
+		ExitStatus: status,
+		DurationMS: duration.Milliseconds(),
+		Mode:       string(input.Mode),
+	})
+	if auditErr != nil && status == 0 {
+		return auditErr
+	}
+	if status != 0 {
+		return cliplugin.ExitStatusError{Status: status, Message: fmt.Sprintf("child command exited with status %d", status)}
+	}
+	return auditErr
+}
+
+func runWithCredentialExecMaterial(ctx context.Context, runner credentialExecProcessRunner, input credentialExecInput, payload string) (int, time.Duration) {
+	start := time.Now()
+	env := sanitizedCredentialExecBaseEnv(os.Environ())
+	stdin := io.Reader(nil)
+	var cleanup func()
+
+	switch input.Mode {
+	case credentialExecModeEnv:
+		env = mergedEnv(env, map[string]string{input.EnvKey: payload})
+	case credentialExecModeFileEnv:
+		path, cleanupTemp, err := writeTempSecret("syrus-credential-exec-*", payload, 0o600)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "write temporary credential file: %v\n", err)
+			return 1, time.Since(start)
+		}
+		cleanup = cleanupTemp
+		env = mergedEnv(env, map[string]string{input.EnvKey: path})
+	case credentialExecModeStdin:
+		stdin = strings.NewReader(payload)
+	default:
+		fmt.Fprintln(os.Stderr, "unsupported credential exec materialization mode")
+		return 1, time.Since(start)
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	result := runner.RunCredentialExec(ctx, env, stdin, []string{payload}, input.Command[0], input.Command[1:]...)
+	return result.Status, time.Since(start)
+}
+
 type sshAgentInput struct {
 	Credential string
 	Purpose    string
@@ -351,6 +553,63 @@ func sanitizedSSHAgentBaseEnv(source []string) []string {
 		}
 	}
 	return env
+}
+
+func sanitizedCredentialExecBaseEnv(source []string) []string {
+	var env []string
+	for _, entry := range source {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if credentialExecBaseEnvAllowlist[key] || strings.HasPrefix(key, "LC_") {
+			env = append(env, entry)
+		}
+	}
+	return env
+}
+
+func credentialExecModeFor(envVar string, fileEnv string, stdinMode bool) credentialExecMode {
+	if strings.TrimSpace(envVar) != "" {
+		return credentialExecModeEnv
+	}
+	if strings.TrimSpace(fileEnv) != "" {
+		return credentialExecModeFileEnv
+	}
+	if stdinMode {
+		return credentialExecModeStdin
+	}
+	return ""
+}
+
+func validEnvKey(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	for i, r := range value {
+		if i == 0 {
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '_' {
+				continue
+			}
+			return false
+		}
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func redactCredentialExecOutput(value string, redactions []string) string {
+	scrubbed := value
+	for _, secret := range redactions {
+		if len(secret) >= 4 {
+			scrubbed = strings.ReplaceAll(scrubbed, secret, "[credential redacted]")
+		}
+	}
+	return scrubbed
 }
 
 func parseSSHAgentOutput(output string) map[string]string {

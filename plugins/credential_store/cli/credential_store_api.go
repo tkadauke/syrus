@@ -11,6 +11,8 @@ import (
 
 const credentialsPath = "/api/v1/app/credential_store/credentials"
 const leasesPath = "/api/v1/app/credential_store/leases"
+const execMaterialPath = "/api/v1/app/credential_store/exec_material"
+const execAuditPath = "/api/v1/app/credential_store/exec/audit"
 const sshAgentPath = "/api/v1/app/credential_store/ssh_agent"
 const sshAgentAuditPath = "/api/v1/app/credential_store/ssh_agent/audit"
 
@@ -99,6 +101,56 @@ func RequestLease(ctx context.Context, c *api.Client, input LeaseRequestBody) (L
 	var out LeaseResponse
 	err := c.Do(ctx, http.MethodPost, leasesPath, LeaseRequest{Lease: input}, &out)
 	return out, err
+}
+
+type CredentialExecMaterialRequest struct {
+	CredentialExec CredentialExecMaterialRequestBody `json:"credential_exec"`
+}
+
+type CredentialExecMaterialRequestBody struct {
+	Credential string         `json:"credential"`
+	Type       string         `json:"type"`
+	Purpose    string         `json:"purpose,omitempty"`
+	ToolName   string         `json:"tool_name,omitempty"`
+	Target     map[string]any `json:"target,omitempty"`
+	ExpiresIn  int            `json:"expires_in,omitempty"`
+}
+
+type CredentialExecMaterialResponse struct {
+	Lease    Lease                  `json:"lease"`
+	Material CredentialExecMaterial `json:"material"`
+}
+
+type CredentialExecMaterial struct {
+	Payload string `json:"payload"`
+}
+
+func RequestCredentialExecMaterial(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, input CredentialExecMaterialRequestBody) (CredentialExecMaterialResponse, error) {
+	var out CredentialExecMaterialResponse
+	err := c.Do(ctx, http.MethodPost, execMaterialPath, CredentialExecMaterialRequest{CredentialExec: input}, &out)
+	return out, err
+}
+
+type CredentialExecAuditRequest struct {
+	CredentialExecAudit CredentialExecAuditRequestBody `json:"credential_exec_audit"`
+}
+
+type CredentialExecAuditRequestBody struct {
+	Credential string `json:"credential"`
+	LeaseID    string `json:"lease_id,omitempty"`
+	Purpose    string `json:"purpose,omitempty"`
+	ToolName   string `json:"tool_name,omitempty"`
+	ExitStatus int    `json:"exit_status"`
+	DurationMS int64  `json:"duration_ms"`
+	Mode       string `json:"mode,omitempty"`
+}
+
+func RecordCredentialExecAudit(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, input CredentialExecAuditRequestBody) error {
+	return c.Do(ctx, http.MethodPost, execAuditPath, CredentialExecAuditRequest{CredentialExecAudit: input}, nil)
 }
 
 type SSHAgentMaterialRequest struct {

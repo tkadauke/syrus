@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -156,6 +157,137 @@ func TestCredentialStoreLeaseSurfacesAuthorizationFailure(t *testing.T) {
 	err := command.Execute()
 	if err == nil || !strings.Contains(err.Error(), "tool not allowed") {
 		t.Fatalf("expected authorization failure, got %v", err)
+	}
+}
+
+func TestCredentialStoreExecEnvVarRunsChildAuditsAndRedactsOutput(t *testing.T) {
+	var materialRequest map[string]any
+	var auditRequest map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/app/credential_store/exec_material":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected material method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&materialRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.Write([]byte(`{"lease":{"lease_id":"lease-exec","credential_id":7,"credential_name":"deploy-token","credential_type":"credential_store.url_token","issued_at":"2026-10-03T00:00:00Z","expires_at":"2026-10-03T00:02:00Z","purpose":"deploy","tool_name":"credential.exec"},"material":{"payload":"super-secret-token-123"}}`))
+		case "/api/v1/app/credential_store/exec/audit":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected audit method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&auditRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	original := credentialExecRunner
+	credentialExecRunner = execCommandRunner{stdin: strings.NewReader(""), stdout: output, stderr: output}
+	t.Cleanup(func() { credentialExecRunner = original })
+
+	command := NewCredentialStoreCommand()
+	command.SetOut(output)
+	command.SetErr(output)
+	command.SetArgs([]string{
+		"exec",
+		"--credential", "deploy-token",
+		"--type", "credential_store.url_token",
+		"--env-var", "SERVICE_TOKEN",
+		"--purpose", "deploy",
+		"--target-json", `{"host":"api.example.com"}`,
+		"--", "sh", "-c", `printf "%s" "$SERVICE_TOKEN"; printf "%s" "$SERVICE_TOKEN" >&2`,
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if strings.Contains(got, "super-secret-token-123") {
+		t.Fatalf("output included secret material: %q", got)
+	}
+	if strings.Count(got, "[credential redacted]") != 2 {
+		t.Fatalf("expected redacted stdout and stderr, got %q", got)
+	}
+	material := materialRequest["credential_exec"].(map[string]any)
+	if material["credential"] != "deploy-token" || material["type"] != "credential_store.url_token" || material["tool_name"] != "credential.exec" {
+		t.Fatalf("material request = %#v", material)
+	}
+	audit := auditRequest["credential_exec_audit"].(map[string]any)
+	if audit["credential"] != "deploy-token" || audit["lease_id"] != "lease-exec" || audit["mode"] != "env-var" || audit["exit_status"].(float64) != 0 {
+		t.Fatalf("audit request = %#v", audit)
+	}
+}
+
+func TestCredentialStoreExecFileEnvUsesPrivateTempFileAndCleansUp(t *testing.T) {
+	runner := &fakeProcessRunner{childStatus: 0}
+	status, _ := runWithCredentialExecMaterial(context.Background(), runner, credentialExecInput{
+		Mode:    credentialExecModeFileEnv,
+		EnvKey:  "KUBECONFIG",
+		Command: []string{"kubectl", "get", "pods"},
+	}, "apiVersion: v1\nsecret-token")
+
+	if status != 0 {
+		t.Fatalf("status = %d", status)
+	}
+	if runner.credentialExecFilePath == "" {
+		t.Fatal("expected file-env temp path")
+	}
+	if runner.credentialExecFileMode != 0o600 {
+		t.Fatalf("temp file mode = %#o", runner.credentialExecFileMode)
+	}
+	if !strings.Contains(runner.credentialExecFileContent, "secret-token") {
+		t.Fatalf("temp file content = %q", runner.credentialExecFileContent)
+	}
+	if _, err := os.Stat(runner.credentialExecFilePath); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary credential file cleanup, stat err = %v", err)
+	}
+	if got := envValue(runner.credentialExecEnv, "KUBECONFIG"); got != runner.credentialExecFilePath {
+		t.Fatalf("KUBECONFIG = %q, want %q", got, runner.credentialExecFilePath)
+	}
+}
+
+func TestCredentialStoreExecStdinFeedsPayloadWithoutChildEnv(t *testing.T) {
+	runner := &fakeProcessRunner{childStatus: 0}
+	status, _ := runWithCredentialExecMaterial(context.Background(), runner, credentialExecInput{
+		Mode:    credentialExecModeStdin,
+		Command: []string{"./script.sh"},
+	}, "stdin-secret-token")
+
+	if status != 0 {
+		t.Fatalf("status = %d", status)
+	}
+	if runner.credentialExecStdin != "stdin-secret-token" {
+		t.Fatalf("stdin = %q", runner.credentialExecStdin)
+	}
+	if joined := strings.Join(runner.credentialExecEnv, "\n"); strings.Contains(joined, "stdin-secret-token") {
+		t.Fatalf("child env included stdin credential: %#v", runner.credentialExecEnv)
+	}
+}
+
+func TestCredentialStoreExecRequiresExactlyOneMaterializationMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	command := NewCredentialStoreCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetArgs([]string{"exec", "--credential", "deploy-token", "--type", "credential_store.url_token", "--env-var", "SERVICE_TOKEN", "--stdin", "--", "./script.sh"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("expected mode validation error, got %v", err)
 	}
 }
 
@@ -383,6 +515,13 @@ type fakeProcessRunner struct {
 	childCommand []string
 	childEnv     []string
 	killed       bool
+
+	credentialExecCommand     []string
+	credentialExecEnv         []string
+	credentialExecStdin       string
+	credentialExecFilePath    string
+	credentialExecFileMode    os.FileMode
+	credentialExecFileContent string
 }
 
 func (runner *fakeProcessRunner) Run(_ context.Context, env []string, name string, args ...string) processResult {
@@ -411,6 +550,25 @@ func (runner *fakeProcessRunner) Run(_ context.Context, env []string, name strin
 		return processResult{Status: runner.childStatus}
 	}
 	return processResult{Status: 1}
+}
+
+func (runner *fakeProcessRunner) RunCredentialExec(_ context.Context, env []string, stdin io.Reader, _ []string, name string, args ...string) processResult {
+	runner.credentialExecCommand = append([]string{name}, args...)
+	runner.credentialExecEnv = append([]string{}, env...)
+	if stdin != nil {
+		content, _ := io.ReadAll(stdin)
+		runner.credentialExecStdin = string(content)
+	}
+	if path := envValue(env, "KUBECONFIG"); path != "" {
+		runner.credentialExecFilePath = path
+		if stat, err := os.Stat(path); err == nil {
+			runner.credentialExecFileMode = stat.Mode() & 0o777
+		}
+		if content, err := os.ReadFile(path); err == nil {
+			runner.credentialExecFileContent = string(content)
+		}
+	}
+	return processResult{Status: runner.childStatus}
 }
 
 func envValue(env []string, key string) string {
