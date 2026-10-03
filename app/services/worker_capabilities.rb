@@ -1,10 +1,22 @@
 require "open3"
 require "rbconfig"
+require_relative "target_graph/execution_capabilities"
 require "timeout"
 
 class WorkerCapabilities
   ENV_KEY = "SYRUS_WORKER_CAPABILITIES".freeze
   PROBE_TIMEOUT_SECONDS = 2
+  ARCH_QUEUE_ALIASES = {
+    "x86_64" => "amd64",
+    "x64" => "amd64",
+    "amd64" => "amd64",
+    "arm64" => "arm64",
+    "aarch64" => "arm64"
+  }.freeze
+  DEFAULT_QUEUE_ARCH_BY_OS = {
+    "macos" => "arm64",
+    "windows" => "amd64"
+  }.freeze
 
   ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
 
@@ -19,12 +31,12 @@ class WorkerCapabilities
       configured = parse(ENV[ENV_KEY])
       detected = detected_defaults
       merged = detected.fetch(:capabilities).merge(configured)
-      capabilities = TargetGraph::ExecutionCapabilities.new(**merged.symbolize_keys)
+      capabilities = TargetGraph::ExecutionCapabilities.new(**symbolize_keys(merged))
 
       {
         capabilities: capabilities.to_h,
         diagnostics: detected.fetch(:diagnostics).merge(
-          "configured" => configured.present?,
+          "configured" => configured.any?,
           "env_key" => ENV_KEY
         )
       }
@@ -48,7 +60,20 @@ class WorkerCapabilities
     def normalize(raw)
       return {} if raw.blank?
 
-      TargetGraph::ExecutionCapabilities.new(**raw.to_h.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS).symbolize_keys).to_h
+      TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.to_h.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
+    end
+
+    def queue_names_for(base_queue, capabilities: current.fetch(:capabilities))
+      capabilities = normalize(capabilities)
+      os = Array(capabilities["os"]).first.to_s
+      arch = Array(capabilities["arch"]).first.to_s
+      arch = DEFAULT_QUEUE_ARCH_BY_OS[os] if arch.blank?
+      queue_arch = ARCH_QUEUE_ALIASES.fetch(arch, queue_token(arch))
+
+      queues = []
+      queues << base_queue.to_s if os.blank? || os == "linux"
+      queues << [ base_queue, queue_token(os), queue_arch ].join("-") if os.present? && queue_arch.present?
+      queues.uniq
     end
 
     private
@@ -79,6 +104,14 @@ class WorkerCapabilities
         "runtime" => "runtimes",
         "feature" => "features"
       }.fetch(key, key)
+    end
+
+    def queue_token(value)
+      value.to_s.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/\A-|-+\z/, "")
+    end
+
+    def symbolize_keys(hash)
+      hash.transform_keys { |key| key.to_s.to_sym }
     end
 
     def os_token
