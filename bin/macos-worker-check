@@ -196,7 +196,8 @@ else
   fail "SOLID_QUEUE_SKIP_RECURRING must be 1"
 fi
 
-if [[ "$SYRUS_WORKER_CAPABILITIES" == *"os:macos"* && "$SYRUS_WORKER_CAPABILITIES" == *"toolchain:xcode"* ]]; then
+worker_capabilities="${SYRUS_WORKER_CAPABILITIES:-}"
+if [[ "$worker_capabilities" == *"os:macos"* && "$worker_capabilities" == *"toolchain:xcode"* ]]; then
   ok "worker capabilities include macOS and Xcode"
 else
   fail "SYRUS_WORKER_CAPABILITIES should include os:macos and toolchain:xcode"
