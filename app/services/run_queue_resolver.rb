@@ -137,6 +137,7 @@ class RunQueueResolver
 
   def defaulted_requirements?(requirements)
     return true if default_step_requirements?
+    return false if explicit_target_requirements?
     return false unless requirements == DEFAULT_RUN_CAPABILITIES
 
     source = workflow&.planned_execution_source.to_s
@@ -246,8 +247,6 @@ class RunQueueResolver
   end
 
   def default_queue_arch_for(os)
-    return "amd64" if os == "linux" && explicit_target_requirements?
-
     WorkerCapabilities::DEFAULT_QUEUE_ARCH_BY_OS[os]
   end
 
