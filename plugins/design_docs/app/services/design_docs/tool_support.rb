@@ -63,11 +63,7 @@ module DesignDocs
     end
 
     def parse_doc_ref(doc_ref)
-      token = doc_ref.to_s.strip
-      match = token.match(/\ADOC-(\d+)\z/i)
-      return match[1].to_i if match
-
-      Integer(token, exception: false)
+      DesignDocs::DocRef.parse(doc_ref)
     end
 
     def list_payload(design_doc)

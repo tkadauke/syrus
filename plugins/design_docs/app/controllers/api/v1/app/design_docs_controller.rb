@@ -26,10 +26,10 @@ module Api
         end
 
         def preview
-          design_doc = policy_scope(DesignDoc).find(params[:id])
+          design_doc = policy_scope(DesignDoc).find(design_doc_id_param)
           render json: { design_doc: serializer.preview(design_doc) }
         rescue ActiveRecord::RecordNotFound
-          render json: { design_doc: serializer.unavailable_preview(params[:id]) }
+          render json: { design_doc: serializer.unavailable_preview(design_doc_id_param || params[:id]) }
         end
 
         def preferences
@@ -338,13 +338,17 @@ module Api
         end
 
         def find_design_doc
-          policy_scope(DesignDoc).find(params[:id])
+          policy_scope(DesignDoc).find(design_doc_id_param)
         end
 
         def find_design_doc_with_summary_associations
           policy_scope(DesignDoc)
             .includes(*DesignDoc.summary_associations)
-            .find(params[:id])
+            .find(design_doc_id_param)
+        end
+
+        def design_doc_id_param
+          ::DesignDocs::DocRef.parse(params[:id])
         end
 
         def serializer

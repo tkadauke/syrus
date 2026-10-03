@@ -111,6 +111,10 @@ module OperatorBriefing
         - `link_card` blocks with `payload.entity_type`, `payload.entity_id`, `payload.title`,
           `payload.path`, and optional `payload.description`
 
+        For Design Docs link cards, visible text may refer to the canonical
+        `DOC-<id>` ref, but `payload.path` must use the numeric app path
+        `/design_docs/<id>`.
+
         Never generate fresh image or artifact content for this briefing. Only use
         `image` or `artifact` when the originating Workflow already captured that
         typed artifact.
