@@ -1092,6 +1092,7 @@
     "col_host": "Host",
     "col_pid": "PID",
     "col_queues": "Queues",
+    "col_capabilities": "Capabilities",
     "col_threads": "Threads",
     "col_heartbeat": "Heartbeat",
     "col_state": "State",
