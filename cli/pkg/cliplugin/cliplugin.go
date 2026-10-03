@@ -32,6 +32,30 @@ import (
 const LoginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
 const InvocationContextMessage = "Syrus internal CLI authentication is enabled, but SYRUS_CLI_URL or SYRUS_CLI_INVOCATION_CONTEXT is missing. Check the worker runtime configuration."
 
+// ExitStatusError lets plugin-owned wrapper commands preserve a child process
+// status after they finish their own cleanup and auditing.
+type ExitStatusError struct {
+	Status  int
+	Message string
+}
+
+func (err ExitStatusError) Error() string {
+	if strings.TrimSpace(err.Message) != "" {
+		return err.Message
+	}
+	return fmt.Sprintf("command exited with status %d", err.Status)
+}
+
+func (err ExitStatusError) ExitStatus() int {
+	if err.Status <= 0 {
+		return 1
+	}
+	if err.Status > 255 {
+		return 255
+	}
+	return err.Status
+}
+
 // DetectCurrentRepoSlug reports the owner/name of the checkout the command was
 // run from, or "" when it cannot tell. It is a var so tests can stub it; see
 // cliplugintest.WithRepoSlug.
