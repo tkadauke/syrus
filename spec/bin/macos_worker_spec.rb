@@ -128,6 +128,25 @@ RSpec.describe "native macOS worker scripts" do
     end
   end
 
+  it "reports missing environment instead of aborting when no env file is present" do
+    Dir.mktmpdir do |dir|
+      bin_dir = with_stubbed_host_bin(dir)
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash",
+        check,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("FAIL env SYRUS_WORKER_CAPABILITIES is required")
+      expect(stdout).to include("FAIL SYRUS_WORKER_CAPABILITIES should include os:macos and toolchain:xcode")
+      expect(stdout).to include("macos-worker-check: 16 failure(s)")
+      expect(stderr).not_to include("unbound variable")
+    end
+  end
+
   it "fails validation before boot when production app host is missing" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")
