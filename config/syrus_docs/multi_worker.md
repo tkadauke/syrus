@@ -73,6 +73,29 @@ iOS simulator, and other host-native work that cannot run inside Linux k3s.
 They are not Kubernetes nodes, and they must not consume chat, polling,
 indexing, cleanup, or control-plane queues.
 
+In a k3s production topology, keep web, the single home worker, Linux compute,
+MySQL, object/artifact storage, ingress, and search/data volumes in Linux or
+managed infrastructure. Attach Mac minis as outbound external workers under
+launchd. A Linux VM on Mac hardware may join k3s as Linux capacity, but it is
+not a substitute for native Xcode/simulator execution.
+
+Example hybrid layout:
+
+| Tier | Location | Queue/role boundary |
+| --- | --- | --- |
+| Web | k3s | HTTP app, API, admin UI, metrics |
+| Home worker | one k3s pod | `chat`, `polling`, `indexing`, `cleanup`, `control_plane`, `videos`, home resume queue |
+| Linux compute | k3s pods | `runs`, `runs-linux-amd64`, `merges`, `merges-linux-amd64`, local resume queue |
+| Mac mini pool | external launchd | `runs-macos-arm64`, `merges-macos-arm64`, compatible `resume-<worker-storage-key>` queues |
+| Data services | k3s or managed | MySQL, storage, release artifacts, search/data volumes |
+
+Mac workers need outbound access to the production database, object/artifact
+storage if used, the Syrus app/API host, GitHub and configured remotes, model
+provider APIs, package registries, release artifact storage, and any internal
+services the target repositories require for builds, tests, signing, or
+deploys. The cluster should not need inbound SSH to the Mac pool for normal
+operation.
+
 The supported entrypoint is:
 
 ```bash
@@ -102,6 +125,12 @@ credentials: `SYRUS_APP_HOST`; `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or a
 `SYRUS_DATABASE_PASSWORD` unless this is a SQLite local-mode install; and S3 or
 MinIO attachment credentials (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
 `S3_BUCKET`, `S3_ENDPOINT`) unless `SYRUS_SQLITE` is set.
+Include `SYRUS_API_TOKEN` when the updater polls Syrus directly or reports
+activation state. If the installation uses private artifact storage, include
+the credentials and trust material needed to download and verify the worker
+release archive. GitHub and model credentials belong in the env file only when
+the deployment intentionally uses process-level credentials rather than
+per-user encrypted credentials.
 
 Release builds publish a source artifact named
 `syrus-worker-macos-arm64-<git_sha>.tar.gz` with
@@ -186,6 +215,32 @@ reported as absent rather than synthesized. Data-root disk usage, worker
 capabilities, version, role, hostname, storage key, Solid Queue heartbeats, and
 health sample rows still record normally, so the worker is visible in admin
 surfaces even though Linux pressure charts are empty.
+
+### Native macOS worker troubleshooting
+
+When a macOS-capability Workflow is blocked with no capable worker, check Admin
+Workers or `read_queue` for a fresh Mac worker heartbeat, matching
+`os:macos`, `arch:arm64`, `toolchains:xcode`, and `runtimes:ios_simulator`
+capabilities, and consumption of `runs-macos-arm64` or the expected
+`resume-<worker-storage-key>` queue. A drained or updating Mac worker is
+intentionally excluded from compatible capacity until the update completes.
+
+If the worker version is stale, inspect updater status on the worker-health
+surface, confirm `SYRUS_API_TOKEN` can read desired release metadata, verify
+the artifact URL and SHA-256, and compare the worker's heartbeat `git_sha` with
+the desired release. Mac workers should be rolled only after the k3s/web
+deployment has run migrations.
+
+If `bin/macos-worker-check --env-file /etc/syrus/worker.env` reports Xcode
+failures, fix Command Line Tools or `xcode-select`, install full Xcode, accept
+the Xcode license, and install the required simulator runtimes. Missing
+simulators usually show up as absent `runtime:ios_simulator` capabilities on
+the next heartbeat.
+
+For Keychain and signing failures, validate the launchd user rather than an
+interactive admin shell: the worker user must be able to unlock or access the
+signing keychain, certificates, provisioning profiles, and any internal signing
+or notarization services required by the target repository.
 
 ## Capability-aware Run queues
 
