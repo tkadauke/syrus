@@ -570,7 +570,8 @@ class MainHealthChangedService
       user: user,
       kind: "main_broken",
       repository: @repository,
-      body: body
+      body: body,
+      dedupe_key: main_broken_notification_dedupe_key(sha, signals)
     )
   end
 
@@ -616,5 +617,9 @@ class MainHealthChangedService
     signals << "CI" if @repository.ci_health_broken?
     signals << "graders" if @repository.grader_health_broken?
     signals
+  end
+
+  def main_broken_notification_dedupe_key(sha, signals)
+    "main_broken:sha=#{sha}:signals=#{signals.sort.join(',')}"
   end
 end

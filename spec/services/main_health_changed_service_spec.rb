@@ -740,6 +740,42 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(notification.body).to include(repository.slug, "CI", "abc123de")
       end
 
+      it "creates only one visible main_broken notification for repeated checks at the same SHA and signals" do
+        allow(ActionCable.server).to receive(:broadcast)
+
+        expect {
+          described_class.on_health_change!(repository)
+          described_class.on_health_change!(repository.reload)
+        }.to change { Notification.where(kind: "main_broken").count }.by(1)
+
+        expect(ActionCable.server).to have_received(:broadcast).with(
+          AppUserChannel.broadcasting_for(user),
+          hash_including(type: "notification_created")
+        ).once
+      end
+
+      it "creates a fresh main_broken notification when the broken SHA changes" do
+        described_class.on_health_change!(repository)
+
+        settle_main_health!(repository, sha: "def456abc123", ci_health: "broken")
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { Notification.where(kind: "main_broken").count }.by(1)
+      end
+
+      it "keeps the same SHA and signals deduped after recovery" do
+        described_class.on_health_change!(repository)
+
+        repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: true)
+        described_class.on_health_change!(repository)
+        settle_main_health!(repository, sha: "abc123def456", ci_health: "broken")
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { Notification.where(kind: "main_broken").count }
+      end
+
       it "includes failing grader signal in notification when grader_health is broken" do
         repository.update!(grader_health: "broken", ci_health: "broken")
 

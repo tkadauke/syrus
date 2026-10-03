@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_104744) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_163150) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2102,7 +2102,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_104744) do
     t.string "pr_url"
     t.datetime "read_at"
     t.integer "user_id", null: false
+    t.integer "repository_id"
+    t.string "dedupe_key", limit: 191
     t.index ["job_id"], name: "index_notifications_on_job_id"
+    t.index ["repository_id"], name: "index_notifications_on_repository_id"
+    t.index ["user_id", "kind", "repository_id", "dedupe_key"], name: "idx_notifications_dedupe_identity", unique: true
     t.index ["user_id", "read_at"], name: "idx_notifications_user_read_at"
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
