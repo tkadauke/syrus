@@ -2,6 +2,8 @@
 
 require "rails_helper"
 require "erb"
+require "open3"
+require "rbconfig"
 require "yaml"
 
 # The multi-node deployment splits queues across two worker configs selected per
@@ -102,6 +104,23 @@ RSpec.describe "queue partitioning" do
         end
       end
     end
+  end
+
+  it "renders queue config ERB before Rails and Active Support are loaded" do
+    script = <<~RUBY
+      require "erb"
+      Dir["config/queue*.yml"].sort.each { |path| ERB.new(File.read(path)).result }
+    RUBY
+
+    _stdout, stderr, status = Open3.capture3(
+      { "SYRUS_WORKER_CAPABILITIES" => nil },
+      RbConfig.ruby,
+      "-e",
+      script,
+      chdir: ROOT.to_s
+    )
+
+    expect(status).to be_success, stderr
   end
 
   it "keeps queue.yml a complete single-worker config (Compose / single-host)" do

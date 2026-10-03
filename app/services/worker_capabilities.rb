@@ -49,20 +49,20 @@ class WorkerCapabilities
       {
         capabilities: capabilities.to_h,
         diagnostics: detected.fetch(:diagnostics).merge(
-          "configured" => configured.present?,
+          "configured" => configured.any?,
           "env_key" => ENV_KEY
         )
       }
     end
 
     def parse(raw)
-      return {} if raw.blank?
+      return {} if blank_value?(raw)
 
       pairs = raw.to_s.split(/[,\s]+/).filter_map do |entry|
         key, value = entry.split(":", 2)
         key = normalize_key(key)
         value = value.to_s.strip
-        next if key.blank? || value.blank?
+        next if blank_value?(key) || blank_value?(value)
 
         [ key, value ]
       end
@@ -71,7 +71,7 @@ class WorkerCapabilities
     end
 
     def normalize(raw)
-      return {} if raw.blank?
+      return {} if blank_value?(raw)
 
       TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.to_h.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
     end
@@ -80,12 +80,12 @@ class WorkerCapabilities
       capabilities = normalize(capabilities)
       os = Array(capabilities["os"]).first.to_s
       arch = Array(capabilities["arch"]).first.to_s
-      arch = DEFAULT_QUEUE_ARCH_BY_OS[os] if arch.blank?
+      arch = DEFAULT_QUEUE_ARCH_BY_OS[os] if blank_value?(arch)
       queue_arch = ARCH_QUEUE_ALIASES.fetch(arch, queue_token(arch))
 
       queues = []
-      queues << base_queue.to_s if os.blank? || os == "linux"
-      queues << [ base_queue, queue_token(os), queue_arch ].join("-") if os.present? && queue_arch.present?
+      queues << base_queue.to_s if blank_value?(os) || os == "linux"
+      queues << [ base_queue, queue_token(os), queue_arch ].join("-") if present_value?(os) && present_value?(queue_arch)
       queues.uniq
     end
 
@@ -148,7 +148,8 @@ class WorkerCapabilities
       return "linux" if host_os.include?("linux")
       return "windows" if host_os.match?(/mswin|mingw|cygwin/)
 
-      host_os.gsub(/[^a-z0-9_.+-]+/, "_").presence || "unknown"
+      token = host_os.gsub(/[^a-z0-9_.+-]+/, "_")
+      present_value?(token) ? token : "unknown"
     end
 
     def arch_token
@@ -156,7 +157,8 @@ class WorkerCapabilities
       return "arm64" if host_cpu.match?(/arm64|aarch64/)
       return "x86_64" if host_cpu.match?(/x86_64|amd64/)
 
-      host_cpu.gsub(/[^a-z0-9_.+-]+/, "_").presence || "unknown"
+      token = host_cpu.gsub(/[^a-z0-9_.+-]+/, "_")
+      present_value?(token) ? token : "unknown"
     end
 
     def command_available?(command)
@@ -165,10 +167,10 @@ class WorkerCapabilities
     rescue Errno::ENOENT
       false
     rescue Timeout::Error
-      Rails.logger.debug { "[WorkerCapabilities] probe timed out #{command.first}" }
+      debug_log { "[WorkerCapabilities] probe timed out #{command.first}" }
       false
     rescue StandardError => e
-      Rails.logger.debug { "[WorkerCapabilities] probe failed #{command.first}: #{e.class}: #{e.message}" }
+      debug_log { "[WorkerCapabilities] probe failed #{command.first}: #{e.class}: #{e.message}" }
       false
     end
 
@@ -177,16 +179,30 @@ class WorkerCapabilities
         output, status = Timeout.timeout(PROBE_TIMEOUT_SECONDS) { Open3.capture2e(*command) }
         next unless status.success?
 
-        version = output.to_s.lines.first.to_s.strip.presence
-        next unless version
+        version = output.to_s.lines.first.to_s.strip
+        next if blank_value?(version)
 
         [ name, version ]
       rescue Errno::ENOENT, Timeout::Error
         nil
       rescue StandardError => e
-        Rails.logger.debug { "[WorkerCapabilities] version probe failed #{command.first}: #{e.class}: #{e.message}" }
+        debug_log { "[WorkerCapabilities] version probe failed #{command.first}: #{e.class}: #{e.message}" }
         nil
       end.to_h
+    end
+
+    def blank_value?(value)
+      value.nil? || (value.respond_to?(:empty?) && value.empty?)
+    end
+
+    def present_value?(value)
+      !blank_value?(value)
+    end
+
+    def debug_log(&block)
+      return unless defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+
+      Rails.logger.debug(&block)
     end
   end
 end
