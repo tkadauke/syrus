@@ -7,10 +7,14 @@ require "yaml"
 # The multi-node deployment splits queues across two worker configs selected per
 # pod via SOLID_QUEUE_CONFIG, while single-host / Compose keeps running the full
 # config/queue.yml on one worker. These invariants guard both properties:
-#   - Compose safety: queue.yml must still cover EVERY queue on one worker.
-#   - Clean split:    home ∪ compute must equal queue.yml's queues, with the
-#                     heavy/search queues partitioned (no queue orphaned, none
-#                     double-run across the two tiers).
+#   - Compose safety: a default Linux queue.yml worker covers every Linux queue.
+#   - Clean split:    home ∪ this host's compute queues must equal queue.yml's
+#                     queues for the same host class, with heavy/search queues
+#                     partitioned (no queue orphaned, none double-run across
+#                     the two tiers).
+#   - Capability lanes: documented compute worker capabilities cover every
+#                     capability-specific Run queue without making native
+#                     workers consume broad Linux work.
 #   - Resume affinity: every worker config must consume this pod's own
 #                     resume-<worker-storage-key> queue.
 RSpec.describe "queue partitioning" do
@@ -19,7 +23,7 @@ RSpec.describe "queue partitioning" do
   # The app's full queue vocabulary. Sources of truth:
   #   :runs / :merges             — Workflows::*.queue_name (workflow templates)
   #   :chat / :videos / etc.      — queue_as on non-workflow ActiveJob classes.
-  APP_QUEUES = %w[
+  BASE_APP_QUEUES = %w[
     runs
     merges
     chat
@@ -30,6 +34,14 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+  ].freeze
+  CAPABILITY_COMPUTE_QUEUES = %w[
+    runs-linux-amd64
+    runs-macos-arm64
+    runs-windows-amd64
+    merges-linux-amd64
+    merges-macos-arm64
+    merges-windows-amd64
   ].freeze
 
   # Where each non-resume queue must run in the multi-node split.
@@ -43,17 +55,28 @@ RSpec.describe "queue partitioning" do
     low_priority_maintenance
     connectivity
   ].freeze
-  COMPUTE_QUEUES = %w[runs merges].freeze
+  LINUX_COMPUTE_QUEUES = %w[
+    runs
+    runs-linux-amd64
+    merges
+    merges-linux-amd64
+  ].freeze
+  MACOS_COMPUTE_QUEUES = %w[runs-macos-arm64 merges-macos-arm64].freeze
+  WINDOWS_COMPUTE_QUEUES = %w[runs-windows-amd64 merges-windows-amd64].freeze
 
-  def load_config(relative)
+  def load_config(relative, capabilities: nil)
+    previous = ENV["SYRUS_WORKER_CAPABILITIES"]
+    ENV["SYRUS_WORKER_CAPABILITIES"] = capabilities if capabilities
     raw = File.read(ROOT.join(relative))
     YAML.safe_load(ERB.new(raw).result, aliases: true, permitted_classes: [ Symbol ])
+  ensure
+    previous.nil? ? ENV.delete("SYRUS_WORKER_CAPABILITIES") : ENV["SYRUS_WORKER_CAPABILITIES"] = previous
   end
 
   # All queue tokens (space-separated within each worker's "queues" string)
   # declared in the `default` section, split into resume vs the rest.
-  def queues_for(relative)
-    workers = Array(load_config(relative).dig("default", "workers"))
+  def queues_for(relative, capabilities: nil)
+    workers = Array(load_config(relative, capabilities: capabilities).dig("default", "workers"))
     # Each worker's `queues` is a YAML array (multi-queue) or a bare string
     # (single queue). Array() normalizes both to a clean token list — do NOT
     # split on whitespace, since a queue name never contains a space and a
@@ -82,7 +105,8 @@ RSpec.describe "queue partitioning" do
   end
 
   it "keeps queue.yml a complete single-worker config (Compose / single-host)" do
-    expect(queues_for("config/queue.yml")[:regular].uniq).to match_array(APP_QUEUES)
+    expect(queues_for("config/queue.yml", capabilities: "os:linux,arch:x86_64")[:regular].uniq)
+      .to match_array(HOME_QUEUES + LINUX_COMPUTE_QUEUES)
   end
 
   it "does not leave job classes on queues no worker consumes" do
@@ -96,7 +120,7 @@ RSpec.describe "queue partitioning" do
       end
     end
 
-    unknown = declarations.reject { |_path, queue| APP_QUEUES.include?(queue) }
+    unknown = declarations.reject { |_path, queue| BASE_APP_QUEUES.include?(queue) }
     message = "job classes declare unconsumed queues: " \
               "#{unknown.map { |path, queue| "#{path} => #{queue}" }.join(", ")}"
     expect(unknown).to be_empty, message
@@ -115,7 +139,7 @@ RSpec.describe "queue partitioning" do
 
     stranded = framework_jobs.filter_map do |klass|
       queue = klass.new.queue_name.to_s
-      [ klass.name, queue ] unless APP_QUEUES.include?(queue)
+      [ klass.name, queue ] unless BASE_APP_QUEUES.include?(queue)
     end
 
     message = "framework jobs resolve to unconsumed queues: " \
@@ -128,15 +152,34 @@ RSpec.describe "queue partitioning" do
   end
 
   it "routes only the heavy search-free queues to the compute worker" do
-    expect(queues_for("config/queue.compute.yml")[:regular].uniq).to match_array(COMPUTE_QUEUES)
+    expect(queues_for("config/queue.compute.yml", capabilities: "os:linux,arch:x86_64")[:regular].uniq)
+      .to match_array(LINUX_COMPUTE_QUEUES)
+  end
+
+  it "routes macOS compute workers only to macOS capability queues" do
+    expect(queues_for("config/queue.compute.yml", capabilities: "os:macos,arch:arm64,toolchain:xcode")[:regular].uniq)
+      .to match_array(MACOS_COMPUTE_QUEUES)
+  end
+
+  it "routes Windows compute workers only to Windows capability queues" do
+    expect(queues_for("config/queue.compute.yml", capabilities: "os:windows,arch:x64")[:regular].uniq)
+      .to match_array(WINDOWS_COMPUTE_QUEUES)
+  end
+
+  it "documents worker configs for every capability queue" do
+    linux = queues_for("config/queue.compute.yml", capabilities: "os:linux,arch:x86_64")[:regular].uniq
+    macos = queues_for("config/queue.compute.yml", capabilities: "os:macos,arch:arm64,toolchain:xcode")[:regular].uniq
+    windows = queues_for("config/queue.compute.yml", capabilities: "os:windows,arch:x64")[:regular].uniq
+
+    expect(linux | macos | windows).to include(*CAPABILITY_COMPUTE_QUEUES)
   end
 
   it "partitions every app queue across home and compute with no orphan or overlap" do
     home = queues_for("config/queue.home.yml")[:regular].uniq
-    compute = queues_for("config/queue.compute.yml")[:regular].uniq
+    compute = queues_for("config/queue.compute.yml", capabilities: "os:linux,arch:x86_64")[:regular].uniq
 
     expect(home & compute).to be_empty, "a queue is double-run across tiers: #{(home & compute).inspect}"
-    expect((home | compute)).to match_array(APP_QUEUES)
+    expect((home | compute)).to match_array(HOME_QUEUES + LINUX_COMPUTE_QUEUES)
   end
 
   it "gives every worker config this data root's resume queue" do

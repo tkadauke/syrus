@@ -759,6 +759,19 @@ RSpec.describe Run, :ci_only do
       )
     end
 
+    def live_capable_worker_queue!(queue_name, capabilities:, hostname: "syrus-worker-1")
+      ensure_solid_queue_test_tables!
+      SolidQueue::Process.create!(
+        hostname: hostname,
+        kind: "worker",
+        last_heartbeat_at: Time.current,
+        metadata: { "queues" => [ queue_name ], "capabilities" => capabilities },
+        name: "#{hostname}:1",
+        pid: 123,
+        created_at: Time.current
+      )
+    end
+
     it "uses the normal :runs queue when no worker hostname is recorded" do
       run  # force Job/Run creation before clearing so factory noise is excluded
       clear_enqueued_jobs
@@ -796,6 +809,168 @@ RSpec.describe Run, :ci_only do
 
       clear_enqueued_jobs
       expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+    end
+
+    it "does not treat an incompatible live resume queue as compatible for default Linux work" do
+      workflow.update!(worker_storage_key: "storage-mac")
+      live_capable_worker_queue!(
+        "resume-storage-mac",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+    end
+
+    it "keeps default Linux requirements on the broad runs queue" do
+      run
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+    end
+
+    it "routes macOS implementation work to a capable compute queue" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+    end
+
+    it "normalizes Windows x64 implementation work to the amd64 queue suffix" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs-windows-amd64",
+        capabilities: { "os" => [ "windows" ], "arch" => [ "amd64" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-windows-amd64")
+    end
+
+    it "keeps explicit Linux feature work on runs when a broad worker advertises the feature" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ], "features" => [ "docker" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+    end
+
+    it "preserves compatible sticky resume routing for capability-specific mutable work" do
+      workflow.update!(
+        worker_storage_key: "storage-mac",
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "resume-storage-mac",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("resume-storage-mac")
+    end
+
+    it "falls through to a capability queue when a sticky resume worker is incompatible" do
+      workflow.update!(
+        worker_storage_key: "storage-linux",
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "resume-storage-linux",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] }
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        hostname: "syrus-worker-2"
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+    end
+
+    it "routes immutable distributed grader runs by target capabilities instead of sticky workflow storage" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      Feature.clear_enabled_cache!
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow.update!(worker_storage_key: "storage-linux")
+      grader_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 99,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] } }
+      )
+      live_capable_worker_queue!(
+        "resume-storage-linux",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] }
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        hostname: "syrus-worker-2"
+      )
+      grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      clear_enqueued_jobs
+      expect { grader_run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+    end
+
+    it "fails visibly instead of enqueueing to an unconsumed capability queue" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_source: "explicit"
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
+      expect(run.reload).to be_failed
+      expect(run.agent_outcome).to eq(RunQueueResolver::BLOCKED_OUTCOME)
+      expect(workflow.reload.artifact("run_queue_blocked")).to include(
+        "queue_name" => "runs-macos-arm64",
+        "reason" => "no_live_worker_for_capabilities"
+      )
+    end
+
+    it "fails visibly when explicit Linux feature requirements have no capable broad worker" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs",
+        capabilities: { "os" => [ "linux" ], "arch" => [ "amd64" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
+      expect(run.reload).to be_failed
+      expect(run.agent_outcome).to eq(RunQueueResolver::BLOCKED_OUTCOME)
+      expect(workflow.reload.artifact("run_queue_blocked")).to include(
+        "queue_name" => "runs",
+        "requirements" => { "os" => [ "linux" ], "features" => [ "docker" ] },
+        "reason" => "no_live_worker_for_capabilities"
+      )
     end
   end
 

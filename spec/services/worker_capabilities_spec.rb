@@ -68,4 +68,21 @@ RSpec.describe WorkerCapabilities do
       end
     end
   end
+
+  describe ".queue_names_for" do
+    it "keeps Linux workers on the broad queue plus their architecture partition" do
+      expect(described_class.queue_names_for("runs", capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] }))
+        .to eq(%w[runs runs-linux-amd64])
+    end
+
+    it "keeps macOS workers off the broad Linux queue" do
+      expect(described_class.queue_names_for("runs", capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] }))
+        .to eq(%w[runs-macos-arm64])
+    end
+
+    it "normalizes Windows x64 workers to the amd64 queue suffix" do
+      expect(described_class.queue_names_for("merges", capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] }))
+        .to eq(%w[merges-windows-amd64])
+    end
+  end
 end
