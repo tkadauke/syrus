@@ -69,7 +69,7 @@ module CodexAgent
         return [] if text.blank?
         [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: text }) ]
       when "function_call"
-        name = [ payload["namespace"], payload["name"] ].compact.join
+        name = codex_response_item_tool_name(payload)
         input = JSON.parse(payload["arguments"].to_s) rescue payload["arguments"]
         [ ClaudeTranscript::Event.new(
           kind: :tool_use,
@@ -82,7 +82,7 @@ module CodexAgent
           timestamp: timestamp,
           data: {
             tool_use_id: payload["call_id"],
-            name: [ payload["namespace"], payload["name"] ].compact.join.presence,
+            name: codex_response_item_tool_name(payload).presence,
             content: payload["output"],
             error: false
           }.compact
@@ -211,6 +211,16 @@ module CodexAgent
       server = server.presence || "mcp"
       tool = tool.presence || "tool"
       "mcp__#{server}__#{tool}"
+    end
+
+    def codex_response_item_tool_name(item)
+      namespace = item["namespace"].presence
+      name = item["name"].presence
+      return name.to_s if namespace.blank?
+      return namespace.to_s if name.blank?
+
+      separator = namespace.to_s.end_with?("__", ".") ? "" : "__"
+      "#{namespace}#{separator}#{name}"
     end
   end
 end
