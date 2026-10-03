@@ -25,6 +25,19 @@ class WorkerCapabilities
     ToolProbe.new(dimension: "runtimes", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
     ToolProbe.new(dimension: "features", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
   ].freeze
+  VERSION_PROBES = {
+    "ruby" => [ RbConfig.ruby, "-e", "print RUBY_ENGINE, ' ', RUBY_VERSION" ],
+    "bundler" => [ "bundle", "--version" ],
+    "node" => [ "node", "--version" ],
+    "npm" => [ "npm", "--version" ],
+    "pnpm" => [ "pnpm", "--version" ],
+    "yarn" => [ "yarn", "--version" ],
+    "bun" => [ "bun", "--version" ],
+    "go" => [ "go", "version" ],
+    "python" => [ "python3", "--version" ],
+    "cargo" => [ "cargo", "--version" ],
+    "xcode" => [ "xcodebuild", "-version" ]
+  }.freeze
 
   class << self
     def current
@@ -74,6 +87,21 @@ class WorkerCapabilities
       queues << base_queue.to_s if os.blank? || os == "linux"
       queues << [ base_queue, queue_token(os), queue_arch ].join("-") if os.present? && queue_arch.present?
       queues.uniq
+    end
+
+    def environment_fingerprint_metadata
+      detected = current
+      {
+        "capabilities" => detected.fetch(:capabilities),
+        "runtime" => {
+          "ruby_engine" => RUBY_ENGINE,
+          "ruby_version" => RUBY_VERSION,
+          "ruby_platform" => RUBY_PLATFORM,
+          "host_os" => RbConfig::CONFIG.fetch("host_os", nil).to_s,
+          "host_cpu" => RbConfig::CONFIG.fetch("host_cpu", nil).to_s
+        },
+        "tool_versions" => tool_versions
+      }
     end
 
     private
@@ -142,6 +170,23 @@ class WorkerCapabilities
     rescue StandardError => e
       Rails.logger.debug { "[WorkerCapabilities] probe failed #{command.first}: #{e.class}: #{e.message}" }
       false
+    end
+
+    def tool_versions
+      VERSION_PROBES.filter_map do |name, command|
+        output, status = Timeout.timeout(PROBE_TIMEOUT_SECONDS) { Open3.capture2e(*command) }
+        next unless status.success?
+
+        version = output.to_s.lines.first.to_s.strip.presence
+        next unless version
+
+        [ name, version ]
+      rescue Errno::ENOENT, Timeout::Error
+        nil
+      rescue StandardError => e
+        Rails.logger.debug { "[WorkerCapabilities] version probe failed #{command.first}: #{e.class}: #{e.message}" }
+        nil
+      end.to_h
     end
   end
 end

@@ -97,6 +97,17 @@ RSpec.describe PreparedWorkspaceArchive do
     end
   end
 
+  describe ".prepare_fingerprint_for" do
+    it "separates prepared workspaces by worker capability environment" do
+      allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata)
+        .and_return(worker_environment("linux"), worker_environment("macos"))
+
+      first = described_class.prepare_fingerprint_for(plan)
+
+      expect(described_class.prepare_fingerprint_for(plan)).not_to eq(first)
+    end
+  end
+
   describe "against the Disk-backed default service" do
     it "publishes the archive without ever writing a local archive file" do
       before_tmp_files = tmp_snapshot
@@ -225,5 +236,13 @@ RSpec.describe PreparedWorkspaceArchive do
       expect(s3_client.api_requests.last[:params][:key]).to eq("producer-failure-s3-key")
       expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
     end
+  end
+
+  def worker_environment(os)
+    {
+      "capabilities" => { "os" => [ os ], "arch" => [ "arm64" ] },
+      "runtime" => { "ruby_platform" => "#{os}-ruby" },
+      "tool_versions" => { "ruby" => "ruby 3.4.10" }
+    }
   end
 end
