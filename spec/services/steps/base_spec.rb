@@ -432,6 +432,69 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_test_plan.*available_count=0.*mcp_tool_called=true/))
     end
 
+    it "satisfies enforced required MCP tools from Codex response_item namespace and name fields" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "codex-thread-1"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run,
+          provider: "codex",
+          session_id: "codex-thread-1",
+          transcript_jsonl: [
+            {
+              timestamp: "2026-05-07T18:00:00Z",
+              type: "session_meta",
+              payload: { id: "codex-thread-1" }
+            },
+            {
+              timestamp: "2026-05-07T18:00:01Z",
+              type: "response_item",
+              payload: {
+                type: "function_call",
+                namespace: "mcp__syrus_mcp_sidecar",
+                name: "submit_review_notes",
+                arguments: { notes: [ { path: "app/models/job.rb", body: "Looks good" } ] }.to_json,
+                call_id: "call_review_notes"
+              }
+            },
+            {
+              timestamp: "2026-05-07T18:00:02Z",
+              type: "response_item",
+              payload: {
+                type: "function_call_output",
+                namespace: "mcp__syrus_mcp_sidecar",
+                name: "submit_review_notes",
+                call_id: "call_review_notes",
+                output: { ok: true }
+              }
+            }
+          ].map(&:to_json).join("\n") + "\n"
+        )
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+
+      handler.send(
+        :run_agent,
+        prompt: "review it",
+        required_mcp_tools: %w[submit_review_notes],
+        enforce_required_mcp_tools: true
+      )
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_review_notes.*available_count=0.*mcp_tool_called=true/))
+    end
+
     it "logs required MCP tool health as ok for Muse MCP tool calls" do
       PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
       result = AgentInvocation::Result.new(
