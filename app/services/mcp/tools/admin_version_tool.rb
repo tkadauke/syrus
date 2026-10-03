@@ -37,7 +37,9 @@ module Mcp::Tools
           version: instance.version,
           started_at: instance.started_at&.iso8601,
           last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
-          data_root_usage: instance.data_root_usage_json
+          data_root_usage: instance.data_root_usage_json,
+          capabilities: instance.capabilities || {},
+          capability_diagnostics: instance.capability_diagnostics || {}
         }
       end
     end

@@ -2,17 +2,20 @@ class WorkerHostHealthSampler
   CpuSnapshot = Data.define(:idle, :total)
 
   class << self
-    def record!(instance:, observed_at: Time.current, data_root_snapshot: nil)
+    def record!(instance:, observed_at: Time.current, data_root_snapshot: nil, capability_snapshot: nil)
       return unless instance
 
       metrics = sample(observed_at: observed_at, data_root_snapshot: data_root_snapshot)
+      capability_snapshot ||= WorkerCapabilities.current
       WorkerHostHealthSample.create!(
         metrics.merge(
           hostname: instance.hostname,
           worker_storage_key: WorkerStorageIdentity.queue_key,
           role: instance.role,
           version: instance.version,
-          observed_at: observed_at
+          observed_at: observed_at,
+          capabilities: capability_snapshot.fetch(:capabilities),
+          capability_diagnostics: capability_snapshot.fetch(:diagnostics)
         )
       )
     end

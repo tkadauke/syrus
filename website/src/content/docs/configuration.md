@@ -100,6 +100,24 @@ incompatible primary hosts, Syrus asks for a split or an explicit primary host
 instead of guessing. Missing capability metadata is a warning rather than a
 blocker.
 
+Workers advertise their available host capabilities separately from repository
+requirements. Each worker heartbeat includes detected `os` and `arch` plus
+common optional probes for Docker, Xcode, and iOS simulator runtimes. Set
+`SYRUS_WORKER_CAPABILITIES` on a worker to make its placement class explicit or
+to add capabilities that cannot be detected reliably:
+
+```dotenv
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+```
+
+Use comma or space separated `dimension:value` pairs. Singular aliases
+`toolchain`, `runtime`, and `feature` are accepted; Syrus stores the normalized
+plural dimensions `toolchains`, `runtimes`, and `features`. Explicit `os` and
+`arch` values override detected defaults, which is useful for native macOS
+workers. Linux k3s and Docker Compose workers normally get sensible
+`os:linux` and architecture defaults without configuration, then add only
+extra features or toolchains actually present in the image.
+
 After implementation, Syrus compares the actual changed files against the
 target graph as a safety net. If the diff affects a more constrained target
 than the implementation workflow was planned for, Syrus records an
@@ -570,6 +588,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `DB_HOST` | Production yes | MySQL host; defaults to `127.0.0.1` |
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
+| `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement such as `os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`; detected defaults cover Linux/local OS and architecture |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
 | `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |

@@ -956,7 +956,8 @@ running instance versions, and worker host health. The stuck views and
 repair plans, so they show whether Syrus is waiting on capacity, dependencies,
 main health, or rate limits; can safely auto-repair; already repaired the
 issue; or needs operator action. Worker health includes live
-per-worker warnings, recent CPU/memory/disk/IO samples, and compact trend
+per-worker warnings, normalized worker capability advertisements, capability
+probe diagnostics, recent CPU/memory/disk/IO samples, and compact trend
 windows by hostname. It also exposes bounded one-minute history buckets for
 recent per-pod inspection, so operators and agents can inspect pod pressure
 without an external metrics system. Run and Job detail payloads also include

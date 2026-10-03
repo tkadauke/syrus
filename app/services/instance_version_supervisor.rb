@@ -44,9 +44,10 @@ class InstanceVersionSupervisor
       end
 
       data_root_snapshot = data_root_usage_snapshot
-      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot))
+      capability_snapshot = WorkerCapabilities.current
+      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
       rows = heartbeat_scope(instance, now: now).update_all(attrs)
-      record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot) if rows == 1
+      record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot, capability_snapshot: capability_snapshot) if rows == 1
       return if rows == 1
 
       return if instance_still_fresh?(instance, now: now)
@@ -81,6 +82,13 @@ class InstanceVersionSupervisor
         data_root_available_bytes: snapshot.available_bytes,
         data_root_total_bytes: snapshot.total_bytes,
         data_root_path: snapshot.path
+      }
+    end
+
+    def capability_attrs(snapshot)
+      {
+        capabilities: snapshot.fetch(:capabilities),
+        capability_diagnostics: snapshot.fetch(:diagnostics)
       }
     end
 
@@ -127,7 +135,8 @@ class InstanceVersionSupervisor
           started_at: now,
           last_heartbeat_at: now,
           finished_at: nil,
-          outcome: nil
+          outcome: nil,
+          **capability_attrs(WorkerCapabilities.current)
         )
         return existing
       end
@@ -137,7 +146,8 @@ class InstanceVersionSupervisor
         role: role,
         version: version,
         started_at: now,
-        last_heartbeat_at: now
+        last_heartbeat_at: now,
+        **capability_attrs(WorkerCapabilities.current)
       )
     rescue ActiveRecord::RecordNotUnique
       # Another Puma worker fork beat us to the insert; pick up the
@@ -162,10 +172,10 @@ class InstanceVersionSupervisor
       Rails.logger.warn("[InstanceVersionSupervisor] heartbeat raised: #{e.class}: #{e.message}")
     end
 
-    def record_worker_host_health_sample(instance, observed_at:, data_root_snapshot:)
+    def record_worker_host_health_sample(instance, observed_at:, data_root_snapshot:, capability_snapshot:)
       return unless instance.role == "worker"
 
-      WorkerHostHealthSampler.record!(instance: instance, observed_at: observed_at, data_root_snapshot: data_root_snapshot)
+      WorkerHostHealthSampler.record!(instance: instance, observed_at: observed_at, data_root_snapshot: data_root_snapshot, capability_snapshot: capability_snapshot)
     rescue StandardError => e
       Rails.logger.warn("[InstanceVersionSupervisor] worker host health sample failed: #{e.class}: #{e.message}")
     end

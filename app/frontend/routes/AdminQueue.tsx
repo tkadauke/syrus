@@ -585,6 +585,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
   const oneHour = host.windows["1h"]
   const minuteBuckets = host.minute_buckets ?? []
   const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
+  const capabilityEntries = workerCapabilityEntries(current?.capabilities || sample?.capabilities)
 
   return (
     <details className={`rounded-[var(--radius-panel)] border ${workerHealthBorder(level)} bg-surface`} open={level === "critical" || level === "warning"}>
@@ -612,6 +613,15 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </div>
       </summary>
       <div className="border-t border-border px-4 py-3">
+        {capabilityEntries.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5" aria-label={t("queue.worker_capabilities")}>
+            {capabilityEntries.map((entry) => (
+              <span className="rounded border border-border bg-surface-subtle px-2 py-0.5 font-mono text-xs text-text-secondary" key={`${entry.dimension}:${entry.value}`}>
+                {entry.dimension}:{entry.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <DescriptionList.Root className="text-xs sm:grid-cols-3" density="compact">
           <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.col_version")}>
             {current?.version || sample?.version || "-"}
@@ -673,6 +683,17 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </details>
       </div>
     </details>
+  )
+}
+
+function workerCapabilityEntries(capabilities: Record<string, string[]> | undefined) {
+  if (!capabilities) return []
+
+  return Object.entries(capabilities).flatMap(([dimension, values]) =>
+    (Array.isArray(values) ? values : []).map((value) => ({
+      dimension,
+      value,
+    })),
   )
 }
 
