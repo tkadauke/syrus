@@ -26,7 +26,7 @@ module CredentialStore
     before_update { raise ActiveRecord::ReadOnlyRecord, "CredentialStore::CredentialAccessEvent is append-only" }
     before_destroy { raise ActiveRecord::ReadOnlyRecord, "CredentialStore::CredentialAccessEvent is append-only" unless destroyed_by_association }
 
-    def self.record!(credential:, surface:, action:, result:, user: nil, repository: nil, job: nil, workflow: nil, run: nil, chat_session: nil, tool_name: nil, purpose: nil, denial_reason: nil)
+    def self.record!(credential:, surface:, action:, result:, user: nil, repository: nil, job: nil, workflow: nil, run: nil, chat_session: nil, tool_name: nil, purpose: nil, denial_reason: nil, metadata: {})
       create!(
         credential: credential,
         user: user,
@@ -40,7 +40,8 @@ module CredentialStore
         action: action,
         purpose: purpose,
         result: result,
-        denial_reason: denial_reason
+        denial_reason: denial_reason,
+        metadata: metadata || {}
       )
     end
 

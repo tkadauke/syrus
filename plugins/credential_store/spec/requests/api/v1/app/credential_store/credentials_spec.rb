@@ -364,6 +364,114 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     PluginRecord.find_by(name: "credential_store")&.update!(enabled: true)
   end
 
+  it "issues SSH agent material only through runtime CLI authentication without writing payload into lease metadata" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    run = job.runs.first
+    private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nssh-agent-secret\n-----END OPENSSH PRIVATE KEY-----\n"
+    credential = create_credential(
+      name: "homeassistant-ssh",
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "ssh_private_key",
+      payload: { private_key: private_key, passphrase: "ssh-passphrase" }.to_json,
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.ssh-agent" ],
+      target_constraints: {}
+    )
+    token = McpInvocationContext.issue_for_app_run(run, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/ssh_agent",
+      params: {
+        ssh_agent: {
+          credential: credential.name,
+          purpose: "deploy",
+          tool_name: "credential.ssh-agent"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("lease")).to include(
+      "credential_id" => credential.id,
+      "credential_name" => credential.name,
+      "credential_type" => "ssh_private_key",
+      "purpose" => "deploy",
+      "tool_name" => "credential.ssh-agent"
+    )
+    expect(body.fetch("lease")).not_to have_key("payload")
+    expect(body.fetch("ssh_key")).to include(
+      "private_key" => private_key,
+      "passphrase" => "ssh-passphrase"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      user: operator,
+      repository: repository,
+      job: job,
+      workflow: run.workflow,
+      run: run,
+      surface: "workflow",
+      action: "lease",
+      tool_name: "credential.ssh-agent",
+      result: "allowed"
+    )
+  end
+
+  it "rejects SSH agent material requests without runtime CLI authentication" do
+    credential = create_credential(credential_type: "ssh_private_key", payload: "private-key")
+
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/ssh_agent", params: {
+      ssh_agent: {
+        credential: credential.name,
+        tool_name: "credential.ssh-agent"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("runtime CLI authentication")
+  end
+
+  it "records SSH agent completion audits with exit status and duration metadata" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "ssh_private_key",
+      payload: "private-key",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.ssh-agent" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/ssh_agent/audit",
+      params: {
+        ssh_agent_audit: {
+          credential: credential.name,
+          lease_id: "lease-ssh",
+          purpose: "deploy",
+          tool_name: "credential.ssh-agent",
+          exit_status: 37,
+          duration_ms: 1234
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:no_content)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "failed",
+      action: "use",
+      tool_name: "credential.ssh-agent",
+      metadata: include(
+        "lease_id" => "lease-ssh",
+        "exit_status" => 37,
+        "duration_ms" => 1234
+      )
+    )
+  end
+
   def credential_params(scope_type:, scope_id:, payload:)
     {
       name: "Scoped credential",

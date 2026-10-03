@@ -2,9 +2,12 @@ package credentialstore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -152,4 +155,209 @@ func TestCredentialStoreLeaseSurfacesAuthorizationFailure(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "tool not allowed") {
 		t.Fatalf("expected authorization failure, got %v", err)
 	}
+}
+
+func TestCredentialStoreSSHAgentRunsChildAuditsAndCleansUp(t *testing.T) {
+	var materialRequest map[string]any
+	var auditRequest map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/app/credential_store/ssh_agent":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected material method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&materialRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.Write([]byte(`{"lease":{"lease_id":"lease-ssh","credential_id":9,"credential_name":"homeassistant-ssh","credential_type":"ssh_private_key","issued_at":"2026-10-03T00:00:00Z","expires_at":"2026-10-03T00:02:00Z","purpose":"deploy","tool_name":"credential.ssh-agent"},"ssh_key":{"private_key":"-----BEGIN OPENSSH PRIVATE KEY-----\nsecret-key-material\n-----END OPENSSH PRIVATE KEY-----\n","passphrase":"key-passphrase"}}`))
+		case "/api/v1/app/credential_store/ssh_agent/audit":
+			if r.Method != http.MethodPost {
+				t.Fatalf("unexpected audit method %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&auditRequest); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	runner := &fakeProcessRunner{childStatus: 0}
+	original := sshAgentRunner
+	sshAgentRunner = runner
+	defer func() { sshAgentRunner = original }()
+
+	command := NewCredentialStoreCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetErr(output)
+	command.SetArgs([]string{
+		"ssh-agent",
+		"--credential", "homeassistant-ssh",
+		"--purpose", "deploy",
+		"--target-json", `{"host":"ha.example.com"}`,
+		"--", "./deploy.sh", "--prod",
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !runner.killed {
+		t.Fatal("expected ssh-agent -k cleanup")
+	}
+	if runner.keyPath == "" {
+		t.Fatal("expected ssh-add to receive a key path")
+	}
+	if _, err := os.Stat(runner.keyPath); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary key to be removed, stat err = %v", err)
+	}
+	if runner.askpassPath == "" {
+		t.Fatal("expected passphrase askpass helper")
+	}
+	if _, err := os.Stat(runner.askpassPath); !os.IsNotExist(err) {
+		t.Fatalf("expected askpass helper to be removed, stat err = %v", err)
+	}
+	if !reflect.DeepEqual(runner.childCommand, []string{"./deploy.sh", "--prod"}) {
+		t.Fatalf("child command = %#v", runner.childCommand)
+	}
+	if got := envValue(runner.childEnv, "SSH_AUTH_SOCK"); got != "/tmp/syrus-agent.sock" {
+		t.Fatalf("SSH_AUTH_SOCK = %q", got)
+	}
+	sshAgent := materialRequest["ssh_agent"].(map[string]any)
+	if sshAgent["credential"] != "homeassistant-ssh" || sshAgent["tool_name"] != "credential.ssh-agent" {
+		t.Fatalf("material request = %#v", sshAgent)
+	}
+	audit := auditRequest["ssh_agent_audit"].(map[string]any)
+	if audit["credential"] != "homeassistant-ssh" || audit["lease_id"] != "lease-ssh" || audit["exit_status"].(float64) != 0 {
+		t.Fatalf("audit request = %#v", audit)
+	}
+	if strings.Contains(output.String(), "secret-key-material") || strings.Contains(output.String(), "key-passphrase") {
+		t.Fatalf("output included secret material: %q", output.String())
+	}
+}
+
+func TestCredentialStoreSSHAgentPropagatesChildFailureAndStillAudits(t *testing.T) {
+	var audited bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/app/credential_store/ssh_agent":
+			w.Write([]byte(`{"lease":{"lease_id":"lease-ssh","credential_id":9,"credential_name":"homeassistant-ssh","credential_type":"ssh_private_key"},"ssh_key":{"private_key":"secret-key-material"}}`))
+		case "/api/v1/app/credential_store/ssh_agent/audit":
+			audited = true
+			var request map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatal(err)
+			}
+			if request["ssh_agent_audit"].(map[string]any)["exit_status"].(float64) != 37 {
+				t.Fatalf("audit request = %#v", request)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	runner := &fakeProcessRunner{childStatus: 37}
+	original := sshAgentRunner
+	sshAgentRunner = runner
+	defer func() { sshAgentRunner = original }()
+
+	command := NewCredentialStoreCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetArgs([]string{"ssh-agent", "--credential", "homeassistant-ssh", "--", "./deploy.sh"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "status 37") {
+		t.Fatalf("expected child status error, got %v", err)
+	}
+	if !audited {
+		t.Fatal("expected audit request for nonzero child exit")
+	}
+	if !runner.killed {
+		t.Fatal("expected agent cleanup after child failure")
+	}
+}
+
+func TestCredentialStoreSSHAgentSurfacesAuthorizationFailureWithoutStartingAgent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":{"code":"forbidden","message":"credential access denied: tool not allowed"}}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	runner := &fakeProcessRunner{}
+	original := sshAgentRunner
+	sshAgentRunner = runner
+	defer func() { sshAgentRunner = original }()
+
+	command := NewCredentialStoreCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"ssh-agent", "--credential", "missing", "--", "./deploy.sh"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "tool not allowed") {
+		t.Fatalf("expected authorization error, got %v", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no process starts, got %#v", runner.calls)
+	}
+}
+
+type fakeProcessRunner struct {
+	childStatus  int
+	calls        []string
+	keyPath      string
+	askpassPath  string
+	childCommand []string
+	childEnv     []string
+	killed       bool
+}
+
+func (runner *fakeProcessRunner) Run(_ context.Context, env []string, name string, args ...string) processResult {
+	runner.calls = append(runner.calls, name+" "+strings.Join(args, " "))
+	switch name {
+	case "ssh-agent":
+		if len(args) == 1 && args[0] == "-s" {
+			return processResult{Stdout: "SSH_AUTH_SOCK=/tmp/syrus-agent.sock; export SSH_AUTH_SOCK;\nSSH_AGENT_PID=123; export SSH_AGENT_PID;\n", Status: 0}
+		}
+		if len(args) == 1 && args[0] == "-k" {
+			runner.killed = true
+			return processResult{Status: 0}
+		}
+	case "ssh-add":
+		runner.keyPath = args[0]
+		if got := envValue(env, "SSH_ASKPASS"); got != "" {
+			runner.askpassPath = got
+		}
+		if content, err := os.ReadFile(runner.keyPath); err != nil || !strings.Contains(string(content), "secret-key-material") {
+			return processResult{Status: 2}
+		}
+		return processResult{Status: 0}
+	default:
+		runner.childCommand = append([]string{name}, args...)
+		runner.childEnv = append([]string{}, env...)
+		return processResult{Status: runner.childStatus}
+	}
+	return processResult{Status: 1}
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimPrefix(entry, prefix)
+		}
+	}
+	return ""
 }

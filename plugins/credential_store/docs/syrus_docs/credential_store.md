@@ -106,18 +106,19 @@ not a substitute for careful tool design.
 
 ## CLI
 
-The bundled `syrus` binary includes a static `credential_store` namespace owned
-by this plugin:
+The bundled `syrus` binary includes a static `credential` namespace owned by
+this plugin. `credential_store` remains an alias for older scripts:
 
 ```bash
-syrus credential_store types
-syrus credential_store credentials
-syrus credential_store credentials --type credential_store.url_token
-syrus credential_store lease deploy-token \
+syrus credential types
+syrus credential credentials
+syrus credential credentials --type credential_store.url_token
+syrus credential lease deploy-token \
   --type credential_store.url_token \
   --purpose deploy \
   --tool deploy.push \
   --target-json '{"host":"api.example.com"}'
+syrus credential ssh-agent --credential homeassistant-ssh -- ./deploy.sh
 ```
 
 `types` and `credentials` are discovery commands over the same app API used by
@@ -132,9 +133,19 @@ forbidden response. The command asks the existing broker for a scoped lease
 using the current run/chat context, records the normal credential access audit
 row, and prints lease metadata such as lease id, credential id/name/type, safe
 metadata, purpose, tool, and expiry. The response intentionally omits the
-credential payload. Future wrapper commands can build on that runtime-auth
-path to materialize credentials inside a child process without putting secret
-material in agent-visible stdout or stderr.
+credential payload.
+
+`ssh-agent` is also runtime-only. It requests an `ssh_private_key` lease,
+starts a short-lived local `ssh-agent`, writes the private key only to a
+temporary `0600` file long enough to run `ssh-add`, exports `SSH_AUTH_SOCK` to
+the child command, and tears down the agent plus temp files on success or
+failure. Payloads may be a raw private key or JSON with `private_key` and
+optional `passphrase`; passphrases are supplied through a temporary askpass
+helper and are not passed to the child command. The wrapper records a
+completion audit row with the lease id, credential handle, current
+job/workflow/run/repository/user context, wrapper command namespace, child exit
+status, and duration. It does not print private keys, passphrases, raw payload
+material, or child command arguments.
 
 ## SSH MCP Tools
 

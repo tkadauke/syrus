@@ -1,4 +1,3 @@
-require "json"
 require "tempfile"
 
 module CredentialStore
@@ -61,10 +60,10 @@ module CredentialStore
         credential_validator: method(:credential_denial_reason)
       ) do |credential_env, metadata|
         credential_metadata = metadata.fetch(:safe_metadata, {})
-        key_material = key_material_from(credential_env.fetch("SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD"))
+        key_material = SshKeyMaterial.from_payload(credential_env.fetch("SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD"))
 
-        with_temp_private_key(key_material.fetch(:private_key)) do |key_path|
-          with_optional_askpass(key_material[:passphrase]) do |askpass_env|
+        with_temp_private_key(key_material.private_key) do |key_path|
+          with_optional_askpass(key_material.passphrase) do |askpass_env|
             with_optional_known_hosts(credential_metadata) do |known_hosts_path|
               run_ssh(
                 key_path: key_path,
@@ -72,7 +71,7 @@ module CredentialStore
                 askpass_env: askpass_env,
                 metadata: metadata,
                 credential_metadata: credential_metadata,
-                extra_secrets: key_material.values.compact
+                extra_secrets: key_material.secrets
               )
             end
           end
@@ -139,19 +138,6 @@ module CredentialStore
       argv << "#{user}@#{host}"
       argv << command
       argv
-    end
-
-    def key_material_from(payload)
-      parsed = JSON.parse(payload)
-      private_key = parsed.fetch("private_key").to_s
-      passphrase = parsed["passphrase"].to_s.presence
-      raise InvalidTarget, "private_key is required in SSH credential payload" if private_key.blank?
-
-      { private_key: private_key, passphrase: passphrase }
-    rescue JSON::ParserError
-      { private_key: payload.to_s, passphrase: nil }
-    rescue KeyError
-      raise InvalidTarget, "private_key is required in SSH credential payload"
     end
 
     def with_temp_private_key(private_key)
