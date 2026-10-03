@@ -176,6 +176,26 @@ RSpec.describe CodexInvocation do
       end
     end
 
+    it "overwrites an existing canonical rollout when sanitized resume JSONL is provided" do
+      Dir.mktmpdir do |home|
+        stale_jsonl = { type: "stale", payload: { token: "old-turn-token" } }.to_json + "\n"
+        sanitized_jsonl = { type: "session_meta", payload: { id: "019e-test", source: "rehydrated" } }.to_json + "\n"
+        stale_dir = File.join(home, "sessions", "2026", "09", "01")
+        FileUtils.mkdir_p(stale_dir)
+        stale_path = File.join(stale_dir, "rollout-2026-09-01T00-00-00-019e-test.jsonl")
+        File.write(stale_path, stale_jsonl)
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-test",
+                                         resume_transcript_jsonl: sanitized_jsonl)
+
+        _, result = capture_popen(invocation)
+
+        expect(File.read(stale_path)).to eq(sanitized_jsonl)
+        expect(result.transcript_path).to eq(stale_path)
+      end
+    end
+
     it "copies an old non-canonical restored rollout into a canonical path" do
       Dir.mktmpdir do |home|
         jsonl = { type: "session_meta", payload: { id: "019e-test" } }.to_json + "\n"
