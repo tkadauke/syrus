@@ -48,6 +48,7 @@ import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
 import { MobileChatHeaderContext } from "./chat/MobileChatHeaderContext"
+import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
@@ -210,7 +211,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setMobileChatContentHeaderHeight(Math.max(0, Math.round(height)))
   }, [])
   const reportMobileChatScrollDelta = useCallback((delta: number) => {
-    if (!mobileChatHeaderAutoHideActive || !Number.isFinite(delta) || Math.abs(delta) < 1) return
+    if (!mobileChatHeaderAutoHideActive || !Number.isFinite(delta) || Math.abs(delta) < CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX) return
 
     setMobileChatHeaderOffset(delta > 0 ? mobileChatHeaderHideDistance : 0)
   }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])

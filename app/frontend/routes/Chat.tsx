@@ -107,8 +107,8 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { errorMessage } from "../lib/errorMessage"
-import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
-import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
+import { type ChatQueryKey, CHAT_PROGRAMMATIC_SCROLL_SUPPRESSION_MS, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
+import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, mobileHeaderScrollDeltaForMessageStream, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
 import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
@@ -481,6 +481,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const streamRef = useRef<HTMLDivElement | null>(null)
   const lastScrollTopRef = useRef(0)
   const lastUserScrollIntentAtRef = useRef(0)
+  const suppressMobileHeaderScrollUntilRef = useRef(0)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
   const maxPayloadMessageIdRef = useRef(maxMessageId(payload.messages))
@@ -578,6 +579,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   })
 
   const scrollToBottom = useCallback(() => {
+    suppressMobileHeaderScrollUntilRef.current = Date.now() + CHAT_PROGRAMMATIC_SCROLL_SUPPRESSION_MS
     scrollMessageStreamToBottom(streamRef.current, { smooth: true })
     lastScrollTopRef.current = streamRef.current?.scrollTop ?? 0
     atBottomRef.current = true
@@ -656,15 +658,22 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   }, [markUserScrollIntent])
 
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    const delta = event.currentTarget.scrollTop - lastScrollTopRef.current
-    lastScrollTopRef.current = event.currentTarget.scrollTop
-    if (Date.now() - lastUserScrollIntentAtRef.current <= USER_SCROLL_INTENT_WINDOW_MS) {
-      mobileHeader.reportScrollDelta(delta)
+    const stream = event.currentTarget
+    const previousScrollTop = lastScrollTopRef.current
+    const mobileHeaderDelta = mobileHeaderScrollDeltaForMessageStream(stream, previousScrollTop)
+    lastScrollTopRef.current = stream.scrollTop
+    const now = Date.now()
+    if (
+      mobileHeaderDelta != null &&
+      now >= suppressMobileHeaderScrollUntilRef.current &&
+      now - lastUserScrollIntentAtRef.current <= USER_SCROLL_INTENT_WINDOW_MS
+    ) {
+      mobileHeader.reportScrollDelta(mobileHeaderDelta)
     }
-    const atBottom = isMessageStreamAtBottom(event.currentTarget)
+    const atBottom = isMessageStreamAtBottom(stream)
     atBottomRef.current = atBottom
     if (atBottom) setNewMessageCount(0)
-    if (isMessageStreamNearTop(event.currentTarget)) {
+    if (isMessageStreamNearTop(stream)) {
       requestOlderMessages({ preserveScroll: true })
     }
   }, [mobileHeader, requestOlderMessages])
@@ -692,6 +701,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     atBottomRef.current = true
     lastScrollTopRef.current = 0
     lastUserScrollIntentAtRef.current = 0
+    suppressMobileHeaderScrollUntilRef.current = 0
     streamChatIdRef.current = payload.chat.id
     maxPayloadMessageIdRef.current = maxMessageId(payload.messages)
     entranceBaselineMessageIdRef.current = maxMessageId(payload.messages)

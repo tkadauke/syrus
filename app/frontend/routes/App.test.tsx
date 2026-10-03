@@ -12128,16 +12128,19 @@ describe("App", () => {
       const header = screen.getByTestId("mobile-app-header")
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
+      setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 100 })
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
       expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
+      setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 200 })
       fireEvent.touchMove(stream)
       fireEvent.scroll(stream, { target: { scrollTop: 200 } })
       expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
       expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
 
       for (const scrollTop of [300, 400, 500, 600, 700]) {
+        setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
         fireEvent.touchMove(stream)
         fireEvent.scroll(stream, { target: { scrollTop } })
       }
@@ -12160,6 +12163,140 @@ describe("App", () => {
 
       fireEvent.click(stream)
       expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+    } finally {
+      restoreMedia()
+      script.remove()
+    }
+  })
+
+  it("keeps the mobile chat header revealed during top rubber-band scroll jitter", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const bootstrap = bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        mobile_chat_auto_hide_header: true
+      }
+    })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrap)
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/api/v1/app/bootstrap")) return new Response(JSON.stringify(bootstrap), { status: 200, headers: { "Content-Type": "application/json" } })
+
+      return new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+      setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 0 })
+
+      fireEvent.touchMove(stream)
+      setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 6 })
+      fireEvent.scroll(stream)
+      setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 0 })
+      fireEvent.scroll(stream)
+
+      expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+
+      fireEvent.touchMove(stream)
+      setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 120 })
+      fireEvent.scroll(stream)
+
+      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+    } finally {
+      restoreMedia()
+      script.remove()
+    }
+  })
+
+  it("does not oscillate the mobile chat header while the new-message button smooth-scrolls to bottom", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const bootstrap = bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+        mobile_chat_auto_hide_header: true
+      }
+    })
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrap)
+    document.body.appendChild(script)
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/api/v1/app/bootstrap")) return new Response(JSON.stringify(bootstrap), { status: 200, headers: { "Content-Type": "application/json" } })
+
+      return new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      const header = screen.getByTestId("mobile-app-header")
+      setScrollMetrics(stream, { scrollHeight: 1000, clientHeight: 400, scrollTop: 200 })
+      fireEvent.scroll(stream)
+      fireEvent.touchMove(stream)
+      setScrollMetrics(stream, { scrollHeight: 1300, clientHeight: 400, scrollTop: 200 })
+
+      act(() => {
+        queryClient.setQueryData(["chats", "8", ""], chatPayload({
+          messages: [
+            ...chatPayload().messages,
+            {
+              type: "message",
+              id: 10,
+              role: "assistant",
+              text: "First new note.",
+              bookmarkable: true
+            },
+            {
+              type: "message",
+              id: 11,
+              role: "assistant",
+              text: "Second new note.",
+              bookmarkable: true
+            }
+          ]
+        }))
+      })
+
+      const button = await screen.findByRole("button", { name: "2 new messages" })
+      Object.defineProperty(stream, "scrollTo", {
+        configurable: true,
+        value: vi.fn(({ top }: ScrollToOptions) => {
+          stream.scrollTop = Number(top)
+        })
+      })
+
+      fireEvent.click(button)
+      for (const scrollTop of [500, 460, 900, 1300]) {
+        setScrollMetrics(stream, { scrollHeight: 1300, clientHeight: 400, scrollTop })
+        fireEvent.scroll(stream)
+        expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      }
+
+      expect(stream.scrollTop).toBe(1300)
+      expect(screen.queryByRole("button", { name: "2 new messages" })).not.toBeInTheDocument()
     } finally {
       restoreMedia()
       script.remove()
