@@ -56,6 +56,45 @@ RSpec.describe CodexAgent::TranscriptEvents do
       expect(summary.tool_call_counts).to eq("mcp__syrus__submit_summary" => 1)
       expect(summary.exit_reason).to eq("success")
     end
+
+    it "separates response_item function namespaces from names for required tool matching" do
+      input = jsonl(
+        {
+          "timestamp" => "2026-05-07T18:00:00Z",
+          "type" => "session_meta",
+          "payload" => { "id" => "019e-codex", "cwd" => "/work", "model" => "gpt-5.2-codex" }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:02Z",
+          "type" => "response_item",
+          "payload" => {
+            "type" => "function_call",
+            "namespace" => "mcp__syrus_mcp_sidecar",
+            "name" => "submit_review_notes",
+            "arguments" => { notes: [ { path: "app/models/job.rb", body: "Looks good" } ] }.to_json,
+            "call_id" => "call_review_notes"
+          }
+        },
+        {
+          "timestamp" => "2026-05-07T18:00:03Z",
+          "type" => "response_item",
+          "payload" => {
+            "type" => "function_call_output",
+            "namespace" => "mcp__syrus_mcp_sidecar",
+            "name" => "submit_review_notes",
+            "call_id" => "call_review_notes",
+            "output" => { "ok" => true }
+          }
+        }
+      )
+
+      summary = ClaudeTranscript.new(input).summary
+
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to include(
+        "mcp__syrus_mcp_sidecar__submit_review_notes" => 1
+      )
+    end
   end
 
   describe "Codex exec JSONL compatibility" do
