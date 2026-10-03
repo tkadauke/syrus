@@ -47,6 +47,29 @@ describe("ErdDiagramRenderer", () => {
     expect(screen.getAllByText("string").length).toBeGreaterThan(0)
   })
 
+  it("keeps table boxes intrinsically wide so artifact chrome can scroll them horizontally", () => {
+    const wideTable = {
+      ...usersTable,
+      name: "credential_store_credential_access_events",
+      columns: [{ name: "credential_store_credential_access_event_metadata", type: "json" }]
+    }
+    const { container } = render(<ErdDiagramRenderer payload={{ tables: [wideTable] }} />)
+    const tableBox = screen.getByText(wideTable.name).parentElement
+
+    expect(container.firstElementChild).toHaveClass("min-w-0", "flex-wrap")
+    expect(container.firstElementChild).not.toHaveClass("min-w-max")
+    expect(tableBox).toHaveClass("w-max", "min-w-[200px]")
+    expect(screen.getByText(wideTable.name)).toHaveClass("whitespace-nowrap")
+    expect(screen.getByText("credential_store_credential_access_event_metadata")).toHaveClass("whitespace-nowrap")
+  })
+
+  it("keeps multi-table ERD artifacts wrappable instead of making the whole schema a max-content strip", () => {
+    const { container } = render(<ErdDiagramRenderer payload={{ tables: [usersTable, accountsTable] }} />)
+
+    expect(container.firstElementChild).toHaveClass("min-w-0", "flex-wrap")
+    expect(container.firstElementChild).not.toHaveClass("min-w-max")
+  })
+
   it("renders an FK arrow indicator on the FK source column", () => {
     const { container } = render(<ErdDiagramRenderer payload={{ tables: [usersTable] }} />)
 

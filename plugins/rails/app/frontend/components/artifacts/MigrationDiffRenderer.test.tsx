@@ -97,6 +97,14 @@ describe("MigrationDiffRenderer", () => {
     expect(screen.getAllByText("status").length).toBeGreaterThan(0)
   })
 
+  it("keeps the before/after tables wide enough to scroll on narrow screens", () => {
+    const { container } = render(<MigrationDiffRenderer payload={migrationPayload} />)
+
+    expect(container.firstElementChild).toHaveClass("w-max", "min-w-full")
+    expect(container.querySelector(".grid")).toHaveClass("w-max", "min-w-full", "grid-cols-[minmax(22rem,1fr)_minmax(22rem,1fr)]")
+    expect(screen.getAllByText("legacy_key")[0]).toHaveClass("whitespace-nowrap")
+  })
+
   it("renders correctly with no changes", () => {
     const noChanges: MigrationDiffPayload = {
       ...migrationPayload,
