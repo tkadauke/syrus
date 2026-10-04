@@ -1719,7 +1719,12 @@ RSpec.describe ChatTurnJob, :ci_only do
     described_class.perform_now(codex_chat.id, codex_message.id)
 
     expect(received[:resume_session_id]).to eq("codex-thread-1")
-    expect(received[:resume_transcript_jsonl]).to include("session_meta")
+    # The provider rehydrates from ChatMessage rows rather than replaying the
+    # stored transcript, so what it hands over is the rehydrated stream. Note
+    # that stream is NOT in Codex's on-disk rollout format, which is why
+    # CodexInvocation refuses to write it over a rollout -- see
+    # CodexRolloutSanitizer and the resume specs in the codex_agent plugin.
+    expect(received[:resume_transcript_jsonl]).to include("thread.started")
     expect(received[:prompt]).to include("Recent persisted chat context fallback:")
     expect(received[:prompt]).to include("user: Earlier Codex request: inspect the queue filters.")
     expect(received[:prompt]).to include("assistant: The queue filters are in Admin::Queue::Filter.")
@@ -1766,7 +1771,11 @@ RSpec.describe ChatTurnJob, :ci_only do
     )
   end
 
-  it "uses the cached Codex transcript directly on same-provider resume" do
+  # The cached-transcript fast path was removed when Codex chat resume stopped
+  # replaying raw rollouts (they could carry a prior turn's MCP invocation
+  # token). Resume now always rehydrates from ChatMessage rows, which are the
+  # record of the conversation.
+  it "rehydrates from ChatMessage rows rather than replaying the cached transcript on same-provider resume" do
     codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
     codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-resume", default_branch: "main")
     codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
@@ -1789,8 +1798,10 @@ RSpec.describe ChatTurnJob, :ci_only do
     described_class.perform_now(codex_chat.id, codex_message.id)
 
     expect(received[:resume_session_id]).to eq("codex-thread-1")
-    # Uses the cached transcript directly (fast path), not a freshly rehydrated one
-    expect(received[:resume_transcript_jsonl]).to eq("{\"type\":\"thread.started\"}\n")
+    # Not the stored transcript verbatim: a freshly rehydrated stream carrying
+    # this session's id, so no earlier turn's MCP context travels with it.
+    expect(received[:resume_transcript_jsonl]).not_to eq("{\"type\":\"thread.started\"}\n")
+    expect(received[:resume_transcript_jsonl]).to include("codex-thread-1")
   end
 
   it "writes a rehydrated Claude JSONL to disk when resuming after a Codex session" do

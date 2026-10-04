@@ -591,13 +591,57 @@ class CodexInvocation
     File.read(path)
   end
 
+  # Restores a resumable rollout for `session_id` and returns its path, or
+  # `:resume_unavailable` to tell the caller to start a fresh Codex session.
+  #
+  # The governing rule is: only ever leave a rollout Codex can actually read.
+  # A rollout is resumable only in Codex's on-disk vocabulary (`session_meta` /
+  # `response_item` / `event_msg`). `jsonl` here is the transcript synthesized
+  # from ChatMessage rows, which uses Codex's *stdout event* vocabulary
+  # (`thread.started` / `item.*`). Writing that over a rollout -- which is what
+  # this method used to do unconditionally, to strip per-turn MCP invocation
+  # tokens -- left Codex unable to find session metadata. Codex then reported
+  # the rollout as empty and failed the turn, and because the next turn
+  # overwrote it again, the chat could never recover.
+  #
+  # So: prefer Codex's own rollout and redact tokens from it in place; accept a
+  # supplied transcript only when it is itself in the on-disk format; otherwise
+  # start fresh rather than plant a file Codex will reject.
   def restore_resume_transcript(codex_home, session_id, jsonl, log_sink)
     return if session_id.blank?
 
     existing_path = rollout_path_for(codex_home, session_id)
-    return existing_path if existing_path.present? && jsonl.blank?
 
-    path = existing_path || canonical_rollout_path_for(codex_home, session_id)
+    if existing_path.present?
+      existing = read_transcript(existing_path)
+
+      if CodexRolloutSanitizer.native?(existing)
+        sanitized = CodexRolloutSanitizer.call(existing)
+        File.write(existing_path, sanitized) unless sanitized == existing
+        return existing_path
+      end
+
+      # The stored rollout is unreadable to Codex. A supplied transcript that
+      # *is* in the on-disk format is a strict improvement over it, so prefer
+      # that; otherwise this session cannot be resumed at all.
+      if CodexRolloutSanitizer.native?(jsonl)
+        File.write(existing_path, CodexRolloutSanitizer.call(jsonl))
+        return existing_path
+      end
+
+      # Auto-repair: most chats reaching here were bricked by the overwrite
+      # described above. Starting a fresh Codex session keeps the chat usable.
+      # The conversation is not lost -- ChatMessage rows remain its record --
+      # but Codex's own thread continuity for it does not survive.
+      log_sink.call(
+        "[codex resume] stored rollout for session #{session_id} is not in Codex's resumable " \
+        "format; starting a fresh Codex session",
+        kind: "system"
+      )
+      return :resume_unavailable
+    end
+
+    path = canonical_rollout_path_for(codex_home, session_id)
     unless path
       log_sink.call(
         "[codex resume] could not derive a canonical rollout path for session #{session_id}; starting a fresh Codex session",
@@ -606,18 +650,21 @@ class CodexInvocation
       return :resume_unavailable
     end
 
-    jsonl = jsonl.presence || read_transcript(noncanonical_rollout_path_for(codex_home, session_id))
-    if jsonl.blank?
+    # A rollout Codex wrote may sit under a non-canonical filename; promote it.
+    # Fall back to a supplied transcript only when it is in the on-disk format.
+    salvaged = read_transcript(noncanonical_rollout_path_for(codex_home, session_id))
+    restorable = [ salvaged, jsonl ].find { |candidate| CodexRolloutSanitizer.native?(candidate) }
+
+    if restorable.blank?
       log_sink.call(
-        "[codex resume] no stored rollout JSONL for session #{session_id}; provider resume may be rejected or incomplete",
+        "[codex resume] no resumable rollout stored for session #{session_id}; starting a fresh Codex session",
         kind: "system"
       )
-      return
+      return :resume_unavailable
     end
 
-    dir = File.dirname(path)
-    FileUtils.mkdir_p(dir)
-    File.write(path, jsonl)
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, CodexRolloutSanitizer.call(restorable))
     path
   end
 

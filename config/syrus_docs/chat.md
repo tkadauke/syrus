@@ -43,6 +43,38 @@ membership to find the durable conversation for a user's external account.
 and sets `trigger_policy` to `speak_when_spoken_to`; that is the only trigger
 policy value today, but the string enum leaves room for future policies.
 
+## Codex session resume and self-repair
+
+A Codex chat turn resumes the provider's own thread by pointing `codex exec
+resume` at a *rollout* file under the chat's agent home. Only Codex's on-disk
+rollout format is resumable: it opens with a `session_meta` line and carries
+`response_item` / `event_msg` entries. That is a different vocabulary from the
+event stream Codex prints on stdout (`thread.started`, `item.started`,
+`item.completed`), which is what Syrus rehydrates from `ChatMessage` rows.
+
+Syrus therefore never writes a rehydrated transcript over a rollout. It keeps
+Codex's own rollout and redacts short-lived MCP invocation tokens out of it in
+place (`CodexRolloutSanitizer`), so the file stays both secret-free and
+readable. Redaction is structural, so a token is removed wherever it appears;
+the identifier *name* showing up in source code or docs the agent read is left
+alone, because it is not a secret.
+
+When the stored rollout is not resumable -- it is missing, or it is a
+transcript an earlier version wrote in the stdout-event format -- the turn does
+not fail. Syrus starts a fresh Codex session and posts a system message saying
+so:
+
+```
+[codex resume] stored rollout for session <id> is not in Codex's resumable
+format; starting a fresh Codex session
+```
+
+Operationally that means an affected chat repairs itself on its next message
+rather than failing every turn. The conversation is not lost: `ChatMessage`
+rows remain the record of it and still feed the prompt's persisted-context
+fallback. What does not survive is Codex's own thread continuity for that
+chat, so the model starts without its prior in-thread state.
+
 ## Grouped pending actions
 
 A `PendingActionGroup` links several `ChatPendingAction` rows created

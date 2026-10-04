@@ -51,6 +51,16 @@ RSpec.describe CodexInvocation do
   end
 
   describe "default_runner" do
+    # A rollout in Codex's own on-disk format -- the only shape Codex can
+    # resume from. Specs that exercise resume need one present, because a
+    # session with no resumable rollout now starts fresh instead.
+    def write_native_rollout(home, session_id, dir: "2026/10/04", time: "2026-10-04T11-49-01")
+      path = File.join(home, "sessions", dir, "rollout-#{time}-#{session_id}.jsonl")
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, { type: "session_meta", payload: { id: session_id } }.to_json + "\n")
+      path
+    end
+
     def capture_popen(invocation, lines: nil, exitstatus: 0)
       captured = { env: nil, cmd: nil, opts: nil, stdin: nil }
       allow(Open3).to receive(:popen2e) do |env, *args, **opts, &blk|
@@ -147,6 +157,7 @@ RSpec.describe CodexInvocation do
 
     it "runs codex exec resume when resume_session_id is set" do
       Dir.mktmpdir do |home|
+        write_native_rollout(home, "019e-test")
         invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
                                          codex_home: home, resume_session_id: "019e-test")
         captured, = capture_popen(invocation)
@@ -176,7 +187,7 @@ RSpec.describe CodexInvocation do
       end
     end
 
-    it "overwrites an existing canonical rollout when sanitized resume JSONL is provided" do
+    it "replaces an unreadable rollout with supplied JSONL that is in Codex's on-disk format" do
       Dir.mktmpdir do |home|
         stale_jsonl = { type: "stale", payload: { token: "old-turn-token" } }.to_json + "\n"
         sanitized_jsonl = { type: "session_meta", payload: { id: "019e-test", source: "rehydrated" } }.to_json + "\n"
@@ -237,7 +248,7 @@ RSpec.describe CodexInvocation do
       end
     end
 
-    it "logs when a resumed Codex session has no rollout JSONL to restore" do
+    it "starts a fresh session when a resumed Codex session has no rollout to restore" do
       Dir.mktmpdir do |home|
         events = []
         invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
@@ -245,10 +256,100 @@ RSpec.describe CodexInvocation do
                                          resume_session_id: "019e-missing",
                                          log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
 
+        captured, = capture_popen(invocation)
+
+        expect(captured[:cmd]).not_to include("resume")
+        expect(events).to include([
+          "[codex resume] no resumable rollout stored for session 019e-missing; starting a fresh Codex session",
+          { kind: "system" }
+        ])
+      end
+    end
+
+    # Regression: the rollout Codex writes uses its on-disk vocabulary
+    # (session_meta / response_item / event_msg). Overwriting it with the
+    # transcript synthesized from ChatMessage rows -- which uses Codex's stdout
+    # *event* vocabulary (thread.started / item.*) -- left Codex unable to find
+    # session metadata. Codex reported the rollout as empty and failed the
+    # turn, and since the next turn overwrote it again the chat never
+    # recovered.
+    it "never overwrites Codex's own rollout with a synthesized stdout-event transcript" do
+      Dir.mktmpdir do |home|
+        native = [
+          { type: "session_meta", payload: { id: "019e-test", cwd: "/w" } }.to_json,
+          { type: "response_item", payload: { content: [ { text: "prior turn" } ] } }.to_json
+        ].join("\n") + "\n"
+        synthesized = [
+          { type: "thread.started", thread_id: "019e-test" }.to_json,
+          { type: "item.completed", item: { text: "prior turn" } }.to_json,
+          { type: "turn.completed" }.to_json
+        ].join("\n") + "\n"
+        dir = File.join(home, "sessions", "2026", "10", "04")
+        FileUtils.mkdir_p(dir)
+        path = File.join(dir, "rollout-2026-10-04T11-49-01-019e-test.jsonl")
+        File.write(path, native)
+
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-test",
+                                         resume_transcript_jsonl: synthesized)
+
+        captured, result = capture_popen(invocation)
+
+        expect(File.read(path)).to eq(native)
+        expect(result.transcript_path).to eq(path)
+        expect(captured[:cmd][0, 3]).to eq(%w[codex exec resume])
+      end
+    end
+
+    it "redacts MCP invocation tokens from Codex's rollout without changing its format" do
+      Dir.mktmpdir do |home|
+        leaked = [
+          { type: "session_meta", payload: { id: "019e-test" } }.to_json,
+          { type: "event_msg",
+            payload: { item: { stdout: "SYRUS_MCP_PROXY_INVOCATION_CONTEXT=tok-secret-123 rest" } } }.to_json
+        ].join("\n") + "\n"
+        dir = File.join(home, "sessions", "2026", "10", "04")
+        FileUtils.mkdir_p(dir)
+        path = File.join(dir, "rollout-2026-10-04T11-49-01-019e-test.jsonl")
+        File.write(path, leaked)
+
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home, resume_session_id: "019e-test")
+
         capture_popen(invocation)
 
+        written = File.read(path)
+        expect(written).not_to include("tok-secret-123")
+        expect(JSON.parse(written.lines.first)["type"]).to eq("session_meta")
+        expect(JSON.parse(written.lines.last).dig("payload", "item", "stdout"))
+          .to eq("SYRUS_MCP_PROXY_INVOCATION_CONTEXT=[redacted] rest")
+      end
+    end
+
+    # Auto-repair for chats already bricked by the overwrite above: their
+    # stored rollout is the synthesized format, which Codex rejects. Rather
+    # than failing every turn forever, start a fresh Codex session.
+    it "starts a fresh session when the stored rollout is not in Codex's resumable format" do
+      Dir.mktmpdir do |home|
+        events = []
+        synthesized = { type: "thread.started", thread_id: "019e-test" }.to_json + "\n"
+        dir = File.join(home, "sessions", "2026", "10", "04")
+        FileUtils.mkdir_p(dir)
+        File.write(File.join(dir, "rollout-2026-10-04T11-49-01-019e-test.jsonl"), synthesized)
+
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-test",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        captured, = capture_popen(invocation)
+
+        expect(captured[:cmd][0, 2]).to eq(%w[codex exec])
+        expect(captured[:cmd]).not_to include("resume")
         expect(events).to include([
-          "[codex resume] no stored rollout JSONL for session 019e-missing; provider resume may be rejected or incomplete",
+          "[codex resume] stored rollout for session 019e-test is not in Codex's resumable " \
+          "format; starting a fresh Codex session",
           { kind: "system" }
         ])
       end
@@ -257,10 +358,10 @@ RSpec.describe CodexInvocation do
     it "logs when a Codex resume turn fails" do
       Dir.mktmpdir do |home|
         events = []
+        write_native_rollout(home, "019e-gone")
         invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
                                          codex_home: home,
                                          resume_session_id: "019e-gone",
-                                         resume_transcript_jsonl: "{}\n",
                                          log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
 
         _, result = capture_popen(
