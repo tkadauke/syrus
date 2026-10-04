@@ -933,9 +933,18 @@ class WorkflowWorkspace
   # the fork's own default here (guaranteed to exist even when it differs from
   # the upstream's default branch name).
   def clone_checkout_branch
+    return default_branch_snapshot_branch if default_branch_snapshot?
     return @repository.default_branch if commit_sha_revision? || base_on_upstream_default?
 
     base_branch
+  end
+
+  def default_branch_snapshot?
+    @job.main_grader? || @job.deploy_job?
+  end
+
+  def default_branch_snapshot_branch
+    @workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT).presence || @repository.default_branch
   end
 
   # A closed, landed Job's PR branch is typically deleted right after
