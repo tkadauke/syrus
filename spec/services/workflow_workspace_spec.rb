@@ -830,6 +830,36 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(main_sha)
       end
 
+      it "clones the repository default branch for main_grader workflows even when delivery tracks land elsewhere" do
+        write_bare_config(
+          <<~YAML
+            delivery:
+              tracks:
+                default:
+                  branch: develop
+          YAML
+        )
+        main_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
+        main_grader_job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "main_grader",
+          issue_title: "main_grader:#{main_sha}",
+          issue_number: nil
+        )
+        main_grader_workflow = Workflow.create!(
+          job: main_grader_job,
+          trigger_kind: "main_grader",
+          artifacts: { "main_sha" => main_sha }
+        )
+
+        ws = described_class.new(main_grader_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(main_grader_job.effective_base_branch).to eq("develop")
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(main_sha)
+      end
+
       it "checks out a continuous-deploy anchor workflow at the resolved default-branch SHA" do
         deploy_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
         anchor_job = Job.create!(
@@ -1448,6 +1478,20 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       sh("git -C #{work} add integration.txt")
       sh("git -C #{work} commit -q -m '#{message}'")
       sh("git -C #{work} push -q origin #{branch}")
+    end
+  end
+
+  def write_bare_config(syrus_yml)
+    Dir.mktmpdir("syrus-wfws-config") do |work|
+      sh("git init -q -b main #{work}")
+      File.write(File.join(work, ".syrus.yml"), syrus_yml)
+      sh("git -C #{work} add .syrus.yml")
+      sh("git -C #{work} commit -q -m 'configure delivery'")
+
+      clone_path = RepositoryBareClone.path_for(repository)
+      FileUtils.rm_rf(clone_path)
+      FileUtils.mkdir_p(clone_path.dirname)
+      sh("git clone -q --bare #{work} #{clone_path}")
     end
   end
 
