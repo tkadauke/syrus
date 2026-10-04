@@ -160,7 +160,7 @@ module MaintenanceTasks
         unresolved = unresolved_repositories(task)
         return [] if unresolved.empty?
 
-        pending_ids = pending_repository_scope.where(id: unresolved.map { |entry| entry["id"].to_i }).pluck(:id).map(&:to_i)
+        pending_ids = candidate_repository_scope.where(id: unresolved.map { |entry| entry["id"].to_i }).pluck(:id).map(&:to_i)
         pending = unresolved.select { |entry| pending_ids.include?(entry["id"].to_i) }
         if pending.size != unresolved.size
           task.checkpoint_will_change!
