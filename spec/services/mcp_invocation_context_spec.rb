@@ -183,6 +183,49 @@ RSpec.describe McpInvocationContext do
       expect(later_message.id).not_to eq(earlier_message.id)
     end
 
+    # Regression: MCP tokens are scoped to the message a turn is running for,
+    # but the active turn used to be inferred as "the last user message". A
+    # turn started by a non-user message -- a proposal confirmation, say --
+    # therefore had its own token rejected as TurnEnded, and the turn failed
+    # during MCP startup with "required MCP servers failed to initialize".
+    it "accepts the token of a turn started by a non-user message" do
+      earlier_user_message = message
+      system_message = chat_session.messages.create!(
+        role: "system",
+        content: { "text" => "Proposal confirmed." }
+      )
+      chat_session.begin_turn_for!(system_message)
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: system_message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      # The inference this replaces would name the user message here, not the
+      # system message the turn is actually running for.
+      expect(chat_session.messages.where(role: "user").order(:created_at, :id).last)
+        .to eq(earlier_user_message)
+
+      resolved = described_class.resolve(token, worker_id: worker_id)
+
+      expect(resolved.current_message_id).to eq(system_message.id)
+    end
+
+    it "still rejects an earlier token once a later turn claims the chat" do
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      later_message = chat_session.messages.create!(role: "system", content: { "text" => "next" })
+      chat_session.begin_turn_for!(later_message)
+
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/TurnEnded/))
+      expect { described_class.resolve(token, worker_id: worker_id) }
+        .to raise_error(described_class::TurnEnded, /message #{message.id} is no longer active/)
+    end
+
     it "rejects a token whose chat session no longer exists as unauthorized" do
       token = described_class.issue_for_chat(chat_session, worker_id: worker_id)
       chat_session_id = chat_session.id

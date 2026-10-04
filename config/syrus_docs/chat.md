@@ -75,6 +75,21 @@ rows remain the record of it and still feed the prompt's persisted-context
 fallback. What does not survive is Codex's own thread continuity for that
 chat, so the model starts without its prior in-thread state.
 
+## Which message a turn belongs to
+
+`chat_sessions.turn_in_flight` records only *that* a turn is running.
+`chat_sessions.current_turn_message_id` records *which* message it is running
+for; `ChatTurnJob` claims it before any MCP token is minted and releases it in
+`finalize_turn!`, and only if it still owns the slot.
+
+This matters because MCP invocation tokens are scoped to a turn's message. The
+active turn used to be inferred as "the last `user` message", which is wrong
+for any turn a non-user message starts -- confirming a proposal, for instance.
+Such a turn had its own token rejected as `TurnEnded` and failed during MCP
+startup with `required MCP servers failed to initialize`. Tokens from a
+genuinely superseded turn are still rejected, because a newer turn overwrites
+the recorded id.
+
 ## Grouped pending actions
 
 A `PendingActionGroup` links several `ChatPendingAction` rows created

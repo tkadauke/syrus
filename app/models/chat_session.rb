@@ -325,6 +325,27 @@ class ChatSession < ApplicationRecord
     next_value
   end
 
+  # Records which message the running turn is for. `turn_in_flight` only says
+  # that *a* turn is running; callers that need to know *which* one -- notably
+  # MCP invocation tokens, which are scoped to a turn's message -- cannot infer
+  # it from the message log, because a turn can be started by a non-user
+  # message (a proposal confirmation, for example) and system messages are
+  # appended throughout a turn.
+  def begin_turn_for!(message)
+    update_columns(current_turn_message_id: message.id)
+    self.current_turn_message_id = message.id
+  end
+
+  def end_turn_for!(message)
+    # Only clear our own turn: a newer turn may already have claimed the slot,
+    # and clearing that one would make its token look like it belongs to an
+    # ended turn.
+    return unless current_turn_message_id == message.id
+
+    update_columns(current_turn_message_id: nil)
+    self.current_turn_message_id = nil
+  end
+
   def agent_busy?
     SpawnedProcess.live_agent
                   .where(workdir: workspace_root.to_s)

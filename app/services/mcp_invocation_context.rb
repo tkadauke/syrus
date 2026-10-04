@@ -224,6 +224,15 @@ class McpInvocationContext
     end
 
     def active_chat_turn_message_id(chat_session)
+      # The turn records the message it is running for, which is authoritative:
+      # a turn can be started by a non-user message (a proposal confirmation,
+      # say), and such a turn's own token used to be rejected because the
+      # fallback below can only ever name a `user` message.
+      recorded = chat_session.current_turn_message_id
+      return recorded if recorded.present?
+
+      # Turns already in flight when this shipped have nothing recorded, so
+      # keep inferring for them rather than failing every one of their tokens.
       return unless chat_session.turn_in_flight? || chat_session.agent_busy?
 
       chat_session.messages.where(role: "user").order(:created_at, :id).last&.id

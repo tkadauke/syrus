@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_180857) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_190409) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -730,6 +730,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_180857) do
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.bigint "cumulative_input_tokens", default: 0, null: false
     t.bigint "cumulative_output_tokens", default: 0, null: false
+    t.bigint "current_turn_message_id"
     t.string "daemon_branch"
     t.boolean "daemon_connected", default: false, null: false
     t.string "daemon_repo"

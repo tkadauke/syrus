@@ -43,6 +43,10 @@ class ChatTurnJob < ApplicationJob
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
+    # Claim the turn for this specific message before any MCP token is minted,
+    # so the sidecar can tell "this turn is still running" from "a later turn
+    # superseded it" without guessing from the message log.
+    @chat.begin_turn_for!(@user_message)
     Thread.current[:syrus_current_chat_session] = @chat
 
     clear_stale_stop_request!
@@ -141,6 +145,7 @@ class ChatTurnJob < ApplicationJob
     return unless @chat
 
     ChatGoalIterationAuditor.after_turn!(chat_session: @chat, user_message: @user_message)
+    @chat.end_turn_for!(@user_message) if @user_message
     clear_stop_request_and_broadcast_controls!
     ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat)
   end
