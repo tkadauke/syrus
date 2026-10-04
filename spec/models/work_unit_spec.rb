@@ -199,6 +199,39 @@ RSpec.describe WorkUnit do
     }.to raise_error(ArgumentError, /terminal/)
   end
 
+  describe "landing slot release on externally cleared blocks" do
+    # Regression: an auto_merge blocked on `no_capable_worker` -- a macOS queue
+    # with no macOS worker in the fleet -- kept holding
+    # `landing:repository:<id>`. `blocked` is an active ownership state, so it
+    # reported itself as the repository's landing in progress and every other
+    # approved Job stopped landing, indefinitely, with nothing marked failed.
+    it "surrenders the landing slot when blocked on a reason only an operator can clear" do
+      unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
+                                     scope_type: "job", scope_id: 123)
+      landing = unit.work_unit_locks.create!(lock_key: "landing:repository:7")
+      job_lock = unit.work_unit_locks.create!(lock_key: "job:123")
+
+      unit.block!(reason: "no_capable_worker")
+
+      expect(landing.reload.released_at).to be_present
+      # The job mutex stays: it stops a second attempt at this same work, which
+      # is still correct while the unit is parked.
+      expect(job_lock.reload.released_at).to be_nil
+    end
+
+    it "keeps the landing slot for reasons that clear on their own" do
+      unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
+                                     scope_type: "job", scope_id: 123)
+      landing = unit.work_unit_locks.create!(lock_key: "landing:repository:7")
+
+      unit.block!(reason: "auto_retry_backoff")
+
+      # Releasing here would let a later landing cut ahead of work that is
+      # genuinely about to run.
+      expect(landing.reload.released_at).to be_nil
+    end
+  end
+
   describe "blocked_at" do
     # `blocked since` used to be read off updated_at, which every re-check
     # bumped: main-branch health re-polls every five minutes, so a block in

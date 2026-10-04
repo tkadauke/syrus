@@ -240,6 +240,7 @@ module WorkEngine
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
+      issues.concat(classify_externally_blocked_landing_slot)
       issues.concat(classify_stale_active_merge_trains_without_runtime)
       issues.concat(classify_succeeded_merge_trains_with_failed_members)
       issues.concat(classify_releasable_epic_blocked_jobs)
@@ -1902,6 +1903,47 @@ module WorkEngine
       end
     end
 
+    # A unit blocked on a reason only an operator can clear (no capable worker
+    # in the fleet) is not about to run, so holding the repository landing slot
+    # starves every other approved Job in that repository -- indefinitely, and
+    # with nothing recorded as failed. WorkUnit#block! surrenders the slot going
+    # forward; this repairs units that were already parked on it.
+    def classify_externally_blocked_landing_slot
+      repository_ids = jobs.map(&:repository_id).compact.uniq
+      return [] if repository_ids.empty?
+
+      WorkUnit
+        .joins(:work_unit_locks)
+        .where(state: "blocked", blocked_reason: WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS)
+        .where(work_unit_locks: { released_at: nil })
+        .where("work_unit_locks.lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")
+        .where(repository_id: repository_ids)
+        .distinct
+        .filter_map do |unit|
+          lock_keys = unit.work_unit_locks.active
+                          .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")
+                          .pluck(:lock_key)
+          next if lock_keys.empty?
+
+          issue(
+            kind: :externally_blocked_landing_slot,
+            severity: :critical,
+            affected_ids: { work_unit_ids: [ unit.id ], workflow_ids: [ unit.workflow_id ].compact },
+            safe_to_auto_repair: true,
+            recommended_repair_action: "release_externally_blocked_landing_slot",
+            evidence: {
+              work_unit_id: unit.id,
+              work_unit_kind: unit.kind,
+              blocked_reason: unit.blocked_reason,
+              blocked_since: unit.blocked_at,
+              lock_keys: lock_keys
+            },
+            explanation: "WorkUnit ##{unit.id} is blocked on #{unit.blocked_reason}, which clears only by operator action, " \
+                         "yet it still holds #{lock_keys.join(', ')} and is blocking every other landing in the repository."
+          )
+        end
+    end
+
     def classify_succeeded_merge_trains_with_failed_members
       job_ids = jobs.map(&:id)
       return [] if job_ids.empty?
@@ -3385,11 +3427,21 @@ module WorkEngine
 
       work_units.select do |unit|
         unit.active? &&
+          !externally_blocked?(unit) &&
           WorkDefinitions.landing_work_unit_kinds.include?(unit.kind) &&
           unit.work_unit_members.any? { |member| member.job_id == job.id } &&
           unit.workflow&.landing_workflow? &&
           Workflow::TriggerKind::ACTIVE_STATES.include?(unit.workflow.state)
       end
+    end
+
+    # A unit parked on a condition only an operator can clear is not landing
+    # this Job -- it is waiting for a worker that does not exist. Counting it
+    # as active landing work marks the Job `landing`, and a Job in `landing`
+    # is itself a landing-in-progress signal to the bundler, so the starvation
+    # survives releasing the landing lock.
+    def externally_blocked?(unit)
+      unit.blocked? && WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(unit.blocked_reason.to_s)
     end
 
     def active_runtime_work_for_job?(job)

@@ -1,0 +1,88 @@
+# An auto_merge whose step needs a worker capability nothing in the fleet
+# provides -- a macOS/Xcode merge queue with no macOS worker running -- is
+# start-blocked on `no_capable_worker`. That condition cannot clear by waiting:
+# it clears only when an operator brings such a worker online.
+#
+# auto_merge is a LANDING_LOCK_KINDS definition, so the unit holds
+# `landing:repository:<id>`, and `blocked` is one of
+# WorkUnits::Ownership::ACTIVE_STATES. Both JobBundleDispatcher and
+# MergeTrainDispatcher ask `active_unit_for_lock_key("landing:repository:<id>")`
+# whether a landing is already in progress, so a unit that can never progress
+# reported itself as the landing in progress and every other approved Job in
+# the repository stopped landing -- indefinitely, with nothing recorded as
+# failed.
+#
+# Same shape as blocked_ci_repair_does_not_block_job_bundle, one level down:
+# there the blocked unit gated the bundler through member ownership, here it
+# gates every landing path by squatting on the landing slot itself.
+name: blocked no-capable-worker unit does not hold the landing slot
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: blocked-no-capable-worker-does-not-hold-landing-slot
+  auto_merge_enabled: true
+jobs:
+  stalled:
+    title: Landing that needs a macOS worker the fleet does not have
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-stalled
+    pr_number: 6601
+    approved_at: "2026-10-03 16:10:00"
+    workflow:
+      kind: auto_merge
+      state: queued
+      work_unit:
+        state: blocked
+        blocked_reason: no_capable_worker
+        from_definition: true
+        blocked_details:
+          reason: no_live_worker_for_capabilities
+          step_kind: mergeability_preflight
+          queue_name: merges-macos-arm64
+          requirements:
+            os:
+              - macos
+            toolchains:
+              - xcode
+      steps:
+        - kind: mergeability_preflight
+          state: queued
+  # Two more approved members so a bundle genuinely assembles; with only one
+  # other member no bundle forms and it would land solo, hiding the bug.
+  alpha:
+    title: First approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6602
+    approved_at: "2026-10-03 16:12:00"
+  beta:
+    title: Second approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6603
+    approved_at: "2026-10-03 16:13:00"
+outcomes:
+  default: success
+expect:
+  jobs:
+    # stalled keeps its unsatisfiable auto_merge and stays approved -- bringing
+    # a macOS worker online is an operator action, not something the engine can
+    # resolve. What matters is that it no longer holds everyone else back.
+    stalled:
+      - approved
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    # Not `landing: empty`: that asserts Job.landing_queue (approved + landing)
+    # is empty, and `stalled` stays approved on purpose.
+    active_runs: empty
+  events:
+    - merge_train_land

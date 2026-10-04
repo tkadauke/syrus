@@ -229,6 +229,45 @@ it only via `TestCase.wip_repair_failures` when it's the workflow's own
 in-loop self-repair). `record_isolated_repro` is for a single, deliberately
 targeted example run outside the normal grading loop.
 
+## The landing slot and blocks that cannot clear
+
+Every landing path -- `JobBundleDispatcher`, `MergeTrainDispatcher`,
+`auto_merge` -- asks whether a unit already holds
+`landing:repository:<id>` before starting. That lock is the repository-wide
+landing mutex, and `blocked` counts as an active ownership state, so a blocked
+unit still reads as "a landing is in progress".
+
+That is correct for blocks that clear on their own (retry backoff, lock
+contention, a dependency finishing): those units really are about to run, and
+releasing the slot would let a later landing cut ahead of them.
+
+It is wrong for a block that clears only when an operator changes something.
+`WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS` lists those -- currently
+`no_capable_worker`, raised when a step's required capabilities match no live
+worker in the fleet. A unit parked on one of those is waiting for a machine
+that does not exist, so it:
+
+- surrenders the landing slot in `WorkUnit#block!` (its job- and epic-scoped
+  locks stay held, because those stop a second attempt at the *same* work),
+  and
+- does not count as active landing work, so the Job is not marked `landing` --
+  a Job in `landing` is itself a landing-in-progress signal, so leaving it
+  there would keep the queue stalled even after the lock was released.
+
+For units that were already parked before this behavior existed, the
+reconciler raises `externally_blocked_landing_slot` and the
+`release_externally_blocked_landing_slot` repair frees the slot and wakes the
+landing queue.
+
+When the capability does arrive, the unit re-acquires the slot through
+`ensure_active_locks!` on its next start; if another landing holds it by then
+it waits its turn, which is ordinary contention rather than starvation.
+
+Operationally: a repository whose landing queue is stalled with nothing marked
+failed is worth checking against this. A blocked unit holding the landing slot
+shows up in `/admin/work_units`, and the held lock is visible as a
+`work_unit_locks` row with `released_at` null.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part

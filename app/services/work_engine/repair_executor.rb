@@ -1653,6 +1653,31 @@ module WorkEngine
         end
       end
 
+      class ReleaseExternallyBlockedLandingSlot < Base
+        def perform
+          unit_id = plan.preconditions["work_unit_id"]
+          return skipped("WorkUnit id missing") if unit_id.blank?
+
+          unit = WorkUnit.find_by(id: unit_id)
+          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
+          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not blocked") unless unit.blocked?
+
+          unless WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(unit.blocked_reason.to_s)
+            return skipped("WorkUnit ##{unit.id} is blocked on #{unit.blocked_reason}, which can clear on its own")
+          end
+
+          released = unit.work_unit_locks.active
+                         .where("lock_key LIKE ?", "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}%")
+                         .pluck(:lock_key)
+          return skipped("WorkUnit ##{unit.id} holds no landing slot") if released.empty?
+
+          unit.release_landing_locks!
+
+          LandingQueueProcessorJob.perform_later
+          success("released #{released.join(', ')} held by blocked WorkUnit ##{unit.id} and woke the landing queue")
+        end
+      end
+
       class FailStaleActiveMergeTrain < Base
         def perform
           train_id = plan.preconditions["merge_train_id"]

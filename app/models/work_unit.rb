@@ -32,6 +32,26 @@ class WorkUnit < ApplicationRecord
     preempted
   ].freeze
 
+  # Reasons that cannot clear by waiting: they clear only when an operator
+  # changes the fleet or the configuration. A unit parked on one of these is
+  # not "about to run", so it must not keep holding the landing slot — that
+  # slot is the repository-wide mutex every landing path checks, and squatting
+  # it starves every other approved Job in the repository indefinitely while
+  # nothing is recorded as failed.
+  #
+  # Deliberately an allowlist. Reasons that resolve on their own (backoff,
+  # lock contention, dependencies finishing) keep their locks, because they
+  # genuinely are about to run and releasing would let a later landing cut
+  # ahead of them.
+  EXTERNALLY_CLEARED_BLOCKED_REASONS = %w[
+    no_capable_worker
+  ].freeze
+
+  # Only the repository-wide landing slot is surrendered. Job- and epic-scoped
+  # locks stay held: they exist to stop a second attempt at the *same* work,
+  # which is still correct while this unit is parked.
+  LANDING_LOCK_KEY_PREFIX = "landing:".freeze
+
   # Genuine pause reasons — a human paused the Job (manual_pause), or the
   # agent provider is unavailable/over quota (provider_availability). This
   # is a deliberate allowlist, not `BLOCKED_REASONS - DEPENDENCY_BLOCKED_REASONS`:
@@ -104,6 +124,7 @@ class WorkUnit < ApplicationRecord
         blocked_details: details || {},
         blocked_by_user: user
       )
+      release_landing_locks! if EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(reason.to_s)
     end
   end
 
@@ -195,6 +216,18 @@ class WorkUnit < ApplicationRecord
 
   def clear_pause!
     update!(pause_requested: false)
+  end
+
+  # Surrenders the repository landing slot so other landings can proceed while
+  # this unit waits on capacity that does not exist yet. `ensure_active_locks!`
+  # re-acquires it when the unit next starts running; if another landing holds
+  # it by then, this unit waits its turn, which is contention rather than
+  # starvation.
+  def release_landing_locks!
+    work_unit_locks
+      .active
+      .where("lock_key LIKE ?", "#{LANDING_LOCK_KEY_PREFIX}%")
+      .find_each(&:release!)
   end
 
   private

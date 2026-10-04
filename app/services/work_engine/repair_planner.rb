@@ -1053,6 +1053,22 @@ module WorkEngine
         end
       end
 
+      class ExternallyBlockedLandingSlot < Base
+        def plan
+          automatic_plan(
+            "release_externally_blocked_landing_slot",
+            primary_job,
+            "The unit holding the landing slot is blocked on a condition only an operator can clear, so releasing the slot lets other approved Jobs land while it waits.",
+            execution_steps: [ "WorkEngine::RepairExecutor::ReleaseExternallyBlockedLandingSlot" ],
+            preconditions: {
+              work_unit_id: issue.evidence["work_unit_id"] || issue.evidence[:work_unit_id],
+              blocked_reason: issue.evidence["blocked_reason"] || issue.evidence[:blocked_reason],
+              lock_keys: issue.evidence["lock_keys"] || issue.evidence[:lock_keys]
+            }
+          )
+        end
+      end
+
       class StaleActiveMergeTrainWithoutRuntime < Base
         def plan
           automatic_plan(
