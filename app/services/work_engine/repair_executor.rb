@@ -1672,9 +1672,41 @@ module WorkEngine
           return skipped("WorkUnit ##{unit.id} holds no landing slot") if released.empty?
 
           unit.release_landing_locks!
+          deferred = defer_stranded_member_jobs!(unit)
 
           LandingQueueProcessorJob.perform_later
-          success("released #{released.join(', ')} held by blocked WorkUnit ##{unit.id} and woke the landing queue")
+          detail = deferred.any? ? ", returned #{deferred.join(', ')} to approved" : ""
+          success("released #{released.join(', ')} held by blocked WorkUnit ##{unit.id}#{detail} and woke the landing queue")
+        end
+
+        private
+
+        # Releasing the lock is not enough on its own. A Job left in `landing`
+        # is itself a landing-in-progress signal -- JobBundleDispatcher falls
+        # back to `Job.landing` when no unit holds the slot -- so a Job
+        # stranded there by this unit would re-block the bundler the moment the
+        # next real landing finished. `defer_landing` is the "put it back in
+        # the queue" transition, as opposed to `fail_landing`, which would
+        # demand operator re-approval for work that never actually failed.
+        def defer_stranded_member_jobs!(unit)
+          unit.member_jobs.select(&:landing?).filter_map do |job|
+            next unless stranded?(job, unit)
+            next unless job.may_defer_landing?
+
+            job.defer_landing!
+            job.slug
+          end
+        end
+
+        # Only when this unit is the whole story: another landing unit that is
+        # genuinely running still owns the Job.
+        def stranded?(job, unit)
+          WorkUnit
+            .joins(:work_unit_members)
+            .where(work_unit_members: { job_id: job.id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+            .where(kind: WorkDefinitions.landing_work_unit_kinds)
+            .where.not(id: unit.id)
+            .none?
         end
       end
 

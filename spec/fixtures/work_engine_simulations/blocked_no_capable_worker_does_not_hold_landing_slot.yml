@@ -26,8 +26,13 @@ repository:
   auto_merge_enabled: true
 jobs:
   stalled:
+    # Seeded `landing`, as production was: the Job had already been pushed
+    # there by the landing-work drift repair before the unit blocked. Releasing
+    # the lock alone leaves it stranded in `landing`, and a Job in `landing` is
+    # itself a landing-in-progress signal to the bundler, so it would re-block
+    # the queue as soon as the next real landing finished.
     title: Landing that needs a macOS worker the fleet does not have
-    state: approved
+    state: landing
     priority: medium
     branch_name: syrus/direct-stalled
     pr_number: 6601
@@ -71,9 +76,10 @@ outcomes:
   default: success
 expect:
   jobs:
-    # stalled keeps its unsatisfiable auto_merge and stays approved -- bringing
-    # a macOS worker online is an operator action, not something the engine can
-    # resolve. What matters is that it no longer holds everyone else back.
+    # stalled keeps its unsatisfiable auto_merge, but is returned to `approved`
+    # so it stops reading as a landing in progress. Bringing a macOS worker
+    # online is an operator action, not something the engine can resolve; what
+    # matters is that it no longer holds everyone else back.
     stalled:
       - approved
     alpha:
