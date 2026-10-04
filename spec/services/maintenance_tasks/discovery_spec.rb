@@ -151,7 +151,7 @@ RSpec.describe MaintenanceTasks::Discovery do
     task = MaintenanceTask.create!(
       definition_key: "stub_backfill",
       task_key: "detector:stub_backfill",
-      state: "pending",
+      state: "failed",
       recurrence: "one_off",
       category: "backfill",
       title: "Stub backfill",
@@ -159,12 +159,33 @@ RSpec.describe MaintenanceTasks::Discovery do
       trigger_kind: "detector",
       trigger_key: "stub_backfill",
       required_role: "admin",
-      total_units: 5
+      total_units: 5,
+      completed_units: 4,
+      failed_units: 1,
+      current_step_key: "repository",
+      current_step_title: "Backfill acme/widgets",
+      eta_seconds: 120,
+      started_at: 1.hour.ago,
+      paused_at: 30.minutes.ago,
+      last_error: "Runtime failure from an earlier batch",
+      checkpoint: { "processed_repository_ids" => [ 1 ], "unresolved_repositories" => [ { "id" => 1 } ] }
     )
     allow(definition).to receive(:pending?).and_return(false)
 
     described_class.call
 
-    expect(task.reload.state).to eq("not_needed")
+    expect(task.reload).to have_attributes(
+      state: "not_needed",
+      completed_units: 0,
+      failed_units: 0,
+      current_step_key: nil,
+      current_step_title: nil,
+      eta_seconds: nil,
+      started_at: nil,
+      paused_at: nil,
+      last_error: nil,
+      checkpoint: {}
+    )
+    expect(task.finished_at).to be_present
   end
 end

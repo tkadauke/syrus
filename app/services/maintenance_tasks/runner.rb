@@ -38,10 +38,16 @@ module MaintenanceTasks
         )
 
         if result.done
-          task.state = "succeeded"
           task.finished_at = Time.current
-          task.completed_units = task.total_units if task.total_units.positive?
           task.eta_seconds = 0
+
+          if failed.positive? && !result.non_blocking_failures
+            task.state = "failed"
+            task.last_error = result.message.presence || "Maintenance task completed with #{failed} failed item(s)."
+          else
+            task.state = "succeeded"
+            task.completed_units = task.total_units if task.total_units.positive?
+          end
         end
 
         task.save!

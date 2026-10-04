@@ -5,6 +5,7 @@ module MaintenanceTasks
       PROCESSED_REPOSITORY_IDS = "processed_repository_ids".freeze
       RETRY_UNRESOLVED_REPOSITORY_IDS = "retry_unresolved_repository_ids".freeze
       UNRESOLVED_REPOSITORIES = "unresolved_repositories".freeze
+      IRRECOVERABLE_REPOSITORIES = "irrecoverable_repositories".freeze
       MAX_FAILURE_DETAILS_PER_REPOSITORY = 25
       MAX_FAILURE_MESSAGE_LENGTH = 240
 
@@ -22,7 +23,7 @@ module MaintenanceTasks
       step "repository", "Backfill one repository", "Synchronizes the repository's bare clone and records missing LandedCommit rows for historical job and merge-train landings."
 
       def estimate_total_units
-        candidate_repository_scope.count
+        pending_repository_scope.count
       end
 
       def pending_reason
@@ -38,22 +39,36 @@ module MaintenanceTasks
 
         result = Jobs::LandedCommitsBackfill.new(repository: repository).call
         mark_repository_processed(task, repository)
-        if result.errors.to_i.positive?
+        retryable_errors = retryable_error_count(result)
+        irrecoverable_errors = irrecoverable_error_count(result)
+
+        if retryable_errors.positive?
           unresolved_entry = mark_repository_unresolved(task, repository, result)
         else
           clear_repository_unresolved(task, repository)
         end
+        irrecoverable_entry = if irrecoverable_errors.positive?
+          mark_repository_irrecoverable(task, repository, result)
+        else
+          clear_repository_irrecoverable(task, repository)
+          nil
+        end
 
         message = "Checked #{result.checked} landing(s) in #{repository.slug}; recorded #{result.commits_recorded} commit(s)."
-        message += " #{result.errors} item(s) could not be backfilled; this task will fail after the current pass unless they are resolved." if result.errors.to_i.positive?
+        message += " #{retryable_errors} item(s) could not be backfilled; this task will fail after the current pass unless they are resolved." if retryable_errors.positive?
+        message += " #{irrecoverable_errors} historical item(s) were classified as irrecoverable and skipped." if irrecoverable_errors.positive?
+
+        metadata = {}
+        metadata[UNRESOLVED_REPOSITORIES] = [ unresolved_entry ] if unresolved_entry
+        metadata[IRRECOVERABLE_REPOSITORIES] = [ irrecoverable_entry ] if irrecoverable_entry
 
         Result.new(
           done: false,
           processed: 1,
-          failed: result.errors.to_i,
+          failed: retryable_errors,
           message: message,
           level: result.errors.to_i.positive? ? "warning" : "progress",
-          metadata: unresolved_entry ? { UNRESOLVED_REPOSITORIES => [ unresolved_entry ] } : {}
+          metadata: metadata
         )
       end
 
@@ -61,7 +76,7 @@ module MaintenanceTasks
 
       def next_repository(task)
         processed_ids = Array(task.checkpoint[PROCESSED_REPOSITORY_IDS]).map(&:to_i) - retry_unresolved_repository_ids(task)
-        candidate_repository_scope.where.not(id: processed_ids).order(:id).first
+        pending_repository_scope.where.not(id: processed_ids).order(:id).first
       end
 
       def mark_repository_processed(task, repository)
@@ -73,7 +88,7 @@ module MaintenanceTasks
       def mark_repository_unresolved(task, repository, result)
         task.checkpoint_will_change!
         unresolved = unresolved_repositories(task).reject { |entry| entry["id"].to_i == repository.id }
-        entry = unresolved_repository_entry(repository, result)
+        entry = repository_failure_entry(repository, result, retryable: true)
         unresolved << entry
         task.checkpoint[UNRESOLVED_REPOSITORIES] = unresolved
         entry
@@ -85,6 +100,23 @@ module MaintenanceTasks
 
         task.checkpoint_will_change!
         task.checkpoint[UNRESOLVED_REPOSITORIES] = unresolved.reject { |entry| entry["id"].to_i == repository.id }
+      end
+
+      def mark_repository_irrecoverable(task, repository, result)
+        task.checkpoint_will_change!
+        irrecoverable = irrecoverable_repositories(task).reject { |entry| entry["id"].to_i == repository.id }
+        entry = repository_failure_entry(repository, result, retryable: false)
+        irrecoverable << entry
+        task.checkpoint[IRRECOVERABLE_REPOSITORIES] = irrecoverable
+        entry
+      end
+
+      def clear_repository_irrecoverable(task, repository)
+        irrecoverable = irrecoverable_repositories(task)
+        return if irrecoverable.empty?
+
+        task.checkpoint_will_change!
+        task.checkpoint[IRRECOVERABLE_REPOSITORIES] = irrecoverable.reject { |entry| entry["id"].to_i == repository.id }
       end
 
       def complete_or_fail_unresolved!(task)
@@ -106,7 +138,15 @@ module MaintenanceTasks
       end
 
       def unresolved_repositories(task)
-        Array(task.checkpoint[UNRESOLVED_REPOSITORIES]).filter_map do |entry|
+        repository_failure_entries(task, UNRESOLVED_REPOSITORIES)
+      end
+
+      def irrecoverable_repositories(task)
+        repository_failure_entries(task, IRRECOVERABLE_REPOSITORIES)
+      end
+
+      def repository_failure_entries(task, key)
+        Array(task.checkpoint[key]).filter_map do |entry|
           next unless entry.respond_to?(:to_h)
 
           normalized = entry.to_h.stringify_keys.slice("id", "slug", "errors", "failure_details", "failure_details_omitted")
@@ -120,7 +160,7 @@ module MaintenanceTasks
         unresolved = unresolved_repositories(task)
         return [] if unresolved.empty?
 
-        pending_ids = candidate_repository_scope.where(id: unresolved.map { |entry| entry["id"].to_i }).pluck(:id).map(&:to_i)
+        pending_ids = pending_repository_scope.where(id: unresolved.map { |entry| entry["id"].to_i }).pluck(:id).map(&:to_i)
         pending = unresolved.select { |entry| pending_ids.include?(entry["id"].to_i) }
         if pending.size != unresolved.size
           task.checkpoint_will_change!
@@ -133,14 +173,16 @@ module MaintenanceTasks
         Array(task.checkpoint[RETRY_UNRESOLVED_REPOSITORY_IDS]).map(&:to_i)
       end
 
-      def unresolved_repository_entry(repository, result)
-        details = normalize_failure_details(result.failures)
+      def repository_failure_entry(repository, result, retryable:)
+        failures = Array(result.failures).select { |failure| failure_retryable?(failure) == retryable }
+        details = normalize_failure_details(failures)
+        error_count = failures.empty? && retryable ? result.errors.to_i : failures.size
         {
           "id" => repository.id,
           "slug" => repository.slug,
-          "errors" => result.errors.to_i,
+          "errors" => error_count,
           "failure_details" => details,
-          "failure_details_omitted" => [ result.errors.to_i - details.size, 0 ].max
+          "failure_details_omitted" => [ error_count - details.size, 0 ].max
         }
       end
 
@@ -161,6 +203,39 @@ module MaintenanceTasks
         Repository.where(id: regular_job_repository_ids).or(
           Repository.where(id: merge_train_repository_ids)
         )
+      end
+
+      def pending_repository_scope
+        ids = irrecoverable_repository_ids
+        return candidate_repository_scope if ids.empty?
+
+        candidate_repository_scope.where.not(id: ids)
+      end
+
+      def irrecoverable_repository_ids
+        task = MaintenanceTask.where(definition_key: key, recurrence: "one_off").order(created_at: :desc, id: :desc).first
+        return [] unless task
+
+        irrecoverable_repositories(task).map { |entry| entry["id"].to_i }.uniq
+      end
+
+      def retryable_error_count(result)
+        return result.retryable_errors if result.respond_to?(:retryable_errors)
+
+        Array(result.failures).count { |failure| failure_retryable?(failure) }
+      end
+
+      def irrecoverable_error_count(result)
+        return result.irrecoverable_errors if result.respond_to?(:irrecoverable_errors)
+
+        Array(result.failures).count { |failure| !failure_retryable?(failure) }
+      end
+
+      def failure_retryable?(failure)
+        attrs = failure.respond_to?(:to_h) ? failure.to_h : failure
+        return true unless attrs.respond_to?(:to_h)
+
+        attrs.to_h.stringify_keys.fetch("retryable", true)
       end
 
       def regular_job_repository_ids

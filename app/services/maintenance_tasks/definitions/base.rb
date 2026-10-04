@@ -2,10 +2,11 @@ module MaintenanceTasks
   module Definitions
     class Base
       Step = Data.define(:key, :title, :description)
-      Result = Struct.new(:done, :processed, :failed, :message, :level, :metadata, keyword_init: true) do
+      Result = Struct.new(:done, :processed, :failed, :message, :level, :metadata, :non_blocking_failures, keyword_init: true) do
         def initialize(**)
           super
           self.metadata ||= {}
+          self.non_blocking_failures ||= false
         end
       end
 
