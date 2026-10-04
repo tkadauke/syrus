@@ -686,6 +686,24 @@ direct Job proposal card — it can be combined with `epic_id` to target an
 existing Epic, and both `ChatProposalFiler` and `ChatEpicProposalMaterializer`
 propagate it onto the created Job either way.
 
+Chat is not the only way in. An issue labelled `Workflows::INVESTIGATION_LABEL`
+(`syrus-investigation`) is filed as an investigation at ingest, so an
+investigation can be requested from GitHub without going through a chat
+proposal. The label is read once, when the issue becomes a Job: adding it later
+does not convert an existing Job, because the chain is chosen when the first
+workflow is instantiated.
+
+Two related notions are deliberately separate:
+
+- `Job::Kind` `investigable` says a kind may carry `investigation: true` at
+  all. `direct` and `issue` are investigable; so is the operator-briefing
+  plugin's `briefing_generate`.
+- `Job#investigation_launch?` says the investigation *chain* should be
+  dispatched, and additionally requires the kind to be operator-facing. An
+  infrastructure kind such as `briefing_generate` carries the flag
+  descriptively while owning its own workflow, and launching the investigation
+  chain for it would replace that workflow.
+
 `propose_job` accepts an optional `provider` override, and
 `propose_epic_with_jobs` accepts an optional `provider` per child Job
 (`jobs[].provider`), to pin the implementing provider for the filed Job

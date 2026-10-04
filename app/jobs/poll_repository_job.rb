@@ -405,6 +405,7 @@ class PollRepositoryJob < ApplicationJob
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue),
       delivery_track: delivery_track_label_value(issue),
+      investigation: investigation_label_present?(issue),
       linked_open_pr_checked_at: looked_up_linked_pr ? Time.current : nil
     )
     classify_if_available(job)
@@ -476,6 +477,7 @@ class PollRepositoryJob < ApplicationJob
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue),
       delivery_track: delivery_track_label_value(issue),
+      investigation: investigation_label_present?(issue),
       epic: epic,
       state: initial_state_for_issue(issue),
       triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
@@ -521,6 +523,14 @@ class PollRepositoryJob < ApplicationJob
 
   def delivery_track_label_value(issue)
     Workflows.track_label_value(issue.labels)
+  end
+
+  # Read once at ingest. Adding the label to an already-ingested issue does
+  # not retro-convert the Job: its chain is chosen when the first workflow is
+  # instantiated, so flipping it later would leave the Job claiming to be an
+  # investigation while running the implementation chain.
+  def investigation_label_present?(issue)
+    label_names(issue).include?(Workflows::INVESTIGATION_LABEL)
   end
 
   def label_names(issue)

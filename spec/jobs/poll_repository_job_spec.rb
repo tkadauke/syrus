@@ -56,6 +56,41 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement visual_review coverage_analyze dependency_audit summarize test_plan pr_open ])
     end
 
+    # Filing an investigation used to be possible only by confirming a chat
+    # proposal, which created a `direct` Job. An issue labelled for
+    # investigation produced an ordinary implementation Job that was expected
+    # to open a PR.
+    it "files an issue carrying the investigation label as an investigation Job" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", Workflows::INVESTIGATION_LABEL ]) ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job).to be_investigation
+      expect(job.kind).to eq("issue")
+
+      job.advance_after_triage!
+      workflow = job.workflows.first
+      expect(workflow.trigger_kind).to eq("investigation")
+      # investigate -> submit_report, and notably no pr_open: an investigation
+      # produces a report, not a pull request.
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare investigate submit_report ])
+    end
+
+    it "files an ordinary implementation Job when the investigation label is absent" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus" ]) ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job).not_to be_investigation
+
+      job.advance_after_triage!
+      expect(job.workflows.first.trigger_kind).to eq("initial")
+    end
+
     it "sets delivery_track from a syrus-track-<name> label on a new issue" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus", "syrus-track-hotfix" ]) ])

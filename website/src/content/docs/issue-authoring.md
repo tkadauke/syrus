@@ -81,6 +81,18 @@ known to be harmful for that issue.
 repository has no matching track configured, Syrus falls back to the default
 delivery policy when resolving branches and graders.
 
+`syrus-investigation` files the issue as an investigation instead of an
+implementation. The agent explores the repository and writes up what it found;
+it is not expected to change any code, and no pull request is opened. A blank
+diff is a perfectly successful outcome. Use it for "go look into this and tell
+me what you find" work — an audit, a QA walkthrough, or a question about how
+something behaves.
+
+The Job finishes in **Implemented** with a report to read, and you close it
+from the Job page once you have. Add the label when you file the issue: it is
+read at ingest, so adding it to an issue Syrus has already picked up does not
+convert the existing Job.
+
 ## Epic Markers
 
 Syrus reads Epic markers from standalone lines in the issue body:

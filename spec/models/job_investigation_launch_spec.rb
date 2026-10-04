@@ -15,16 +15,26 @@ RSpec.describe Job do
       expect(job.investigation_launch?).to eq(false)
     end
 
-    it "is false for a non-direct Job even if investigation is somehow set" do
+    it "is true for an issue Job filed as an investigation" do
+      job = Job.new(kind: "issue", investigation: true)
+      expect(job.investigation_launch?).to eq(true)
+    end
+
+    it "is false for an issue Job without the investigation flag" do
       job = Job.new(kind: "issue")
-      job.investigation = false
       expect(job.investigation_launch?).to eq(false)
     end
   end
 
   describe "validations" do
-    it "rejects investigation on an issue Job" do
+    it "allows investigation on an issue Job, so a labelled issue can be filed as one" do
       job = Job.new(user: user, repository: repository, kind: "issue", issue_number: 1, investigation: true)
+      job.valid?
+      expect(job.errors[:investigation]).to be_empty
+    end
+
+    it "rejects investigation on a kind that is not investigable" do
+      job = Job.new(user: user, repository: repository, kind: "main_grader", investigation: true)
       expect(job).not_to be_valid
       expect(job.errors[:investigation]).to include("requires an investigable Job kind")
     end

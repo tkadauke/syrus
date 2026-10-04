@@ -18,7 +18,11 @@ class Job
     end
 
     BUILT_IN_ENTRIES = [
-      Entry.new(kind: "issue"),
+      # `issue` is investigable so a GitHub issue carrying
+      # Workflows::INVESTIGATION_LABEL can be filed as an investigation. The
+      # investigation chain expects no PR, which is orthogonal to where the
+      # Job came from.
+      Entry.new(kind: "issue",       investigable: true),
       Entry.new(kind: "cron",        issueless: true),
       Entry.new(kind: "direct",      issueless: true, investigable: true),
       Entry.new(kind: "main_grader", issueless: true, infrastructure: true),

@@ -451,14 +451,24 @@ class Job < ApplicationRecord
     { "skill_name" => skill_name, "skill_args" => skill_args.presence || {} }
   end
 
-  # A direct Job marked investigation-only at creation time (see
-  # InvestigationJobs::Creator): no PR is expected. Drives
-  # Workflows::Investigation (prepare -> investigate -> submit_report)
-  # instead of Workflows::Initial in #create_initial_run, so a
-  # blank diff never dead-ends the Job in the generic no_changes closure
-  # with no narrative captured.
+  # A Job marked investigation-only at creation time: no PR is expected.
+  # Drives Workflows::Investigation (prepare -> investigate -> submit_report)
+  # instead of Workflows::Initial in #create_initial_run, so a blank diff
+  # never dead-ends the Job in the generic no_changes closure with no
+  # narrative captured.
+  #
+  # Set either by InvestigationJobs::Creator (a `direct` Job from a confirmed
+  # chat proposal) or by issue ingest when the issue carries
+  # Workflows::INVESTIGATION_LABEL.
+  #
+  # Investigable and investigation-launching are not the same thing. An
+  # infrastructure kind may carry `investigation: true` as a descriptive flag
+  # while owning its own workflow entirely -- the operator-briefing plugin's
+  # `briefing_generate` does exactly that -- so launching the investigation
+  # chain for it would replace the workflow it defines. Only operator-facing
+  # kinds, which rely on this generic chain selection, launch it.
   def investigation_launch?
-    direct? && investigation?
+    investigation? && Job::Kind.user_facing_values.include?(kind.to_s)
   end
 
   def infrastructure?
