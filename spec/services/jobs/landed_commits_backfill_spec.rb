@@ -226,7 +226,7 @@ RSpec.describe Jobs::LandedCommitsBackfill do
         [ "before", "Unrelated earlier commit" ],
         [ "shaA1", "Subject A1" ],
         [ "shaB1", "Subject B1" ]
-      ], count: 3)
+      ], count: 502)
       client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
       client_b = github_client([ commit_double(sha: "origB1", message: "Subject B1") ])
 
@@ -251,7 +251,7 @@ RSpec.describe Jobs::LandedCommitsBackfill do
       stub_first_parent_entries([
         [ "shaA1", "Subject A1" ],
         [ "mergesha", "Syrus merge-train reconciliation" ]
-      ], count: 2)
+      ], count: 501)
       client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
 
       result = service_for(clients_by_pr: { 601 => client_a }).call
@@ -265,6 +265,69 @@ RSpec.describe Jobs::LandedCommitsBackfill do
       reconcile_row = LandedCommit.find_by(landable: epic, kind: "reconcile")
       expect(reconcile_row.sha).to eq("mergesha")
       expect(LandedCommit.where(landable: epic, kind: "integration_merge")).to be_empty
+    end
+
+    it "recovers a one-parent historical train when member subjects are outside the tiny tail" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      job_b = landed_job(pr_number: 602, landed_sha: "mergesha", issue_number: 2)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: job_b, position: 1)
+
+      stub_one_parent
+      stub_first_parent_entries([
+        [ "shaA1", "Subject A1" ],
+        [ "shaB1", "Subject B1" ],
+        [ "historical-extra-1", "Historical landing repair" ],
+        [ "historical-extra-2", "Historical queue reconcile" ],
+        [ "mergesha", "Syrus merge-train reconciliation" ]
+      ], count: 502)
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+      client_b = github_client([ commit_double(sha: "origB1", message: "Subject B1") ])
+
+      result = service_for(clients_by_pr: { 601 => client_a, 602 => client_b }).call
+
+      expect(result.checked).to eq(1)
+      expect(result.recorded).to eq(1)
+      expect(result.errors).to eq(0)
+      expect(result.commits_recorded).to eq(3)
+      expect(LandedCommit.where(landable: job_a).pluck(:sha)).to eq([ "shaA1" ])
+      expect(LandedCommit.where(landable: job_b).pluck(:sha)).to eq([ "shaB1" ])
+      expect(LandedCommit.where(landable: epic, kind: "reconcile").pluck(:sha)).to eq([ "mergesha" ])
+      expect(LandedCommit.where(sha: %w[historical-extra-1 historical-extra-2])).to be_empty
+    end
+
+    it "classifies an unmatched one-parent historical train as irrecoverable without writing rows" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+
+      stub_one_parent
+      stub_first_parent_entries([
+        [ "other1", "Unrelated one" ],
+        [ "other2", "Unrelated two" ]
+      ], count: 501)
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+
+      result = service_for(clients_by_pr: { 601 => client_a }).call
+
+      expect(result.recorded).to eq(0)
+      expect(result.errors).to eq(1)
+      expect(result.retryable_errors).to eq(0)
+      expect(result.irrecoverable_errors).to eq(1)
+      expect(result.failures.map(&:to_h)).to contain_exactly(
+        hash_including(
+          "repository_slug" => repository.slug,
+          "landable_type" => "MergeTrain",
+          "landable_id" => train.id,
+          "exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError",
+          "message" => include("within 2 inspected commit(s)"),
+          "retryable" => false
+        )
+      )
+      expect(LandedCommit.count).to eq(0)
     end
 
     it "is idempotent: a second run skips a train that already has LandedCommit rows" do

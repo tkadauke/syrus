@@ -35,6 +35,43 @@ RSpec.describe MaintenanceTasks::Runner do
     end
   end
 
+  class SpecDoneWithFailureMaintenanceDefinition < MaintenanceTasks::Definitions::Base
+    key "spec_done_with_failure"
+    title "Spec done with failure"
+    summary "Exercises terminal failure accounting."
+    category "cleanup"
+    recurrence "one_off"
+    required_role "admin"
+
+    def estimate_total_units = 1
+
+    def perform_batch(_task)
+      Result.new(done: true, processed: 1, failed: 1, message: "One item still failed.", level: "warning")
+    end
+  end
+
+  class SpecDoneWithNonBlockingFailureMaintenanceDefinition < MaintenanceTasks::Definitions::Base
+    key "spec_done_with_non_blocking_failure"
+    title "Spec done with non-blocking failure"
+    summary "Exercises non-blocking terminal failure accounting."
+    category "cleanup"
+    recurrence "one_off"
+    required_role "admin"
+
+    def estimate_total_units = 1
+
+    def perform_batch(_task)
+      Result.new(
+        done: true,
+        processed: 1,
+        failed: 1,
+        message: "One item was skipped.",
+        level: "warning",
+        non_blocking_failures: true
+      )
+    end
+  end
+
   it "persists step progress when the definition mutates the task before locking" do
     task = MaintenanceTask.create!(
       definition_key: "spec_dirty_step",
@@ -97,6 +134,64 @@ RSpec.describe MaintenanceTasks::Runner do
       state: "running",
       completed_units: 61,
       total_units: 64
+    )
+  end
+
+  it "does not mark a done batch with blocking failures as succeeded" do
+    task = MaintenanceTask.create!(
+      definition_key: "spec_done_with_failure",
+      task_key: "spec:done-with-failure",
+      state: "running",
+      recurrence: "one_off",
+      category: "cleanup",
+      title: "Spec done with failure",
+      summary: "Exercises terminal failure accounting.",
+      trigger_kind: "spec",
+      trigger_key: "done-with-failure",
+      required_role: "admin",
+      total_units: 1
+    )
+
+    allow(MaintenanceTasks::Registry).to receive(:fetch)
+      .with("spec_done_with_failure")
+      .and_return(SpecDoneWithFailureMaintenanceDefinition.new)
+
+    described_class.new(task).call
+
+    expect(task.reload).to have_attributes(
+      state: "failed",
+      completed_units: 1,
+      failed_units: 1,
+      last_error: "One item still failed."
+    )
+  end
+
+  it "allows a done batch to succeed when failures are explicitly non-blocking" do
+    task = MaintenanceTask.create!(
+      definition_key: "spec_done_with_non_blocking_failure",
+      task_key: "spec:done-with-non-blocking-failure",
+      state: "running",
+      recurrence: "one_off",
+      category: "cleanup",
+      title: "Spec done with non-blocking failure",
+      summary: "Exercises non-blocking terminal failure accounting.",
+      trigger_kind: "spec",
+      trigger_key: "done-with-non-blocking-failure",
+      required_role: "admin",
+      total_units: 1
+    )
+
+    allow(MaintenanceTasks::Registry).to receive(:fetch)
+      .with("spec_done_with_non_blocking_failure")
+      .and_return(SpecDoneWithNonBlockingFailureMaintenanceDefinition.new)
+
+    described_class.new(task).call
+
+    expect(task.reload).to have_attributes(
+      state: "succeeded",
+      completed_units: 1,
+      failed_units: 1,
+      last_error: nil
     )
   end
 

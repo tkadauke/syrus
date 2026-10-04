@@ -37,7 +37,8 @@ module MaintenanceTasks
           processed: result.checked.to_i,
           failed: result.errors.to_i,
           message: message,
-          level: result.errors.to_i.positive? ? "warning" : "info"
+          level: result.errors.to_i.positive? ? "warning" : "info",
+          non_blocking_failures: true
         )
       end
 
