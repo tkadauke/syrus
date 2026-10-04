@@ -241,6 +241,7 @@ module WorkEngine
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
       issues.concat(classify_externally_blocked_landing_slot)
+      issues.concat(classify_stranded_landing_job)
       issues.concat(classify_stale_active_merge_trains_without_runtime)
       issues.concat(classify_succeeded_merge_trains_with_failed_members)
       issues.concat(classify_releasable_epic_blocked_jobs)
@@ -1942,6 +1943,42 @@ module WorkEngine
                          "yet it still holds #{lock_keys.join(', ')} and is blocking every other landing in the repository."
           )
         end
+    end
+
+    # The companion to classify_externally_blocked_landing_slot, and
+    # deliberately independent of it. Releasing the lock and freeing the Job
+    # are two different conditions: once the lock has been released the Job can
+    # still be sitting in `landing`, and JobBundleDispatcher falls back to
+    # `Job.landing` when no unit holds the slot, so the Job alone keeps the
+    # queue blocked. Keying this off the lock would mean it could never fire
+    # for exactly that state.
+    def classify_stranded_landing_job
+      jobs.filter_map do |job|
+        next unless job.landing?
+
+        units = work_units.select do |unit|
+          unit.active? &&
+            WorkDefinitions.landing_work_unit_kinds.include?(unit.kind) &&
+            unit.work_unit_members.any? { |member| member.job_id == job.id }
+        end
+        next if units.empty?
+        next unless units.all? { |unit| externally_blocked?(unit) }
+
+        issue(
+          kind: :stranded_landing_job,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(work_unit_ids: units.map(&:id)),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "defer_stranded_landing_job",
+          evidence: {
+            job_state: job.state,
+            work_unit_ids: units.map(&:id),
+            blocked_reasons: units.map(&:blocked_reason).uniq
+          },
+          explanation: "#{job_label(job)} is marked landing, but every landing unit on it is blocked on a condition " \
+                       "only an operator can clear, so it reads as a landing in progress and blocks the repository's queue."
+        )
+      end
     end
 
     def classify_succeeded_merge_trains_with_failed_members

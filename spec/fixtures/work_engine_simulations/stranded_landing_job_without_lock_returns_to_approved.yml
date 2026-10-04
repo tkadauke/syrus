@@ -1,0 +1,76 @@
+# The residual half of blocked_no_capable_worker_does_not_hold_landing_slot.
+#
+# Once the landing lock has been released -- by WorkUnit#block!, or by the
+# release_externally_blocked_landing_slot repair -- the Job can still be
+# sitting in `landing`. JobBundleDispatcher falls back to `Job.landing` when no
+# unit holds the slot, so the Job on its own keeps reporting a landing in
+# progress and the repository's queue stays blocked.
+#
+# This is the state production was left in after the lock release shipped: the
+# slot was free, nothing held it, and one Job stranded in `landing` behind a
+# unit blocked on `no_capable_worker` still stopped every other approved Job
+# from landing. A detector keyed on the held lock cannot fire here, which is
+# exactly why `stranded_landing_job` is independent of it.
+name: stranded landing job without a held lock returns to approved
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: stranded-landing-job-without-lock-returns-to-approved
+  auto_merge_enabled: true
+jobs:
+  stranded:
+    title: Job left in landing after its slot was already released
+    state: landing
+    priority: medium
+    branch_name: syrus/direct-stranded
+    pr_number: 6701
+    approved_at: "2026-10-04 16:10:00"
+    workflow:
+      kind: auto_merge
+      state: queued
+      work_unit:
+        state: blocked
+        blocked_reason: no_capable_worker
+        # Deliberately NOT from_definition: this unit holds no landing lock,
+        # which is the whole point of the scenario.
+        blocked_details:
+          reason: no_live_worker_for_capabilities
+          step_kind: mergeability_preflight
+          queue_name: merges-macos-arm64
+      steps:
+        - kind: mergeability_preflight
+          state: queued
+  alpha:
+    title: First approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6702
+    approved_at: "2026-10-04 16:12:00"
+  beta:
+    title: Second approved bundle member
+    state: approved
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6703
+    approved_at: "2026-10-04 16:13:00"
+outcomes:
+  default: success
+expect:
+  jobs:
+    # Returned to approved so it stops reading as a landing in progress. It
+    # keeps its unsatisfiable auto_merge -- bringing a capable worker online is
+    # an operator action.
+    stranded:
+      - approved
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+  events:
+    - merge_train_land

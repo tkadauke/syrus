@@ -1710,6 +1710,31 @@ module WorkEngine
         end
       end
 
+      class DeferStrandedLandingJob < Base
+        def perform
+          job = target_job
+          return skipped("Job missing") unless job
+          return skipped("#{job.slug} is #{job.state}, not landing") unless job.landing?
+
+          units = WorkUnit
+            .joins(:work_unit_members)
+            .where(work_unit_members: { job_id: job.id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+            .where(kind: WorkDefinitions.landing_work_unit_kinds)
+            .distinct
+          return skipped("#{job.slug} has no active landing work") if units.empty?
+
+          unless units.all? { |unit| WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(unit.blocked_reason.to_s) }
+            return skipped("#{job.slug} still has landing work that can make progress")
+          end
+
+          return skipped("#{job.slug} cannot defer landing") unless job.may_defer_landing?
+
+          job.defer_landing!
+          LandingQueueProcessorJob.perform_later
+          success("returned #{job.slug} to approved and woke the landing queue")
+        end
+      end
+
       class FailStaleActiveMergeTrain < Base
         def perform
           train_id = plan.preconditions["merge_train_id"]

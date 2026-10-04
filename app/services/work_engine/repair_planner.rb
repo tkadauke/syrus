@@ -1069,6 +1069,21 @@ module WorkEngine
         end
       end
 
+      class StrandedLandingJob < Base
+        def plan
+          automatic_plan(
+            "defer_stranded_landing_job",
+            primary_job,
+            "Every landing unit on this Job is blocked on a condition only an operator can clear, so returning it to approved stops it reading as a landing in progress.",
+            execution_steps: [ "Job#defer_landing!" ],
+            preconditions: {
+              job_state: issue.evidence["job_state"] || issue.evidence[:job_state],
+              work_unit_ids: issue.evidence["work_unit_ids"] || issue.evidence[:work_unit_ids]
+            }
+          )
+        end
+      end
+
       class StaleActiveMergeTrainWithoutRuntime < Base
         def plan
           automatic_plan(
