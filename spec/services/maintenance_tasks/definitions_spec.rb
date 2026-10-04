@@ -298,6 +298,73 @@ RSpec.describe "maintenance task definitions" do
       expect(described_class.new.estimate_total_units).to eq(0)
     end
 
+    it "keeps retryable failures blocking when a repository also has irrecoverable failures" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 114,
+        pr_number: 115,
+        landed_sha: "stu901"
+      )
+      task = maintenance_task_for(definition)
+      service_result = Jobs::LandedCommitsBackfill::Result.new(
+        checked: 2,
+        recorded: 0,
+        commits_recorded: 0,
+        skipped: 0,
+        errors: 2,
+        failures: [
+          {
+            "repository_slug" => repository.slug,
+            "landable_type" => "Job",
+            "landable_id" => 115,
+            "landable_slug" => "JOB-115",
+            "exception_class" => "Octokit::NotFound",
+            "message" => "GitHub lookup failed",
+            "retryable" => true
+          },
+          {
+            "repository_slug" => repository.slug,
+            "landable_type" => "MergeTrain",
+            "landable_id" => 42,
+            "exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError",
+            "message" => "could not match historical merge-train commits",
+            "retryable" => false
+          }
+        ]
+      )
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service)
+
+      result = definition.perform_batch(task)
+
+      expect(result.failed).to eq(1)
+      expect(result.metadata).to include("unresolved_repositories", "irrecoverable_repositories")
+      expect(task.checkpoint["unresolved_repositories"]).to contain_exactly(
+        hash_including(
+          "id" => repository.id,
+          "errors" => 1,
+          "failure_details" => [
+            hash_including("exception_class" => "Octokit::NotFound")
+          ]
+        )
+      )
+      expect(task.checkpoint["irrecoverable_repositories"]).to contain_exactly(
+        hash_including(
+          "id" => repository.id,
+          "errors" => 1,
+          "failure_details" => [
+            hash_including("exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError")
+          ]
+        )
+      )
+
+      expect { definition.perform_batch(task) }
+        .to raise_error(MaintenanceTasks::Definitions::LandedCommitsBackfill::UnresolvedLandingsError, /#{Regexp.escape(repository.slug)}/)
+      expect(task.checkpoint["retry_unresolved_repository_ids"]).to eq([ repository.id ])
+    end
+
     it "clears stale unresolved entries when the missing landed commits were repaired externally" do
       job = Factories.job_record(
         user: user,
