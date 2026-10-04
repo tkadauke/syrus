@@ -29,7 +29,10 @@ module Jobs
   # LandedCommit rows. A pr_commits/compare failure or a git-history mismatch
   # for one Job/landing is logged and skipped rather than aborting the run.
   class LandedCommitsBackfill
-    Failure = Data.define(:repository_slug, :landable_type, :landable_id, :landable_slug, :exception_class, :message) do
+    IrrecoverableHistoryError = Class.new(ArgumentError)
+    ONE_PARENT_EXTRA_SEARCH_COMMITS = 500
+
+    Failure = Data.define(:repository_slug, :landable_type, :landable_id, :landable_slug, :exception_class, :message, :retryable) do
       MAX_MESSAGE_LENGTH = 240
 
       def self.build(repository:, landable:, exception:)
@@ -39,7 +42,8 @@ module Jobs
           landable_id: landable.id,
           landable_slug: landable.respond_to?(:slug) ? landable.slug : nil,
           exception_class: exception.class.name,
-          message: exception.message.to_s.truncate(MAX_MESSAGE_LENGTH, omission: "...")
+          message: exception.message.to_s.truncate(MAX_MESSAGE_LENGTH, omission: "..."),
+          retryable: !exception.is_a?(IrrecoverableHistoryError)
         )
       end
 
@@ -50,7 +54,8 @@ module Jobs
           "landable_id" => landable_id,
           "landable_slug" => landable_slug,
           "exception_class" => exception_class,
-          "message" => message
+          "message" => message,
+          "retryable" => retryable
         }.compact
       end
     end
@@ -60,9 +65,30 @@ module Jobs
         super
         self.failures ||= []
       end
+
+      def retryable_errors
+        return errors.to_i if failures.empty?
+
+        failures.count { |failure| retryable_failure?(failure) }
+      end
+
+      def irrecoverable_errors
+        return 0 if failures.empty?
+
+        failures.count { |failure| !retryable_failure?(failure) }
+      end
+
+      private
+
+      def retryable_failure?(failure)
+        attrs = failure.respond_to?(:to_h) ? failure.to_h : failure
+        return true unless attrs.respond_to?(:to_h)
+
+        attrs.to_h.fetch("retryable", attrs.to_h.fetch(:retryable, true))
+      end
     end
 
-    SOFT_FAIL_ERRORS = [ Octokit::Error, GitRunner::GitError, ArgumentError ].freeze
+    SOFT_FAIL_ERRORS = [ Octokit::Error, GitRunner::GitError, ArgumentError, IrrecoverableHistoryError ].freeze
 
     def initialize(repository:, user: nil, client_factory: nil, git: nil, bare_clone: nil, logger: Rails.logger)
       @repository = repository
@@ -138,7 +164,7 @@ module Jobs
 
       shas = first_parent_shas(job.landed_sha, count)
       if shas.size != count
-        raise ArgumentError, "expected #{count} commit(s) ending at #{job.landed_sha}, found #{shas.size}"
+        raise IrrecoverableHistoryError, "expected #{count} commit(s) ending at #{job.landed_sha}, found #{shas.size}"
       end
 
       # All GitHub/git reads happen above; the transaction below is pure DB
@@ -173,7 +199,7 @@ module Jobs
 
     def record_merge_train!(train, dry_run:, result:)
       sha = train.integration_sha
-      raise ArgumentError, "merge-train ##{train.id} has no integration_sha" if sha.blank?
+      raise IrrecoverableHistoryError, "merge-train ##{train.id} has no integration_sha" if sha.blank?
 
       landable = landed_commit_landable(train)
 
@@ -193,7 +219,7 @@ module Jobs
         subjects = member_subjects.fetch(member.job)
         taken = remaining.first(subjects.size)
         if taken.size != subjects.size || taken.map(&:last) != subjects
-          raise ArgumentError, "commits for #{member.job.slug} did not match the integration range at #{sha}"
+          raise IrrecoverableHistoryError, "commits for #{member.job.slug} did not match the integration range at #{sha}"
         end
 
         member_shas[member.job] = taken.map(&:first)
@@ -264,28 +290,31 @@ module Jobs
       end
 
       if parents.size != 1
-        raise ArgumentError, "expected a one- or two-parent integration commit at #{integration_sha}, found #{parents.size} parent(s)"
+        raise IrrecoverableHistoryError, "expected a one- or two-parent integration commit at #{integration_sha}, found #{parents.size} parent(s)"
       end
 
       return [ [], false ] if expected_member_subjects.empty?
 
       # A fast-forward/rebase-style landing has no merge parent pair to bound
-      # the range. Look only at the short tail needed for all member commits
-      # plus the optional single reconcile commit, then require the member
-      # subjects to appear contiguously.
-      candidates = first_parent_entries(integration_sha, expected_member_subjects.size + 1)
+      # the range. Search a wider but fixed first-parent window so older
+      # histories with extra landing/reconcile commits can still be recovered
+      # without scanning arbitrary repository history.
+      candidates = first_parent_entries(integration_sha, one_parent_search_count(expected_member_subjects.size))
       start_index = contiguous_subject_match_start(candidates, expected_member_subjects)
       if start_index.nil?
-        raise ArgumentError, "commits for merge-train ##{train.id} did not match the first-parent tail at #{integration_sha}"
+        raise IrrecoverableHistoryError,
+              "commits for merge-train ##{train.id} did not match the first-parent tail at #{integration_sha} " \
+              "within #{candidates.size} inspected commit(s)"
       end
 
       matched = candidates.slice(start_index, expected_member_subjects.size) || []
       trailing = candidates.drop(start_index + expected_member_subjects.size)
-      if trailing.size > 1
-        raise ArgumentError, "expected at most one reconcile commit after merge-train ##{train.id}, found #{trailing.size}"
-      end
 
       [ matched + trailing, false ]
+    end
+
+    def one_parent_search_count(member_commit_count)
+      member_commit_count.to_i + ONE_PARENT_EXTRA_SEARCH_COMMITS
     end
 
     # Oldest-first [sha, subject] pairs for every commit uniquely reachable

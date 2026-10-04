@@ -239,6 +239,65 @@ RSpec.describe "maintenance task definitions" do
       )
     end
 
+    it "stores irrecoverable historical failures separately without blocking completion" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "closed",
+        issue_number: 112,
+        pr_number: 113,
+        landed_sha: "pqr678"
+      )
+      task = maintenance_task_for(definition)
+      failures = 30.times.map do |index|
+        {
+          "repository_slug" => repository.slug,
+          "landable_type" => "MergeTrain",
+          "landable_id" => index + 1,
+          "exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError",
+          "message" => "could not match historical merge-train commits #{index}",
+          "retryable" => false
+        }
+      end
+      service_result = Jobs::LandedCommitsBackfill::Result.new(
+        checked: 30,
+        recorded: 0,
+        commits_recorded: 0,
+        skipped: 0,
+        errors: 30,
+        failures: failures
+      )
+      service = instance_double(Jobs::LandedCommitsBackfill, call: service_result)
+      allow(Jobs::LandedCommitsBackfill).to receive(:new).with(repository: repository).and_return(service)
+
+      result = definition.perform_batch(task)
+
+      expect(result.failed).to eq(0)
+      expect(result.level).to eq("warning")
+      expect(result.metadata["irrecoverable_repositories"]).to contain_exactly(
+        hash_including("id" => repository.id, "slug" => repository.slug, "errors" => 30, "failure_details_omitted" => 5)
+      )
+      expect(task.checkpoint["unresolved_repositories"]).to be_blank
+      expect(task.checkpoint["irrecoverable_repositories"]).to contain_exactly(
+        hash_including(
+          "id" => repository.id,
+          "slug" => repository.slug,
+          "errors" => 30,
+          "failure_details" => array_including(
+            hash_including("exception_class" => "Jobs::LandedCommitsBackfill::IrrecoverableHistoryError")
+          ),
+          "failure_details_omitted" => 5
+        )
+      )
+
+      completion = definition.perform_batch(task)
+      task.save!
+
+      expect(completion).to have_attributes(done: true, failed: 0)
+      expect(task.checkpoint["irrecoverable_repositories"]).to be_present
+      expect(described_class.new.estimate_total_units).to eq(0)
+    end
+
     it "clears stale unresolved entries when the missing landed commits were repaired externally" do
       job = Factories.job_record(
         user: user,
@@ -289,11 +348,10 @@ RSpec.describe "maintenance task definitions" do
     let(:definition) { described_class.new }
 
     before do
+      result_class = Struct.new(:checked, :retired, :skipped, :errors, keyword_init: true)
       stub_const("AgentInsights::StaleBacklogRetirement", Class.new do
-        Result = Struct.new(:checked, :retired, :skipped, :errors, keyword_init: true)
-
         def self.default_scope = OpenStruct.new(count: 4)
-        def call = Result.new(checked: 4, retired: 4, skipped: 0, errors: 0)
+        define_method(:call) { result_class.new(checked: 4, retired: 4, skipped: 0, errors: 0) }
       end)
     end
 
@@ -305,6 +363,20 @@ RSpec.describe "maintenance task definitions" do
       expect(result.done).to be(true)
       expect(result.processed).to eq(4)
       expect(result.message).to include("retired 4")
+    end
+
+    it "marks retirement errors as non-blocking skipped failures" do
+      result_class = Struct.new(:checked, :retired, :skipped, :errors, keyword_init: true)
+      stub_const("AgentInsights::StaleBacklogRetirement", Class.new do
+        def self.default_scope = OpenStruct.new(count: 2)
+        define_method(:call) { result_class.new(checked: 2, retired: 1, skipped: 0, errors: 1) }
+      end)
+
+      result = definition.perform_batch(maintenance_task_for(definition))
+
+      expect(result.done).to be(true)
+      expect(result.failed).to eq(1)
+      expect(result.non_blocking_failures).to be(true)
     end
   end
 

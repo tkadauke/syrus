@@ -16,7 +16,19 @@ module MaintenanceTasks
       if definition.pending?
         ensure_pending_task(definition, task)
       elsif task&.state.in?(%w[pending dismissed failed paused])
-        task.update!(state: "not_needed", finished_at: Time.current)
+        task.update!(
+          state: "not_needed",
+          completed_units: 0,
+          failed_units: 0,
+          current_step_key: nil,
+          current_step_title: nil,
+          eta_seconds: nil,
+          started_at: nil,
+          finished_at: Time.current,
+          paused_at: nil,
+          last_error: nil,
+          checkpoint: {}
+        )
         task.log!("No matching maintenance work remains; task marked not needed.")
       end
     end
