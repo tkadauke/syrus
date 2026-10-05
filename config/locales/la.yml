@@ -47,6 +47,12 @@ la:
     admin_required: "Accessus administratoris necessarius est."
     chat_unavailable: "Ille colloquium non iam praesto est."
 
+  spa:
+    startup:
+      loading_title: "Syrus oneratur"
+      loading_message: "Applicatio oneratur."
+      retry: "Iterum tenta"
+
   github_app:
     manifest:
       title: "Ad GitHub pergitur…"

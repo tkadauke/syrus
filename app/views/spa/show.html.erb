@@ -4,9 +4,9 @@
 <div id="syrus-startup-status" class="syrus-startup-status" role="status" aria-live="polite" data-startup-state="loading">
   <div class="syrus-startup-status__panel">
     <div class="syrus-startup-status__spinner" data-syrus-startup-spinner aria-hidden="true"></div>
-    <p class="syrus-startup-status__title" data-syrus-startup-title>Loading Syrus</p>
-    <p class="syrus-startup-status__message" data-syrus-startup-message>Loading the app.</p>
-    <a class="syrus-startup-status__retry" href="<%= request.fullpath %>" data-syrus-startup-retry hidden>Retry</a>
+    <p class="syrus-startup-status__title" data-syrus-startup-title><%= t("spa.startup.loading_title") %></p>
+    <p class="syrus-startup-status__message" data-syrus-startup-message><%= t("spa.startup.loading_message") %></p>
+    <a class="syrus-startup-status__retry" href="<%= request.fullpath %>" data-syrus-startup-retry hidden><%= t("spa.startup.retry") %></a>
   </div>
 </div>
 <div id="syrus-spa-root"></div>
