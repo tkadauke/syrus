@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: "spa.js",
           chunkFileNames: "spa-[name]-[hash].digested.js",
-          assetFileNames: "spa-[name][extname]"
+          assetFileNames: "spa-[name]-[hash].digested[extname]"
         }
       }
     },

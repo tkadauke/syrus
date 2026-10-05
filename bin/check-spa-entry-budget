@@ -3,7 +3,7 @@
 const fs = require("fs")
 const path = require("path")
 
-const buildDir = path.resolve(__dirname, "..", "app", "assets", "builds")
+const buildDir = process.env.SPA_BUILD_DIR || path.resolve(__dirname, "..", "app", "assets", "builds")
 const entryPath = path.join(buildDir, "spa.js")
 const maxEntryBytes = 1_800_000
 const assetPrefix = "/assets/"
@@ -32,6 +32,41 @@ const preloadHelpersMissingAssetPrefix = preloadHelpers.filter((name) => {
 if (preloadHelpersMissingAssetPrefix.length > 0) {
   console.error(`SPA preload helpers must request dynamic chunks from ${assetPrefix}, not the site root.`)
   console.error(`Missing prefix: ${preloadHelpersMissingAssetPrefix.join(", ")}`)
+  process.exit(1)
+}
+
+const jsAssets = fs.readdirSync(buildDir).filter((name) => /^spa(?:\.js|-.*\.digested\.js)$/.test(name))
+const cssReferences = new Map()
+for (const jsAsset of jsAssets) {
+  const source = fs.readFileSync(path.join(buildDir, jsAsset), "utf8")
+  for (const match of source.matchAll(/["'`](spa-[A-Za-z0-9_.-]+\.css)["'`]/g)) {
+    const cssAsset = match[1]
+    const references = cssReferences.get(cssAsset) || []
+    references.push(jsAsset)
+    cssReferences.set(cssAsset, references)
+  }
+}
+
+const missingCssReferences = []
+const nonDigestedCssReferences = []
+for (const [cssAsset, references] of cssReferences) {
+  if (!/^spa-.*\.digested\.css$/.test(cssAsset)) {
+    nonDigestedCssReferences.push(`${cssAsset} referenced by ${references.join(", ")}`)
+  }
+  if (!fs.existsSync(path.join(buildDir, cssAsset))) {
+    missingCssReferences.push(`${cssAsset} referenced by ${references.join(", ")}`)
+  }
+}
+
+if (nonDigestedCssReferences.length > 0) {
+  console.error("SPA lazy CSS preload references must use .digested.css filenames so Propshaft serves the exact Vite URL.")
+  console.error(nonDigestedCssReferences.join("\n"))
+  process.exit(1)
+}
+
+if (missingCssReferences.length > 0) {
+  console.error("SPA lazy CSS preload references point at files that were not emitted.")
+  console.error(missingCssReferences.join("\n"))
   process.exit(1)
 }
 
