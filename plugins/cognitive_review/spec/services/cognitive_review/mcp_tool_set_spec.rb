@@ -81,6 +81,64 @@ RSpec.describe CognitiveReview::McpToolSet do
     )
   end
 
+  it "stores retry review notes against the existing final diff version when the retry workflow has no version" do
+    job = Factories.job_with_run(step_attrs: { kind: "implement" })
+    implementation_workflow = job.latest_workflow
+    implementation_run = job.initial_run
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: implementation_workflow,
+      run: implementation_run,
+      base_sha: "implementation-base",
+      head_sha: "implementation-head",
+      files: [
+        { path: "app/models/job.rb", status: "modified", additions: 3, deletions: 1 }
+      ],
+      reason: "initial"
+    )
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: DiffReviewVersion.next_index_for(job),
+      base_sha: "main",
+      head_sha: "main",
+      source_key: "legacy-empty-all-changes",
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [],
+      metadata: { "range_kind" => "all_changes" }
+    )
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
+    Step.create!(workflow: retry_workflow, kind: "prepare", position: 0)
+    Step.create!(workflow: retry_workflow, kind: "pr_open", position: 1)
+    review_step = Step.create!(workflow: retry_workflow, kind: "post_implementation_review", position: 2)
+    review_run = Run.create!(job: job, step: review_step, trigger_kind: "retry", agent_provider: job.agent_provider)
+
+    response = described_class.new.handle(
+      "submit_review_notes",
+      {
+        notes: [
+          {
+            path: "app/models/job.rb",
+            side: "new",
+            start_line: 27,
+            title: "Lifecycle edge",
+            explanation: "Operator should inspect the retry lifecycle assumption."
+          }
+        ]
+      },
+      { run: review_run }
+    )
+
+    expect(response).not_to be_error
+    expect(CognitiveReview::Note.find_by!(run: review_run)).to have_attributes(
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      explanation: "Operator should inspect the retry lifecycle assumption."
+    )
+    expect(retry_workflow.reload.artifact(CognitiveReview::Artifact::KEY).last)
+      .to include("diff_review_version_id" => version.id)
+  end
+
   it "submits notes idempotently for the current run and version" do
     DiffReviewVersions::Creator.call(
       job: run.job,
