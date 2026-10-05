@@ -28,10 +28,15 @@ trap cleanup EXIT INT TERM
 # so a preview that edits CSS still rebuilds.
 bin/rails tailwindcss:build > log/tailwind.log 2>&1
 
+# Build the full Vite graph once before Rails boots. The watch build writes
+# spa.js before all lazy chunks are present, and Propshaft can cache that early
+# asset view, leaving route chunks as 404s until the server restarts.
+npm exec vite -- build > log/vite.log 2>&1
+
 bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
 pids+=("$!")
 
-npm run build:watch > log/vite.log 2>&1 &
+npm exec vite -- build --watch >> log/vite.log 2>&1 &
 pids+=("$!")
 
 wait_for_file() {

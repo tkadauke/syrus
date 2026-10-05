@@ -31,7 +31,13 @@ RSpec.describe "Syrus self-preview configuration" do
     expect(preview_script).to include("bin/rails tailwindcss:watch")
     expect(preview_script.index("bin/rails tailwindcss:build"))
       .to be < preview_script.index("bin/rails tailwindcss:watch")
-    expect(preview_script).to include("npm run build:watch")
+    # The Vite watcher emits spa.js before later route chunks. Build the graph
+    # once first so Rails boots only after lazy chunks are present and
+    # Propshaft has a complete initial asset view.
+    expect(preview_script).to include("npm exec vite -- build")
+    expect(preview_script).to include("npm exec vite -- build --watch")
+    expect(preview_script.index("npm exec vite -- build > log/vite.log"))
+      .to be < preview_script.index("npm exec vite -- build --watch")
     expect(preview_script).to include("wait_for_file app/assets/builds/spa.js log/vite.log")
     expect(preview_script).to include("wait_for_file app/assets/builds/tailwind.css log/tailwind.log")
 
