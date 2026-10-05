@@ -1,6 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
-import { type ReactNode } from "react"
+import { lazy, Suspense, type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
@@ -10,66 +10,77 @@ import { NoticeToast } from "../components/NoticeToast"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { SyrusMark } from "../components/SyrusBrand"
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
-import { NotificationsRoute } from "../components/Notifications"
-import { ConnectionStatusRoute } from "../components/ConnectionStatus"
 import { useAppEvents } from "../lib/useAppEvents"
 import { ConnectionContext } from "../lib/connectionContext"
-import { AdminConsole } from "./AdminConsole"
-import { AdminBackendExceptions } from "./AdminBackendExceptions"
-import { AdminBrowserErrors } from "./AdminBrowserErrors"
 import { AppChromeV2 } from "./AppChromeV2"
-import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
-import { AdminInvitations } from "./AdminInvitations"
-import { AdminInstallations } from "./AdminInstallations"
-import { AdminOverview, AdminResourceAdmission, AdminScopedChatEvents } from "./AdminOverview"
-import { AdminPluginDetail, AdminPlugins } from "./AdminPlugins"
-import { AdminQueueRoute } from "./AdminQueue"
-import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
-import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
-import { AdminWorkUnits } from "./AdminWorkUnits"
-import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks } from "./AdminMaintenanceTasks"
-import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
-import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
-import { AdminSettings } from "./AdminSettings"
-import { RetentionSettings } from "./RetentionSettings"
-import { AdminStuck } from "./AdminStuck"
-import { AdminTranscript } from "./AdminTranscript"
-import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
-import { AdminTeamDetailRoute, AdminTeamsIndex } from "./AdminTeams"
-import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
-import { ChatSearchRoute } from "./ChatSearch"
-import { ChatRoute, SharedChatRoute } from "./Chat"
-import { CredentialsRoute } from "./Credentials"
-import { DashboardRoute } from "./Dashboard"
-import { DesignSystemRoute } from "./DesignSystem"
-import { DirectJobNewRoute } from "./DirectJobNew"
-import { AdminFeatures } from "./AdminFeatures"
-import { EpicDetailRoute } from "./EpicDetail"
-import { EpicFormRoute } from "./EpicForm"
-import { HiddenChatsRoute } from "./HiddenChats"
-import { JobDetailRoute } from "./JobDetail"
-import { NotificationsSettingsRoute } from "./NotificationsSettings"
-import { OnboardingRoute } from "./Onboarding"
-import { PersonalDocumentsRoute } from "./PersonalDocuments"
-import { AccountProfileRoute } from "./Profile"
-import { PreferencesRoute } from "./Preferences"
-import { RepositoriesIndex } from "./Repositories"
-import { RepositoryDetailRoute } from "./RepositoryDetail"
-import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
-import { RepositoryFormRoute } from "./RepositoryForm"
-import { RepositoryHealthRoute } from "./RepositoryHealth"
-import { RepositorySkillNewRoute } from "./RepositorySkillNew"
-import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
-import { Tags } from "./Tags"
-import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
-import { ThemesSettingsRoute } from "./ThemesSettings"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
 import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
-import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
+
+const AccountProfileRoute = lazy(() => import("./Profile").then((module) => ({ default: module.AccountProfileRoute })))
+const AdminAttentionItems = lazy(() => import("./AdminAttentionItems").then((module) => ({ default: module.AdminAttentionItems })))
+const AdminBackendExceptions = lazy(() => import("./AdminBackendExceptions").then((module) => ({ default: module.AdminBackendExceptions })))
+const AdminBrowserErrors = lazy(() => import("./AdminBrowserErrors").then((module) => ({ default: module.AdminBrowserErrors })))
+const AdminConsole = lazy(() => import("./AdminConsole").then((module) => ({ default: module.AdminConsole })))
+const AdminFeatures = lazy(() => import("./AdminFeatures").then((module) => ({ default: module.AdminFeatures })))
+const AdminGithubAppConfirm = lazy(() => import("./AdminGithubApp").then((module) => ({ default: module.AdminGithubAppConfirm })))
+const AdminGithubAppRegister = lazy(() => import("./AdminGithubApp").then((module) => ({ default: module.AdminGithubAppRegister })))
+const AdminInstallations = lazy(() => import("./AdminInstallations").then((module) => ({ default: module.AdminInstallations })))
+const AdminInvitations = lazy(() => import("./AdminInvitations").then((module) => ({ default: module.AdminInvitations })))
+const AdminMaintenanceTaskDetail = lazy(() => import("./AdminMaintenanceTasks").then((module) => ({ default: module.AdminMaintenanceTaskDetail })))
+const AdminMaintenanceTasks = lazy(() => import("./AdminMaintenanceTasks").then((module) => ({ default: module.AdminMaintenanceTasks })))
+const AdminMcpToolUsage = lazy(() => import("./AdminMcpToolUsage").then((module) => ({ default: module.AdminMcpToolUsage })))
+const AdminOverview = lazy(() => import("./AdminOverview").then((module) => ({ default: module.AdminOverview })))
+const AdminPluginDetail = lazy(() => import("./AdminPlugins").then((module) => ({ default: module.AdminPluginDetail })))
+const AdminPlugins = lazy(() => import("./AdminPlugins").then((module) => ({ default: module.AdminPlugins })))
+const AdminPluginServices = lazy(() => import("@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices").then((module) => ({ default: module.AdminPluginServices })))
+const AdminProcessDetail = lazy(() => import("./AdminProcesses").then((module) => ({ default: module.AdminProcessDetail })))
+const AdminProcessesIndex = lazy(() => import("./AdminProcesses").then((module) => ({ default: module.AdminProcessesIndex })))
+const AdminQueueRoute = lazy(() => import("./AdminQueue").then((module) => ({ default: module.AdminQueueRoute })))
+const AdminReconcilerActivity = lazy(() => import("./AdminReconcilerActivity").then((module) => ({ default: module.AdminReconcilerActivity })))
+const AdminResourceAdmission = lazy(() => import("./AdminOverview").then((module) => ({ default: module.AdminResourceAdmission })))
+const AdminScopedChatEvents = lazy(() => import("./AdminOverview").then((module) => ({ default: module.AdminScopedChatEvents })))
+const AdminSettings = lazy(() => import("./AdminSettings").then((module) => ({ default: module.AdminSettings })))
+const AdminStuck = lazy(() => import("./AdminStuck").then((module) => ({ default: module.AdminStuck })))
+const AdminTeamDetailRoute = lazy(() => import("./AdminTeams").then((module) => ({ default: module.AdminTeamDetailRoute })))
+const AdminTeamsIndex = lazy(() => import("./AdminTeams").then((module) => ({ default: module.AdminTeamsIndex })))
+const AdminTranscript = lazy(() => import("./AdminTranscript").then((module) => ({ default: module.AdminTranscript })))
+const AdminUserDetailRoute = lazy(() => import("./AdminUsers").then((module) => ({ default: module.AdminUserDetailRoute })))
+const AdminUsersIndex = lazy(() => import("./AdminUsers").then((module) => ({ default: module.AdminUsersIndex })))
+const AdminWorkflowActivity = lazy(() => import("./AdminWorkflowActivity").then((module) => ({ default: module.AdminWorkflowActivity })))
+const AdminWorkUnits = lazy(() => import("./AdminWorkUnits").then((module) => ({ default: module.AdminWorkUnits })))
+const AgentSettingsRoute = lazy(() => import("./AgentSettings").then((module) => ({ default: module.AgentSettingsRoute })))
+const ChatRoute = lazy(() => import("./Chat").then((module) => ({ default: module.ChatRoute })))
+const ChatSearchRoute = lazy(() => import("./ChatSearch").then((module) => ({ default: module.ChatSearchRoute })))
+const ConnectedPlatformsRoute = lazy(() => import("./ConnectedPlatforms").then((module) => ({ default: module.ConnectedPlatformsRoute })))
+const ConnectionStatusRoute = lazy(() => import("../components/ConnectionStatus").then((module) => ({ default: module.ConnectionStatusRoute })))
+const CredentialsRoute = lazy(() => import("./Credentials").then((module) => ({ default: module.CredentialsRoute })))
+const DashboardRoute = lazy(() => import("./Dashboard").then((module) => ({ default: module.DashboardRoute })))
+const DesignSystemRoute = lazy(() => import("./DesignSystem").then((module) => ({ default: module.DesignSystemRoute })))
+const DirectJobNewRoute = lazy(() => import("./DirectJobNew").then((module) => ({ default: module.DirectJobNewRoute })))
+const EpicDetailRoute = lazy(() => import("./EpicDetail").then((module) => ({ default: module.EpicDetailRoute })))
+const EpicFormRoute = lazy(() => import("./EpicForm").then((module) => ({ default: module.EpicFormRoute })))
+const HiddenChatsRoute = lazy(() => import("./HiddenChats").then((module) => ({ default: module.HiddenChatsRoute })))
+const JobDetailRoute = lazy(() => import("./JobDetail").then((module) => ({ default: module.JobDetailRoute })))
+const NotificationsRoute = lazy(() => import("../components/Notifications").then((module) => ({ default: module.NotificationsRoute })))
+const NotificationsSettingsRoute = lazy(() => import("./NotificationsSettings").then((module) => ({ default: module.NotificationsSettingsRoute })))
+const OnboardingRoute = lazy(() => import("./Onboarding").then((module) => ({ default: module.OnboardingRoute })))
+const PersonalDocumentsRoute = lazy(() => import("./PersonalDocuments").then((module) => ({ default: module.PersonalDocumentsRoute })))
+const PreferencesRoute = lazy(() => import("./Preferences").then((module) => ({ default: module.PreferencesRoute })))
+const RepositoriesIndex = lazy(() => import("./Repositories").then((module) => ({ default: module.RepositoriesIndex })))
+const RepositoryDetailRoute = lazy(() => import("./RepositoryDetail").then((module) => ({ default: module.RepositoryDetailRoute })))
+const RepositoryDocumentsRoute = lazy(() => import("./RepositoryDocuments").then((module) => ({ default: module.RepositoryDocumentsRoute })))
+const RepositoryFormRoute = lazy(() => import("./RepositoryForm").then((module) => ({ default: module.RepositoryFormRoute })))
+const RepositoryHealthRoute = lazy(() => import("./RepositoryHealth").then((module) => ({ default: module.RepositoryHealthRoute })))
+const RepositorySkillNewRoute = lazy(() => import("./RepositorySkillNew").then((module) => ({ default: module.RepositorySkillNewRoute })))
+const RepositoryTargetGraphRoute = lazy(() => import("./RepositoryTargetGraph").then((module) => ({ default: module.RepositoryTargetGraphRoute })))
+const RetentionSettings = lazy(() => import("./RetentionSettings").then((module) => ({ default: module.RetentionSettings })))
+const SharedChatRoute = lazy(() => import("./Chat").then((module) => ({ default: module.SharedChatRoute })))
+const Tags = lazy(() => import("./Tags").then((module) => ({ default: module.Tags })))
+const ThemesSettingsRoute = lazy(() => import("./ThemesSettings").then((module) => ({ default: module.ThemesSettingsRoute })))
 
 type AppRouteDefinition = {
   path: string
@@ -214,7 +225,7 @@ function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | 
       return <Navigate replace to="/onboarding" />
     }
 
-    return <DashboardRoute />
+    return <LazyRouteBoundary><DashboardRoute /></LazyRouteBoundary>
   }
 
   return <PublicLanding payload={bootstrap.data} />
@@ -453,12 +464,31 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={<RouteErrorBoundary key={path}>{element}</RouteErrorBoundary>} key={path} path={path} />,
-    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{element}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    <Route element={<LazyRouteBoundary key={path}>{element}</LazyRouteBoundary>} key={path} path={path} />,
+    <Route element={<LazyRouteBoundary key={`/app-shell${path}`}>{element}</LazyRouteBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
   ]).concat([
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
+    <Route element={<LazyRouteBoundary><OnboardingShell initialBootstrap={initialBootstrap} /></LazyRouteBoundary>} key="/onboarding" path="/onboarding" />,
+    <Route element={<LazyRouteBoundary><OnboardingShell initialBootstrap={initialBootstrap} /></LazyRouteBoundary>} key="/app-shell/onboarding" path="/app-shell/onboarding" />
   ])
+}
+
+export function LazyRouteBoundary({ children }: { children: ReactNode }) {
+  return (
+    <RouteErrorBoundary>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        {children}
+      </Suspense>
+    </RouteErrorBoundary>
+  )
+}
+
+function RouteLoadingFallback() {
+  const { t } = useT("common")
+  return (
+    <main aria-label={t("app_name")} className="p-6 text-sm text-gray-600 dark:text-gray-400">
+      <p role="status">{t("loading")}</p>
+    </main>
+  )
 }
 
 // /setup is retired — it now just lands the operator on the onboarding page.
@@ -512,8 +542,8 @@ function renderPluginSidebarRoutes() {
 
   return paths.flatMap(({ path, section }) => {
     const element = section === "settings"
-      ? <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute>
-      : <PluginSidebarPageRoute />
+      ? <LazyRouteBoundary><SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute></LazyRouteBoundary>
+      : <LazyRouteBoundary><PluginSidebarPageRoute /></LazyRouteBoundary>
 
     // Both variants, the same way renderAppRoutes registers core routes: the
     // shell serves every page under /app-shell as well, and a plugin page that
