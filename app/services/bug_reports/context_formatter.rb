@@ -1,5 +1,21 @@
 module BugReports
   module ContextFormatter
+    # Opens the machine-appended section of a bug report body. Everything after
+    # it is collected from the reporter's browser, not written by them.
+    #
+    # Shared rather than spelled out twice: PlannedExecutionRequestAnalyzer
+    # excludes this section when inferring where work must run, because the
+    # section quotes a User-Agent, and a User-Agent names the device it came
+    # from. A report filed from a phone put the word "iphone" in the body and
+    # the work was assigned to a macOS worker that does not exist. If this
+    # heading changes and the analyzer is not updated with it, that failure
+    # comes straight back.
+    SECTION_DIVIDER = "---".freeze
+    SECTION_HEADING = "**Environment**".freeze
+    # Matches the divider and heading as a pair, so a divider the reporter
+    # happened to type does not truncate what they wrote.
+    SECTION_START = /^#{Regexp.escape(SECTION_DIVIDER)}[ \t]*\R#{Regexp.escape(SECTION_HEADING)}/i
+
     private
 
     def format_context_markdown(context_json)
@@ -7,7 +23,7 @@ module BugReports
 
       context = context_json.is_a?(Hash) ? context_json : JSON.parse(context_json.to_s)
 
-      lines = [ "---", "**Environment**" ]
+      lines = [ SECTION_DIVIDER, SECTION_HEADING ]
       lines << "- URL: #{context["url"]}" if context["url"].present?
       lines << "- Browser: #{context["user_agent"]}" if context["user_agent"].present?
 

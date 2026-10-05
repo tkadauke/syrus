@@ -17,6 +17,58 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
     )
   end
 
+  describe "machine-appended bug report context" do
+    # Built through the formatter itself rather than hand-written, so this
+    # cannot drift from what the in-app reporter actually appends. If the
+    # section's heading changes, this spec follows it automatically.
+    def generated_context(user_agent:)
+      formatter = Class.new do
+        include BugReports::ContextFormatter
+        public :format_context_markdown
+      end.new
+
+      formatter.format_context_markdown(
+        "url" => "https://example.test/chats/1",
+        "user_agent" => user_agent
+      )
+    end
+
+    # Regression: a User-Agent names the device it came from, so bug reports
+    # filed from a phone were read as requiring a macOS worker. Nothing in the
+    # fleet advertises those capabilities, so the work blocked on
+    # `no_capable_worker` -- which clears only when an operator adds such a
+    # worker -- and one stranded Job held its repository's landing slot.
+    it "ignores a platform named only by the reporter's User-Agent" do
+      body = "The artifact renderer overflows its container." +
+             generated_context(user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15")
+
+      result = described_class.call(job: job(title: "Artifact renderer overflow", body: body))
+
+      expect(result).not_to be_ambiguous
+      expect(result.requirement&.capabilities.to_h["os"].to_a).not_to include("macos")
+    end
+
+    it "still honors a platform the reporter wrote themselves, alongside that context" do
+      body = "The Xcode project fails to build." +
+             generated_context(user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+
+      result = described_class.call(job: job(title: "Fix the build", body: body))
+
+      expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+    end
+
+    # The divider only delimits the generated section when the heading follows
+    # it. A reporter who types one must not have the rest of their report
+    # silently dropped.
+    it "does not treat a bare divider as the start of generated context" do
+      body = "Steps to reproduce:\n\n---\n\nThe Xcode build fails on the second run."
+
+      result = described_class.call(job: job(title: "Build failure", body: body))
+
+      expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+    end
+  end
+
   it "keeps backend-only work on default Linux compute" do
     result = described_class.call(job: job(title: "Add Rails API endpoint", body: "Create a migration and controller."))
 

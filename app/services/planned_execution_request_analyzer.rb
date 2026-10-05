@@ -50,8 +50,26 @@ class PlannedExecutionRequestAnalyzer
     "The request appears to require mutually incompatible primary implementation hosts. Split the work or explicitly select a primary planned execution host."
   end
 
+  # Only what a human actually wrote. A bug report filed from the in-app
+  # reporter has a machine-generated section appended to its body carrying the
+  # reporter's browser User-Agent, and a User-Agent names the device it came
+  # from -- so reports filed from a phone matched #ios_request? and were
+  # assigned to a macOS worker. Nothing in the fleet advertises those
+  # capabilities, so the work blocked on `no_capable_worker`, which clears only
+  # when an operator adds such a worker. Several ordinary frontend bugs were
+  # stranded that way, and one of them held its repository's landing slot.
+  #
+  # The exclusion is deliberately narrow: it drops the generated section, not
+  # anything that merely looks like diagnostics. If an operator writes about a
+  # platform in their own words, that still counts.
   def text
-    @text ||= [ job.issue_title, job.issue_body ].join("\n").downcase
+    @text ||= [ job.issue_title, authored_body ].join("\n").downcase
+  end
+
+  def authored_body
+    body = job.issue_body.to_s
+    start = body.index(BugReports::ContextFormatter::SECTION_START)
+    start ? body[0...start] : body
   end
 
   def ios_request?
