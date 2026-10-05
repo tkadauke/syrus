@@ -40,10 +40,12 @@ RSpec.describe "Syrus self-preview configuration" do
       .to be < preview_script.index("npm exec vite -- build --watch")
     expect(preview_script).to include("wait_for_file app/assets/builds/spa.js log/vite.log")
     expect(preview_script).to include("wait_for_file app/assets/builds/tailwind.css log/tailwind.log")
+    expect(preview_script).to include("wait_for_vite_watch_ready log/vite.log")
 
     rails_start_index = preview_script.index("bin/rails server")
     expect(rails_start_index).to be_present
     expect(preview_script.index("wait_for_file app/assets/builds/spa.js log/vite.log")).to be < rails_start_index
     expect(preview_script.index("wait_for_file app/assets/builds/tailwind.css log/tailwind.log")).to be < rails_start_index
+    expect(preview_script.index("wait_for_vite_watch_ready log/vite.log")).to be < rails_start_index
   end
 end

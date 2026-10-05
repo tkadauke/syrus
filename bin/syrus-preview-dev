@@ -53,8 +53,25 @@ wait_for_file() {
   done
 }
 
+wait_for_vite_watch_ready() {
+  local log_path="$1"
+  local deadline=$((SECONDS + 120))
+  local watch_line
+
+  until watch_line="$(grep -n "watching for file changes" "$log_path" 2>/dev/null | tail -n 1 | cut -d: -f1)" \
+    && [ -n "$watch_line" ] \
+    && tail -n +"$watch_line" "$log_path" | grep -q "built in"; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "timed out waiting for Vite watch initial build; see $log_path" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
 wait_for_file app/assets/builds/spa.js log/vite.log
 wait_for_file app/assets/builds/tailwind.css log/tailwind.log
+wait_for_vite_watch_ready log/vite.log
 
 bin/rails server -p "${PORT:-3000}" -b 0.0.0.0 -e development > log/development.log 2>&1 &
 rails_pid="$!"

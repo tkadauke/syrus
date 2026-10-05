@@ -145,10 +145,12 @@ Rails apps that do not expose a `dev` script still need to boot whatever
 frontend pipeline their development layout expects. Syrus itself uses
 `bin/syrus-preview-dev` in `.syrus.yml`: it builds Tailwind and the complete
 Vite asset graph once, then starts their watchers, waits until
-`app/assets/builds/spa.js` and `app/assets/builds/tailwind.css` exist, and
-only then starts Rails. The one-shot Vite build matters for split bundles:
-the watcher can write the entry before route chunks are present, and Rails can
-cache that incomplete asset view. Building the full graph first keeps visual
+`app/assets/builds/spa.js` and `app/assets/builds/tailwind.css` exist, waits
+for the Vite watcher's own initial build to complete, and only then starts
+Rails. The one-shot Vite build and watcher-ready wait matter for split
+bundles: the watcher can write the entry before route chunks are present or
+rewrite chunks during its first pass, and Rails/browser preview can otherwise
+observe that incomplete asset view. Building the full graph first keeps visual
 review from inspecting a healthy Rails shell before React, lazy route chunks,
 and CSS have compiled.
 
