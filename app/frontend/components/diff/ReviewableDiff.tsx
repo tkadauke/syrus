@@ -1792,7 +1792,7 @@ export function UnifiedDiffTable({
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const reviewNotes = reviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
-            const inlineReviewNotes = reviewNotesStartingOnLine(line, reviewAnnotations, reviewAnnotationRanges)
+            const inlineReviewNotes = inlineReviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
             const lineMetrics = metricsForLine(diffLineMetricProviders, { file, line, reviewNotes })
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
             const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
@@ -2344,13 +2344,13 @@ function reviewNotesForLine(
   return legacyNotes.concat(rangeNotes)
 }
 
-function reviewNotesStartingOnLine(
+function inlineReviewNotesForLine(
   line: DiffLine,
   reviewAnnotations: Record<string, DiffReviewAnnotation[]> | undefined,
   reviewAnnotationRanges: DiffReviewAnnotationRange[] | undefined
 ) {
   const legacyNotes = line.newLine != null ? (reviewAnnotations?.[String(line.newLine)] ?? []) : []
-  const rangeNotes = (reviewAnnotationRanges ?? []).filter((note) => rangeAnnotationStartsOnLine(note, line))
+  const rangeNotes = (reviewAnnotationRanges ?? []).filter((note) => rangeAnnotationEndsOnLine(note, line))
   return legacyNotes.concat(rangeNotes)
 }
 
@@ -2359,9 +2359,9 @@ function rangeAnnotationMatchesLine(note: DiffReviewAnnotationRange, line: DiffL
   return lineNumber != null && lineNumber >= note.start_line && lineNumber <= note.end_line
 }
 
-function rangeAnnotationStartsOnLine(note: DiffReviewAnnotationRange, line: DiffLine) {
+function rangeAnnotationEndsOnLine(note: DiffReviewAnnotationRange, line: DiffLine) {
   const lineNumber = note.side === "old" ? line.oldLine : line.newLine
-  return lineNumber === note.start_line
+  return lineNumber === note.end_line
 }
 
 function SplitDiffColGroup({
