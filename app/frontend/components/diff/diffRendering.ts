@@ -241,7 +241,14 @@ export function contextGapsForHunks(hunks: HunkMeta[], totalFileLines: number | 
   return gaps
 }
 
-export type GapRevealState = { fromTop: number; fromBottom: number }
+export type RevealedGapSegment = { startNew: number; endNew: number }
+export type GapRevealState = { fromTop: number; fromBottom: number; segments?: RevealedGapSegment[] }
+
+export type AnnotationVisibilityRange = {
+  side: "old" | "new"
+  start_line: number
+  end_line: number
+}
 
 export function gapSize(gap: ContextGap): number {
   return Math.max(0, gap.endNew - gap.startNew + 1)
@@ -249,8 +256,7 @@ export function gapSize(gap: ContextGap): number {
 
 export function remainingInGap(gap: ContextGap, state: GapRevealState | undefined): number {
   const size = gapSize(gap)
-  const revealed = (state?.fromTop ?? 0) + (state?.fromBottom ?? 0)
-  return Math.max(0, size - revealed)
+  return Math.max(0, size - revealedIntervalsForGap(gap, state).reduce((sum, interval) => sum + interval.endNew - interval.startNew + 1, 0))
 }
 
 // Splices revealed context lines (sourced from the fetched full-file
@@ -267,15 +273,13 @@ export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gap
     if (!gap) return
     const size = gapSize(gap)
     if (size <= 0 || !state) return
-    const fromTop = Math.min(state.fromTop, size)
-    const fromBottom = Math.min(state.fromBottom, size - fromTop)
+    const intervals = revealedIntervalsForGap(gap, state)
 
-    for (let newLine = gap.startNew; newLine < gap.startNew + fromTop; newLine++) {
-      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkIds.top))
-    }
-    const bottomStart = Math.max(gap.startNew + fromTop, gap.endNew - fromBottom + 1)
-    for (let newLine = bottomStart; newLine <= gap.endNew; newLine++) {
-      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkIds.bottom))
+    for (const interval of intervals) {
+      const hunkId = interval.endNew === gap.endNew ? hunkIds.bottom : hunkIds.top
+      for (let newLine = interval.startNew; newLine <= interval.endNew; newLine++) {
+        result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkId))
+      }
     }
   }
 
@@ -297,4 +301,115 @@ function contextLineAt(newLine: number, offset: number, fileLines: string[], hun
 
 export function fullyRevealedGapStates(gaps: ContextGap[]): GapRevealState[] {
   return gaps.map((gap) => ({ fromTop: gapSize(gap), fromBottom: 0 }))
+}
+
+export function mergeGapRevealStates(
+  currentStates: Array<GapRevealState | undefined>,
+  requiredStates: Array<GapRevealState | undefined>
+): Array<GapRevealState | undefined> {
+  const length = Math.max(currentStates.length, requiredStates.length)
+  const merged: Array<GapRevealState | undefined> = []
+
+  for (let index = 0; index < length; index++) {
+    const current = currentStates[index]
+    const required = requiredStates[index]
+    if (!current && !required) continue
+
+    const segments = [...(current?.segments ?? []), ...(required?.segments ?? [])]
+    merged[index] = {
+      fromBottom: Math.max(current?.fromBottom ?? 0, required?.fromBottom ?? 0),
+      fromTop: Math.max(current?.fromTop ?? 0, required?.fromTop ?? 0),
+      ...(segments.length > 0 ? { segments } : {})
+    }
+  }
+
+  return merged
+}
+
+export function forcedGapStatesForAnnotationRanges(
+  gaps: ContextGap[],
+  ranges: AnnotationVisibilityRange[],
+  contextLineCount: number
+): Array<GapRevealState | undefined> {
+  const states: Array<GapRevealState | undefined> = []
+  const context = Math.max(0, contextLineCount)
+
+  for (const range of ranges) {
+    const start = Math.min(range.start_line, range.end_line) - context
+    const end = Math.max(range.start_line, range.end_line) + context
+
+    gaps.forEach((gap, index) => {
+      const required = requiredRevealForGap(gap, range.side, start, end)
+      if (!required) return
+
+      states[index] = mergeGapRevealStates([states[index]], [required])[0]
+    })
+  }
+
+  return states
+}
+
+function requiredRevealForGap(gap: ContextGap, side: "old" | "new", startLine: number, endLine: number): GapRevealState | null {
+  const size = gapSize(gap)
+  if (size <= 0) return null
+
+  const gapStart = side === "old" ? gap.startNew - gap.offset : gap.startNew
+  const gapEnd = side === "old" ? gap.endNew - gap.offset : gap.endNew
+  const visibleStart = Math.max(gapStart, startLine)
+  const visibleEnd = Math.min(gapEnd, endLine)
+  if (visibleStart > visibleEnd) return null
+
+  const visibleStartNew = side === "old" ? visibleStart + gap.offset : visibleStart
+  const visibleEndNew = side === "old" ? visibleEnd + gap.offset : visibleEnd
+  if (visibleStartNew === gap.startNew) return { fromTop: Math.max(0, visibleEndNew - gap.startNew + 1), fromBottom: 0 }
+  if (visibleEndNew === gap.endNew) return { fromTop: 0, fromBottom: Math.max(0, gap.endNew - visibleStartNew + 1) }
+
+  return { fromTop: 0, fromBottom: 0, segments: [{ startNew: visibleStartNew, endNew: visibleEndNew }] }
+}
+
+function revealedIntervalsForGap(gap: ContextGap, state: GapRevealState | undefined): RevealedGapSegment[] {
+  if (!state) return []
+
+  const size = gapSize(gap)
+  if (size <= 0) return []
+
+  const intervals: RevealedGapSegment[] = []
+  const fromTop = Math.min(state.fromTop, size)
+  if (fromTop > 0) intervals.push({ startNew: gap.startNew, endNew: gap.startNew + fromTop - 1 })
+
+  for (const segment of state.segments ?? []) {
+    const startNew = Math.max(gap.startNew, segment.startNew)
+    const endNew = Math.min(gap.endNew, segment.endNew)
+    if (startNew <= endNew) intervals.push({ startNew, endNew })
+  }
+
+  const fromBottom = Math.min(state.fromBottom, size)
+  if (fromBottom > 0) intervals.push({ startNew: gap.endNew - fromBottom + 1, endNew: gap.endNew })
+
+  return mergeIntervals(intervals)
+}
+
+function mergeIntervals(intervals: RevealedGapSegment[]): RevealedGapSegment[] {
+  const sorted = intervals
+    .filter(isOrderedSegment)
+    .sort((a, b) => {
+      const startComparison = a.startNew - b.startNew
+      return startComparison === 0 ? a.endNew - b.endNew : startComparison
+    })
+  const merged: RevealedGapSegment[] = []
+
+  for (const interval of sorted) {
+    const previous = merged.at(-1)
+    if (previous && interval.startNew <= previous.endNew + 1) {
+      previous.endNew = Math.max(previous.endNew, interval.endNew)
+    } else {
+      merged.push({ ...interval })
+    }
+  }
+
+  return merged
+}
+
+function isOrderedSegment(interval: RevealedGapSegment): boolean {
+  return interval.startNew <= interval.endNew
 }

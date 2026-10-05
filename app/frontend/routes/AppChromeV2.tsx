@@ -47,7 +47,7 @@ import { recentChatsQueryKey, updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
-import { MobileChromeContext } from "../components/mobileChrome"
+import { MOBILE_CHROME_BOTTOM_OVERLAP_CLASS, MOBILE_CHROME_SURFACE_CLASS, MobileChromeContext } from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
@@ -525,7 +525,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </button>
         ) : null}
         <div
-          className={`${isMobileChatPage ? "absolute" : "sticky"} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
+          className={`${isMobileChatPage ? "absolute" : "sticky"} ${MOBILE_CHROME_BOTTOM_OVERLAP_CLASS} ${MOBILE_CHROME_SURFACE_CLASS} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 px-4 py-3 dark:border-gray-800 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
           data-testid="mobile-app-header"
           ref={mobileAppHeaderRef}
           style={mobileChatHeaderAutoHideActive ? {

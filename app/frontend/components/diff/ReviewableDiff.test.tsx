@@ -1748,6 +1748,155 @@ describe("hidden-context expansion", () => {
     expect(screen.queryByText("@@ -6,1 +6,1 @@")).not.toBeInTheDocument()
   })
 
+  it("reveals hidden context and renders an inline range annotation when a note spans two hunks", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/services/example.rb b/app/services/example.rb",
+        "--- a/app/services/example.rb",
+        "+++ b/app/services/example.rb",
+        "@@ -29,11 +29,11 @@",
+        " line 29",
+        " line 30",
+        " line 31",
+        " line 32",
+        " line 33",
+        " line 34",
+        " line 35",
+        " line 36",
+        " line 37",
+        " line 38",
+        " line 39",
+        "@@ -43,8 +43,8 @@",
+        " line 43",
+        " line 44",
+        " line 45",
+        " line 46",
+        " line 47",
+        " line 48",
+        " line 49",
+        " line 50"
+      ].join("\n"),
+      path: "app/services/example.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n"))
+
+    render(
+      <ReviewableDiff
+        files={[twoHunkFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "app/services/example.rb": [
+            {
+              id: "cognitive_review_note:42",
+              side: "new",
+              start_line: 32,
+              end_line: 46,
+              title: "Inspect cross-hunk range",
+              body: "This range should stay visible even across hunk gaps."
+            }
+          ]
+        }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 2 }}
+        showFileHeaders
+      />
+    )
+
+    expect(screen.getByText("Inspect cross-hunk range")).toBeInTheDocument()
+    await findCodeCellText("line 40")
+
+    expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+    expect(getCodeCellText("line 42")).toBeInTheDocument()
+    expect(screen.getAllByTitle("Inspect cross-hunk range")).toHaveLength(15)
+  })
+
+  it("reveals every covered line when a review note spans the Dashboard preview hunk gap", async () => {
+    const dashboardFile = {
+      additions: 0,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/frontend/routes/Dashboard.tsx b/app/frontend/routes/Dashboard.tsx",
+        "--- a/app/frontend/routes/Dashboard.tsx",
+        "+++ b/app/frontend/routes/Dashboard.tsx",
+        "@@ -13,6 +13,6 @@",
+        " line 13",
+        " line 14",
+        " line 15",
+        " line 16",
+        " line 17",
+        " line 18",
+        "@@ -24,6 +24,6 @@",
+        " line 24",
+        " line 25",
+        " line 26",
+        " line 27",
+        " line 28",
+        " line 29"
+      ].join("\n"),
+      path: "app/frontend/routes/Dashboard.tsx",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n"))
+
+    render(
+      <ReviewableDiff
+        files={[dashboardFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "app/frontend/routes/Dashboard.tsx": [
+            {
+              id: "cognitive_review_note:preview-dashboard",
+              side: "new",
+              start_line: 13,
+              end_line: 26,
+              title: "Inspect preview dashboard states"
+            }
+          ]
+        }}
+        showFileHeaders
+      />
+    )
+
+    await findCodeCellText("line 19")
+
+    for (const lineNumber of [19, 20, 21, 22, 23]) {
+      expect(getCodeCellText(`line ${lineNumber}`)).toBeInTheDocument()
+    }
+    expect(screen.getAllByTitle("Inspect preview dashboard states")).toHaveLength(14)
+  })
+
+  it("does not retry annotation-forced context loading after the automatic fetch fails", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " first", "@@ -10,1 +10,1 @@", " last"].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockRejectedValue(new Error("unknown ref stale-branch"))
+
+    render(
+      <ReviewableDiff
+        files={[twoHunkFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "f.rb": [{ id: "note-1", side: "new", start_line: 1, end_line: 10, title: "Needs context" }]
+        }}
+        showFileHeaders
+      />
+    )
+
+    await waitFor(() => expect(onLoadFileContext).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+  })
+
   it("syntax-highlights context loaded from chunk expansion", async () => {
     const twoHunkFile = {
       additions: 0,

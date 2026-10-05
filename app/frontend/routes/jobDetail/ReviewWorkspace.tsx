@@ -160,6 +160,8 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     return sourceDiff.data
   }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
   const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
+  const activeBaseContentRef = activeDiff?.base_sha ?? activeDiff?.base_ref ?? null
+  const activeHeadContentRef = activeDiff?.head_sha ?? activeDiff?.head_ref ?? null
   const sidebarReviewAnnotationCounts =
     activeReviewAnnotations.sidebar_counts && activeReviewAnnotations.sidebar_counts.length > 0
       ? activeReviewAnnotations.sidebar_counts
@@ -345,7 +347,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   if (historicalVersionSelected && historicalVersion.isError)
     return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
   if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
+  if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{staleRangeErrorMessage(rangeDiff.error, t)}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
@@ -442,16 +444,16 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               onCommentLine={startComment}
               onDeleteThread={feedback.onDeleteThread}
               onDiscussComposing={feedback.onDiscussComposing}
-              onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
+              onLoadFileContext={activeHeadContentRef ? (file) => fetchJobSourceFileContent(jobId, activeHeadContentRef, file.path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
               renderImageDiff={(file) => (
                 <ImageDiffThumbnails
-                  baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
+                  baseRef={activeBaseContentRef}
                   file={file}
-                  headRef={activeDiff.head_sha ?? activeDiff.head_ref}
+                  headRef={activeHeadContentRef}
                   jobId={jobId}
                 />
               )}
@@ -768,6 +770,14 @@ function ReviewMetricGutterShortcut({
 
 function metricCandidateFromProvider(provider: DiffLineMetricProvider): DiffMetricCandidate {
   return { id: provider.id, label: provider.label }
+}
+
+function staleRangeErrorMessage(error: unknown, t: (key: string, options?: Record<string, unknown>) => string) {
+  const message = error instanceof Error ? error.message : errorMessage(error, t("source_diff_error"))
+  const staleRef = message.match(/unknown ref\s+([^\s]+)/i)?.[1]
+  if (!staleRef) return message
+
+  return t("source_diff_stale_ref_error", { ref: staleRef })
 }
 
 function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCandidate[]) {
