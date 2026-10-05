@@ -8,7 +8,7 @@ in the Job review tab.
 Notes are stored as plugin-owned records scoped to the Job, Workflow, Run, and
 DiffReviewVersion that produced them. Open notes count as unresolved PR-level
 review-note debt; acknowledged notes, discussed notes, and covered ranges with
-operator diff comments count as handled. Dismissed notes are reported
+operator diff comments count as acknowledged. Dismissed notes are reported
 separately in the rollup. Changed lines without a note do not create debt.
 
 The plugin is disabled by default. When enabled, it contributes a
@@ -23,10 +23,10 @@ rather than producing an indistinguishable empty result.
 In the review tab, open notes appear as warning-tinted diff ranges for the
 displayed version plus agent-authored note cards in the unified Review
 conversation side panel. The plugin status area summarizes
-total flagged ranges, open/unhandled notes, handled notes, dismissed notes, and
-the zero-note state when the review pass explicitly submitted an empty note
-set. Operators can jump to the range, acknowledge a note without replying, or
-discuss it; either action marks the note handled.
+total flagged ranges, open/unacknowledged notes, acknowledged notes, dismissed
+notes, and the zero-note state when the review pass explicitly submitted an
+empty note set. Operators can jump to the range, acknowledge a note without
+replying, or discuss it; either action marks the note acknowledged.
 
 This plugin only reports PR-level review-note debt for the diff version under
 review. It is not a repository-wide cognitive coverage metric: unflagged

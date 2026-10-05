@@ -311,17 +311,24 @@ dominating the first viewport: lockfiles and generated outputs declared in
 until a reviewer chooses to reveal them.
 
 The review tab also shows a PR-level review-note debt rollup for the
-selected diff version: total flagged ranges, open/unhandled notes, handled
-notes, dismissed notes, and a zero-note state when the reviewer submitted no
-ranges. The diff also includes a slim right-side metric rail that stays visible
-while wide code scrolls horizontally: red marks lines covered by open
-review-note obligations, while blue marks changed or context lines with no
-open review-note obligation. A diff version with no notes and no submitted
-review marker is not presented as no debt. Acknowledged notes, discussed notes,
-and covered ranges with operator diff comments count as handled. Unflagged
-changed lines are treated as having no PR-level review-note debt;
+selected diff version: total flagged ranges, open/unacknowledged notes,
+acknowledged notes, dismissed notes, and a zero-note state when the reviewer
+submitted no ranges. The diff also includes a slim right-side metric rail that
+stays visible while wide code scrolls horizontally: red marks lines covered by
+open review-note obligations, while blue marks changed or context lines with
+no open review-note obligation. A diff version with no notes and no submitted
+review marker is not presented as no debt. Acknowledged notes, discussed
+notes, and covered ranges with operator diff comments count as acknowledged.
+Unflagged changed lines are treated as having no PR-level review-note debt;
 repository-wide cognitive coverage or historical attention-debt metrics are
 separate concerns.
+Acknowledged notes remain visible inline for their selected diff version with a
+subdued resolved treatment, while dismissed notes are counted separately.
+Discussing a note opens the Job discussion chat with Review Note context;
+operator review feedback still uses the normal diff comment path. Leaving a
+feedback reply from a Review Note creates a regular diff review comment
+anchored to the note range with Review Note provenance attached, so submitting
+review feedback preserves both the human comment and the note that prompted it.
 
 ## Deploy
 

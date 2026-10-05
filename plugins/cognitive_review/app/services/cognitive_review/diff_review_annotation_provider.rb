@@ -17,9 +17,9 @@ module CognitiveReview
       rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes, comment_diff_review_versions: extra_comment_versions)
       return {} if sidebar_notes.empty? && !rollup.submitted?
 
-      open_notes = notes.select { |note| note.open? && !rollup.user_commented?(note) }
-      inline_notes = inline_notes_for(open_notes, version: version)
-      comments_by_note_id = matching_comments_by_note_id(open_notes, diff_review_versions: extra_comment_versions)
+      visible_notes = notes.reject(&:dismissed?)
+      inline_notes = inline_notes_for(visible_notes, version: version)
+      comments_by_note_id = matching_comments_by_note_id(visible_notes, diff_review_versions: extra_comment_versions)
       sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes, diff_review_versions: extra_comment_versions)
 
       payload = {
@@ -28,12 +28,12 @@ module CognitiveReview
         counts: counts_for(rollup)
       }
 
-      return payload.merge(ranges: {}, panels: rollup.submitted? ? summary_panels_for(open_notes, rollup, comments_by_note_id: comments_by_note_id) : []) if open_notes.empty?
+      return payload.merge(ranges: {}, panels: rollup.submitted? ? summary_panels_for(visible_notes, rollup, comments_by_note_id: comments_by_note_id) : []) if inline_notes.empty?
 
       {
         **payload,
         ranges: ranges_for(inline_notes, comments_by_note_id: comments_by_note_id),
-        panels: summary_panels_for(open_notes, rollup, comments_by_note_id: comments_by_note_id)
+        panels: summary_panels_for(visible_notes, rollup, comments_by_note_id: comments_by_note_id)
       }
     end
 
@@ -50,7 +50,7 @@ module CognitiveReview
       [
         count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
         count_payload("cognitive_review.open", "Open notes", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
-        count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
+        count_payload("cognitive_review.handled", "Acknowledged", rollup.handled_count, "success"),
         count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
       ]
     end
@@ -141,7 +141,7 @@ module CognitiveReview
           end_line: note.end_line,
           title: note.title,
           body: note.explanation,
-          tone: "warning",
+          tone: note_tone(note, matching_comments: comments_by_note_id[note.id] || []),
           category: note.reason_codes.first,
           confidence: note.confidence&.to_f,
           state: note.state,
@@ -159,7 +159,7 @@ module CognitiveReview
           component: "cognitive_review/note_panel",
           title: note.title,
           body: note.explanation,
-          tone: "warning",
+          tone: note_tone(note, matching_comments: comments_by_note_id[note.id] || []),
           props: {
             hide_header: true,
             diff_review_version_id: note.diff_review_version_id,
@@ -190,13 +190,14 @@ module CognitiveReview
     def self.panel_body(rollup)
       return "No PR-level review-note debt was flagged for this diff version." if rollup.zero_note_state?
 
-      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} handled, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
+      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} acknowledged, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
     end
 
     def self.note_props(note, matching_comments: [])
       {
         note_id: note.id,
         job_id: note.job_id,
+        diff_review_version_id: note.diff_review_version_id,
         path: note.path,
         side: note.side,
         start_line: note.start_line,
@@ -209,6 +210,8 @@ module CognitiveReview
         priority: note.priority,
         state: note.state,
         handled_by_comment: matching_comments.any?,
+        handled: note.handled? || matching_comments.any?,
+        open_unhandled: note.open? && matching_comments.empty?,
         handled_by_comment_count: matching_comments.size,
         handled_by_comment_ids: matching_comments.map(&:id),
         discussion_entries: discussion_entries_for(note).map do |entry|
@@ -235,6 +238,12 @@ module CognitiveReview
       notes.each_with_object({}) do |note, matches|
         matches[note.id] = comments.select { |comment| comment_matches_note_range?(comment, note) }
       end
+    end
+
+    def self.note_tone(note, matching_comments: [])
+      return "success" if note.handled? || matching_comments.any?
+
+      "warning"
     end
 
     def self.comment_matches_note_range?(comment, note)

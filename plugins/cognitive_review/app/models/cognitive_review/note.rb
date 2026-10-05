@@ -150,8 +150,22 @@ module CognitiveReview
       end
     end
 
+    def start_discussion!(user:)
+      with_lock do
+        timestamp = Time.current
+        update!(
+          state: "discussed",
+          discussion_started_at: discussion_started_at || timestamp,
+          discussion_started_by_user: discussion_started_by_user || user,
+          last_discussed_at: timestamp,
+          last_discussed_by_user: user
+        )
+      end
+    end
+
     def open? = state == "open"
     def handled? = %w[acknowledged discussed].include?(state)
+    def dismissed? = state == "dismissed"
     def open_for_pr_debt?(review_comments:, diff_review_version_ids: []) = open? && !covered_by_user_comment?(review_comments, diff_review_version_ids: diff_review_version_ids)
     def handled_for_pr_debt?(review_comments:, diff_review_version_ids: []) = handled? || covered_by_user_comment?(review_comments, diff_review_version_ids: diff_review_version_ids)
 

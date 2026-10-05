@@ -187,6 +187,7 @@ describe("ReviewWorkspace", () => {
                 end_line: 1,
                 title: "Inspect this branch",
                 body: "The provider flagged this range.",
+                tone: "warning",
                 props: {
                   note_id: 7,
                   job_id: 42,
@@ -196,6 +197,7 @@ describe("ReviewWorkspace", () => {
                   end_line: 1,
                   title: "Inspect this branch",
                   explanation: "The provider flagged this range.",
+                  open_unhandled: true,
                   priority: "high",
                   confidence: 0.82,
                   reason_codes: ["state"]
@@ -241,7 +243,7 @@ describe("ReviewWorkspace", () => {
           counts: [
             { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
             { id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" },
-            { id: "cognitive_review.handled", label: "Handled", value: 0, tone: "success" },
+            { id: "cognitive_review.handled", label: "Acknowledged", value: 0, tone: "success" },
             { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
           ]
         }
@@ -253,7 +255,7 @@ describe("ReviewWorkspace", () => {
 
     expect((await screen.findAllByText("Review Notes")).length).toBeGreaterThan(0)
     await waitFor(() => {
-      expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(2)
+      expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(1)
     })
     const viewer = screen.getByTestId("agent-diff-viewer")
     expect(within(viewer).getByText("Inspect this branch")).toBeInTheDocument()
@@ -262,9 +264,11 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
     expect(within(sidebar).getByText("The provider flagged this range.")).toBeInTheDocument()
     expect(screen.getByText("Open notes: 1")).toBeInTheDocument()
-    expect(screen.getByText("1 open, 0 handled (0 acknowledged, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
+    expect(screen.getByText("0 acknowledged")).toBeInTheDocument()
+    expect(screen.queryByText("0 handled")).not.toBeInTheDocument()
+    expect(screen.getByText("1 open, 0 acknowledged (0 acknowledged directly, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
     expect(screen.getByText("Flagged")).toBeInTheDocument()
-    expect(screen.getByText("Handled")).toBeInTheDocument()
+    expect(screen.getByText("Acknowledged")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
     const riskMetric = within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")
@@ -309,6 +313,255 @@ describe("ReviewWorkspace", () => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
     })
     await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
+  })
+
+  it("creates a normal diff review comment with Review Note provenance from a note feedback reply", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => commentsPayload([
+        comment({
+          id: 11,
+          diff_review_version_id: 100,
+          new_line: 3,
+          body: "Please address the lifecycle risk.",
+          context: {
+            source: "review_note",
+            review_note_id: 7,
+            review_note_title: "Inspect this branch"
+          }
+        })
+      ])
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {},
+          panels: [
+            {
+              id: "cognitive_review.summary",
+              component: "cognitive_review/note_panel",
+              props: {
+                total: 1,
+                notes: [
+                  {
+                    note_id: 7,
+                    job_id: 42,
+                    diff_review_version_id: 100,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 3,
+                    title: "Inspect this branch",
+                    summary: "Branch state risk",
+                    explanation: "The provider flagged this range.",
+                    priority: "high",
+                    confidence: 0.82,
+                    reason_codes: ["state"],
+                    open_unhandled: true
+                  }
+                ]
+              }
+            }
+          ],
+          actions: [],
+          counts: []
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const sidebar = (await screen.findByText("Review conversation")).closest("section") as HTMLElement
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Reply" }))
+    expect(within(sidebar).getByText("Adds a draft review comment for this note. Use Submit Feedback in the sidebar to send selected comments to the agent.")).toBeInTheDocument()
+    fireEvent.change(within(sidebar).getByLabelText("Reply"), { target: { value: "Please address the lifecycle risk." } })
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Add comment" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    const createCall = fetchSpy.mock.calls.find(([url]) => url === "/api/v1/app/jobs/42/diff_review_comments")
+    const posted = JSON.parse(String((createCall?.[1] as RequestInit).body))
+    expect(posted.diff_review_comment).toMatchObject({
+      surface: "job_review_workspace",
+      diff_review_version_id: 100,
+      anchor_kind: "line",
+      path: "app/models/user.rb",
+      side: "right",
+      new_line: 3,
+      body: "Please address the lifecycle risk.",
+      context: {
+        source: "review_note",
+        review_note_id: 7,
+        review_note_title: "Inspect this branch",
+        review_note_summary: "Branch state risk",
+        review_note_explanation: "The provider flagged this range.",
+        review_note_reason_codes: ["state"],
+        review_note_priority: "high",
+        review_note_confidence: 0.82,
+        review_note_range: {
+          path: "app/models/user.rb",
+          side: "new",
+          start_line: 1,
+          end_line: 3
+        }
+      }
+    })
+    expect(within(sidebar).getByRole("button", { name: "Discuss" })).toBeInTheDocument()
+  })
+
+  it("renders handled review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {
+            "app/models/user.rb": [
+              {
+                id: "cognitive_review_note:7",
+                component: "cognitive_review/note_marker",
+                marker_component: "cognitive_review/note_marker",
+                inline_component: "cognitive_review/note_panel",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Inspect this branch",
+                body: "The provider flagged this range.",
+                tone: "success",
+                props: {
+                  note_id: 7,
+                  job_id: 42,
+                  path: "app/models/user.rb",
+                  side: "new",
+                  start_line: 1,
+                  end_line: 1,
+                  title: "Inspect this branch",
+                  explanation: "The provider flagged this range.",
+                  handled: true,
+                  open_unhandled: false,
+                  state: "acknowledged"
+                }
+              },
+              {
+                id: "cognitive_review_note:8",
+                component: "cognitive_review/note_marker",
+                marker_component: "cognitive_review/note_marker",
+                inline_component: "cognitive_review/note_panel",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Second acknowledged branch",
+                body: "Another acknowledged note shares this range.",
+                tone: "success",
+                props: {
+                  note_id: 8,
+                  job_id: 42,
+                  path: "app/models/user.rb",
+                  side: "new",
+                  start_line: 1,
+                  end_line: 1,
+                  title: "Second acknowledged branch",
+                  explanation: "Another acknowledged note shares this range.",
+                  handled: true,
+                  open_unhandled: false,
+                  state: "discussed"
+                }
+              }
+            ]
+          },
+          panels: [
+            {
+              id: "cognitive_review.summary",
+              component: "cognitive_review/note_panel",
+              props: {
+                total: 1,
+                rollup: {
+                  total_flagged_ranges: 2,
+                  open_unhandled_count: 0,
+                  acknowledged_count: 1,
+                  discussed_count: 1,
+                  user_commented_count: 0,
+                  dismissed_count: 0,
+                  handled_count: 2,
+                  zero_note_state: false
+                },
+                notes: [
+                  {
+                    note_id: 7,
+                    job_id: 42,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 1,
+                    title: "Inspect this branch",
+                    explanation: "The provider flagged this range.",
+                    handled: true,
+                    open_unhandled: false,
+                    state: "acknowledged"
+                  },
+                  {
+                    note_id: 8,
+                    job_id: 42,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 1,
+                    title: "Second acknowledged branch",
+                    explanation: "Another acknowledged note shares this range.",
+                    handled: true,
+                    open_unhandled: false,
+                    state: "discussed"
+                  }
+                ]
+              }
+            }
+          ],
+          actions: [],
+          counts: [
+            { id: "cognitive_review.total", label: "Flagged ranges", value: 2 },
+            { id: "cognitive_review.open", label: "Open notes", value: 0, tone: "success" },
+            { id: "cognitive_review.handled", label: "Acknowledged", value: 2, tone: "success" },
+            { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
+          ]
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Inspect this branch")
+    const handledCards = document.querySelectorAll('[data-cognitive-review-note-state="handled"]')
+    expect(handledCards.length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Acknowledged").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("1 acknowledged review note").length).toBeGreaterThan(0)
+    expect(screen.queryByText("1 open review note")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
+    const handledRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
+    expect(handledRow).toHaveClass("bg-success-bg/30")
+    const groupedMarker = (handledRow as HTMLElement).querySelector('[data-diff-review-annotation-marker="true"]') as HTMLElement
+    expect(groupedMarker).toHaveTextContent("2")
+    expect(groupedMarker).toHaveClass("bg-success-bg", "text-success-text", "ring-success-border")
+    expect(groupedMarker).not.toHaveClass("bg-warning-bg", "text-warning-text", "ring-warning-border")
+
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const firstAcknowledgedCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    fireEvent.click(within(firstAcknowledgedCard).getByRole("button", { name: "Discuss" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/start_discussion", expect.objectContaining({ method: "POST" }))
+    })
+    expect(within(sidebar).getByRole("button", { name: "Opening..." })).toBeDisabled()
+    expect(within(sidebar).queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
   })
 
   it("renders every changed file's diff without an internal max-height and navigates via the changed-files popup", async () => {
@@ -832,7 +1085,7 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("creates a comment from non-empty text then submits the whole review when Submit is clicked", async () => {
+  it("creates a comment from non-empty text then submits the whole review when Submit Feedback is clicked", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(
@@ -848,7 +1101,7 @@ describe("ReviewWorkspace", () => {
 
     await screen.findByText("Please add a regression spec.")
     fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "One more thing." } })
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(
@@ -1286,7 +1539,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
@@ -1316,8 +1569,8 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("1 handled")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    await screen.findByText("1 acknowledged")
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
@@ -2104,7 +2357,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Source diff comment should stay visible in review.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace%2Cjob_source_diff&all_versions=1")
@@ -2608,7 +2861,8 @@ function sourceDiffPayloadWithCognitiveReviewRisk(overrides: Partial<JobSourceDi
             start_line: 1,
             end_line: 1,
             title: "Inspect this branch",
-            body: "The provider flagged this range."
+            body: "The provider flagged this range.",
+            tone: "warning"
           }
         ]
       },

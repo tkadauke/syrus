@@ -4,16 +4,23 @@
     "acknowledging": "Agnoscitur...",
     "cancel": "Revoca",
     "discuss": "Disputa",
-    "discussing": "Disputatur...",
+    "discussing": "Aperitur...",
     "discussion_body": "Nota disputationis",
     "error": "Haec nota recognitionis renovari non potuit.",
-    "save_discussion": "Disputationem serva",
+    "feedback_reply_body": "Responde",
+    "feedback_reply_hint": "Commentarium recensionis in schemate huic notae addit. Utere Submit Feedback in latere ut commentaria electa agenti mittas.",
+    "reply": "Responde",
+    "save_feedback_reply": "Commentarium adde",
+    "saving_feedback_reply": "Servatur...",
+    "save_discussion": "Disputationem aperi",
     "view_range": "Intervallum vide"
   },
   "note": {
     "agent_authored": "Nota agentis",
     "confidence": "{{confidence}}% fiducia",
     "fallback_title": "Nota recognitionis",
+    "handled": "Agnita",
+    "legacy_discussion_entries": "Priores notae disputationis",
     "priority": "Prioritas {{priority}}",
     "range": "{{path}} {{side}} versus {{start}}-{{end}}",
     "side": {
@@ -23,7 +30,11 @@
   },
   "panel": {
     "hidden_count": "{{count}} plures notae in diff patent.",
-    "rollup_summary": "{{open}} apertae, {{handled}} tractatae ({{acknowledged}} agnitae, {{discussed}} disputatae, {{user_commented}} commentatae), {{dismissed}} remotae.",
+    "handled_summary": "{{count}} nota recensionis agnita",
+    "handled_summary_one": "{{count}} nota recensionis agnita",
+    "handled_summary_other": "{{count}} notae recensionis agnitae",
+    "mixed_summary": "{{open}} apertae, {{handled}} agnitae notae recensionis",
+    "rollup_summary": "{{open}} apertae, {{handled}} agnitae ({{acknowledged}} directe agnitae, {{discussed}} disputatae, {{user_commented}} commentatae), {{dismissed}} remotae.",
     "summary": "{{count}} nota recensionis aperta",
     "summary_one": "{{count}} nota recensionis aperta",
     "summary_other": "{{count}} notae recensionis apertae",
@@ -32,7 +43,7 @@
   },
   "rollup": {
     "dismissed": "Remotae",
-    "handled": "Tractatae",
+    "handled": "Agnitae",
     "open": "Apertae",
     "total": "Signatae"
   }

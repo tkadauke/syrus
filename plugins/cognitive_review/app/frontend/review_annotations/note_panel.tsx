@@ -3,13 +3,17 @@ import { useRef, useState, type FocusEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
 import { useT } from "@app/hooks/useT"
-import { acknowledgeCognitiveReviewNote, discussCognitiveReviewNote } from "../api/cognitiveReviewNotes"
+import { acknowledgeCognitiveReviewNote, createCognitiveReviewNoteComment, startCognitiveReviewNoteDiscussion } from "../api/cognitiveReviewNotes"
 
 type CognitiveReviewNote = {
   confidence?: number | null
+  diff_review_version_id?: number | null
   discussion_entries?: Array<{ body: string; created_at?: string | null; id: number }>
   end_line: number
   explanation?: string | null
+  handled?: boolean | null
+  handled_by_comment?: boolean | null
+  open_unhandled?: boolean | null
   job_id: number
   note_id: number
   path: string
@@ -41,16 +45,20 @@ type NotePanelItemProps = NotePanelProps & Partial<CognitiveReviewNote>
 
 const VISIBLE_NOTE_LIMIT = 12
 const NOTE_CARD_CLASS = [
-  "rounded border border-warning-border bg-warning-bg/45 p-3",
-  "text-sm text-text-primary focus-within:ring-2 focus-within:ring-warning-border"
+  "rounded border p-3 text-sm text-text-primary focus-within:ring-2"
 ].join(" ")
+const OPEN_NOTE_CARD_CLASS = "border-warning-border bg-warning-bg/45 focus-within:ring-warning-border"
+const HANDLED_NOTE_CARD_CLASS = "border-success-border bg-success-bg/35 focus-within:ring-success-border"
 const AGENT_NOTE_BADGE_CLASS = [
-  "shrink-0 rounded border border-warning-border bg-surface px-1.5 py-0.5",
-  "text-2xs font-semibold uppercase text-warning-text"
+  "shrink-0 rounded border bg-surface px-1.5 py-0.5",
+  "text-2xs font-semibold uppercase"
 ].join(" ")
-const DISCUSSION_TEXTAREA_CLASS =
-  "min-h-20 w-full rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
 const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary"
+const FEEDBACK_REPLY_TEXTAREA_CLASS = [
+  "min-h-16 w-full rounded border border-border bg-surface px-3 py-2",
+  "text-sm text-text-primary shadow-sm",
+  "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+].join(" ")
 
 export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotationComponentProps) {
   const { t } = useT("cognitive_review")
@@ -66,7 +74,7 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
     <div className="space-y-3">
       {hideHeader ? null : <div>
         <div className="text-sm font-semibold text-text-primary">{t("panel.title")}</div>
-        <p className="mt-1 text-xs text-text-secondary">{summaryText(t, rollup, total)}</p>
+        <p className="mt-1 text-xs text-text-secondary">{summaryText(t, rollup, total, notes)}</p>
       </div>}
       {rollup ? <RollupGrid rollup={rollup} /> : null}
       {visibleNotes.length > 0 ? (
@@ -106,7 +114,7 @@ function RollupGrid({ rollup }: { rollup: NonNullable<NotePanelProps["rollup"]> 
   )
 }
 
-function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["rollup"], total: number) {
+function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["rollup"], total: number, notes: CognitiveReviewNote[]) {
   if (rollup?.zero_note_state) return t("panel.zero_summary")
   if (rollup) {
     return t("panel.rollup_summary", {
@@ -119,18 +127,25 @@ function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["ro
       user_commented: rollup.user_commented_count ?? 0
     })
   }
+  const open = notes.filter(noteOpenUnhandled).length
+  const handled = notes.length - open
+  if (handled > 0 && open === 0) return t("panel.handled_summary", { count: handled })
+  if (handled > 0) return t("panel.mixed_summary", { handled, open })
+
   return t("panel.summary", { count: total })
 }
 
 function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
   const { t } = useT("cognitive_review")
   const queryClient = useQueryClient()
-  const [discussionBody, setDiscussionBody] = useState("")
-  const [discussionOpen, setDiscussionOpen] = useState(false)
   const hoveredRef = useRef(false)
   const focusedRef = useRef(false)
+  const [replyBody, setReplyBody] = useState("")
+  const [replyOpen, setReplyOpen] = useState(false)
   const highlightConditionRefs = { focus: focusedRef, hover: hoveredRef }
   const annotationId = `cognitive_review_note:${note.note_id}`
+  const openUnhandled = noteOpenUnhandled(note)
+  const handled = !openUnhandled
   const title = note.title || note.summary || t("note.fallback_title")
   const rangeLabel = t("note.range", {
     end: note.end_line,
@@ -144,10 +159,17 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
     onSuccess: () => invalidateReviewQueries(queryClient, note.job_id)
   })
   const discuss = useMutation({
-    mutationFn: () => discussCognitiveReviewNote(note.job_id, note.note_id, discussionBody.trim()),
+    mutationFn: () => startCognitiveReviewNoteDiscussion(note.job_id, note.note_id),
+    onSuccess: (payload) => {
+      invalidateReviewQueries(queryClient, note.job_id)
+      window.location.assign(payload.redirect_to)
+    }
+  })
+  const comment = useMutation({
+    mutationFn: (body: string) => createCognitiveReviewNoteComment(note.job_id, commentInputForNote(note, body)),
     onSuccess: () => {
-      setDiscussionBody("")
-      setDiscussionOpen(false)
+      setReplyBody("")
+      setReplyOpen(false)
       invalidateReviewQueries(queryClient, note.job_id)
     }
   })
@@ -187,8 +209,9 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
 
   return (
     <article
-      className={NOTE_CARD_CLASS}
+      className={`${NOTE_CARD_CLASS} ${openUnhandled ? OPEN_NOTE_CARD_CLASS : HANDLED_NOTE_CARD_CLASS}`}
       data-cognitive-review-note-id={note.note_id}
+      data-cognitive-review-note-state={handled ? "handled" : "open"}
       onBlur={clearHighlightOnBlur}
       onFocus={() => setHighlightCondition("focus", true)}
       onMouseEnter={() => setHighlightCondition("hover", true)}
@@ -201,38 +224,99 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
             {rangeLabel}
           </button>
         </div>
-        <span className={AGENT_NOTE_BADGE_CLASS}>{t("note.agent_authored")}</span>
+        <span className={`${AGENT_NOTE_BADGE_CLASS} ${openUnhandled ? "border-warning-border text-warning-text" : "border-success-border text-success-text"}`}>
+          {handled ? t("note.handled") : t("note.agent_authored")}
+        </span>
       </div>
       {note.explanation ? <p className="mt-2 whitespace-pre-wrap text-sm text-text-secondary">{note.explanation}</p> : null}
       <NoteMetadata note={note} />
-      {discussionOpen ? (
-        <div className="mt-3 space-y-2">
+      <LegacyDiscussionEntries entries={note.discussion_entries ?? []} />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {openUnhandled && !acknowledge.isPending && !discuss.isPending && !comment.isPending ? (
+          <Button onClick={() => acknowledge.mutate()} size="sm" variant="secondary">
+            {t("actions.acknowledge")}
+          </Button>
+        ) : null}
+        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => setReplyOpen(true)} size="sm" variant="secondary">
+          {t("actions.reply")}
+        </Button>
+        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => discuss.mutate()} size="sm" variant="secondary">
+          {discuss.isPending ? t("actions.discussing") : t("actions.discuss")}
+        </Button>
+      </div>
+      {replyOpen ? (
+        <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="mb-2 text-xs text-text-secondary">{t("actions.feedback_reply_hint")}</p>
           <textarea
-            aria-label={t("actions.discussion_body")}
-            className={DISCUSSION_TEXTAREA_CLASS}
-            onChange={(event) => setDiscussionBody(event.target.value)}
-            value={discussionBody}
+            aria-label={t("actions.feedback_reply_body")}
+            className={FEEDBACK_REPLY_TEXTAREA_CLASS}
+            onChange={(event) => setReplyBody(event.target.value)}
+            value={replyBody}
           />
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={!discussionBody.trim() || discuss.isPending} onClick={() => discuss.mutate()} size="sm" variant="primary">
-              {discuss.isPending ? t("actions.discussing") : t("actions.save_discussion")}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button disabled={!replyBody.trim() || comment.isPending} onClick={() => comment.mutate(replyBody.trim())} size="sm">
+              {comment.isPending ? t("actions.saving_feedback_reply") : t("actions.save_feedback_reply")}
             </Button>
-            <Button disabled={discuss.isPending} onClick={() => setDiscussionOpen(false)} size="sm" variant="secondary">
+            <Button disabled={comment.isPending} onClick={() => { setReplyOpen(false); setReplyBody("") }} size="sm" variant="secondary">
               {t("actions.cancel")}
             </Button>
           </div>
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button disabled={acknowledge.isPending || discuss.isPending} onClick={() => acknowledge.mutate()} size="sm" variant="secondary">
-          {acknowledge.isPending ? t("actions.acknowledging") : t("actions.acknowledge")}
-        </Button>
-        <Button disabled={acknowledge.isPending || discuss.isPending} onClick={() => setDiscussionOpen(true)} size="sm" variant="secondary">
-          {t("actions.discuss")}
-        </Button>
-      </div>
-      {acknowledge.isError || discuss.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
+      {acknowledge.isError || discuss.isError || comment.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
     </article>
+  )
+}
+
+function commentInputForNote(note: CognitiveReviewNote, body: string) {
+  const left = note.side === "old"
+  const anchorLine = note.end_line
+  return {
+    surface: "job_review_workspace",
+    diff_review_version_id: note.diff_review_version_id,
+    anchor_kind: "line" as const,
+    path: note.path,
+    side: left ? ("left" as const) : ("right" as const),
+    old_line: left ? anchorLine : null,
+    new_line: left ? null : anchorLine,
+    body,
+    context: {
+      source: "review_note",
+      review_note_id: note.note_id,
+      review_note_title: note.title || null,
+      review_note_summary: note.summary || null,
+      review_note_explanation: note.explanation || null,
+      review_note_reason_codes: note.reason_codes || [],
+      review_note_priority: note.priority || null,
+      review_note_confidence: note.confidence ?? null,
+      review_note_range: {
+        path: note.path,
+        side: note.side,
+        start_line: note.start_line,
+        end_line: note.end_line
+      }
+    }
+  }
+}
+
+function noteOpenUnhandled(note: CognitiveReviewNote) {
+  const handled = note.handled ?? note.handled_by_comment ?? (note.state === "acknowledged" || note.state === "discussed")
+  return note.open_unhandled ?? !handled
+}
+
+function LegacyDiscussionEntries({ entries }: { entries: NonNullable<CognitiveReviewNote["discussion_entries"]> }) {
+  const { t } = useT("cognitive_review")
+  if (entries.length === 0) return null
+
+  return (
+    <div className="mt-3 space-y-1.5 rounded border border-border bg-surface/80 p-2">
+      <div className="text-2xs font-semibold uppercase text-text-muted">{t("note.legacy_discussion_entries")}</div>
+      {entries.map((entry) => (
+        <p className="whitespace-pre-wrap text-xs text-text-secondary" key={entry.id}>
+          {entry.body}
+        </p>
+      ))}
+    </div>
   )
 }
 

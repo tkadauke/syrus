@@ -590,7 +590,30 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
   })
 
-  it("renders full review-note panels inline at the start of covered ranges", () => {
+  it("renders grouped acknowledged review-note markers with resolved styling", () => {
+    render(
+      <ReviewableDiff
+        files={files}
+        mode="single-file"
+        reviewAnnotationRanges={{
+          "app/models/job.rb": [
+            { id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Acknowledged first", tone: "success" },
+            { id: "cognitive_review_note:8", side: "new", start_line: 1, end_line: 1, title: "Acknowledged second", tone: "success" }
+          ]
+        }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const marker = (screen.getByText("new").closest("tr") as HTMLElement).querySelector("[data-diff-review-annotation-marker='true']") as HTMLElement
+
+    expect(marker).toHaveTextContent("2")
+    expect(marker).toHaveAttribute("title", "Acknowledged first\nAcknowledged second")
+    expect(marker).toHaveClass("bg-success-bg", "text-success-text", "ring-success-border")
+    expect(marker).not.toHaveClass("bg-warning-bg", "text-warning-text", "ring-warning-border")
+  })
+
+  it("renders full review-note panels inline after the last line of covered ranges", () => {
     render(
       <ReviewableDiff
         files={files}
@@ -614,9 +637,16 @@ describe("ReviewableDiff", () => {
     )
 
     const viewer = screen.getByTestId("agent-diff-viewer")
+    const contextRow = screen.getByText("context").closest("tr") as HTMLElement
+    const addedRow = screen.getByText("added").closest("tr") as HTMLElement
+    const annotationRow = screen.getByTestId("diff-review-annotation")
+
     expect(within(viewer).getByText("Inspect changed range")).toBeInTheDocument()
     expect(within(viewer).getByText("This explanation should appear inside the diff body.")).toBeInTheDocument()
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+    expect(contextRow).toHaveAttribute("data-diff-review-annotation-ids", "note-1")
+    expect(addedRow).toHaveAttribute("data-diff-review-annotation-ids", "note-1")
+    expect(annotationRow.previousElementSibling).toBe(addedRow)
   })
 
   it("keeps the diff metric gutter hidden when no metric is registered", () => {

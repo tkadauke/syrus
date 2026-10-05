@@ -45,7 +45,7 @@ RSpec.describe CognitiveReview::Engine do
     expect(manifest.description).to include("Job review tab")
     expect(manifest.long_description).to include("PR-level review-note debt")
     expect(manifest.long_description).to include("Disabling the plugin withholds")
-    expect(manifest.long_description).to include("acknowledged, discussed, user-commented, dismissed")
+    expect(manifest.long_description).to include("acknowledged notes, discussed, user-commented, dismissed")
   end
 
   it "includes the required provider interface modules" do
