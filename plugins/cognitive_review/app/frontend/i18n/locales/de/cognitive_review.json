@@ -4,16 +4,18 @@
     "acknowledging": "Wird bestatigt...",
     "cancel": "Abbrechen",
     "discuss": "Besprechen",
-    "discussing": "Wird besprochen...",
+    "discussing": "Wird geoffnet...",
     "discussion_body": "Diskussionsnotiz",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
-    "save_discussion": "Diskussion speichern",
+    "save_discussion": "Diskussion offnen",
     "view_range": "Bereich anzeigen"
   },
   "note": {
     "agent_authored": "Agentennotiz",
     "confidence": "{{confidence}}% Vertrauen",
     "fallback_title": "Review-Notiz",
+    "handled": "Erledigt",
+    "legacy_discussion_entries": "Fruhere Diskussionsnotizen",
     "priority": "Prioritat {{priority}}",
     "range": "{{path}} {{side}} Zeilen {{start}}-{{end}}",
     "side": {

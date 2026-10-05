@@ -4,16 +4,18 @@
     "acknowledging": "Acknowledging...",
     "cancel": "Cancel",
     "discuss": "Discuss",
-    "discussing": "Discussing...",
+    "discussing": "Opening...",
     "discussion_body": "Discussion note",
     "error": "Could not update this review note.",
-    "save_discussion": "Save discussion",
+    "save_discussion": "Open discussion",
     "view_range": "View range"
   },
   "note": {
     "agent_authored": "Agent note",
     "confidence": "{{confidence}}% confidence",
     "fallback_title": "Review note",
+    "handled": "Handled",
+    "legacy_discussion_entries": "Earlier discussion notes",
     "priority": "{{priority}} priority",
     "range": "{{path}} {{side}} lines {{start}}-{{end}}",
     "side": {

@@ -4,16 +4,18 @@
     "acknowledging": "Agnoscitur...",
     "cancel": "Revoca",
     "discuss": "Disputa",
-    "discussing": "Disputatur...",
+    "discussing": "Aperitur...",
     "discussion_body": "Nota disputationis",
     "error": "Haec nota recognitionis renovari non potuit.",
-    "save_discussion": "Disputationem serva",
+    "save_discussion": "Disputationem aperi",
     "view_range": "Intervallum vide"
   },
   "note": {
     "agent_authored": "Nota agentis",
     "confidence": "{{confidence}}% fiducia",
     "fallback_title": "Nota recognitionis",
+    "handled": "Tractata",
+    "legacy_discussion_entries": "Priores notae disputationis",
     "priority": "Prioritas {{priority}}",
     "range": "{{path}} {{side}} versus {{start}}-{{end}}",
     "side": {

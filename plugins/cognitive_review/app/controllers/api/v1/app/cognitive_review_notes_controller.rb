@@ -2,6 +2,9 @@ module Api
   module V1
     module App
       class CognitiveReviewNotesController < BaseController
+        include ChatLockErrors
+        include ChatSessionLifecycle
+
         def index
           job = find_job
           version = selected_version(job)
@@ -40,6 +43,43 @@ module Api
             version: note.diff_review_version,
             discussion_entry: entry
           ), status: :created
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def start_discussion
+          job = find_job
+          return unless authorize_job_mutation!(job)
+
+          note = find_note(job)
+          chat_session = job.discussion_chat
+          user_message = nil
+          previous_state = note.state
+
+          ApplicationRecord.transaction do
+            note.start_discussion!(user: Current.user)
+            chat_session ||= ChatSession.create!(user: Current.user, repository: job.repository)
+            chat_session.chat_attachments.find_or_create_by!(attachable: job)
+            user_message = chat_session.messages.create!(
+              role: "user",
+              content: { "text" => discussion_message(job, note, previous_state: previous_state) },
+              sender_user_id: Current.user.id
+            )
+            chat_session.pin_chat_provider!
+          end
+
+          enqueue_chat_title(chat_session, user_message) if user_message && chat_session.messages.where(role: "user").count == 1
+          enqueue_chat_turn(chat_session, user_message) if user_message
+
+          render json: notes_payload(
+            job: job,
+            notes: CognitiveReview::Note.where(id: note.id),
+            version: note.diff_review_version
+          ).merge(redirect_to: "/chats/#{chat_session.id}")
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
+          raise unless transient_chat_lock_error?(e)
+
+          render_temporary_chat_lock_error
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -92,6 +132,23 @@ module Api
             by_path: by_path(note_records),
             discussion_entry: discussion_entry && discussion_entry_json(discussion_entry)
           }.compact
+        end
+
+        def discussion_message(job, note, previous_state:)
+          [
+            "Discuss this Review Note with the operator.",
+            "Job: #{job.slug}.",
+            "Repository: #{job.repository.slug}.",
+            "Diff review version: #{note.diff_review_version_id}.",
+            "Location: #{note.path}:#{note.start_line}-#{note.end_line} (#{note.side}).",
+            "State before discussion: #{previous_state}.",
+            "",
+            "Title:",
+            note.title,
+            "",
+            "Explanation:",
+            note.explanation
+          ].join("\n")
         end
 
         def by_path(notes)

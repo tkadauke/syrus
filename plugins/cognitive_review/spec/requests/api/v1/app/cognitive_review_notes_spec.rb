@@ -20,6 +20,7 @@ RSpec.describe "App API review notes", type: :request do
   before do
     PluginRecord.find_or_create_by!(name: "cognitive_review").update!(enabled: true, default_enabled: false, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
+    allow(User).to receive(:chat_providers).and_return(%w[claude])
     sign_in_as(user)
   end
 
@@ -132,6 +133,31 @@ RSpec.describe "App API review notes", type: :request do
       "user_commented_count" => 0,
       "handled_count" => 1
     )
+  end
+
+  it "starts an agent discussion chat for a note without writing a discussion entry" do
+    note = create_note
+    discussion_entry_count = CognitiveReview::DiscussionEntry.count
+
+    expect {
+      post "#{note_path(note)}/start_discussion", as: :json
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(1)
+      .and have_enqueued_job(ChatTurnJob).with(kind_of(Integer), kind_of(Integer))
+
+    expect(response).to have_http_status(:ok)
+    expect(CognitiveReview::DiscussionEntry.count).to eq(discussion_entry_count)
+    expect(note.reload).to have_attributes(state: "discussed", discussion_started_by_user: user, last_discussed_by_user: user)
+    chat = job.reload.discussion_chat
+    expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
+    expect(chat.messages.sole.content["text"]).to include(
+      "Discuss this Review Note with the operator.",
+      "Location: #{note.path}:#{note.start_line}-#{note.end_line} (#{note.side}).",
+      note.title,
+      note.explanation
+    )
+    expect(parse_body["notes"].first).to include("id" => note.id, "state" => "discussed")
+    expect(parse_body["debt_rollup"]).to include("open_unhandled_count" => 0, "discussed_count" => 1, "handled_count" => 1)
   end
 
   it "counts operator diff comments on covered ranges as handled" do
