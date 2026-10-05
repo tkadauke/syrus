@@ -570,7 +570,7 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
   })
 
-  it("renders full review-note panels inline at the start of covered ranges", () => {
+  it("renders full review-note panels inline after the last line of covered ranges", () => {
     render(
       <ReviewableDiff
         files={files}
@@ -594,9 +594,16 @@ describe("ReviewableDiff", () => {
     )
 
     const viewer = screen.getByTestId("agent-diff-viewer")
+    const contextRow = screen.getByText("context").closest("tr") as HTMLElement
+    const addedRow = screen.getByText("added").closest("tr") as HTMLElement
+    const annotationRow = screen.getByTestId("diff-review-annotation")
+
     expect(within(viewer).getByText("Inspect changed range")).toBeInTheDocument()
     expect(within(viewer).getByText("This explanation should appear inside the diff body.")).toBeInTheDocument()
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
+    expect(contextRow).toHaveAttribute("data-diff-review-annotation-ids", "note-1")
+    expect(addedRow).toHaveAttribute("data-diff-review-annotation-ids", "note-1")
+    expect(annotationRow.previousElementSibling).toBe(addedRow)
   })
 
   it("keeps the diff metric gutter hidden when no metric is registered", () => {
