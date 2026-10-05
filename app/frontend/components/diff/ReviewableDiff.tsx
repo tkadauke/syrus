@@ -1660,9 +1660,11 @@ export function UnifiedDiffTable({
 
   function renderReviewAnnotationRow(reviewNotes: DiffReviewAnnotation[], splitRow: boolean) {
     if (reviewNotes.length === 0) return null
+    const rowToneClass = reviewAnnotationRowToneClass(reviewNotes)
+    const panelToneClass = reviewAnnotationPanelToneClass(reviewNotes)
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-3 bg-warning-bg/55 dark:bg-warning-bg/25`}>
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-3 ${panelToneClass}`}>
         {reviewNotes.map((note, index) => {
           const inlineNote = reviewAnnotationInlineItem(note)
           return (
@@ -1676,7 +1678,7 @@ export function UnifiedDiffTable({
 
     if (splitRow) {
       return (
-        <tr className="font-sans bg-warning-bg/35 dark:bg-warning-bg/20" data-testid="diff-review-annotation">
+        <tr className={`font-sans ${rowToneClass}`} data-testid="diff-review-annotation">
           <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={splitInlineColSpan}>
             {panel}
           </td>
@@ -1685,9 +1687,9 @@ export function UnifiedDiffTable({
     }
 
     return (
-      <tr className="font-sans bg-warning-bg/35 dark:bg-warning-bg/20" data-testid="diff-review-annotation">
-        <td className="border-r border-warning-border/60" colSpan={gutterColSpan} />
-        <td className={`text-warning-text ${diffDensityClasses(reviewSettings).marker}`}>*</td>
+      <tr className={`font-sans ${rowToneClass}`} data-testid="diff-review-annotation">
+        <td className={reviewAnnotationGutterClass(reviewNotes)} colSpan={gutterColSpan} />
+        <td className={`${reviewAnnotationMarkerTextClass(reviewNotes)} ${diffDensityClasses(reviewSettings).marker}`}>*</td>
         <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
           {panel}
         </td>
@@ -1734,9 +1736,9 @@ export function UnifiedDiffTable({
             const inlineReviewNotes = inlineReviewNotesForLine(line, reviewAnnotations, reviewAnnotationRanges)
             const lineMetrics = metricsForLine(diffLineMetricProviders, { file, line, reviewNotes })
             const reviewNoteIdsForLine = reviewNoteIds(reviewNotes)
-            const reviewNoteRowClass = reviewNotes.length > 0 ? "bg-warning-bg/35 dark:bg-warning-bg/20" : ""
+            const reviewNoteRowClass = reviewAnnotationRowToneClass(reviewNotes)
             const highlightedReviewNote = Boolean(highlightedReviewAnnotationId && reviewNoteIdsForLine.includes(highlightedReviewAnnotationId))
-            const highlightedGutterClass = highlightedReviewNote ? "ring-2 ring-inset ring-warning-border bg-warning-bg text-warning-text" : ""
+            const highlightedGutterClass = highlightedReviewNote ? reviewAnnotationHighlightClass(reviewNotes) : ""
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
             const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
@@ -2153,6 +2155,50 @@ function reviewAnnotationToneClass(tone: string | null | undefined) {
   return "border-border bg-surface text-text-primary"
 }
 
+function reviewAnnotationHasWarning(reviewNotes: DiffReviewAnnotation[]) {
+  return reviewNotes.some((note) => note.tone === "warning")
+}
+
+function reviewAnnotationHasSuccess(reviewNotes: DiffReviewAnnotation[]) {
+  return reviewNotes.some((note) => note.tone === "success")
+}
+
+function reviewAnnotationRowToneClass(reviewNotes: DiffReviewAnnotation[]) {
+  if (reviewNotes.length === 0) return ""
+  if (reviewAnnotationHasWarning(reviewNotes)) return "bg-warning-bg/35 dark:bg-warning-bg/20"
+  if (reviewAnnotationHasSuccess(reviewNotes)) return "bg-success-bg/30 dark:bg-success-bg/15"
+
+  return "bg-surface-raised"
+}
+
+function reviewAnnotationPanelToneClass(reviewNotes: DiffReviewAnnotation[]) {
+  if (reviewAnnotationHasWarning(reviewNotes)) return "bg-warning-bg/55 dark:bg-warning-bg/25"
+  if (reviewAnnotationHasSuccess(reviewNotes)) return "bg-success-bg/45 dark:bg-success-bg/20"
+
+  return "bg-surface-raised"
+}
+
+function reviewAnnotationGutterClass(reviewNotes: DiffReviewAnnotation[]) {
+  if (reviewAnnotationHasWarning(reviewNotes)) return "border-r border-warning-border/60"
+  if (reviewAnnotationHasSuccess(reviewNotes)) return "border-r border-success-border/60"
+
+  return "border-r border-border"
+}
+
+function reviewAnnotationMarkerTextClass(reviewNotes: DiffReviewAnnotation[]) {
+  if (reviewAnnotationHasWarning(reviewNotes)) return "text-warning-text"
+  if (reviewAnnotationHasSuccess(reviewNotes)) return "text-success-text"
+
+  return "text-text-secondary"
+}
+
+function reviewAnnotationHighlightClass(reviewNotes: DiffReviewAnnotation[]) {
+  if (reviewAnnotationHasWarning(reviewNotes)) return "ring-2 ring-inset ring-warning-border bg-warning-bg text-warning-text"
+  if (reviewAnnotationHasSuccess(reviewNotes)) return "ring-2 ring-inset ring-success-border bg-success-bg text-success-text"
+
+  return "ring-2 ring-inset ring-border bg-surface-raised text-text-primary"
+}
+
 function reviewNoteIds(reviewNotes: DiffReviewAnnotation[]) {
   return reviewNotes
     .map((note) => note.id)
@@ -2194,7 +2240,7 @@ function cognitiveReviewRiskMetricProviders(
     id: "cognitive_review.risk",
     label: t("diff_review.metrics.cognitive_review_risk"),
     metricForLine: ({ reviewNotes }) => {
-      const cognitiveReviewNoteIds = reviewNoteIds(reviewNotes).filter((id) => id.startsWith("cognitive_review_note:"))
+      const cognitiveReviewNoteIds = reviewNoteIds(reviewNotes.filter((note) => note.tone === "warning")).filter((id) => id.startsWith("cognitive_review_note:"))
       const hasOpenRisk = cognitiveReviewNoteIds.length > 0
       return {
         id: "cognitive_review.risk",

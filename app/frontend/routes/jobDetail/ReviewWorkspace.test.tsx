@@ -187,6 +187,7 @@ describe("ReviewWorkspace", () => {
                 end_line: 1,
                 title: "Inspect this branch",
                 body: "The provider flagged this range.",
+                tone: "warning",
                 props: {
                   note_id: 7,
                   job_id: 42,
@@ -196,6 +197,7 @@ describe("ReviewWorkspace", () => {
                   end_line: 1,
                   title: "Inspect this branch",
                   explanation: "The provider flagged this range.",
+                  open_unhandled: true,
                   priority: "high",
                   confidence: 0.82,
                   reason_codes: ["state"]
@@ -253,7 +255,7 @@ describe("ReviewWorkspace", () => {
 
     expect((await screen.findAllByText("Review Notes")).length).toBeGreaterThan(0)
     await waitFor(() => {
-      expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(2)
+      expect(screen.getAllByText("Agent note").length).toBeGreaterThanOrEqual(1)
     })
     const viewer = screen.getByTestId("agent-diff-viewer")
     expect(within(viewer).getByText("Inspect this branch")).toBeInTheDocument()
@@ -309,6 +311,107 @@ describe("ReviewWorkspace", () => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/acknowledge", expect.objectContaining({ method: "POST" }))
     })
     await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
+  })
+
+  it("renders handled review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {
+            "app/models/user.rb": [
+              {
+                id: "cognitive_review_note:7",
+                component: "cognitive_review/note_marker",
+                marker_component: "cognitive_review/note_marker",
+                inline_component: "cognitive_review/note_panel",
+                path: "app/models/user.rb",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Inspect this branch",
+                body: "The provider flagged this range.",
+                tone: "success",
+                props: {
+                  note_id: 7,
+                  job_id: 42,
+                  path: "app/models/user.rb",
+                  side: "new",
+                  start_line: 1,
+                  end_line: 1,
+                  title: "Inspect this branch",
+                  explanation: "The provider flagged this range.",
+                  handled: true,
+                  open_unhandled: false,
+                  state: "acknowledged"
+                }
+              }
+            ]
+          },
+          panels: [
+            {
+              id: "cognitive_review.summary",
+              component: "cognitive_review/note_panel",
+              props: {
+                total: 1,
+                rollup: {
+                  total_flagged_ranges: 1,
+                  open_unhandled_count: 0,
+                  acknowledged_count: 1,
+                  discussed_count: 0,
+                  user_commented_count: 0,
+                  dismissed_count: 0,
+                  handled_count: 1,
+                  zero_note_state: false
+                },
+                notes: [
+                  {
+                    note_id: 7,
+                    job_id: 42,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 1,
+                    title: "Inspect this branch",
+                    explanation: "The provider flagged this range.",
+                    handled: true,
+                    open_unhandled: false,
+                    state: "acknowledged"
+                  }
+                ]
+              }
+            }
+          ],
+          actions: [],
+          counts: [
+            { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
+            { id: "cognitive_review.open", label: "Open notes", value: 0, tone: "success" },
+            { id: "cognitive_review.handled", label: "Handled", value: 1, tone: "success" },
+            { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
+          ]
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Inspect this branch")
+    const handledCards = document.querySelectorAll('[data-cognitive-review-note-state="handled"]')
+    expect(handledCards.length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Handled").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
+    expect(document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')).toHaveClass("bg-success-bg/30")
+
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Discuss" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/start_discussion", expect.objectContaining({ method: "POST" }))
+    })
+    expect(within(sidebar).getByRole("button", { name: "Opening..." })).toBeDisabled()
+    expect(within(sidebar).queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
   })
 
   it("renders every changed file's diff without an internal max-height and navigates via the changed-files popup", async () => {
@@ -2595,7 +2698,8 @@ function sourceDiffPayloadWithCognitiveReviewRisk(overrides: Partial<JobSourceDi
             start_line: 1,
             end_line: 1,
             title: "Inspect this branch",
-            body: "The provider flagged this range."
+            body: "The provider flagged this range.",
+            tone: "warning"
           }
         ]
       },

@@ -137,7 +137,19 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload[:ranges]).to eq({})
+    expect(payload.dig(:ranges, note.path)).to contain_exactly(
+      hash_including(
+        id: "cognitive_review_note:#{note.id}",
+        tone: "success",
+        props: hash_including(
+          note_id: note.id,
+          handled: true,
+          handled_by_comment: true,
+          handled_by_comment_count: 1,
+          open_unhandled: false
+        )
+      )
+    )
     expect(payload.dig(:panels, 0, :props, :rollup)).to include(
       total_flagged_ranges: 1,
       open_unhandled_count: 0,
@@ -395,7 +407,11 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload[:ranges]).to eq({})
+    expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
+      hash_including(title: "Handled note", tone: "success", props: hash_including(handled: true, open_unhandled: false)),
+      hash_including(title: "Discussed note", tone: "success", props: hash_including(handled: true, open_unhandled: false)),
+      hash_including(title: "User-commented note", tone: "success", props: hash_including(handled: true, handled_by_comment: true, open_unhandled: false))
+    )
     expect(payload[:counts]).to contain_exactly(
       hash_including(id: "cognitive_review.total", value: 4),
       hash_including(id: "cognitive_review.open", value: 0, tone: "success"),
@@ -495,7 +511,13 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: []
     )
 
-    expect(payload[:ranges]).to eq({})
+    expect(payload.dig(:ranges, note.path)).to contain_exactly(
+      hash_including(
+        id: "cognitive_review_note:#{note.id}",
+        tone: "success",
+        props: hash_including(handled: true, handled_by_comment: true, open_unhandled: false)
+      )
+    )
     expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 0))
     expect(payload.dig(:panels, 0, :props, :rollup)).to include(user_commented_count: 1, handled_count: 1)
   end
