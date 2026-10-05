@@ -4,7 +4,7 @@ module SpaAssetsHelper
   end
 
   def spa_stylesheet_link_tags
-    append_spa_asset_version(stylesheet_link_tag(:app))
+    append_spa_asset_version(stylesheet_link_tag("tailwind"))
   end
 
   def spa_javascript_include_tag(source, **options)

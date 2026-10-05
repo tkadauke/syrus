@@ -160,6 +160,8 @@ RSpec.describe "SPA shell", type: :request do
     css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
     js_paths = response.body.scan(/<script src="([^"]+)" type="module"><\/script>/).flatten
     expect(css_paths).not_to be_empty
+    expect(css_paths).to all(match(%r{\A/assets/tailwind-[^"]+\.css\?v=cache-sha\z}))
+    expect(css_paths).not_to include(a_string_including("/assets/assets/"))
     expect(css_paths).to all(include("?v=cache-sha"))
     expect(js_paths).to include(a_string_matching(%r{\A/assets/spa-[^"]+\.js\?v=cache-sha\z}))
   end
