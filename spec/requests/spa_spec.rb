@@ -1,6 +1,22 @@
 require "rails_helper"
+require "zlib"
 
 RSpec.describe "SPA shell", type: :request do
+  def with_public_asset(relative_path, body)
+    path = Rails.public_path.join(relative_path)
+    FileUtils.mkdir_p(path.dirname)
+    path.binwrite(body)
+    yield path
+  ensure
+    [ path, Pathname.new("#{path}.br"), Pathname.new("#{path}.gz") ].each { |asset_path| asset_path.delete if asset_path&.exist? }
+  end
+
+  def gzip(content)
+    StringIO.new.tap do |io|
+      Zlib::GzipWriter.wrap(io) { |writer| writer.write(content) }
+    end.string
+  end
+
   def frontend_app_routes
     source = Rails.root.join("app/frontend/routes/App.tsx").read
     route_table = source
@@ -34,6 +50,36 @@ RSpec.describe "SPA shell", type: :request do
       else
         "123"
       end
+    end
+  end
+
+  it "serves precompressed SPA assets when the browser advertises support and varies shared caches by encoding" do
+    with_public_asset("assets/spa-compressed-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+      Pathname.new("#{path}.gz").binwrite(gzip("gzip body"))
+
+      get "/assets/spa-compressed-fixture.js", headers: { "Accept-Encoding" => "gzip, br" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to eq("br")
+      expect(response.headers["Vary"].downcase).to eq("accept-encoding")
+      expect(response.headers["ETag"] || response.headers["etag"]).to be_present
+      expect(response.headers["Content-Length"].to_i).to eq("brotli body".bytesize)
+      expect(response.body).to eq("brotli body")
+    end
+  end
+
+  it "serves SPA assets uncompressed when the browser does not advertise encoded support" do
+    with_public_asset("assets/spa-uncompressed-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+      Pathname.new("#{path}.gz").binwrite(gzip("gzip body"))
+
+      get "/assets/spa-uncompressed-fixture.js"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to be_nil
+      expect(response.headers["Vary"].downcase).to eq("accept-encoding")
+      expect(response.body).to eq("console.log('plain')")
     end
   end
 
