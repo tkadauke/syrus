@@ -15,6 +15,14 @@ RSpec.describe Prompts::SubmitReportInstructions do
     expect(text).to include("`findings`")
   end
 
+  it "requires useful scratch work to be inlined, summarized, or submitted as artifacts" do
+    expect(text).to include("scratch files or local edits")
+    expect(text).to match(/include the\s+relevant content, summary, or evidence/)
+    expect(text).to include("reference artifacts")
+    expect(text).to match(/Do not tell the operator to retrieve files\s+from the workflow workspace/)
+    expect(text).to match(/not durable\s+repository deliverables/)
+  end
+
   it "documents the references field and how to resolve visual artifact types" do
     expect(text).to include("`references`")
     expect(text).to include("submit_artifact")

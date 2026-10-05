@@ -132,6 +132,17 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     expect(schema[:required]).to eq(%w[title narrative])
   end
 
+  it "describes scratch edits as report content or artifact evidence, not workspace deliverables" do
+    expect(described_class.description).to match(/Local\s+scratch files and edits/)
+    expect(described_class.description).to match(/not persisted as\s+repository deliverables/)
+    expect(described_class.description).to include("in narrative or submit it as an artifact and reference it")
+
+    schema = described_class.input_schema_value.to_h
+    narrative_description = schema.dig(:properties, :narrative, :description)
+    expect(narrative_description).to include("scratch-file/local-edit content")
+    expect(narrative_description).to include("do not point operators at workflow workspace paths")
+  end
+
   it "rejects calls from a step other than submit_report through registry authorization" do
     run.step.update_columns(kind: "implement")
 

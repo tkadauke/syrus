@@ -18,6 +18,16 @@ RSpec.describe Prompts::Investigation do
     expect(text).to match(/do not\s+manufacture changes just to produce a diff/)
   end
 
+  it "explains local edits are scratch work, not persisted deliverables" do
+    text = build
+
+    expect(text).to include("create or modify files locally")
+    expect(text).to match(/scratch\s+work only/)
+    expect(text).to match(/not persisted as\s+repository changes/)
+    expect(text).to include("not the deliverable")
+    expect(text).to match(/capture it\s+with an artifact/)
+  end
+
   it "instructs the agent to capture evidence via submit_artifact/submit_visual_artifact" do
     text = build
 
