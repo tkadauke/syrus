@@ -203,10 +203,13 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileLayeredChromePage && !drawerOpen && !inOnboarding)
   const mobileChatHeaderHideDistance = Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight)
   const mobileChatHeaderHidden = mobileChatHeaderOffset >= mobileChatHeaderHideDistance - 1
-  const mobileChatTopInset = isMobileChatPage ? mobileChatContentHeaderHeight : 0
+  const mobileChatVisibleAppHeaderInset = isMobileChatPage ? Math.max(0, mobileChatAppHeaderHeight - mobileChatHeaderOffset) : 0
+  const mobileChatTopInset = isMobileChatPage ? Math.max(0, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight - mobileChatHeaderOffset - mobileChatVisibleAppHeaderInset) : 0
+  const mobileChatContentHeaderOffset = isMobileChatPage ? Math.max(0, mobileChatHeaderOffset - mobileChatAppHeaderHeight) : 0
   const mobileChromeVisibleTopInset = isMobileLayeredChromePage ? Math.max(0, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight - mobileChatHeaderOffset) : 0
   const mobileChatAppContentStyle = isMobileLayeredChromePage ? {
     "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px`,
+    "--mobile-chat-app-header-visible-height": `${mobileChatVisibleAppHeaderInset}px`,
     "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
   } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
@@ -227,6 +230,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])
   const mobileChatHeaderContext = useMemo(() => ({
     autoHideEnabled: mobileChatHeaderAutoHideActive,
+    contentOffset: mobileChatContentHeaderOffset,
     hidden: mobileChatHeaderHidden,
     hideHeader: hideMobileChatHeader,
     offset: mobileChatHeaderOffset,
@@ -235,7 +239,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setContentHeight: setMobileChatHeaderContentHeight,
     topInset: mobileChatTopInset,
     visibleTopInset: mobileChromeVisibleTopInset
-  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, mobileChromeVisibleTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+  }), [hideMobileChatHeader, mobileChatContentHeaderOffset, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, mobileChromeVisibleTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
 
   const markMobileLayeredChromeScrollIntent = useCallback(() => {
     mobileLayeredChromeUserScrollAtRef.current = Date.now()
@@ -552,7 +556,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </div>
         </div>
         {isMobileChatPage ? (
-          <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-chat-content-shell">
+          <div className="flex min-h-0 flex-1 flex-col pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]" data-testid="mobile-chat-content-shell">
             <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
             <FlashBanner flash={data?.flash} />
             <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
