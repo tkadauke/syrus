@@ -1,4 +1,5 @@
 require "rails_helper"
+require "fileutils"
 
 RSpec.describe CognitiveReview::PostImplementationReviewProvider do
   let(:user) { Factories.user }
@@ -10,6 +11,10 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
   before do
     PluginRecord.find_or_create_by!(name: "cognitive_review").update!(enabled: true, default_enabled: false, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
+  after do
+    FileUtils.rm_rf(WorkflowWorkspace.path_for(workflow))
   end
 
   it "requests implementation-style workflows only while the plugin is enabled" do
@@ -96,6 +101,61 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
 
     expect(prompt).to include("Agent Memory context:")
     expect(prompt).to include("Focus on queue race assumptions.")
+  end
+
+  it "includes merged .syrus.yml review-note policy for the final diff files" do
+    workspace_path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(workspace_path.join("apps/web"))
+    File.write(workspace_path.join(".syrus.yml"), <<~YAML)
+      review_notes:
+        criteria:
+          - Surface shared services and final-diff resolution paths
+        low_signal:
+          - Do not spend notes on ordinary test bodies
+    YAML
+    File.write(workspace_path.join("apps/web/.syrus.yml"), <<~YAML)
+      project:
+        id: web
+        label: Web App
+      review_notes:
+        criteria:
+          - Surface shared frontend harness changes
+        low_signal:
+          - Ignore snapshots unless they alter a risk model
+    YAML
+    FileUtils.mkdir_p(workspace_path.join("apps/api"))
+    File.write(workspace_path.join("apps/api/.syrus.yml"), <<~YAML)
+      project:
+        id: api
+      review_notes:
+        criteria:
+          - Surface API adapter lifecycle changes
+    YAML
+
+    DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base-sha",
+      head_sha: "head-sha",
+      files: [
+        { path: "apps/web/src/finalDiffResolver.ts", status: "added", additions: 24, deletions: 0 }
+      ]
+    )
+
+    prompt = described_class.prompt_sections(job: job, workflow: workflow, run: run).join("\n\n")
+
+    expect(prompt).to include("Repository Review Notes policy from .syrus.yml:")
+    expect(prompt).to include("Surface shared services and final-diff resolution paths")
+    expect(prompt).to include("Surface shared frontend harness changes")
+    expect(prompt).not_to include("Surface API adapter lifecycle changes")
+    expect(prompt).to include("Do not spend notes on ordinary test bodies")
+    expect(prompt).to include("Ignore snapshots unless they alter a risk model")
+    expect(prompt).to include("Web App (apps/web/.syrus.yml)")
+    expect(prompt).to include("A small but architectural change deserves consideration")
+    expect(prompt).to include("final-diff")
+    expect(prompt).to include("Routine test implementation is usually low-signal")
+    expect(prompt).to include("testing frameworks, shared harnesses, coverage boundaries, or risk")
   end
 
   it "falls back gracefully when memory is unavailable" do

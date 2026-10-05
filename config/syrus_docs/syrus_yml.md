@@ -85,6 +85,7 @@ the rest of the tree.
 | `preview:` | Root preview, preserving legacy behavior. | Project preview; Job previews select affected preview-capable projects. |
 | `visual_review:` | Root visual review settings. | Project visual review settings used with affected project previews. |
 | `adversarial_review:` | Repo-wide criteria. | Criteria added only when the project is affected. |
+| `review_notes:` | Repo-wide Review Notes policy. | Review Notes policy added only when the project is affected. |
 | `coverage:` | Repository-wide coverage plan. | Project coverage plan selected when the project is affected. |
 | `hooks.post_checkout:` | Always runs after `syrus checkout`. | Runs when the checked-out diff touches the project, or as a fallback when the CLI cannot compute the diff. |
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
@@ -223,6 +224,30 @@ hooks:
   post_checkout:
     - bin/setup-local
 ```
+
+## review_notes
+
+`review_notes:` customizes the bundled Review Notes pass with repository-owned
+policy. It does not force the agent to create notes; the agent should still
+submit an empty `notes: []` result when no changed ranges deserve attention.
+
+```yaml
+review_notes:
+  criteria:
+    - Surface new or changed shared services, workflow adapters, state/lifecycle logic, retry/fallback behavior, MCP/tool contracts, persisted artifact/provenance choices, and diff-version resolution paths.
+  low_signal:
+    - Do not spend notes on ordinary test bodies, fixture churn, snapshots, or mechanical formatting unless they create or alter a testing framework, shared test harness, coverage boundary, or risk model.
+```
+
+`criteria` is a positive list of high-signal interests. `low_signal` is ignore
+or de-prioritization guidance. Both keys are optional arrays of strings. Blank
+entries are dropped; non-array values and non-string entries fail parsing.
+
+Root `.syrus.yml` Review Notes policy applies repo-wide. Nested `.syrus.yml`
+policy applies only when the final diff review version touches that project
+directory. When a diff spans multiple affected projects, Syrus de-duplicates
+and merges the root policy plus every affected nested project's policy instead
+of choosing one project.
 
 ## preview
 
