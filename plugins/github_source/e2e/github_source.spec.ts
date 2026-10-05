@@ -32,7 +32,7 @@ test("signed-in user sees the not-configured state on the repository's GitHub Is
   await expect(page.getByText("No GitHub token configured — add one in Settings.")).toBeVisible()
 })
 
-test("signed-in user sees the not-configured state on a Job's Source tab", async ({ page }) => {
+test("signed-in user sees fixture-backed source on a Job's Source tab", async ({ page }) => {
   await signInAsDemo(page)
 
   await page.goto("/repositories")
@@ -40,13 +40,14 @@ test("signed-in user sees the not-configured state on a Job's Source tab", async
   await page.getByRole("link", { name: "Inspect preview dashboard states" }).click()
   await expect(page).toHaveURL(/\/jobs\/(\d+)$/)
 
-  // Unlike this same Job's Review tab (backed by a diff fixture for preview
-  // purposes), the Source tab browses live GitHub content and has no
-  // fixture, so it must show the "not configured" empty state here too.
+  // The seeded preview Job includes repository-content fixture data so the
+  // Source tab can exercise the browser without live GitHub credentials.
   await page.getByRole("button", { name: "Source", exact: true }).click()
   await expect(page).toHaveURL(/\/jobs\/\d+\?tab=source$/)
-  await expect(page.getByText("GitHub token not configured. Add one in Settings to browse source.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "app", exact: true })).toBeVisible()
+  await expect(page.getByText("Select a file to view its contents.")).toBeVisible()
 
   await page.reload()
-  await expect(page.getByText("GitHub token not configured. Add one in Settings to browse source.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "app", exact: true })).toBeVisible()
+  await expect(page.getByText("Select a file to view its contents.")).toBeVisible()
 })
