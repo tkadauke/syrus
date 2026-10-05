@@ -46,10 +46,12 @@ test("signed-in user browses the fixture-backed source on a Job's Source tab", a
   // "not configured" empty state.
   await page.getByRole("button", { name: "Source", exact: true }).click()
   await expect(page).toHaveURL(/\/jobs\/\d+\?tab=source$/)
-  await expect(page.getByText("Viewing")).toBeVisible()
   await expect(page.getByText("GitHub token not configured. Add one in Settings to browse source.")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "app", exact: true })).toBeVisible()
+  await expect(page.getByText("Select a file to view its contents.")).toBeVisible()
 
   await page.reload()
-  await expect(page.getByText("Viewing")).toBeVisible()
   await expect(page.getByText("GitHub token not configured. Add one in Settings to browse source.")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "app", exact: true })).toBeVisible()
+  await expect(page.getByText("Select a file to view its contents.")).toBeVisible()
 })
