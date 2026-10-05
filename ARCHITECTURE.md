@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-09-28._
+_Last reviewed: 2026-10-05._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -329,7 +329,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `manual_visual_review` | operator or chat: "Run visual review" | one-shot QA pass over the Job's already-implemented diff; runs `visual_review` alone (no implement/respond re-loop) |
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
-| `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
+| `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the bare implement step, then runs optional review loops, bounded grader repair through `coding_handoff_fix`, summarize/test-plan/PR open, and chat reporting on success or terminal grader failure |
 | `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips the initial agent implement; runs graders with `local_mode_handoff_fix` as bounded agentic repair, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
 | `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue but is exempt from the `AppSetting.max_concurrent_agent_runs` cap |
 | `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
@@ -916,9 +916,9 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open` |
-| `pr_comment` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
-| `chat_feedback` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → optional post_implementation_review` |
+| `pr_comment` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
+| `chat_feedback` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
 | `retry` / `replay` | Same shape as `initial`: `prepare → implement → ` optional review loops (review-first) `→` optional retry loop (check-first, `repair: implement`) `→` initial's finish steps, reusing the existing branch and PR if present |
 | `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
@@ -926,13 +926,15 @@ Current Workflow chains:
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
-| `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
-| `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
+| `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land_after_rebase)` |
+| `coding_handoff` | `prepare → optional loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review) → optional loop(visual_review first, then coding_handoff_fix ⇄ visual_review) → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → optional post_implementation_review` |
 | `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open` (no PR yet) |
-| `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
+| `main_grader` | `prepare → builder_fanout → grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
 | `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
 | `external_pr_ingest` | same-repo: `prepare → retry_until(repair: landing_fix, check: grader_fanout → grader_collect) → push`; fork: `prepare → grader_fanout → grader_collect` |
 | `external_pr_merge` | same-repo: `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → external_pr_merge`; fork: `mergeability_preflight → prepare → grader_fanout → grader_collect → external_pr_merge` |
+| `skill` | `prepare → retry_until(run_skill → grader_fanout → grader_collect) → summarize → pr_open` (a no-diff skill closes as `no_changes` before summarize/PR) |
+| `investigation` | `prepare → investigate → submit_report` (read-only, report-producing direct Jobs; success lands in `implemented` for operator review rather than opening a PR) |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
 lockfiles. Explicit `.syrus.yml` commands are operator intent and
@@ -1058,6 +1060,14 @@ An operator or chat can also trigger a standalone pass without the
 implement/respond pairing — see `manual_visual_review` in the trigger-kind
 table above.
 
+Plugin-owned review-note providers can request a `post_implementation_review`
+Step after a branch has been summarized, tested, and either opened or pushed.
+Core owns the Step slot and the provider invocation; enabled plugins decide
+whether review notes are needed for the Job/trigger kind, contribute prompt
+sections, expose the required MCP submission tools, and render the persisted
+notes later in the review UI. The Step advances on failure so advisory review
+notes never block the implementation workflow.
+
 `respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
 PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
 cutoffs, and prior summaries; the chat-feedback path composes
@@ -1102,6 +1112,20 @@ Urgent Jobs and main-branch repair Jobs bypass pressure gates but respect hard
 limits. `AppSetting.workflow_admission_policy` is a kill-switch that can
 disable the feature instance-wide.
 
+**Execution capability routing** — Workflows record planned execution
+requirements (`planned_execution_project_label`,
+`planned_execution_target_label`, `planned_execution_capabilities`, and
+source) at creation time. `RunQueueResolver` maps each Run to a Solid Queue
+lane from those requirements plus the Step placement policy: mutable
+workflow-workspace Steps prefer the Workflow's planned requirements and sticky
+resume queue, while distributed immutable-source grader Steps use their
+target-level `required_capabilities`. Default work routes to Linux `runs` /
+`merges`; constrained work can route to queues such as `runs-macos-arm64`.
+If no live worker advertises the required capabilities, the WorkUnit is
+blocked with the no-capable-worker vocabulary instead of queueing work that
+cannot be claimed. Worker capability maps come from heartbeat metadata and
+`SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new capacity.
+
 ### Cleanup and error handling
 
 - Terminal Workflow transitions clean up or retain the shared workspace
@@ -1130,7 +1154,7 @@ Three models, mirroring the existing Step/Run split one level up
 (`WorkIntent : WorkUnit : Workflow` ≈ `1 : N : N`):
 
 - **`WorkIntent`** (`app/models/work_intent.rb`) — durable *desired*
-  work ("land JOB-10," "rebase JOB-10," "run CI repair"). States
+  work ("land this Job," "rebase this Job," "run CI repair"). States
   `requested → waiting → satisfied | failed | cancelled`. Carries scope
   (job/epic/repository), priority, actor, and a `wait_reason` (
   `dependency`, `approval`, `epic_not_ready`, `policy_not_eligible`) for
@@ -1435,6 +1459,9 @@ points declared by plugin hosts (for example `global_search:source` and
 | `:grade_detector` | Detect framework/language grader commands |
 | `:grader_type` | Register typed grader execution behavior |
 | `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
+| `:post_implementation_review_provider` | Request and supply prompt/tool contracts for advisory review-note Steps after implementation or feedback |
+| `:diff_review_annotation_provider` | Add plugin-owned annotations and side-panel content to the Job review diff |
+| `credential_types` manifest metadata | Declare safe credential type names and descriptions for the bundled credential store |
 | `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
 | `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
 | `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
@@ -1474,6 +1501,7 @@ called out only where they explain an architectural dependency.
 | `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
 | `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `credential_store` | `plugins/credential_store` | `:admin_page`, `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set`, credential type declarations | enabled |
 | `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set`, `:domain_subscriber`, `"global_search:source"` | enabled |
 | `discord` | `plugins/discord` | `:platform_delivery` | disabled by default |
 | `django` | `plugins/django` | `:preview_provider` | enabled |
@@ -1554,6 +1582,28 @@ from `plugins/*/app/frontend/i18n/locales/*/`. `App::SidebarPagesPayload`
 and plugin `:sidebar_page` providers merge enabled plugin pages into the
 primary React sidebar, where user sidebar ordering can persist custom
 navigation order.
+
+### Credential store
+
+The default-enabled `credential_store` plugin is the shared home for
+credentials that do not belong as one-off encrypted columns on `User`.
+`CredentialStore::Credential` stores payload material in one encrypted text
+column and exposes only safe metadata (type, scope, target constraints,
+rotation/revocation timestamps, and audit summaries) to pages and APIs.
+Scopes are `user`, `repository`, `team`, or `instance`, with authorization
+following the matching ownership boundary.
+
+Other plugins can declare credential type names in their manifest, and tools
+that need payload material go through the broker API instead of receiving
+plaintext from an MCP call. A broker request authorizes the current
+`McpToolContext`, credential scope, expected type, allowed tool/surface, and
+target constraints, then issues a short-lived local lease and materializes the
+payload only inside a block as a restrictive temp file, env var, exec wrapper,
+or SSH agent. Every allowed or denied access writes a
+`CredentialStore::CredentialAccessEvent` without storing secret material.
+The plugin also exposes sidebar/admin management pages, workflow/chat MCP tool
+sets, and a static Go CLI namespace (`syrus credential ...`) for operators and
+scripts.
 
 ### Repository content providers
 
@@ -2012,8 +2062,11 @@ Several layers, each catching different failure modes:
   detail payloads include `source_chat` links back to the chat proposal
   that created the Job (or the Epic proposal for bundled child Jobs) and
   `scheduled_task` links back to the recurring task that created a cron
-  Job. The Summary tab renders feedback history from `pr_comment` and
-  `chat_feedback` Workflows.
+  Job. The Review tab is versioned through `DiffReviewVersion` rows so
+  comments, review notes, typed artifacts, and coverage/metric gutters can
+  stay attached to the exact base/head diff that produced them. The Summary
+  tab renders feedback history from `pr_comment` and `chat_feedback`
+  Workflows.
 - **`/scheduled_tasks`** — cron task management.
 - **`/cron_templates`** — reusable schedule templates and links to apply
   them to repositories.
@@ -2053,6 +2106,12 @@ Several layers, each catching different failure modes:
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs. This page is
   supplied by the default-enabled `spending_insights` sidebar plugin.
+- **`/credential_store`** and **`/admin/credential_store`** —
+  default-enabled credential-store plugin pages for scoped encrypted
+  credentials. Operators manage their own/repository/team credentials from
+  the sidebar page; global admins can manage instance scope and audit history
+  from the admin page. Payloads are write-only and never returned by list/show
+  APIs.
 - **`/search`** — unified search from the `global_search` plugin,
   spanning Jobs, Epics, chats, and enabled plugin-contributed sources
   such as Design Docs and Test Insights.
@@ -2244,17 +2303,13 @@ session outcome.
   across the app/Solid databases, Active Storage on the local volume,
   worker registration and job draining, bundled Ruby/Node/Python/Go
   runtimes, and the MCP sidecar handshake.
-- The production topology is two Kubernetes Deployments behind one
-  Service: `syrus-web` (Puma)
-  and `syrus-worker` (`bin/jobs`). The worker process supervises separate
-  Solid Queue pools: `runs` (agent invocations; also a per-worker
-  `resume-<key>` queue for workspace-affine retries), `merges` (landing
-  and rebase), `chat`, `videos`, `control_plane` (schedulers, landing
-  admission, reaper, retry dispatch, wakeups), `polling` (external
-  repository and PR polling fans), `indexing` (search index writes),
-  `cleanup` (pruning/reaping), and `low_priority_maintenance` (title
-  generation, insight sweeps, resource profile refreshes).
-  MySQL runs in its own pod.
+- The production topology has web (`syrus-web`, Puma), a home worker tier
+  (`bin/jobs` with chat, videos, control-plane, polling, indexing, cleanup,
+  and low-priority maintenance queues), and optional compute worker tiers for
+  heavy workflow execution. Compute workers consume `runs`/`merges` plus
+  capability-specific lanes such as `runs-linux-amd64`, `runs-macos-arm64`,
+  and each worker's `resume-<key>` queue for workspace-affine retries. MySQL
+  runs in its own pod.
 - Ingress routes the configured app host, for example `syrus.example.com`.
 - Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
   `/home/rails/.syrus`) on worker pods, holding active Workflow
@@ -2270,6 +2325,15 @@ session outcome.
   image also seeds `/opt/mise-seed` from a cached runtime layer so a cold
   cache directory still has usable shims before the shared cache
   populates.
+- Native macOS compute workers are external launchd services, not Kubernetes
+  nodes. They run `bin/macos-worker` from a versioned source artifact, consume
+  only compute queues through `config/queue.compute.yml`, advertise capabilities
+  such as `os:macos`, `arch:arm64`, and `toolchains:xcode`, and keep workflow
+  data under their own `SYRUS_DATA_ROOT`. A pull-based updater activates
+  `syrus-worker-macos-arm64-<sha>.tar.gz` releases after local dependency
+  setup and `bin/macos-worker-check`; drain-aware rolling updates stop routing
+  new Mac-capability Runs to a host while it finishes active work and switches
+  releases.
 - A shared **sccache** compiler cache backs C/C++ (and other
   sccache-supported) compilation during `prepare`/grader commands: the
   worker image symlinks `cc`/`c++`/`gcc`/`g++`/`clang`/`clang++` ahead of

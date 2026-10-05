@@ -288,8 +288,10 @@ grade:
     phases: [review, landing, ci]
     required: true
     # Boots Rails to read the plugin registry, same as the model-namespace
-    # checker; the 1-minute budget is too tight under IO pressure.
-    timeout_minutes: 3
+    # checker, then scans the full source tree for boundary references. Shared
+    # worker IO pressure has produced spurious exit-124s with no findings under
+    # the 3-minute budget, so give it the same headroom as eager-load.
+    timeout_minutes: 5
 
   - name: eager-load
     description: |
