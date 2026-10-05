@@ -8,6 +8,25 @@ module Admin
         "#{path}:#{line}: #{source} references #{target} (#{reason}): #{evidence.strip}"
       end
     end
+    ReferenceMatcher = Data.define(:frontend_dir_pattern, :gem_pattern, :constant_pattern) do
+      def candidate?(line)
+        return true if line.include?("plugins/")
+        return true if frontend_module_key_candidate?(line)
+        return true if gem_pattern&.match?(line)
+        return false unless line.match?(/[A-Z]/)
+
+        constant_pattern&.match?(line.gsub(/"[^"]*"|'[^']*'/, ""))
+      end
+
+      private
+
+      def frontend_module_key_candidate?(line)
+        return false unless frontend_dir_pattern
+        return false unless line.match?(/component|route|workspace|sidebar/i)
+
+        frontend_dir_pattern.match?(line)
+      end
+    end
 
     CORE_ROOTS = %w[app lib config bin].freeze
     SOURCE_EXTENSIONS = %w[.rb .rake .erb .ts .tsx .js .jsx].freeze
@@ -282,24 +301,34 @@ module Admin
     end
 
     def scan_files(paths, manifests)
-      reference_pattern = reference_pattern_for(manifests)
+      reference_matcher = reference_matcher_for(manifests)
 
       paths.flat_map do |path|
         File.readlines(path).each_with_index.filter_map do |line, index|
           next if line.match?(COMMENT_ONLY)
-          next unless line.match?(reference_pattern)
+          next unless reference_matcher.candidate?(line)
 
           [ path, index + 1, line ]
         end
       end
     end
 
-    def reference_pattern_for(manifests)
-      tokens = manifests.flat_map do |manifest|
-        [ "plugins/#{manifest.dir_name}/", "#{manifest.dir_name}/", manifest.gem_name, *manifest.constants ]
-      end.compact.uniq.reject(&:blank?)
+    def reference_matcher_for(manifests)
+      frontend_dir_tokens = manifests.map { |manifest| "#{manifest.dir_name}/" }.compact.uniq.reject(&:blank?)
+      gem_tokens = manifests.filter_map(&:gem_name).uniq.reject(&:blank?)
+      constant_tokens = manifests.flat_map(&:constants).uniq.reject(&:blank?)
 
-      Regexp.union(tokens)
+      ReferenceMatcher.new(
+        frontend_dir_pattern: pattern_for(frontend_dir_tokens),
+        gem_pattern: pattern_for(gem_tokens, prefix: /gem\s+["']/, suffix: /["']/),
+        constant_pattern: pattern_for(constant_tokens)
+      )
+    end
+
+    def pattern_for(tokens, prefix: nil, suffix: nil)
+      return if tokens.empty?
+
+      Regexp.new("#{prefix}#{Regexp.union(tokens).source}#{suffix}")
     end
 
     def reference_reason(line, manifest)
@@ -308,10 +337,20 @@ module Admin
       return "plugin gem name" if manifest.gem_name.present? && line.match?(/gem\s+["']#{Regexp.escape(manifest.gem_name)}["']/)
 
       unquoted_line = line.gsub(/"[^"]*"|'[^']*'/, "")
+      return nil unless constant_pattern_for(manifest)&.match?(unquoted_line)
+
       constant = manifest.constants.find { |name| unquoted_line.match?(/\b#{Regexp.escape(name)}\b/) }
       return "plugin-owned constant #{constant}" if constant
 
       nil
+    end
+
+    def constant_pattern_for(manifest)
+      @constant_patterns ||= {}
+      @constant_patterns[manifest.name] ||= begin
+        tokens = manifest.constants.uniq.reject(&:blank?)
+        pattern_for(tokens, prefix: /\b/, suffix: /\b/)
+      end
     end
 
     def frontend_module_key_reference?(line, manifest)

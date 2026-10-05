@@ -60,7 +60,7 @@ module CognitiveReview
     private_class_method :memory_context
 
     def self.diff_context(job:, workflow:, run:)
-      version = DiffReviewVersion.best_match_for(job_id: job&.id, run_id: run&.id, workflow_id: workflow&.id)
+      version = DiffReviewVersions::FinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
       return fallback_diff_context(job) unless version
 
       file_lines = Array(version.files_snapshot).first(40).map do |file|
