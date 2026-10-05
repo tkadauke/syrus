@@ -570,15 +570,15 @@ describe("ReviewableDiff", () => {
     expect(screen.getAllByTitle("Inspect changed range")).toHaveLength(2)
   })
 
-  it("renders grouped handled review-note markers with resolved styling", () => {
+  it("renders grouped acknowledged review-note markers with resolved styling", () => {
     render(
       <ReviewableDiff
         files={files}
         mode="single-file"
         reviewAnnotationRanges={{
           "app/models/job.rb": [
-            { id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Handled first", tone: "success" },
-            { id: "cognitive_review_note:8", side: "new", start_line: 1, end_line: 1, title: "Handled second", tone: "success" }
+            { id: "cognitive_review_note:7", side: "new", start_line: 1, end_line: 1, title: "Acknowledged first", tone: "success" },
+            { id: "cognitive_review_note:8", side: "new", start_line: 1, end_line: 1, title: "Acknowledged second", tone: "success" }
           ]
         }}
         selectedPath="app/models/job.rb"
@@ -588,7 +588,7 @@ describe("ReviewableDiff", () => {
     const marker = (screen.getByText("new").closest("tr") as HTMLElement).querySelector("[data-diff-review-annotation-marker='true']") as HTMLElement
 
     expect(marker).toHaveTextContent("2")
-    expect(marker).toHaveAttribute("title", "Handled first\nHandled second")
+    expect(marker).toHaveAttribute("title", "Acknowledged first\nAcknowledged second")
     expect(marker).toHaveClass("bg-success-bg", "text-success-text", "ring-success-border")
     expect(marker).not.toHaveClass("bg-warning-bg", "text-warning-text", "ring-warning-border")
   })

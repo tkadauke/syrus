@@ -42,8 +42,9 @@ idempotent for the same diff version and range/title/reason-code identity.
 
 Open notes count as unresolved PR-level review-note debt. Acknowledging a note,
 adding discussion, or adding an operator diff comment to a covered range marks
-that range handled. Dismissed notes are tracked in the rollup separately from
-handled notes. Unflagged changed lines do not create PR-level review-note debt.
+that range acknowledged. Dismissed notes are tracked in the rollup separately
+from acknowledged notes. Unflagged changed lines do not create PR-level
+review-note debt.
 The legacy `submit_cognitive_review_notes` tool name and
 `/cognitive_review_notes` routes remain accepted for compatibility, but new
 callers should use the review-note names.
@@ -52,28 +53,29 @@ In the Job review tab, non-dismissed notes render as diff ranges for the
 displayed diff version, compact review-note markers in the diff gutter, and a
 full agent-authored review-note card inline at the end of the covered range.
 Open notes use warning styling. Acknowledged, discussed, and user-commented
-notes remain visible but switch to a subdued handled style and no longer
+notes remain visible but switch to a subdued acknowledged style and no longer
 contribute to the red review-note risk metric. The same notes also appear in
 the unified Review conversation side panel. The side panel shows the open-note
 count across review versions, interleaves review notes with user comments by
-version and code position, shows total flagged ranges, open/unhandled notes,
-handled notes, dismissed notes, and the zero-note state for the selected
+version and code position, shows total flagged ranges, open/unacknowledged
+notes, acknowledged notes, dismissed notes, and the zero-note state for the selected
 DiffReviewVersion. The zero-note state appears only when the review pass
 submitted an explicit empty result. Hovering or focusing a note card highlights
 its covered line range in the displayed diff when that version is selected.
 The side panel lets operators jump to flagged ranges and offers `Acknowledge`
-and `Discuss` actions. `Acknowledge` marks an open note handled without adding
-a reply. `Discuss` opens the Job discussion chat with Review Note context and
-marks the note discussed; it does not save new operator review feedback into
-the plugin-local discussion-entry table. Older discussion-entry rows, if
-present, are displayed as read-only note history. An operator's regular diff
-comment also handles an open note when the comment is anchored to the same diff
-version, path, side, and line range; the comment remains a normal review-tab
-comment for sidebar and feedback behavior.
+and `Discuss` actions. `Acknowledge` marks an open note acknowledged without
+adding a reply. `Discuss` opens the Job discussion chat with Review Note
+context and also moves the note into the acknowledged visual state; it does not
+save new operator review feedback into the plugin-local discussion-entry
+table. Older discussion-entry rows, if present, are displayed as read-only note
+history. An operator's regular diff comment also acknowledges an open note when
+the comment is anchored to the same diff version, path, side, and line range;
+the comment remains a normal review-tab comment for sidebar and feedback
+behavior.
 
 This rollup is intentionally scoped to PR review. It answers: "Did this
 implementation diff receive plugin-authored notes, and have the flagged ranges
-been handled?" It does not measure repository-wide cognitive coverage, codebase
+been acknowledged?" It does not measure repository-wide cognitive coverage, codebase
 cognitive debt, historical risk, or the percentage of changed lines inspected.
 Those broader metrics can consume these note states later, but that is a
 separate integration.

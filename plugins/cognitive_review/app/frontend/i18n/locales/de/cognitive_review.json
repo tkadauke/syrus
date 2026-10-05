@@ -14,7 +14,7 @@
     "agent_authored": "Agentennotiz",
     "confidence": "{{confidence}}% Vertrauen",
     "fallback_title": "Review-Notiz",
-    "handled": "Erledigt",
+    "handled": "Bestatigt",
     "legacy_discussion_entries": "Fruhere Diskussionsnotizen",
     "priority": "Prioritat {{priority}}",
     "range": "{{path}} {{side}} Zeilen {{start}}-{{end}}",
@@ -25,11 +25,11 @@
   },
   "panel": {
     "hidden_count": "{{count}} weitere Notizen sind im Diff verfugbar.",
-    "handled_summary": "{{count}} erledigte Review-Notiz",
-    "handled_summary_one": "{{count}} erledigte Review-Notiz",
-    "handled_summary_other": "{{count}} erledigte Review-Notizen",
-    "mixed_summary": "{{open}} offen, {{handled}} erledigte Review-Notizen",
-    "rollup_summary": "{{open}} offen, {{handled}} erledigt ({{acknowledged}} bestatigt, {{discussed}} besprochen, {{user_commented}} kommentiert), {{dismissed}} verworfen.",
+    "handled_summary": "{{count}} bestatigte Review-Notiz",
+    "handled_summary_one": "{{count}} bestatigte Review-Notiz",
+    "handled_summary_other": "{{count}} bestatigte Review-Notizen",
+    "mixed_summary": "{{open}} offen, {{handled}} bestatigte Review-Notizen",
+    "rollup_summary": "{{open}} offen, {{handled}} bestatigt ({{acknowledged}} direkt bestatigt, {{discussed}} besprochen, {{user_commented}} kommentiert), {{dismissed}} verworfen.",
     "summary": "{{count}} offene Review-Notiz",
     "summary_one": "{{count}} offene Review-Notiz",
     "summary_other": "{{count}} offene Review-Notizen",
@@ -38,7 +38,7 @@
   },
   "rollup": {
     "dismissed": "Verworfen",
-    "handled": "Erledigt",
+    "handled": "Bestatigt",
     "open": "Offen",
     "total": "Markiert"
   }
