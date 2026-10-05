@@ -2217,7 +2217,7 @@ function reviewAnnotationToneClass(tone: string | null | undefined) {
 }
 
 function reviewAnnotationHasWarning(reviewNotes: DiffReviewAnnotation[]) {
-  return reviewNotes.some((note) => note.tone === "warning")
+  return reviewNotes.some((note) => note.tone == null || note.tone === "warning")
 }
 
 function reviewAnnotationHasSuccess(reviewNotes: DiffReviewAnnotation[]) {
@@ -2301,7 +2301,9 @@ function cognitiveReviewRiskMetricProviders(
     id: "cognitive_review.risk",
     label: t("diff_review.metrics.cognitive_review_risk"),
     metricForLine: ({ reviewNotes }) => {
-      const cognitiveReviewNoteIds = reviewNoteIds(reviewNotes.filter((note) => note.tone === "warning")).filter((id) => id.startsWith("cognitive_review_note:"))
+      const cognitiveReviewNoteIds = reviewNoteIds(reviewNotes.filter((note) => note.tone == null || note.tone === "warning")).filter((id) =>
+        id.startsWith("cognitive_review_note:")
+      )
       const hasOpenRisk = cognitiveReviewNoteIds.length > 0
       return {
         id: "cognitive_review.risk",
