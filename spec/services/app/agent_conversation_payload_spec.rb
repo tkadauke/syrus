@@ -221,6 +221,28 @@ RSpec.describe App::AgentConversationPayload do
     end
   end
 
+  describe "a chat_feedback follow-up Workflow" do
+    it "adds an external_trigger node sourced from the stashed chat feedback" do
+      follow_up = create_workflow(
+        trigger_kind: "chat_feedback",
+        artifacts: { "chat_feedback" => "Please make the empty state clearer." }
+      )
+      respond_step = create_step(workflow: follow_up, kind: "respond", position: 0)
+      run_respond = create_run(step: respond_step, agent_summary: "Clarified the empty state")
+
+      payload = described_class.build(job: job)
+
+      trigger_node = payload[:nodes].find { |n| n[:kind] == "external_trigger" }
+      expect(trigger_node).to include(
+        workflow_id: follow_up.id,
+        trigger_kind: "chat_feedback",
+        summary: "Chat feedback: Please make the empty state clearer."
+      )
+      expect(trigger_node[:detail]).to eq("feedback" => "Please make the empty state clearer.")
+      expect(edge?(payload, trigger_node[:id], "agent_session-#{run_respond.id}")).to be true
+    end
+  end
+
   describe "a ci_failure retry Workflow" do
     it "adds an external_trigger node sourced from the stashed failing checks" do
       initial = create_workflow(trigger_kind: "initial")

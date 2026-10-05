@@ -61,6 +61,21 @@ RSpec.describe Workflow::TriggerKind do
     end
   end
 
+  describe ".escalation_urgency_for" do
+    it "returns declared urgency for workflow failure escalation" do
+      expect(described_class.escalation_urgency_for("initial")).to eq("low")
+      expect(described_class.escalation_urgency_for("retry")).to eq("low")
+      expect(described_class.escalation_urgency_for("auto_merge")).to eq("urgent")
+      expect(described_class.escalation_urgency_for("merge_train")).to eq("urgent")
+      expect(described_class.escalation_urgency_for("main_branch_repair")).to eq("urgent")
+    end
+
+    it "defaults unspecified and unknown trigger kinds to normal urgency" do
+      expect(described_class.escalation_urgency_for("pr_comment")).to eq("normal")
+      expect(described_class.escalation_urgency_for("unknown")).to eq("normal")
+    end
+  end
+
   describe ".diff_review_version_label_for" do
     let(:job) { Factories.job }
 

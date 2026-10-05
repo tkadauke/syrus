@@ -151,54 +151,78 @@ module App
     # was instantiated. See Workflows::PrFeedback/ChatFeedback/CiFailure
     # and PollPullRequestJob#enqueue_followup_run/#enqueue_ci_failure_run.
     module ExternalTriggerSource
-      module_function
+      class Base
+        def initialize(workflow)
+          @workflow = workflow
+        end
 
-      def detail_for(workflow)
-        case workflow.trigger_kind
-        when "pr_comment"
+        def detail = {}
+        def summary = nil
+
+        private
+
+        attr_reader :workflow
+      end
+
+      class PrComment < Base
+        def detail
           {
             "comments" => Array(workflow.artifact("pr_comments")),
             "feedback_cutoff" => workflow.artifact("feedback_cutoff"),
             "source_handle" => workflow.artifact("pr_feedback_source_handle")
           }
-        when "chat_feedback"
+        end
+
+        def summary
+          comments = Array(workflow.artifact("pr_comments"))
+          cutoff = ExternalTriggerSource.parse_time(workflow.artifact("feedback_cutoff"))
+          new_comments = cutoff ? comments.select { |c| (t = ExternalTriggerSource.parse_time(c["created_at"])) && t > cutoff } : comments
+          latest = (new_comments.presence || comments).last
+          handle = workflow.artifact("pr_feedback_source_handle").presence || latest&.dig("author")
+          handle.present? ? "PR comment from @#{handle}" : "PR comment"
+        end
+      end
+
+      class ChatFeedback < Base
+        def detail
           { "feedback" => workflow.artifact("chat_feedback") }
-        when "ci_failure"
+        end
+
+        def summary
+          text = workflow.artifact("chat_feedback").to_s
+          text.present? ? "Chat feedback: #{text.truncate(140)}" : "Chat feedback"
+        end
+      end
+
+      class CiFailure < Base
+        def detail
           {
             "head_sha" => workflow.artifact("head_sha"),
             "base_sha" => workflow.artifact("base_sha"),
             "failed_checks" => Array(workflow.artifact("failed_checks"))
           }
-        else
-          {}
         end
+
+        def summary
+          names = Array(workflow.artifact("failed_checks")).filter_map { |c| c["name"] }
+          names.any? ? "CI failure: #{names.join(', ').truncate(140)}" : "CI failure"
+        end
+      end
+
+      SOURCES = {
+        "pr_comment" => PrComment,
+        "chat_feedback" => ChatFeedback,
+        "ci_failure" => CiFailure
+      }.freeze
+
+      module_function
+
+      def detail_for(workflow)
+        source_for(workflow).detail
       end
 
       def summary_for(workflow)
-        case workflow.trigger_kind
-        when "pr_comment" then pr_comment_summary(workflow)
-        when "chat_feedback" then chat_feedback_summary(workflow)
-        when "ci_failure" then ci_failure_summary(workflow)
-        end
-      end
-
-      def pr_comment_summary(workflow)
-        comments = Array(workflow.artifact("pr_comments"))
-        cutoff = parse_time(workflow.artifact("feedback_cutoff"))
-        new_comments = cutoff ? comments.select { |c| (t = parse_time(c["created_at"])) && t > cutoff } : comments
-        latest = (new_comments.presence || comments).last
-        handle = workflow.artifact("pr_feedback_source_handle").presence || latest&.dig("author")
-        handle.present? ? "PR comment from @#{handle}" : "PR comment"
-      end
-
-      def chat_feedback_summary(workflow)
-        text = workflow.artifact("chat_feedback").to_s
-        text.present? ? "Chat feedback: #{text.truncate(140)}" : "Chat feedback"
-      end
-
-      def ci_failure_summary(workflow)
-        names = Array(workflow.artifact("failed_checks")).filter_map { |c| c["name"] }
-        names.any? ? "CI failure: #{names.join(', ').truncate(140)}" : "CI failure"
+        source_for(workflow).summary
       end
 
       def parse_time(value)
@@ -207,6 +231,10 @@ module App
         Time.iso8601(value.to_s)
       rescue ArgumentError
         nil
+      end
+
+      def source_for(workflow)
+        SOURCES.fetch(workflow.trigger_kind.to_s, Base).new(workflow)
       end
     end
 
@@ -217,7 +245,61 @@ module App
     # materialized `grader` Steps fan out from a single predecessor and
     # fan back into a single successor without any kind-specific code.
     class WorkflowGraphBuilder
-      DETERMINISTIC_KINDS = %w[ grader format generate dependency_audit ].freeze
+      class DeterministicPresenter
+        def initialize(step:, workflow:)
+          @step = step
+          @workflow = workflow
+        end
+
+        def label = Step::Kind.label_for(step.kind)
+        def detail = step.details.presence || {}
+        def summary = nil
+
+        private
+
+        attr_reader :step, :workflow
+      end
+
+      class GraderPresenter < DeterministicPresenter
+        def label
+          step.details["name"].presence || super
+        end
+
+        def summary
+          name = step.details["name"] || step.kind
+          step.state == "succeeded" ? "#{name} passed" : "#{name} #{step.state}"
+        end
+      end
+
+      class CommandFailuresPresenter < DeterministicPresenter
+        def summary
+          failures = Array(step.details["#{step.kind}_failures"])
+          "#{failures.size} command(s) failed" if failures.any?
+        end
+      end
+
+      class DependencyAuditPresenter < DeterministicPresenter
+        def detail
+          workflow.artifact("dependency_audit").presence || {}
+        end
+
+        def summary
+          audit = workflow.artifact("dependency_audit")
+          return nil unless audit
+
+          results = Array(audit["results"])
+          flagged = results.count { |result| !result["clean"] }
+          flagged.zero? ? "#{results.size} ecosystem(s) scanned, clean" : "#{flagged} of #{results.size} ecosystem(s) flagged"
+        end
+      end
+
+      DETERMINISTIC_PRESENTERS = {
+        "grader" => GraderPresenter,
+        "format" => CommandFailuresPresenter,
+        "generate" => CommandFailuresPresenter,
+        "dependency_audit" => DependencyAuditPresenter
+      }.freeze
+      DETERMINISTIC_KINDS = DETERMINISTIC_PRESENTERS.keys.freeze
       REVIEW_ARTIFACT_KEYS = {
         "adversarial_review" => "adversarial_review_iterations",
         "visual_review" => "visual_review_iterations"
@@ -353,6 +435,7 @@ module App
 
       def add_deterministic_check_node(step)
         id = "deterministic_check-#{step.id}"
+        presenter = deterministic_presenter(step)
 
         @nodes << {
           id: id,
@@ -361,45 +444,19 @@ module App
           trigger_kind: @workflow.trigger_kind,
           step_id: step.id,
           step_kind: step.kind,
-          label: deterministic_label(step),
+          label: presenter.label,
           state: step.state,
           started_at: step.started_at&.iso8601,
           finished_at: step.finished_at&.iso8601,
           agentic: false,
-          summary: deterministic_summary(step),
-          detail: deterministic_detail(step)
+          summary: presenter.summary,
+          detail: presenter.detail
         }
         id
       end
 
-      def deterministic_label(step)
-        return step.details["name"] if step.kind == "grader" && step.details["name"].present?
-
-        Step::Kind.label_for(step.kind)
-      end
-
-      def deterministic_detail(step)
-        return @workflow.artifact("dependency_audit").presence || {} if step.kind == "dependency_audit"
-
-        step.details.presence || {}
-      end
-
-      def deterministic_summary(step)
-        case step.kind
-        when "grader"
-          name = step.details["name"] || step.kind
-          step.state == "succeeded" ? "#{name} passed" : "#{name} #{step.state}"
-        when "format", "generate"
-          failures = Array(step.details["#{step.kind}_failures"])
-          "#{failures.size} command(s) failed" if failures.any?
-        when "dependency_audit"
-          audit = @workflow.artifact("dependency_audit")
-          return nil unless audit
-
-          results = Array(audit["results"])
-          flagged = results.count { |r| !r["clean"] }
-          flagged.zero? ? "#{results.size} ecosystem(s) scanned, clean" : "#{flagged} of #{results.size} ecosystem(s) flagged"
-        end
+      def deterministic_presenter(step)
+        DETERMINISTIC_PRESENTERS.fetch(step.kind).new(step: step, workflow: @workflow)
       end
     end
   end
