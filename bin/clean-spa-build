@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+const fs = require("fs")
+const path = require("path")
+
+const buildDir = path.resolve(__dirname, "..", "app", "assets", "builds")
+
+if (!fs.existsSync(buildDir)) {
+  fs.mkdirSync(buildDir, { recursive: true })
+}
+
+for (const name of fs.readdirSync(buildDir)) {
+  if (/^spa(-|\.js(?:\.map)?$)/.test(name)) {
+    fs.rmSync(path.join(buildDir, name), { recursive: true, force: true })
+  }
+}
