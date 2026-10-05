@@ -56,6 +56,31 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
     expect(prompt).to include("Do not edit files")
   end
 
+  it "uses the existing final diff version in retry workflow prompt context when the retry workflow has no version" do
+    DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "implementation-base",
+      head_sha: "implementation-head",
+      files: [
+        { path: "app/models/retry_target.rb", status: "modified", additions: 5, deletions: 1 }
+      ],
+      reason: "initial"
+    )
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
+    Step.create!(workflow: retry_workflow, kind: "prepare", position: 0)
+    Step.create!(workflow: retry_workflow, kind: "pr_open", position: 1)
+    review_step = Step.create!(workflow: retry_workflow, kind: "post_implementation_review", position: 2)
+    review_run = Run.create!(job: job, step: review_step, trigger_kind: "retry", agent_provider: job.agent_provider)
+
+    prompt = described_class.prompt_sections(job: job, workflow: retry_workflow, run: review_run).join("\n\n")
+
+    expect(prompt).to include("Base/head: implementation-base...implementation-head")
+    expect(prompt).to include("app/models/retry_target.rb (modified, +5/-1)")
+    expect(prompt).to include("git diff implementation-base...implementation-head -- <path>")
+  end
+
   it "includes memory context when Agent Memory is enabled and has visible memories" do
     PluginRecord.find_or_create_by!(name: "agent_memory").update!(enabled: true, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!

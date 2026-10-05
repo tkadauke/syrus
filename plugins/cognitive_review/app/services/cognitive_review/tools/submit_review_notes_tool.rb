@@ -57,7 +57,7 @@ module CognitiveReview
 
           normalized = normalize_notes(notes)
           return Mcp::Tools.invalid("notes must be an array of at most #{MAX_NOTES} items") unless normalized
-          version = DiffReviewVersion.best_match_for(job_id: run.job_id, run_id: run.id, workflow_id: run.workflow_id)
+          version = DiffReviewVersions::FinalReviewVersion.resolve(job: run.job, workflow: run.workflow, run: run)
           return Mcp::Tools.invalid("No diff review version is available for this run/workflow.") unless version
 
           if normalized.empty?
