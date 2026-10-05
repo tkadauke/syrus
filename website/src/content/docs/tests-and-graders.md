@@ -30,6 +30,18 @@ grade:
         include: [ci_only]
 ```
 
+Minitest projects can use the Ruby plugin's Minitest typed grader:
+
+```yaml
+grade:
+  - type: minitest
+```
+
+By default it uses `bin/rails test` in Rails apps, `bundle exec rake test`
+when a Rakefile is present, and `bundle exec ruby -Itest test` otherwise.
+Use `command`, `focused_command`, `ci_command`, or `paths` when a repository
+needs a custom Minitest wrapper.
+
 The practical pattern is to keep review checks fast enough that iteration
 feels interactive, then run heavier checks at landing or during CI repair.
 Typed graders can generate those variants from one declaration; custom graders
