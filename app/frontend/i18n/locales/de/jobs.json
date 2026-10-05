@@ -445,6 +445,7 @@
   "source_error": "Quellbrowser konnte nicht geladen werden.",
   "source_diff_loading": "Diff wird geladen...",
   "source_diff_error": "Diff konnte nicht geladen werden.",
+  "source_diff_stale_ref_error": "Dieser Live-Vergleich kann nicht geladen werden, weil {{ref}} nicht mehr auflösbar ist. Wähle stattdessen den gespeicherten Versions-Snapshot.",
   "source_diff_single_file": "Einzeldatei",
   "source_diff_continuous": "Fortlaufend",
   "source_tree_truncated": "Tree von GitHub gekürzt.",
