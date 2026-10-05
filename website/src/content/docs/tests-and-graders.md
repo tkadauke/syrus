@@ -93,6 +93,11 @@ Coverage belongs in the repository's grader command. Syrus can read configured
 coverage artifacts, summarize deltas, and post a PR comment when requested,
 but the command itself should decide when coverage is collected.
 
+When a workflow has PR diff annotations, the Job Review tab can also show a
+`PR coverage` metric gutter for the selected diff version. Covered added lines
+render as passing, uncovered added lines render as attention-needed, and
+non-executable lines stay visually quiet.
+
 For large suites, a common setup is:
 
 - no coverage for most review and repair iterations,

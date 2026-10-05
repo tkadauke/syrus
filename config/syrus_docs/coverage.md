@@ -66,6 +66,10 @@ What Syrus does when coverage falls below the threshold:
 
 When `pr_comment: true`, Syrus posts a formatted coverage summary as a PR comment after the `coverage_analyze` step. The comment includes overall line coverage %, PR-diff coverage %, and per-file breakdown.
 
+## Review diff gutter
+
+When coverage diff annotations are available for the selected review version, the Job detail Review tab offers a `PR coverage` metric gutter. It marks added diff lines as covered, uncovered, or not executable without exposing the full coverage artifact or raw hit-map data in the source diff payload. Historical review versions and explicit SHA ranges only show the gutter when matching coverage annotations are available.
+
 ## hitmap_ttl_days
 
 How long the hit-map blob (per-file line hit data) is retained. Default: 7 days. `CoverageHitMapPruneJob` cleans up expired blobs. The coverage summary artifact and PR annotations persist indefinitely; only the raw hit-map blob is pruned.

@@ -1243,6 +1243,10 @@ export type DiffReviewAnnotationsPayload = {
   sidebar_counts?: DiffReviewAnnotationCount[]
 }
 
+export type CoverageDiffAnnotationStatus = "covered" | "uncovered" | "not_executable"
+
+export type CoverageDiffAnnotationsPayload = Record<string, Record<string, CoverageDiffAnnotationStatus>>
+
 export type JobSourceDiffPayload = {
   job_id: number
   base_ref: string | null
@@ -1258,6 +1262,7 @@ export type JobSourceDiffPayload = {
   version: DiffReviewVersion | null
   versions: DiffReviewVersion[]
   review_annotations: DiffReviewAnnotationsPayload
+  coverage_annotations?: CoverageDiffAnnotationsPayload
 }
 
 export type DiffReviewVersionsPayload = {
@@ -1272,6 +1277,7 @@ export type DiffReviewVersionPayload = DiffReviewVersion & {
   files: JobSourceDiffPayload["files"]
   diff_error: string | null
   review_annotations?: DiffReviewAnnotationsPayload
+  coverage_annotations?: CoverageDiffAnnotationsPayload
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"

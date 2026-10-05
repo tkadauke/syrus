@@ -394,7 +394,11 @@
     "metrics": {
       "cognitive_review_risk": "Periculum notarum recensionis",
       "cognitive_review_risk_open": "{{count}} officium apertum notae recensionis",
-      "cognitive_review_risk_clear": "Nullum officium apertum notae recensionis"
+      "cognitive_review_risk_clear": "Nullum officium apertum notae recensionis",
+      "pr_coverage": "Operimentum PR",
+      "pr_coverage_covered": "Linea mutata probationibus tecta",
+      "pr_coverage_uncovered": "Linea mutata probationibus non tecta",
+      "pr_coverage_not_executable": "Linea mutata non exsecutabilis est"
     }
   },
   "timeline_axis": {
