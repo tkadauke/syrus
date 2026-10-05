@@ -2,7 +2,8 @@
 set -euo pipefail
 
 mkdir -p app/assets/builds log tmp/pids
-rm -f app/assets/builds/spa.js app/assets/builds/tailwind.css
+node bin/clean-spa-build
+rm -f app/assets/builds/tailwind.css
 
 pids=()
 rails_pid=""
@@ -30,7 +31,7 @@ bin/rails tailwindcss:build > log/tailwind.log 2>&1
 bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
 pids+=("$!")
 
-npm run build -- --watch > log/vite.log 2>&1 &
+npm run build:watch > log/vite.log 2>&1 &
 pids+=("$!")
 
 wait_for_file() {

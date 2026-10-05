@@ -26,11 +26,12 @@ if (preloadHelpers.length === 0) {
   process.exit(1)
 }
 
-const preloadHelperUsesAssetPrefix = preloadHelpers.some((name) => {
-  return fs.readFileSync(path.join(buildDir, name), "utf8").includes(assetPrefix)
+const preloadHelpersMissingAssetPrefix = preloadHelpers.filter((name) => {
+  return !fs.readFileSync(path.join(buildDir, name), "utf8").includes(assetPrefix)
 })
-if (!preloadHelperUsesAssetPrefix) {
-  console.error(`SPA preload helper must request dynamic chunks from ${assetPrefix}, not the site root.`)
+if (preloadHelpersMissingAssetPrefix.length > 0) {
+  console.error(`SPA preload helpers must request dynamic chunks from ${assetPrefix}, not the site root.`)
+  console.error(`Missing prefix: ${preloadHelpersMissingAssetPrefix.join(", ")}`)
   process.exit(1)
 }
 
