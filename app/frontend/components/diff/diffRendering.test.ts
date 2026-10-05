@@ -6,8 +6,10 @@ import {
   contextGapsForHunks,
   countDiffRows,
   fullyRevealedGapStates,
+  forcedGapStatesForAnnotationRanges,
   gapSize,
   hunksFromLines,
+  mergeGapRevealStates,
   mergeContextIntoLines,
   parseUnifiedDiff,
   remainingInGap,
@@ -171,6 +173,48 @@ describe("remainingInGap", () => {
   it("never goes negative when a stale state over-claims the gap", () => {
     const gap = { endNew: 5, offset: 0, startNew: 1 }
     expect(remainingInGap(gap, { fromBottom: 10, fromTop: 10 })).toBe(0)
+  })
+})
+
+describe("forcedGapStatesForAnnotationRanges", () => {
+  it("reveals hidden lines and configured context for a note spanning two hunks", () => {
+    const patch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -29,11 +29,11 @@",
+      " line 29",
+      " line 30",
+      " line 31",
+      " line 32",
+      " line 33",
+      " line 34",
+      " line 35",
+      " line 36",
+      " line 37",
+      " line 38",
+      " line 39",
+      "@@ -43,8 +43,8 @@",
+      " line 43",
+      " line 44",
+      " line 45",
+      " line 46",
+      " line 47",
+      " line 48",
+      " line 49",
+      " line 50"
+    ].join("\n")
+    const gaps = contextGapsForHunks(hunksFromLines(parseUnifiedDiff(patch)), 60)
+
+    const states = forcedGapStatesForAnnotationRanges(gaps, [{ side: "new", start_line: 32, end_line: 46 }], 2)
+
+    expect(states[1]).toEqual({ fromBottom: 0, fromTop: 3 })
+  })
+
+  it("merges forced visibility with existing manual context expansion", () => {
+    const merged = mergeGapRevealStates([{ fromBottom: 5, fromTop: 0 }], [{ fromBottom: 1, fromTop: 3 }])
+
+    expect(merged).toEqual([{ fromBottom: 5, fromTop: 3 }])
   })
 })
 

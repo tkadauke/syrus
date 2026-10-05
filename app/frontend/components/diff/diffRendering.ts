@@ -243,6 +243,12 @@ export function contextGapsForHunks(hunks: HunkMeta[], totalFileLines: number | 
 
 export type GapRevealState = { fromTop: number; fromBottom: number }
 
+export type AnnotationVisibilityRange = {
+  side: "old" | "new"
+  start_line: number
+  end_line: number
+}
+
 export function gapSize(gap: ContextGap): number {
   return Math.max(0, gap.endNew - gap.startNew + 1)
 }
@@ -297,4 +303,66 @@ function contextLineAt(newLine: number, offset: number, fileLines: string[], hun
 
 export function fullyRevealedGapStates(gaps: ContextGap[]): GapRevealState[] {
   return gaps.map((gap) => ({ fromTop: gapSize(gap), fromBottom: 0 }))
+}
+
+export function mergeGapRevealStates(
+  currentStates: Array<GapRevealState | undefined>,
+  requiredStates: Array<GapRevealState | undefined>
+): Array<GapRevealState | undefined> {
+  const length = Math.max(currentStates.length, requiredStates.length)
+  const merged: Array<GapRevealState | undefined> = []
+
+  for (let index = 0; index < length; index++) {
+    const current = currentStates[index]
+    const required = requiredStates[index]
+    if (!current && !required) continue
+
+    merged[index] = {
+      fromBottom: Math.max(current?.fromBottom ?? 0, required?.fromBottom ?? 0),
+      fromTop: Math.max(current?.fromTop ?? 0, required?.fromTop ?? 0)
+    }
+  }
+
+  return merged
+}
+
+export function forcedGapStatesForAnnotationRanges(
+  gaps: ContextGap[],
+  ranges: AnnotationVisibilityRange[],
+  contextLineCount: number
+): Array<GapRevealState | undefined> {
+  const states: Array<GapRevealState | undefined> = []
+  const context = Math.max(0, contextLineCount)
+
+  for (const range of ranges) {
+    const start = Math.min(range.start_line, range.end_line) - context
+    const end = Math.max(range.start_line, range.end_line) + context
+
+    gaps.forEach((gap, index) => {
+      const required = requiredRevealForGap(gap, range.side, start, end)
+      if (!required) return
+
+      states[index] = mergeGapRevealStates([states[index]], [required])[0]
+    })
+  }
+
+  return states
+}
+
+function requiredRevealForGap(gap: ContextGap, side: "old" | "new", startLine: number, endLine: number): GapRevealState | null {
+  const size = gapSize(gap)
+  if (size <= 0) return null
+
+  const gapStart = side === "old" ? gap.startNew - gap.offset : gap.startNew
+  const gapEnd = side === "old" ? gap.endNew - gap.offset : gap.endNew
+  const visibleStart = Math.max(gapStart, startLine)
+  const visibleEnd = Math.min(gapEnd, endLine)
+  if (visibleStart > visibleEnd) return null
+
+  const visibleStartNew = side === "old" ? visibleStart + gap.offset : visibleStart
+  const visibleEndNew = side === "old" ? visibleEnd + gap.offset : visibleEnd
+  if (visibleStartNew === gap.startNew) return { fromTop: Math.max(0, visibleEndNew - gap.startNew + 1), fromBottom: 0 }
+  if (visibleEndNew === gap.endNew) return { fromTop: 0, fromBottom: Math.max(0, gap.endNew - visibleStartNew + 1) }
+
+  return { fromTop: size, fromBottom: 0 }
 }

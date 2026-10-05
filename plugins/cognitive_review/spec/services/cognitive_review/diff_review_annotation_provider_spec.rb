@@ -202,7 +202,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
   end
 
-  it "keeps older-version notes out of All changes inline annotations even when their numeric range exists in the selected patch" do
+  it "projects older-version notes into All changes inline annotations when their range intersects the selected patch" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
@@ -239,7 +239,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       start_line: 219,
       end_line: 220,
       title: "Older run note",
-      explanation: "This run-scoped note must not be anchored onto an unrelated aggregate diff line.",
+      explanation: "This run-scoped note follows its covered lines into the aggregate diff.",
       source_metadata: {}
     )
     CognitiveReview::Note.create!(
@@ -265,7 +265,9 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: all_changes.files_snapshot
     )
 
-    expect(payload[:ranges]).to eq({})
+    expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
+      hash_including(id: "cognitive_review_note:#{included_note.id}", start_line: 219, end_line: 220)
+    )
     expect(payload[:panels]).to contain_exactly(hash_including(props: hash_including(notes: [ hash_including(note_id: included_note.id) ])))
     expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 1, tone: "warning"))
     expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 2))
@@ -303,6 +305,88 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       handled_count: 1
     )
     expect(handled_payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+  end
+
+  it "keeps a cross-hunk All changes note inline when no single hunk covers the full range" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    run_version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "run-base",
+      head_sha: "run-head",
+      files: [
+        {
+          path: "app/services/example.rb",
+          status: "modified",
+          additions: 0,
+          deletions: 0,
+          patch: [
+            "@@ -29,11 +29,11 @@",
+            " line 29",
+            " line 30",
+            " line 31",
+            " line 32",
+            " line 33",
+            " line 34",
+            " line 35",
+            " line 36",
+            " line 37",
+            " line 38",
+            " line 39",
+            "@@ -43,8 +43,8 @@",
+            " line 43",
+            " line 44",
+            " line 45",
+            " line 46",
+            " line 47",
+            " line 48",
+            " line 49",
+            " line 50"
+          ].join("\n")
+        }
+      ],
+      reason: "initial"
+    )
+    all_changes = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: run_version.files_snapshot,
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
+    )
+    note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: run_version,
+      path: "app/services/example.rb",
+      side: "new",
+      start_line: 32,
+      end_line: 46,
+      title: "Cross-hunk note",
+      explanation: "This note spans visible hunks and unchanged hidden lines.",
+      source_metadata: {}
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: all_changes,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: all_changes.files_snapshot
+    )
+
+    expect(payload.dig(:ranges, "app/services/example.rb")).to contain_exactly(
+      hash_including(id: "cognitive_review_note:#{note.id}", start_line: 32, end_line: 46)
+    )
+    expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 1, tone: "warning"))
   end
 
   it "counts acknowledged, discussed, and user-commented notes as handled rather than unresolved debt" do
