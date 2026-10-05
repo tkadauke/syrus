@@ -718,21 +718,21 @@ describe("ReviewableDiff", () => {
     expect(within(screen.getByText("third").closest("tr") as HTMLElement).getByTitle("No open review-note obligation")).toHaveClass("bg-info")
   })
 
-  it("supports future metric providers in the same sticky gutter", () => {
+  it("supports custom metric providers in the same sticky gutter", () => {
     const provider: DiffLineMetricProvider = {
-      id: "coverage.pr",
-      label: "PR coverage",
+      id: "custom.metric",
+      label: "Custom metric",
       metricForLine: ({ line }) =>
-        line.kind === "add" ? { id: "coverage.pr", label: "PR coverage", tone: "warning", title: `Coverage pending on ${line.newLine}` } : null
+        line.kind === "add" ? { id: "custom.metric", label: "Custom metric", tone: "warning", title: `Custom signal on ${line.newLine}` } : null
     }
 
     render(<ReviewableDiff diffLineMetricProviders={[provider]} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
     const row = screen.getByText("new").closest("tr") as HTMLElement
-    const marker = within(row).getByTitle("Coverage pending on 1")
+    const marker = within(row).getByTitle("Custom signal on 1")
 
     expect(marker.closest("td")).toHaveClass("sticky", "right-0")
-    expect(marker).toHaveAttribute("data-diff-metric-id", "coverage.pr")
+    expect(marker).toHaveAttribute("data-diff-metric-id", "custom.metric")
     expect(marker).toHaveClass("bg-warning")
   })
 

@@ -47,7 +47,8 @@ module App
           diff_error: nil,
           version: version_json(version),
           versions: diff_versions_json,
-          review_annotations: review_annotations_json(version: version, base_sha: base, head_sha: head, files: files)
+          review_annotations: review_annotations_json(version: version, base_sha: base, head_sha: head, files: files),
+          coverage_annotations: coverage_annotations_json(version: version, files: files)
         )
     rescue => e
       if @job.branch_name.present? && !explicit_selection?
@@ -56,7 +57,7 @@ module App
       end
 
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json, review_annotations: empty_review_annotations_json)
+        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json, review_annotations: empty_review_annotations_json, coverage_annotations: {})
     end
 
     private
@@ -148,7 +149,8 @@ module App
         diff_error: nil,
         version: version_json(version),
         versions: diff_versions_json,
-        review_annotations: review_annotations_json(version: version, base_sha: base_sha, head_sha: head_sha, files: Array(fixture[:files]))
+        review_annotations: review_annotations_json(version: version, base_sha: base_sha, head_sha: head_sha, files: Array(fixture[:files])),
+        coverage_annotations: coverage_annotations_json(version: version, files: Array(fixture[:files]))
       )
     end
 
@@ -160,7 +162,8 @@ module App
           diff_error: "GitHub token not configured. Add one in Settings to browse source.",
           version: nil,
           versions: diff_versions_json,
-          review_annotations: empty_review_annotations_json
+          review_annotations: empty_review_annotations_json,
+          coverage_annotations: {}
         )
     end
 
@@ -181,7 +184,8 @@ module App
         diff_error: nil,
         version: version_json(version),
         versions: diff_versions_json,
-        review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot))
+        review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot)),
+        coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot))
       )
     end
 
@@ -194,7 +198,8 @@ module App
           diff_error: nil,
           version: nil,
           versions: diff_versions_json,
-          review_annotations: empty_review_annotations_json
+          review_annotations: empty_review_annotations_json,
+          coverage_annotations: {}
         )
     end
 
@@ -434,6 +439,10 @@ module App
 
     def empty_review_annotations_json
       App::DiffReviewAnnotationsPayload::EMPTY_PAYLOAD.deep_dup
+    end
+
+    def coverage_annotations_json(version:, files:)
+      App::CoverageDiffAnnotationsPayload.build(job: @job, version: version, files: files)
     end
   end
 end

@@ -394,7 +394,11 @@
     "metrics": {
       "cognitive_review_risk": "Review-Hinweis-Risiko",
       "cognitive_review_risk_open": "{{count}} offene Review-Hinweis-Pflicht",
-      "cognitive_review_risk_clear": "Keine offene Review-Hinweis-Pflicht"
+      "cognitive_review_risk_clear": "Keine offene Review-Hinweis-Pflicht",
+      "pr_coverage": "PR-Abdeckung",
+      "pr_coverage_covered": "Geänderte Zeile durch Tests abgedeckt",
+      "pr_coverage_uncovered": "Geänderte Zeile nicht durch Tests abgedeckt",
+      "pr_coverage_not_executable": "Geänderte Zeile ist nicht ausführbar"
     }
   },
   "timeline_axis": {

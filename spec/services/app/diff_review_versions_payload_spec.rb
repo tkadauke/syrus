@@ -135,6 +135,36 @@ RSpec.describe App::DiffReviewVersionsPayload do
     Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
   end
 
+  it "renders coverage annotations from the selected version workflow" do
+    selected_workflow = job.workflows.first
+    latest_workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "chat_feedback", agent_provider: "claude", state: "succeeded")
+    Workflow::CoverageArtifact.write!(selected_workflow, {
+      "diff_annotations" => {
+        "app/models/selected.rb" => { "1" => "covered" }
+      }
+    })
+    Workflow::CoverageArtifact.write!(latest_workflow, {
+      "diff_annotations" => {
+        "app/models/selected.rb" => { "1" => "uncovered" }
+      }
+    })
+    selected = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: selected_workflow,
+      base_sha: "selected-base",
+      head_sha: "selected-head",
+      files: [
+        { path: "app/models/selected.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+selected" }
+      ]
+    )
+
+    show = described_class.show(version: selected, user: job.user)
+
+    expect(show[:coverage_annotations]).to eq(
+      "app/models/selected.rb" => { "1" => "covered" }
+    )
+  end
+
   it "keeps a resumed Run's second, different commit range as its own distinguishable payload entry instead of a look-alike duplicate" do
     workflow = job.workflows.first
     run = job.runs.first

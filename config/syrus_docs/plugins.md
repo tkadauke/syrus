@@ -918,9 +918,10 @@ the host falls back to `component` for that placement, and then to generic
 marker/card rendering.
 
 The diff renderer's right-side metric gutter is intentionally generic: core
-registers the cognitive-review risk metric from the annotation payload today,
-and future per-line metrics can register additional line metric providers
-without replacing the diff table or the sticky gutter host.
+registers the cognitive-review risk metric from the annotation payload and the
+PR coverage metric from workflow coverage diff annotations, while additional
+per-line metrics can register line metric providers without replacing the diff
+table or the sticky gutter host.
 
 **One class per tool.** The entrypoint is a single class, but internally each
 non-trivial tool is its own `MCP::Tool` subclass in its own file — the same

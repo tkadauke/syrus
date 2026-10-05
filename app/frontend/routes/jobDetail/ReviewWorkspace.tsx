@@ -14,6 +14,8 @@ import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
   fetchDiffReviewVersion,
+  type CoverageDiffAnnotationStatus,
+  type CoverageDiffAnnotationsPayload,
   type DiffReviewAnnotationsPayload,
   type DiffReviewComment,
   type DiffReviewVersion,
@@ -28,7 +30,13 @@ import {
   type ReviewDiffSettingsPayload
 } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
-import { ReviewableDiff, diffLineMetricProvidersForReview, type DiffLineMetricProvider, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
+import {
+  ReviewableDiff,
+  diffLineMetricProvidersForReview,
+  type DiffLineMetricProvider,
+  type DiffLineMetricTone,
+  type DiffLineSelection
+} from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useResizableSplitter } from "../chat/useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
@@ -145,6 +153,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
         truncated: historicalVersion.data.truncated,
         diff_error: historicalVersion.data.diff_error,
         review_annotations: historicalVersion.data.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS,
+        coverage_annotations: historicalVersion.data.coverage_annotations ?? {},
         version: historicalVersion.data
       }
     }
@@ -152,9 +161,13 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
   const activeReviewAnnotations = activeDiff?.review_annotations ?? EMPTY_REVIEW_ANNOTATIONS
   const sidebarReviewAnnotationCounts =
-    activeReviewAnnotations.sidebar_counts && activeReviewAnnotations.sidebar_counts.length > 0 ? activeReviewAnnotations.sidebar_counts : activeReviewAnnotations.counts
+    activeReviewAnnotations.sidebar_counts && activeReviewAnnotations.sidebar_counts.length > 0
+      ? activeReviewAnnotations.sidebar_counts
+      : activeReviewAnnotations.counts
   const sidebarReviewAnnotationPanels =
-    activeReviewAnnotations.sidebar_panels && activeReviewAnnotations.sidebar_panels.length > 0 ? activeReviewAnnotations.sidebar_panels : activeReviewAnnotations.panels
+    activeReviewAnnotations.sidebar_panels && activeReviewAnnotations.sidebar_panels.length > 0
+      ? activeReviewAnnotations.sidebar_panels
+      : activeReviewAnnotations.panels
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -174,9 +187,13 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     versions
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+  const coverageMetricProviders = useMemo(
+    () => coverageDiffLineMetricProviders(activeDiff?.coverage_annotations, commonT),
+    [activeDiff?.coverage_annotations, commonT]
+  )
   const diffMetricProviders = useMemo(
-    () => diffLineMetricProvidersForReview(activeReviewAnnotations.counts, commonT, diffLineMetricProviders),
-    [activeReviewAnnotations.counts, commonT, diffLineMetricProviders]
+    () => diffLineMetricProvidersForReview(activeReviewAnnotations.counts, commonT, [...coverageMetricProviders, ...(diffLineMetricProviders ?? [])]),
+    [activeReviewAnnotations.counts, commonT, coverageMetricProviders, diffLineMetricProviders]
   )
   const diffMetricCandidates = diffMetricProviders.map(metricCandidateFromProvider)
   const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
@@ -398,111 +415,111 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
           `SURFACE_CLIP_ROUNDED_CLASS` clips the diff's square corners to the
           panel's rounded corners without that side effect.
         */}
-        <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
-          <ReviewableDiff
-            changedFilesPopup={reviewSettings.file_list}
-            comments={feedback.diffThreads}
-            composingBody={feedback.composingBody}
-            composingDiscussError={feedback.discussComposingError}
-            composingDiscussPending={feedback.discussComposingPending}
-            composingError={feedback.composingError}
-            composingPending={feedback.composingPending}
-            composingSelection={feedback.composingSelection}
-            editingThreadBody={feedback.editingThreadBody}
-            editingThreadId={feedback.editingThreadId}
-            emptyState={
-              <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
-                {t("source_no_changed_files")}
-              </div>
-            }
-            fileCommentCounts={feedback.commentCounts}
-            files={activeDiff.files}
-            mode="continuous"
-            onCancelComposing={feedback.onCancelComposing}
-            onCancelEditThread={feedback.onCancelEditThread}
-            onChangeComposingBody={feedback.onChangeComposingBody}
-            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
-            onCommentLine={startComment}
-            onDeleteThread={feedback.onDeleteThread}
-            onDiscussComposing={feedback.onDiscussComposing}
-            onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
-            onSaveComposing={feedback.onSaveComposing}
-            onSaveEditThread={feedback.onSaveEditThread}
-            onSelectFile={setSelectedPath}
-            onStartEditThread={feedback.onStartEditThread}
-            renderImageDiff={(file) => (
-              <ImageDiffThumbnails
-                baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
-                file={file}
-                headRef={activeDiff.head_sha ?? activeDiff.head_ref}
-                jobId={jobId}
-              />
-            )}
-            reviewSettings={reviewSettings}
-            reviewAnnotations={activeReviewAnnotations.annotations}
-            reviewAnnotationCounts={activeReviewAnnotations.counts}
-            reviewAnnotationRanges={activeReviewAnnotations.ranges}
-            highlightedReviewAnnotationId={highlightedReviewAnnotationId}
-            activeDiffLineMetricProviderId={activeMetricGutterId}
-            diffLineMetricProviders={diffMetricProviders}
-            scroll="natural"
-            selectedPath={selectedPath}
-            showFileHeaders
-            unavailableState={t("source_diff_not_available")}
-          />
-        </Section.Root>
-      </div>
-      {isDesktopSplit ? (
-        <ReviewCommentsSplitterHandle
-          collapsed={commentsSplitter.collapsed}
-          label={t("review_comments_splitter_label")}
-          maxWidth={REVIEW_COMMENTS_MAX_WIDTH}
-          onClick={() => {
-            commentsSplitter.toggleCollapsed()
-            setCommentsPeekOpen(false)
-          }}
-          onKeyDown={(event) => {
-            commentsSplitter.resizeWithKeyboard(event)
-            setCommentsPeekOpen(false)
-          }}
-          onMouseDown={commentsSplitter.beginResize}
-          valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
-        />
-      ) : null}
-      <div
-        className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
-        data-testid="review-comments-panel"
-        style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
-      >
-        {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
-      </div>
-      {isDesktopSplit && commentsSplitter.collapsed ? (
-        <ReviewCommentsCollapsedRail
-          label={t("review_comments_collapsed_aria")}
-          onMouseEnter={openCommentsPeek}
-          onMouseLeave={closeCommentsPeek}
-          summaries={feedback.versionSummaries}
-        />
-      ) : null}
-      {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
-        <div
-          className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
-          data-testid="review-comments-peek"
-          onMouseEnter={openCommentsPeek}
-          onMouseLeave={closeCommentsPeek}
-          style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
-        >
-          {feedback.panel}
+          <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
+            <ReviewableDiff
+              changedFilesPopup={reviewSettings.file_list}
+              comments={feedback.diffThreads}
+              composingBody={feedback.composingBody}
+              composingDiscussError={feedback.discussComposingError}
+              composingDiscussPending={feedback.discussComposingPending}
+              composingError={feedback.composingError}
+              composingPending={feedback.composingPending}
+              composingSelection={feedback.composingSelection}
+              editingThreadBody={feedback.editingThreadBody}
+              editingThreadId={feedback.editingThreadId}
+              emptyState={
+                <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                  {t("source_no_changed_files")}
+                </div>
+              }
+              fileCommentCounts={feedback.commentCounts}
+              files={activeDiff.files}
+              mode="continuous"
+              onCancelComposing={feedback.onCancelComposing}
+              onCancelEditThread={feedback.onCancelEditThread}
+              onChangeComposingBody={feedback.onChangeComposingBody}
+              onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
+              onCommentLine={startComment}
+              onDeleteThread={feedback.onDeleteThread}
+              onDiscussComposing={feedback.onDiscussComposing}
+              onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
+              onSaveComposing={feedback.onSaveComposing}
+              onSaveEditThread={feedback.onSaveEditThread}
+              onSelectFile={setSelectedPath}
+              onStartEditThread={feedback.onStartEditThread}
+              renderImageDiff={(file) => (
+                <ImageDiffThumbnails
+                  baseRef={activeDiff.base_sha ?? activeDiff.base_ref}
+                  file={file}
+                  headRef={activeDiff.head_sha ?? activeDiff.head_ref}
+                  jobId={jobId}
+                />
+              )}
+              reviewSettings={reviewSettings}
+              reviewAnnotations={activeReviewAnnotations.annotations}
+              reviewAnnotationCounts={activeReviewAnnotations.counts}
+              reviewAnnotationRanges={activeReviewAnnotations.ranges}
+              highlightedReviewAnnotationId={highlightedReviewAnnotationId}
+              activeDiffLineMetricProviderId={activeMetricGutterId}
+              diffLineMetricProviders={diffMetricProviders}
+              scroll="natural"
+              selectedPath={selectedPath}
+              showFileHeaders
+              unavailableState={t("source_diff_not_available")}
+            />
+          </Section.Root>
         </div>
-      ) : null}
-      {settingsOpen ? (
-        <ReviewDiffSettingsModal
-          initialSettings={{ ...reviewSettings, metric_gutter: activeMetricGutterId }}
-          metricGutterOptions={diffMetricCandidates}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : null}
-    </div>
+        {isDesktopSplit ? (
+          <ReviewCommentsSplitterHandle
+            collapsed={commentsSplitter.collapsed}
+            label={t("review_comments_splitter_label")}
+            maxWidth={REVIEW_COMMENTS_MAX_WIDTH}
+            onClick={() => {
+              commentsSplitter.toggleCollapsed()
+              setCommentsPeekOpen(false)
+            }}
+            onKeyDown={(event) => {
+              commentsSplitter.resizeWithKeyboard(event)
+              setCommentsPeekOpen(false)
+            }}
+            onMouseDown={commentsSplitter.beginResize}
+            valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
+          />
+        ) : null}
+        <div
+          className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
+          data-testid="review-comments-panel"
+          style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
+        >
+          {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
+        </div>
+        {isDesktopSplit && commentsSplitter.collapsed ? (
+          <ReviewCommentsCollapsedRail
+            label={t("review_comments_collapsed_aria")}
+            onMouseEnter={openCommentsPeek}
+            onMouseLeave={closeCommentsPeek}
+            summaries={feedback.versionSummaries}
+          />
+        ) : null}
+        {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
+          <div
+            className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
+            data-testid="review-comments-peek"
+            onMouseEnter={openCommentsPeek}
+            onMouseLeave={closeCommentsPeek}
+            style={{ right: `${REVIEW_COMMENTS_RAIL_WIDTH}px`, width: `${commentsSplitter.width}px` }}
+          >
+            {feedback.panel}
+          </div>
+        ) : null}
+        {settingsOpen ? (
+          <ReviewDiffSettingsModal
+            initialSettings={{ ...reviewSettings, metric_gutter: activeMetricGutterId }}
+            metricGutterOptions={diffMetricCandidates}
+            onClose={() => setSettingsOpen(false)}
+          />
+        ) : null}
+      </div>
     </>
   )
 }
@@ -757,6 +774,46 @@ function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCa
   if (configuredId === "off") return "off"
   if (candidates.some((candidate) => candidate.id === configuredId)) return configuredId
   return candidates[0]?.id ?? "off"
+}
+
+function coverageDiffLineMetricProviders(
+  annotations: CoverageDiffAnnotationsPayload | null | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string
+): DiffLineMetricProvider[] {
+  if (!hasCoverageAnnotations(annotations)) return []
+
+  return [
+    {
+      id: "coverage.pr",
+      label: t("diff_review.metrics.pr_coverage"),
+      metricForLine: ({ file, line }) => {
+        if (line.kind !== "add" || line.newLine == null) return null
+
+        const status = annotations?.[file.path]?.[String(line.newLine)]
+        if (!status) return null
+
+        return {
+          id: "coverage.pr",
+          label: t("diff_review.metrics.pr_coverage"),
+          tone: coverageMetricTone(status),
+          title: t(`diff_review.metrics.pr_coverage_${status}`)
+        }
+      }
+    }
+  ]
+}
+
+function hasCoverageAnnotations(annotations: CoverageDiffAnnotationsPayload | null | undefined) {
+  return Object.values(annotations ?? {}).some((lines) => Object.keys(lines).length > 0)
+}
+
+function coverageMetricTone(status: CoverageDiffAnnotationStatus): DiffLineMetricTone {
+  const tones: Record<CoverageDiffAnnotationStatus, DiffLineMetricTone> = {
+    covered: "success",
+    not_executable: "neutral",
+    uncovered: "danger"
+  }
+  return tones[status]
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
