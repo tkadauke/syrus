@@ -32,6 +32,14 @@ module Prompts
         answer with no code changes is a fully successful outcome; do not
         manufacture changes just to produce a diff.
 
+        You may create or modify files locally while you investigate,
+        reproduce a problem, or draft notes. Treat those edits as scratch
+        work only: investigation workflow edits are not persisted as
+        repository changes, and they are not the deliverable. If a scratch
+        file or local edit contains evidence the operator needs, capture it
+        with an artifact or make sure the follow-up report includes the
+        relevant content or summary.
+
         If the request calls for looking at the running app, start a
         preview with `start_preview` and drive it with the browser tools;
         call `stop_preview` when you're done with it. As you gather
