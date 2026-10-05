@@ -9,6 +9,82 @@ module WorkEngine
       DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS = %w[workspace_missing].freeze
       SIMULATED_ALTERNATE_PROVIDER = "claude".freeze
 
+      module SideEffects
+        class Base
+          def initialize(runner)
+            @runner = runner
+          end
+
+          def apply(run, outcome = nil); end
+
+          private
+
+          attr_reader :runner
+        end
+
+        class BranchUpdate < Base
+          def apply(run, outcome = nil)
+            job = run.job
+            sha = runner.send(:simulated_sha, run)
+            run.update_columns(head_sha: sha)
+            job.update_columns(
+              branch_name: job.branch_name.presence || "syrus/simulated-#{job.id}",
+              mergeability_head_sha: sha
+            )
+          end
+        end
+
+        class PullRequestOpen < Base
+          def apply(run, outcome = nil)
+            job = run.job
+            sha = job.head_sha.presence || runner.send(:simulated_sha, run)
+            run.update_columns(head_sha: sha)
+            job.update_columns(
+              branch_name: job.branch_name.presence || "syrus/simulated-#{job.id}",
+              pr_number: job.pr_number.presence || job.id + 10_000,
+              pr_checks_state: "passing",
+              pr_checks_sha: sha,
+              mergeability_head_sha: sha
+            )
+          end
+        end
+
+        class AutoMerge < Base
+          def apply(run, outcome = nil)
+            runner.send(:close_job_if_possible!, run.job, "pr_merged")
+          end
+        end
+
+        class MergeTrainLand < Base
+          def apply(run, outcome = nil)
+            if runner.send(:simulated_outcome_field, outcome, "unverified_members").present?
+              return runner.send(:mark_merge_train_members_unverified!, run, outcome)
+            end
+
+            runner.send(:close_merge_train_members!, run)
+          end
+        end
+
+        class StackAutoRebase < Base
+          def apply(run, outcome = nil)
+            runner.send(:simulate_stack_auto_rebase!, run, outcome)
+          end
+        end
+      end
+
+      SIDE_EFFECTS_BY_STEP_KIND = {
+        "implement" => SideEffects::BranchUpdate,
+        "respond" => SideEffects::BranchUpdate,
+        "analyze_and_fix" => SideEffects::BranchUpdate,
+        "landing_fix" => SideEffects::BranchUpdate,
+        "run_skill" => SideEffects::BranchUpdate,
+        "pr_open" => SideEffects::PullRequestOpen,
+        "auto_merge" => SideEffects::AutoMerge,
+        "merge_train_land" => SideEffects::MergeTrainLand,
+        "merge_train_land_after_rebase" => SideEffects::MergeTrainLand,
+        "stack_auto_rebase" => SideEffects::StackAutoRebase
+      }.freeze
+
       def self.call(...) = new(...).call
 
       def initialize(
@@ -805,34 +881,7 @@ module WorkEngine
       end
 
       def simulate_side_effects!(run, outcome = nil)
-        job = run.job
-        case run.step&.kind
-        when "implement", "respond", "analyze_and_fix", "landing_fix", "run_skill"
-          sha = simulated_sha(run)
-          run.update_columns(head_sha: sha)
-          job.update_columns(
-            branch_name: job.branch_name.presence || "syrus/simulated-#{job.id}",
-            mergeability_head_sha: sha
-          )
-        when "pr_open"
-          sha = job.head_sha.presence || simulated_sha(run)
-          run.update_columns(head_sha: sha)
-          job.update_columns(
-            branch_name: job.branch_name.presence || "syrus/simulated-#{job.id}",
-            pr_number: job.pr_number.presence || job.id + 10_000,
-            pr_checks_state: "passing",
-            pr_checks_sha: sha,
-            mergeability_head_sha: sha
-          )
-        when "auto_merge"
-          close_job_if_possible!(job, "pr_merged")
-        when "merge_train_land", "merge_train_land_after_rebase"
-          return mark_merge_train_members_unverified!(run, outcome) if simulated_outcome_field(outcome, "unverified_members").present?
-
-          close_merge_train_members!(run)
-        when "stack_auto_rebase"
-          simulate_stack_auto_rebase!(run, outcome)
-        end
+        SIDE_EFFECTS_BY_STEP_KIND[run.step&.kind]&.new(self)&.apply(run, outcome)
       end
 
       def simulate_stack_auto_rebase!(run, outcome)

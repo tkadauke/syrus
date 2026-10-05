@@ -44,15 +44,15 @@ class Workflow
       end
     end
 
-    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :coding_takeover_hold, :diff_review_labeler) do
+    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :coding_takeover_hold, :escalation_urgency, :diff_review_labeler) do
       # owns_job_lifecycle defaults to false so existing built-in and
       # plugin-contributed entries that omit it keep the ordinary generic
       # workflow->Job propagation behavior.
       # coding_takeover_hold marks a queued workflow as compatible with Coding
       # Mode takeover: it is parked work that should not block the chat from
       # claiming implementation ownership.
-      def initialize(owns_job_lifecycle: false, coding_takeover_hold: false, diff_review_labeler: DiffReviewVersionLabels::Base, **rest)
-        super(owns_job_lifecycle: owns_job_lifecycle, coding_takeover_hold: coding_takeover_hold, diff_review_labeler: diff_review_labeler, **rest)
+      def initialize(owns_job_lifecycle: false, coding_takeover_hold: false, escalation_urgency: "normal", diff_review_labeler: DiffReviewVersionLabels::Base, **rest)
+        super(owns_job_lifecycle: owns_job_lifecycle, coding_takeover_hold: coding_takeover_hold, escalation_urgency: escalation_urgency, diff_review_labeler: diff_review_labeler, **rest)
       end
 
       # A plugin that owns a workflow keeps its template in its own namespace,
@@ -69,7 +69,7 @@ class Workflow
     RUNTIME_ROLES = %w[first_class child infrastructure legacy].freeze
 
     BUILT_IN_ENTRIES = [
-      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", coding_takeover_hold: true),
+      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", coding_takeover_hold: true, escalation_urgency: "low"),
       Entry.new(kind: "pr_comment",    template: "PrFeedback",  label: "PR feedback",             style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("PR comment follow-up")),
       Entry.new(kind: "chat_feedback", template: "ChatFeedback", label: "Chat feedback",           style: "bg-indigo-100 text-indigo-700",  retry_label: "Retry failed step",  feedback_kind: :chat_feedback, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Sequenced),
       Entry.new(kind: "ci_failure",    template: "CiFailure",   label: "CI failure",              style: "bg-red-100 text-red-700",        retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("CI repair")),
@@ -78,12 +78,12 @@ class Workflow
       Entry.new(kind: "promotion",     template: "Promotion",   label: "Promotion",               style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry promotion step", feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "hotfix_sync",   template: "HotfixSync",  label: "Hotfix sync",             style: "bg-fuchsia-200 text-fuchsia-800", retry_label: "Retry hotfix sync step", feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "upstream_export", template: "UpstreamExport", label: "Upstream export",    style: "bg-fuchsia-300 text-fuchsia-900", retry_label: "Retry upstream export step", feedback_kind: nil, runtime_role: "first_class"),
-      Entry.new(kind: "auto_merge",         template: "AutoMerge",        label: "Auto-merge",              style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
+      Entry.new(kind: "auto_merge",         template: "AutoMerge",        label: "Auto-merge",              style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true, escalation_urgency: "urgent"),
       Entry.new(kind: "landing_validation", template: "LandingValidation", label: "Landing validation",      style: "bg-emerald-100 text-emerald-700", retry_label: nil,                  feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "external_pr_merge",  template: "ExternalPrMerge",  label: "External PR merge",       style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
-      Entry.new(kind: "merge_train",   template: "MergeTrain",  label: "Epic merge-train",        style: "bg-green-100 text-green-800",    retry_label: nil,                  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
+      Entry.new(kind: "merge_train",   template: "MergeTrain",  label: "Epic merge-train",        style: "bg-green-100 text-green-800",    retry_label: nil,                  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true, escalation_urgency: "urgent"),
       Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
-      Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", escalation_urgency: "low"),
       Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "visual_diff",   template: "VisualDiff",  label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "legacy"),
@@ -92,7 +92,7 @@ class Workflow
       Entry.new(kind: "coding_handoff",     template: "CodingHandoff",    label: "Coding handoff",     style: "bg-violet-100 text-violet-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "local_mode_handoff", template: "LocalModeHandoff", label: "Local mode handoff", style: "bg-emerald-100 text-emerald-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "main_grader",          template: "MainGrader",        label: "Main branch grader",    style: "bg-gray-100 text-gray-500",       retry_label: nil,                  feedback_kind: nil, runtime_role: "infrastructure", owns_job_lifecycle: true),
-      Entry.new(kind: "main_branch_repair",  template: "MainBranchRepair",  label: "Main branch repair",    style: "bg-red-100 text-red-800",         retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
+      Entry.new(kind: "main_branch_repair",  template: "MainBranchRepair",  label: "Main branch repair",    style: "bg-red-100 text-red-800",         retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true, escalation_urgency: "urgent"),
       Entry.new(kind: "manual_agentic_run",  template: "ManualAgenticRun",  label: "Manual agentic run",    style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("Manual run")),
       Entry.new(kind: "external_pr_ingest",  template: "ExternalPrIngest",  label: "External PR graders",   style: "bg-orange-100 text-orange-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "external_pr_feedback", template: "ExternalPrFeedback", label: "External PR feedback", style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("PR comment follow-up")),
@@ -191,6 +191,10 @@ class Workflow
     # Returns :chat_feedback, :pr_comment, or nil based on trigger kind.
     def feedback_kind_for(trigger_kind)
       by_kind.fetch(trigger_kind.to_s, nil)&.feedback_kind
+    end
+
+    def escalation_urgency_for(trigger_kind)
+      by_kind.fetch(trigger_kind.to_s, nil)&.escalation_urgency || "normal"
     end
 
     # Trigger kinds that address feedback on an existing PR/chat (those with a

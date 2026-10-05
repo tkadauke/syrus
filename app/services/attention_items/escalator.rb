@@ -60,11 +60,7 @@ module AttentionItems
     # A stalled landing is the expensive failure; a failed initial attempt is
     # normal and cheap.
     def urgency_for
-      case @workflow.trigger_kind
-      when "auto_merge", "merge_train", "main_branch_repair" then "urgent"
-      when "initial", "retry" then "low"
-      else "normal"
-      end
+      Workflow::TriggerKind.escalation_urgency_for(@workflow.trigger_kind)
     end
 
     def recorded_adjudication
