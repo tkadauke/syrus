@@ -161,6 +161,7 @@ RSpec.describe "SPA shell", type: :request do
     js_paths = response.body.scan(/<script src="([^"]+)" type="module"><\/script>/).flatten
     expect(css_paths).not_to be_empty
     expect(css_paths).to include(a_string_matching(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z}))
+    expect(css_paths).not_to include(a_string_including("/assets/assets/"))
     expect(css_paths).not_to include(a_string_including("?v=cache-sha"))
     expect(js_paths).to include("/assets/spa-test.js?v=cache-sha")
   end
