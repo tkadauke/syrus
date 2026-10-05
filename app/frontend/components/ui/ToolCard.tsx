@@ -29,7 +29,7 @@ function Root({ children, className = "", tone = "neutral", ...props }: ToolCard
   return (
     <Surface
       className={classes(
-        "relative overflow-hidden text-[length:var(--text-caption)] before:absolute before:inset-y-0 before:left-0 before:w-1",
+        "relative min-w-0 max-w-full overflow-hidden text-[length:var(--text-caption)] before:absolute before:inset-y-0 before:left-0 before:w-1",
         TONE_ACCENT_CLASSES[tone],
         className
       )}
