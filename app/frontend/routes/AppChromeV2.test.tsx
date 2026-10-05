@@ -1227,9 +1227,11 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
       expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("0px")
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 60 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 120 } })
       expect(header).toHaveStyle({ transform: "translateY(-72px)" })
@@ -1395,12 +1397,13 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const scrollPane = screen.getByTestId("app-scroll-pane")
       expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+      expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
 
       const contentLayer = Array.from(document.querySelectorAll("div")).find((element): element is HTMLDivElement => (
-        element instanceof HTMLDivElement && element.className.includes("pt-[var(--mobile-chat-app-header-height,0px)]")
+        element instanceof HTMLDivElement && element.className.includes("pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]")
       ))
       expect(contentLayer).not.toBeNull()
-      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-height,0px)]")
+      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]")
       expect(contentLayer).toContainElement(screen.getByText("Claude sign-in expired."))
       expect(screen.getByText("Deployment is paused.")).toBeInTheDocument()
     } finally {

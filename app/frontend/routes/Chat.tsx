@@ -1260,7 +1260,7 @@ function MobileChatTopChrome({
   onSelectMobileTab: (tab: MobileChatTab) => void
 }) {
   const { t } = useT("chat")
-  const { hidden, offset, setContentHeight } = useMobileChatHeaderControls()
+  const { contentOffset, hidden, setContentHeight } = useMobileChatHeaderControls()
   const topChromeRef = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
@@ -1293,7 +1293,7 @@ function MobileChatTopChrome({
       ref={topChromeRef}
       style={autoHideActive ? {
         opacity: hidden ? 0 : 1,
-        transform: `translateY(-${offset}px)`
+        transform: `translateY(-${contentOffset}px)`
       } : undefined}
     >
       <UnderlineTabs
