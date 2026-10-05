@@ -21,7 +21,8 @@ RSpec.describe "Syrus self-preview configuration" do
 
   it "builds frontend assets before starting Rails" do
     expect(preview_script_path).to be_executable
-    expect(preview_script).to include("rm -f app/assets/builds/spa.js app/assets/builds/tailwind.css")
+    expect(preview_script).to include("node bin/clean-spa-build")
+    expect(preview_script).to include("rm -f app/assets/builds/tailwind.css")
     # The watcher alone leaves tailwind.css unwritten when its output is
     # redirected (no TTY), so wait_for_file below times out and the server never
     # starts. A synchronous build has to come first; the watcher then follows so
@@ -30,7 +31,7 @@ RSpec.describe "Syrus self-preview configuration" do
     expect(preview_script).to include("bin/rails tailwindcss:watch")
     expect(preview_script.index("bin/rails tailwindcss:build"))
       .to be < preview_script.index("bin/rails tailwindcss:watch")
-    expect(preview_script).to include("npm run build -- --watch")
+    expect(preview_script).to include("npm run build:watch")
     expect(preview_script).to include("wait_for_file app/assets/builds/spa.js log/vite.log")
     expect(preview_script).to include("wait_for_file app/assets/builds/tailwind.css log/tailwind.log")
 
