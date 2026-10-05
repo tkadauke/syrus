@@ -270,14 +270,15 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
 
 function commentInputForNote(note: CognitiveReviewNote, body: string) {
   const left = note.side === "old"
+  const anchorLine = note.end_line
   return {
     surface: "job_review_workspace",
     diff_review_version_id: note.diff_review_version_id,
     anchor_kind: "line" as const,
     path: note.path,
     side: left ? ("left" as const) : ("right" as const),
-    old_line: left ? note.start_line : null,
-    new_line: left ? null : note.start_line,
+    old_line: left ? anchorLine : null,
+    new_line: left ? null : anchorLine,
     body,
     context: {
       source: "review_note",

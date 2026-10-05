@@ -323,7 +323,7 @@ describe("ReviewWorkspace", () => {
         comment({
           id: 11,
           diff_review_version_id: 100,
-          new_line: 1,
+          new_line: 3,
           body: "Please address the lifecycle risk.",
           context: {
             source: "review_note",
@@ -352,7 +352,7 @@ describe("ReviewWorkspace", () => {
                     path: "app/models/user.rb",
                     side: "new",
                     start_line: 1,
-                    end_line: 1,
+                    end_line: 3,
                     title: "Inspect this branch",
                     summary: "Branch state risk",
                     explanation: "The provider flagged this range.",
@@ -394,7 +394,7 @@ describe("ReviewWorkspace", () => {
       anchor_kind: "line",
       path: "app/models/user.rb",
       side: "right",
-      new_line: 1,
+      new_line: 3,
       body: "Please address the lifecycle risk.",
       context: {
         source: "review_note",
@@ -409,7 +409,7 @@ describe("ReviewWorkspace", () => {
           path: "app/models/user.rb",
           side: "new",
           start_line: 1,
-          end_line: 1
+          end_line: 3
         }
       }
     })
@@ -1569,7 +1569,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("1 handled")
+    await screen.findByText("1 acknowledged")
     fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
