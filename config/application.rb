@@ -11,6 +11,7 @@ require "syrus/plugin_api"
 require "syrus/plugin/grade_detector"
 require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
+require "syrus/precompressed_asset_server"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -36,6 +37,13 @@ module Syrus
 
     initializer "syrus.plugin_migration_paths" do
       ActiveRecord::Migrator.migrations_paths = ActiveRecord::Tasks::DatabaseTasks.migrations_paths
+    end
+
+    initializer "syrus.precompressed_asset_server", after: "propshaft.assets_middleware" do |app|
+      app.middleware.insert_before ActionDispatch::Static, Syrus::PrecompressedAssetServer,
+        root: Rails.public_path,
+        prefix: app.config.assets.prefix,
+        headers: app.config.public_file_server.headers
     end
 
     config.i18n.available_locales = %i[en de la]
