@@ -5,11 +5,35 @@ const SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD = 24 // m/s²
 const SHAKE_DELTA_THRESHOLD = 12 // m/s² frame-to-frame change
 const CONSECUTIVE_FRAMES_NEEDED = 3
 const SHAKE_COOLDOWN_MS = 1500
+const MOTION_PERMISSION_STORAGE_KEY = "syrus:shake-to-report:motion-permission"
+
+type PersistedMotionPermission = "granted" | "denied" | "unavailable"
 
 type AccelerationVector = { x: number; y: number; z: number }
 
 type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
   requestPermission?: () => Promise<PermissionState>
+}
+
+function readPersistedMotionPermission(): PersistedMotionPermission | null {
+  try {
+    const permission = window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)
+    if (permission === "granted" || permission === "denied" || permission === "unavailable") {
+      return permission
+    }
+  } catch {
+    // Storage can be unavailable in private browsing or locked-down embeds.
+  }
+
+  return null
+}
+
+function persistMotionPermission(permission: PersistedMotionPermission) {
+  try {
+    window.localStorage.setItem(MOTION_PERMISSION_STORAGE_KEY, permission)
+  } catch {
+    // Shake-to-report should still work when persistence is unavailable.
+  }
 }
 
 export function useShakeToReport(onShake: () => void) {
@@ -63,6 +87,15 @@ export function useShakeToReport(onShake: () => void) {
     if (typeof DME.requestPermission === "function") {
       // iOS 13+: DeviceMotionEvent requires an explicit user-gesture permission grant.
       // Request on the first user click to avoid prompting on page load.
+      const persistedPermission = readPersistedMotionPermission()
+      if (persistedPermission === "granted") {
+        window.addEventListener("devicemotion", handleMotion)
+        return () => window.removeEventListener("devicemotion", handleMotion)
+      }
+      if (persistedPermission === "denied" || persistedPermission === "unavailable") {
+        return
+      }
+
       let requested = false
 
       async function requestOnClick() {
@@ -72,10 +105,13 @@ export function useShakeToReport(onShake: () => void) {
         try {
           const permission = await DME.requestPermission!()
           if (permission === "granted") {
+            persistMotionPermission("granted")
             window.addEventListener("devicemotion", handleMotion)
+          } else if (permission === "denied") {
+            persistMotionPermission("denied")
           }
         } catch {
-          // Denied or unavailable
+          persistMotionPermission("unavailable")
         }
       }
 
