@@ -77,7 +77,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -239,6 +239,7 @@ class SyrusYml
   TargetGraphImportConfig = Data.define(:provider, :failures, :config)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
+  ReviewNotesConfig = Data.define(:criteria, :low_signal)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
   AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
@@ -273,6 +274,7 @@ class SyrusYml
       grade: parse_grade(raw["grade"]),
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
+      review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
@@ -378,6 +380,16 @@ class SyrusYml
     AdversarialReviewConfig.new(
       rounds: parse_adversarial_review_rounds(raw["rounds"]),
       criteria: parse_adversarial_review_criteria(raw["criteria"])
+    )
+  end
+
+  def parse_review_notes(raw)
+    return nil if raw.nil?
+    raise ParseError, "review_notes: must be a mapping" unless raw.is_a?(Hash)
+
+    ReviewNotesConfig.new(
+      criteria: parse_string_array(raw["criteria"], "review_notes.criteria"),
+      low_signal: parse_string_array(raw["low_signal"], "review_notes.low_signal")
     )
   end
 
@@ -992,10 +1004,18 @@ class SyrusYml
   end
 
   def parse_adversarial_review_criteria(raw)
-    return [] if raw.nil?
-    raise ParseError, "adversarial_review.criteria: must be an array of strings" unless raw.is_a?(Array)
+    parse_string_array(raw, "adversarial_review.criteria")
+  end
 
-    raw.map { |item| item.to_s.strip }.reject(&:empty?)
+  def parse_string_array(raw, label)
+    return [] if raw.nil?
+    raise ParseError, "#{label}: must be an array of strings" unless raw.is_a?(Array)
+
+    raw.each_with_index.map do |item, index|
+      raise ParseError, "#{label}[#{index}]: must be a string" unless item.is_a?(String)
+
+      item.strip
+    end.reject(&:empty?)
   end
 
   def parse_preview(raw)

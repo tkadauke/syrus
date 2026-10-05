@@ -350,6 +350,22 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
     end
 
+    it "stores root review notes config on the root project" do
+      write(".syrus.yml", <<~YAML)
+        review_notes:
+          criteria:
+            - Surface shared services
+          low_signal:
+            - Ignore fixture churn
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.review_notes.criteria).to eq([ "Surface shared services" ])
+      expect(graph.root_project.review_notes.low_signal).to eq([ "Ignore fixture churn" ])
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+    end
+
     it "stores nested preview config on that nested project" do
       write("apps/web/.syrus.yml", <<~YAML)
         project:
@@ -383,6 +399,24 @@ RSpec.describe TargetGraph::Compiler do
 
       project = graph.project("web")
       expect(project.adversarial_review.criteria).to eq([ "Verify UI authorization checks" ])
+    end
+
+    it "stores nested review notes config on that nested project" do
+      write("apps/web/.syrus.yml", <<~YAML)
+        project:
+          id: web
+        review_notes:
+          criteria:
+            - Surface React shared hooks
+          low_signal:
+            - Ignore snapshots unless they define review risk
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("web")
+      expect(project.review_notes.criteria).to eq([ "Surface React shared hooks" ])
+      expect(project.review_notes.low_signal).to eq([ "Ignore snapshots unless they define review risk" ])
     end
 
     describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do

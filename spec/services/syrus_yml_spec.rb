@@ -520,6 +520,69 @@ RSpec.describe SyrusYml do
     ])
   end
 
+  it "parses review_notes criteria and low_signal guidance" do
+    config = parse(<<~YAML)
+      review_notes:
+        criteria:
+          - Surface shared services and lifecycle changes
+        low_signal:
+          - Avoid ordinary test bodies
+    YAML
+
+    expect(config.review_notes.criteria).to eq([ "Surface shared services and lifecycle changes" ])
+    expect(config.review_notes.low_signal).to eq([ "Avoid ordinary test bodies" ])
+  end
+
+  it "defaults review_notes arrays to [] when absent" do
+    config = parse(<<~YAML)
+      review_notes: {}
+    YAML
+
+    expect(config.review_notes.criteria).to eq([])
+    expect(config.review_notes.low_signal).to eq([])
+  end
+
+  it "rejects non-array review_notes values" do
+    expect {
+      parse(<<~YAML)
+        review_notes:
+          criteria: Surface services
+      YAML
+    }.to raise_error(described_class::ParseError, /review_notes\.criteria: must be an array of strings/)
+
+    expect {
+      parse(<<~YAML)
+        review_notes:
+          low_signal: Routine tests
+      YAML
+    }.to raise_error(described_class::ParseError, /review_notes\.low_signal: must be an array of strings/)
+  end
+
+  it "rejects non-string review_notes entries" do
+    expect {
+      parse(<<~YAML)
+        review_notes:
+          criteria:
+            - 123
+      YAML
+    }.to raise_error(described_class::ParseError, /review_notes\.criteria\[0\]: must be a string/)
+  end
+
+  it "strips blank entries from review_notes arrays" do
+    config = parse(<<~YAML)
+      review_notes:
+        criteria:
+          - "  Shared services  "
+          - ""
+        low_signal:
+          - "   "
+          - Fixture churn
+    YAML
+
+    expect(config.review_notes.criteria).to eq([ "Shared services" ])
+    expect(config.review_notes.low_signal).to eq([ "Fixture churn" ])
+  end
+
   it "rejects non-mapping hooks" do
     expect {
       parse(<<~YAML)
