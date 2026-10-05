@@ -107,6 +107,51 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     expect(global_comment.reload).to have_attributes(state: "submitted", workflow: result.workflow)
   end
 
+  it "marks review-note-derived comments in feedback text and structured artifacts" do
+    comment = create_comment(
+      body: "Please follow up on the review note.",
+      context: {
+        "source" => "review_note",
+        "review_note_id" => 123,
+        "review_note_title" => "Check lifecycle",
+        "review_note_explanation" => "This range changes lifecycle behavior.",
+        "review_note_reason_codes" => [ "state" ],
+        "review_note_priority" => "high",
+        "review_note_confidence" => 0.82,
+        "review_note_range" => {
+          "path" => "app/models/widget.rb",
+          "side" => "new",
+          "start_line" => 10,
+          "end_line" => 12
+        }
+      }
+    )
+
+    result = described_class.call(job: job, comment_ids: [ comment.id ], actor: user)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("chat_feedback")).to include("[Review Note] app/models/widget.rb:12")
+    expect(result.workflow.artifact("diff_comments")).to contain_exactly(
+      hash_including(
+        "id" => comment.id,
+        "review_note" => {
+          "id" => 123,
+          "title" => "Check lifecycle",
+          "explanation" => "This range changes lifecycle behavior.",
+          "reason_codes" => [ "state" ],
+          "priority" => "high",
+          "confidence" => 0.82,
+          "range" => {
+            "path" => "app/models/widget.rb",
+            "side" => "new",
+            "start_line" => 10,
+            "end_line" => 12
+          }
+        }
+      )
+    )
+  end
+
   it "marks selected comments submitted and links them to the workflow after acceptance" do
     comment = create_comment
 

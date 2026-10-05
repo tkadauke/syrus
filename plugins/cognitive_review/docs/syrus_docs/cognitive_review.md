@@ -64,12 +64,19 @@ its covered line range in the displayed diff when that version is selected.
 The side panel lets operators jump to flagged ranges and offers `Acknowledge`
 and `Discuss` actions. `Acknowledge` marks an open note handled without adding
 a reply. `Discuss` opens the Job discussion chat with Review Note context and
-marks the note discussed; it does not save new operator review feedback into
-the plugin-local discussion-entry table. Older discussion-entry rows, if
-present, are displayed as read-only note history. An operator's regular diff
-comment also handles an open note when the comment is anchored to the same diff
-version, path, side, and line range; the comment remains a normal review-tab
-comment for sidebar and feedback behavior.
+marks the note discussed; it is for talking with the agent about the note, not
+for submitting review feedback. To leave feedback for the implementation,
+operators use the note card's feedback reply action. That action creates a
+normal diff review comment anchored to the note's diff version, path, side, and
+range, with structured Review Note provenance in the comment context. The
+comment handles the open note, appears in the unified Review conversation, and
+is submitted through the regular diff-review feedback flow. Submitted feedback
+marks those comments as Review Note-derived in the chat feedback body and
+includes the Review Note metadata in the structured `diff_comments` artifact.
+Older discussion-entry rows, if present, are displayed as read-only note
+history. An operator's regular diff comment also handles an open note when the
+comment is anchored to the same diff version, path, side, and line range; the
+comment remains a normal review-tab comment for sidebar and feedback behavior.
 
 This rollup is intentionally scoped to PR review. It answers: "Did this
 implementation diff receive plugin-authored notes, and have the flagged ranges

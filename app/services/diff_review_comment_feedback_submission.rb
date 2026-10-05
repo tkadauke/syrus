@@ -68,17 +68,19 @@ class DiffReviewCommentFeedbackSubmission
   end
 
   def readable_comment(comment)
+    prefix = review_note_origin?(comment) ? "[Review Note] " : ""
     return whole_review_comment(comment) unless comment.line_anchor?
 
     <<~COMMENT.strip
-      - #{comment.path}:#{display_line(comment)} (#{comment.side})
+      - #{prefix}#{comment.path}:#{display_line(comment)} (#{comment.side})
         #{comment.body}
     COMMENT
   end
 
   def whole_review_comment(comment)
+    prefix = review_note_origin?(comment) ? "[Review Note] " : ""
     <<~COMMENT.strip
-      - Whole-review comment
+      - #{prefix}Whole-review comment
         #{comment.body}
     COMMENT
   end
@@ -98,7 +100,7 @@ class DiffReviewCommentFeedbackSubmission
   end
 
   def structured_comment(comment)
-    {
+    artifact = {
       "id" => comment.id,
       "diff_review_version" => structured_version(comment.diff_review_version),
       "anchor_kind" => comment.anchor_kind,
@@ -115,6 +117,29 @@ class DiffReviewCommentFeedbackSubmission
       "author" => comment.user&.display_name || comment.user&.email_address,
       "created_at" => comment.created_at&.iso8601
     }
+    artifact["review_note"] = structured_review_note(comment) if review_note_origin?(comment)
+    artifact
+  end
+
+  def review_note_origin?(comment)
+    comment.context.to_h["source"] == "review_note"
+  end
+
+  def structured_review_note(comment)
+    return nil unless review_note_origin?(comment)
+
+    context = comment.context.to_h
+    metadata = context["review_note"].is_a?(Hash) ? context["review_note"] : {}
+    {
+      "id" => context["review_note_id"],
+      "title" => context["review_note_title"],
+      "summary" => context["review_note_summary"],
+      "explanation" => context["review_note_explanation"],
+      "reason_codes" => context["review_note_reason_codes"],
+      "priority" => context["review_note_priority"],
+      "confidence" => context["review_note_confidence"],
+      "range" => context["review_note_range"] || metadata["range"]
+    }.compact
   end
 
   def structured_version(version)

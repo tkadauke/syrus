@@ -7,6 +7,10 @@
     "discussing": "Opening...",
     "discussion_body": "Discussion note",
     "error": "Could not update this review note.",
+    "feedback_reply_body": "Review feedback reply",
+    "leave_feedback_reply": "Leave feedback reply",
+    "save_feedback_reply": "Save feedback reply",
+    "saving_feedback_reply": "Saving...",
     "save_discussion": "Open discussion",
     "view_range": "View range"
   },

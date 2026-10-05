@@ -107,7 +107,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       explanation: "This range changes lifecycle behavior.",
       source_metadata: {}
     )
-    job.diff_review_comments.create!(
+    matching_comment = job.diff_review_comments.create!(
       user: job.user,
       diff_review_version: version,
       surface: "job_review_workspace",
@@ -115,6 +115,11 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       side: "right",
       new_line: 5,
       body: "I checked this range.",
+      context: {
+        "source" => "review_note",
+        "review_note_id" => note.id,
+        "review_note_title" => note.title
+      },
       state: "draft"
     )
     job.diff_review_comments.create!(
@@ -146,6 +151,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
           handled: true,
           handled_by_comment: true,
           handled_by_comment_count: 1,
+          handled_by_comment_ids: [ matching_comment.id ],
           open_unhandled: false
         )
       )
