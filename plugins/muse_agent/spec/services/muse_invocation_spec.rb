@@ -593,6 +593,75 @@ RSpec.describe MuseInvocation do
     end
   end
 
+  # Regression: Muse's settings.json persists in its home, unlike Claude's and
+  # Codex's per-run tempfiles, and the writer used to union the new servers
+  # with whatever the previous run left behind. An evaluator run contributes
+  # `syrus-chat-evaluator-sidecar`, which spawns the sidecar directly instead
+  # of through the secret-free proxy and so cannot boot under the scrubbed
+  # agent environment. Every ordinary chat turn afterwards inherited it and
+  # died with "Required MCP server `syrus-chat-evaluator-sidecar` failed during
+  # startup".
+  it "replaces servers left by a previous run instead of accumulating them" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      config_dir = File.join(muse_home, ".config", "muse")
+      FileUtils.mkdir_p(config_dir)
+      settings_path = File.join(config_dir, "settings.json")
+      File.write(settings_path, JSON.generate(
+        "schema_version" => 1,
+        "mcpServers" => {
+          "syrus-chat-evaluator-sidecar" => {
+            "transport" => "stdio",
+            "command" => "/app/bin/syrus-chat-sidecar",
+            "args" => [ "--tier", "evaluator" ]
+          }
+        }
+      ))
+      stub_process_runners(lines: completed_lines_with)
+
+      result = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: {
+          "syrus-chat-sidecar" => { command: "/app/bin/syrus-mcp-proxy", args: [], env: {} },
+          "syrus-chat-deferred-sidecar" => { command: "/app/bin/syrus-mcp-proxy", args: [], env: {} }
+        }
+      ).run
+
+      settings = JSON.parse(File.read(settings_path))
+      expect(result).to be_success
+      expect(settings.fetch("mcpServers").keys)
+        .to contain_exactly("syrus-chat-sidecar", "syrus-chat-deferred-sidecar")
+      expect(settings.fetch("mcpServers")).not_to have_key("syrus-chat-evaluator-sidecar")
+    end
+  end
+
+  it "keeps unrelated top-level settings written by Muse itself" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      config_dir = File.join(muse_home, ".config", "muse")
+      FileUtils.mkdir_p(config_dir)
+      settings_path = File.join(config_dir, "settings.json")
+      File.write(settings_path, JSON.generate("schema_version" => 1, "theme" => "dark"))
+      stub_process_runners(lines: completed_lines_with)
+
+      described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: { "syrus-mcp-sidecar" => { command: "/app/bin/syrus-mcp-sidecar", args: [], env: {} } }
+      ).run
+
+      settings = JSON.parse(File.read(settings_path))
+      # Only the server set is authoritative per run; everything else in the
+      # file belongs to Muse and must survive.
+      expect(settings["theme"]).to eq("dark")
+    end
+  end
+
   it "repairs a legacy Syrus-written settings file that is missing schema_version, without crashing" do
     Dir.mktmpdir("muse-home") do |muse_home|
       config_dir = File.join(muse_home, ".config", "muse")
@@ -616,7 +685,10 @@ RSpec.describe MuseInvocation do
       expect(result).to be_success
       expect(settings["schema_version"]).to eq(1)
       expect(settings).not_to have_key("mcp_servers")
-      expect(settings.dig("mcpServers", "old-sidecar", "command")).to eq("/old/syrus-mcp-sidecar")
+      # The legacy entry is dropped rather than carried forward. A stale server
+      # from an earlier run is exactly what breaks Muse: it starts every server
+      # in the file, and a required one that cannot start fails the whole run.
+      expect(settings.fetch("mcpServers").keys).to eq([ "syrus-mcp-sidecar" ])
       expect(settings.dig("mcpServers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
     end
   end

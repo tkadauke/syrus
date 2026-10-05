@@ -208,8 +208,18 @@ class MuseInvocation
     settings_path = File.join(config_dir, "settings.json")
     settings = read_existing_muse_settings(settings_path)
     settings["schema_version"] = SETTINGS_SCHEMA_VERSION
-    legacy_servers = settings.delete("mcp_servers")
-    settings["mcpServers"] = (legacy_servers || {}).merge(settings.fetch("mcpServers", {}), normalized_mcp_servers(mcp_server))
+    settings.delete("mcp_servers")
+    # Replace the server set rather than union it with whatever the previous
+    # run left behind. Unlike Claude and Codex, which get a fresh tempfile per
+    # run, Muse's settings.json persists in its home, so merging accumulated
+    # servers across runs: an evaluator run contributes
+    # `syrus-chat-evaluator-sidecar`, and every ordinary turn afterwards
+    # inherited it. That server spawns the sidecar directly rather than through
+    # the secret-free proxy, so it cannot boot under the scrubbed agent
+    # environment, and Muse fails the whole run when a required server fails to
+    # start. Each caller already passes the complete set of servers for its own
+    # run, so this is the authoritative value.
+    settings["mcpServers"] = normalized_mcp_servers(mcp_server)
     File.write(settings_path, JSON.pretty_generate(settings))
     log_sink.call(
       "[mcp_config] server=syrus-mcp-sidecar config=#{settings_path}",
