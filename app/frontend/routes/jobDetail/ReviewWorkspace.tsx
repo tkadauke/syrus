@@ -415,7 +415,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
           `SURFACE_CLIP_ROUNDED_CLASS` clips the diff's square corners to the
           panel's rounded corners without that side effect.
         */}
-          <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} padding="none">
+          <Section.Root className={`min-w-0 max-w-full ${SURFACE_CLIP_ROUNDED_CLASS}`} data-testid="review-diff-natural-scroll-panel" padding="none">
             <ReviewableDiff
               changedFilesPopup={reviewSettings.file_list}
               comments={feedback.diffThreads}

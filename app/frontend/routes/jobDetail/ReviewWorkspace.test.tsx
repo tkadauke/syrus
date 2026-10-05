@@ -877,6 +877,19 @@ describe("ReviewWorkspace", () => {
     expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
   })
 
+  it("keeps the natural-scroll diff in page flow without an internal vertical overflow wrapper", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Review conversation")
+    const diffPanel = screen.getByTestId("review-diff-natural-scroll-panel")
+    expect(diffPanel).toHaveClass("min-w-0", "max-w-full", "[clip-path:inset(0_round_var(--radius-panel))]")
+    expect(diffPanel).not.toHaveClass("overflow-hidden", "overflow-y-auto")
+    expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).not.toBeInTheDocument()
+  })
+
   it("renders the comments splitter expanded at the previous default width", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
