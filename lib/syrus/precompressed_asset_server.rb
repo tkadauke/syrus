@@ -29,6 +29,8 @@ module Syrus
       return @app.call(env) unless response_asset
 
       headers = response_headers(plain_path, response_asset)
+      return not_modified(headers) if fresh?(env, headers.fetch(Rack::ETAG))
+
       body = request.head? ? [] : [ response_asset.fetch(:path).binread ]
 
       [ 200, headers, body ]
@@ -51,13 +53,22 @@ module Syrus
       end
 
       def accepts_encoding?(accept_encoding, encoding)
-        accept_encoding.split(",").any? do |entry|
+        q = encoding_quality(accept_encoding, encoding)
+        !q.nil? && q.positive?
+      end
+
+      def encoding_quality(accept_encoding, encoding)
+        entries = accept_encoding.split(",").filter_map do |entry|
           name, *parameters = entry.strip.split(";").map(&:strip)
-          next false unless name == encoding || name == "*"
+          next if name.empty?
 
           q = parameters.find { |parameter| parameter.start_with?("q=") }&.delete_prefix("q=")&.to_f
-          q.nil? || q.positive?
+          { name: name, q: q || 1.0 }
         end
+        explicit = entries.reverse.find { |entry| entry.fetch(:name) == encoding }
+        wildcard = entries.reverse.find { |entry| entry.fetch(:name) == "*" }
+
+        (explicit || wildcard)&.fetch(:q)
       end
 
       def response_headers(plain_path, variant)
@@ -70,6 +81,19 @@ module Syrus
         ).tap do |headers|
           headers["Content-Encoding"] = variant.fetch(:encoding) if variant.fetch(:encoding)
         end
+      end
+
+      def fresh?(env, etag)
+        env["HTTP_IF_NONE_MATCH"].to_s.split(",").any? do |candidate|
+          candidate = candidate.strip
+          candidate == "*" || candidate.delete_prefix("W/") == etag
+        end
+      end
+
+      def not_modified(headers)
+        headers = headers.dup
+        headers.delete(Rack::CONTENT_LENGTH)
+        [ 304, headers, [] ]
       end
   end
 end
