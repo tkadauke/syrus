@@ -373,9 +373,10 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     const sidebar = (await screen.findByText("Review conversation")).closest("section") as HTMLElement
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Leave feedback reply" }))
-    fireEvent.change(within(sidebar).getByLabelText("Review feedback reply"), { target: { value: "Please address the lifecycle risk." } })
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Save feedback reply" }))
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Reply" }))
+    expect(within(sidebar).getByText("Adds a draft review comment for this note. Use Submit Feedback in the sidebar to send selected comments to the agent.")).toBeInTheDocument()
+    fireEvent.change(within(sidebar).getByLabelText("Reply"), { target: { value: "Please address the lifecycle risk." } })
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Add comment" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -1082,7 +1083,7 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("creates a comment from non-empty text then submits the whole review when Submit is clicked", async () => {
+  it("creates a comment from non-empty text then submits the whole review when Submit Feedback is clicked", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(
@@ -1098,7 +1099,7 @@ describe("ReviewWorkspace", () => {
 
     await screen.findByText("Please add a regression spec.")
     fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "One more thing." } })
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(
@@ -1523,7 +1524,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
@@ -1554,7 +1555,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("1 handled")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
@@ -2341,7 +2342,7 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findByText("Source diff comment should stay visible in review.")
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace%2Cjob_source_diff&all_versions=1")

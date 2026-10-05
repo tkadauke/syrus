@@ -527,7 +527,7 @@
   "review_reply_error": "Responsum mitti non potuit.",
   "review_delete_comment": "Dele",
   "review_delete_comment_confirm": "Delere hunc commentarium schedae? Hoc reverti non potest.",
-  "review_submit_feedback": "Mitte",
+  "review_submit_feedback": "Feedback mitte",
   "review_submit_error": "Responsum diff mitti non potuit.",
   "review_create_error": "Commentarius diff creari non potuit.",
   "review_update_error": "Commentarius diff mutari non potuit.",

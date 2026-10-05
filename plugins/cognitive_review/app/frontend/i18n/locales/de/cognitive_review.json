@@ -7,9 +7,10 @@
     "discussing": "Wird geoffnet...",
     "discussion_body": "Diskussionsnotiz",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
-    "feedback_reply_body": "Review-Feedback-Antwort",
-    "leave_feedback_reply": "Feedback-Antwort schreiben",
-    "save_feedback_reply": "Feedback-Antwort speichern",
+    "feedback_reply_body": "Antwort",
+    "feedback_reply_hint": "Fugt einen Review-Kommentar-Entwurf fur diese Notiz hinzu. Verwende Feedback senden in der Seitenleiste, um ausgewahlte Kommentare an den Agenten zu senden.",
+    "reply": "Antworten",
+    "save_feedback_reply": "Kommentar hinzufugen",
     "saving_feedback_reply": "Wird gespeichert...",
     "save_discussion": "Diskussion offnen",
     "view_range": "Bereich anzeigen"

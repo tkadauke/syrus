@@ -238,7 +238,7 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
           </Button>
         ) : null}
         <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => setReplyOpen(true)} size="sm" variant="secondary">
-          {t("actions.leave_feedback_reply")}
+          {t("actions.reply")}
         </Button>
         <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => discuss.mutate()} size="sm" variant="secondary">
           {discuss.isPending ? t("actions.discussing") : t("actions.discuss")}
@@ -246,6 +246,7 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
       </div>
       {replyOpen ? (
         <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="mb-2 text-xs text-text-secondary">{t("actions.feedback_reply_hint")}</p>
           <textarea
             aria-label={t("actions.feedback_reply_body")}
             className={FEEDBACK_REPLY_TEXTAREA_CLASS}
