@@ -6,7 +6,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
@@ -199,6 +199,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileChatPage && !drawerOpen && !inOnboarding)
   const mobileChatHeaderHideDistance = Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight)
   const mobileChatHeaderHidden = mobileChatHeaderOffset >= mobileChatHeaderHideDistance - 1
+  const mobileChatTopInset = isMobileChatPage ? mobileChatContentHeaderHeight : 0
+  const mobileChatAppContentStyle = isMobileChatPage ? { "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px` } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
   }, [])
@@ -218,13 +220,13 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChatHeaderContext = useMemo(() => ({
     autoHideEnabled: mobileChatHeaderAutoHideActive,
     hidden: mobileChatHeaderHidden,
-    hiddenHeight: mobileChatHeaderHidden ? mobileChatHeaderHideDistance : 0,
     hideHeader: hideMobileChatHeader,
     offset: mobileChatHeaderOffset,
     reportScrollDelta: reportMobileChatScrollDelta,
     revealHeader: revealMobileChatHeader,
-    setContentHeight: setMobileChatHeaderContentHeight
-  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderHideDistance, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+    setContentHeight: setMobileChatHeaderContentHeight,
+    topInset: mobileChatTopInset
+  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
 
   useLayoutEffect(() => {
     const node = mobileAppHeaderRef.current
@@ -458,7 +460,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           getByRole("main", { name }) finds and what screen readers announce;
           a <main> here nested a second one inside it on every page, which is
           invalid and made locator("main") ambiguous. */}
-      <div className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`} data-testid="app-scroll-pane">
+      <div className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`} data-testid="app-scroll-pane" style={mobileChatAppContentStyle}>
         {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
           <button
             aria-label={t("nav:open_sidebar")}
@@ -474,11 +476,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </button>
         ) : null}
         <div
-          className={`sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,margin-bottom] duration-150 ease-out" : ""}`}
+          className={`${isMobileChatPage ? "absolute" : "sticky"} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
           data-testid="mobile-app-header"
           ref={mobileAppHeaderRef}
           style={mobileChatHeaderAutoHideActive ? {
-            marginBottom: `-${mobileChatHeaderOffset}px`,
+            opacity: mobileChatHeaderHidden ? 0 : 1,
             transform: `translateY(-${mobileChatHeaderOffset}px)`
           } : undefined}
         >
@@ -500,21 +502,33 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
           </div>
         </div>
-        <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
-        <FlashBanner flash={data?.flash} />
-        <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {isMobileChatPage ? (
-          <MobileChatHeaderContext.Provider value={mobileChatHeaderContext}>
-            <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
-          </MobileChatHeaderContext.Provider>
-        ) : showAdminSubnav ? (
-          <div className="flex min-h-full min-w-0">
-            <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
-              {pageContent}
-            </AdminNav>
+          <div className="flex min-h-0 flex-1 flex-col pt-[var(--mobile-chat-app-header-height,0px)]">
+            <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+            <FlashBanner flash={data?.flash} />
+            <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+            <MobileChatHeaderContext.Provider value={mobileChatHeaderContext}>
+              <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+            </MobileChatHeaderContext.Provider>
           </div>
+        ) : showAdminSubnav ? (
+          <>
+            <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+            <FlashBanner flash={data?.flash} />
+            <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+            <div className="flex min-h-full min-w-0">
+              <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
+                {pageContent}
+              </AdminNav>
+            </div>
+          </>
         ) : (
-          pageContent
+          <>
+            <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+            <FlashBanner flash={data?.flash} />
+            <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+            {pageContent}
+          </>
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </div>

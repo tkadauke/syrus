@@ -838,7 +838,6 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         onTouchMove={handleTouchMove}
         onWheel={handleWheel}
         ref={streamRef}
-        style={!isDesktop && mobileHeader.hiddenHeight > 0 ? { "--chat-hidden-header-height": `${mobileHeader.hiddenHeight}px` } as CSSProperties : undefined}
       >
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
@@ -981,7 +980,7 @@ function ChatWorkspace({
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
-  const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader } = useMobileChatHeaderControls()
+  const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader, topInset: mobileChatTopInset } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
@@ -1123,7 +1122,12 @@ function ChatWorkspace({
 
   if (!isDesktop) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
+      <div
+        className="relative flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950"
+        style={{
+          "--mobile-chat-top-inset": `${mobileChatTopInset}px`
+        } as CSSProperties}
+      >
         <MobileChatTopChrome
           activeMobileTab={activeMobileTab}
           availableTabs={availableTabs}
@@ -1132,7 +1136,7 @@ function ChatWorkspace({
           showMobileWorkspaceTabs={showMobileWorkspaceTabs}
           onSelectMobileTab={selectMobileTab}
         />
-        <div className="flex min-h-0 w-full flex-1">
+        <div className="flex min-h-0 w-full flex-1 pt-[var(--mobile-chat-top-inset,0px)]">
           {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
@@ -1245,11 +1249,11 @@ function MobileChatTopChrome({
   onSelectMobileTab: (tab: MobileChatTab) => void
 }) {
   const { t } = useT("chat")
-  const { setContentHeight } = useMobileChatHeaderControls()
+  const { hidden, offset, setContentHeight } = useMobileChatHeaderControls()
   const topChromeRef = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
-    if (!autoHideActive) {
+    if (!showMobileWorkspaceTabs) {
       setContentHeight(0)
       return
     }
@@ -1267,12 +1271,20 @@ function MobileChatTopChrome({
     const observer = new ResizeObserver(reportHeight)
     observer.observe(node)
     return () => observer.disconnect()
-  }, [autoHideActive, setContentHeight, showMobileWorkspaceTabs])
+  }, [setContentHeight, showMobileWorkspaceTabs])
 
   if (!showMobileWorkspaceTabs) return null
 
   return (
-    <div className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950" data-testid="mobile-chat-tabs-shell" ref={topChromeRef}>
+    <div
+      className={`absolute inset-x-0 top-0 z-10 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950 ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
+      data-testid="mobile-chat-tabs-shell"
+      ref={topChromeRef}
+      style={autoHideActive ? {
+        opacity: hidden ? 0 : 1,
+        transform: `translateY(-${offset}px)`
+      } : undefined}
+    >
       <UnderlineTabs
         activeKey={activeMobileTab}
         ariaLabel={t("aria_mobile_tabs")}

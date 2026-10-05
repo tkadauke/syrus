@@ -1222,7 +1222,8 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
-      expect(header).toHaveStyle({ transform: "translateY(-72px)", marginBottom: "-72px" })
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-72px" })
       const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
       expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
@@ -1319,7 +1320,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
-  it("pins the mobile top bar with sticky classes on a chat route too (a harmless no-op alongside chat's own overflow-hidden pinning)", () => {
+  it("positions the mobile top bar as an absolute chrome layer on chat routes", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
     try {
@@ -1327,7 +1328,44 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
       expect(topBar).not.toBeNull()
-      expect(topBar).toHaveClass("sticky", "top-0")
+      expect(topBar).toHaveClass("absolute", "top-0")
+      expect(topBar).not.toHaveClass("sticky")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("offsets app-level banners below the absolute mobile chat header", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, {
+        initialEntries: ["/chats/5"],
+        bootstrap: bootstrapPayload({
+          flash: { alert: "Deployment is paused.", notice: null },
+          system_alerts: [{
+            id: "provider_auth:claude:1",
+            dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+            severity: "alarm",
+            title: "Claude sign-in expired.",
+            message: "Claude authentication failed for this account.",
+            action_steps: [],
+            cta: null,
+            actions: []
+          }]
+        })
+      })
+
+      const scrollPane = screen.getByTestId("app-scroll-pane")
+      expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+
+      const contentLayer = Array.from(document.querySelectorAll("div")).find((element): element is HTMLDivElement => (
+        element instanceof HTMLDivElement && element.className.includes("pt-[var(--mobile-chat-app-header-height,0px)]")
+      ))
+      expect(contentLayer).not.toBeNull()
+      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-height,0px)]")
+      expect(contentLayer).toContainElement(screen.getByText("Claude sign-in expired."))
+      expect(screen.getByText("Deployment is paused.")).toBeInTheDocument()
     } finally {
       restoreMatchMedia()
     }
