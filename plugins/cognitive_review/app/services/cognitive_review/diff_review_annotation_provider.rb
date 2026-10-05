@@ -76,6 +76,7 @@ module CognitiveReview
 
     def self.inline_notes_for(notes, version:)
       return notes unless version
+      return notes if all_changes_version?(version)
 
       notes.select { |note| note.diff_review_version_id == version.id }
     end
@@ -87,7 +88,7 @@ module CognitiveReview
       file = Array(files).find { |candidate| file_value(candidate, :path).to_s == note.path.to_s }
       return false unless file
 
-      range_in_patch?(file_value(file, :patch).to_s, side: note.side, start_line: note.start_line, end_line: note.end_line)
+      range_intersects_patch?(file_value(file, :patch).to_s, side: note.side, start_line: note.start_line, end_line: note.end_line)
     end
 
     def self.all_changes_version?(version)
@@ -100,9 +101,9 @@ module CognitiveReview
       all_changes_version?(version) ? [ version ] : []
     end
 
-    def self.range_in_patch?(patch, side:, start_line:, end_line:)
+    def self.range_intersects_patch?(patch, side:, start_line:, end_line:)
       line_ranges_for_patch(patch, side: side).any? do |range|
-        range.cover?(start_line.to_i) && range.cover?(end_line.to_i)
+        range.cover?(start_line.to_i) || range.cover?(end_line.to_i) || (start_line.to_i..end_line.to_i).cover?(range.begin)
       end
     end
 

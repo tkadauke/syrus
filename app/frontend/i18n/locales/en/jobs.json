@@ -451,6 +451,7 @@
   "source_error": "Unable to load source browser.",
   "source_diff_loading": "Loading diff...",
   "source_diff_error": "Unable to load diff.",
+  "source_diff_stale_ref_error": "Unable to load this live comparison because {{ref}} no longer resolves. Select the stored version snapshot instead.",
   "source_diff_single_file": "Single file",
   "source_diff_continuous": "Continuous",
   "source_tree_truncated": "Tree truncated by GitHub.",

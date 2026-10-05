@@ -15,6 +15,7 @@ import {
   deleteDiffReviewComment,
   fetchDiffReviewVersion,
   fetchDiffReviewComments,
+  fetchJobSourceFileContent,
   fetchJobSourceDiff,
   replyToDiffReviewComment,
   startJobDiscussionChat,
@@ -34,6 +35,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     deleteDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchDiffReviewVersion: vi.fn(),
+    fetchJobSourceFileContent: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
     replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
@@ -58,6 +60,7 @@ beforeEach(() => {
   vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchDiffReviewVersion).mockReset()
+  vi.mocked(fetchJobSourceFileContent).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(replyToDiffReviewComment).mockReset()
   vi.mocked(startJobDiscussionChat).mockReset()
@@ -1795,6 +1798,111 @@ describe("ReviewWorkspace", () => {
     expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 
+  it("loads stored-version annotation context from the snapshot head SHA instead of a stale branch ref", async () => {
+    const latest = sourceDiffPayload({
+      version: version({
+        id: 200,
+        version_index: 2,
+        base_sha: "branch-base",
+        head_sha: "branch-head",
+        label: "All changes",
+        reason: "source_diff",
+        metadata: { range_kind: "all_changes" }
+      }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "historical-base", head_sha: "historical-head", label: "Initial implementation", run_id: 34 }),
+        version({
+          id: 200,
+          version_index: 2,
+          base_sha: "branch-base",
+          head_sha: "branch-head",
+          label: "All changes",
+          reason: "source_diff",
+          metadata: { range_kind: "all_changes" }
+        })
+      ]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(latest)
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({
+        id: 100,
+        version_index: 1,
+        base_sha: "historical-base",
+        head_sha: "historical-head",
+        head_ref: "syrus/stale-branch",
+        label: "Initial implementation",
+        run_id: 34
+      }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [
+        {
+          additions: 0,
+          deletions: 0,
+          path: "app/services/example.rb",
+          status: "modified",
+          patch: [
+            "@@ -29,11 +29,11 @@",
+            " line 29",
+            " line 30",
+            " line 31",
+            " line 32",
+            " line 33",
+            " line 34",
+            " line 35",
+            " line 36",
+            " line 37",
+            " line 38",
+            " line 39",
+            "@@ -43,8 +43,8 @@",
+            " line 43",
+            " line 44",
+            " line 45",
+            " line 46",
+            " line 47",
+            " line 48",
+            " line 49",
+            " line 50"
+          ].join("\n")
+        }
+      ],
+      review_annotations: {
+        annotations: {},
+        ranges: {
+          "app/services/example.rb": [
+            {
+              id: "historical-note",
+              side: "new",
+              start_line: 32,
+              end_line: 46,
+              title: "Historical review note"
+            }
+          ]
+        },
+        panels: [],
+        actions: [],
+        counts: [{ id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" }]
+      }
+    })
+    vi.mocked(fetchJobSourceFileContent).mockResolvedValue(Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n"))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 200))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v1 RUN-34" }))
+
+    await screen.findByText("Historical review note")
+    await waitFor(() => {
+      expect(fetchJobSourceFileContent).toHaveBeenCalledWith(42, "historical-head", "app/services/example.rb")
+    })
+    expect(fetchJobSourceFileContent).not.toHaveBeenCalledWith(42, "syrus/stale-branch", "app/services/example.rb")
+    await waitFor(() => {
+      expect(document.querySelector('[data-diff-anchor="right:40:40"]')).toBeInTheDocument()
+    })
+  })
+
   it("does not default to an empty legacy All changes version when real versions exist", async () => {
     const emptyAllChanges = version({
       id: 100,
@@ -1915,6 +2023,45 @@ describe("ReviewWorkspace", () => {
 
     expect(await screen.findByTitle("app/models/custom_range.rb")).toBeInTheDocument()
     expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head")
+  })
+
+  it("shows a targeted stale-ref message when an explicit live comparison cannot resolve", async () => {
+    const initial = sourceDiffPayload({
+      version: version({
+        id: 300,
+        version_index: 3,
+        base_sha: "branch-base",
+        head_sha: "third-head",
+        label: "All changes",
+        reason: "source_diff",
+        metadata: { range_kind: "all_changes" }
+      }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+        version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+        version({
+          id: 300,
+          version_index: 3,
+          base_sha: "branch-base",
+          head_sha: "third-head",
+          label: "All changes",
+          reason: "source_diff",
+          metadata: { range_kind: "all_changes" }
+        })
+      ]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockRejectedValueOnce(new Error("unknown ref syrus/stale-branch"))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 300))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    const repairRange = within(screen.getByRole("listbox", { name: "Version" })).getByRole("option", {
+      name: /Repair - From main \(first-h\) to syrus\/issue-42 \(second-\)/
+    })
+    fireEvent.click(within(repairRange).getByRole("button", { name: "From v2 RUN-22" }))
+
+    expect(await screen.findByText("Unable to load this live comparison because syrus/stale-branch no longer resolves. Select the stored version snapshot instead.")).toBeInTheDocument()
   })
 
   it("keeps a FROM/TO endpoint pick as an explicit range even when it coincides with a stored version's own base/head", async () => {

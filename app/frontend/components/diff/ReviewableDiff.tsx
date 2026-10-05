@@ -30,8 +30,10 @@ import {
   diffLineClass,
   diffMarkerClass,
   fullyRevealedGapStates,
+  forcedGapStatesForAnnotationRanges,
   gapSize as contextGapSize,
   hunksFromLines,
+  mergeGapRevealStates,
   mergeContextIntoLines,
   parseUnifiedDiff,
   remainingInGap,
@@ -1151,6 +1153,14 @@ function DiffFileSection({
   }
 
   const gapsMeta = useMemo<ContextGap[]>(() => contextGapsForHunks(hunks, contextState.lines?.length ?? null), [hunks, contextState.lines])
+  const reviewAnnotationVisibilitySignature = useMemo(
+    () =>
+      (reviewAnnotationRanges ?? [])
+        .map((range) => `${range.side}:${range.start_line}-${range.end_line}`)
+        .sort()
+        .join("|"),
+    [reviewAnnotationRanges]
+  )
 
   const mergedLines = useMemo(() => {
     if (!contextState.lines) return lines
@@ -1204,6 +1214,36 @@ function DiffFileSection({
   // from (the file is gone there), so `onLoadFileContext` would only ever
   // resolve null — never show controls that can't do anything.
   const contextExpansionEnabled = Boolean(onLoadFileContext) && file.status !== "removed"
+
+  useEffect(() => {
+    if (!contextExpansionEnabled || !reviewAnnotationRanges?.length || contextState.fullyExpanded || contextState.status === "loading") return
+
+    let cancelled = false
+    async function revealAnnotationContext() {
+      const fileLines = await ensureFileLinesLoaded()
+      if (cancelled || !fileLines) return
+
+      const resolvedGaps = contextGapsForHunks(hunks, fileLines.length)
+      const forcedGaps = forcedGapStatesForAnnotationRanges(resolvedGaps, reviewAnnotationRanges ?? [], reviewSettings.context_lines)
+      if (forcedGaps.every((state) => !state)) return
+
+      setContextState((prev) => ({ ...prev, gaps: mergeGapRevealStates(prev.gaps, forcedGaps) }))
+    }
+
+    void revealAnnotationContext()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    contextExpansionEnabled,
+    contextState.fullyExpanded,
+    contextState.lines,
+    contextState.status,
+    hunks,
+    reviewAnnotationRanges,
+    reviewAnnotationVisibilitySignature,
+    reviewSettings.context_lines
+  ])
 
   const hunkControls: HunkControls[] = contextExpansionEnabled
     ? hunks.map((_, hunkIndex) => {
