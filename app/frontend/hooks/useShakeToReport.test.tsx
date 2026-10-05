@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react"
+import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useShakeToReport } from "./useShakeToReport"
 
@@ -20,16 +20,25 @@ function dispatchMotion(input: MotionInput) {
   window.dispatchEvent(event)
 }
 
+async function clickDocument() {
+  await act(async () => {
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+  })
+}
+
 describe("useShakeToReport", () => {
   const OriginalDeviceMotionEvent = window.DeviceMotionEvent
+  const storageKey = "syrus:shake-to-report:motion-permission"
 
   beforeEach(() => {
     const MockDeviceMotionEvent = class extends Event {}
     Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: MockDeviceMotionEvent })
     Object.defineProperty(globalThis, "DeviceMotionEvent", { configurable: true, value: MockDeviceMotionEvent })
+    window.localStorage.clear()
   })
 
   afterEach(() => {
+    window.localStorage.clear()
     vi.restoreAllMocks()
     Object.defineProperty(window, "DeviceMotionEvent", { configurable: true, value: OriginalDeviceMotionEvent })
     Object.defineProperty(globalThis, "DeviceMotionEvent", { configurable: true, value: OriginalDeviceMotionEvent })
@@ -84,5 +93,104 @@ describe("useShakeToReport", () => {
     dispatchMotion({ accelerationIncludingGravity: acceleration(-24, 0, 9.8), timeStamp: 2060 })
 
     expect(onShake).toHaveBeenCalledOnce()
+  })
+
+  it("persists granted iOS motion permission and reattaches motion handling on the next mount", async () => {
+    const requestPermission = vi.fn<() => Promise<PermissionState>>().mockResolvedValue("granted")
+    Object.defineProperty(window.DeviceMotionEvent, "requestPermission", {
+      configurable: true,
+      value: requestPermission,
+    })
+
+    const firstShake = vi.fn()
+    const { unmount } = renderHook(() => useShakeToReport(firstShake))
+
+    expect(requestPermission).not.toHaveBeenCalled()
+
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+    expect(window.localStorage.getItem(storageKey)).toBe("granted")
+
+    unmount()
+
+    const secondShake = vi.fn()
+    renderHook(() => useShakeToReport(secondShake))
+
+    dispatchMotion({ accelerationIncludingGravity: acceleration(0, 0, 9.8) })
+    dispatchMotion({ accelerationIncludingGravity: acceleration(24, 0, 9.8) })
+    dispatchMotion({ accelerationIncludingGravity: acceleration(-24, 0, 9.8) })
+    dispatchMotion({ accelerationIncludingGravity: acceleration(24, 0, 9.8) })
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+    expect(secondShake).toHaveBeenCalledOnce()
+  })
+
+  it("persists denied iOS motion permission so later mounts do not ask again", async () => {
+    const requestPermission = vi.fn<() => Promise<PermissionState>>().mockResolvedValue("denied")
+    Object.defineProperty(window.DeviceMotionEvent, "requestPermission", {
+      configurable: true,
+      value: requestPermission,
+    })
+
+    const { unmount } = renderHook(() => useShakeToReport(vi.fn()))
+
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+    expect(window.localStorage.getItem(storageKey)).toBe("denied")
+
+    unmount()
+    renderHook(() => useShakeToReport(vi.fn()))
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+  })
+
+  it("persists unavailable iOS motion permission after request errors so later mounts do not ask again", async () => {
+    const requestPermission = vi.fn<() => Promise<PermissionState>>().mockRejectedValue(new Error("blocked"))
+    Object.defineProperty(window.DeviceMotionEvent, "requestPermission", {
+      configurable: true,
+      value: requestPermission,
+    })
+
+    const { unmount } = renderHook(() => useShakeToReport(vi.fn()))
+
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+    expect(window.localStorage.getItem(storageKey)).toBe("unavailable")
+
+    unmount()
+    renderHook(() => useShakeToReport(vi.fn()))
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+  })
+
+  it("falls back to per-mount first-click requests when storage is unavailable", async () => {
+    const requestPermission = vi.fn<() => Promise<PermissionState>>().mockResolvedValue("granted")
+    Object.defineProperty(window.DeviceMotionEvent, "requestPermission", {
+      configurable: true,
+      value: requestPermission,
+    })
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable")
+    })
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage unavailable")
+    })
+
+    const { unmount } = renderHook(() => useShakeToReport(vi.fn()))
+
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledOnce()
+
+    unmount()
+    renderHook(() => useShakeToReport(vi.fn()))
+    await clickDocument()
+
+    expect(requestPermission).toHaveBeenCalledTimes(2)
   })
 })
