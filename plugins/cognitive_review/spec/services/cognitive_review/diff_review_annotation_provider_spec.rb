@@ -202,7 +202,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
   end
 
-  it "projects older-version notes into a selected All changes diff when the note range is included" do
+  it "keeps older-version notes out of All changes inline annotations even when their numeric range exists in the selected patch" do
     job = Factories.job_with_run
     workflow = job.latest_workflow
     run = workflow.runs.first
@@ -213,7 +213,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       base_sha: "run-base",
       head_sha: "run-head",
       files: [
-        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -4,1 +4,2 @@\n context\n+new behavior" }
+        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -219,1 +219,2 @@\n context\n+generated command body" }
       ],
       reason: "initial"
     )
@@ -223,7 +223,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       base_sha: "branch-base",
       head_sha: "branch-head",
       files: [
-        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -4,1 +4,2 @@\n context\n+new behavior" }
+        { path: "app/models/job.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -219,1 +219,2 @@\n unrelated context\n+different aggregate change" }
       ],
       label: "All changes",
       reason: "source_diff",
@@ -236,10 +236,10 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       diff_review_version: run_version,
       path: "app/models/job.rb",
       side: "new",
-      start_line: 4,
-      end_line: 5,
-      title: "Included note",
-      explanation: "This run-scoped note is visible in the aggregate diff.",
+      start_line: 219,
+      end_line: 220,
+      title: "Older run note",
+      explanation: "This run-scoped note must not be anchored onto an unrelated aggregate diff line.",
       source_metadata: {}
     )
     CognitiveReview::Note.create!(
@@ -265,9 +265,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       files: all_changes.files_snapshot
     )
 
-    expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
-      hash_including(id: "cognitive_review_note:#{included_note.id}", title: "Included note")
-    )
+    expect(payload[:ranges]).to eq({})
     expect(payload[:panels]).to contain_exactly(hash_including(props: hash_including(notes: [ hash_including(note_id: included_note.id) ])))
     expect(payload[:counts]).to include(hash_including(id: "cognitive_review.open", value: 1, tone: "warning"))
     expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 2))
@@ -279,7 +277,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       anchor_kind: "line",
       path: included_note.path,
       side: "right",
-      new_line: 5,
+      new_line: 220,
       body: "I checked the aggregate diff range.",
       state: "draft"
     )

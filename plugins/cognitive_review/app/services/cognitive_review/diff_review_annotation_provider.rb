@@ -18,6 +18,7 @@ module CognitiveReview
       return {} if sidebar_notes.empty? && !rollup.submitted?
 
       open_notes = notes.select { |note| note.open? && !rollup.user_commented?(note) }
+      inline_notes = inline_notes_for(open_notes, version: version)
       comments_by_note_id = matching_comments_by_note_id(open_notes, diff_review_versions: extra_comment_versions)
       sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes, diff_review_versions: extra_comment_versions)
 
@@ -31,7 +32,7 @@ module CognitiveReview
 
       {
         **payload,
-        ranges: ranges_for(open_notes, comments_by_note_id: comments_by_note_id),
+        ranges: ranges_for(inline_notes, comments_by_note_id: comments_by_note_id),
         panels: summary_panels_for(open_notes, rollup, comments_by_note_id: comments_by_note_id)
       }
     end
@@ -71,6 +72,12 @@ module CognitiveReview
 
     def self.notes_for_sidebar(job:)
       CognitiveReview::Note.where(job: job).includes(:discussion_entries).ordered.to_a
+    end
+
+    def self.inline_notes_for(notes, version:)
+      return notes unless version
+
+      notes.select { |note| note.diff_review_version_id == version.id }
     end
 
     def self.note_included_in_all_changes_version?(note, version, files)
