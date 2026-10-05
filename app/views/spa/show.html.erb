@@ -1,4 +1,12 @@
 <script id="syrus-bootstrap-data" type="application/json">
   <%= raw json_escape(AppApi::BootstrapSerializer.new(user: Current.user, csrf_token: form_authenticity_token, default_chat_path: default_chat_path, flash: flash).as_json.to_json) %>
 </script>
+<div id="syrus-startup-status" class="syrus-startup-status" role="status" aria-live="polite" data-startup-state="loading">
+  <div class="syrus-startup-status__panel">
+    <div class="syrus-startup-status__spinner" data-syrus-startup-spinner aria-hidden="true"></div>
+    <p class="syrus-startup-status__title" data-syrus-startup-title>Loading Syrus</p>
+    <p class="syrus-startup-status__message" data-syrus-startup-message>Loading the app.</p>
+    <a class="syrus-startup-status__retry" href="<%= request.fullpath %>" data-syrus-startup-retry hidden>Retry</a>
+  </div>
+</div>
 <div id="syrus-spa-root"></div>

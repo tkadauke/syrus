@@ -104,6 +104,21 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('display-mode: standalone')
   end
 
+  it "renders a visible shell loading state before the SPA bundle executes" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-startup-status"')
+    expect(response.body).to include('data-startup-state="loading"')
+    expect(response.body).to include("Loading Syrus")
+    expect(response.body).to include("Loading the app.")
+    expect(response.body).to include('href="/app-shell" data-syrus-startup-retry hidden>Retry</a>')
+    expect(response.body.index('id="syrus-startup-status"')).to be < response.body.index('id="syrus-spa-root"')
+  end
+
   it "serves the authenticated app shell at root when signed in" do
     user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)

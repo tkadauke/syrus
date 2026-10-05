@@ -93,6 +93,7 @@
         var startupAt = Date.now();
         var reportedKeys = {};
         var milestones = [];
+        var pendingStartupState = null;
 
         function meta(name) {
           var el = document.querySelector('meta[name="' + name + '"]');
@@ -191,6 +192,39 @@
           }).catch(function () {});
         }
 
+        function startupStatus() {
+          return document.getElementById("syrus-startup-status");
+        }
+
+        function applyStartupState(state) {
+          var el = startupStatus();
+          if (!el) return false;
+          var title = el.querySelector("[data-syrus-startup-title]");
+          var message = el.querySelector("[data-syrus-startup-message]");
+          var spinner = el.querySelector("[data-syrus-startup-spinner]");
+          var retry = el.querySelector("[data-syrus-startup-retry]");
+          el.hidden = !!state.hidden;
+          el.dataset.startupState = state.name || "";
+          if (title && state.title) title.textContent = state.title;
+          if (message && state.message) message.textContent = state.message;
+          if (spinner) spinner.hidden = state.retry === true;
+          if (retry) retry.hidden = state.retry !== true;
+          return true;
+        }
+
+        function showStartupState(state) {
+          pendingStartupState = state;
+          if (!applyStartupState(state)) {
+            document.addEventListener("DOMContentLoaded", function () {
+              if (pendingStartupState) applyStartupState(pendingStartupState);
+            }, { once: true });
+          }
+        }
+
+        function hideStartupState() {
+          showStartupState({ name: "ready", hidden: true });
+        }
+
         function reportMilestone(milestone) {
           if (!shouldReportMilestone()) return;
 
@@ -238,7 +272,10 @@
           var entry = { name: milestone, at_ms: Date.now() - startupAt };
           milestones.push(entry);
           if (milestones.length > 20) milestones.shift();
-          if (milestone === "react_first_render") window.__syrusReactFirstRender = true;
+          if (milestone === "react_first_render") {
+            window.__syrusReactFirstRender = true;
+            hideStartupState();
+          }
           reportMilestone(milestone);
         }
 
@@ -251,6 +288,12 @@
           if (resourceUrl) {
             var tagName = target.tagName ? String(target.tagName).toLowerCase() : "resource";
             if (tagName === "script" || tagName === "link") {
+              showStartupState({
+                name: "resource_error",
+                title: "The app could not load",
+                message: "Check your connection, then retry.",
+                retry: true
+              });
               report("StartupResourceError", "SPA startup resource failed to load", {
                 resource_tag: tagName,
                 resource_url: sameOriginPath(resourceUrl)
@@ -281,6 +324,12 @@
           if (window.__syrusReactFirstRender) return;
           var root = document.getElementById("syrus-spa-root");
           var rootBlank = !root || !root.textContent.trim();
+          showStartupState({
+            name: "watchdog",
+            title: "Syrus is still loading",
+            message: "This can happen on a slow connection. Retry if it does not finish soon.",
+            retry: true
+          });
           report("StartupWatchdog", rootBlank ? "SPA startup watchdog: root still blank" : "SPA startup watchdog: first render not marked", {
             root_present: !!root,
             root_blank: rootBlank
@@ -294,6 +343,99 @@
     <link rel="icon" href="/icon.png?v=2" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
     <link rel="manifest" href="/manifest.json">
+
+    <style nonce="<%= content_security_policy_nonce %>">
+      .syrus-startup-status {
+        align-items: center;
+        box-sizing: border-box;
+        display: flex;
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .syrus-startup-status[hidden] {
+        display: none;
+      }
+
+      .syrus-startup-status__panel {
+        color: #1f2937;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0 auto;
+        max-width: 28rem;
+        text-align: center;
+      }
+
+      .syrus-startup-status__spinner {
+        animation: syrus-startup-spin 0.9s linear infinite;
+        border: 3px solid #e5e7eb;
+        border-top-color: #b6492e;
+        border-radius: 9999px;
+        height: 2rem;
+        margin: 0 auto 1rem;
+        width: 2rem;
+      }
+
+      .syrus-startup-status__spinner[hidden] {
+        display: none;
+      }
+
+      .syrus-startup-status__title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .syrus-startup-status__message {
+        color: #4b5563;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin: 0.5rem 0 0;
+      }
+
+      .syrus-startup-status__retry {
+        appearance: none;
+        background: #b6492e;
+        border: 0;
+        border-radius: 0.375rem;
+        color: white;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        margin-top: 1rem;
+        padding: 0.625rem 0.875rem;
+      }
+
+      .syrus-startup-status__retry[hidden] {
+        display: none;
+      }
+
+      .syrus-startup-status__retry:focus-visible {
+        outline: 3px solid rgba(182, 73, 46, 0.35);
+        outline-offset: 2px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .syrus-startup-status__panel {
+          color: #f9fafb;
+        }
+
+        .syrus-startup-status__message {
+          color: #d1d5db;
+        }
+
+        .syrus-startup-status__spinner {
+          border-color: #374151;
+          border-top-color: #f0a078;
+        }
+      }
+
+      @keyframes syrus-startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
 
     <%= spa_stylesheet_link_tags %>
     <% if Rails.env.test? %>
