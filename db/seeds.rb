@@ -274,7 +274,55 @@ if Rails.env.development?
           "+end"
         ].join("\n")
       }
-    ]
+    ],
+    source_files: {
+      head: {
+        "app/frontend/routes/Dashboard.tsx" => [
+          "import { Fragment } from \"react\"",
+          "import clsx from \"clsx\"",
+          "import { useQuery } from \"@tanstack/react-query\"",
+          "import { fetchDashboardSummary } from \"../api/dashboard\"",
+          "import { trackNeedsAttentionBadge } from \"../lib/analytics\"",
+          "import { formatCount } from \"../lib/format\"",
+          "import { PageShell } from \"../components/PageShell\"",
+          "import { Section } from \"../components/ui\"",
+          "import { Heading } from \"../components/Heading\"",
+          "import { useT } from \"../hooks/useT\"",
+          "import { DashboardFilters } from \"./dashboard/DashboardFilters\"",
+          "import { StatTile } from \"../components/StatTile\"",
+          "import { JobList } from \"./dashboard/JobList\"",
+          "",
+          "const REFRESH_INTERVAL_MS = 15000",
+          "",
+          "export function Dashboard() {",
+          "  const { t } = useT(\"dashboard\")",
+          "  const locale = navigator.language",
+          "  const dashboardTitle = t(\"title\")",
+          "  const selectedStatus = \"open\"",
+          "  const pinnedJobs = []",
+          "  const emptyStateLabel = t(\"empty\")",
+          "  const summary = useQuery({",
+          "    queryFn: fetchDashboardSummary,",
+          "    refetchInterval: REFRESH_INTERVAL_MS",
+          "  })",
+          "  const needsAttentionCount = summary.data?.needs_attention_count ?? 0",
+          "",
+          "  if (needsAttentionCount > 0) trackNeedsAttentionBadge(needsAttentionCount)",
+          "",
+          "  return (",
+          "    <PageShell title={dashboardTitle}>",
+          "      <Section.Root className={clsx(\"space-y-4\", selectedStatus)}>",
+          "        <Heading>{dashboardTitle}</Heading>",
+          "        <DashboardFilters selectedStatus={selectedStatus} />",
+          "        <StatTile label={formatCount(needsAttentionCount, locale)} value={needsAttentionCount} />",
+          "        <JobList emptyStateLabel={emptyStateLabel} jobs={summary.data?.jobs ?? pinnedJobs} />",
+          "      </Section.Root>",
+          "    </PageShell>",
+          "  )",
+          "}"
+        ].join("\n")
+      }
+    }
   }.deep_stringify_keys
 
   [

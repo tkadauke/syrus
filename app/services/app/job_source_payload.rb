@@ -49,6 +49,7 @@ module App
     end
 
     def payload
+      return fixture_payload if preview_fixture.present?
       return unavailable_payload unless source_available?
 
       history = branch_history
@@ -86,6 +87,79 @@ module App
 
     # Files larger than this are shown truncated; the payload says so.
     MAX_FILE_BYTES = 1.megabyte
+
+    def preview_fixture
+      return nil unless Rails.env.development?
+
+      @job.diff_fixture
+    end
+
+    def fixture_payload
+      fixture = preview_fixture.deep_symbolize_keys
+      selected_ref = @params[:ref].presence || fixture[:head_sha].presence || fixture[:head_ref].presence || @repository.default_branch
+      selected_path = @params[:path].presence
+      files = fixture_source_files(fixture, selected_ref)
+
+      base_payload(
+        selected_ref: selected_ref,
+        selected_path: selected_path,
+        branch_commits: Array(fixture[:branch_commits]),
+        merge_base_sha: fixture[:merge_base_sha]
+      )
+        .merge(
+          tree_items: files.map { |path, content| fixture_tree_item_json(path, content) },
+          tree_truncated: false,
+          source_error: nil
+        )
+        .merge(fixture_file_result(selected_path, files))
+    end
+
+    def fixture_source_files(fixture, selected_ref)
+      source_files = fixture[:source_files]
+      return {} unless source_files.is_a?(Hash)
+
+      head_ref = fixture[:head_sha].presence || fixture[:head_ref]
+      base_ref = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
+      selected_key =
+        if selected_ref == head_ref
+          :head
+        elsif selected_ref == base_ref
+          :base
+        else
+          selected_ref.to_s
+        end
+
+      files = source_files[selected_key] || source_files[selected_key.to_s] || {}
+      files.to_h.transform_keys(&:to_s).sort.to_h
+    end
+
+    def fixture_file_result(selected_path, files)
+      return { file: nil, file_error: nil } if selected_path.blank?
+
+      content = files[selected_path]
+      return { file: nil, file_error: "File not found." } unless content
+
+      {
+        file: {
+          path: selected_path,
+          name: File.basename(selected_path),
+          size: content.to_s.bytesize,
+          language: language_for(selected_path),
+          content: content.to_s,
+          truncated: false
+        },
+        file_error: nil
+      }
+    end
+
+    def fixture_tree_item_json(path, content)
+      {
+        path: path,
+        name: File.basename(path),
+        size: content.to_s.bytesize,
+        language: language_for(path)
+      }
+    end
 
     def content
       @content ||= RepositoryContent.for(@repository, user: @user)

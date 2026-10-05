@@ -25,6 +25,45 @@ RSpec.describe "App API job source browser", type: :request do
     expect(body.dig("paths", "app_source_path")).to eq("/api/v1/app/jobs/#{job.id}/source")
   end
 
+  it "serves preview fixture file content in development without repository credentials" do
+    user.update!(github_token: nil)
+    job.update!(
+      branch_name: nil,
+      diff_fixture: {
+        "head_sha" => "fixture-head",
+        "merge_base_sha" => "fixture-base",
+        "branch_commits" => [
+          { "sha" => "fixture-head", "short_sha" => "fixture", "message" => "Fixture head", "date" => "2026-05-01T12:00:00Z" }
+        ],
+        "source_files" => {
+          "head" => {
+            "app/frontend/routes/Dashboard.tsx" => "line 1\nline 2\nline 3\n"
+          }
+        }
+      }
+    )
+    allow(Rails.env).to receive(:development?).and_return(true)
+    expect(GithubClient).not_to receive(:for)
+
+    get "/api/v1/app/jobs/#{job.id}/source", params: { ref: "fixture-head", path: "app/frontend/routes/Dashboard.tsx" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["source_error"]).to be_nil
+    expect(body["file_error"]).to be_nil
+    expect(body["selected_ref"]).to eq("fixture-head")
+    expect(body["tree_items"]).to contain_exactly(include(
+      "path" => "app/frontend/routes/Dashboard.tsx",
+      "name" => "Dashboard.tsx",
+      "language" => "typescript"
+    ))
+    expect(body["file"]).to include(
+      "path" => "app/frontend/routes/Dashboard.tsx",
+      "content" => "line 1\nline 2\nline 3\n",
+      "truncated" => false
+    )
+  end
+
   it "returns refs, compact tree items, and selected file content" do
     user.update!(github_token: "ghp_test_token")
     commit_sha = "deadbeef12345678"
