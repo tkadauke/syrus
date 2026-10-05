@@ -50,7 +50,7 @@ module CognitiveReview
       [
         count_payload("cognitive_review.total", "Flagged ranges", rollup.total_flagged_ranges, "default"),
         count_payload("cognitive_review.open", "Open notes", rollup.open_unhandled_count, rollup.open_unhandled_count.positive? ? "warning" : "success"),
-        count_payload("cognitive_review.handled", "Handled", rollup.handled_count, "success"),
+        count_payload("cognitive_review.handled", "Acknowledged", rollup.handled_count, "success"),
         count_payload("cognitive_review.dismissed", "Dismissed", rollup.dismissed_count, "default")
       ]
     end
@@ -190,7 +190,7 @@ module CognitiveReview
     def self.panel_body(rollup)
       return "No PR-level review-note debt was flagged for this diff version." if rollup.zero_note_state?
 
-      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} handled, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
+      "#{rollup.open_unhandled_count} open, #{rollup.handled_count} acknowledged, #{rollup.dismissed_count} dismissed across #{rollup.total_flagged_ranges} flagged range#{'s' unless rollup.total_flagged_ranges == 1}."
     end
 
     def self.note_props(note, matching_comments: [])

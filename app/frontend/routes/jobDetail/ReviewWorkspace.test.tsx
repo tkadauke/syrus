@@ -243,7 +243,7 @@ describe("ReviewWorkspace", () => {
           counts: [
             { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
             { id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" },
-            { id: "cognitive_review.handled", label: "Handled", value: 0, tone: "success" },
+            { id: "cognitive_review.handled", label: "Acknowledged", value: 0, tone: "success" },
             { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
           ]
         }
@@ -264,9 +264,9 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
     expect(within(sidebar).getByText("The provider flagged this range.")).toBeInTheDocument()
     expect(screen.getByText("Open notes: 1")).toBeInTheDocument()
-    expect(screen.getByText("1 open, 0 handled (0 acknowledged, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
+    expect(screen.getByText("1 open, 0 acknowledged (0 acknowledged directly, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
     expect(screen.getByText("Flagged")).toBeInTheDocument()
-    expect(screen.getByText("Handled")).toBeInTheDocument()
+    expect(screen.getByText("Acknowledged")).toBeInTheDocument()
     const highlightedRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     expect(highlightedRow).toHaveClass("bg-warning-bg/35")
     const riskMetric = within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")
@@ -313,7 +313,7 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
   })
 
-  it("renders handled review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
+  it("renders acknowledged review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
@@ -356,8 +356,8 @@ describe("ReviewWorkspace", () => {
                 side: "new",
                 start_line: 1,
                 end_line: 1,
-                title: "Second handled branch",
-                body: "Another handled note shares this range.",
+                title: "Second acknowledged branch",
+                body: "Another acknowledged note shares this range.",
                 tone: "success",
                 props: {
                   note_id: 8,
@@ -366,8 +366,8 @@ describe("ReviewWorkspace", () => {
                   side: "new",
                   start_line: 1,
                   end_line: 1,
-                  title: "Second handled branch",
-                  explanation: "Another handled note shares this range.",
+                  title: "Second acknowledged branch",
+                  explanation: "Another acknowledged note shares this range.",
                   handled: true,
                   open_unhandled: false,
                   state: "discussed"
@@ -412,8 +412,8 @@ describe("ReviewWorkspace", () => {
                     side: "new",
                     start_line: 1,
                     end_line: 1,
-                    title: "Second handled branch",
-                    explanation: "Another handled note shares this range.",
+                    title: "Second acknowledged branch",
+                    explanation: "Another acknowledged note shares this range.",
                     handled: true,
                     open_unhandled: false,
                     state: "discussed"
@@ -426,7 +426,7 @@ describe("ReviewWorkspace", () => {
           counts: [
             { id: "cognitive_review.total", label: "Flagged ranges", value: 2 },
             { id: "cognitive_review.open", label: "Open notes", value: 0, tone: "success" },
-            { id: "cognitive_review.handled", label: "Handled", value: 2, tone: "success" },
+            { id: "cognitive_review.handled", label: "Acknowledged", value: 2, tone: "success" },
             { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
           ]
         }
@@ -439,8 +439,8 @@ describe("ReviewWorkspace", () => {
     await screen.findAllByText("Inspect this branch")
     const handledCards = document.querySelectorAll('[data-cognitive-review-note-state="handled"]')
     expect(handledCards.length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Handled").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("1 handled review note").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Acknowledged").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("1 acknowledged review note").length).toBeGreaterThan(0)
     expect(screen.queryByText("1 open review note")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
     const handledRow = document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
@@ -451,8 +451,8 @@ describe("ReviewWorkspace", () => {
     expect(groupedMarker).not.toHaveClass("bg-warning-bg", "text-warning-text", "ring-warning-border")
 
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
-    const firstHandledCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
-    fireEvent.click(within(firstHandledCard).getByRole("button", { name: "Discuss" }))
+    const firstAcknowledgedCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    fireEvent.click(within(firstAcknowledgedCard).getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/start_discussion", expect.objectContaining({ method: "POST" }))

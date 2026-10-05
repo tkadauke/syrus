@@ -14,7 +14,7 @@
     "agent_authored": "Agent note",
     "confidence": "{{confidence}}% confidence",
     "fallback_title": "Review note",
-    "handled": "Handled",
+    "handled": "Acknowledged",
     "legacy_discussion_entries": "Earlier discussion notes",
     "priority": "{{priority}} priority",
     "range": "{{path}} {{side}} lines {{start}}-{{end}}",
@@ -25,11 +25,11 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
-    "handled_summary": "{{count}} handled review note",
-    "handled_summary_one": "{{count}} handled review note",
-    "handled_summary_other": "{{count}} handled review notes",
-    "mixed_summary": "{{open}} open, {{handled}} handled review notes",
-    "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
+    "handled_summary": "{{count}} acknowledged review note",
+    "handled_summary_one": "{{count}} acknowledged review note",
+    "handled_summary_other": "{{count}} acknowledged review notes",
+    "mixed_summary": "{{open}} open, {{handled}} acknowledged review notes",
+    "rollup_summary": "{{open}} open, {{handled}} acknowledged ({{acknowledged}} acknowledged directly, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
     "summary": "{{count}} open review note",
     "summary_one": "{{count}} open review note",
     "summary_other": "{{count}} open review notes",
@@ -38,7 +38,7 @@
   },
   "rollup": {
     "dismissed": "Dismissed",
-    "handled": "Handled",
+    "handled": "Acknowledged",
     "open": "Open",
     "total": "Flagged"
   }

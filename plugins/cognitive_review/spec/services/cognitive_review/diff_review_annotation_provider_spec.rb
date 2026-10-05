@@ -339,8 +339,8 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       side: "new",
       start_line: 4,
       end_line: 4,
-      title: "Handled note",
-      explanation: "Already handled.",
+      title: "Acknowledged note",
+      explanation: "Already acknowledged.",
       state: "acknowledged",
       source_metadata: {}
     )
@@ -408,7 +408,7 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
     )
 
     expect(payload.dig(:ranges, "app/models/job.rb")).to contain_exactly(
-      hash_including(title: "Handled note", tone: "success", props: hash_including(handled: true, open_unhandled: false)),
+      hash_including(title: "Acknowledged note", tone: "success", props: hash_including(handled: true, open_unhandled: false)),
       hash_including(title: "Discussed note", tone: "success", props: hash_including(handled: true, open_unhandled: false)),
       hash_including(title: "User-commented note", tone: "success", props: hash_including(handled: true, handled_by_comment: true, open_unhandled: false))
     )
