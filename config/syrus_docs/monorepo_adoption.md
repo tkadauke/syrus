@@ -47,8 +47,8 @@ Poor reasons to move up a level:
 Level 0 is the default for small repositories and for monorepos that are still
 early in adoption. Keep one `.syrus.yml` at the repository root. Syrus preserves
 the existing behavior: root `prepare`, `preview`, `visual_review`, `hooks`,
-`adversarial_review`, `formatters`, `generated`, `grade`, `coverage`,
-`deploy`, and `deployment_stages` remain repository-wide.
+`adversarial_review`, `review_notes`, `formatters`, `generated`, `grade`,
+`coverage`, `deploy`, and `deployment_stages` remain repository-wide.
 
 ```yaml
 # /.syrus.yml
@@ -133,10 +133,10 @@ Rails conventions.
 
 Legacy sections in a nested file are scoped to that directory. A nested
 `preview:` runs from that project directory. Nested `adversarial_review`
-criteria, `visual_review`, `coverage`, and `hooks.post_checkout` apply when
-the project is affected. Nested `prepare`, `formatters`, `generated`, and
-`grade` compile into project targets for graph diagnostics and target-aware
-selection.
+criteria, `review_notes`, `visual_review`, `coverage`, and
+`hooks.post_checkout` apply when the project is affected. Nested `prepare`,
+`formatters`, `generated`, and `grade` compile into project targets for graph
+diagnostics and target-aware selection.
 
 Important runtime caveat: normal workflow validation still materializes the
 root `grade:` plan today. Nested `grade:` entries are useful target graph
@@ -332,8 +332,9 @@ steps.
    would naturally preview or reason about separately. Do not add a file just
    because a directory contains a package manifest.
 3. **Move operator-facing metadata first.** Put project-specific `project:`,
-   `preview:`, `visual_review:`, `adversarial_review.criteria`, `coverage:`,
-   and `hooks.post_checkout` next to the project that owns them.
+   `preview:`, `visual_review:`, `adversarial_review.criteria`,
+   `review_notes`, `coverage:`, and `hooks.post_checkout` next to the project
+   that owns them.
 4. **Keep executable validation at the root.** Add nested `grade:` entries as
    graph declarations and dependency-analysis hints, but leave critical review,
    landing, and CI commands in the root `grade:` plan until nested-grader

@@ -99,10 +99,28 @@ Disabled plugin routes return the standard `plugin_disabled` error.
 
 ## Configuration
 
-Enable or disable the plugin from Admin -> Plugins. There is no repository
-configuration key, settings row, or `.syrus.yml` option for Review Notes.
-The Admin -> Plugins entry lists the plugin category, icon, optional Agent
-Memory dependency, extension points, API routes, and the enable/disable state.
+Enable or disable the plugin from Admin -> Plugins. The Admin -> Plugins entry
+lists the plugin category, icon, optional Agent Memory dependency, extension
+points, API routes, and the enable/disable state.
+
+Repositories can tune note selection in `.syrus.yml`:
+
+```yaml
+review_notes:
+  criteria:
+    - Surface new or changed shared services, workflow adapters, state/lifecycle logic, retry/fallback behavior, MCP/tool contracts, persisted artifact/provenance choices, and diff-version resolution paths.
+  low_signal:
+    - Do not spend notes on ordinary test bodies, fixture churn, snapshots, or mechanical formatting unless they create or alter a testing framework, shared test harness, coverage boundary, or risk model.
+```
+
+Root `.syrus.yml` Review Notes policy applies repo-wide. Nested `.syrus.yml`
+policy applies only when the final diff review version touches that project
+directory. If a diff spans multiple affected projects, Syrus de-duplicates and
+merges the root policy with every affected nested project's policy.
+
+`criteria` names high-signal interests. `low_signal` names work the agent
+should usually skip. Both keys are optional arrays of strings; blank entries
+are ignored.
 
 Agent Memory is optional. When the Agent Memory plugin is enabled, its normal
 workflow context can inform the review pass. When memory is disabled or

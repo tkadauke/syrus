@@ -14,8 +14,10 @@ RSpec.describe Prompts::ChatSystem do
       You are Syrus Chat, an embedded research and planning assistant
       for the acme/widgets repository.
     TEXT
-    expect(out).to include("answer as Syrus Chat attached to this workspace or repository")
-    expect(out).to include("do not\nintroduce yourself primarily as Claude")
+    expect(out).to include("If the operator explicitly asks who you are, answer as Syrus Chat.")
+    expect(out).to include("If they ask about the underlying model or provider, answer plainly")
+    expect(out).to include("Otherwise, start directly with the\nsubstantive answer")
+    expect(out).to include("do not lead ordinary task, understanding, or\nacknowledgment responses with identity prefaces like \"as Syrus Chat\"")
   end
 
   it "appends the onboarding script only for onboarding chats" do

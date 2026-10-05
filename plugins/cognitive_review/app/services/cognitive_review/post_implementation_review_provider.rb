@@ -22,6 +22,7 @@ module CognitiveReview
       [
         memory_context(job),
         diff_context(job: job, workflow: workflow, run: run),
+        review_note_policy_context(job: job, workflow: workflow, run: run),
         <<~PROMPT.strip
           Review the final implementation diff for #{job.repository.slug} and submit high-signal Review Notes.
 
@@ -32,6 +33,12 @@ module CognitiveReview
           concurrency or race assumptions, queue behavior, safety boundaries, migrations
           or data concerns, missing verification, tricky tests, subtle UI decisions,
           surprising tradeoffs, or other operator-memory-guided interests.
+          A small but architectural change deserves consideration when it introduces
+          shared services, workflow adapters, lifecycle or retry/fallback behavior,
+          MCP/tool contracts, persisted artifact or provenance choices, or final-diff
+          revision resolution paths. Routine test implementation is usually low-signal;
+          changes to testing frameworks, shared harnesses, coverage boundaries, or risk
+          models are high-signal.
 
           Explanations should be concise review guidance explaining why the code is the
           way it is, not a generic checklist. Submit your result with submit_review_notes.
@@ -60,7 +67,7 @@ module CognitiveReview
     private_class_method :memory_context
 
     def self.diff_context(job:, workflow:, run:)
-      version = DiffReviewVersions::FinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
+      version = diff_review_version(job: job, workflow: workflow, run: run)
       return fallback_diff_context(job) unless version
 
       file_lines = Array(version.files_snapshot).first(40).map do |file|
@@ -83,6 +90,48 @@ module CognitiveReview
       ].join("\n")
     end
     private_class_method :diff_context
+
+    def self.review_note_policy_context(job:, workflow:, run:)
+      return nil unless workflow
+
+      version = diff_review_version(job: job, workflow: workflow, run: run)
+      return nil unless version
+
+      changed_files = Array(version&.files_snapshot).filter_map { |file| file["path"].to_s.presence }
+      policy = App::ReviewNoteProjects.call(
+        workspace_path: WorkflowWorkspace.path_for(workflow),
+        changed_files: changed_files
+      )
+      return nil if policy.empty?
+
+      lines = [ "Repository Review Notes policy from .syrus.yml:" ]
+      if policy.criteria.present?
+        lines << ""
+        lines << "High-signal interests:"
+        lines.concat(policy.criteria.map { |entry| "- #{entry}" })
+      end
+      if policy.low_signal.present?
+        lines << ""
+        lines << "Low-signal guidance:"
+        lines.concat(policy.low_signal.map { |entry| "- #{entry}" })
+      end
+      if policy.projects.present?
+        lines << ""
+        lines << "Applicable policy scopes:"
+        lines.concat(policy.projects.map { |project| "- #{project.label} (#{project.owner_config_path})" })
+      end
+
+      lines.join("\n")
+    rescue StandardError => e
+      Rails.logger.warn("[CognitiveReview::PostImplementationReviewProvider] review notes policy unavailable: #{e.class}: #{e.message}")
+      nil
+    end
+    private_class_method :review_note_policy_context
+
+    def self.diff_review_version(job:, workflow:, run:)
+      DiffReviewVersions::FinalReviewVersion.resolve(job: job, workflow: workflow, run: run)
+    end
+    private_class_method :diff_review_version
 
     def self.fallback_diff_context(job)
       base_ref =

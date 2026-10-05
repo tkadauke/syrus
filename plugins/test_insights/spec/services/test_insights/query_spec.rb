@@ -232,9 +232,15 @@ RSpec.describe TestInsights::Query do
     # ROW_NUMBER globally: several unrelated readers rank test_cases the same
     # way, so a global count silently turns into a tripwire for code that has
     # nothing to do with this query's batching.
-    expect(test_case_selects.count { |sql| sql.include?("syrus_recent_rank") }).to eq(1)
     expect(test_case_selects.join("\n")).to include("scored-created-index")
-    latest_case_selects = test_case_selects.reject { |sql| sql.include?("syrus_recent_rank") }
+    recent_stats_selects = test_case_selects.select { |sql| sql.include?("scored-created-index") }
+    expect(recent_stats_selects.size).to eq(1)
+    expect(recent_stats_selects.first).to include("UNION ALL")
+    expect(recent_stats_selects.first).to include("ORDER BY")
+    expect(recent_stats_selects.first).to include("LIMIT")
+    expect(recent_stats_selects.first).not_to include("ROW_NUMBER() OVER")
+    expect(recent_stats_selects.first).not_to include("syrus_recent_rank")
+    latest_case_selects = test_case_selects.reject { |sql| sql.include?("scored-created-index") }
     expect(latest_case_selects.count { |sql| sql.include?("UNION ALL") && sql.include?("ORDER BY") && sql.include?("LIMIT") }).to eq(1)
     expect(latest_case_selects).not_to include(match(/ROW_NUMBER\(\) OVER/i))
     expect(latest_case_selects).not_to include(match(/syrus_latest_case_rank/i))

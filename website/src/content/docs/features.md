@@ -300,6 +300,11 @@ asks it to flag changed diff ranges that deserve operator attention. Open
 notes appear in the Job review tab as warning-tinted ranges and plugin-owned
 side-panel cards.
 
+Repositories can tune Review Notes in `.syrus.yml` with `review_notes.criteria`
+for high-signal interests and `review_notes.low_signal` for work the reviewer
+should usually skip. Root policy applies repo-wide; nested project policy is
+merged only when the final diff touches that project.
+
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unhandled notes, handled
 notes, dismissed notes, and a zero-note state when the reviewer submitted no

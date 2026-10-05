@@ -40,6 +40,12 @@ adversarial_review:
   criteria:
     - Check for missing tests and stale docs.
 
+review_notes:
+  criteria:
+    - Surface shared services and final-diff resolution paths.
+  low_signal:
+    - Skip ordinary fixture churn unless it changes a test harness.
+
 visual_review:
   enabled: true
   rounds: 1
@@ -77,6 +83,8 @@ Schema:
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
 | `project.capabilities` / target `capabilities` | Mapping | Execution host/toolchain constraints such as `os: macos`, `toolchains: [xcode]`, or `runtimes: [ios_simulator]` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
+| `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |
+| `review_notes.low_signal` | Array of strings | Low-signal guidance for the Review Notes pass |
 | `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
 | `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |
 | `visual_review.when_files_changed` | Array of globs | Only run visual review when matching files changed |
@@ -182,6 +190,18 @@ project directory. Identical criteria are shown once.
 The workflow chain is created before the workspace clone exists, so Syrus
 reads this setting from `.syrus.yml` on the repository's default branch. If
 the file or setting is absent, adversarial review is disabled.
+
+### `review_notes`
+
+When the Review Notes plugin is enabled, `review_notes.criteria` and
+`review_notes.low_signal` tune which changed ranges the reviewer should flag.
+The setting changes selection, not the submission contract: the agent should
+still submit an empty notes array when nothing deserves attention.
+
+Root `.syrus.yml` Review Notes policy applies repo-wide. In monorepos, nested
+`.syrus.yml` files can declare their own policy; Syrus merges the root policy
+with every affected nested project touched by the final diff review version
+and de-duplicates identical entries.
 
 ### `visual_review`
 

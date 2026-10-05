@@ -14,17 +14,17 @@
   },
   "dependencies": {
     "motion": "^11.18.2",
-    "next": "^15.5.24",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "next": "^15.5.27",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^22.20.1",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   }
 }
