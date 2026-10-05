@@ -390,7 +390,12 @@ function revealedIntervalsForGap(gap: ContextGap, state: GapRevealState | undefi
 }
 
 function mergeIntervals(intervals: RevealedGapSegment[]): RevealedGapSegment[] {
-  const sorted = intervals.filter((interval) => interval.startNew <= interval.endNew).sort((a, b) => a.startNew - b.startNew || a.endNew - b.endNew)
+  const sorted = intervals
+    .filter(isOrderedSegment)
+    .sort((a, b) => {
+      const startComparison = a.startNew - b.startNew
+      return startComparison === 0 ? a.endNew - b.endNew : startComparison
+    })
   const merged: RevealedGapSegment[] = []
 
   for (const interval of sorted) {
@@ -403,4 +408,8 @@ function mergeIntervals(intervals: RevealedGapSegment[]): RevealedGapSegment[] {
   }
 
   return merged
+}
+
+function isOrderedSegment(interval: RevealedGapSegment): boolean {
+  return interval.startNew <= interval.endNew
 }

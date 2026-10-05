@@ -18,8 +18,8 @@ module CognitiveReview
       return {} if sidebar_notes.empty? && !rollup.submitted?
 
       visible_notes = notes.reject(&:dismissed?)
-      inline_notes = inline_notes_for(visible_notes, version: version)
       comments_by_note_id = matching_comments_by_note_id(visible_notes, diff_review_versions: extra_comment_versions)
+      inline_notes = inline_notes_for(visible_notes, version: version, comments_by_note_id: comments_by_note_id)
       sidebar_comments_by_note_id = matching_comments_by_note_id(sidebar_notes, diff_review_versions: extra_comment_versions)
 
       payload = {
@@ -74,16 +74,22 @@ module CognitiveReview
       CognitiveReview::Note.where(job: job).includes(:discussion_entries).ordered.to_a
     end
 
-    def self.inline_notes_for(notes, version:)
+    def self.inline_notes_for(notes, version:, comments_by_note_id: {})
       return notes unless version
-      return notes if all_changes_version?(version)
+      if all_changes_version?(version)
+        return notes.reject { |note| projected_into_all_changes_version?(note, version) && comments_by_note_id[note.id].present? }
+      end
 
       notes.select { |note| note.diff_review_version_id == version.id }
     end
 
+    def self.projected_into_all_changes_version?(note, version)
+      all_changes_version?(version) && note.diff_review_version_id != version.id
+    end
+
     def self.note_included_in_all_changes_version?(note, version, files)
       return false unless all_changes_version?(version)
-      return false if note.diff_review_version_id == version.id
+      return false unless projected_into_all_changes_version?(note, version)
 
       file = Array(files).find { |candidate| file_value(candidate, :path).to_s == note.path.to_s }
       return false unless file
