@@ -9,7 +9,6 @@ import {
   updateAdminSettings,
   type AdminSettingsPayload,
   type ClearableSecret,
-  type MainBranchBreakagePolicy,
   type PlatformPollingConnectorStatus
 } from "../api/adminSettings"
 import { Button } from "../components/Button"
@@ -119,7 +118,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [maxJobFailures, setMaxJobFailures] = useState(String(payload.settings.max_job_failures))
   const [mergeTrainMaxSize, setMergeTrainMaxSize] = useState(String(payload.settings.merge_train_max_size))
   const [mainConcernReportThreshold, setMainConcernReportThreshold] = useState(String(payload.settings.main_concern_report_threshold))
-  const [mainBranchBreakagePolicy, setMainBranchBreakagePolicy] = useState<MainBranchBreakagePolicy>(payload.settings.main_branch_breakage_policy)
   const [reportIssueRepoSlug, setReportIssueRepoSlug] = useState(payload.settings.report_issue_repo_slug)
   const [videoRetentionDays, setVideoRetentionDays] = useState(String(payload.settings.video_retention_days))
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
@@ -147,7 +145,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
       show_work_unit_debug: showWorkUnitDebug,
       rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
-      main_branch_breakage_policy: mainBranchBreakagePolicy,
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
       workflow_admission_policy: workflowAdmissionPolicy,
       chat_coding_workspace_budget_mb: Number(chatCodingWorkspaceBudgetMb)
@@ -173,11 +170,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
     setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
-    setMainBranchBreakagePolicy(payload.settings.main_branch_breakage_policy)
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
-  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.main_branch_breakage_policy, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
+  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -296,21 +292,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
             type="number"
             value={mergeTrainMaxSize}
           />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-branch-breakage-policy">{t("settings.main_branch_breakage_policy_label")}</label>
-          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.main_branch_breakage_policy_help")}</span>
-          <Select
-            className="mt-2"
-            fullWidth={false}
-            id="admin-settings-main-branch-breakage-policy"
-            onChange={(event) => setMainBranchBreakagePolicy(event.target.value as "strict" | "isolate_unrelated_failures")}
-            value={mainBranchBreakagePolicy}
-          >
-            <option value="strict">{t("settings.main_branch_breakage_policy_strict")}</option>
-            <option value="isolate_unrelated_failures">{t("settings.main_branch_breakage_policy_isolate_unrelated_failures")}</option>
-          </Select>
         </div>
       </div>
 

@@ -39,31 +39,6 @@ Consecutive failure threshold. When a ScheduledTask accumulates this many consec
 
 Minimum number of repeated broken-main reports before the aggregator surfaces a main-branch concern.
 
-### main_branch_breakage_policy
-
-**Type:** string (`strict` or `isolate_unrelated_failures`) · **Default:** `strict`
-
-Controls whether a broken default branch pauses unrelated landing across the
-instance. `strict` is the default: when main-branch health transitions to
-`broken`, Syrus sets `repository.landing_paused` and landing-queue candidates
-for that repository wait behind `landing_paused_main_broken`.
-
-`isolate_unrelated_failures` keeps unrelated work moving while main is broken.
-It also lets `grader_collect` pass required-grader failures that are proven to
-be inherited from broken main. It does not change how main health is derived:
-`Repository#main_health` is `broken` when either `ci_health` or
-`grader_health` is broken, so one never-passing CI check is enough to put main
-in the broken state.
-
-Changing this policy does not clear an existing repository pause. The pause is
-set and cleared by `MainHealthChangedService` on health transitions; if an
-operator switches from `strict` to `isolate_unrelated_failures` after landing
-is already paused, use the repository health page's **Resume landing** action
-(`repositories#resume_landing`) to clear `repository.landing_paused` and wake
-the landing queue.
-
-## Landing queue
-
 ### merge_train_enabled
 
 **Type:** boolean · **Default:** false

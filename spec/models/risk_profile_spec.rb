@@ -36,7 +36,10 @@ RSpec.describe RiskProfile do
 
     shipped = described_class.fetch(described_class::SHIPPED_DEFAULT)
     expect(shipped.main_branch_repair_blocks_work).to be(true)
-    expect(shipped.main_branch_breakage_policy).to eq(AppSetting.main_branch_breakage_policy)
+    # Previously compared against an instance-wide AppSetting. That setting is
+    # gone: the policy is the profile's own answer, so this pins the value
+    # directly rather than against a second source that could disagree.
+    expect(shipped.main_branch_breakage_policy).to eq("strict")
   end
 
   describe ".resolve" do

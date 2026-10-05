@@ -183,8 +183,8 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def reset_shared_repository!
-      AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
       shared_repository.update!(
+        risk_profile: "standard",
         main_branch_health_enabled: true,
         ci_health: "healthy",
         grader_health: "healthy",
@@ -1287,8 +1287,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     def active_main_health_start_block
       job, workflow, _step, run = graph
       remove_first_run!(workflow, run)
-      AppSetting.current.update!(main_branch_breakage_policy: "strict")
-      job.repository.update!(main_branch_health_enabled: true, ci_health: "broken", grader_health: "broken", landing_paused: true)
+      job.repository.update!(risk_profile: "production", main_branch_health_enabled: true, ci_health: "broken", grader_health: "broken", landing_paused: true)
       workflow.update!(
         artifacts: {
           "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,

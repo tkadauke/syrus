@@ -479,7 +479,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
   end
 
   it "does not block approved Jobs for broken main under isolate-unrelated-failures policy" do
-    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    repository.update!(risk_profile: "standard")
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     repository.update!(ci_health: "broken", landing_paused: true)
 

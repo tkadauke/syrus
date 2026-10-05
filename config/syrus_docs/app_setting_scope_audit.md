@@ -37,7 +37,6 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `show_work_unit_debug` | instance | Admin Settings | setting | instance | Correct: deployment diagnostic visibility. |
 | `workflow_admission_control_enabled` | instance | Admin Settings | setting | instance | Correct: global admission kill switch. |
 | `workflow_admission_policy` | instance | Admin Settings | setting | instance | Correct: worker-capacity policy for the deployment. |
-| `main_branch_breakage_policy` | instance | Admin Settings | setting | instance default with repo override later | Correct for now; main-health behavior already also depends on repo booleans, so a future unified policy surface should make the override explicit. |
 | `workflow_admission_control_changed_at` | instance | Rails console | internal state | instance | Correct hidden state: audit stamp maintained by the settings controller. |
 | `workflow_admission_control_changed_by_user_id` | instance | Rails console | internal state | instance | Correct hidden state: audit actor maintained by the settings controller. |
 | `github_app_id` | instance | Rails console | setup state | instance | Correct hidden state: written by GitHub App setup, not routine policy. |
@@ -103,11 +102,17 @@ follow-up shape rather than an implicit split across unrelated pages.
 
 ## Main-Branch Health Compound Policy
 
-Today, "will a broken default branch stop work?" depends on the instance
-`main_branch_breakage_policy` plus repository-level
-`main_branch_health_enabled`, `main_branch_repair_blocks_work`,
-`main_branch_repair_enabled`, `main_branch_repair_auto_approve`, and
-`land_on_inherited_check_failure`. This audit keeps storage unchanged, but the
-declared direction is: the breakage policy may become an instance default with
-an explicit per-repo override, while the repair and landing booleans remain
-repository policy because they describe risk tolerance for one codebase.
+"Will a broken default branch stop work?" is answered entirely per repository.
+`Repository#breakage_policy` comes from the repository's risk profile
+(`RiskProfile`), alongside `main_branch_health_enabled`,
+`main_branch_repair_blocks_work`, `main_branch_repair_enabled`,
+`main_branch_repair_auto_approve`, and `land_on_inherited_check_failure`.
+
+This audit originally recorded the breakage policy as an instance setting with
+a declared direction of "instance default with an explicit per-repo override
+later". The risk-profile postures built that per-repo surface, which left the
+instance-wide `AppSetting.main_branch_breakage_policy` as a second, louder
+answer to the same question -- and it won: a repository on the `standard`
+posture, whose own policy is to keep work moving, had its landing queue paused
+anyway because the instance default was `strict`. The instance setting has
+been removed; the repository's posture is the only answer.

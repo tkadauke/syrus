@@ -39,16 +39,20 @@ Jobs wait in `approved` when:
 
 ## Broken-main policy and repository pauses
 
-`AppSetting.main_branch_breakage_policy` chooses how broadly broken main-branch
-health blocks landing:
+`Repository#breakage_policy` chooses how broadly broken main-branch health
+blocks landing. It is repository policy, read from the repository's risk
+profile (`RiskProfile`), not an instance-wide setting -- "is unrelated work
+allowed to proceed while main is broken" is a statement about one codebase's
+risk tolerance, and answering it globally meant one repository's posture
+silently governed every other one.
 
-- `strict` (the default) treats a broken default branch as an instance-wide
+- `strict` (the `production` posture) treats a broken default branch as a
   safety stop for unrelated landing in that repository. When main health
   transitions to `broken`, `MainHealthChangedService` sets
   `repository.landing_paused`; `LandingQueueProcessor` then blocks approved
   Jobs for that repository as `landing_paused_main_broken`.
-- `isolate_unrelated_failures` keeps unrelated work moving while main is
-  broken and lets `grader_collect` pass failures proven to be inherited from
+- `isolate_unrelated_failures` (the `prototype` and `standard` postures) keeps
+  unrelated work moving while main is broken and lets `grader_collect` pass failures proven to be inherited from
   broken main. It does not auto-land PR checks that merely look inherited; that
   is controlled separately by the `pr_checks_failing_inherited` gate in
   `LandingQueueProcessor` and the per-repository
@@ -57,6 +61,10 @@ health blocks landing:
 Main health is intentionally conservative: `Repository#main_health` is
 `broken` when either `ci_health` or `grader_health` is broken, so a single
 never-passing CI check can pause landing under `strict`.
+
+A repository on a posture whose policy is `isolate_unrelated_failures` is not
+paused by broken main at all, so a grader that reports main broken for reasons
+unrelated to the work in flight does not stop that repository landing.
 
 Changing the policy does not clear an existing pause. `MainHealthChangedService`
 sets and clears `repository.landing_paused` on health transitions; if landing is

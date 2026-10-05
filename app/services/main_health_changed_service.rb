@@ -50,7 +50,7 @@ class MainHealthChangedService
     )
 
     if @repository.main_health_broken?
-      if AppSetting.strict_main_branch_breakage_policy?
+      if @repository.strict_breakage_policy?
         pause_landing!
       else
         resume_landing!
@@ -378,7 +378,7 @@ class MainHealthChangedService
   end
 
   def suppressed_by_recent_closed_repair?
-    return false if AppSetting.strict_main_branch_breakage_policy?
+    return false if @repository.strict_breakage_policy?
 
     repair_jobs
       .where(state: "closed")

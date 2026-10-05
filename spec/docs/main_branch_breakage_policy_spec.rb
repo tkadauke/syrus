@@ -1,13 +1,16 @@
 require "rails_helper"
 
 RSpec.describe "main branch breakage policy operator docs" do
-  it "document the setting, values, inherited-failure gate, and explicit resume path" do
+  it "document the policy, values, inherited-failure gate, and explicit resume path" do
     docs = %w[
       config/syrus_docs/app_settings.md
       config/syrus_docs/landing_queue.md
     ].map { |path| Rails.root.join(path).read }.join("\n")
 
-    expect(docs).to include("main_branch_breakage_policy")
+    # The policy is repository-scoped: it comes from the repository's risk
+    # profile, not from an instance-wide setting. Asserting the accessor keeps
+    # the docs from drifting back to describing a global knob.
+    expect(docs).to include("Repository#breakage_policy")
     expect(docs).to include("strict")
     expect(docs).to include("isolate_unrelated_failures")
     expect(docs).to include("Repository#main_health")

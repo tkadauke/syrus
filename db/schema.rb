@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_190409) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_184549) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -179,7 +179,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_190409) do
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
-    t.string "main_branch_breakage_policy", default: "strict", null: false
     t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false

@@ -7899,7 +7899,6 @@ describe("App", () => {
       max_job_failures: 3,
       merge_train_max_size: 20,
       main_concern_report_threshold: 2,
-      main_branch_breakage_policy: "strict",
       report_issue_repo_slug: "tkadauke/syrus",
       video_retention_days: 7,
       video_storage_budget_mb: 2048,
@@ -7930,7 +7929,6 @@ describe("App", () => {
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
-      main_branch_breakage_policy: "strict",
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       chat_coding_workspace_budget_mb: 0

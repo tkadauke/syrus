@@ -20,7 +20,6 @@ export type AdminSettingMetadata = {
   secret: boolean
 }
 
-export type MainBranchBreakagePolicy = "strict" | "isolate_unrelated_failures"
 
 export type AdminSettingsPayload = {
   settings: {
@@ -30,7 +29,6 @@ export type AdminSettingsPayload = {
     max_job_failures: number
     merge_train_max_size: number
     main_concern_report_threshold: number
-    main_branch_breakage_policy: MainBranchBreakagePolicy
     report_issue_repo_slug: string
     video_retention_days: number
     video_storage_budget_mb: number
@@ -61,7 +59,6 @@ export type AdminSettingsUpdate = {
   max_job_failures?: number
   merge_train_max_size?: number
   main_concern_report_threshold?: number
-  main_branch_breakage_policy?: MainBranchBreakagePolicy
   report_issue_repo_slug?: string
   video_retention_days?: number
   video_storage_budget_mb?: number

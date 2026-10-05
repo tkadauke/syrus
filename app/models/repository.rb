@@ -243,6 +243,13 @@ class Repository < ApplicationRecord
 
   def breakage_policy = risk_posture.main_branch_breakage_policy
 
+  # Whether broken main halts work unrelated to the breakage, for THIS
+  # repository. This used to be asked of a global AppSetting, which meant one
+  # repository's posture silently governed every other one: a repository on the
+  # "standard" profile, whose own policy is to keep work moving, had its
+  # landing queue paused anyway because the global default was "strict".
+  def strict_breakage_policy? = breakage_policy == "strict"
+
   def escalates_landing_failures? = risk_posture.escalates_landing_failures
 
   # "production" means no agent may dismiss a failing check: every override is

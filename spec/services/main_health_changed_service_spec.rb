@@ -157,8 +157,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
       end
 
       it "keeps landing unpaused and creates a high-priority repair Job under isolate-unrelated-failures policy" do
-        AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
-        repository.update!(main_branch_repair_blocks_work: false)
+        repository.update!(risk_profile: "standard", main_branch_repair_blocks_work: false)
 
         expect {
           described_class.on_health_change!(repository)
@@ -679,7 +678,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
       end
 
       it "does not immediately replace a closed repair Job under isolate-unrelated-failures policy" do
-        AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+        repository.update!(risk_profile: "standard")
         failed_repair = repository.jobs.create!(
           user: user,
           kind: "direct",

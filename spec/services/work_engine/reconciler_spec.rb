@@ -1961,7 +1961,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     first_step = cancelled.first_step
     first_run = first_step.runs.first
 
-    AppSetting.current.update!(main_branch_breakage_policy: "strict")
+    child.repository.update!(risk_profile: "production")
     child.repository.update!(
       main_branch_health_enabled: true,
       ci_health: "broken",

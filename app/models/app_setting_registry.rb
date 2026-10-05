@@ -322,19 +322,6 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
-      key: :main_branch_breakage_policy,
-      type: :string,
-      default: "strict",
-      min: nil,
-      max: nil,
-      category: "Workflow behavior",
-      operational_meaning: "Main-branch breakage policy: 'strict' pauses unrelated work when main is broken; 'isolate_unrelated_failures' keeps work moving and lets grader_collect pass failures proven to be inherited from broken main.",
-      zero_means: nil,
-      admin_editable: true,
-      secret: false,
-      surface: :admin_settings
-    ),
-    Definition.new(
       key: :macos_worker_desired_release,
       type: :json,
       default: nil,
@@ -600,8 +587,7 @@ class AppSettingRegistry
 
   def self.options_for(key)
     {
-      workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES,
-      main_branch_breakage_policy: AppSetting::MAIN_BRANCH_BREAKAGE_POLICIES
+      workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES
     }[key.to_sym]
   end
 

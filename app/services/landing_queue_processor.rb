@@ -754,7 +754,7 @@ class LandingQueueProcessor
     return blocked({ key: "manual_pause" }) if job.manual_paused?
     return override_or_block(job, { key: "landing_paused" }, consume: consume_override) if job.user.landing_paused? || job.owner_user&.landing_paused?
     if job.repository.main_branch_health_enabled? &&
-       AppSetting.strict_main_branch_breakage_policy? &&
+       job.repository.strict_breakage_policy? &&
        job.repository.main_branch_repair_blocks_work? &&
        job.repository.landing_paused? &&
        job.repository.main_health_broken? &&

@@ -3360,7 +3360,7 @@ RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   end
 
   it "starts the workflow under isolate-unrelated-failures main breakage policy" do
-    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    job_model.repository.update!(risk_profile: "standard")
     break_main!
 
     expect {
