@@ -6899,7 +6899,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin queue" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin queue" })).toBeInTheDocument()
       expect(screen.getByRole("heading", { name: "Queue" }).closest("header")).toHaveClass("items-end", "justify-between")
       expect(screen.getByRole("button", { name: "Run stale-run reaper" })).toHaveClass("shrink-0")
       expect(await screen.findByText("RunJob")).toBeInTheDocument()
@@ -7493,7 +7493,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin stuck items" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("lg:items-end", "lg:justify-between")
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass("shrink-0")
     expect(await screen.findByText("Run #4 silent for 10m")).toBeInTheDocument()
@@ -7615,7 +7615,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin processes" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin processes" })).toBeInTheDocument()
       expect(await screen.findByText("claude --print")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Operator (operator@example.com)" })).toHaveAttribute("href", "/app-shell/admin/users/1")
       expect(screen.getByRole("link", { name: "JOB-9 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-2")
@@ -7785,7 +7785,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const processDetail = screen.getByRole("main", { name: "Admin process detail" })
+    const processDetail = await screen.findByRole("main", { name: "Admin process detail" })
     expect(processDetail).toBeInTheDocument()
     expect(await within(processDetail).findByText("claude --print")).toBeInTheDocument()
     expect(within(processDetail).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
@@ -7914,7 +7914,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(screen.getByRole("main", { name: "Admin users" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Admin users" })).toBeInTheDocument()
       expect(await screen.findByText("Operator")).toBeInTheDocument()
       const disclosure = mobileFiltersSummary("Rate limit low").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
@@ -8086,7 +8086,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin transcript" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin transcript" })).toBeInTheDocument()
     expect(await screen.findByText("Run #4 · transcript")).toBeInTheDocument()
     expect(screen.getByText(/claude-sonnet-4-6/)).toBeInTheDocument()
     expect(screen.getAllByText("Bash").length).toBeGreaterThan(0)
@@ -8302,7 +8302,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin installations" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin installations" })).toBeInTheDocument()
     expect(screen.getByText("GitHub App Installations")).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -8354,7 +8354,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const registration = screen.getByRole("main", { name: "GitHub App registration" })
+    const registration = await screen.findByRole("main", { name: "GitHub App registration" })
     expect(registration).toBeInTheDocument()
     expect(
       within(registration).getByText(
@@ -8403,7 +8403,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const confirmation = screen.getByRole("main", { name: "GitHub App registered" })
+    const confirmation = await screen.findByRole("main", { name: "GitHub App registered" })
     expect(confirmation).toBeInTheDocument()
     expect(await within(confirmation).findByText("operator-syrus")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -8496,7 +8496,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin invitations" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin invitations" })).toBeInTheDocument()
     expect(await screen.findByText("guest@example.com")).toBeInTheDocument()
     expect(screen.getByText("http://example.test/users/new?token=abc123")).toBeInTheDocument()
 
@@ -8605,7 +8605,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Admin settings" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Admin settings" })).toBeInTheDocument()
     await screen.findByRole("checkbox", { name: /Open signups/ })
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Open signups/ }))
@@ -8671,7 +8671,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByRole("main", { name: "Tags" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Tags" })).toBeInTheDocument()
     expect(await screen.findByText("triage")).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
