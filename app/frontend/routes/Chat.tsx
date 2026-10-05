@@ -977,6 +977,7 @@ function ChatWorkspace({
   const filesFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const bookmarkRequestIdRef = useRef(0)
   const previousMediaRef = useRef({ chatId: payload.chat.id, count: mediaItemCount(payload) })
+  const suppressNextComposerMediaSwitchRef = useRef(false)
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
   const { t } = useT("chat")
@@ -993,6 +994,7 @@ function ChatWorkspace({
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
     setPendingJobsTabRequest(false)
+    suppressNextComposerMediaSwitchRef.current = false
     revealHeader()
   }, [payload.chat.id, revealHeader])
 
@@ -1035,11 +1037,19 @@ function ChatWorkspace({
     const current = mediaItemCount(payload)
     previousMediaRef.current = { chatId: payload.chat.id, count: current }
     if (previous.chatId !== payload.chat.id || current <= previous.count || !availableTabs.includes("media")) return
+    if (suppressNextComposerMediaSwitchRef.current) {
+      suppressNextComposerMediaSwitchRef.current = false
+      return
+    }
 
     setPanelCollapsed(false)
     setActiveMobileTab("media")
     selectTab("media")
   }, [availableTabs, payload])
+
+  function handleComposerMessageSent(details: { hadImageAttachments: boolean }) {
+    if (details.hadImageAttachments) suppressNextComposerMediaSwitchRef.current = true
+  }
 
   useEffect(() => {
     if (activeTab !== null) storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
@@ -1138,7 +1148,7 @@ function ChatWorkspace({
         />
         <div className="flex min-h-0 w-full flex-1 pt-[var(--mobile-chat-top-inset,0px)]">
           {showMobileChatColumn ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
               <ChatWorkspacePanel
@@ -1175,7 +1185,7 @@ function ChatWorkspace({
         transition: "grid-template-columns 150ms ease"
       }}
     >
-      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1452,7 +1462,7 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onComposerMessageSent, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
@@ -1536,11 +1546,11 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
         {showUsageOverlay ? <UsageOverlay payload={payload} /> : null}
-        {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} /> : null}
+        {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} /> : null}
       </div>
       {landing ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
-          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} hideScratchpadControls onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} hideScratchpadControls onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} />
         </div>
       ) : null}
     </section>
