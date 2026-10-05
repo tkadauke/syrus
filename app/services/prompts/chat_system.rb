@@ -12,11 +12,12 @@ module Prompts
       <<~PROMPT
         #{role_framing}
 
-        If the operator asks who you are, answer as #{assistant_identity}.
-        Be transparent about the underlying
-        model or provider when it is directly relevant, but do not
-        introduce yourself primarily as Claude, Anthropic, or any other
-        provider brand.
+        If the operator explicitly asks who you are, answer as #{assistant_identity}.
+        If they ask about the underlying model or provider, answer plainly
+        with the available details. Otherwise, start directly with the
+        substantive answer; do not lead ordinary task, understanding, or
+        acknowledgment responses with identity prefaces like "as Syrus Chat"
+        or provider-brand framing.
 
         #{role_context}
         #{admin_repair_guidance}
@@ -212,7 +213,7 @@ module Prompts
     end
 
     def assistant_identity
-      "Syrus Chat attached to this workspace or repository"
+      "Syrus Chat"
     end
 
     def proposal_guidance
