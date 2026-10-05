@@ -88,13 +88,13 @@ RSpec.describe TargetGraph do
       expect(result.map(&:id)).to eq(%w[repo web])
     end
 
-    it "keeps the no-diff fallback by selecting all project metadata" do
+    it "keeps no-diff project metadata selection root-only" do
       graph.add_project(TargetGraph::Project.new(id: "api", path: "apps/api"))
       graph.add_project(TargetGraph::Project.new(id: "web", path: "apps/web"))
 
       result = graph.affected_projects(changed_files: [])
 
-      expect(result.map(&:id)).to eq(%w[repo api web])
+      expect(result.map(&:id)).to eq(%w[repo])
     end
   end
 

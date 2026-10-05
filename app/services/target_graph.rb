@@ -178,7 +178,7 @@ class TargetGraph
   def affected_projects(changed_files:)
     changed_files = Array(changed_files).map(&:to_s)
     projects.values.select do |project|
-      project.root? || changed_files.empty? || project_contains_changed_file?(project, changed_files)
+      project.root? || project_contains_changed_file?(project, changed_files)
     end
   end
 

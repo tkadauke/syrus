@@ -88,4 +88,24 @@ RSpec.describe App::ReviewNoteProjects do
     ])
     expect(result.to_a.map { |project| project["id"] }).to eq(%w[repo api web])
   end
+
+  it "does not include nested project policy when no changed files are available" do
+    write(".syrus.yml", <<~YAML)
+      review_notes:
+        criteria:
+          - Surface shared services
+    YAML
+    write("apps/web/.syrus.yml", <<~YAML)
+      project:
+        id: web
+      review_notes:
+        criteria:
+          - Surface shared hooks
+    YAML
+
+    result = described_class.call(workspace_path: workspace, changed_files: [])
+
+    expect(result.criteria).to eq([ "Surface shared services" ])
+    expect(result.to_a.map { |project| project["id"] }).to eq(%w[repo])
+  end
 end
