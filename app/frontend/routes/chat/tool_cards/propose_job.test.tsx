@@ -39,6 +39,19 @@ describe("propose_job tool card", () => {
     expect(screen.getByRole("link", { name: "the pending-action tool-card work" })).toHaveAttribute("href", "/epics/12")
   })
 
+  it("wraps long proposal titles inside the card instead of expanding the chat viewport", () => {
+    const parsedResult = {
+      slug: "job-ha-webhook-now-playing-updates",
+      title: "HA webhook: Now Playing updates + playback state + browser deep link to a very specific integration surface",
+      kind: "job",
+      state: "proposed"
+    }
+
+    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText(parsedResult.title)).toHaveClass("min-w-0", "break-words")
+  })
+
   it("renders the materialized Job once confirmed", () => {
     const parsedResult = {
       slug: "fix-output",
