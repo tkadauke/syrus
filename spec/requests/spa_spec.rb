@@ -17,6 +17,10 @@ RSpec.describe "SPA shell", type: :request do
     end.string
   end
 
+  def response_etag
+    response.headers["ETag"] || response.headers["etag"]
+  end
+
   def frontend_app_routes
     source = Rails.root.join("app/frontend/routes/App.tsx").read
     route_table = source
@@ -66,6 +70,40 @@ RSpec.describe "SPA shell", type: :request do
       expect(response.headers["ETag"] || response.headers["etag"]).to be_present
       expect(response.headers["Content-Length"].to_i).to eq("brotli body".bytesize)
       expect(response.body).to eq("brotli body")
+    end
+  end
+
+  it "honors conditional GETs for precompressed SPA asset variants" do
+    with_public_asset("assets/spa-conditional-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+
+      get "/assets/spa-conditional-fixture.js", headers: { "Accept-Encoding" => "br" }
+      etag = response_etag
+
+      get "/assets/spa-conditional-fixture.js", headers: { "Accept-Encoding" => "br", "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response_etag).to eq(etag)
+      expect(response.body).to be_empty
+    end
+  end
+
+  it "does not serve gzip when the browser explicitly refuses gzip through q-values" do
+    with_public_asset("assets/spa-gzip-refused-fixture.js", "console.log('plain')") do |path|
+      gz_body = gzip("gzip body")
+      Pathname.new("#{path}.gz").binwrite(gz_body)
+
+      get "/assets/spa-gzip-refused-fixture.js", headers: { "Accept-Encoding" => "gzip;q=0, *;q=1" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to be_nil
+      expect(response.body).to eq("console.log('plain')")
+
+      get "/assets/spa-gzip-refused-fixture.js", headers: { "Accept-Encoding" => "gzip" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to eq("gzip")
+      expect(response.body.b).to eq(gz_body.b)
     end
   end
 
