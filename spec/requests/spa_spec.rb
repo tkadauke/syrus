@@ -1,6 +1,26 @@
 require "rails_helper"
+require "zlib"
 
 RSpec.describe "SPA shell", type: :request do
+  def with_public_asset(relative_path, body)
+    path = Rails.public_path.join(relative_path)
+    FileUtils.mkdir_p(path.dirname)
+    path.binwrite(body)
+    yield path
+  ensure
+    [ path, Pathname.new("#{path}.br"), Pathname.new("#{path}.gz") ].each { |asset_path| asset_path.delete if asset_path&.exist? }
+  end
+
+  def gzip(content)
+    StringIO.new.tap do |io|
+      Zlib::GzipWriter.wrap(io) { |writer| writer.write(content) }
+    end.string
+  end
+
+  def response_etag
+    response.headers["ETag"] || response.headers["etag"]
+  end
+
   def frontend_app_routes
     source = Rails.root.join("app/frontend/routes/App.tsx").read
     route_table = source
@@ -37,6 +57,70 @@ RSpec.describe "SPA shell", type: :request do
     end
   end
 
+  it "serves precompressed SPA assets when the browser advertises support and varies shared caches by encoding" do
+    with_public_asset("assets/spa-compressed-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+      Pathname.new("#{path}.gz").binwrite(gzip("gzip body"))
+
+      get "/assets/spa-compressed-fixture.js", headers: { "Accept-Encoding" => "gzip, br" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to eq("br")
+      expect(response.headers["Vary"].downcase).to eq("accept-encoding")
+      expect(response.headers["ETag"] || response.headers["etag"]).to be_present
+      expect(response.headers["Content-Length"].to_i).to eq("brotli body".bytesize)
+      expect(response.body).to eq("brotli body")
+    end
+  end
+
+  it "honors conditional GETs for precompressed SPA asset variants" do
+    with_public_asset("assets/spa-conditional-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+
+      get "/assets/spa-conditional-fixture.js", headers: { "Accept-Encoding" => "br" }
+      etag = response_etag
+
+      get "/assets/spa-conditional-fixture.js", headers: { "Accept-Encoding" => "br", "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response_etag).to eq(etag)
+      expect(response.body).to be_empty
+    end
+  end
+
+  it "does not serve gzip when the browser explicitly refuses gzip through q-values" do
+    with_public_asset("assets/spa-gzip-refused-fixture.js", "console.log('plain')") do |path|
+      gz_body = gzip("gzip body")
+      Pathname.new("#{path}.gz").binwrite(gz_body)
+
+      get "/assets/spa-gzip-refused-fixture.js", headers: { "Accept-Encoding" => "gzip;q=0, *;q=1" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to be_nil
+      expect(response.body).to eq("console.log('plain')")
+
+      get "/assets/spa-gzip-refused-fixture.js", headers: { "Accept-Encoding" => "gzip" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to eq("gzip")
+      expect(response.body.b).to eq(gz_body.b)
+    end
+  end
+
+  it "serves SPA assets uncompressed when the browser does not advertise encoded support" do
+    with_public_asset("assets/spa-uncompressed-fixture.js", "console.log('plain')") do |path|
+      Pathname.new("#{path}.br").binwrite("brotli body")
+      Pathname.new("#{path}.gz").binwrite(gzip("gzip body"))
+
+      get "/assets/spa-uncompressed-fixture.js"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Encoding"]).to be_nil
+      expect(response.headers["Vary"].downcase).to eq("accept-encoding")
+      expect(response.body).to eq("console.log('plain')")
+    end
+  end
+
   it "uses the normal HTML authentication flow when signed out" do
     Factories.user
 
@@ -65,7 +149,7 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.headers["X-Syrus-Revision"]).to eq(SyrusVersion.current)
   end
 
-  it "versions SPA CSS and JavaScript entrypoints with the running revision" do
+  it "does not version content-hashed SPA assets, but still versions unhashed assets" do
     allow(SyrusVersion).to receive(:current).and_return("cache-sha")
     user = Factories.user
     sign_in_as(user)
@@ -76,8 +160,28 @@ RSpec.describe "SPA shell", type: :request do
     css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
     js_paths = response.body.scan(/<script src="([^"]+)" type="module"><\/script>/).flatten
     expect(css_paths).not_to be_empty
-    expect(css_paths).to all(include("?v=cache-sha"))
-    expect(js_paths).to include(a_string_matching(%r{\A/assets/spa-[^"]+\.js\?v=cache-sha\z}))
+    expect(css_paths).to include(a_string_matching(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z}))
+    expect(css_paths).not_to include(a_string_including("?v=cache-sha"))
+    expect(js_paths).to include("/assets/spa-test.js?v=cache-sha")
+  end
+
+  it "keeps unchanged content-hashed SPA asset URLs stable across deploy revisions" do
+    user = Factories.user
+    sign_in_as(user)
+
+    allow(SyrusVersion).to receive(:current).and_return("first-sha")
+    get app_shell_path
+    first_css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
+
+    allow(SyrusVersion).to receive(:current).and_return("second-sha")
+    get app_shell_path
+    second_css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
+
+    first_hashed_css_paths = first_css_paths.grep(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z})
+    second_hashed_css_paths = second_css_paths.grep(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z})
+
+    expect(first_hashed_css_paths).not_to be_empty
+    expect(second_hashed_css_paths).to eq(first_hashed_css_paths)
   end
 
   it "installs startup diagnostics before the SPA module entrypoint" do
@@ -102,6 +206,21 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('StartupResourceError')
     expect(response.body).to include('navigator.standalone')
     expect(response.body).to include('display-mode: standalone')
+  end
+
+  it "renders a visible shell loading state before the SPA bundle executes" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-startup-status"')
+    expect(response.body).to include('data-startup-state="loading"')
+    expect(response.body).to include("Loading Syrus")
+    expect(response.body).to include("Loading the app.")
+    expect(response.body).to include('href="/app-shell" data-syrus-startup-retry hidden>Retry</a>')
+    expect(response.body.index('id="syrus-startup-status"')).to be < response.body.index('id="syrus-spa-root"')
   end
 
   it "serves the authenticated app shell at root when signed in" do

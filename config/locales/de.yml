@@ -47,6 +47,12 @@ de:
     admin_required: "Administrator-Zugriff erforderlich."
     chat_unavailable: "Dieser Chat ist nicht mehr verfügbar."
 
+  spa:
+    startup:
+      loading_title: "Syrus wird geladen"
+      loading_message: "Die App wird geladen."
+      retry: "Erneut versuchen"
+
   github_app:
     manifest:
       title: "Weiter zu GitHub…"

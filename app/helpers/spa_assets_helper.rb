@@ -25,9 +25,16 @@ module SpaAssetsHelper
       attr = Regexp.last_match(1)
       path = Regexp.last_match(2)
       next match unless path.start_with?("/assets/")
+      next match if content_hashed_spa_asset_path?(path)
 
       separator = path.include?("?") ? "&" : "?"
       %(#{attr}="#{path}#{separator}v=#{version}")
     end.html_safe
+  end
+
+  def content_hashed_spa_asset_path?(path)
+    filename = File.basename(path.split(/[?#]/, 2).first)
+
+    filename.match?(/\A.+-[0-9a-f]{8,}(?:\.[^.]+)+\z/i)
   end
 end
