@@ -37,8 +37,8 @@ WORKDIR /rails
 #     (PreparedWorkspaceArchive); it falls back to plain `gzip -1` when
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
-ARG CLAUDE_CODE_VERSION=2.1.283
-ARG CODEX_CLI_VERSION=0.157.1
+ARG CLAUDE_CODE_VERSION=2.1.289
+ARG CODEX_CLI_VERSION=0.160.0
 ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
