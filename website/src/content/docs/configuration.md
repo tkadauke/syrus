@@ -228,8 +228,8 @@ repository keeps the original root preview behavior.
 
 `grade` defines checks Syrus runs after agent work. Syrus runs the command
 exactly as configured. Framework plugins can also define typed graders such as
-`type: rspec`; those expand into focused review, landing, and CI variants with
-the right JSON/JUnit output and base-revision retry metadata. Use custom
+`type: rspec` or `type: minitest`; those expand into focused review, landing, and CI variants with
+framework-aware commands and base-revision retry metadata. Use custom
 `run:` commands when a plugin-defined grader cannot express a repository's
 test command yet.
 

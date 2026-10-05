@@ -345,6 +345,13 @@ grade:
 ```
 
 ```yaml
+# Plugin-defined Minitest grader. The Ruby plugin chooses `bin/rails test`,
+# `bundle exec rake test`, or `bundle exec ruby -Itest test` at runtime.
+grade:
+  - type: minitest
+```
+
+```yaml
 # Custom: a concrete shell command. `type: custom` is optional when `run:` is
 # present, but allowed for clarity.
 grade:
@@ -358,17 +365,22 @@ grade:
 
 Plugin-defined graders may expand to more than one concrete grader. The Ruby
 plugin's `type: rspec` expands to landing, focused-review, and CI RSpec
-graders. The JavaScript plugin's `type: vitest` does the same for Vitest and
-can optionally run typecheck and coverage. A plugin-owned grader must not also
-set `run:`; use `type: custom` for repository-specific shell commands.
+graders; `type: minitest` does the same for conventional Minitest projects.
+The JavaScript plugin's `type: vitest` does the same for Vitest and can
+optionally run typecheck and coverage. A plugin-owned grader must not also set
+`run:`; use `type: custom` for repository-specific shell commands.
 Typed grader defaults are framework-generic and relative to the project root.
 For example, `type: rspec` runs the project's `spec` directory and watches
-Ruby files plus common Ruby project metadata by default. `type: vitest`
-watches JavaScript/TypeScript files plus common package/Vite/TypeScript
-metadata by default, and runs existing project-local unit-test roots such as
-`app/frontend`, `src`, `test`, `tests`, and `__tests__`. Use `paths:` on a
-Vitest grader when full/CI discovery must be narrower or broader than those
-defaults. Use
+Ruby files plus common Ruby project metadata by default. `type: minitest`
+runs the project's `test` directory, watches Ruby files plus common Ruby
+project metadata, and uses `bin/rails test`, `bundle exec rake test`, or
+`bundle exec ruby -Itest` depending on the project files present at runtime.
+Set `command`, `focused_command`, `ci_command`, or `paths` when a Minitest
+project needs a repository-specific wrapper. `type: vitest` watches
+JavaScript/TypeScript files plus common package/Vite/TypeScript metadata by
+default, and runs existing project-local unit-test roots such as `app/frontend`,
+`src`, `test`, `tests`, and `__tests__`. Use `paths:` on a Vitest grader when
+full/CI discovery must be narrower or broader than those defaults. Use
 `when_files_changed` only to narrow or widen that framework default for this
 particular project. Do not make a root grader cover unrelated plugin or
 subproject paths; give those projects their own `.syrus.yml` and graders.
