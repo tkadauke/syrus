@@ -287,7 +287,7 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   }
 
   return (
-    <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
+    <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) => item.type === "tool_group" ? (
         <ToolGroup item={item} key={renderItemKey(item)} />
       ) : (
@@ -792,7 +792,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
           <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
@@ -830,7 +830,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : "sm:pt-4"}`}
+        className={`min-h-0 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : "sm:pt-4"}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}

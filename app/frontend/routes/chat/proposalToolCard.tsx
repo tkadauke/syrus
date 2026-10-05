@@ -121,12 +121,12 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
 export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome }) {
   return (
     <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge>{humanizeKind(proposal.kind)}</Badge>
         <StatePill state={proposal.state} />
         <EntityReference kind="proposal" slug={proposal.slug} />
       </div>
-      {proposal.title ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
+      {proposal.title ? <div className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
       {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {proposal.repository ? <DetailValue label="Repository"><EntityReference kind="repository" slug={proposal.repository} /></DetailValue> : null}
