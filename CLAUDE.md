@@ -55,7 +55,8 @@ issues with the configured trigger label. Each new labeled issue creates
 a `Job` (the *thread*), which auto-creates an initial `Workflow` (the
 *attempt*), which auto-enqueues its first `Step`'s `Run`. `PollAllPullRequestsJob`
 does the same for PR review feedback, creating follow-up `Workflow`s on
-existing `Job`s.
+existing `Job`s; `PollAllExternalOpenPrsJob` ingests opt-in externally
+filed PRs as reviewable `external_pr` Jobs.
 
 The state machines (AASM):
 
@@ -73,11 +74,12 @@ the credential mode captured at creation time (`app` or `pat`).
 Each `Step` dispatches to a `Steps::` handler and owns one `Run`. `Run`
 carries per-attempt state — prompt, agent metadata, diff, PR copy.
 
-`Job#kind` is `issue` (default, filed from GitHub), `cron` (fired by a
-`ScheduledTask` — no issue_number, prompt pre-rendered at fire time), or
-`direct` (operator-created free-form prompt, no GitHub issue or scheduled
-task — prompt supplied directly at job creation). All three kinds use the
-same Workflow pipeline.
+`Job#kind` is registered through `Job::Kind`: built-ins include `issue`
+(labeled work item), `cron` (scheduled fire), `direct` (operator prompt),
+`main_grader` and `deploy` (infrastructure), and `external_pr` (an ingested
+outside PR). Investigation-only Jobs are a flag on investigable kinds, not a
+separate kind. Plugins may contribute additional kinds through
+`:workflow_kinds`; do not hard-code kind lists.
 
 **WorkUnit / WorkIntent / WorkDefinition** (`app/models/work_unit.rb`,
 `app/models/work_intent.rb`, `app/services/work_definitions/`) is a newer
@@ -98,6 +100,13 @@ presentation/diagnostic fallbacks, not in the launch funnel.
 `WorkEngine::Reconciler` targets repairs at `WorkUnit`/`WorkIntent` records
 first. Admin surface: `/admin/work_units`, with normal Job-page WorkUnit
 internals gated by `AppSetting.show_work_unit_debug?`.
+
+Jobs and Workflows also carry a `PlannedExecutionRequirement`
+(project/target/capabilities/source), defaulting to Linux but overridable from
+prompt analysis or `.syrus.yml` target/grade capability metadata. Workers
+advertise capabilities via `SYRUS_WORKER_CAPABILITIES` plus local probes, and
+`RunQueueResolver` routes or blocks starts (`no_capable_worker`) when a live
+worker cannot satisfy the requirement.
 
 **Repository content** (`app/services/repository_content.rb`) is how Syrus
 reads a repository without cloning it: the pre-workflow `.syrus.yml` read,
@@ -155,8 +164,9 @@ High-frequency reminders:
 - Keep product-facing behavior aligned with `website/` and operator-facing
   behavior aligned with `config/syrus_docs/`.
 - Preserve `AGENTS.md -> CLAUDE.md`; edit the shared guidance through this file.
-- Add new workflow trigger or step metadata in `Workflow::TriggerKind` or
-  `Step::Kind` rather than scattering constants.
+- Add new Job, Workflow, or Step metadata in `Job::Kind`,
+  `Workflow::TriggerKind`, or `Step::Kind` rather than scattering constants;
+  plugin-owned workflow kinds belong behind the `:workflow_kinds` provider.
 - Do not add core references that make bundled plugins undeletable; plugin-owned
   tools, docs, routes, and specs belong with the plugin.
 - New chat-facing MCP tools need an explicit rendering decision: add a tool card
