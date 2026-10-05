@@ -55,7 +55,7 @@ module WorkEngine
         end
         return nil if args.length > 1
 
-        path = Pathname(args.first.presence || DEFAULT_SCENARIO_PATH).expand_path(Rails.root)
+        path = Pathname(args.first.presence || default_scenario_path).expand_path(Rails.root)
         if path.directory?
           path.children.select { |child| child.file? && child.extname.in?(%w[.yml .yaml]) }.sort_by(&:to_s)
         elsif path.file?
@@ -132,8 +132,12 @@ module WorkEngine
       def usage(status)
         stream = status.zero? ? out : err
         stream.puts "usage: bin/simulator [--max-ticks N] [path/to/scenario.yml|path/to/scenario_dir]"
-        stream.puts "       bin/simulator # runs #{DEFAULT_SCENARIO_PATH.relative_path_from(Rails.root)}"
+        stream.puts "       bin/simulator # runs #{default_scenario_path.expand_path(Rails.root).relative_path_from(Rails.root)}"
         status
+      end
+
+      def default_scenario_path
+        Pathname(ENV.fetch("SYRUS_SIMULATOR_DEFAULT_SCENARIO_PATH", DEFAULT_SCENARIO_PATH.to_s))
       end
     end
   end

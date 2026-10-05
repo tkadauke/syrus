@@ -2,6 +2,7 @@
 
 require "open3"
 require "fileutils"
+require "tmpdir"
 require "spec_helper"
 
 RSpec.describe "bin/simulator", :ci_only do
@@ -96,12 +97,20 @@ RSpec.describe "bin/simulator", :ci_only do
   end
 
   it "runs the default scenario directory in series" do
-    stdout, stderr, status = run_simulator
+    default_dir = Dir.mktmpdir("syrus-simulator-default-spec")
+    FileUtils.cp(
+      File.join(root, "spec/fixtures/work_engine_simulations/workspace_missing_diagnostic.yml"),
+      File.join(default_dir, "workspace_missing_diagnostic.yml")
+    )
+
+    stdout, stderr, status = run_simulator(env: { "SYRUS_SIMULATOR_DEFAULT_SCENARIO_PATH" => default_dir })
 
     expect(status).to be_success, stderr
     expect(stdout).to include("work-engine simulations passed")
     expect(stdout).to include("workspace missing diagnostic: stuck")
     expect(stdout).to include("(expected stuck)")
+  ensure
+    FileUtils.remove_entry(default_dir) if default_dir
   end
 
   it "resolves symbolic alternate providers with no agent-provider plugins manually enabled" do
