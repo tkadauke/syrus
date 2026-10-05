@@ -1210,7 +1210,14 @@ function DiffFileSection({
   const contextExpansionEnabled = Boolean(onLoadFileContext) && file.status !== "removed"
 
   useEffect(() => {
-    if (!contextExpansionEnabled || !reviewAnnotationRanges?.length || contextState.fullyExpanded || contextState.status === "loading") return
+    if (
+      !contextExpansionEnabled ||
+      !reviewAnnotationRanges?.length ||
+      contextState.fullyExpanded ||
+      contextState.status === "loading" ||
+      contextState.status === "error"
+    )
+      return
 
     let cancelled = false
     async function revealAnnotationContext() {

@@ -1716,6 +1716,34 @@ describe("hidden-context expansion", () => {
     expect(screen.getAllByTitle("Inspect cross-hunk range")).toHaveLength(15)
   })
 
+  it("does not retry annotation-forced context loading after the automatic fetch fails", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " first", "@@ -10,1 +10,1 @@", " last"].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockRejectedValue(new Error("unknown ref stale-branch"))
+
+    render(
+      <ReviewableDiff
+        files={[twoHunkFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "f.rb": [{ id: "note-1", side: "new", start_line: 1, end_line: 10, title: "Needs context" }]
+        }}
+        showFileHeaders
+      />
+    )
+
+    await waitFor(() => expect(onLoadFileContext).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+  })
+
   it("syntax-highlights context loaded from chunk expansion", async () => {
     const twoHunkFile = {
       additions: 0,
