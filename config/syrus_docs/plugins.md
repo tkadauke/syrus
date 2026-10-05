@@ -2519,6 +2519,19 @@ artifact, and — only when at least one scanned ecosystem is non-clean — a
 post. A clean scan across every scanned ecosystem is a silent no-op: no
 comment gets posted.
 
+## `diff_review_file_pattern_provider`
+
+Contributes generated/noisy file patterns to the Job review diff classifier.
+Providers are registered under `diff_review_file_pattern_provider` and implement:
+
+| Method | Signature | Description |
+|---|---|---|
+| `diff_review_file_patterns` | `() → Array<Hash>` | Return entries with `glob`, optional `reason`, and optional `source`. Matching files are serialized with `generated: true` and hidden behind a reveal placeholder in the review diff. |
+
+Use this for ecosystem-specific generated outputs that are too rich for core's
+fallback list. Dependency-audit providers do not need this hook for lockfiles:
+their existing `lockfiles` method is already used by the classifier.
+
 A plugin whose ecosystem needs more than one distinct audit tool (e.g. a
 different tool per package manager) registers one provider class per tool,
 the same multi-provider pattern `:grader_augmentor`/`:autofix_command` use:

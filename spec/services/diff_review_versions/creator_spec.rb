@@ -47,6 +47,39 @@ RSpec.describe DiffReviewVersions::Creator do
     )
   end
 
+  it "preserves generated file metadata in the immutable snapshot" do
+    version = described_class.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
+      files: [
+        {
+          path: "package-lock.json",
+          status: "modified",
+          additions: 12,
+          deletions: 3,
+          patch: "@@ -1 +1 @@\n-old\n+new",
+          generated: true,
+          generated_reason: "lockfile",
+          generated_source: "dependency_audit"
+        }
+      ]
+    )
+
+    expect(version.files_snapshot).to contain_exactly(
+      "path" => "package-lock.json",
+      "status" => "modified",
+      "additions" => 12,
+      "deletions" => 3,
+      "patch" => "@@ -1 +1 @@\n-old\n+new",
+      "generated" => true,
+      "generated_reason" => "lockfile",
+      "generated_source" => "dependency_audit"
+    )
+  end
+
   it "is idempotent for the same job, SHA pair, and source" do
     first = described_class.call(job: job, workflow: workflow, run: run, base_sha: "base", head_sha: "head", files: files)
     second = described_class.call(job: job, workflow: workflow, run: run, base_sha: "base", head_sha: "head", files: [])

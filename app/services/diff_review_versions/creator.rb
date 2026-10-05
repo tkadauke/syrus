@@ -81,7 +81,7 @@ module DiffReviewVersions
           "additions" => value_for(file, :additions).to_i,
           "deletions" => value_for(file, :deletions).to_i,
           "patch" => value_for(file, :patch)
-        }
+        }.merge(generated_hash(file))
       end
     end
 
@@ -94,6 +94,23 @@ module DiffReviewVersions
       return file[key.to_s] if file.is_a?(Hash)
 
       file.public_send(key) if file.respond_to?(key)
+    end
+
+    def generated_for(file)
+      value = value_for(file, :generated)
+      return true if value == true || value.to_s == "true"
+
+      nil
+    end
+
+    def generated_hash(file)
+      return {} unless generated_for(file)
+
+      {
+        "generated" => true,
+        "generated_reason" => value_for(file, :generated_reason).presence,
+        "generated_source" => value_for(file, :generated_source).presence
+      }.compact
     end
   end
 end

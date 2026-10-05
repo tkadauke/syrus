@@ -81,6 +81,40 @@ RSpec.describe App::DiffReviewVersionsPayload do
     )
   end
 
+  it "renders generated metadata from stored review versions" do
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
+      files: [
+        {
+          path: "package-lock.json",
+          status: "modified",
+          additions: 10,
+          deletions: 4,
+          patch: "@@ -1 +1 @@\n-old\n+new",
+          generated: true,
+          generated_reason: "lockfile",
+          generated_source: "dependency_audit"
+        }
+      ]
+    )
+
+    show = described_class.show(version: version, user: job.user)
+
+    expect(show[:files]).to contain_exactly(
+      path: "package-lock.json",
+      status: "modified",
+      additions: 10,
+      deletions: 4,
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      is_image: false,
+      generated: true,
+      generated_reason: "lockfile",
+      generated_source: "dependency_audit"
+    )
+  end
+
   it "renders review annotations for the selected version rather than the latest version" do
     provider = Class.new do
       include Syrus::Plugin::DiffReviewAnnotationProvider

@@ -107,7 +107,17 @@ module App
         deletions: file["deletions"].to_i,
         patch: file["patch"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }
+      }.merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
+    end
+
+    def generated_hash(generated, reason, source)
+      return {} unless generated == true || generated.to_s == "true"
+
+      {
+        generated: true,
+        generated_reason: reason.presence,
+        generated_source: source.presence
+      }.compact
     end
 
     def image_file?(path)

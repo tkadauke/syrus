@@ -50,6 +50,9 @@ export type ReviewableDiffFile = {
   status?: string
   additions?: number
   deletions?: number
+  generated?: boolean
+  generated_reason?: string | null
+  generated_source?: string | null
   is_image?: boolean
 }
 
@@ -290,6 +293,7 @@ function estimateFileSectionHeight(
   const estimates = DIFF_DENSITY_ESTIMATES[density]
   const header = showHeader ? estimates.header : 0
   if (collapsed) return header
+  if (file.generated && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
   if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
   const rowCount = countDiffRows(file.patch)
   if (rowCount > largeFileRowThreshold && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
@@ -855,6 +859,7 @@ function ChangedFilesList({
             type="button"
           >
             <span className="min-w-0 flex-1 truncate">{file.path}</span>
+            <GeneratedFileBadge file={file} />
             {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
             {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
             {commentCounts?.[file.path] ? (
@@ -946,6 +951,7 @@ function ChangedFileTreeRow({
         type="button"
       >
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        <GeneratedFileBadge file={file} />
         {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
         {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
         {commentCounts?.[file.path] ? (
@@ -1228,6 +1234,24 @@ function DiffFileSection({
     ) : null
   }
 
+  if (file.generated && !forceLoaded) {
+    return (
+      <>
+        {showHeader ? (
+          <DiffFileHeader
+            file={file}
+            onToggleCollapsed={() => setCollapsed(true)}
+            onToggleFilesPopup={onToggleFilesPopup}
+            reviewSettings={reviewSettings}
+            selected={selected}
+            showFilesPopupTrigger={showFilesPopupTrigger}
+          />
+        ) : null}
+        <GeneratedFilePlaceholder file={file} onLoad={() => setForceLoaded(true)} />
+      </>
+    )
+  }
+
   if (rowCount > largeFileRowThreshold && !forceLoaded) {
     return (
       <>
@@ -1321,6 +1345,43 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
       </Button>
     </div>
   )
+}
+
+function GeneratedFilePlaceholder({ file, onLoad }: { file: ReviewableDiffFile; onLoad: () => void }) {
+  const { t } = useT("common")
+  const label = generatedFileLabel(file, t)
+
+  return (
+    <div className="space-y-2 border-t border-gray-100 px-4 py-6 font-sans text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{file.path}</p>
+      <p>
+        {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions} </span> : null}
+        {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions} </span> : null}
+        {t("diff_review.generated_file_hidden", { label })}
+      </p>
+      <Button onClick={onLoad} size="sm" variant="secondary">
+        {t("diff_review.load_generated_file_diff")}
+      </Button>
+    </div>
+  )
+}
+
+function GeneratedFileBadge({ file }: { file: ReviewableDiffFile }) {
+  const { t } = useT("common")
+  if (!file.generated) return null
+
+  return (
+    <span
+      className="shrink-0 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-sans text-2xs font-semibold uppercase text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+      title={file.generated_reason || t("diff_review.generated_file")}
+    >
+      {generatedFileLabel(file, t)}
+    </span>
+  )
+}
+
+function generatedFileLabel(file: ReviewableDiffFile, t: (key: string, options?: Record<string, unknown>) => string) {
+  return file.generated_reason?.toLowerCase().includes("lockfile") ? t("diff_review.lockfile_badge") : t("diff_review.generated_badge")
 }
 
 // Tokenizes each hunk's visible lines as one contiguous blob (grouped by
@@ -2566,6 +2627,7 @@ function DiffFileHeader({
         <span className="min-w-0 flex-1 truncate">{file.path}</span>
         <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-success-text" : "text-text-secondary group-hover:text-text-primary"}`} />
       </button>
+      <GeneratedFileBadge file={file} />
       {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
       {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
       {onLoadWholeFile ? (
