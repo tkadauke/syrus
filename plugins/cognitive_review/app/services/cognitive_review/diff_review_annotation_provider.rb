@@ -197,6 +197,7 @@ module CognitiveReview
       {
         note_id: note.id,
         job_id: note.job_id,
+        diff_review_version_id: note.diff_review_version_id,
         path: note.path,
         side: note.side,
         start_line: note.start_line,

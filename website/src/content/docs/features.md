@@ -325,7 +325,10 @@ separate concerns.
 Acknowledged notes remain visible inline for their selected diff version with a
 subdued resolved treatment, while dismissed notes are counted separately.
 Discussing a note opens the Job discussion chat with Review Note context;
-operator review feedback still uses the normal diff comment path.
+operator review feedback still uses the normal diff comment path. Leaving a
+feedback reply from a Review Note creates a regular diff review comment
+anchored to the note range with Review Note provenance attached, so submitting
+review feedback preserves both the human comment and the note that prompted it.
 
 ## Deploy
 
