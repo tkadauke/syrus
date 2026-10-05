@@ -24,7 +24,7 @@ RSpec.describe RunPreAdmissionSkip do
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(workspace_path)
     allow(SyrusYml).to receive(:load_repo).with(workspace_path).and_return(
       SyrusYml::Config.new(
-        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, agent_insight: nil,
+        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
         coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
         visual_review: SyrusYml::VisualReviewConfig.new(
