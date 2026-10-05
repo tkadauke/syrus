@@ -53,6 +53,7 @@ RSpec.describe "bin/rspec-ci" do
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
         "rails RAILS_ENV=test args=db:test:prepare",
         "rspec-fast RAILS_ENV=test COVERAGE=false RSPEC_FAST_LOCK_HELD=1 args=spec/models/job_spec.rb",
+        "rails RAILS_ENV=test args=db:test:purge db:test:prepare",
         "rspec RUN_CI_ONLY_SPECS=true RSPEC_JSON_DIR=.syrus/rspec-json args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only.xml spec/models/job_spec.rb"
       ])
     end

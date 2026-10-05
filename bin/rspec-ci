@@ -18,6 +18,9 @@ export RSPEC_FAST_LOCK_HELD=1
 bin/rails db:test:prepare
 bin/rspec-fast "$@"
 mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR" "$(dirname "$RSPEC_JUNIT_OUTPUT")"
+# The first parallel worker uses the default test database and some non-ci
+# specs exercise migration rollback paths, so rebuild it before ci_only specs.
+bin/rails db:test:purge db:test:prepare
 
 set +e
 RUN_CI_ONLY_SPECS=true bin/rspec \
