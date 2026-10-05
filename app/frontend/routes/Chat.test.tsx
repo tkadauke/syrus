@@ -393,6 +393,7 @@ describe("ChatWorkspace split breakpoint", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const tabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    expect(screen.getByTestId("mobile-chat-tabs-shell")).toHaveClass("bg-white", "dark:bg-gray-950", "before:-top-px", "before:h-1", "before:bg-white", "dark:before:bg-gray-950")
     expect(within(tabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
     expect(within(tabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
   })

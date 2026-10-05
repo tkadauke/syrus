@@ -133,6 +133,7 @@ import { subscribeToChatResourceEvents } from "../lib/actionCable"
 import { useMobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import { ContextFindBar } from "../components/ContextFindBar"
 import { useContextFindShortcut } from "../hooks/useContextFind"
+import { MOBILE_CHROME_SURFACE_CLASS, MOBILE_CHROME_TOP_OVERLAP_CLASS } from "../components/mobileChrome"
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
 
@@ -1287,7 +1288,7 @@ function MobileChatTopChrome({
 
   return (
     <div
-      className={`absolute inset-x-0 top-0 z-10 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950 ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
+      className={`absolute inset-x-0 top-0 z-10 border-b border-gray-200 dark:border-gray-700 ${MOBILE_CHROME_SURFACE_CLASS} ${MOBILE_CHROME_TOP_OVERLAP_CLASS} ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
       data-testid="mobile-chat-tabs-shell"
       ref={topChromeRef}
       style={autoHideActive ? {
