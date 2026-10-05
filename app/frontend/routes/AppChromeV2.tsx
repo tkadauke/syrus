@@ -199,6 +199,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileChatPage && !drawerOpen && !inOnboarding)
   const mobileChatHeaderHideDistance = Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight)
   const mobileChatHeaderHidden = mobileChatHeaderOffset >= mobileChatHeaderHideDistance - 1
+  const mobileChatTopInset = isMobileChatPage ? mobileChatAppHeaderHeight + mobileChatContentHeaderHeight : 0
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
   }, [])
@@ -216,15 +217,16 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setMobileChatHeaderOffset(delta > 0 ? mobileChatHeaderHideDistance : 0)
   }, [mobileChatHeaderAutoHideActive, mobileChatHeaderHideDistance])
   const mobileChatHeaderContext = useMemo(() => ({
+    appHeaderHeight: isMobileChatPage ? mobileChatAppHeaderHeight : 0,
     autoHideEnabled: mobileChatHeaderAutoHideActive,
     hidden: mobileChatHeaderHidden,
-    hiddenHeight: mobileChatHeaderHidden ? mobileChatHeaderHideDistance : 0,
     hideHeader: hideMobileChatHeader,
     offset: mobileChatHeaderOffset,
     reportScrollDelta: reportMobileChatScrollDelta,
     revealHeader: revealMobileChatHeader,
-    setContentHeight: setMobileChatHeaderContentHeight
-  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderHideDistance, mobileChatHeaderOffset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+    setContentHeight: setMobileChatHeaderContentHeight,
+    topInset: mobileChatTopInset
+  }), [hideMobileChatHeader, isMobileChatPage, mobileChatAppHeaderHeight, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
 
   useLayoutEffect(() => {
     const node = mobileAppHeaderRef.current
@@ -474,11 +476,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </button>
         ) : null}
         <div
-          className={`sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,margin-bottom] duration-150 ease-out" : ""}`}
+          className={`${isMobileChatPage ? "absolute" : "sticky"} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
           data-testid="mobile-app-header"
           ref={mobileAppHeaderRef}
           style={mobileChatHeaderAutoHideActive ? {
-            marginBottom: `-${mobileChatHeaderOffset}px`,
+            opacity: mobileChatHeaderHidden ? 0 : 1,
             transform: `translateY(-${mobileChatHeaderOffset}px)`
           } : undefined}
         >

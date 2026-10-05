@@ -1,9 +1,10 @@
 import { createContext, useContext } from "react"
 
 export type MobileChatHeaderControls = {
+  appHeaderHeight: number
   autoHideEnabled: boolean
   hidden: boolean
-  hiddenHeight: number
+  topInset: number
   hideHeader: () => void
   offset: number
   reportScrollDelta: (delta: number) => void
@@ -14,9 +15,10 @@ export type MobileChatHeaderControls = {
 const noop = () => {}
 
 export const MobileChatHeaderContext = createContext<MobileChatHeaderControls>({
+  appHeaderHeight: 0,
   autoHideEnabled: false,
   hidden: false,
-  hiddenHeight: 0,
+  topInset: 0,
   hideHeader: noop,
   offset: 0,
   reportScrollDelta: noop,

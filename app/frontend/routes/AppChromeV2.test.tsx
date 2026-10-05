@@ -1222,7 +1222,8 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
-      expect(header).toHaveStyle({ transform: "translateY(-72px)", marginBottom: "-72px" })
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-72px" })
       const hiddenButton = screen.getByTestId("mobile-chat-hidden-header-sidebar-button")
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
       expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
@@ -1319,7 +1320,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
-  it("pins the mobile top bar with sticky classes on a chat route too (a harmless no-op alongside chat's own overflow-hidden pinning)", () => {
+  it("positions the mobile top bar as an absolute chrome layer on chat routes", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
     try {
@@ -1327,7 +1328,8 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
       expect(topBar).not.toBeNull()
-      expect(topBar).toHaveClass("sticky", "top-0")
+      expect(topBar).toHaveClass("absolute", "top-0")
+      expect(topBar).not.toHaveClass("sticky")
     } finally {
       restoreMatchMedia()
     }

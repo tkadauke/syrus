@@ -12128,16 +12128,22 @@ describe("App", () => {
       const header = screen.getByTestId("mobile-app-header")
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
+      const mobileChatShell = mobileTabsShell.parentElement as HTMLElement
+      const mobileContentLayer = mobileTabsShell.nextElementSibling as HTMLElement
+      expect(mobileChatShell.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+      expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("142px")
+      expect(mobileContentLayer).toHaveClass("pt-[var(--mobile-chat-top-inset,0px)]")
       setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 100 })
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(mobileTabsShell).toHaveStyle({ opacity: "1", transform: "translateY(-0px)" })
 
       setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 200 })
       fireEvent.touchMove(stream)
       fireEvent.scroll(stream, { target: { scrollTop: 200 } })
-      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-142px" })
+      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
 
       for (const scrollTop of [300, 400, 500, 600, 700]) {
         setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
@@ -12145,8 +12151,9 @@ describe("App", () => {
         fireEvent.scroll(stream, { target: { scrollTop } })
       }
 
-      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-142px" })
+      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
       expect(screen.getByTestId("mobile-chat-hidden-header-scrim")).toBeInTheDocument()
       expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
@@ -12155,14 +12162,15 @@ describe("App", () => {
 
       fireEvent.click(screen.getByRole("link", { name: "Example" }))
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
 
       fireEvent.click(stream)
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
       expect(screen.queryByTestId("mobile-chat-hidden-header-scrim")).not.toBeInTheDocument()
 
       fireEvent.click(stream)
-      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+      expect(header).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-142px" })
     } finally {
       restoreMedia()
       script.remove()
@@ -12214,7 +12222,8 @@ describe("App", () => {
       setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 120 })
       fireEvent.scroll(stream)
 
-      expect(header).toHaveStyle({ transform: "translateY(-142px)", marginBottom: "-142px" })
+      expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
+      expect(header).not.toHaveStyle({ marginBottom: "-142px" })
 
       fireEvent.touchMove(stream)
       setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 400, scrollTop: 0 })
@@ -12350,7 +12359,7 @@ describe("App", () => {
       }
 
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       await waitFor(() => {
@@ -12363,7 +12372,7 @@ describe("App", () => {
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       const restoredStream = await screen.findByTestId("chat-message-stream")
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-0px)" })
 
       for (const scrollTop of [500, 600, 700, 800, 900, 1000]) {
         setScrollMetrics(restoredStream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
@@ -12372,7 +12381,7 @@ describe("App", () => {
       }
 
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell.getAttribute("style") ?? "").toBe("")
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
     } finally {
       restoreMedia()
       script.remove()
