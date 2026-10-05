@@ -7,6 +7,10 @@
     "discussing": "Aperitur...",
     "discussion_body": "Nota disputationis",
     "error": "Haec nota recognitionis renovari non potuit.",
+    "feedback_reply_body": "Responsum feedback recensionis",
+    "leave_feedback_reply": "Responsum feedback scribe",
+    "save_feedback_reply": "Responsum feedback serva",
+    "saving_feedback_reply": "Servatur...",
     "save_discussion": "Disputationem aperi",
     "view_range": "Intervallum vide"
   },

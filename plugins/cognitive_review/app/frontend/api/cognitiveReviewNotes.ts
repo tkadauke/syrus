@@ -1,4 +1,5 @@
 import { postJson } from "@app/api/client"
+import type { DiffReviewCommentInput, DiffReviewCommentsPayload } from "@app/api/jobs"
 
 export type CognitiveReviewDiscussionEntry = {
   id: number
@@ -26,4 +27,8 @@ export function acknowledgeCognitiveReviewNote(jobId: number, noteId: number) {
 
 export function startCognitiveReviewNoteDiscussion(jobId: number, noteId: number) {
   return postJson<CognitiveReviewNotesPayload & { redirect_to: string }>(`/api/v1/app/jobs/${jobId}/review_notes/${noteId}/start_discussion`)
+}
+
+export function createCognitiveReviewNoteComment(jobId: number, input: DiffReviewCommentInput) {
+  return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments`, { diff_review_comment: input })
 }

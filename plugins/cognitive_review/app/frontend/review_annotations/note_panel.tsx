@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useRef, type FocusEvent } from "react"
+import { useRef, useState, type FocusEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
 import { useT } from "@app/hooks/useT"
-import { acknowledgeCognitiveReviewNote, startCognitiveReviewNoteDiscussion } from "../api/cognitiveReviewNotes"
+import { acknowledgeCognitiveReviewNote, createCognitiveReviewNoteComment, startCognitiveReviewNoteDiscussion } from "../api/cognitiveReviewNotes"
 
 type CognitiveReviewNote = {
   confidence?: number | null
+  diff_review_version_id?: number | null
   discussion_entries?: Array<{ body: string; created_at?: string | null; id: number }>
   end_line: number
   explanation?: string | null
@@ -134,6 +135,8 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
   const queryClient = useQueryClient()
   const hoveredRef = useRef(false)
   const focusedRef = useRef(false)
+  const [replyBody, setReplyBody] = useState("")
+  const [replyOpen, setReplyOpen] = useState(false)
   const highlightConditionRefs = { focus: focusedRef, hover: hoveredRef }
   const annotationId = `cognitive_review_note:${note.note_id}`
   const openUnhandled = noteOpenUnhandled(note)
@@ -155,6 +158,14 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
     onSuccess: (payload) => {
       invalidateReviewQueries(queryClient, note.job_id)
       window.location.assign(payload.redirect_to)
+    }
+  })
+  const comment = useMutation({
+    mutationFn: (body: string) => createCognitiveReviewNoteComment(note.job_id, commentInputForNote(note, body)),
+    onSuccess: () => {
+      setReplyBody("")
+      setReplyOpen(false)
+      invalidateReviewQueries(queryClient, note.job_id)
     }
   })
 
@@ -216,18 +227,69 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
       <NoteMetadata note={note} />
       <LegacyDiscussionEntries entries={note.discussion_entries ?? []} />
       <div className="mt-3 flex flex-wrap gap-2">
-        {openUnhandled && !acknowledge.isPending && !discuss.isPending ? (
+        {openUnhandled && !acknowledge.isPending && !discuss.isPending && !comment.isPending ? (
           <Button onClick={() => acknowledge.mutate()} size="sm" variant="secondary">
             {t("actions.acknowledge")}
           </Button>
         ) : null}
-        <Button disabled={acknowledge.isPending || discuss.isPending} onClick={() => discuss.mutate()} size="sm" variant="secondary">
+        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => setReplyOpen(true)} size="sm" variant="secondary">
+          {t("actions.leave_feedback_reply")}
+        </Button>
+        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => discuss.mutate()} size="sm" variant="secondary">
           {discuss.isPending ? t("actions.discussing") : t("actions.discuss")}
         </Button>
       </div>
-      {acknowledge.isError || discuss.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
+      {replyOpen ? (
+        <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+          <textarea
+            aria-label={t("actions.feedback_reply_body")}
+            className="min-h-16 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            onChange={(event) => setReplyBody(event.target.value)}
+            value={replyBody}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button disabled={!replyBody.trim() || comment.isPending} onClick={() => comment.mutate(replyBody.trim())} size="sm">
+              {comment.isPending ? t("actions.saving_feedback_reply") : t("actions.save_feedback_reply")}
+            </Button>
+            <Button disabled={comment.isPending} onClick={() => { setReplyOpen(false); setReplyBody("") }} size="sm" variant="secondary">
+              {t("actions.cancel")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {acknowledge.isError || discuss.isError || comment.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
     </article>
   )
+}
+
+function commentInputForNote(note: CognitiveReviewNote, body: string) {
+  const left = note.side === "old"
+  return {
+    surface: "job_review_workspace",
+    diff_review_version_id: note.diff_review_version_id,
+    anchor_kind: "line" as const,
+    path: note.path,
+    side: left ? ("left" as const) : ("right" as const),
+    old_line: left ? note.start_line : null,
+    new_line: left ? null : note.start_line,
+    body,
+    context: {
+      source: "review_note",
+      review_note_id: note.note_id,
+      review_note_title: note.title || null,
+      review_note_summary: note.summary || null,
+      review_note_explanation: note.explanation || null,
+      review_note_reason_codes: note.reason_codes || [],
+      review_note_priority: note.priority || null,
+      review_note_confidence: note.confidence ?? null,
+      review_note_range: {
+        path: note.path,
+        side: note.side,
+        start_line: note.start_line,
+        end_line: note.end_line
+      }
+    }
+  }
 }
 
 function noteOpenUnhandled(note: CognitiveReviewNote) {

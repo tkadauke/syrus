@@ -7,6 +7,10 @@
     "discussing": "Wird geoffnet...",
     "discussion_body": "Diskussionsnotiz",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
+    "feedback_reply_body": "Review-Feedback-Antwort",
+    "leave_feedback_reply": "Feedback-Antwort schreiben",
+    "save_feedback_reply": "Feedback-Antwort speichern",
+    "saving_feedback_reply": "Wird gespeichert...",
     "save_discussion": "Diskussion offnen",
     "view_range": "Bereich anzeigen"
   },

@@ -315,7 +315,107 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenCalledTimes(2))
   })
 
-  it("renders acknowledged review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
+  it("creates a normal diff review comment with Review Note provenance from a note feedback reply", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => commentsPayload([
+        comment({
+          id: 11,
+          diff_review_version_id: 100,
+          new_line: 1,
+          body: "Please address the lifecycle risk.",
+          context: {
+            source: "review_note",
+            review_note_id: 7,
+            review_note_title: "Inspect this branch"
+          }
+        })
+      ])
+    } as Response)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          annotations: {},
+          ranges: {},
+          panels: [
+            {
+              id: "cognitive_review.summary",
+              component: "cognitive_review/note_panel",
+              props: {
+                total: 1,
+                notes: [
+                  {
+                    note_id: 7,
+                    job_id: 42,
+                    diff_review_version_id: 100,
+                    path: "app/models/user.rb",
+                    side: "new",
+                    start_line: 1,
+                    end_line: 1,
+                    title: "Inspect this branch",
+                    summary: "Branch state risk",
+                    explanation: "The provider flagged this range.",
+                    priority: "high",
+                    confidence: 0.82,
+                    reason_codes: ["state"],
+                    open_unhandled: true
+                  }
+                ]
+              }
+            }
+          ],
+          actions: [],
+          counts: []
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const sidebar = (await screen.findByText("Review conversation")).closest("section") as HTMLElement
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Leave feedback reply" }))
+    fireEvent.change(within(sidebar).getByLabelText("Review feedback reply"), { target: { value: "Please address the lifecycle risk." } })
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Save feedback reply" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    const createCall = fetchSpy.mock.calls.find(([url]) => url === "/api/v1/app/jobs/42/diff_review_comments")
+    const posted = JSON.parse(String((createCall?.[1] as RequestInit).body))
+    expect(posted.diff_review_comment).toMatchObject({
+      surface: "job_review_workspace",
+      diff_review_version_id: 100,
+      anchor_kind: "line",
+      path: "app/models/user.rb",
+      side: "right",
+      new_line: 1,
+      body: "Please address the lifecycle risk.",
+      context: {
+        source: "review_note",
+        review_note_id: 7,
+        review_note_title: "Inspect this branch",
+        review_note_summary: "Branch state risk",
+        review_note_explanation: "The provider flagged this range.",
+        review_note_reason_codes: ["state"],
+        review_note_priority: "high",
+        review_note_confidence: 0.82,
+        review_note_range: {
+          path: "app/models/user.rb",
+          side: "new",
+          start_line: 1,
+          end_line: 1
+        }
+      }
+    })
+    expect(within(sidebar).getByRole("button", { name: "Discuss" })).toBeInTheDocument()
+  })
+
+  it("renders handled review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
