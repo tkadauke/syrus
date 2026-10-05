@@ -4,16 +4,18 @@
     "acknowledging": "Wird bestatigt...",
     "cancel": "Abbrechen",
     "discuss": "Besprechen",
-    "discussing": "Wird besprochen...",
+    "discussing": "Wird geoffnet...",
     "discussion_body": "Diskussionsnotiz",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
-    "save_discussion": "Diskussion speichern",
+    "save_discussion": "Diskussion offnen",
     "view_range": "Bereich anzeigen"
   },
   "note": {
     "agent_authored": "Agentennotiz",
     "confidence": "{{confidence}}% Vertrauen",
     "fallback_title": "Review-Notiz",
+    "handled": "Erledigt",
+    "legacy_discussion_entries": "Fruhere Diskussionsnotizen",
     "priority": "Prioritat {{priority}}",
     "range": "{{path}} {{side}} Zeilen {{start}}-{{end}}",
     "side": {
@@ -23,6 +25,10 @@
   },
   "panel": {
     "hidden_count": "{{count}} weitere Notizen sind im Diff verfugbar.",
+    "handled_summary": "{{count}} erledigte Review-Notiz",
+    "handled_summary_one": "{{count}} erledigte Review-Notiz",
+    "handled_summary_other": "{{count}} erledigte Review-Notizen",
+    "mixed_summary": "{{open}} offen, {{handled}} erledigte Review-Notizen",
     "rollup_summary": "{{open}} offen, {{handled}} erledigt ({{acknowledged}} bestatigt, {{discussed}} besprochen, {{user_commented}} kommentiert), {{dismissed}} verworfen.",
     "summary": "{{count}} offene Review-Notiz",
     "summary_one": "{{count}} offene Review-Notiz",
