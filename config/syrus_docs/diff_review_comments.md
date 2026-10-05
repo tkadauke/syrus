@@ -70,6 +70,14 @@ Each file entry in `source_diff`'s `files` array (and the equivalent
 `diff_review_versions` `files` array) also carries `is_image`: true only when
 `patch` is `nil` (GitHub omitted it for a binary/oversized file) and the path's
 extension looks like an image (`.png .jpg .jpeg .gif .webp .svg .bmp .ico`).
+Generated/noisy files may also carry `generated: true`, with optional
+`generated_reason` and `generated_source`. Classification comes from
+`.syrus.yml generated[].generates`, diff-review file pattern plugins, dependency
+audit providers' `lockfiles`, and core fallback patterns such as lockfiles,
+`*.generated.*`, and `__generated__` paths. Review UI keeps these files in the
+file list but hides their diff bodies until the reviewer explicitly reveals
+them; immutable `DiffReviewVersion#files_snapshot` rows preserve the same
+metadata for historical review versions.
 The `source_diff` payload additionally exposes `base_sha`/`head_sha` (the exact
 refs compared, alongside the existing `base_ref`/`head_ref` display refs) so a
 client can fetch raw file bytes at either side. `ReviewableDiff` renders a

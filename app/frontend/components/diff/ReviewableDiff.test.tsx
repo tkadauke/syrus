@@ -106,6 +106,26 @@ function splitWideLineFile() {
   }
 }
 
+function generatedPackageLockFile() {
+  return {
+    additions: 1200,
+    deletions: 800,
+    generated: true,
+    generated_reason: "lockfile",
+    generated_source: "dependency_audit",
+    patch: [
+      "diff --git a/package-lock.json b/package-lock.json",
+      "--- a/package-lock.json",
+      "+++ b/package-lock.json",
+      "@@ -1,2 +1,2 @@",
+      '-{"lockfileVersion": 2}',
+      '+{"lockfileVersion": 3}'
+    ].join("\n"),
+    path: "package-lock.json",
+    status: "modified"
+  }
+}
+
 describe("ReviewableDiff", () => {
   it("renders only the selected file in single-file mode", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/run.rb" showFileHeaders />)
@@ -1367,6 +1387,53 @@ describe("large-file gating", () => {
   it("gates a file just past the default threshold", () => {
     render(<ReviewableDiff files={[fileWithContextRowCount(301)]} mode="continuous" showFileHeaders />)
     expect(screen.getByRole("button", { name: "Load diff for this file" })).toBeInTheDocument()
+  })
+})
+
+describe("generated-file gating", () => {
+  it("hides generated files by default and reveals them on demand", () => {
+    render(<ReviewableDiff files={[generatedPackageLockFile()]} mode="continuous" showFileHeaders />)
+
+    expect(screen.getAllByText("lockfile")).toHaveLength(1)
+    expect(screen.getByText(/hidden by default/)).toBeInTheDocument()
+    expect(screen.queryByText('+"lockfileVersion": 3', { exact: false })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show diff for this file" }))
+
+    expect(screen.getAllByText("lockfileVersion").length).toBeGreaterThan(0)
+  })
+
+  it("shows the generated placeholder first for a selected single-file view", () => {
+    render(<ReviewableDiff files={[files[0], generatedPackageLockFile()]} mode="single-file" selectedPath="package-lock.json" showFileHeaders />)
+
+    expect(screen.getByTitle("package-lock.json")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show diff for this file" })).toBeInTheDocument()
+    expect(screen.queryByText("new")).not.toBeInTheDocument()
+  })
+
+  it("keeps a package-lock diff hidden by default in the mobile changed-files flow", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(<ReviewableDiff changedFilesPopup files={[generatedPackageLockFile(), files[0]]} mode="continuous" showFileHeaders />)
+
+      expect(screen.queryByText('+"lockfileVersion": 3', { exact: false })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show diff for this file" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+
+      const dialog = screen.getByRole("dialog")
+      expect(dialog).toHaveClass("h-[100dvh]")
+      expect(within(dialog).getByTitle("package-lock.json (+1200 -800)")).toBeInTheDocument()
+      expect(within(dialog).getByText("lockfile")).toBeInTheDocument()
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 })
 
