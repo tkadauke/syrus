@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
   const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
 
   return {
+    base: "/assets/",
     plugins: [react()],
     resolve: {
       alias: {
