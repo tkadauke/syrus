@@ -2532,13 +2532,12 @@ function DiffFileHeader({
 }) {
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
-  // max-lg:top-14 keeps this below the app chrome's own sticky top bar, which
-  // stays visible (AppChromeV2's `lg:hidden` bar) up through the `lg` breakpoint,
-  // not just `md` — otherwise a tablet-width viewport (768-1023px) sticks this
-  // header at the very top, behind that bar, instead of just under it.
+  // The mobile top offset comes from the shared app chrome layer. When the
+  // mobile chrome hides, the variable drops toward zero so diff file headers
+  // reclaim that vertical space while still sticking below visible chrome.
   // A collapsed file has nothing left to scroll past, so it must not stay
   // pinned -- it scrolls away with the rest of the page like any other row.
-  const stickyClass = collapsed ? "" : "sticky top-0 z-10 max-lg:top-14 "
+  const stickyClass = collapsed ? "" : "sticky top-0 z-10 max-lg:top-[var(--mobile-chrome-visible-top-inset,0px)] "
   const densityClasses = diffDensityClasses(reviewSettings)
   const className = `${stickyClass}flex w-full items-center border-b border-gray-100 bg-gray-50 text-left font-mono text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${densityClasses.fileHeader} ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 

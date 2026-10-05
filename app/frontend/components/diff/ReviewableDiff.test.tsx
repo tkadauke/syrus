@@ -959,6 +959,14 @@ describe("ReviewableDiff", () => {
     expect(viewer.querySelector(".overflow-x-scroll")).toHaveClass("w-full", "min-w-0", "max-w-full", "[container-type:inline-size]")
   })
 
+  it("sources mobile file-header stickiness from the shared chrome inset", () => {
+    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+    const fileHeader = screen.getByTitle("app/models/job.rb")
+    expect(fileHeader).toHaveClass("sticky", "top-0", "max-lg:top-[var(--mobile-chrome-visible-top-inset,0px)]")
+    expect(fileHeader).not.toHaveClass("max-lg:top-14")
+  })
+
   it("keeps wide-line comment composers anchored to the visible horizontal scroll area", () => {
     const wideFile = wideLineFile()
 
