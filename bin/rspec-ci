@@ -18,21 +18,59 @@ export RSPEC_FAST_LOCK_HELD=1
 bin/rails db:test:prepare
 bin/rspec-fast "$@"
 mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR" "$(dirname "$RSPEC_JUNIT_OUTPUT")"
-# The first parallel worker uses the default test database and some non-ci
-# specs exercise migration rollback paths, so rebuild it before ci_only specs.
+# The first parallel worker uses the default test database, and schema-mutating
+# specs may leave it unlike db/schema.rb, so rebuild it before ci_only specs.
 bin/rails db:test:purge db:test:prepare
 
+run_ci_only_specs() {
+  local suffix="$1"
+  shift
+
+  RUN_CI_ONLY_SPECS=true bin/rspec \
+    --tag ci_only \
+    --require rspec_junit_formatter \
+    --format progress \
+    --format json \
+    --out "$RSPEC_JSON_DIR/rspec-ci-only${suffix}.json" \
+    --format RspecJunitFormatter \
+    --out "$RSPEC_JUNIT_DIR/rspec-junit-ci-only${suffix}.xml" \
+    "$@"
+}
+
+status=0
 set +e
-RUN_CI_ONLY_SPECS=true bin/rspec \
-  --tag ci_only \
-  --require rspec_junit_formatter \
-  --format progress \
-  --format json \
-  --out "$RSPEC_JSON_DIR/rspec-ci-only.json" \
-  --format RspecJunitFormatter \
-  --out "$RSPEC_JUNIT_DIR/rspec-junit-ci-only.xml" \
-  "$@"
-status="$?"
+if [ "$#" -eq 0 ]; then
+  mapfile -t ci_only_spec_files < <(
+    {
+      find spec -type f -name '*_spec.rb'
+      find plugins -path '*/spec/*_spec.rb' -type f
+      find plugins -path '*/spec/**/*_spec.rb' -type f
+    } 2>/dev/null | sort -u
+  )
+
+  non_migration_specs=()
+  migration_specs=()
+  for spec_file in "${ci_only_spec_files[@]}"; do
+    case "$spec_file" in
+      spec/migrations/*) migration_specs+=("$spec_file") ;;
+      *) non_migration_specs+=("$spec_file") ;;
+    esac
+  done
+
+  if [ "${#non_migration_specs[@]}" -gt 0 ]; then
+    run_ci_only_specs "" "${non_migration_specs[@]}"
+    status="$?"
+  fi
+
+  if [ "$status" -eq 0 ] && [ "${#migration_specs[@]}" -gt 0 ]; then
+    bin/rails db:test:purge db:test:prepare
+    run_ci_only_specs "-migrations" "${migration_specs[@]}"
+    status="$?"
+  fi
+else
+  run_ci_only_specs "" "$@"
+  status="$?"
+fi
 set -e
 
 ruby -rrexml/document -e '

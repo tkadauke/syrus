@@ -59,6 +59,57 @@ RSpec.describe "bin/rspec-ci" do
     end
   end
 
+  it "runs migration ci_only specs last after rebuilding the test schema" do
+    Dir.mktmpdir do |dir|
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      FileUtils.cp(script, File.join(bin_dir, "rspec-ci"))
+      log_path = File.join(dir, "calls.log")
+
+      %w[
+        spec/models/job_spec.rb
+        spec/services/widget_spec.rb
+        spec/migrations/add_widget_spec.rb
+      ].each do |path|
+        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
+        File.write(File.join(dir, path), "# stub\n")
+      end
+
+      write_stub(File.join(bin_dir, "rails"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rails args=%s\\n' "$*" >> calls.log
+      BASH
+
+      write_stub(File.join(bin_dir, "rspec-fast"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rspec-fast args=%s\\n' "$*" >> calls.log
+      BASH
+
+      write_stub(File.join(bin_dir, "rspec"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rspec args=%s\\n' "$*" >> calls.log
+      BASH
+
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => ENV.fetch("PATH"), "HOME" => ENV.fetch("HOME") },
+        "bash",
+        File.join(bin_dir, "rspec-ci"),
+        chdir: dir,
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, stderr
+      expect(File.read(log_path).lines.map(&:chomp)).to eq([
+        "rails args=db:test:prepare",
+        "rspec-fast args=",
+        "rails args=db:test:purge db:test:prepare",
+        "rspec args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only.xml spec/models/job_spec.rb spec/services/widget_spec.rb",
+        "rails args=db:test:purge db:test:prepare",
+        "rspec args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only-migrations.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only-migrations.xml spec/migrations/add_widget_spec.rb"
+      ])
+    end
+  end
+
   it "refuses to prepare databases while another rspec-fast run holds the lock" do
     Dir.mktmpdir do |dir|
       bin_dir = File.join(dir, "bin")
@@ -101,6 +152,8 @@ RSpec.describe "bin/rspec-ci" do
       bin_dir = File.join(dir, "bin")
       FileUtils.mkdir_p(bin_dir)
       FileUtils.cp(script, File.join(bin_dir, "rspec-ci"))
+      FileUtils.mkdir_p(File.join(dir, "spec/models"))
+      File.write(File.join(dir, "spec/models/job_spec.rb"), "# stub\n")
 
       write_stub(File.join(bin_dir, "rails"), <<~BASH)
         #!/usr/bin/env bash
