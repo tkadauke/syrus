@@ -288,12 +288,14 @@
           if (resourceUrl) {
             var tagName = target.tagName ? String(target.tagName).toLowerCase() : "resource";
             if (tagName === "script" || tagName === "link") {
-              showStartupState({
-                name: "resource_error",
-                title: "The app could not load",
-                message: "Check your connection, then retry.",
-                retry: true
-              });
+              if (!window.__syrusReactFirstRender) {
+                showStartupState({
+                  name: "resource_error",
+                  title: "The app could not load",
+                  message: "Check your connection, then retry.",
+                  retry: true
+                });
+              }
               report("StartupResourceError", "SPA startup resource failed to load", {
                 resource_tag: tagName,
                 resource_url: sameOriginPath(resourceUrl)
