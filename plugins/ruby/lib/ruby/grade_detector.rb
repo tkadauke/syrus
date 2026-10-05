@@ -13,14 +13,25 @@ module Ruby
     end
 
     def grade_candidates
-      return [] unless rspec?
+      if rspec?
+        return [
+          {
+            name: "rspec",
+            run: "type: rspec",
+            type: "rspec",
+            evidence: rspec_evidence
+          }
+        ]
+      end
+
+      return [] unless minitest?
 
       [
         {
-          name: "rspec",
-          run: "type: rspec",
-          type: "rspec",
-          evidence: rspec_evidence
+          name: "minitest",
+          run: "type: minitest",
+          type: "minitest",
+          evidence: minitest_evidence
         }
       ]
     end
@@ -34,6 +45,23 @@ module Ruby
     def rspec_evidence
       return "spec/" if @path.join("spec").directory?
       ".rspec" if @path.join(".rspec").exist?
+    end
+
+    def minitest?
+      minitest_evidence.present?
+    end
+
+    def minitest_evidence
+      return "test/test_helper.rb" if @path.join("test/test_helper.rb").exist?
+      return "test/" if @path.join("test").directory? && Dir.glob(@path.join("test/**/*_test.rb").to_s).any?
+
+      gemfile = @path.join("Gemfile")
+      return unless gemfile.file?
+
+      contents = gemfile.read
+      "Gemfile minitest dependency" if contents.match?(/gem\s+["']minitest["']/)
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
     end
   end
 end
