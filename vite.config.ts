@@ -27,9 +27,8 @@ export default defineConfig(({ mode }) => {
         input: "app/frontend/main.tsx",
         output: {
           entryFileNames: "spa.js",
-          chunkFileNames: "spa-[name].js",
-          assetFileNames: "spa-[name][extname]",
-          codeSplitting: false
+          chunkFileNames: "spa-[name]-[hash].digested.js",
+          assetFileNames: "spa-[name][extname]"
         }
       }
     },
