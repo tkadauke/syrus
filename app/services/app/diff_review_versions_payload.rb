@@ -30,7 +30,8 @@ module App
         default_ref: @job.repository.default_branch,
         files: Array(@version.files_snapshot).map { |file| file_json(file) },
         diff_error: nil,
-        review_annotations: review_annotations_json
+        review_annotations: review_annotations_json,
+        coverage_annotations: coverage_annotations_json
       )
     end
 
@@ -121,6 +122,14 @@ module App
         base_sha: @version.base_sha,
         head_sha: @version.head_sha,
         files: Array(@version.files_snapshot).map { |file| file.respond_to?(:with_indifferent_access) ? file.with_indifferent_access : file }
+      )
+    end
+
+    def coverage_annotations_json
+      App::CoverageDiffAnnotationsPayload.build(
+        job: @job,
+        version: @version,
+        files: Array(@version.files_snapshot)
       )
     end
   end

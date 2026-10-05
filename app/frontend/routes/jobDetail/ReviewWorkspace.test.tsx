@@ -85,13 +85,6 @@ function renderWorkspace(payload = jobPayload(), options: { diffLineMetricProvid
   return { client, ...result }
 }
 
-const coverageMetricProvider: DiffLineMetricProvider = {
-  id: "coverage.pr",
-  label: "PR coverage",
-  metricForLine: ({ line }) =>
-    line.kind === "add" ? { id: "coverage.pr", label: "PR coverage", tone: "warning", title: `Coverage pending on ${line.newLine}` } : null
-}
-
 describe("ReviewWorkspace", () => {
   it("creates anchored comments from continuous diff lines, composed inline in the diff rather than the sidebar", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
@@ -410,20 +403,44 @@ describe("ReviewWorkspace", () => {
     expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("1 open review-note obligation")).toHaveClass("bg-danger")
   })
 
-  it("shows future metric providers in the same selector", async () => {
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+  it("shows PR coverage in the metric gutter selector when coverage annotations are available", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        review_diff_settings: {
+          ...DEFAULT_REVIEW_DIFF_SETTINGS,
+          metric_gutter: "coverage.pr"
+        }
+      })
+    } as Response)
+    vi.mocked(fetchReviewDiffSettings).mockResolvedValue({ review_diff_settings: { ...DEFAULT_REVIEW_DIFF_SETTINGS, metric_gutter: "off" } })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCoverageAnnotations())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
-    renderWorkspace(jobPayload(), { diffLineMetricProviders: [coverageMetricProvider] })
+    renderWorkspace()
 
     await screen.findByText("Implementation review")
     fireEvent.click(screen.getByRole("button", { name: "Review settings" }))
     const selector = screen.getByLabelText("Metric gutter")
-    const row = screen.getByText("new").closest("tr") as HTMLElement
+    const coveredRow = screen.getByText("new").closest("tr") as HTMLElement
+    const uncoveredRow = screen.getByText("added").closest("tr") as HTMLElement
 
-    expect(selector).toHaveValue("coverage.pr")
+    expect(selector).toHaveValue("off")
     expect(within(selector).getByRole("option", { name: "PR coverage" })).toBeInTheDocument()
-    expect(within(row).getByTitle("Coverage pending on 1")).toHaveAttribute("data-diff-metric-id", "coverage.pr")
+    expect(screen.queryByTestId("diff-metric-gutter-cell")).not.toBeInTheDocument()
+
+    fireEvent.change(selector, { target: { value: "coverage.pr" } })
+
+    await waitFor(() => expect(within(coveredRow).getByTitle("Changed line covered by tests")).toHaveClass("bg-success"))
+    expect(within(uncoveredRow).getByTitle("Changed line not covered by tests")).toHaveClass("bg-danger")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/review_diff_settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ review_diff_settings: { metric_gutter: "coverage.pr" } })
+      })
+    )
   })
 
   it("hides the metric gutter when disabled from the selector", async () => {
@@ -473,14 +490,14 @@ describe("ReviewWorkspace", () => {
       } as Response
     })
     vi.mocked(fetchReviewDiffSettings).mockResolvedValue({ review_diff_settings: { ...DEFAULT_REVIEW_DIFF_SETTINGS, metric_gutter: "coverage.pr" } })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithCoverageAnnotations())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     function Harness({ helpOpen }: { helpOpen: boolean }) {
       return (
         <ShortcutsProvider>
           <QueryClientProvider client={client}>
-            <ReviewWorkspace diffLineMetricProviders={[coverageMetricProvider]} payload={jobPayload()} />
+            <ReviewWorkspace payload={jobPayload()} />
             <ShortcutsHelpModal onClose={() => {}} open={helpOpen} />
           </QueryClientProvider>
         </ShortcutsProvider>
@@ -491,7 +508,7 @@ describe("ReviewWorkspace", () => {
     const { rerender } = render(<Harness helpOpen={false} />)
 
     await screen.findByText("Implementation review")
-    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Coverage pending on 1")).toBeInTheDocument()
+    expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Changed line covered by tests")).toBeInTheDocument()
 
     fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "G" })
 
@@ -499,7 +516,7 @@ describe("ReviewWorkspace", () => {
 
     fireEvent.keyDown(window, { altKey: true, shiftKey: true, key: "G" })
 
-    await waitFor(() => expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Coverage pending on 1")).toBeInTheDocument())
+    await waitFor(() => expect(within(screen.getByText("new").closest("tr") as HTMLElement).getByTitle("Changed line covered by tests")).toBeInTheDocument())
 
     rerender(<Harness helpOpen />)
 
@@ -1096,8 +1113,20 @@ describe("ReviewWorkspace", () => {
             ]
           },
           panels: [
-            reviewNotePanel({ noteId: 7, title: "First review note", explanation: "Agent-authored note before the comment.", path: "app/models/user.rb", startLine: 1 }),
-            reviewNotePanel({ noteId: 8, title: "Second review note", explanation: "Agent-authored note in the next file.", path: "app/models/run.rb", startLine: 5 })
+            reviewNotePanel({
+              noteId: 7,
+              title: "First review note",
+              explanation: "Agent-authored note before the comment.",
+              path: "app/models/user.rb",
+              startLine: 1
+            }),
+            reviewNotePanel({
+              noteId: 8,
+              title: "Second review note",
+              explanation: "Agent-authored note in the next file.",
+              path: "app/models/run.rb",
+              startLine: 5
+            })
           ],
           actions: [],
           counts: [{ id: "cognitive_review.open", label: "Review Notes", value: 2, tone: "warning" }]
@@ -2573,6 +2602,16 @@ function sourceDiffPayloadWithCognitiveReviewRisk(overrides: Partial<JobSourceDi
       panels: [],
       actions: [],
       counts: [{ id: "cognitive_review.open", label: "Open notes", value: 1, tone: "warning" }]
+    },
+    ...overrides
+  })
+}
+
+function sourceDiffPayloadWithCoverageAnnotations(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPayload {
+  return sourceDiffPayload({
+    coverage_annotations: {
+      "app/models/user.rb": { "1": "covered" },
+      "app/models/run.rb": { "5": "uncovered" }
     },
     ...overrides
   })

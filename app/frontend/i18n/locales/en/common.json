@@ -394,7 +394,11 @@
     "metrics": {
       "cognitive_review_risk": "Review-note risk",
       "cognitive_review_risk_open": "{{count}} open review-note obligation",
-      "cognitive_review_risk_clear": "No open review-note obligation"
+      "cognitive_review_risk_clear": "No open review-note obligation",
+      "pr_coverage": "PR coverage",
+      "pr_coverage_covered": "Changed line covered by tests",
+      "pr_coverage_uncovered": "Changed line not covered by tests",
+      "pr_coverage_not_executable": "Changed line is not executable"
     }
   },
   "timeline_axis": {

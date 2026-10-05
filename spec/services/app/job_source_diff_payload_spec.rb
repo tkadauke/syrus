@@ -87,6 +87,55 @@ RSpec.describe App::JobSourceDiffPayload do
     )
   end
 
+  it "includes filtered coverage annotations for the active source diff version" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    Workflow::CoverageArtifact.write!(workflow, {
+      "diff_annotations" => {
+        "app/models/user.rb" => {
+          "1" => "covered",
+          "2" => "unknown",
+          "not-a-line" => "uncovered"
+        },
+        "app/models/other.rb" => {
+          "1" => "uncovered"
+        }
+      },
+      "files" => { "app/models/user.rb" => { "lines_pct" => 100.0 } },
+      "summary" => { "lines_pct" => 100.0 }
+    })
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
+      files: [
+        { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
+      ],
+      truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:coverage_annotations]).to eq(
+      "app/models/user.rb" => { "1" => "covered" }
+    )
+  end
+
+  it "does not attach unrelated workflow coverage to explicit ranges without version provenance" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    Workflow::CoverageArtifact.write!(workflow, {
+      "diff_annotations" => {
+        "app/models/widget.rb" => { "1" => "uncovered" }
+      }
+    })
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "old-base", head: "old-head", files: [
+      { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+new" }
+    ], truncated: false)
+
+    payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(payload[:coverage_annotations]).to eq({})
+  end
+
   it "normalizes enabled plugin diff review annotation contributions" do
     provider = Class.new do
       include Syrus::Plugin::DiffReviewAnnotationProvider
