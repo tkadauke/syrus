@@ -12129,6 +12129,7 @@ describe("App", () => {
       const mobileChatShell = mobileTabsShell.parentElement as HTMLElement
       const mobileContentLayer = mobileTabsShell.nextElementSibling as HTMLElement
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
       expect(mobileContentLayer).toHaveClass("pt-[var(--mobile-chat-top-inset,0px)]")
       setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 100 })
@@ -12141,7 +12142,9 @@ describe("App", () => {
       fireEvent.scroll(stream, { target: { scrollTop: 200 } })
       expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
       expect(header).not.toHaveStyle({ marginBottom: "-142px" })
-      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("0px")
+      expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("0px")
+      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-70px)" })
 
       for (const scrollTop of [300, 400, 500, 600, 700]) {
         setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop })
@@ -12151,7 +12154,7 @@ describe("App", () => {
 
       expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
       expect(header).not.toHaveStyle({ marginBottom: "-142px" })
-      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
+      expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-70px)" })
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
       expect(screen.getByTestId("mobile-chat-hidden-header-scrim")).toBeInTheDocument()
       expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
@@ -12160,10 +12163,12 @@ describe("App", () => {
 
       fireEvent.click(screen.getByRole("link", { name: "Example" }))
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-70px)" })
 
       fireEvent.click(stream)
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
+      expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
       expect(screen.queryByTestId("mobile-chat-hidden-header-scrim")).not.toBeInTheDocument()
 
       fireEvent.click(stream)
@@ -12357,7 +12362,7 @@ describe("App", () => {
       }
 
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-70px)" })
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       await waitFor(() => {
@@ -12379,7 +12384,7 @@ describe("App", () => {
       }
 
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
-      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-142px)" })
+      expect(mobileTabsShell).toHaveStyle({ transform: "translateY(-70px)" })
     } finally {
       restoreMedia()
       script.remove()

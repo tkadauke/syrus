@@ -6,6 +6,7 @@ export const MOBILE_CHROME_TOP_OVERLAP_CLASS = "relative before:pointer-events-n
 
 export type MobileChromeControls = {
   autoHideEnabled: boolean
+  contentOffset: number
   hidden: boolean
   topInset: number
   visibleTopInset: number
@@ -20,6 +21,7 @@ const noop = () => {}
 
 export const MobileChromeContext = createContext<MobileChromeControls>({
   autoHideEnabled: false,
+  contentOffset: 0,
   hidden: false,
   topInset: 0,
   visibleTopInset: 0,
