@@ -216,6 +216,15 @@ describe("forcedGapStatesForAnnotationRanges", () => {
 
     expect(merged).toEqual([{ fromBottom: 5, fromTop: 3 }])
   })
+
+  it("keeps a middle-of-gap annotation reveal bounded to the covered range plus context", () => {
+    const gaps = [{ startNew: 10, endNew: 100, offset: 0 }]
+
+    const states = forcedGapStatesForAnnotationRanges(gaps, [{ side: "new", start_line: 50, end_line: 50 }], 2)
+
+    expect(states[0]).toEqual({ fromBottom: 0, fromTop: 0, segments: [{ startNew: 48, endNew: 52 }] })
+    expect(remainingInGap(gaps[0], states[0])).toBe(86)
+  })
 })
 
 describe("mergeContextIntoLines", () => {
@@ -338,6 +347,27 @@ describe("mergeContextIntoLines", () => {
       ["f4", 3, 4],
       ["f5", 4, 5]
     ])
+  })
+
+  it("splices an explicitly revealed middle gap segment without revealing the whole gap", () => {
+    const twoHunkPatch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      " first",
+      "@@ -100,1 +100,1 @@",
+      " last"
+    ].join("\n")
+    const bigFile = Array.from({ length: 100 }, (_, index) => `line ${index + 1}`)
+    const lines = parseUnifiedDiff(twoHunkPatch)
+    const gaps = contextGapsForHunks(hunksFromLines(lines), bigFile.length)
+    const merged = mergeContextIntoLines(lines, gaps, [undefined, { fromBottom: 0, fromTop: 0, segments: [{ startNew: 48, endNew: 52 }] }], bigFile)
+    const revealed = merged.filter((line) => line.kind === "context" && line.code.startsWith("line "))
+
+    expect(revealed.map((line) => line.code)).toEqual(["line 48", "line 49", "line 50", "line 51", "line 52"])
+    expect(merged.some((line) => line.code === "line 10")).toBe(false)
+    expect(merged.some((line) => line.code === "line 99")).toBe(false)
   })
 })
 
