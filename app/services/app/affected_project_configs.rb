@@ -10,7 +10,9 @@ module App
     end
 
     def call
-      result_for(graph.projects.values.filter_map { |project| project_context(project) })
+      projects = graph.affected_projects(changed_files: changed_files)
+
+      result_for(projects.filter_map { |project| project_context(project) })
     rescue StandardError => e
       Rails.logger.warn("[#{self.class.name}] unavailable for #{workspace_path}: #{e.class}: #{e.message}")
       result_for([])
@@ -27,16 +29,8 @@ module App
     def project_context(project)
       config = config_for(project)
       return nil unless config
-      return nil unless affected_project?(project)
 
       context_for(project, config)
-    end
-
-    def affected_project?(project)
-      return true if project.root?
-      return true if changed_files.empty?
-
-      changed_files.any? { |file| file == project.path || file.start_with?("#{project.path}/") }
     end
 
     def config_for(_project)

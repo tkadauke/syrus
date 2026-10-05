@@ -169,6 +169,19 @@ class TargetGraph
     executable_targets_of_kind(kind).map { |candidate| affected(candidate.label, changed_files: changed_files) }
   end
 
+  # Project-metadata selection for configuration that belongs to a project
+  # declaration rather than to a specific executable target. Root project
+  # metadata applies repository-wide. Nested project metadata applies when the
+  # reviewed diff touches that project directory. This is intentionally
+  # separate from #affected/#affected_targets, whose semantics include target
+  # source scopes and dependency closure.
+  def affected_projects(changed_files:)
+    changed_files = Array(changed_files).map(&:to_s)
+    projects.values.select do |project|
+      project.root? || changed_files.empty? || project_contains_changed_file?(project, changed_files)
+    end
+  end
+
   # Confirms the graph is internally consistent: every declared dependency
   # label resolves to a real target, and the dependency edges contain no
   # cycles. Collects every problem instead of raising on the first one so
@@ -195,6 +208,10 @@ class TargetGraph
 
   def scope_matches?(patterns, changed_files)
     changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
+  end
+
+  def project_contains_changed_file?(project, changed_files)
+    changed_files.any? { |file| file == project.path || file.start_with?("#{project.path}/") }
   end
 
   def missing_dependency_errors
