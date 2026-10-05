@@ -76,9 +76,23 @@ RSpec.describe "stdio MCP sidecar boot environment" do
     job.instance_variable_set(:@chat, chat)
     job.instance_variable_set(:@user_message, message)
 
+    event = ChatScopedEvent.create!(
+      chat_session: chat,
+      repository: repository,
+      source_kind: "job_failed",
+      payload: { "summary" => "Job failed", "severity" => "warning" }
+    )
+
     {
       "chat (essential tier)" => job.send(:stdio_chat_server_config, tier: "essential", always_load: true),
-      "chat (deferred tier)" => job.send(:stdio_chat_server_config, tier: "deferred", always_load: false)
+      "chat (deferred tier)" => job.send(:stdio_chat_server_config, tier: "deferred", always_load: false),
+      # The evaluator builds its own config rather than going through
+      # ChatTurnJob, which is how it stayed outside this guard while spawning
+      # bin/syrus-chat-sidecar under a scrubbed environment -- a Rails process
+      # that could not boot, on every evaluator run.
+      "chat (evaluator tier)" => ChatEventEvaluator::ProviderRunner.new.send(
+        :evaluator_server_config, chat, event: event, session_id: "evaluator-session-1"
+      )
     }
   end
 

@@ -229,4 +229,55 @@ RSpec.describe ChatEventEvaluator do
     expect(result.fetch("handoff_prompt")).to include("Evaluator parse error", "Job failed")
     expect(event.reload).to be_evaluator_completed
   end
+
+  describe "evaluator MCP server config" do
+    after { ChatMcpStdioFallback.reset_for_test! }
+
+    def config
+      ChatEventEvaluator::ProviderRunner.new.send(
+        :evaluator_server_config, chat_session, event: event, session_id: "evaluator-session-1"
+      )
+    end
+
+    # Regression: this spawned bin/syrus-chat-sidecar, a Rails process, under
+    # AgentSidecarEnvironment.build, which withholds the boot secrets because
+    # the config file is agent-readable. It could not boot on any evaluator
+    # run, and Muse fails a run outright when a required server fails to start.
+    it "points the agent at the secret-free proxy rather than a Rails process" do
+      expect(File.basename(config.fetch(:command))).to eq("syrus-mcp-proxy")
+      expect(config.fetch(:args)).to eq([])
+    end
+
+    it "carries the proxy endpoint and no boot secrets" do
+      env = config.fetch(:env)
+
+      expect(env).to include("SYRUS_MCP_PROXY_URL", "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")
+      expect(env.keys).not_to include(*AgentSidecarEnvironment::SECRET_ENV_KEYS)
+    end
+
+    it "mints a token that resolves to the evaluator tool surface" do
+      env = config.fetch(:env)
+      worker_id = ChatMcpStdioFallback.server.identity.fetch(:worker_id)
+
+      resolved = McpInvocationContext.resolve(
+        env.fetch("SYRUS_MCP_PROXY_INVOCATION_CONTEXT"), worker_id: worker_id
+      )
+
+      expect(resolved.tier).to eq("evaluator")
+      expect(resolved.scoped_event_id).to eq(event.id)
+      expect(resolved.evaluator_session_id).to eq("evaluator-session-1")
+      # An evaluator run is scoped to an event, not a chat turn, so it must not
+      # be rejected when the turn that triggered it has moved on.
+      expect(resolved.current_message_id).to be_nil
+    end
+
+    it "falls back to the refusal responder when no daemon can be reached" do
+      allow(ChatMcpTransportSelector).to receive(:select).and_raise(StandardError, "no daemon")
+      allow(ChatMcpStdioFallback).to receive(:server).and_raise(StandardError, "no fallback")
+
+      # Answering the handshake and declining every call beats a server that
+      # cannot start: a required server failing startup kills the whole run.
+      expect(File.basename(config.fetch(:command))).to eq("syrus-mcp-unavailable")
+    end
+  end
 end

@@ -430,17 +430,13 @@ class ChatEventEvaluator
 
     private
 
+    SERVER_NAME = "syrus-chat-evaluator-sidecar".freeze
+
     def with_evaluator_mcp_config(chat_session, event:, session_id:)
       Tempfile.create([ "syrus-chat-evaluator-mcp-#{chat_session.id}-", ".json" ]) do |file|
         file.write({
           mcpServers: {
-            "syrus-chat-evaluator-sidecar" => {
-              type: "stdio",
-              command: Rails.root.join("bin/syrus-chat-sidecar").to_s,
-              args: [ "--tier", "evaluator" ],
-              env: sidecar_env(chat_session, event: event, session_id: session_id),
-              alwaysLoad: true
-            }
+            SERVER_NAME => evaluator_server_config(chat_session, event: event, session_id: session_id)
           }
         }.to_json)
         file.flush
@@ -448,14 +444,94 @@ class ChatEventEvaluator
       end
     end
 
-    def sidecar_env(chat_session, event:, session_id:)
+    # The evaluator reaches its tools the same way the essential and deferred
+    # chat servers do: through bin/syrus-mcp-proxy, a secret-free bridge to a
+    # worker-owned daemon.
+    #
+    # It used to spawn bin/syrus-chat-sidecar directly, which boots Rails. The
+    # agent-visible config is built with AgentSidecarEnvironment.build, which
+    # withholds SECRET_KEY_BASE and the database credentials on purpose -- the
+    # config file is readable by the agent -- so that process could not boot at
+    # all ("Missing `secret_key_base` for 'production' environment"). Every
+    # evaluator run failed, and because Muse fails a run when a required server
+    # fails to start, the failure was fatal there rather than silent.
+    def evaluator_server_config(chat_session, event:, session_id:)
+      decision = ChatMcpTransportSelector.select
+      endpoint = evaluator_endpoint(decision)
+
+      {
+        type: "stdio",
+        command: Rails.root.join("bin/syrus-mcp-proxy").to_s,
+        args: [],
+        env: evaluator_proxy_env(chat_session, endpoint: endpoint, event: event, session_id: session_id),
+        alwaysLoad: true
+      }
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[ChatEventEvaluator] evaluator MCP proxy unavailable for chat ##{chat_session.id}: #{e.class}: #{e.message}"
+      )
+      unavailable_server_config
+    end
+
+    # Both the persistent daemon and the stdio compatibility daemon expose the
+    # same HTTP endpoint and mint tokens against their own worker identity, so
+    # the proxy does not care which one answers.
+    def evaluator_endpoint(decision)
+      if decision&.persistent?
+        Endpoint.new(
+          url: "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}",
+          worker_id: decision.daemon_identity["worker_id"]
+        )
+      else
+        fallback = ChatMcpStdioFallback.server
+        Endpoint.new(url: fallback.url, worker_id: fallback.identity.fetch(:worker_id))
+      end
+    end
+
+    Endpoint = Data.define(:url, :worker_id)
+
+    def evaluator_proxy_env(chat_session, endpoint:, event:, session_id:)
       AgentSidecarEnvironment.build(extra: {
-        "SYRUS_CHAT_SESSION_ID" => chat_session.id.to_s,
-        "SYRUS_CHAT_SCOPED_EVENT_ID" => event.id.to_s,
-        "SYRUS_CHAT_EVALUATOR_SESSION_ID" => session_id.to_s,
-        "SYRUS_CHAT_MCP_TOOL_TIER" => "evaluator",
-        "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-evaluator-sidecar"
-      })
+        "SYRUS_MCP_PROXY_URL" => endpoint.url,
+        "SYRUS_MCP_PROXY_INVOCATION_CONTEXT" => evaluator_invocation_token(
+          chat_session, endpoint: endpoint, event: event, session_id: session_id
+        ),
+        "PATH" => ENV["PATH"]
+      }.compact)
+    end
+
+    # `current_message` is deliberately omitted: an evaluator run is scoped to
+    # an event, not to a chat turn, so turn-active validation must not apply to
+    # it. `evaluator: true` is what resolves the token to
+    # AgentRole::CHAT_EVALUATOR and therefore to the evaluator tool surface.
+    def evaluator_invocation_token(chat_session, endpoint:, event:, session_id:)
+      McpInvocationContext.issue_for_chat(
+        chat_session,
+        worker_id: endpoint.worker_id,
+        tier: "evaluator",
+        evaluator: true,
+        scoped_event_id: event.id,
+        evaluator_session_id: session_id,
+        provider: chat_session.effective_chat_provider,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+    end
+
+    # Secret-free refusal responder, the same one chat turns fall back to. It
+    # answers the handshake and declines every call, which beats a server that
+    # cannot start: a required server that fails startup kills the whole run.
+    def unavailable_server_config
+      {
+        type: "stdio",
+        command: Rails.root.join("bin/syrus-mcp-unavailable").to_s,
+        args: [],
+        env: AgentSidecarEnvironment.build(extra: {
+          "SYRUS_MCP_UNAVAILABLE_SERVER_NAME" => SERVER_NAME,
+          "SYRUS_MCP_UNAVAILABLE_MESSAGE" => "Chat evaluator MCP tools are unavailable because no MCP daemon could be reached for this run.",
+          "PATH" => ENV["PATH"]
+        }.compact),
+        alwaysLoad: true
+      }
     end
   end
 end
