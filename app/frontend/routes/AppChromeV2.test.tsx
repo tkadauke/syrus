@@ -1335,6 +1335,7 @@ describe("AppChromeV2 mobile header pinning", () => {
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
       expect(topBar).not.toBeNull()
       expect(topBar).toHaveClass("sticky", "top-0")
+      expect(topBar).toHaveClass("bg-white", "dark:bg-gray-950", "shadow-[0_1px_0_0_#fff]", "dark:shadow-[0_1px_0_0_#030712]")
       expect(scrollPane).toHaveClass("overflow-auto")
       expect(scrollPane).not.toHaveClass("overflow-hidden")
       expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("72px")
@@ -1364,6 +1365,7 @@ describe("AppChromeV2 mobile header pinning", () => {
       const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
       expect(topBar).not.toBeNull()
       expect(topBar).toHaveClass("absolute", "top-0")
+      expect(topBar).toHaveClass("bg-white", "dark:bg-gray-950", "shadow-[0_1px_0_0_#fff]", "dark:shadow-[0_1px_0_0_#030712]")
       expect(topBar).not.toHaveClass("sticky")
     } finally {
       restoreMatchMedia()
