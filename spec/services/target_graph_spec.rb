@@ -70,6 +70,34 @@ RSpec.describe TargetGraph do
     end
   end
 
+  describe "#affected_projects" do
+    it "selects root metadata repo-wide and nested metadata only for touched project paths" do
+      graph.add_project(TargetGraph::Project.new(id: "api", path: "apps/api"))
+      graph.add_project(TargetGraph::Project.new(id: "web", path: "apps/web"))
+
+      result = graph.affected_projects(changed_files: [ "apps/web/src/App.tsx", "README.md" ])
+
+      expect(result.map(&:id)).to eq(%w[repo web])
+    end
+
+    it "treats a changed project directory as affecting that project" do
+      graph.add_project(TargetGraph::Project.new(id: "web", path: "apps/web"))
+
+      result = graph.affected_projects(changed_files: [ "apps/web" ])
+
+      expect(result.map(&:id)).to eq(%w[repo web])
+    end
+
+    it "keeps the no-diff fallback by selecting all project metadata" do
+      graph.add_project(TargetGraph::Project.new(id: "api", path: "apps/api"))
+      graph.add_project(TargetGraph::Project.new(id: "web", path: "apps/web"))
+
+      result = graph.affected_projects(changed_files: [])
+
+      expect(result.map(&:id)).to eq(%w[repo api web])
+    end
+  end
+
   describe "#add_target" do
     before { graph.add_project(TargetGraph::Project.new(id: "cli", path: "cli")) }
 
