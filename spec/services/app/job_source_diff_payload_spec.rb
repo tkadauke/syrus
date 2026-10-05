@@ -87,6 +87,59 @@ RSpec.describe App::JobSourceDiffPayload do
     )
   end
 
+  it "serializes generated file classification and stores it in the review version snapshot" do
+    stub_repository_content(repo, ref: "main", files: {
+      ".syrus.yml" => <<~YAML
+        generated:
+          - command: bin/generate-schema
+            generates:
+              - app/generated/**
+      YAML
+    })
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Generate client", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
+      files: [
+        { path: "app/generated/client.ts", status: "modified", additions: 20, deletions: 2, patch: "@@ -1 +1 @@\n-old\n+new" }
+      ],
+      truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:files]).to contain_exactly(include(
+      path: "app/generated/client.ts",
+      generated: true,
+      generated_reason: "configured generated output",
+      generated_source: ".syrus.yml"
+    ))
+    expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(include(
+      "path" => "app/generated/client.ts",
+      "generated" => true,
+      "generated_reason" => "configured generated output",
+      "generated_source" => ".syrus.yml"
+    ))
+  end
+
+  it "marks package lock diffs as lockfiles in live source review payloads" do
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42",
+      commits: [ { sha: "deadbeef12345678", message: "Update dependencies", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
+      files: [
+        { path: "package-lock.json", status: "modified", additions: 1200, deletions: 800, patch: "@@ -1 +1 @@\n-old\n+new" }
+      ],
+      truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:files]).to contain_exactly(include(
+      path: "package-lock.json",
+      generated: true,
+      generated_reason: "lockfile"
+    ))
+  end
+
   it "includes filtered coverage annotations for the active source diff version" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     Workflow::CoverageArtifact.write!(workflow, {

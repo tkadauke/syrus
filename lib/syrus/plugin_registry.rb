@@ -31,6 +31,7 @@ module Syrus
       diff_review_annotation_provider
       autofix_command
       dependency_audit_command
+      diff_review_file_pattern_provider
       affected_test_analyzer
       focused_test_command
       workspace_tab
@@ -85,6 +86,7 @@ module Syrus
       diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
+      diff_review_file_pattern_provider: -> { Syrus::Plugin::DiffReviewFilePatternProvider },
       affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
       focused_test_command:    -> { Syrus::Plugin::FocusedTestCommand },
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },

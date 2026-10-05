@@ -95,13 +95,14 @@ module App
     end
 
     def file_hash(change)
+      classification = diff_review_file_classifier.classify(change.path)
       {
         path: change.path,
         status: UI_STATUS.fetch(change.status, change.status),
         additions: change.additions,
         deletions: change.deletions,
         patch: change.patch
-      }
+      }.merge(generated_file_metadata(classification))
     end
 
     # The Job's own PR/stack base, not the repository's default branch — an
@@ -233,7 +234,7 @@ module App
         deletions: file[:deletions].to_i,
         patch: file[:patch],
         is_image: image_file?(file[:path]) && file[:patch].nil?
-      }
+      }.merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
     end
 
     def stored_file_json(file)
@@ -244,7 +245,7 @@ module App
         deletions: file["deletions"].to_i,
         patch: file["patch"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }
+      }.merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
     end
 
     # Binary/large-file detection isn't a real flag from GitHub's compare API
@@ -253,6 +254,26 @@ module App
     # render before/after thumbnails instead of the generic placeholder.
     def image_file?(path)
       IMAGE_EXTENSIONS.include?(File.extname(path.to_s).downcase)
+    end
+
+    def diff_review_file_classifier
+      @diff_review_file_classifier ||= App::DiffReviewFileClassifier.for(job: @job, user: @user)
+    end
+
+    def generated_file_metadata(classification)
+      return {} unless classification.generated
+
+      generated_hash(true, classification.generated_reason, classification.generated_source)
+    end
+
+    def generated_hash(generated, reason, source)
+      return {} unless generated == true || generated.to_s == "true"
+
+      {
+        generated: true,
+        generated_reason: reason.presence,
+        generated_source: source.presence
+      }.compact
     end
 
     def iso8601(value)

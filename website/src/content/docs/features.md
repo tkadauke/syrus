@@ -305,6 +305,11 @@ for high-signal interests and `review_notes.low_signal` for work the reviewer
 should usually skip. Root policy applies repo-wide; nested project policy is
 merged only when the final diff touches that project.
 
+Generated and package-manager files stay discoverable in the review tab without
+dominating the first viewport: lockfiles and generated outputs declared in
+`.syrus.yml` are marked in the file header/list and their diff bodies are hidden
+until a reviewer chooses to reveal them.
+
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unhandled notes, handled
 notes, dismissed notes, and a zero-note state when the reviewer submitted no
