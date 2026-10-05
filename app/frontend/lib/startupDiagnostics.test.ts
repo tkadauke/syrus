@@ -184,6 +184,29 @@ describe("startupDiagnostics", () => {
     expect(startupRetry().href).toBe(`${window.location.origin}/jobs/42`)
   })
 
+  it("does not show the startup shell for resource failures after React renders", () => {
+    const fetchSpy = installStartupShell()
+    window.SyrusStartupDiagnostics?.mark("react_first_render")
+    const failedLazyScript = document.createElement("script")
+    failedLazyScript.src = `${window.location.origin}/assets/lazy-chunk-dead.js?v=asset-sha`
+    document.head.appendChild(failedLazyScript)
+
+    failedLazyScript.dispatchEvent(new Event("error"))
+
+    const [error] = postedBrowserErrors(fetchSpy)
+    expect(error).toMatchObject({
+      name: "StartupResourceError",
+      message: "SPA startup resource failed to load"
+    })
+    expect(error.metadata).toMatchObject({
+      resource_tag: "script",
+      resource_url: "/assets/lazy-chunk-dead.js?v=asset-sha"
+    })
+    expect(startupStatus()).toHaveAttribute("hidden")
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
+    expect(startupStatus()).not.toHaveTextContent("The app could not load")
+  })
+
   it("reports global errors and unhandled rejections with bounded structured fields", () => {
     const fetchSpy = installStartupShell()
     const error = new Error("module exploded with a long message")
