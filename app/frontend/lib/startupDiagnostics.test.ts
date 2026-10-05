@@ -22,7 +22,15 @@ function installStartupShell(options: { standalone?: boolean; displayStandalone?
     <meta name="syrus-app-revision" content="app-sha">
     <meta name="syrus-asset-revision" content="asset-sha">
   `
-  document.body.innerHTML = '<div id="syrus-spa-root"></div>'
+  document.body.innerHTML = `
+    <div id="syrus-startup-status" role="status" data-startup-state="loading">
+      <div data-syrus-startup-spinner></div>
+      <p data-syrus-startup-title>Loading Syrus</p>
+      <p data-syrus-startup-message>Loading the app.</p>
+      <a href="/jobs/42" data-syrus-startup-retry hidden>Retry</a>
+    </div>
+    <div id="syrus-spa-root"></div>
+  `
   window.history.pushState({}, "", options.path ?? "/jobs/42")
   Object.defineProperty(navigator, "standalone", { configurable: true, value: options.standalone === true })
   Object.defineProperty(window, "matchMedia", {
@@ -63,6 +71,18 @@ function postedBrowserErrors(fetchSpy: FetchSpy): Array<Record<string, unknown>>
 
 function postedPerformanceEvents(fetchSpy: FetchSpy): Array<Record<string, unknown>> {
   return postedBodies(fetchSpy).map((body) => body.performance_event).filter(Boolean) as Array<Record<string, unknown>>
+}
+
+function startupStatus() {
+  const status = document.getElementById("syrus-startup-status")
+  if (!status) throw new Error("startup status not found")
+  return status
+}
+
+function startupRetry() {
+  const retry = document.querySelector("[data-syrus-startup-retry]")
+  if (!(retry instanceof HTMLAnchorElement)) throw new Error("startup retry not found")
+  return retry
 }
 
 describe("startupDiagnostics", () => {
@@ -157,6 +177,11 @@ describe("startupDiagnostics", () => {
       resource_url: "/assets/spa-dead.js?v=asset-sha",
       navigator_standalone: false
     })
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "resource_error")
+    expect(startupStatus()).toHaveTextContent("The app could not load")
+    expect(startupStatus()).toHaveTextContent("Check your connection, then retry.")
+    expect(startupRetry()).not.toHaveAttribute("hidden")
+    expect(startupRetry().href).toBe(`${window.location.origin}/jobs/42`)
   })
 
   it("reports global errors and unhandled rejections with bounded structured fields", () => {
@@ -214,9 +239,14 @@ describe("startupDiagnostics", () => {
         { name: "shell_loaded", at_ms: 0 }
       ]
     })
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "watchdog")
+    expect(startupStatus()).toHaveTextContent("Syrus is still loading")
+    expect(startupStatus()).toHaveTextContent("This can happen on a slow connection. Retry if it does not finish soon.")
+    expect(startupRetry()).not.toHaveAttribute("hidden")
+    expect(startupRetry().href).toBe(`${window.location.origin}/jobs/42`)
   })
 
-  it("does not report the watchdog after React marks first render", () => {
+  it("hides the shell loading state and does not report the watchdog after React marks first render", () => {
     vi.useFakeTimers()
     const fetchSpy = installStartupShell()
 
@@ -224,5 +254,7 @@ describe("startupDiagnostics", () => {
     vi.advanceTimersByTime(8000)
 
     expect(postedBrowserErrors(fetchSpy)).toEqual([])
+    expect(startupStatus()).toHaveAttribute("hidden")
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
   })
 })
