@@ -264,6 +264,8 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
     expect(within(sidebar).getByText("The provider flagged this range.")).toBeInTheDocument()
     expect(screen.getByText("Open notes: 1")).toBeInTheDocument()
+    expect(screen.getByText("0 acknowledged")).toBeInTheDocument()
+    expect(screen.queryByText("0 handled")).not.toBeInTheDocument()
     expect(screen.getByText("1 open, 0 acknowledged (0 acknowledged directly, 0 discussed, 0 user-commented), 0 dismissed.")).toBeInTheDocument()
     expect(screen.getByText("Flagged")).toBeInTheDocument()
     expect(screen.getByText("Acknowledged")).toBeInTheDocument()
@@ -1453,7 +1455,7 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("1 handled")
+    await screen.findByText("1 acknowledged")
     fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
