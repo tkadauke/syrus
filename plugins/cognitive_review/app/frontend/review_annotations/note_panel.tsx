@@ -54,6 +54,11 @@ const AGENT_NOTE_BADGE_CLASS = [
   "text-2xs font-semibold uppercase"
 ].join(" ")
 const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary"
+const FEEDBACK_REPLY_TEXTAREA_CLASS = [
+  "min-h-16 w-full rounded border border-border bg-surface px-3 py-2",
+  "text-sm text-text-primary shadow-sm",
+  "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+].join(" ")
 
 export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotationComponentProps) {
   const { t } = useT("cognitive_review")
@@ -243,7 +248,7 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
         <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
           <textarea
             aria-label={t("actions.feedback_reply_body")}
-            className="min-h-16 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            className={FEEDBACK_REPLY_TEXTAREA_CLASS}
             onChange={(event) => setReplyBody(event.target.value)}
             value={replyBody}
           />
