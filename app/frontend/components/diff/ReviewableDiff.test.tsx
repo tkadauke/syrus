@@ -1716,6 +1716,62 @@ describe("hidden-context expansion", () => {
     expect(screen.getAllByTitle("Inspect cross-hunk range")).toHaveLength(15)
   })
 
+  it("reveals every covered line when a review note spans the Dashboard preview hunk gap", async () => {
+    const dashboardFile = {
+      additions: 0,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/frontend/routes/Dashboard.tsx b/app/frontend/routes/Dashboard.tsx",
+        "--- a/app/frontend/routes/Dashboard.tsx",
+        "+++ b/app/frontend/routes/Dashboard.tsx",
+        "@@ -13,6 +13,6 @@",
+        " line 13",
+        " line 14",
+        " line 15",
+        " line 16",
+        " line 17",
+        " line 18",
+        "@@ -24,6 +24,6 @@",
+        " line 24",
+        " line 25",
+        " line 26",
+        " line 27",
+        " line 28",
+        " line 29"
+      ].join("\n"),
+      path: "app/frontend/routes/Dashboard.tsx",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n"))
+
+    render(
+      <ReviewableDiff
+        files={[dashboardFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "app/frontend/routes/Dashboard.tsx": [
+            {
+              id: "cognitive_review_note:preview-dashboard",
+              side: "new",
+              start_line: 13,
+              end_line: 26,
+              title: "Inspect preview dashboard states"
+            }
+          ]
+        }}
+        showFileHeaders
+      />
+    )
+
+    await findCodeCellText("line 19")
+
+    for (const lineNumber of [19, 20, 21, 22, 23]) {
+      expect(getCodeCellText(`line ${lineNumber}`)).toBeInTheDocument()
+    }
+    expect(screen.getAllByTitle("Inspect preview dashboard states")).toHaveLength(14)
+  })
+
   it("does not retry annotation-forced context loading after the automatic fetch fails", async () => {
     const twoHunkFile = {
       additions: 0,
