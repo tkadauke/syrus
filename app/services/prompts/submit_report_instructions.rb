@@ -18,7 +18,12 @@ module Prompts
       - `title`: a short title for the report, under 120 characters.
       - `narrative`: the full report body in markdown -- your answer,
         the evidence for it, and any caveats. This is what an operator
-        reads; there is no PR diff to fall back on.
+        reads; there is no PR diff to fall back on. If you created useful
+        scratch files or local edits during the investigation, include the
+        relevant content, summary, or evidence here, or reference artifacts
+        you already submitted. Do not tell the operator to retrieve files
+        from the workflow workspace; those paths are not durable
+        repository deliverables.
       - `findings`: optional JSON array of at most 10 short strings, each
         one concise, standalone finding worth calling out on its own.
       - `references`: optional JSON array of at most 20 `{ "type": ...,

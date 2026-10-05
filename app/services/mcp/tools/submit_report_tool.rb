@@ -29,7 +29,10 @@ module Mcp::Tools
       markdown write-up (your answer plus the evidence for it); findings
       is an optional list of concise, standalone call-outs; references is
       an optional ordered list pointing at artifacts/screenshots already
-      submitted this run via submit_artifact/submit_visual_artifact.
+      submitted this run via submit_artifact/submit_visual_artifact. Local
+      scratch files and edits from the investigation are not persisted as
+      repository deliverables, so put any useful scratch content or summary
+      in narrative or submit it as an artifact and reference it.
     DESC
 
     input_schema(
@@ -40,7 +43,7 @@ module Mcp::Tools
         },
         narrative: {
           type: "string",
-          description: "Full report body in markdown: your answer, the evidence for it, and any caveats."
+          description: "Full report body in markdown: your answer, the evidence for it, and any caveats. Include or summarize useful scratch-file/local-edit content here, or reference submitted artifacts; do not point operators at workflow workspace paths."
         },
         findings: {
           type: "array",
