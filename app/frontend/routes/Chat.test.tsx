@@ -3205,12 +3205,17 @@ describe("chat message image attachments", () => {
     expect(screen.getByRole("dialog", { name: "mockup.jpg" })).toBeInTheDocument()
   })
 
-  it("opens the media tab when a user-uploaded screenshot first appears", async () => {
-    let chatFetches = 0
+  it("keeps Chat active when a user-uploaded screenshot first enables Media on mobile", async () => {
+    mockMobileViewport()
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          chat: { chat_image_count: 1, has_chat_images: true }
+        })))
       }
       if (path === "/api/v1/app/chats/8/media") {
         return Promise.resolve(jsonResponse({
@@ -3223,9 +3228,8 @@ describe("chat message image attachments", () => {
         }))
       }
       if (path === "/api/v1/app/chats/8") {
-        chatFetches += 1
         return Promise.resolve(jsonResponse(chatPayload({
-          chat: chatFetches > 1 ? { chat_image_count: 1, has_chat_images: true } : { chat_image_count: 0, has_chat_images: false }
+          chat: { chat_image_count: 0, has_chat_images: false }
         })))
       }
 
@@ -3235,17 +3239,18 @@ describe("chat message image attachments", () => {
     renderRoute()
 
     await screen.findByText("Discuss aqueducts.")
-    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Media" })).not.toBeInTheDocument()
 
-    act(() => {
-      actionCableSubscriptions.find((subscription) => subscription.params.channel === "ChatChannel")?.mixin.received({
-        type: "updated",
-        resource: "chat",
-        id: 8,
-        changed: ["media"]
-      })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "uploaded.png", { type: "image/png" })] }
     })
+    await screen.findByRole("button", { name: "Remove uploaded.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
+    expect(await screen.findByRole("button", { name: "Media" })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Media" }))
     const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
     expect(await within(workspace).findByText("uploaded.png")).toBeInTheDocument()
   })

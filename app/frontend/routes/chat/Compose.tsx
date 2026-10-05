@@ -72,7 +72,7 @@ const COMPOSER_SELECTOR_TRIGGER_CLASS = "min-h-11 !border-transparent !bg-transp
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, hideScratchpadControls = false, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; hideScratchpadControls?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, hideScratchpadControls = false, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; hideScratchpadControls?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onMessageSent?: (details: { hadImageAttachments: boolean }) => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -318,7 +318,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
       onNotice(null)
-      onMessageSent?.()
+      onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
     },
     onError: (error, draft) => {
       restoreComposerDraft(draft)
