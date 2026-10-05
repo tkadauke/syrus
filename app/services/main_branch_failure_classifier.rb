@@ -8,6 +8,48 @@ class MainBranchFailureClassifier
     def inherited? = inherited
   end
 
+  module LandingBaseSha
+    class Base
+      def initialize(workflow)
+        @workflow = workflow
+      end
+
+      private
+
+      attr_reader :workflow
+
+      def job = workflow.job
+      def repository = job.repository
+    end
+
+    class AutoMerge < Base
+      def value = job.mergeability_base_sha.presence
+    end
+
+    class MergeTrain < Base
+      def value = workflow.artifact("merge_train_base_sha").presence
+    end
+
+    class PredictedBase < Base
+      def value = workflow.artifact("predicted_base_sha").presence
+    end
+
+    class RepositoryHealth < Base
+      def value = repository.last_health_checked_sha.presence
+    end
+
+    STRATEGIES = {
+      "auto_merge" => AutoMerge,
+      "merge_train" => MergeTrain,
+      "landing_validation" => PredictedBase,
+      "merge_train_validation" => PredictedBase
+    }.freeze
+
+    def self.for(workflow)
+      STRATEGIES.fetch(workflow.trigger_kind.to_s, RepositoryHealth).new(workflow)
+    end
+  end
+
   def self.call(workflow:, failed_grader_steps:)
     new(workflow: workflow, failed_grader_steps: failed_grader_steps).call
   end
@@ -92,16 +134,7 @@ class MainBranchFailureClassifier
   end
 
   def landing_unit_base_sha
-    case @workflow.trigger_kind
-    when "auto_merge"
-      @workflow.job.mergeability_base_sha.presence
-    when "merge_train"
-      @workflow.artifact("merge_train_base_sha").presence
-    when "landing_validation", "merge_train_validation"
-      @workflow.artifact("predicted_base_sha").presence
-    else
-      @repository.last_health_checked_sha.presence
-    end
+    LandingBaseSha.for(@workflow).value
   end
 
   def classify_step(grader_step, evidence)
