@@ -6,7 +6,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type MutableRefObject, type ReactElement, type ReactNode, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
@@ -47,7 +47,7 @@ import { recentChatsQueryKey, updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
-import { MobileChatHeaderContext } from "./chat/MobileChatHeaderContext"
+import { MobileChromeContext } from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
@@ -124,11 +124,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)", false)
   const activeChatId = activeChatIdFromPath(location.pathname)
   const isMobileChatPage = activeChatId != null && !isDesktopSidebarViewport
+  const isJobReviewPage = /^\/jobs\/[^/]+$/.test(normalizedPath) && new URLSearchParams(location.search).get("tab") === "review"
+  const isMobileLayeredChromePage = isMobileChatPage || (isJobReviewPage && !isDesktopSidebarViewport)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileChatHeaderOffset, setMobileChatHeaderOffset] = useState(0)
   const [mobileChatAppHeaderHeight, setMobileChatAppHeaderHeight] = useState(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT)
   const [mobileChatContentHeaderHeight, setMobileChatContentHeaderHeight] = useState(0)
   const mobileAppHeaderRef = useRef<HTMLDivElement | null>(null)
+  const mobileLayeredChromeScrollTopRef = useRef(0)
+  const mobileLayeredChromeUserScrollAtRef = useRef(0)
   const sidebarSplitter = useResizableSplitter({
     widthKey: SIDEBAR_WIDTH_KEY,
     collapsedKey: SIDEBAR_COLLAPSED_KEY,
@@ -196,11 +200,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     smartFolderAllLink: item.smartFolderAllLink,
     ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
   })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
-  const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileChatPage && !drawerOpen && !inOnboarding)
+  const mobileChatHeaderAutoHideActive = Boolean(user?.mobile_chat_auto_hide_header && isMobileLayeredChromePage && !drawerOpen && !inOnboarding)
   const mobileChatHeaderHideDistance = Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight)
   const mobileChatHeaderHidden = mobileChatHeaderOffset >= mobileChatHeaderHideDistance - 1
   const mobileChatTopInset = isMobileChatPage ? mobileChatContentHeaderHeight : 0
-  const mobileChatAppContentStyle = isMobileChatPage ? { "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px` } as CSSProperties : undefined
+  const mobileChromeVisibleTopInset = isMobileLayeredChromePage ? Math.max(0, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight - mobileChatHeaderOffset) : 0
+  const mobileChatAppContentStyle = isMobileLayeredChromePage ? {
+    "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px`,
+    "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
+  } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
   }, [])
@@ -225,8 +233,40 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     reportScrollDelta: reportMobileChatScrollDelta,
     revealHeader: revealMobileChatHeader,
     setContentHeight: setMobileChatHeaderContentHeight,
-    topInset: mobileChatTopInset
-  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+    topInset: mobileChatTopInset,
+    visibleTopInset: mobileChromeVisibleTopInset
+  }), [hideMobileChatHeader, mobileChatHeaderAutoHideActive, mobileChatHeaderHidden, mobileChatHeaderOffset, mobileChatTopInset, mobileChromeVisibleTopInset, reportMobileChatScrollDelta, revealMobileChatHeader, setMobileChatHeaderContentHeight])
+
+  const markMobileLayeredChromeScrollIntent = useCallback(() => {
+    mobileLayeredChromeUserScrollAtRef.current = Date.now()
+  }, [])
+
+  const handleMobileLayeredChromeWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY !== 0) markMobileLayeredChromeScrollIntent()
+  }, [markMobileLayeredChromeScrollIntent])
+
+  const handleMobileLayeredChromeTouchMove = useCallback(() => {
+    markMobileLayeredChromeScrollIntent()
+  }, [markMobileLayeredChromeScrollIntent])
+
+  const handleMobileLayeredChromeScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
+    if (!mobileChatHeaderAutoHideActive || isMobileChatPage) return
+
+    const scrollPane = event.currentTarget
+    const previousScrollTop = mobileLayeredChromeScrollTopRef.current
+    const nextScrollTop = Math.max(0, scrollPane.scrollTop)
+    mobileLayeredChromeScrollTopRef.current = nextScrollTop
+    if (nextScrollTop <= 0) {
+      revealMobileChatHeader()
+      return
+    }
+
+    const delta = nextScrollTop - previousScrollTop
+    if (Math.abs(delta) < CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX) return
+    if (Date.now() - mobileLayeredChromeUserScrollAtRef.current > 250) return
+
+    reportMobileChatScrollDelta(delta)
+  }, [isMobileChatPage, mobileChatHeaderAutoHideActive, reportMobileChatScrollDelta, revealMobileChatHeader])
 
   useLayoutEffect(() => {
     const node = mobileAppHeaderRef.current
@@ -250,7 +290,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   useEffect(() => {
     setMobileChatHeaderOffset(0)
     setMobileChatContentHeaderHeight(0)
-  }, [activeChatId, isDesktopSidebarViewport])
+    mobileLayeredChromeScrollTopRef.current = 0
+    mobileLayeredChromeUserScrollAtRef.current = 0
+  }, [activeChatId, isDesktopSidebarViewport, isJobReviewPage])
 
   const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
@@ -460,7 +502,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           getByRole("main", { name }) finds and what screen readers announce;
           a <main> here nested a second one inside it on every page, which is
           invalid and made locator("main") ambiguous. */}
-      <div className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`} data-testid="app-scroll-pane" style={mobileChatAppContentStyle}>
+      <div
+        className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}
+        data-testid="app-scroll-pane"
+        onScroll={isMobileLayeredChromePage ? handleMobileLayeredChromeScroll : undefined}
+        onTouchMove={isMobileLayeredChromePage ? handleMobileLayeredChromeTouchMove : undefined}
+        onWheel={isMobileLayeredChromePage ? handleMobileLayeredChromeWheel : undefined}
+        style={mobileChatAppContentStyle}
+      >
         {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
           <button
             aria-label={t("nav:open_sidebar")}
@@ -507,9 +556,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
             <FlashBanner flash={data?.flash} />
             <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-            <MobileChatHeaderContext.Provider value={mobileChatHeaderContext}>
+            <MobileChromeContext.Provider value={mobileChatHeaderContext}>
               <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
-            </MobileChatHeaderContext.Provider>
+            </MobileChromeContext.Provider>
           </div>
         ) : showAdminSubnav ? (
           <>
@@ -527,7 +576,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
             <FlashBanner flash={data?.flash} />
             <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-            {pageContent}
+            <MobileChromeContext.Provider value={mobileChatHeaderContext}>
+              {pageContent}
+            </MobileChromeContext.Provider>
           </>
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}

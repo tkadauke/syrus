@@ -1320,6 +1320,41 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
+  it("layers mobile chrome over Job review content and updates the shared visible inset", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Job review diff</div>, {
+        initialEntries: ["/jobs/42?tab=review"],
+        bootstrap: bootstrapPayload({
+          current_user: { ...bootstrapPayload().current_user!, mobile_chat_auto_hide_header: true }
+        })
+      })
+
+      const scrollPane = screen.getByTestId("app-scroll-pane")
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
+      expect(topBar).not.toBeNull()
+      expect(topBar).toHaveClass("sticky", "top-0")
+      expect(scrollPane).toHaveClass("overflow-auto")
+      expect(scrollPane).not.toHaveClass("overflow-hidden")
+      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("72px")
+
+      fireEvent.wheel(scrollPane, { deltaY: 100 })
+      fireEvent.scroll(scrollPane, { target: { scrollTop: 100 } })
+
+      expect(screen.getByTestId("mobile-app-header")).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
+      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("0px")
+
+      fireEvent.wheel(scrollPane, { deltaY: -100 })
+      fireEvent.scroll(scrollPane, { target: { scrollTop: 20 } })
+
+      expect(screen.getByTestId("mobile-app-header")).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(scrollPane.style.getPropertyValue("--mobile-chrome-visible-top-inset")).toBe("72px")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("positions the mobile top bar as an absolute chrome layer on chat routes", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
