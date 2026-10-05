@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+
+const fs = require("fs")
+const path = require("path")
+
+const buildDir = path.resolve(__dirname, "..", "app", "assets", "builds")
+const entryPath = path.join(buildDir, "spa.js")
+const maxEntryBytes = 1_800_000
+
+if (!fs.existsSync(entryPath)) {
+  console.error(`SPA entry bundle missing: ${entryPath}`)
+  process.exit(1)
+}
+
+const size = fs.statSync(entryPath).size
+if (size > maxEntryBytes) {
+  console.error(`SPA entry bundle is ${size.toLocaleString()} bytes, above the ${maxEntryBytes.toLocaleString()} byte budget.`)
+  console.error("The budget allows about 45% headroom over the split entry while catching a return to the old monolithic bundle.")
+  process.exit(1)
+}
+
+console.log(`SPA entry bundle ${size.toLocaleString()} bytes within ${maxEntryBytes.toLocaleString()} byte budget.`)
