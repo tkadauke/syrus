@@ -4,16 +4,18 @@
     "acknowledging": "Acknowledging...",
     "cancel": "Cancel",
     "discuss": "Discuss",
-    "discussing": "Discussing...",
+    "discussing": "Opening...",
     "discussion_body": "Discussion note",
     "error": "Could not update this review note.",
-    "save_discussion": "Save discussion",
+    "save_discussion": "Open discussion",
     "view_range": "View range"
   },
   "note": {
     "agent_authored": "Agent note",
     "confidence": "{{confidence}}% confidence",
     "fallback_title": "Review note",
+    "handled": "Handled",
+    "legacy_discussion_entries": "Earlier discussion notes",
     "priority": "{{priority}} priority",
     "range": "{{path}} {{side}} lines {{start}}-{{end}}",
     "side": {
@@ -23,6 +25,10 @@
   },
   "panel": {
     "hidden_count": "{{count}} more notes are available in the diff.",
+    "handled_summary": "{{count}} handled review note",
+    "handled_summary_one": "{{count}} handled review note",
+    "handled_summary_other": "{{count}} handled review notes",
+    "mixed_summary": "{{open}} open, {{handled}} handled review notes",
     "rollup_summary": "{{open}} open, {{handled}} handled ({{acknowledged}} acknowledged, {{discussed}} discussed, {{user_commented}} user-commented), {{dismissed}} dismissed.",
     "summary": "{{count}} open review note",
     "summary_one": "{{count}} open review note",

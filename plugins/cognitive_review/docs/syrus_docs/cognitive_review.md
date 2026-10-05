@@ -48,21 +48,25 @@ The legacy `submit_cognitive_review_notes` tool name and
 `/cognitive_review_notes` routes remain accepted for compatibility, but new
 callers should use the review-note names.
 
-In the Job review tab, open notes render as warning-tinted diff ranges for the
+In the Job review tab, non-dismissed notes render as diff ranges for the
 displayed diff version, compact review-note markers in the diff gutter, and a
-full agent-authored review-note card inline at the first line of the covered
-range. The same note also appears in the unified Review conversation side
-panel. The side panel shows the open-note count across review versions,
-interleaves review notes with user comments by version and code position, shows
-total flagged ranges, open/unhandled notes, handled
-notes, dismissed notes, and the zero-note state for the selected
+full agent-authored review-note card inline at the end of the covered range.
+Open notes use warning styling. Acknowledged, discussed, and user-commented
+notes remain visible but switch to a subdued handled style and no longer
+contribute to the red review-note risk metric. The same notes also appear in
+the unified Review conversation side panel. The side panel shows the open-note
+count across review versions, interleaves review notes with user comments by
+version and code position, shows total flagged ranges, open/unhandled notes,
+handled notes, dismissed notes, and the zero-note state for the selected
 DiffReviewVersion. The zero-note state appears only when the review pass
-submitted an explicit empty result. Hovering or focusing a note card
-highlights its covered line range in the displayed diff when that version is
-selected. The side panel lets operators jump to open flagged ranges and offers
-`Acknowledge` and `Discuss` actions. `Acknowledge` marks the note handled
-without adding a reply; `Discuss` stores an operator discussion entry and marks
-the note handled once that discussion exists. An operator's regular diff
+submitted an explicit empty result. Hovering or focusing a note card highlights
+its covered line range in the displayed diff when that version is selected.
+The side panel lets operators jump to flagged ranges and offers `Acknowledge`
+and `Discuss` actions. `Acknowledge` marks an open note handled without adding
+a reply. `Discuss` opens the Job discussion chat with Review Note context and
+marks the note discussed; it does not save new operator review feedback into
+the plugin-local discussion-entry table. Older discussion-entry rows, if
+present, are displayed as read-only note history. An operator's regular diff
 comment also handles an open note when the comment is anchored to the same diff
 version, path, side, and line range; the comment remains a normal review-tab
 comment for sidebar and feedback behavior.
@@ -74,13 +78,6 @@ cognitive debt, historical risk, or the percentage of changed lines inspected.
 Those broader metrics can consume these note states later, but that is a
 separate integration.
 
-In the Job review tab, open notes render as warning-tinted diff ranges and as
-agent-authored cognitive-note cards in the review side panel. The side panel
-shows the open-note count, lets operators jump to the flagged range, and
-offers `Acknowledge` and `Discuss` actions. `Acknowledge` marks the note
-handled without adding a reply; `Discuss` stores an operator discussion entry
-and marks the note handled once that discussion exists.
-
 ## API
 
 When the plugin is enabled, these app API routes are available under the same
@@ -89,13 +86,15 @@ Job permissions used by the review tab:
 - `GET /api/v1/app/jobs/:job_id/review_notes`
 - `GET /api/v1/app/jobs/:job_id/review_notes/:id`
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/acknowledge`
+- `POST /api/v1/app/jobs/:job_id/review_notes/:id/start_discussion`
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/discussion_entries`
 
 The older `/cognitive_review_notes` routes remain accepted as aliases.
 
-Read-tier repository members can list and read notes. Acknowledgement and
-discussion require the Job owner, a write-tier repository member, or an admin.
-Disabled plugin routes return the standard `plugin_disabled` error.
+Read-tier repository members can list and read notes. Acknowledgement, starting
+agent discussion, and writing legacy discussion entries require the Job owner,
+a write-tier repository member, or an admin. Disabled plugin routes return the
+standard `plugin_disabled` error.
 
 ## Configuration
 

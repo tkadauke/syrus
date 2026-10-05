@@ -322,6 +322,10 @@ and covered ranges with operator diff comments count as handled. Unflagged
 changed lines are treated as having no PR-level review-note debt;
 repository-wide cognitive coverage or historical attention-debt metrics are
 separate concerns.
+Handled notes remain visible inline for their selected diff version with a
+subdued resolved treatment, while dismissed notes are counted separately.
+Discussing a note opens the Job discussion chat with Review Note context;
+operator review feedback still uses the normal diff comment path.
 
 ## Deploy
 
