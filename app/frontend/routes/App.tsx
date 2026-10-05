@@ -863,7 +863,7 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
 
         <div className="rounded border border-gray-200 bg-white p-4">
           <h2 className="text-sm font-medium text-gray-900">{t("shell.revision")}</h2>
-          <p className="mt-2 font-mono text-sm text-gray-700">{app?.revision}</p>
+          <p className="mt-2 font-mono text-sm text-text-secondary">{app?.revision}</p>
           {app?.revision_url ? (
             <a className="text-xs text-brand underline hover:no-underline" href={app.revision_url}>
               {t("shell.view_commit")}
