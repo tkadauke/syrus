@@ -6,6 +6,7 @@ const path = require("path")
 const buildDir = path.resolve(__dirname, "..", "app", "assets", "builds")
 const entryPath = path.join(buildDir, "spa.js")
 const maxEntryBytes = 1_800_000
+const assetPrefix = "/assets/"
 
 if (!fs.existsSync(entryPath)) {
   console.error(`SPA entry bundle missing: ${entryPath}`)
@@ -16,6 +17,20 @@ const size = fs.statSync(entryPath).size
 if (size > maxEntryBytes) {
   console.error(`SPA entry bundle is ${size.toLocaleString()} bytes, above the ${maxEntryBytes.toLocaleString()} byte budget.`)
   console.error("The budget allows about 45% headroom over the split entry while catching a return to the old monolithic bundle.")
+  process.exit(1)
+}
+
+const preloadHelpers = fs.readdirSync(buildDir).filter((name) => /^spa-preload-helper-.*\.digested\.js$/.test(name))
+if (preloadHelpers.length === 0) {
+  console.error("SPA preload helper missing; dynamic route chunks may not be preloadable.")
+  process.exit(1)
+}
+
+const preloadHelperUsesAssetPrefix = preloadHelpers.some((name) => {
+  return fs.readFileSync(path.join(buildDir, name), "utf8").includes(assetPrefix)
+})
+if (!preloadHelperUsesAssetPrefix) {
+  console.error(`SPA preload helper must request dynamic chunks from ${assetPrefix}, not the site root.`)
   process.exit(1)
 }
 
