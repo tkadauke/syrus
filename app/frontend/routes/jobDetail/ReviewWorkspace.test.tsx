@@ -1795,7 +1795,9 @@ describe("ReviewWorkspace", () => {
     })
     fireEvent.click(within(repairRange).getByRole("button", { name: "From v2 RUN-22" }))
 
-    expect(await screen.findByText("Unable to load this live comparison because syrus/stale-branch no longer resolves. Select the stored version snapshot instead.")).toBeInTheDocument()
+    expect(
+      await screen.findByText("Unable to load this live comparison because syrus/stale-branch no longer resolves. Select the stored version snapshot instead.")
+    ).toBeInTheDocument()
   })
 
   it("keeps a FROM/TO endpoint pick as an explicit range even when it coincides with a stored version's own base/head", async () => {
