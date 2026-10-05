@@ -66,10 +66,22 @@ class PlannedExecutionRequestAnalyzer
     @text ||= [ job.issue_title, authored_body ].join("\n").downcase
   end
 
+  # Fenced blocks quote machine output -- a JSON payload, a log excerpt, a
+  # stack trace -- rather than stating what the work is. Jobs filed
+  # automatically from a captured browser error embed the whole event payload
+  # in a ```json fence, and that payload carries the reporter's User-Agent, so
+  # excluding only the Environment section missed them entirely: their
+  # User-Agent sits thousands of characters earlier in the body.
+  FENCED_BLOCK = /^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$/m
+  # A fence that is opened and never closed: drop the remainder rather than
+  # analyze a half-quoted blob.
+  UNTERMINATED_FENCE = /^[ \t]*(?:`{3,}|~{3,}).*\z/m
+
   def authored_body
     body = job.issue_body.to_s
     start = body.index(BugReports::ContextFormatter::SECTION_START)
-    start ? body[0...start] : body
+    body = body[0...start] if start
+    body.gsub(FENCED_BLOCK, "\n").sub(UNTERMINATED_FENCE, "\n")
   end
 
   def ios_request?
