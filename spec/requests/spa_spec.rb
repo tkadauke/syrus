@@ -65,7 +65,7 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.headers["X-Syrus-Revision"]).to eq(SyrusVersion.current)
   end
 
-  it "versions SPA CSS and JavaScript entrypoints with the running revision" do
+  it "does not version content-hashed SPA assets, but still versions unhashed assets" do
     allow(SyrusVersion).to receive(:current).and_return("cache-sha")
     user = Factories.user
     sign_in_as(user)
@@ -76,8 +76,28 @@ RSpec.describe "SPA shell", type: :request do
     css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
     js_paths = response.body.scan(/<script src="([^"]+)" type="module"><\/script>/).flatten
     expect(css_paths).not_to be_empty
-    expect(css_paths).to all(include("?v=cache-sha"))
-    expect(js_paths).to include(a_string_matching(%r{\A/assets/spa-[^"]+\.js\?v=cache-sha\z}))
+    expect(css_paths).to include(a_string_matching(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z}))
+    expect(css_paths).not_to include(a_string_including("?v=cache-sha"))
+    expect(js_paths).to include("/assets/spa-test.js?v=cache-sha")
+  end
+
+  it "keeps unchanged content-hashed SPA asset URLs stable across deploy revisions" do
+    user = Factories.user
+    sign_in_as(user)
+
+    allow(SyrusVersion).to receive(:current).and_return("first-sha")
+    get app_shell_path
+    first_css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
+
+    allow(SyrusVersion).to receive(:current).and_return("second-sha")
+    get app_shell_path
+    second_css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
+
+    first_hashed_css_paths = first_css_paths.grep(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z})
+    second_hashed_css_paths = second_css_paths.grep(%r{\A/assets/.+-[0-9a-f]{8,}\.css\z})
+
+    expect(first_hashed_css_paths).not_to be_empty
+    expect(second_hashed_css_paths).to eq(first_hashed_css_paths)
   end
 
   it "installs startup diagnostics before the SPA module entrypoint" do
