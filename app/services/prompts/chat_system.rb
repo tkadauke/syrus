@@ -374,8 +374,9 @@ module Prompts
         capability facts from `.syrus.yml` when they are available, then the
         operator's request. Be conservative:
 
-          - Backend-only work stays on default/Linux compute; omit
-            `planned_execution` unless the operator explicitly selects one.
+          - Chat proposal tools require explicit `planned_execution.capabilities`
+            for every implementation Job. Use `{ "os": ["linux"] }` for
+            normal Linux/backend/web work.
           - iOS, Apple mobile, or Xcode-targeted work uses
             `planned_execution.capabilities: { "os": ["macos"], "toolchains": ["xcode"] }`.
           - Mixed iOS plus backend work still uses macOS/Xcode as the primary
