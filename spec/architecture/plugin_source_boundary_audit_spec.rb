@@ -1,4 +1,6 @@
 require "rails_helper"
+require "open3"
+require "tmpdir"
 
 RSpec.describe "Plugin source boundaries" do
   subject(:audit) { Admin::PluginSourceBoundaryAudit.new }
@@ -43,16 +45,42 @@ RSpec.describe "Plugin source boundaries" do
     expect(audit.core_violations.map(&:message)).to eq([])
   end
 
+  # app/assets/builds/spa.js is gitignored but present for anyone who has run
+  # a frontend build, and its minified contents match short plugin names.
+  # Scanning it turned a clean checkout into a failing audit.
+  #
+  # This used to write the fixture into the real app/services and delete it in
+  # an ensure block. The audit only skips comment-only lines, so the fixture had
+  # to be executable code -- and `SyrusDev::SqlExplain.call` at the top level of
+  # a file under an autoload path is a landmine for every other process: any
+  # Rails boot that eager-loaded while it existed ran it and died on
+  # "missing keyword: :sql", and any spec globbing app/ raced its deletion and
+  # died on ENOENT. Both showed up as unrelated failures in parallel runs and
+  # in CI. Build the checkout the audit looks at instead, so nothing is ever
+  # written into the tree the rest of the suite is reading.
   it "ignores untracked files under the core roots", :requires_git_checkout do
-    # app/assets/builds/spa.js is gitignored but present for anyone who has run
-    # a frontend build, and its minified contents match short plugin names.
-    # Scanning it turned a clean checkout into a failing audit.
-    untracked = Rails.root.join("app/services/plugin_boundary_untracked_fixture.rb")
-    untracked.write("SyrusDev::SqlExplain.call\n")
+    Dir.mktmpdir do |dir|
+      root = Pathname.new(dir)
+      services = root.join("app/services")
+      services.mkpath
+      services.join("tracked_core_file.rb").write("Rails.logger.info('ok')\n")
+      services.join("untracked_core_file.rb").write("SyrusDev::SqlExplain.call(sql: 'select 1')\n")
+      # The audit reads manifests from <root>/plugins; point that at the real
+      # ones so SyrusDev is a plugin it actually knows about.
+      File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
 
-    expect(Admin::PluginSourceBoundaryAudit.new.core_violations).to eq([])
-  ensure
-    untracked&.delete if untracked&.exist?
+      Open3.capture2("git", "-C", dir, "init", "-q")
+      Open3.capture2("git", "-C", dir, "add", "app/services/tracked_core_file.rb")
+
+      audit = Admin::PluginSourceBoundaryAudit.new(root: root)
+      expect(audit.core_violations).to eq([])
+
+      # ...and the file is skipped for being untracked, not because the scan
+      # found nothing to match. Tracking it surfaces the same reference.
+      Open3.capture2("git", "-C", dir, "add", "app/services/untracked_core_file.rb")
+      tracked_audit = Admin::PluginSourceBoundaryAudit.new(root: root)
+      expect(tracked_audit.core_violations.map(&:message)).to include(/untracked_core_file\.rb/)
+    end
   end
 
   it "allows plugin-to-plugin references only through declared dependencies" do
