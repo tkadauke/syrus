@@ -12016,7 +12016,8 @@ describe("App", () => {
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
       expect(mobileTabs.parentElement).not.toHaveClass("rounded")
       expect(mobileTabs.parentElement).not.toHaveClass("border")
-      expect(mobileTabsShell).toHaveClass("absolute", "inset-x-0", "top-0")
+      expect(mobileTabsShell).toHaveClass("absolute", "inset-x-0", "top-[var(--mobile-chat-app-header-height,0px)]")
+      expect(mobileTabsShell).not.toHaveClass("top-0")
       expect(mobileTabsShell).not.toHaveClass("relative")
       expect(mobileTabs.parentElement?.lastElementChild).not.toHaveClass("p-3")
       expect(within(mobileTabsShell).getByText("Tokens: 12.4k in / 3.2k out · $0.0123")).toBeInTheDocument()
@@ -12142,6 +12143,8 @@ describe("App", () => {
       const mobileChatShell = mobileTabsShell.parentElement as HTMLElement
       const mobileContentLayer = mobileTabsShell.nextElementSibling as HTMLElement
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
+      expect(mobileTabsShell).toHaveClass("top-[var(--mobile-chat-app-header-height,0px)]")
+      expect(mobileTabsShell).not.toHaveClass("top-0")
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-stream-top-breathing-room")).toBe("calc(var(--mobile-chat-app-header-height,0px) + 70px + 0.75rem)")
       expect(mobileContentLayer).toHaveClass("flex", "min-h-0", "w-full", "flex-1")
       expect(mobileContentLayer.className).not.toContain("pt-[var(--mobile-chat-top-inset")
