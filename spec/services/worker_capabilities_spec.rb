@@ -26,8 +26,8 @@ RSpec.describe WorkerCapabilities do
       expect(described_class.normalize('{"os":["linux"]}')).to eq("os" => [ "linux" ])
     end
 
-    it "accepts an env-style string" do
-      expect(described_class.normalize("os:linux,arch:arm64")).to eq("os" => [ "linux" ], "arch" => [ "arm64" ])
+    it "accepts an env-style string and keeps only supported OS capabilities" do
+      expect(described_class.normalize("os:linux,arch:arm64")).to eq("os" => [ "linux" ])
     end
 
     it "accepts execution capability objects" do
