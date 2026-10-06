@@ -389,7 +389,7 @@ module Prompts
             should own the implementation.
 
         Missing repository capability metadata is a warning, not a blocker:
-        infer from the request when clear, otherwise leave placement defaulted.
+        infer from the request when clear, otherwise use `{ "os": ["linux"] }`.
       TEXT
     end
 
