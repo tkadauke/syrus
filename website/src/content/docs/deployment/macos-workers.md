@@ -132,12 +132,12 @@ keeps desired release details visible to every Mac worker, but only returns
 `enabled: true` to the selected worker once that worker is ready to update or
 has been explicitly forced.
 
-After the worker heartbeats at the desired `git_sha`, Syrus verifies the host
-still advertises macOS and Xcode capabilities before clearing the drain and
-moving to the next Mac. Admin worker health and queue views show drain/update
-state, failed updates, stale versions, and force-restart requests. If all Mac
-workers are draining or updating, Syrus does not advertise Mac capacity for new
-macOS/Xcode Runs.
+After the worker heartbeats at the desired `git_sha`, Syrus verifies that the
+host still advertises `os:macos` and reports healthy Xcode diagnostics before
+clearing the drain and moving to the next Mac. Admin worker health and queue
+views show drain/update state, failed updates, stale versions, and force-restart
+requests. If all Mac workers are draining or updating, Syrus does not advertise
+Mac capacity for new macOS Runs.
 
 Drain-aware updates are the normal pool-update path. The role-wide admin
 restart mechanism can restart worker-role processes, but it is too broad for a
