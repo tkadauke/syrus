@@ -60,7 +60,7 @@ type ComposerHistoryMode = {
 const CHAT_HISTORY_LIMIT = 50
 const CHAT_HISTORY_KEY_PREFIX = "syrus.chat.history."
 const STOP_BUTTON_CLASS = "inline-flex h-11 items-center justify-center rounded border border-danger-border bg-surface px-3 text-sm font-medium text-danger-text hover:bg-danger-surface disabled:text-text-muted"
-const COMPOSER_SHELL_CLASS = "relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95"
+const COMPOSER_SHELL_CLASS = "relative w-full rounded-3xl border border-gray-200 bg-white p-2 shadow-lg transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950"
 const COMPOSER_ICON_BUTTON_CLASS = "flex h-8 min-h-11 w-8 min-w-11 shrink-0 items-center justify-center rounded border border-transparent bg-transparent p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:focus-visible:ring-offset-gray-950"
 const COMPOSER_BUTTON_HOVER_CLASS = "hover:bg-gray-100 dark:hover:bg-gray-800"
 const COMPOSER_SELECTOR_TRIGGER_CLASS = "min-h-11 !border-transparent !bg-transparent !gap-1 !px-1.5 hover:!border-border hover:!bg-surface-raised focus-visible:!border-brand data-[open=true]:!border-border data-[open=true]:!bg-surface sm:min-h-0 sm:!px-2.5"
