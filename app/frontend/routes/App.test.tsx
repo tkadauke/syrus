@@ -12066,6 +12066,9 @@ describe("App", () => {
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Files" }))
       expect(within(mobileTabs).getByRole("button", { name: "Files" })).toHaveClass("border-brand")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
+      expect(screen.getByTestId("chat-workspace-panel-body")).toHaveClass("min-h-0", "flex-1", "overflow-hidden")
+      expect(screen.getByTestId("coding-files-panel")).toHaveClass("h-full", "min-h-0", "flex-col")
+      expect(screen.getByTestId("coding-files-split")).toHaveClass("min-h-0", "flex-1")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
@@ -12192,7 +12195,22 @@ describe("App", () => {
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
       expect(screen.queryByTestId("mobile-chat-hidden-header-scrim")).not.toBeInTheDocument()
 
-      fireEvent.click(stream)
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Files" }))
+      expect(within(mobileTabs).getByRole("button", { name: "Files" })).toHaveClass("border-brand")
+      expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
+      expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
+      expect(mobileTabsShell).not.toHaveStyle({ opacity: "0" })
+      expect(mobileTabsShell).not.toHaveStyle({ transform: "translateY(-70px)" })
+      expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
+      expect(screen.getByTestId("chat-workspace-panel-body")).toHaveClass("min-h-0", "flex-1", "overflow-hidden")
+      expect(screen.getByTestId("coding-files-panel")).toHaveClass("h-full", "min-h-0", "flex-col")
+      expect(screen.getByTestId("coding-files-split")).toHaveClass("min-h-0", "flex-1")
+
+      fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
+      const restoredStream = screen.getByTestId("chat-message-stream")
+      expect(restoredStream).toBeInTheDocument()
+
+      fireEvent.click(restoredStream)
       expect(header).toHaveStyle({ transform: "translateY(-142px)" })
       expect(header).not.toHaveStyle({ marginBottom: "-142px" })
     } finally {
