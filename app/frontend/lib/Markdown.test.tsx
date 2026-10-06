@@ -279,6 +279,48 @@ describe("Markdown", () => {
     expect(links[0]).toHaveAttribute("href", "/custom")
   })
 
+  it("links complete plain HTTP and HTTPS URLs when requested", () => {
+    render(<Markdown text="Open https://example.test/chats/517 and http://localhost:3000/admin." linkifyUrls />)
+
+    expect(screen.getByRole("link", { name: "https://example.test/chats/517" })).toHaveAttribute("href", "https://example.test/chats/517")
+    expect(screen.getByRole("link", { name: "http://localhost:3000/admin" })).toHaveAttribute("href", "http://localhost:3000/admin")
+    expect(document.querySelector("p")).toHaveTextContent("Open https://example.test/chats/517 and http://localhost:3000/admin.")
+  })
+
+  it("does not double-link URLs that are already markdown links", () => {
+    render(<Markdown text="Open [the chat](https://example.test/chats/517)." linkifyUrls />)
+
+    const links = screen.getAllByRole("link")
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAccessibleName("the chat")
+    expect(links[0]).toHaveAttribute("href", "https://example.test/chats/517")
+  })
+
+  it("does not auto-link URL text inside a markdown link label", () => {
+    render(<Markdown text="[https://example.test/chats/517](https://example.test/chats/517)" linkifyUrls />)
+
+    const links = screen.getAllByRole("link")
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAccessibleName("https://example.test/chats/517")
+    expect(links[0]).toHaveAttribute("href", "https://example.test/chats/517")
+    expect(links[0].querySelector("a")).toBeNull()
+  })
+
+  it("does not link incomplete or unsafe plain URLs", () => {
+    render(<Markdown text="Skip https:// and javascript:alert(1)." linkifyUrls />)
+
+    expect(screen.queryByRole("link")).toBeNull()
+    expect(screen.getByText("Skip https:// and javascript:alert(1).")).toBeInTheDocument()
+  })
+
+  it("keeps plain URLs inside inline code spans as code text", () => {
+    const { container } = render(<Markdown text="Use `https://example.test/token` literally." linkifyUrls />)
+
+    expect(screen.queryByRole("link")).toBeNull()
+    expect(screen.getByText("https://example.test/token").tagName).toBe("CODE")
+    expect(container.querySelector("code")).toHaveTextContent("https://example.test/token")
+  })
+
   it("decodes HTML entities in prose text", () => {
     render(<Markdown text={"A job throttled for &lt;30 min and &gt;1 hr uses &amp;amp; and &quot;quotes&quot; and &apos;apos&apos;"} />)
 
@@ -420,6 +462,15 @@ describe("Markdown", () => {
     expect(container.querySelector("ul")).toBeNull()
     expect(container.querySelector("strong")).toBeNull()
     expect(container.querySelector("code")).toBeNull()
+  })
+
+  it("links plain URLs in plain text when requested without applying markdown semantics", () => {
+    const text = "Visit https://example.test/docs\n**not bold**"
+    const { container } = render(<PlainText text={text} linkifyUrls />)
+
+    expect(screen.getByRole("link", { name: "https://example.test/docs" })).toHaveAttribute("href", "https://example.test/docs")
+    expect(container.querySelector("strong")).toBeNull()
+    expect(container.firstElementChild?.textContent).toBe("Visit https://example.test/docs\n**not bold**")
   })
 })
 
