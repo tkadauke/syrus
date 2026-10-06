@@ -1459,7 +1459,7 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
 
     expect(screen.getByPlaceholderText("What should be changed?")).toHaveAttribute("rows", "4")
-    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled()
   })
 
   it("submits feedback, collapses the panel, and shows a success notice", async () => {
@@ -1473,7 +1473,7 @@ describe("JobDetailView", () => {
     openOverflowMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -1573,7 +1573,7 @@ describe("JobDetailView", () => {
     openOverflowMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Try another approach." } })
-    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Job already has active feedback.")
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
@@ -1648,7 +1648,7 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
 
     expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument()
   })
 
   it("offers both actions in the feedback panel when both are allowed", () => {
@@ -1662,7 +1662,7 @@ describe("JobDetailView", () => {
     openOverflowMenu()
     fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
 
-    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeInTheDocument()
   })
 
