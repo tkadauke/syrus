@@ -64,6 +64,7 @@ class Epic < ApplicationRecord
   after_commit :publish_epic_upserted_event, on: %i[create update]
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
+  after_update_commit :start_dependent_jobs_after_satisfaction, if: :saved_change_to_state?
   after_update_commit :publish_goal_boundary_event, if: :saved_change_to_goal_boundary?
   before_destroy :clear_job_epic_titles
 
@@ -606,6 +607,26 @@ class Epic < ApplicationRecord
     return unless done?
 
     dependent_epics.find_each(&:refresh_auto_state!)
+  end
+
+  # A Job can depend on an Epic rather than on another Job
+  # (JobDependency#depends_on_epic), and that dependency is satisfied once the
+  # Epic reaches done or archived. Nothing told those Jobs when it happened:
+  # refresh_dependent_epic_auto_states above propagates to dependent *Epics*
+  # only, and the JobDependency row itself does not change, so its
+  # recheck-on-save hook never fires either. A Job waiting on an Epic therefore
+  # stayed queued after the Epic completed, until something unrelated happened
+  # to wake it.
+  #
+  # Job#start_dependent_jobs_if_ready is the same move for a Job-to-Job
+  # dependency; each dependent re-checks its own satisfaction, so waking on
+  # either terminal state is safe.
+  def start_dependent_jobs_after_satisfaction
+    return unless done? || archived?
+
+    Job.where(id: JobDependency.where(depends_on_epic_id: id).select(:job_id))
+      .open_threads
+      .find_each { |job| job.start_pending_workflows_if_dependencies_satisfied! }
   end
 
   def publish_epic_upserted_event

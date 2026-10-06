@@ -444,6 +444,40 @@ RSpec.describe Epic, :ci_only do
     expect(job.workflows.first.trigger_kind).to eq("initial")
   end
 
+  # A Job can also depend on an Epic directly (JobDependency#depends_on_epic)
+  # without being one of its children, and that dependency is satisfied once
+  # the Epic is done. Nothing used to tell those Jobs when it happened: the
+  # Epic's state-change hook propagates to dependent *Epics* only, and the
+  # JobDependency row itself does not change, so its recheck-on-save hook never
+  # fired either. The Job stayed queued after its upstream Epic landed.
+  it "wakes a Job that depends on it directly once it is done" do
+    upstream = described_class.create!(user: user, repository: repository, title: "Upstream")
+    dependent = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued")
+    dependent.dependencies.create!(depends_on_epic: upstream, source: "manual")
+    unrelated = Factories.job_record(user: user, repository: repository, issue_number: 44, state: "queued")
+
+    woken = []
+    allow(WorkIntents::JobWakeup).to receive(:call) { |job| woken << job.id; false }
+
+    upstream.override_state!("done")
+
+    expect(woken).to include(dependent.id)
+    expect(woken).not_to include(unrelated.id)
+  end
+
+  it "does not wake a dependent Job while it is still unfinished" do
+    upstream = described_class.create!(user: user, repository: repository, title: "Upstream")
+    dependent = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued")
+    dependent.dependencies.create!(depends_on_epic: upstream, source: "manual")
+
+    woken = []
+    allow(WorkIntents::JobWakeup).to receive(:call) { |job| woken << job.id; false }
+
+    upstream.override_state!("in_progress")
+
+    expect(woken).not_to include(dependent.id)
+  end
+
   it "does not release blocked child Jobs when the dependency Epic is merely fully approved but not yet merged" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
     epic = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
