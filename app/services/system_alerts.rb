@@ -156,10 +156,10 @@ module SystemAlerts
       title: "#{label} sign-in expired.",
       message: "#{label} authentication failed for this account. Syrus cannot start #{label}-backed work until you reconnect it.#{evidence_text.join}",
       action_steps: [
-        "Reconnect #{ERB::Util.html_escape(label)} here or open agent settings.",
+        "Reconnect #{ERB::Util.html_escape(label)} here or open credentials.",
         "After reconnecting, recheck provider availability so queued work can resume."
       ],
-      cta: { text: "Open agent settings", path: "/settings/agent" },
+      cta: { text: "Open credentials", path: "/credentials" },
       actions: [
         provider_reauthorize_action(provider, label),
         {

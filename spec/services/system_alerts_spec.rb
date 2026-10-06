@@ -247,7 +247,7 @@ RSpec.describe SystemAlerts do
       expect(alert).to have_attributes(
         severity: :alarm,
         title: "Codex sign-in expired.",
-        cta: { text: "Open agent settings", path: "/settings/agent" }
+        cta: { text: "Open credentials", path: "/credentials" }
       )
       expect(alert.message).to include("Syrus cannot start Codex-backed work")
       expect(alert.actions).to contain_exactly(
