@@ -85,7 +85,7 @@
   "feedback_panel_title": "Give feedback",
   "feedback_placeholder": "What should be changed?",
   "feedback_error": "Unable to submit feedback.",
-  "submit_feedback": "Submit feedback",
+  "submit_feedback": "Submit",
   "submitting": "Submitting...",
   "request_changes_coding_mode_panel_description": "This opens the Job in a Coding Mode chat and sends this feedback as the first prompt.",
   "request_changes_error": "Unable to request changes.",
