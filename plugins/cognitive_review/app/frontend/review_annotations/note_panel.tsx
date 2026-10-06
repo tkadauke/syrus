@@ -55,13 +55,17 @@ const AGENT_NOTE_BADGE_CLASS = [
   "text-2xs font-semibold uppercase"
 ].join(" ")
 const METADATA_CHIP_CLASS = "rounded border border-border bg-surface px-1.5 py-0.5 text-2xs text-text-secondary"
+const RANGE_BUTTON_CLASS = [
+  "mt-1 block max-w-full whitespace-normal break-all text-left",
+  "text-xs text-text-secondary underline-offset-2 hover:underline"
+].join(" ")
 const FEEDBACK_REPLY_TEXTAREA_CLASS = [
   "min-h-16 w-full rounded border border-border bg-surface px-3 py-2",
   "text-sm text-text-primary shadow-sm",
   "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
 ].join(" ")
 
-export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotationComponentProps) {
+export default function CognitiveReviewNotePanel({ item, surface }: PluginReviewAnnotationComponentProps) {
   const { t } = useT("cognitive_review")
   const props = (item.props ?? {}) as NotePanelItemProps
   const notes = Array.isArray(props.notes) ? props.notes : isCognitiveReviewNote(props) ? [props] : []
@@ -81,7 +85,7 @@ export default function CognitiveReviewNotePanel({ item }: PluginReviewAnnotatio
       {visibleNotes.length > 0 ? (
         <div className="space-y-3">
           {visibleNotes.map((note) => (
-            <CognitiveReviewNoteCard key={note.note_id} note={note} />
+            <CognitiveReviewNoteCard key={note.note_id} note={note} showRange={surface !== "inline"} />
           ))}
         </div>
       ) : null}
@@ -136,7 +140,7 @@ function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["ro
   return t("panel.summary", { count: total })
 }
 
-function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
+function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNote; showRange: boolean }) {
   const { t } = useT("cognitive_review")
   const queryClient = useQueryClient()
   const hoveredRef = useRef(false)
@@ -221,9 +225,11 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium">{title}</div>
-          <button className="mt-1 truncate text-left text-xs text-text-secondary underline-offset-2 hover:underline" onClick={focusRange} type="button">
-            {rangeLabel}
-          </button>
+          {showRange ? (
+            <button className={RANGE_BUTTON_CLASS} onClick={focusRange} type="button">
+              {rangeLabel}
+            </button>
+          ) : null}
         </div>
         <span className={`${AGENT_NOTE_BADGE_CLASS} ${openUnhandled ? "border-warning-border text-warning-text" : "border-success-border text-success-text"}`}>
           {handled ? t("note.handled") : t("note.agent_authored")}
