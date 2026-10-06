@@ -95,7 +95,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
         {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
           <div className="px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900">
-            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} onLinkClick={handleMarkdownLink} />
+            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} linkifyUrls onLinkClick={handleMarkdownLink} />
           </div>
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} /> : null}
@@ -137,10 +137,10 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
 
 function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
   if (shouldRenderUserMarkdown(item.text)) {
-    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} />
+    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls />
   }
 
-  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
+  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls />
 }
 
 function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {

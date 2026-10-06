@@ -239,6 +239,42 @@ describe("user message markdown heuristic", () => {
     expect(screen.queryByText("bold")).not.toBeInTheDocument()
     expect(shouldRenderUserMarkdown("This is **bold** and *italic*.")).toBe(false)
   })
+
+  it("links complete URLs in short plain user messages", () => {
+    renderChatMessageItem(userMessage("Can you check https://example.test/chats/517?"))
+
+    const link = screen.getByRole("link", { name: "https://example.test/chats/517" })
+    expect(link).toHaveAttribute("href", "https://example.test/chats/517")
+    expect(link.closest(".whitespace-pre-wrap")).toBeInTheDocument()
+    expect(screen.getByText(/\?/)).toBeInTheDocument()
+  })
+
+  it("links complete URLs in markdown-rendered user messages", () => {
+    const body = `**Environment**
+- URL: https://example.test/chats/517`
+
+    renderChatMessageItem(userMessage(body))
+
+    expect(screen.getByRole("link", { name: "https://example.test/chats/517" })).toHaveAttribute("href", "https://example.test/chats/517")
+    expect(shouldRenderUserMarkdown(body)).toBe(true)
+  })
+})
+
+describe("assistant message URL links", () => {
+  it("links complete plain URLs in assistant messages", () => {
+    renderMessage("Here is the chat: https://example.test/chats/517")
+
+    expect(screen.getByRole("link", { name: "https://example.test/chats/517" })).toHaveAttribute("href", "https://example.test/chats/517")
+  })
+
+  it("keeps existing markdown links as the only link for their URL", () => {
+    renderMessage("Here is [the chat](https://example.test/chats/517).")
+
+    const links = screen.getAllByRole("link")
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAccessibleName("the chat")
+    expect(links[0]).toHaveAttribute("href", "https://example.test/chats/517")
+  })
 })
 
 describe("sender attribution", () => {
