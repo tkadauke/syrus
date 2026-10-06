@@ -1,12 +1,19 @@
 require "rails_helper"
 
 RSpec.describe WorkerQueueTopology do
+  # config/queue.yml renders its run/merge queue names through
+  # WorkerCapabilities.queue_names_for, which keys off the *host's* os and
+  # arch: a Linux host serves the bare "runs" queue, while macOS serves only
+  # "runs-macos-arm64". Hardcoding "runs" asserted the Linux shape and failed
+  # on a macOS checkout, so ask for the name this host actually serves.
+  let(:run_queue) { WorkerCapabilities.queue_names_for("runs").first }
+
   describe "#consumes?" do
     it "is true for a queue a single-host queue.yml worker consumes" do
       topology = described_class.new(config_file: Rails.root.join("config/queue.yml"))
 
       expect(topology.consumes?("polling")).to be true
-      expect(topology.consumes?("runs")).to be true
+      expect(topology.consumes?(run_queue)).to be true
     end
 
     it "is true for polling on a home-tier config" do
@@ -24,7 +31,7 @@ RSpec.describe WorkerQueueTopology do
     it "is true for runs on a compute-tier config" do
       topology = described_class.new(config_file: Rails.root.join("config/queue.compute.yml"))
 
-      expect(topology.consumes?("runs")).to be true
+      expect(topology.consumes?(run_queue)).to be true
     end
 
     it "is false for a queue a compute-tier config does not consume" do
@@ -51,7 +58,7 @@ RSpec.describe WorkerQueueTopology do
 
   describe ".consumes?" do
     it "delegates to a new instance" do
-      expect(described_class.consumes?("runs", config_file: Rails.root.join("config/queue.yml"))).to be true
+      expect(described_class.consumes?(run_queue, config_file: Rails.root.join("config/queue.yml"))).to be true
     end
   end
 
