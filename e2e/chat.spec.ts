@@ -35,6 +35,7 @@ test("mobile hidden chat chrome reclaims the rendered message region", async ({ 
   await page.setViewportSize({ width: 390, height: 844 })
   await signInAsDemo(page)
   await setMobileChatAutoHide(page, true)
+  await page.reload()
 
   try {
     await page.getByRole("button", { name: "Open sidebar" }).click()
