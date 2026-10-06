@@ -72,9 +72,18 @@ export function SmartFolderNavigation<TFolder extends SmartFolderNavFolder>({
   const savedFolderPositions = useMemo(() => new Map(savedFolders.map((folder, index) => [folder.id, folder.position ?? index])), [savedFolders])
 
   useEffect(() => {
-    setOrderedSavedFolders(savedFolders)
-    orderedSavedFoldersRef.current = savedFolders
-  }, [savedFolders])
+    if (dragIndex.current != null || isReordering) return
+
+    setOrderedSavedFolders((current) => {
+      if (sameOrderedFolders(current, savedFolders)) {
+        orderedSavedFoldersRef.current = current
+        return current
+      }
+
+      orderedSavedFoldersRef.current = savedFolders
+      return savedFolders
+    })
+  }, [isReordering, savedFolders])
 
   function startSavedFolderDrag(index: number, event: DragEvent<HTMLElement>) {
     dragIndex.current = index
@@ -517,6 +526,26 @@ function reorderFolders<TFolder>(folders: TFolder[], sourceIndex: number, target
 
 function modifiedClick(event: MouseEvent<HTMLElement>) {
   return event.metaKey || event.altKey || event.ctrlKey || event.shiftKey
+}
+
+function sameOrderedFolders<TFolder extends SmartFolderNavFolder>(current: TFolder[], next: TFolder[]) {
+  if (current.length !== next.length) return false
+
+  return current.every((folder, index) => sameFolderRow(folder, next[index]))
+}
+
+function sameFolderRow<TFolder extends SmartFolderNavFolder>(current: TFolder, next: TFolder) {
+  return current === next || (
+    current.id === next.id &&
+    current.name === next.name &&
+    current.kind === next.kind &&
+    current.visibility === next.visibility &&
+    current.position === next.position &&
+    current.count === next.count &&
+    current.count_capped === next.count_capped &&
+    current.active === next.active &&
+    current.path === next.path
+  )
 }
 
 function GripIcon({ floating = false }: { floating?: boolean }) {

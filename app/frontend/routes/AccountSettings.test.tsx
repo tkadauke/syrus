@@ -1,11 +1,12 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactElement } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute, PreferencesRoute } from "./AccountSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
+import { MOTION_PERMISSION_STORAGE_KEY, persistMotionPermission } from "../lib/shakeToReportPermission"
 
 function credentialsPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,7 +60,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
 }
 
 function renderRoute(payload = credentialsPayload(), route: ReactElement = <CredentialsRoute />) {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -68,6 +69,7 @@ function renderRoute(payload = credentialsPayload(), route: ReactElement = <Cred
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return fetchSpy
 }
 
 describe("AccountSettings ApiTokenPanel", () => {
@@ -180,7 +182,10 @@ describe("AccountSettings ApiTokenPanel", () => {
 })
 
 describe("AccountSettings form primitives", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
 
   it("associates profile labels with their controls", async () => {
     renderRoute(credentialsPayload(), <AccountProfileRoute />)
@@ -319,5 +324,49 @@ describe("AccountSettings form primitives", () => {
       }))
     })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+  })
+
+  it("shows and resets the saved shake-to-report motion permission", async () => {
+    window.localStorage.setItem(MOTION_PERMISSION_STORAGE_KEY, "granted")
+    const fetchSpy = renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    const permissions = await screen.findByRole("region", { name: "Browser permissions" })
+    expect(permissions).toBeInTheDocument()
+    expect(screen.getByText("Shake-to-report motion")).toBeInTheDocument()
+    expect(screen.getByText("Granted")).toBeInTheDocument()
+
+    fireEvent.click(within(permissions).getByRole("button", { name: "Reset" }))
+
+    expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBeNull()
+    expect(screen.getByText("Not set")).toBeInTheDocument()
+    expect(within(permissions).getByRole("status")).toHaveTextContent("Motion permission reset. Shake-to-report can ask again after your next tap.")
+    expect(fetchSpy.mock.calls.some((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")).toBe(false)
+  })
+
+  it("updates the browser permissions panel when the hook persists permission later", async () => {
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    expect(await screen.findByRole("region", { name: "Browser permissions" })).toBeInTheDocument()
+    expect(screen.getByText("Not set")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+
+    act(() => {
+      persistMotionPermission("denied")
+    })
+
+    expect(screen.getByText("Denied")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled()
+  })
+
+  it("shows unavailable storage without breaking preferences", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable")
+    })
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    expect(await screen.findByRole("region", { name: "Browser permissions" })).toBeInTheDocument()
+    expect(screen.getByText("Storage unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByLabelText("Language")).toBeInTheDocument()
   })
 })

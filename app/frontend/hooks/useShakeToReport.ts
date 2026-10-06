@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { persistMotionPermission, readPersistedMotionPermission } from "../lib/shakeToReportPermission"
 
 const SHAKE_ACCELERATION_THRESHOLD = 18 // m/s², when gravity-free acceleration is available
 const SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD = 24 // m/s²
@@ -63,6 +64,15 @@ export function useShakeToReport(onShake: () => void) {
     if (typeof DME.requestPermission === "function") {
       // iOS 13+: DeviceMotionEvent requires an explicit user-gesture permission grant.
       // Request on the first user click to avoid prompting on page load.
+      const persistedPermission = readPersistedMotionPermission()
+      if (persistedPermission === "granted") {
+        window.addEventListener("devicemotion", handleMotion)
+        return () => window.removeEventListener("devicemotion", handleMotion)
+      }
+      if (persistedPermission === "denied" || persistedPermission === "unavailable") {
+        return
+      }
+
       let requested = false
 
       async function requestOnClick() {
@@ -72,10 +82,13 @@ export function useShakeToReport(onShake: () => void) {
         try {
           const permission = await DME.requestPermission!()
           if (permission === "granted") {
+            persistMotionPermission("granted")
             window.addEventListener("devicemotion", handleMotion)
+          } else if (permission === "denied") {
+            persistMotionPermission("denied")
           }
         } catch {
-          // Denied or unavailable
+          persistMotionPermission("unavailable")
         }
       }
 
