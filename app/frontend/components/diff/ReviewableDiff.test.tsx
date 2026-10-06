@@ -911,7 +911,7 @@ describe("ReviewableDiff", () => {
 
     const composer = screen.getByTestId("diff-review-composer")
     const panel = within(composer).getByLabelText("Comment").closest("td")?.firstElementChild
-    expect(panel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(panel).toHaveClass("sticky", "left-0", "w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
     expect(panel).not.toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]", "max-md:w-auto", "max-md:max-w-none")
     expect(within(composer).getByLabelText("Comment")).not.toHaveClass("max-md:flex-1")
     expect(composer.querySelectorAll("td")[0]).not.toHaveClass("max-md:hidden")
@@ -1037,7 +1037,7 @@ describe("ReviewableDiff", () => {
     const composerPanel = Array.from(composerCell.children).find((child) => child.tagName === "DIV") as HTMLElement
     expect(composerCell).toHaveClass("max-w-[calc(100vw-3rem)]")
     expect(composerCell).not.toHaveClass("sticky")
-    expect(composerPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(composerPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
     expect(composerPanel).not.toHaveClass("max-md:static")
     expect(within(composerCell).getByLabelText("Comment")).toHaveValue("Please keep this visible.")
   })
@@ -1064,7 +1064,7 @@ describe("ReviewableDiff", () => {
     const threadPanel = threadCell.querySelector("div")
     expect(threadCell).toHaveClass("max-w-[calc(100vw-3rem)]")
     expect(threadCell).not.toHaveClass("sticky")
-    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,100cqw,calc(100vw-3rem))]")
+    expect(threadPanel).toHaveClass("sticky", "left-0", "w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
     expect(threadPanel).not.toHaveClass("max-md:static", "max-md:w-auto", "max-md:max-w-none")
     expect(screen.getByText("This note should not inherit the long line width.")).toBeInTheDocument()
   })
