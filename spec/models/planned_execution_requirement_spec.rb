@@ -21,6 +21,12 @@ RSpec.describe PlannedExecutionRequirement do
     )
   end
 
+  it "rejects non-hash capability values with a controlled error" do
+    expect {
+      described_class.new(capabilities: "macos")
+    }.to raise_error(ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
+  end
+
   it "normalizes explicit capability dimensions" do
     requirement = described_class.new(
       project_label: " iOS ",
@@ -60,6 +66,31 @@ RSpec.describe PlannedExecutionRequirement do
       "source" => "defaulted"
     )
     expect(workflow.planned_execution_json).to eq(job.planned_execution_json)
+  end
+
+  it "defaults blank persisted capability rows to ordinary Linux execution" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    job.update_columns(planned_execution_capabilities: nil, planned_execution_source: nil)
+
+    expect(job.reload.planned_execution_json).to eq(
+      "project_label" => nil,
+      "target_label" => nil,
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
+  end
+
+  it "rejects malformed persisted capability values on planned execution records" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    expect(Job.new(user: user, repository: repository, issue_number: 42, planned_execution_capabilities: "macos")).not_to be_valid
+    expect(Workflow.new(job: job, user: user, trigger_kind: "manual", planned_execution_capabilities: "macos")).not_to be_valid
+    expect(ChatProposal.new(chat_session: chat, slug: "bad-capabilities", title: "Bad capabilities", body: "Body.", planned_execution_capabilities: "macos")).not_to be_valid
   end
 
   it "plans new jobs from root project capabilities before workflow launch" do

@@ -4,6 +4,7 @@ class Workflow < ApplicationRecord
   include Revisionable
   include BroadcastsJobProgress
   include ValidatesAgentProvider
+  include NormalizesPlannedExecutionRequirements
 
   EPIC_WIDE_TRIGGER_KINDS = Workflow::TriggerKind.epic_wide_values
   PRIORITIES = Job::PRIORITIES
@@ -43,7 +44,6 @@ class Workflow < ApplicationRecord
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create
-  before_validation :default_planned_execution_requirements, on: :create
   before_save :sync_workflow_admission_override_metadata
 
   # Free-form bag of artifacts produced during this workflow. The
@@ -135,15 +135,14 @@ class Workflow < ApplicationRecord
     planned_execution_requirement.as_json
   end
 
-  def default_planned_execution_requirements
-    return unless job
+  def planned_execution_requirement_for_normalization
+    return PlannedExecutionRequirement.default unless job
 
-    requirement = if planned_execution_fields_present?
+    if planned_execution_fields_present?
       PlannedExecutionRequirement.from_record(self)
     else
       PlannedExecutionRequirement.from_record(job)
     end
-    requirement.assign_to(self)
   end
 
   def planned_execution_fields_present?
