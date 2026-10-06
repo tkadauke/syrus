@@ -870,6 +870,10 @@ whether that Step should appear in implementation-style workflow chains and
 what prompt/tool contract it should use. A disabled plugin contributes no Step
 and its provider methods are not called.
 
+Built-in implementation-style workflows, including `coding_handoff`, append the
+host Step only when at least one enabled provider's `.review_needed?` method
+returns true for that trigger kind.
+
 Register a class that includes `Syrus::Plugin::PostImplementationReviewProvider`
 and optionally implements:
 

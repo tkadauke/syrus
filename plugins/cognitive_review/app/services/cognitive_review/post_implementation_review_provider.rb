@@ -7,6 +7,7 @@ module CognitiveReview
       retry
       pr_comment
       chat_feedback
+      coding_handoff
       manual
       manual_agentic_run
     ].freeze

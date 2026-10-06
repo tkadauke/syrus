@@ -20,6 +20,7 @@ RSpec.describe CognitiveReview::PostImplementationReviewProvider do
   it "requests implementation-style workflows only while the plugin is enabled" do
     expect(described_class.review_needed?(job: job, trigger_kind: "initial")).to be(true)
     expect(described_class.review_needed?(job: job, trigger_kind: "retry")).to be(true)
+    expect(described_class.review_needed?(job: job, trigger_kind: "coding_handoff")).to be(true)
     expect(described_class.review_needed?(job: job, trigger_kind: "ci_failure")).to be(false)
 
     PluginRecord.find_by!(name: "cognitive_review").update!(enabled: false)

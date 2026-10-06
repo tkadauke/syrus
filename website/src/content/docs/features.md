@@ -295,10 +295,10 @@ authenticated or populated view of the app instead of a blank one.
 ## Review Notes
 
 The bundled `cognitive_review` plugin is disabled by default. When enabled,
-Syrus runs a best-effort agentic pass after implementation-style workflows and
-asks it to flag changed diff ranges that deserve operator attention. Open
-notes appear in the Job review tab as warning-tinted ranges and plugin-owned
-side-panel cards.
+Syrus runs a best-effort agentic pass after implementation-style workflows,
+including confirmed Coding Mode handoffs, and asks it to flag changed diff
+ranges that deserve operator attention. Open notes appear in the Job review tab
+as warning-tinted ranges and plugin-owned side-panel cards.
 
 Repositories can tune Review Notes in `.syrus.yml` with `review_notes.criteria`
 for high-signal interests and `review_notes.low_signal` for work the reviewer

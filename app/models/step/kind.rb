@@ -195,7 +195,7 @@ class Step
                   PostImplementationReviewRequiredMcpTools.call(job: job, workflow: workflow, run: run)
                 },
                 fail_policy: :advance,
-                resource_profile_fallback_step_kinds: %w[implement respond]),
+                resource_profile_fallback_step_kinds: %w[implement respond coding_handoff_fix]),
       Entry.new(kind: "review_plan",        handler: "ReviewPlan",         label: "Review plan (retired)",      style: "bg-gray-100 text-gray-700",   agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent),

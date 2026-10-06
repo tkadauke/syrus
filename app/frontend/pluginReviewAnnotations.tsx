@@ -6,7 +6,10 @@ import { Markdown } from "./lib/Markdown"
 
 export type PluginReviewAnnotationComponentProps = {
   item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction
+  surface?: PluginReviewAnnotationSurface
 }
+
+export type PluginReviewAnnotationSurface = "action" | "inline" | "marker" | "sidebar"
 
 type PluginModule = {
   default?: ComponentType<PluginReviewAnnotationComponentProps>
@@ -49,13 +52,17 @@ export function pluginReviewAnnotationComponentFor(key: string | null | undefine
   return Component
 }
 
-export function renderPluginReviewAnnotation(item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction, fallback: ReactNode) {
+export function renderPluginReviewAnnotation(
+  item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction,
+  fallback: ReactNode,
+  surface?: PluginReviewAnnotationSurface
+) {
   const Component = pluginReviewAnnotationComponentFor(item.component)
   if (!Component) return fallback
 
   return (
     <Suspense fallback={fallback}>
-      <Component item={item} />
+      <Component item={item} surface={surface} />
     </Suspense>
   )
 }
@@ -78,7 +85,7 @@ export function ReviewAnnotationCard({ item }: { item: DiffReviewAnnotation | Di
     </div>
   )
 
-  return renderPluginReviewAnnotation(item, fallback)
+  return renderPluginReviewAnnotation(item, fallback, "sidebar")
 }
 
 export function ReviewAnnotationActionButton({ action }: { action: DiffReviewAnnotationAction }) {
@@ -94,7 +101,7 @@ export function ReviewAnnotationActionButton({ action }: { action: DiffReviewAnn
     </Button>
   )
 
-  return renderPluginReviewAnnotation(action, fallback)
+  return renderPluginReviewAnnotation(action, fallback, "action")
 }
 
 function annotationToneClass(tone: string | null | undefined) {
