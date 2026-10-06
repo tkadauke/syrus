@@ -586,7 +586,7 @@ export function ProposalCard({
                 prefix={prefix}
               />
             </div>
-            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
+            <h3 className="mt-2 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
           </>
         }
         body={

@@ -2,7 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { EntityReference, entityReferenceHref, entityReferenceLabel, Row } from "./toolCardUi"
+import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, Row } from "./toolCardUi"
+
+describe("toolCardUi CardShell", () => {
+  it("cannot define a wider minimum width than its chat column", () => {
+    render(<CardShell><div>Card contents</div></CardShell>)
+
+    expect(screen.getByText("Card contents").parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
+  })
+})
 
 describe("toolCardUi Row", () => {
   it("stays self-contained for direct CardShell usage", () => {

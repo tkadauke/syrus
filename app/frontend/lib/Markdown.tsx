@@ -7,15 +7,17 @@ import { detectFenceLanguage } from "./highlighter"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
+type RenderInlineOptions = { linkifySlugs?: boolean; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
 type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
-type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
+type MarkdownProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler }
+type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler }
 type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
+const PLAIN_URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
 const WIDE_TABLE_COLUMN_COUNT = 5
 const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   compact: 0.45,
@@ -23,14 +25,14 @@ const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   prose: 2.4
 }
 
-export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
+export function Markdown({ className, text, linkifyUrls = false, onLinkClick }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { onLinkClick })}</div>
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { linkifyUrls, onLinkClick })}</div>
 }
 
-export function PlainText({ className, text }: { className?: string; text: string }) {
-  return <div className={className}>{text}</div>
+export function PlainText({ className, text, linkifyUrls = false, onLinkClick }: PlainTextProps) {
+  return <div className={className}>{linkifyUrls ? renderInlineText(text, true, 0, { linkifyUrls, onLinkClick }) : text}</div>
 }
 
 // Shared "light markdown" preview renderer for truncated content cards
@@ -429,12 +431,12 @@ function renderInline(text: string, options: RenderInlineOptions = {}): InlineTo
     const match = nextInlineToken(text, cursor, options)
     if (!match) break
 
-    if (match.index > cursor) tokens.push(renderInlineText(text.slice(cursor, match.index), shouldLinkifySlugs, key++))
+    if (match.index > cursor) tokens.push(renderInlineText(text.slice(cursor, match.index), shouldLinkifySlugs, key++, options))
     tokens.push(renderInlineToken(match.token, key++, options))
     cursor = match.index + match.token.length
   }
 
-  if (cursor < text.length) tokens.push(renderInlineText(text.slice(cursor), shouldLinkifySlugs, key++))
+  if (cursor < text.length) tokens.push(renderInlineText(text.slice(cursor), shouldLinkifySlugs, key++, options))
   return tokens
 }
 
@@ -514,12 +516,56 @@ function decodeHtmlEntities(text: string): string {
   })
 }
 
-function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number): InlineToken {
+function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number, options: RenderInlineOptions = {}): InlineToken {
   const decoded = decodeHtmlEntities(text)
+  if (options.linkifyUrls) return linkifyPlainUrls(decoded, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(decoded)) {
     return <Fragment key={key}>{linkifySlugs(decoded)}</Fragment>
   }
   return decoded
+}
+
+function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number, options: RenderInlineOptions): InlineToken {
+  const nodes: InlineToken[] = []
+  let cursor = 0
+  let partKey = 0
+
+  for (const match of text.matchAll(PLAIN_URL_PATTERN)) {
+    const rawUrl = match[0]
+    const start = match.index ?? 0
+    const url = plainUrlFromMatch(rawUrl)
+    if (!url) continue
+
+    if (start > cursor) nodes.push(renderNonUrlText(text.slice(cursor, start), shouldLinkifySlugs, `text-${partKey++}`))
+    nodes.push(renderPlainUrlLink(url.href, `url-${partKey++}`, options))
+    if (url.trailing) nodes.push(renderNonUrlText(url.trailing, shouldLinkifySlugs, `text-${partKey++}`))
+    cursor = start + rawUrl.length
+  }
+
+  if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`))
+  if (nodes.length === 0) return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text)}</Fragment> : text
+  return <Fragment key={key}>{nodes}</Fragment>
+}
+
+function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string) {
+  if (shouldLinkifySlugs && containsSlug(text)) return <Fragment key={key}>{linkifySlugs(text)}</Fragment>
+  return <Fragment key={key}>{text}</Fragment>
+}
+
+function renderPlainUrlLink(href: string, key: string, options: RenderInlineOptions) {
+  return (
+    <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target="_blank">
+      {href}
+    </a>
+  )
+}
+
+function plainUrlFromMatch(rawUrl: string) {
+  const trailing = rawUrl.match(/[),.!?;:]+$/)?.[0] ?? ""
+  const href = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl
+  if (!safeHref(href) || !externalHref(href)) return null
+
+  return { href, trailing }
 }
 
 function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
@@ -545,7 +591,7 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     if (href) {
       return (
         <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
-          {renderInline(link[1], { ...options, linkifySlugs: false, renderMath: false })}
+          {renderInline(link[1], { ...options, linkifySlugs: false, linkifyUrls: false, renderMath: false })}
         </a>
       )
     }

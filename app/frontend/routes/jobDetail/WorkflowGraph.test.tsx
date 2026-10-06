@@ -138,7 +138,7 @@ describe("WorkflowsTab", () => {
     expect(await screen.findByText("app/models/job.rb")).toBeInTheDocument()
     expect(document.querySelector('[data-diff-file="app/models/job.rb"]')).toBeInTheDocument()
     expect(screen.queryByText("Review conversation")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Submit feedback" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Comment on/ })).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/diff_review_comments"), expect.anything())
   })

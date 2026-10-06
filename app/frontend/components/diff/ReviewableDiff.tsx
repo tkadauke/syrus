@@ -167,7 +167,8 @@ type FilesPopupPlacement = {
 
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
-const DIFF_INLINE_REVIEW_PANEL_CLASS = "sticky left-0 z-[1] w-[min(44rem,100cqw,calc(100vw-3rem))] max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+const DIFF_INLINE_REVIEW_PANEL_CLASS =
+  "sticky left-0 z-[1] box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
 const DIFF_FILE_HEADER_CONTROL_BASE_CLASS =
   "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
 
@@ -1624,6 +1625,7 @@ export function UnifiedDiffTable({
   const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView, mobileUnifiedWrap)
   const showReviewNotes = hasReviewAnnotations(reviewAnnotations, reviewAnnotationRanges)
   const showMetricGutter = diffLineMetricProviders.length > 0
+  const fullWidthInlineRows = isMobileViewport
 
   let hunkIndex = -1
 
@@ -1972,9 +1974,9 @@ export function UnifiedDiffTable({
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
                   {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
                 </tr>
-                {renderReviewAnnotationRow(inlineReviewNotes, false)}
-                {renderThreadRow(threads, false)}
-                {renderComposerRow(isComposingHere, false)}
+                {renderReviewAnnotationRow(inlineReviewNotes, fullWidthInlineRows)}
+                {renderThreadRow(threads, fullWidthInlineRows)}
+                {renderComposerRow(isComposingHere, fullWidthInlineRows)}
               </Fragment>
             )
           })}
