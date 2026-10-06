@@ -302,7 +302,7 @@ captured integration branch.
 
 **When it fires:** An operator confirms the handoff after a Coding Mode chat session commits changes.
 
-**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open`
+**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → post_implementation_review?`
 
 Reviews and validates the chat agent's committed work before opening a PR.
 There is no bare leading agentic step — the chat coding session already
@@ -322,7 +322,11 @@ recent commits, `Prompts::ReviewFeedback`, and/or `Prompts::GradeFailureFeedback
 graders retry up to `grade_max_iterations`. The original chat is not queued for
 repair. Syrus may post a passive chat notification identifying the Job. On
 success it notifies the originating chat after the PR opens, schedules coding
-workspace reclaim, then clears the chat link.
+workspace reclaim, then clears the chat link. When an enabled Review Notes
+provider requests review for the workflow, Syrus appends the best-effort
+`post_implementation_review` step after `pr_open`, so Coding Mode handoff PRs
+get the same final-diff review-note pass as other implementation-style
+workflows.
 
 Each successful `coding_handoff_fix` records a `latest_coding_handoff_fix`
 artifact containing the repair Run, Step, base/head SHAs, and stable patch-id.
