@@ -37,7 +37,6 @@ test("starts a new planning chat, sends a message, and updates the chat list", a
 test("mobile hidden chat chrome reclaims the rendered message region", async ({ page }) => {
   prepareMobileChromeFixture()
   await page.setViewportSize({ width: 390, height: 844 })
-  await stubCodingFiles(page)
   await signInAsDemo(page)
   await setMobileChatAutoHide(page, true)
   await page.reload()
@@ -146,32 +145,6 @@ async function mobileChatGeometry(page: Page) {
       streamTop: stream.top,
       viewportHeight: window.innerHeight
     }
-  })
-}
-
-async function stubCodingFiles(page: Page) {
-  await page.route(/\/api\/v1\/app\/chats\/\d+\/coding_files(?:\?.*)?$/, async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        checkout_branch: "mobile-chrome-fixture",
-        files: ["README.md", "app/models/user.rb", "app/frontend/routes/Chat.tsx"]
-      })
-    })
-  })
-
-  await page.route(/\/api\/v1\/app\/chats\/\d+\/coding_file(?:\?.*)?$/, async (route) => {
-    const url = new URL(route.request().url())
-    const filePath = url.searchParams.get("path") || "README.md"
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        binary: false,
-        content: filePath === "README.md" ? "# Mobile chrome fixture\n" : `// ${filePath}\n`,
-        path: filePath,
-        too_large: false
-      })
-    })
   })
 }
 
