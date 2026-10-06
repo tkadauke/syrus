@@ -111,6 +111,18 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#job_json" do
+    it "serializes default planned execution for repaired rows" do
+      job = Factories.job_record(user: user, repository: repo)
+      job.update_columns(planned_execution_capabilities: nil, planned_execution_source: nil)
+
+      expect(payload_for(job).dig(:job, :planned_execution)).to eq(
+        "project_label" => nil,
+        "target_label" => nil,
+        "capabilities" => { "os" => [ "linux" ] },
+        "source" => "defaulted"
+      )
+    end
+
     it "does not include hidden worker health correlation in the default job detail payload" do
       job = Factories.job(repository: repo)
 

@@ -162,6 +162,27 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(created.delivery_track).to be_nil
     end
 
+    it "rejects malformed explicit planned execution capabilities" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+
+      expect {
+        post "/api/v1/admin/jobs",
+             params: {
+               job: {
+                 repository_id: repo.id,
+                 prompt: "Repair the worker placement.",
+                 planned_execution: {
+                   capabilities: "macos"
+                 }
+               }
+             },
+             headers: auth(admin_token)
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("planned execution capabilities must be a Hash")
+    end
+
     it "can create a direct job under an Epic and let the Epic block execution" do
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
       epic = Factories.epic(user: admin, repository: repo, title: "Marble administration")

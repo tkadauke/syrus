@@ -1,6 +1,8 @@
 require "set"
 
 class ChatProposal < ApplicationRecord
+  include NormalizesPlannedExecutionRequirements
+
   STATE_ALIASES = {
     "pending" => "proposed",
     "filed" => "confirmed",

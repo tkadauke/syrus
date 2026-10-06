@@ -25,6 +25,14 @@ RSpec.describe WorkerCapabilities do
     end
   end
 
+  describe ".normalize" do
+    it "rejects non-hash capability values with a controlled error" do
+      expect {
+        described_class.normalize("macos")
+      }.to raise_error(ArgumentError, "worker capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
+    end
+  end
+
   describe ".current" do
     it "lets configured constrained dimensions override detected defaults" do
       allow(described_class).to receive(:command_available?).and_return(false)

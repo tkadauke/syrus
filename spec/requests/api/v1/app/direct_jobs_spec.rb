@@ -83,6 +83,24 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     )
   end
 
+  it "rejects malformed explicit planned execution capabilities" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Fix Xcode project",
+        prompt: "The mobile app needs an Xcode project repair.",
+        planned_execution: {
+          capabilities: "macos"
+        }
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("planned execution capabilities must be a Hash")
+  end
+
   it "rejects ambiguous direct Jobs without an explicit primary placement" do
     sign_in_as(user)
 
