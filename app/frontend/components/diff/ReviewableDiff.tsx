@@ -1778,7 +1778,7 @@ export function UnifiedDiffTable({
           const inlineNote = reviewAnnotationInlineItem(note)
           return (
             <div key={String(note.id ?? index)}>
-              {renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote))}
+              {renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote), "inline")}
             </div>
           )
         })}
@@ -2233,7 +2233,7 @@ function ReviewNotesCell({ reviewNotes, reviewSettings }: { reviewNotes: DiffRev
       data-diff-review-annotation-ids={reviewNoteIds(reviewNotes).join(" ")}
     >
       {reviewNotes.length === 1
-        ? renderPluginReviewAnnotation(reviewAnnotationMarkerItem(reviewNotes[0]!), reviewNotesFallbackMarker(1, title, reviewNotes))
+        ? renderPluginReviewAnnotation(reviewAnnotationMarkerItem(reviewNotes[0]!), reviewNotesFallbackMarker(1, title, reviewNotes), "marker")
         : reviewNotesFallbackMarker(reviewNotes.length, title, reviewNotes)}
     </td>
   )
