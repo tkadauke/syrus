@@ -3437,7 +3437,7 @@ describe("chat jobs tab", () => {
     renderRoute()
 
     await screen.findByText("Discuss aqueducts.")
-    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Jobs" })).toBeInTheDocument()
   })
 
   it("shows the Jobs tab when there is at least one linked direct job", async () => {
@@ -3456,7 +3456,7 @@ describe("chat jobs tab", () => {
     renderRoute()
 
     await screen.findByText("Discuss aqueducts.")
-    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Jobs" })).toBeInTheDocument()
   })
 
   it("shows the job status panel content when the Jobs tab is active", async () => {
@@ -3511,6 +3511,49 @@ describe("chat jobs tab", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument())
     await waitFor(() => expect(screen.getByText("No confirmed proposals yet.")).toBeInTheDocument())
+  })
+
+  it("keeps Chat selected on mobile after confirming the first job proposal", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        chat: { confirmed_proposal_count: 0 },
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss proposal 9.")
+    expect(screen.queryByRole("button", { name: "Jobs" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument())
+    const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    expect(screen.queryByText("No confirmed proposals yet.")).not.toBeInTheDocument()
+
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Jobs" }))
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
 })
 
