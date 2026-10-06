@@ -94,7 +94,7 @@ RSpec.describe StepDispatcher, :ci_only do
     it "blocks capability-specific workflows before creating the first Run when no compatible worker is live" do
       clear_live_worker_queues!
       workflow.update!(
-        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "explicit"
       )
 
@@ -106,7 +106,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.reload.artifact("start_blocked_reason")).to eq(RunQueueResolver::BLOCKED_OUTCOME)
       expect(workflow.artifact("start_blocked_details")).to include(
         "queue_name" => "runs-macos-arm64",
-        "requirements" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        "requirements" => { "os" => [ "macos" ] },
         "reason" => "no_live_worker_for_capabilities",
         "phase_step_kind" => "implement"
       )
@@ -123,14 +123,14 @@ RSpec.describe StepDispatcher, :ci_only do
       clear_live_worker_queues!
       live_capable_worker_queue!(
         "runs-macos-arm64",
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+        capabilities: { "os" => [ "macos" ] }
       )
 
       %w[implement visual_review adversarial_review].each do |step_kind|
         pinned_workflow = Workflow.create!(
           job: job,
           trigger_kind: "initial",
-          planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+          planned_execution_capabilities: { "os" => [ "macos" ] },
           planned_execution_source: "inferred"
         )
         first_step = Step.create!(workflow: pinned_workflow, kind: step_kind, position: 0)
@@ -145,7 +145,7 @@ RSpec.describe StepDispatcher, :ci_only do
         )
         expect(pinned_workflow.reload.artifact("run_queue_admission_decision")).to include(
           "queue_name" => "runs-macos-arm64",
-          "requirements" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+          "requirements" => { "os" => [ "macos" ] },
           "step_kind" => step_kind,
           "blocked" => false
         )
@@ -156,12 +156,12 @@ RSpec.describe StepDispatcher, :ci_only do
       clear_live_worker_queues!
       workflow.update!(
         worker_storage_key: "storage-mac",
-        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "inferred"
       )
       live_capable_worker_queue!(
         "resume-storage-mac",
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+        capabilities: { "os" => [ "macos" ] }
       )
 
       clear_enqueued_jobs
@@ -183,7 +183,7 @@ RSpec.describe StepDispatcher, :ci_only do
       clear_live_worker_queues!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(
-        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "inferred"
       )
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1232,18 +1232,18 @@ RSpec.describe StepDispatcher, :ci_only do
       workflow.update!(
         state: "running",
         started_at: 1.minute.ago,
-        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "inferred",
         worker_storage_key: "storage-mac"
       )
       live_capable_worker_queue!(
         "runs",
-        capabilities: { "os" => [ "linux" ], "arch" => [ "arm64" ] },
+        capabilities: { "os" => [ "linux" ] },
         hostname: "syrus-worker-linux"
       )
       live_capable_worker_queue!(
         "runs-macos-arm64",
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        capabilities: { "os" => [ "macos" ] },
         hostname: "syrus-worker-mac"
       )
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1257,7 +1257,7 @@ RSpec.describe StepDispatcher, :ci_only do
         kind: "grader",
         placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
         depends_on_ids: [ s1.id ],
-        details: { "name" => "ios-tests", "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] } }
+        details: { "name" => "ios-tests", "required_capabilities" => { "os" => [ "macos" ] } }
       )
       collect = Step.create!(
         workflow: workflow,

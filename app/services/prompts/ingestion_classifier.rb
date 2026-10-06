@@ -26,9 +26,9 @@ module Prompts
         - Mark duplicate only when the requested work substantially matches an open Job candidate.
         - Mark already_implemented only when a merged PR appears to have already shipped the requested behavior.
         - For backend-only work, leave planned_execution null so Syrus uses default Linux compute.
-        - For iOS, mobile Apple, or Xcode-targeted work, set planned_execution capabilities to macos + xcode.
-        - For mixed iOS and backend work, choose macos + xcode as the primary implementation placement; backend graders can run elsewhere later.
-        - For Windows-targeted work, set planned_execution os to windows and include arch only when the issue explicitly names one.
+        - For iOS, mobile Apple, or Xcode-targeted work, set planned_execution capabilities to {"os":["macos"]}.
+        - For mixed iOS and backend work, choose macos as the primary implementation placement; backend graders can run elsewhere later.
+        - For Windows-targeted work, leave planned_execution null unless an operator explicitly selects linux or macos as the primary host.
         - If the issue appears to require mutually incompatible primary hosts, leave planned_execution null and return no invalid classification; the Job will remain in triage for an operator to split or select a primary host.
         - Otherwise return nulls so normal triage can continue.
 

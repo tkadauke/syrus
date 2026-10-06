@@ -54,7 +54,7 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
 
       result = described_class.call(job: job(title: "Fix the build", body: body))
 
-      expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+      expect(result.requirement.capabilities).to eq("os" => [ "macos" ])
     end
 
     # Regression: Jobs filed automatically from a captured browser error embed
@@ -92,7 +92,7 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
 
       result = described_class.call(job: job(title: "Build failure", body: body))
 
-      expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+      expect(result.requirement.capabilities).to eq("os" => [ "macos" ])
     end
 
     # The divider only delimits the generated section when the heading follows
@@ -103,7 +103,7 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
 
       result = described_class.call(job: job(title: "Build failure", body: body))
 
-      expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+      expect(result.requirement.capabilities).to eq("os" => [ "macos" ])
     end
   end
 
@@ -117,25 +117,25 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
     )
   end
 
-  it "places iOS and Xcode work on macOS with Xcode" do
+  it "places iOS and Xcode work on macOS only" do
     result = described_class.call(job: job(title: "Fix iOS checkout screen", body: "Update the SwiftUI view and Xcode project."))
 
     expect(result.requirement.to_h).to include(
       "project_label" => "macOS implementation",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      "capabilities" => { "os" => [ "macos" ] }
     )
   end
 
   it "uses macOS as primary placement for mixed iOS and backend work" do
     result = described_class.call(job: job(title: "Add iOS push settings and backend API", body: "Update SwiftUI plus the Rails endpoint."))
 
-    expect(result.requirement.capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+    expect(result.requirement.capabilities).to eq("os" => [ "macos" ])
   end
 
-  it "places Windows work on Windows and preserves an explicit architecture" do
+  it "does not emit unsupported Windows or architecture capabilities" do
     result = described_class.call(job: job(title: "Fix Windows x64 packaging", body: "Update the PowerShell installer."))
 
-    expect(result.requirement.capabilities).to eq("os" => [ "windows" ], "arch" => [ "x64" ])
+    expect(result.requirement).to be_nil
   end
 
   it "uses matching repository target graph capability facts when prompt names the target" do
@@ -145,8 +145,7 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
           kind: builder
           command: npm run package
           capabilities:
-            os: windows
-            arch: arm64
+            os: macos
     YAML
 
     result = described_class.call(
@@ -157,7 +156,7 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
     expect(result.requirement.to_h).to include(
       "project_label" => "desktop-package",
       "target_label" => "//:desktop-package",
-      "capabilities" => { "os" => [ "windows" ], "arch" => [ "arm64" ] }
+      "capabilities" => { "os" => [ "macos" ] }
     )
   end
 

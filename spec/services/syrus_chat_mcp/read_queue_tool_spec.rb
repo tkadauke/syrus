@@ -34,7 +34,7 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
       version: "abc123",
       started_at: 5.minutes.ago,
       last_heartbeat_at: 10.seconds.ago,
-      capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+      capabilities: { "os" => [ "linux" ] },
       capability_diagnostics: { "docker" => true }
     )
     WorkerHostHealthSample.create!(hostname: "worker-a", worker_storage_key: "storage-a", role: "worker", version: "abc123", observed_at: Time.current, cpu_used_percent: 20)
@@ -74,7 +74,7 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
       queues: %w[runs chat],
       threads: 2,
       stale: false,
-      capabilities: { os: [ "linux" ], features: [ "docker" ] },
+      capabilities: { os: [ "linux" ] },
       capability_diagnostics: { docker: true },
       macos_worker_drain: include(state: "draining", desired_git_sha: "newsha")
     )

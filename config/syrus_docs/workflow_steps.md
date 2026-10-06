@@ -362,10 +362,11 @@ override with `project_label`, `target_label`, `capabilities`, and `source`;
 operator-provided overrides are recorded with source `operator`. When no
 override is present, Syrus infers conservatively from the request and
 repository target graph capability metadata: backend-only work remains on
-default/Linux compute, iOS/mobile/Xcode work uses macOS with Xcode, mixed
-iOS/backend work uses macOS with Xcode as the primary implementation
-placement, Windows work uses Windows, and explicitly named architecture values
-are preserved. If one Job appears to require mutually incompatible primary
+default/Linux compute, iOS/mobile/Xcode work uses macOS, and mixed iOS/backend
+work uses macOS as the primary implementation placement. Windows has no
+capability value today; Windows-targeted work stays defaulted unless an
+operator explicitly chooses Linux or macOS as the primary host. If one Job
+appears to require mutually incompatible primary
 hosts, intake stays in triage or the API/proposal call asks the operator to
 split the work or select a primary host. Missing repository capability metadata
 is logged and treated as a warning, not a blocker.

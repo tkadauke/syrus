@@ -51,8 +51,6 @@ jobs:
           requirements:
             os:
               - macos
-            toolchains:
-              - xcode
       steps:
         - kind: mergeability_preflight
           state: queued

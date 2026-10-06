@@ -150,7 +150,6 @@ RSpec.describe TargetGraph::Fingerprints do
           run: bin/test
           capabilities:
             os: macos
-            toolchains: [xcode]
     YAML
 
     expect(fingerprints_for("//:grade/tests").command_fingerprint).not_to eq(first.command_fingerprint)
@@ -186,7 +185,7 @@ RSpec.describe TargetGraph::Fingerprints do
 
   def worker_environment(os)
     {
-      "capabilities" => { "os" => [ os ], "arch" => [ "arm64" ] },
+      "capabilities" => { "os" => [ os ] },
       "runtime" => { "ruby_platform" => "#{os}-ruby" },
       "tool_versions" => { "ruby" => "ruby 3.4.10" }
     }

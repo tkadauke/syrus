@@ -145,8 +145,6 @@ RSpec.describe TargetGraph::Compiler do
         project:
           capabilities:
             os: macos
-            toolchains: [xcode]
-            runtimes: [ios_simulator]
         prepare:
           - bundle install
         targets:
@@ -155,7 +153,6 @@ RSpec.describe TargetGraph::Compiler do
             run: xcodebuild build
             capabilities:
               os: macos
-              toolchains: [xcode]
         grade:
           - name: backend
             run: bin/rspec
@@ -166,14 +163,11 @@ RSpec.describe TargetGraph::Compiler do
       graph = described_class.compile(@dir)
 
       expect(graph.root_project.capabilities.to_h).to eq(
-        "os" => [ "macos" ],
-        "toolchains" => [ "xcode" ],
-        "runtimes" => [ "ios_simulator" ]
+        "os" => [ "macos" ]
       )
       expect(graph.target(TargetGraph::Label.parse("//:prepare")).capabilities.to_h).to include("os" => [ "macos" ])
       expect(graph.target(TargetGraph::Label.parse("//:ios-build")).capabilities.to_h).to eq(
-        "os" => [ "macos" ],
-        "toolchains" => [ "xcode" ]
+        "os" => [ "macos" ]
       )
       expect(graph.target(TargetGraph::Label.parse("//:grade/backend")).capabilities.to_h).to eq("os" => [ "linux" ])
     end
@@ -739,14 +733,14 @@ RSpec.describe TargetGraph::Compiler do
         project:
           id: frontend
           capabilities:
-            toolchains: [node]
+            os: linux
         targets:
           - name: bundle
             phases: [review, landing]
             required: true
             timeout_minutes: 20
             capabilities:
-              toolchains: [node]
+              os: linux
           - name: syrus-preview
             kind: prepare
             run: npm run preview:setup
@@ -756,10 +750,7 @@ RSpec.describe TargetGraph::Compiler do
       graph = described_class.compile(@dir)
 
       frontend = graph.project("frontend")
-      expect(frontend.capabilities.to_h).to eq(
-        "os" => [ "linux" ],
-        "toolchains" => [ "node" ]
-      )
+      expect(frontend.capabilities.to_h).to eq("os" => [ "linux" ])
 
       bundle = graph.target(TargetGraph::Label.parse("//frontend:bundle"))
       expect(bundle.kind).to eq("builder")
@@ -768,10 +759,7 @@ RSpec.describe TargetGraph::Compiler do
       expect(bundle.phases).to eq(%w[review landing])
       expect(bundle.required).to be(true)
       expect(bundle.timeout_minutes).to eq(20)
-      expect(bundle.capabilities.to_h).to eq(
-        "os" => [ "linux" ],
-        "toolchains" => [ "node" ]
-      )
+      expect(bundle.capabilities.to_h).to eq("os" => [ "linux" ])
       expect(bundle.metadata["syrus_overlay"]).to contain_exactly(
         include(
           "owner_config_path" => "frontend/.syrus.yml",
@@ -780,7 +768,7 @@ RSpec.describe TargetGraph::Compiler do
             "phases" => %w[review landing],
             "required" => true,
             "timeout_minutes" => 20,
-            "capabilities" => { "toolchains" => [ "node" ] }
+            "capabilities" => { "os" => [ "linux" ] }
           }
         )
       )

@@ -129,7 +129,7 @@ RSpec.describe WorkerHostHealthSampler do
   describe ".record!" do
     it "persists one sample row for each worker host observation" do
       capability_snapshot = {
-        capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+        capabilities: { "os" => [ "linux" ] },
         diagnostics: { "docker" => true }
       }
       allow(WorkerCapabilities).to receive(:current).and_return(capability_snapshot)
@@ -163,7 +163,7 @@ RSpec.describe WorkerHostHealthSampler do
         [ "worker-b", "storage-b", "worker", observed_at ]
       ])
       expect(WorkerHostHealthSample.first.cpu_used_percent).to eq(12.5)
-      expect(WorkerHostHealthSample.first.capabilities).to eq("os" => [ "linux" ], "features" => [ "docker" ])
+      expect(WorkerHostHealthSample.first.capabilities).to eq("os" => [ "linux" ])
       expect(WorkerHostHealthSample.first.capability_diagnostics).to eq("docker" => true)
     end
   end

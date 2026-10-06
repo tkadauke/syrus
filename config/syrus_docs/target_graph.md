@@ -59,22 +59,13 @@ implementation capability hints.
 Projects and executable targets can declare normalized execution capabilities.
 They are constraints for worker/backend placement, not source materialization
 policy: `placement_policy` still describes how a workspace is checked out,
-while capabilities describe what kind of host can run the work.
+while capabilities describe what host OS can run the work.
 
-Supported dimensions are:
-
-| Dimension | Meaning |
-|---|---|
-| `os` | Host operating system such as `linux`, `macos`, or `windows`. |
-| `arch` | CPU architecture such as `x86_64` or `arm64`. |
-| `toolchains` | Required installed toolchains such as `xcode`, `go`, `ruby`, or `node`. |
-| `runtimes` | Required execution runtimes such as `ios_simulator`, `docker`, or `android_emulator`. |
-| `features` | Free-form normalized feature tokens for local instance needs. |
-
-Each dimension accepts a string or array of strings. Values are normalized to
-lowercase, deduplicated, and must be token-like (`letters`, `digits`, `_`,
-`.`, `+`, `-`). The special value `any` can stand alone but cannot be combined
-with more specific values.
+The capability vocabulary is deliberately small: only the `os` dimension is
+supported, and its allowed values are exactly `linux` and `macos`.
+Architecture, toolchain, runtime, feature, Windows, and free-form dimensions
+are rejected so generated placement facts cannot strand work behind worker
+requirements that no worker advertises.
 
 Project-level capabilities are implementation hints. For example, an iOS
 project can ask the initial implementation workflow to land on a Mac-capable
@@ -86,8 +77,6 @@ project:
   label: iOS App
   capabilities:
     os: macos
-    toolchains: [xcode]
-    runtimes: [ios_simulator]
 ```
 
 Before a Job's first Workflow is launched, Syrus persists the planned primary
@@ -124,7 +113,6 @@ targets:
     run: xcodebuild build -scheme MobileApp
     capabilities:
       os: macos
-      toolchains: [xcode]
 
 grade:
   - name: backend
@@ -263,7 +251,7 @@ Explicit target fields:
 | `phases` | no | `[]` | Optional phase metadata for executable validation targets. Values use the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
-| `capabilities` | no | — | Execution requirements for this target: `os`, `arch`, `toolchains`, `runtimes`, and/or `features`. |
+| `capabilities` | no | — | Execution requirements for this target: only `os: linux` or `os: macos`. |
 | `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. |
 | `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
 | `github_checks` | no | `[]` | Alias for `ci_checks`. |

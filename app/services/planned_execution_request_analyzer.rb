@@ -18,11 +18,11 @@ class PlannedExecutionRequestAnalyzer
 
     requirement =
       if ios_request?
-        requirement_for("macOS implementation", capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] })
+        requirement_for("macOS implementation", capabilities: { "os" => [ "macos" ] })
       elsif windows_request?
-        requirement_for("Windows implementation", capabilities: { "os" => [ "windows" ], "arch" => arch_values })
+        nil
       elsif linux_request? || backend_request?
-        requirement_for(nil, capabilities: { "os" => [ "linux" ], "arch" => arch_values })
+        requirement_for(nil, capabilities: { "os" => [ "linux" ] })
       elsif (fact = matching_capability_fact)
         requirement_for(fact.fetch(:label), capabilities: fact.fetch(:capabilities), target_label: fact[:target_label])
       end
@@ -98,13 +98,6 @@ class PlannedExecutionRequestAnalyzer
 
   def backend_request?
     text.match?(/\b(backend|server|api|database|migration|rails|controller|model|worker|queue|cron|graphql|rest)\b/)
-  end
-
-  def arch_values
-    values = []
-    values << "arm64" if text.match?(/\b(arm64|aarch64|apple silicon)\b/)
-    values << "x64" if text.match?(/\b(x64|x86_64|amd64)\b/)
-    values.presence
   end
 
   def matching_capability_fact

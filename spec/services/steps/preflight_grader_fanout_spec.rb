@@ -86,7 +86,6 @@ RSpec.describe Steps::PreflightGraderFanout do
           run: xcodebuild test
           capabilities:
             os: macos
-            toolchains: [xcode]
         - name: backend-tests
           run: bin/rspec
           capabilities:
@@ -97,8 +96,8 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     grader_steps = workflow.steps.where(kind: "preflight_grader").index_by { |grader_step| grader_step.details["name"] }
     expect(grader_steps.fetch("ios-tests").details).to include(
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
-      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      "capabilities" => { "os" => [ "macos" ] },
+      "required_capabilities" => { "os" => [ "macos" ] }
     )
     expect(grader_steps.fetch("backend-tests").details).to include(
       "capabilities" => { "os" => [ "linux" ] },

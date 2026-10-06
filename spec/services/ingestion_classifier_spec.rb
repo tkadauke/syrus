@@ -153,14 +153,14 @@ RSpec.describe IngestionClassifier do
       "planned_execution" => {
         "project_label" => "iOS",
         "target_label" => "//ios:app",
-        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+        "capabilities" => { "os" => [ "macos" ] }
       }
     })
 
     expect(job.reload.planned_execution_json).to include(
       "project_label" => "iOS",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "classifier"
     )
     expect(job.state).to eq("queued")
