@@ -265,6 +265,7 @@ describe("ReviewWorkspace", () => {
     const viewer = screen.getByTestId("agent-diff-viewer")
     expect(within(viewer).getByText("Inspect this branch")).toBeInTheDocument()
     expect(within(viewer).getByText(/The provider flagged/)).toBeInTheDocument()
+    expect(within(viewer).queryByRole("button", { name: "app/models/user.rb new lines 1-1" })).not.toBeInTheDocument()
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
     expect(within(sidebar).getByText("setQueryData").tagName).toBe("CODE")
@@ -285,6 +286,7 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByRole("button", { name: "View range" })).not.toBeInTheDocument()
     const noteCard = within(sidebar).getByText("Inspect this branch").closest("article")!
     const rangeButton = within(sidebar).getByText("app/models/user.rb new lines 1-1")
+    expect(rangeButton).toHaveClass("max-w-full", "whitespace-normal", "break-all")
     const highlightedGutter = () => document.querySelector('[data-diff-review-annotation-ids~="cognitive_review_note:7"] td.ring-warning-border')
 
     fireEvent.mouseEnter(noteCard)
