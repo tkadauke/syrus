@@ -803,6 +803,12 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     )
   }
 
+  const messageStreamSpacingClass = isDesktop
+    ? "p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] pt-12 sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] sm:pt-12"
+    : mobileHeader.hidden
+      ? "px-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] pt-0 sm:px-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] sm:pt-0"
+      : "p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] sm:pt-4"
+
   return (
     <div className="relative h-full min-h-0">
       {findOpen ? (
@@ -831,7 +837,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : "sm:pt-4"}`}
+        className={`min-h-0 space-y-4 overflow-y-auto overscroll-contain ${messageStreamSpacingClass} ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
@@ -882,9 +888,6 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         >
           {t("new_messages_button", { count: newMessageCount })}
         </button>
-      ) : null}
-      {!isDesktop && mobileHeader.hidden ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/90 via-white/55 to-transparent dark:from-gray-950/90 dark:via-gray-950/55" data-testid="mobile-chat-hidden-header-scrim" />
       ) : null}
     </div>
   )

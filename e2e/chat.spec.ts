@@ -37,6 +37,7 @@ test("starts a new planning chat, sends a message, and updates the chat list", a
 test("mobile hidden chat chrome reclaims the rendered message region", async ({ page }) => {
   prepareMobileChromeFixture()
   await page.setViewportSize({ width: 390, height: 844 })
+  await stubCodingFiles(page)
   await signInAsDemo(page)
   await setMobileChatAutoHide(page, true)
   await page.reload()
@@ -63,10 +64,10 @@ test("mobile hidden chat chrome reclaims the rendered message region", async ({ 
     await expect(page.getByTestId("mobile-app-header")).toHaveCSS("opacity", "0")
 
     const hidden = await mobileChatGeometry(page)
-    const reclaimed = visible.streamTop - hidden.streamTop
-    expect(reclaimed).toBeGreaterThan(100)
-    expect(hidden.streamTop).toBeLessThanOrEqual(80)
-    expect(hidden.firstContentTop - hidden.streamTop).toBeLessThan(48)
+    expect(visible.streamTop - hidden.streamTop).toBeGreaterThan(100)
+    expect(hidden.streamTop).toBeLessThanOrEqual(1)
+    expect(hidden.streamBottom).toBeGreaterThanOrEqual(hidden.viewportHeight - 1)
+    expect(hidden.firstContentTop - hidden.streamTop).toBeLessThanOrEqual(8)
     await captureMobileChromeScreenshot(page, "chat-hidden")
 
     await stream.click({ position: { x: 8, y: 8 } })
@@ -74,6 +75,10 @@ test("mobile hidden chat chrome reclaims the rendered message region", async ({ 
     await page.getByRole("navigation", { name: "Chat mobile tabs" }).getByRole("button", { name: "Files" }).click()
     await expect(page.getByRole("complementary", { name: "Chat workspace" })).toBeVisible()
     await expect(page.getByTestId("coding-files-panel")).toBeVisible()
+    await expect(page.getByTestId("coding-files-panel")).not.toContainText(/checkout.*not.*ready|Coding checkout/i)
+    await expect(page.getByRole("button", { name: "README.md" })).toBeVisible()
+    await page.getByRole("button", { name: "README.md" }).click()
+    await expect(page.getByText("# Mobile chrome fixture")).toBeVisible()
 
     const files = await mobileFilesGeometry(page)
     expect(files.chromeBottom).toBeGreaterThan(100)
@@ -137,8 +142,36 @@ async function mobileChatGeometry(page: Page) {
     return {
       chromeBottom: Math.max(header.bottom, tabs.bottom),
       firstContentTop: firstContent.getBoundingClientRect().top,
-      streamTop: stream.top
+      streamBottom: stream.bottom,
+      streamTop: stream.top,
+      viewportHeight: window.innerHeight
     }
+  })
+}
+
+async function stubCodingFiles(page: Page) {
+  await page.route(/\/api\/v1\/app\/chats\/\d+\/coding_files(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        checkout_branch: "mobile-chrome-fixture",
+        files: ["README.md", "app/models/user.rb", "app/frontend/routes/Chat.tsx"]
+      })
+    })
+  })
+
+  await page.route(/\/api\/v1\/app\/chats\/\d+\/coding_file(?:\?.*)?$/, async (route) => {
+    const url = new URL(route.request().url())
+    const filePath = url.searchParams.get("path") || "README.md"
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        binary: false,
+        content: filePath === "README.md" ? "# Mobile chrome fixture\n" : `// ${filePath}\n`,
+        path: filePath,
+        too_large: false
+      })
+    })
   })
 }
 
