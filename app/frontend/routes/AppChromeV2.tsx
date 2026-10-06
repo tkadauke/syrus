@@ -213,7 +213,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
   } as CSSProperties : undefined
   const mobileChatVisibleAppHeaderPaddingStyle = isMobileChatPage ? {
-    paddingTop: "var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))"
+    paddingTop: `${mobileChatVisibleAppHeaderInset}px`
   } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
@@ -559,7 +559,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </div>
         </div>
         {isMobileChatPage ? (
-          <div className="flex min-h-0 flex-1 flex-col" style={mobileChatVisibleAppHeaderPaddingStyle}>
+          <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-chat-content-layer" style={mobileChatVisibleAppHeaderPaddingStyle}>
             <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
             <FlashBanner flash={data?.flash} />
             <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

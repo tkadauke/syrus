@@ -12130,10 +12130,14 @@ describe("App", () => {
       const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
       const mobileTabsShell = screen.getByTestId("mobile-chat-tabs-shell")
       const mobileChatShell = mobileTabsShell.parentElement as HTMLElement
+      const appContentLayer = screen.getByTestId("mobile-chat-content-layer")
       const mobileContentLayer = mobileTabsShell.nextElementSibling as HTMLElement
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
+      expect(appContentLayer).toHaveStyle({ paddingTop: "72px" })
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
+      expect(mobileTabsShell).toHaveClass("absolute")
+      expect(mobileTabsShell).not.toHaveClass("relative")
       expect(mobileContentLayer).toHaveStyle({ paddingTop: "var(--mobile-chat-top-inset,0px)" })
       setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 100 })
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
@@ -12146,6 +12150,7 @@ describe("App", () => {
       expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
       expect(header).not.toHaveStyle({ marginBottom: "-142px" })
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("0px")
+      expect(appContentLayer).toHaveStyle({ paddingTop: "0px" })
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("0px")
       expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-70px)" })
 
@@ -12173,6 +12178,7 @@ describe("App", () => {
       fireEvent.click(stream)
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
+      expect(appContentLayer).toHaveStyle({ paddingTop: "72px" })
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
       expect(screen.queryByTestId("mobile-chat-hidden-header-scrim")).not.toBeInTheDocument()
 

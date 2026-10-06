@@ -51,7 +51,7 @@ test("mobile hidden chat chrome reclaims the rendered message region", async ({ 
 
     const stream = page.getByTestId("chat-message-stream")
     const message = page.locator("article[id^='chat_message_']").first()
-    await expect(stream).toContainText("Show me what is happening in this preview.")
+    await expect(stream).toContainText("Mobile chrome fixture line 1")
     await expect(message).toBeVisible()
 
     const visible = await mobileChatGeometry(page)
