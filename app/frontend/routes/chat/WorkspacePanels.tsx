@@ -158,7 +158,7 @@ export function ChatWorkspacePanel({
           ) : null}
         </nav>
       )}
-      <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
+      <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`} data-testid="chat-workspace-panel-body">
         {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
         {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
@@ -1543,7 +1543,7 @@ function CodingFilesPanel({ contextFindOpenerRef, payload, readOnly = false }: {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col" data-testid="coding-files-panel">
       {readOnly ? null : (
         <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
           <button
@@ -1619,7 +1619,7 @@ function CodingFilesPanel({ contextFindOpenerRef, payload, readOnly = false }: {
       ) : null}
 
       {readOnly || view === "files" ? (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1" data-testid="coding-files-split">
           {treeSplitter.collapsed ? null : (
             <div className="shrink-0 overflow-y-auto py-1" style={{ width: `${treeSplitter.width}px` }}>
               {fileTree.isPending || fileTreeNotReady ? (
