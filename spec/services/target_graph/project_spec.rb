@@ -23,14 +23,11 @@ RSpec.describe TargetGraph::Project do
     end
 
     it "stores implementation capability hints" do
-      capabilities = TargetGraph::ExecutionCapabilities.new(os: "macos", toolchains: [ "xcode" ])
+      capabilities = TargetGraph::ExecutionCapabilities.new(os: "macos")
       project = described_class.new(id: "ios", capabilities: capabilities)
 
       expect(project.capabilities).to eq(capabilities)
-      expect(project.capabilities.to_h).to eq(
-        "os" => [ "macos" ],
-        "toolchains" => [ "xcode" ]
-      )
+      expect(project.capabilities.to_h).to eq("os" => [ "macos" ])
     end
 
     it "rejects a blank id" do

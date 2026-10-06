@@ -83,7 +83,7 @@ class MacosWorkerRollout
     end
 
     unless smoke_check_passed?(worker)
-      return fail_drain!(drain, "Worker heartbeat reached the desired version but did not advertise macOS/Xcode capability.")
+      return fail_drain!(drain, "Worker heartbeat reached the desired version but did not advertise macOS capability and Xcode diagnostics.")
     end
 
     drain.update!(state: MacosWorkerDrain::COMPLETED, completed_at: now, last_error: nil)
@@ -154,7 +154,7 @@ class MacosWorkerRollout
   def smoke_check_passed?(worker)
     capabilities = WorkerCapabilities.normalize(worker.capabilities)
     Array(capabilities["os"]).map(&:to_s).include?("macos") &&
-      Array(capabilities["toolchains"]).map(&:to_s).include?("xcode")
+      worker.capability_diagnostics.to_h["xcode"] == true
   end
 
   def worker_at_desired_version?(worker)

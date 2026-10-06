@@ -229,7 +229,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           planned_execution: {
             project_label: "iOS App",
             target_label: "//ios:app",
-            capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+            capabilities: { os: [ "macos" ] }
           }
         }
       ]
@@ -241,7 +241,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(child.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end

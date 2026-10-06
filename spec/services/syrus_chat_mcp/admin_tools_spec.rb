@@ -1491,7 +1491,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       version: "abc123",
       started_at: 5.minutes.ago,
       last_heartbeat_at: 10.seconds.ago,
-      capabilities: { "os" => [ "linux" ], "features" => [ "docker" ] },
+      capabilities: { "os" => [ "linux" ] },
       capability_diagnostics: { "docker" => true }
     )
 
@@ -1506,7 +1506,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       role: "worker",
       version: "abc123",
       started_at: instance.started_at.iso8601,
-      capabilities: { os: [ "linux" ], features: [ "docker" ] },
+      capabilities: { os: [ "linux" ] },
       capability_diagnostics: { docker: true }
     )
   end
@@ -1518,7 +1518,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       version: "abc123",
       started_at: 5.minutes.ago,
       last_heartbeat_at: 10.seconds.ago,
-      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      capabilities: { "os" => [ "linux" ] },
       capability_diagnostics: { "docker" => false }
     )
     WorkerHostHealthSample.create!(
@@ -1529,7 +1529,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       cpu_used_percent: 99,
       memory_used_percent: 70,
       data_root_used_percent: 60,
-      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      capabilities: { "os" => [ "linux" ] },
       capability_diagnostics: { "docker" => false }
     )
 
@@ -1539,7 +1539,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload.fetch(:current).first).to include(
       hostname: "syrus-worker-a",
-      capabilities: { os: [ "linux" ], arch: [ "x86_64" ] },
+      capabilities: { os: [ "linux" ] },
       health: include(level: "critical")
     )
     expect(payload.dig(:hosts, 0, :recent_samples, 0, :capabilities)).to include(os: [ "linux" ])

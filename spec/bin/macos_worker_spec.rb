@@ -19,7 +19,7 @@ RSpec.describe "native macOS worker scripts" do
       "SYRUS_DATA_ROOT" => "/var/lib/syrus",
       "SYRUS_APP_HOST" => "syrus.example.internal",
       "SYRUS_WORKER_POOL_NAME" => "macos-xcode",
-      "SYRUS_WORKER_CAPABILITIES" => "os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator",
+      "SYRUS_WORKER_CAPABILITIES" => "os:macos",
       "SECRET_KEY_BASE" => "secret",
       "RAILS_MASTER_KEY" => "master",
       "DB_HOST" => "db.internal",
@@ -171,7 +171,7 @@ RSpec.describe "native macOS worker scripts" do
 
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include("FAIL env SYRUS_WORKER_CAPABILITIES is required")
-      expect(stdout).to include("FAIL SYRUS_WORKER_CAPABILITIES should include os:macos and toolchain:xcode")
+      expect(stdout).to include("FAIL SYRUS_WORKER_CAPABILITIES should include os:macos")
       expect(stdout).to include("macos-worker-check: 16 failure(s)")
       expect(stderr).not_to include("unbound variable")
     end

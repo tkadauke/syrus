@@ -62,8 +62,8 @@ module Mcp::Tools
       time. Unknown provider values are rejected before the proposal card is
       created.
       Set planned_execution to explicitly choose the primary implementation
-      placement when the request is ambiguous, such as macos/xcode for iOS
-      work or windows/x64 for Windows work. Omit it for conservative
+      placement when the request is ambiguous, such as os:macos for iOS
+      work. Omit it for conservative
       automatic inference from the proposal text and repository capability
       metadata.
     DESC
@@ -90,10 +90,10 @@ module Mcp::Tools
           properties: {
             project_label: { type: "string", description: "Optional operator-facing project or placement label, such as iOS App." },
             target_label: { type: "string", description: "Optional target graph label, such as //ios:app." },
-            capabilities: { type: "object", description: "Execution capabilities: os, arch, toolchains, runtimes, and/or features." },
+            capabilities: { type: "object", description: "Execution capabilities. Only os is supported, with values linux or macos." },
             source: { type: "string", description: "Decision provenance. Defaults to operator for this explicit override." }
           },
-          description: "Optional explicit primary implementation placement override. Use capabilities like {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+          description: "Optional explicit primary implementation placement override. Use {\"os\":[\"macos\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
         },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },

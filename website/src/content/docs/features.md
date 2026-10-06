@@ -1150,8 +1150,8 @@ prompt, and attachments. Syrus creates a `direct` Job and runs the normal
 Initial workflow. API clients and chat proposal cards can also supply a planned
 execution override. Without an override, Syrus infers primary implementation
 capabilities conservatively before the Workflow starts: backend work stays on
-default/Linux compute, iOS/Xcode work uses macOS/Xcode, mixed iOS plus backend
-work uses macOS/Xcode as the primary placement, and ambiguous cross-host
+default/Linux compute, iOS/Xcode work uses macOS, mixed iOS plus backend
+work uses macOS as the primary placement, and ambiguous cross-host
 requests ask for a split or explicit host instead of guessing.
 
 Chat proposal cards for a single direct Job can be routed to Backlog before

@@ -112,7 +112,7 @@ module Mcp::Tools
                   capabilities: { type: "object" },
                   source: { type: "string" }
                 },
-                description: "Optional explicit primary implementation placement override. Use capabilities like {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+                description: "Optional explicit primary implementation placement override. Only os is supported: use {\"os\":[\"macos\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
               },
               media: {
                 type: "array",

@@ -4,7 +4,7 @@ RSpec.describe MacosWorkerRollout do
   let(:now) { Time.zone.parse("2026-10-03 18:30:00 UTC") }
   let(:desired_version) { { "version" => "1.2.3", "git_sha" => "newsha" } }
 
-  def mac_worker(hostname:, version: "oldsha", observed_at: now, capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }, updater_status: {})
+  def mac_worker(hostname:, version: "oldsha", observed_at: now, capabilities: { "os" => [ "macos" ] }, updater_status: {})
     InstanceVersion.create!(
       hostname: hostname,
       role: "worker",
@@ -12,6 +12,7 @@ RSpec.describe MacosWorkerRollout do
       started_at: observed_at - 10.minutes,
       last_heartbeat_at: observed_at,
       capabilities: capabilities,
+      capability_diagnostics: { "xcode" => true },
       macos_updater_status: updater_status,
       desired_version: desired_version
     )
@@ -25,7 +26,7 @@ RSpec.describe MacosWorkerRollout do
       version: "oldsha",
       observed_at: observed_at,
       cpu_used_percent: 20,
-      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      capabilities: { "os" => [ "macos" ] }
     )
   end
 

@@ -179,7 +179,7 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
       version: "oldsha",
       started_at: 5.minutes.ago,
       last_heartbeat_at: Time.current,
-      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] }
+      capabilities: { "os" => [ "macos" ] }
     )
     WorkerHostHealthSample.create!(hostname: "mac-mini-a", worker_storage_key: "storage-a", role: "worker", version: "oldsha", observed_at: Time.current, cpu_used_percent: 20)
 

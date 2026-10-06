@@ -377,11 +377,12 @@ module Prompts
           - Backend-only work stays on default/Linux compute; omit
             `planned_execution` unless the operator explicitly selects one.
           - iOS, Apple mobile, or Xcode-targeted work uses
-            `planned_execution.capabilities: { "os": ["macos"], "toolchains": ["xcode"] }`.
-          - Mixed iOS plus backend work still uses macOS/Xcode as the primary
+            `planned_execution.capabilities: { "os": ["macos"] }`.
+          - Mixed iOS plus backend work still uses macOS as the primary
             placement; backend graders can fan out later.
-          - Windows-targeted work uses `{ "os": ["windows"] }`, with `arch`
-            only when the request names it.
+          - Windows-targeted work has no supported Windows capability value;
+            omit `planned_execution` unless the operator chooses Linux or
+            macOS as the primary implementation host.
           - If one Job appears to require mutually incompatible primary hosts
             (for example iOS/Xcode and Windows), recommend splitting it or set
             an explicit primary host only if the operator tells you which one

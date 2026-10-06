@@ -89,8 +89,7 @@ The chart should expose, at minimum, values for:
 - `RAILS_MASTER_KEY`, `SECRET_KEY_BASE`, and Active Record Encryption
   secret references.
 - Optional per-worker `SYRUS_WORKER_CAPABILITIES` values when some worker
-  pools provide platform-specific toolchains such as Xcode, iOS simulator
-  runtimes, Docker, or non-default architectures.
+  pools should advertise `os:macos` instead of the default Linux placement.
 - `$SYRUS_DATA_ROOT` and `syrus-search` PVC size, storage class, access mode,
   and retention policy.
 - Hostname, ingress class, TLS secret, and cert-manager issuer.
@@ -245,11 +244,10 @@ your cluster logging stack, scrape `/metrics` from a Prometheus instance, and
 alert on repeated worker failures or growing queue depth.
 
 For split k3s worker pools, set `SYRUS_WORKER_CAPABILITIES` on each worker
-Deployment or DaemonSet to match the node image and mounted toolchains. Linux
-compute workers can usually rely on detected `os:linux` and architecture,
-while a native macOS worker pool should advertise explicit values such as
-`os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`. The normalized
-capability map appears in Admin Workers, worker health, and queue diagnostics.
+Deployment or DaemonSet to match the worker OS. Linux compute workers can
+usually rely on detected `os:linux`, while a native macOS worker pool should
+advertise `os:macos`. The normalized capability map appears in Admin Workers,
+worker health, and queue diagnostics.
 When no live worker matches a planned workflow phase, Syrus pauses that
 workflow with queue-capability details and retries admission; enqueue-time
 checks remain as a backstop if capacity changes after admission.
@@ -296,8 +294,7 @@ check when a Mac-capability Workflow is waiting.
 ## Hybrid troubleshooting
 
 - **No capable worker online**: verify a fresh Mac worker heartbeat, the
-  advertised capabilities (`os:macos`, `arch:arm64`, `toolchains:xcode`,
-  `runtimes:ios_simulator`), and that the process consumes
+  advertised capability (`os:macos`), and that the process consumes
   `runs-macos-arm64` or the expected resume queue. Check whether every Mac is
   draining or updating.
 - **Stale Mac worker version**: check updater status in worker health, confirm
@@ -307,8 +304,8 @@ check when a Mac-capability Workflow is waiting.
   --env-file /etc/syrus/worker.env` on the host, then fix `xcode-select`,
   accept the Xcode license, and install required Command Line Tools.
 - **Missing simulators**: install the required iOS runtime in Xcode, then rerun
-  the worker check and confirm `runtime:ios_simulator` appears in worker
-  capabilities.
+  the worker check. Simulator availability is reported in diagnostics rather
+  than as an execution capability.
 - **Keychain or signing failures**: confirm the launchd user owns or can unlock
   the signing keychain, has the required certificates and provisioning
   profiles, and can reach any internal signing or notarization services needed

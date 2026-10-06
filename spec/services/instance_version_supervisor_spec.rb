@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe InstanceVersionSupervisor do
   let(:capability_snapshot) do
     {
-      capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      capabilities: { "os" => [ "linux" ] },
       diagnostics: { "configured" => false }
     }
   end
@@ -40,7 +40,7 @@ RSpec.describe InstanceVersionSupervisor do
       expect(sp.data_root_used_percent).to eq(94)
       expect(sp.data_root_available_bytes).to eq(6.gigabytes)
       expect(sp.data_root_alert_level).to eq(:warning)
-      expect(sp.capabilities).to eq("os" => [ "linux" ], "arch" => [ "x86_64" ])
+      expect(sp.capabilities).to eq("os" => [ "linux" ])
       expect(sp.capability_diagnostics).to eq("configured" => false)
       expect(WorkerHostHealthSampler).to have_received(:record!).with(instance: sp, observed_at: kind_of(Time), data_root_snapshot: snapshot, capability_snapshot: capability_snapshot)
     end

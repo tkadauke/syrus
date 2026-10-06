@@ -14,8 +14,8 @@ class WorkerCapabilities
     "aarch64" => "arm64"
   }.freeze
   DEFAULT_QUEUE_ARCH_BY_OS = {
-    "macos" => "arm64",
-    "windows" => "amd64"
+    "linux" => "amd64",
+    "macos" => "arm64"
   }.freeze
 
   ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
@@ -79,14 +79,17 @@ class WorkerCapabilities
         raise ArgumentError, "worker capabilities must be a Hash or TargetGraph::ExecutionCapabilities"
       end
 
-      TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
+      os_values = Array(raw.to_h["os"] || raw.to_h[:os])
+        .map { |value| value.to_s.strip.downcase }
+        .select { |value| TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES.include?(value) }
+
+      TargetGraph::ExecutionCapabilities.new(os: os_values).to_h
     end
 
     def queue_names_for(base_queue, capabilities: current.fetch(:capabilities))
       capabilities = normalize(capabilities)
       os = Array(capabilities["os"]).first.to_s
-      arch = Array(capabilities["arch"]).first.to_s
-      arch = DEFAULT_QUEUE_ARCH_BY_OS[os] if blank_value?(arch)
+      arch = DEFAULT_QUEUE_ARCH_BY_OS[os]
       queue_arch = ARCH_QUEUE_ALIASES.fetch(arch, queue_token(arch))
 
       queues = []
@@ -113,19 +116,17 @@ class WorkerCapabilities
     private
 
     def detected_defaults
-      capabilities = {
-        "os" => [ os_token ],
-        "arch" => [ arch_token ]
-      }
+      os = os_token
+      capabilities = {}
+      capabilities["os"] = [ os ] if TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES.include?(os)
       diagnostics = {
-        "os" => os_token,
+        "os" => os,
         "arch" => arch_token
       }
 
       TOOL_PROBES.each do |probe|
         result = command_available?(probe.command)
         diagnostics[probe.diagnostic_key] = result
-        (capabilities[probe.dimension] ||= []) << probe.token if result == probe.available_value
       end
 
       { capabilities: capabilities, diagnostics: diagnostics }
@@ -152,8 +153,6 @@ class WorkerCapabilities
       host_os = RbConfig::CONFIG.fetch("host_os", RUBY_PLATFORM).downcase
       return "macos" if host_os.include?("darwin")
       return "linux" if host_os.include?("linux")
-      return "windows" if host_os.match?(/mswin|mingw|cygwin/)
-
       token = host_os.gsub(/[^a-z0-9_.+-]+/, "_")
       present_value?(token) ? token : "unknown"
     end

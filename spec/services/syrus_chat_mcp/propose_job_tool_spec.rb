@@ -87,7 +87,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       planned_execution: {
         project_label: "iOS App",
         target_label: "//ios:app",
-        capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+        capabilities: { os: [ "macos" ] }
       }
     )
 
@@ -96,14 +96,14 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:planned_execution]).to include(
       source: "operator",
-      capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+      capabilities: { os: [ "macos" ] }
     )
 
     result = ChatProposalFiler.new(user: user, repository: repository).file!([ proposal ])
     expect(result.jobs.sole.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
   end

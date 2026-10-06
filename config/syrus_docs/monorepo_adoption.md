@@ -218,8 +218,6 @@ project:
   label: iOS App
   capabilities:
     os: macos
-    toolchains: [xcode]
-    runtimes: [ios_simulator]
 
 grade:
   # Graph declaration for this project. Keep the executable xcodebuild wrapper
@@ -228,8 +226,6 @@ grade:
     run: xcodebuild test -scheme MobileApp -destination 'platform=iOS Simulator,name=iPhone 15'
     capabilities:
       os: macos
-      toolchains: [xcode]
-      runtimes: [ios_simulator]
     phases: [landing, ci]
     timeout_minutes: 30
 
