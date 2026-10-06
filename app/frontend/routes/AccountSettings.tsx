@@ -44,6 +44,7 @@ import type { ProviderAvailability, ProviderUsageWindow } from "../api/providerA
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 import {
   clearPersistedMotionPermission,
+  MOTION_PERMISSION_CHANGED_EVENT,
   readPersistedMotionPermissionState,
   type MotionPermissionStorageState
 } from "../lib/shakeToReportPermission"
@@ -462,6 +463,24 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
     ? motionPermissionState.permission ?? "not_set"
     : "storage_unavailable"
   const canReset = motionPermissionState.storageAvailable && motionPermissionState.permission != null
+
+  useEffect(() => {
+    function refreshMotionPermissionState() {
+      setMotionPermissionState(readPersistedMotionPermissionState())
+    }
+
+    window.addEventListener(MOTION_PERMISSION_CHANGED_EVENT, refreshMotionPermissionState)
+    window.addEventListener("focus", refreshMotionPermissionState)
+    window.addEventListener("storage", refreshMotionPermissionState)
+    document.addEventListener("visibilitychange", refreshMotionPermissionState)
+
+    return () => {
+      window.removeEventListener(MOTION_PERMISSION_CHANGED_EVENT, refreshMotionPermissionState)
+      window.removeEventListener("focus", refreshMotionPermissionState)
+      window.removeEventListener("storage", refreshMotionPermissionState)
+      document.removeEventListener("visibilitychange", refreshMotionPermissionState)
+    }
+  }, [])
 
   function resetMotionPermission() {
     onNotice(null)

@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute, PreferencesRoute } from "./AccountSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
-import { MOTION_PERMISSION_STORAGE_KEY } from "../lib/shakeToReportPermission"
+import { MOTION_PERMISSION_STORAGE_KEY, persistMotionPermission } from "../lib/shakeToReportPermission"
 
 function credentialsPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -338,6 +338,21 @@ describe("AccountSettings form primitives", () => {
     expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBeNull()
     expect(screen.getByText("Not set")).toBeInTheDocument()
     expect(screen.getByText("Motion permission reset. Shake-to-report can ask again after your next tap.")).toBeInTheDocument()
+  })
+
+  it("updates the browser permissions panel when the hook persists permission later", async () => {
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    expect(await screen.findByRole("region", { name: "Browser permissions" })).toBeInTheDocument()
+    expect(screen.getByText("Not set")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+
+    act(() => {
+      persistMotionPermission("denied")
+    })
+
+    expect(screen.getByText("Denied")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled()
   })
 
   it("shows unavailable storage without breaking preferences", async () => {
