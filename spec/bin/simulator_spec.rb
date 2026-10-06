@@ -8,6 +8,16 @@ RSpec.describe "bin/simulator", :ci_only do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(root, "bin/simulator") }
 
+  # Existence plus inode, so a file that was deleted and recreated is caught
+  # even when the replacement happens to be the same size. Deliberately not
+  # mtime or size: the rspec process running this example holds the same
+  # database open and legitimately writes to it.
+  def database_identity(path)
+    return :absent unless File.exist?(path)
+
+    File.stat(path).ino
+  end
+
   def run_simulator(*args, env: {})
     # Clear TEST_ENV_NUMBER unless an example sets one: under parallel_rspec
     # it holds this worker's number, and the simulator would then run
@@ -29,20 +39,38 @@ RSpec.describe "bin/simulator", :ci_only do
     expect(stdout).to include("work-engine simulations passed (1 scenarios)")
   end
 
+  # This used to delete storage/test.sqlite3 and storage/test_search.sqlite3
+  # before and after the run, to prove the simulator did not create them. But
+  # that is the database the rspec process running this very example is
+  # connected to. SQLite keeps an unlinked file usable through the open
+  # handle, so the examples already in flight kept passing while any process
+  # that opened a *new* connection -- a spawned sidecar, an Evals::CLI run --
+  # got a freshly created empty file and failed with "no such table: users".
+  #
+  # Only the serial `ci_only` pass was affected, because the parallel workers
+  # use storage/test<N>.sqlite3 and this example is tagged ci_only. The result
+  # was thousands of failures attributed to whatever change was under test,
+  # which reported main as broken and made the main-branch repair Job
+  # unfixable: its own grader hit the same wipe.
+  #
+  # The property worth asserting is that a standalone invocation does not
+  # touch the default database, which identity checks establish without
+  # destroying anything.
   it "isolates standalone invocations from the default test database" do
     default_db_paths = [
       File.join(root, "storage/test.sqlite3"),
       File.join(root, "storage/test_search.sqlite3")
     ]
-    default_db_paths.each { |path| FileUtils.rm_f(path) }
+    before = default_db_paths.to_h { |path| [ path, database_identity(path) ] }
 
     stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
 
     expect(status).to be_success, stderr
     expect(stdout).to include("single initial success: success")
-    expect(default_db_paths).to all(satisfy { |path| !File.exist?(path) })
-  ensure
-    default_db_paths&.each { |path| FileUtils.rm_f(path) }
+
+    after = default_db_paths.to_h { |path| [ path, database_identity(path) ] }
+    expect(after).to eq(before),
+      "bin/simulator must not create, delete or replace the default test database"
   end
 
   it "prepares the test database when invoked from a fresh checkout" do
