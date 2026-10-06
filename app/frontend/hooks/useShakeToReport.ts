@@ -1,39 +1,16 @@
 import { useEffect, useRef } from "react"
+import { persistMotionPermission, readPersistedMotionPermission } from "../lib/shakeToReportPermission"
 
 const SHAKE_ACCELERATION_THRESHOLD = 18 // m/s², when gravity-free acceleration is available
 const SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD = 24 // m/s²
 const SHAKE_DELTA_THRESHOLD = 12 // m/s² frame-to-frame change
 const CONSECUTIVE_FRAMES_NEEDED = 3
 const SHAKE_COOLDOWN_MS = 1500
-const MOTION_PERMISSION_STORAGE_KEY = "syrus:shake-to-report:motion-permission"
-
-type PersistedMotionPermission = "granted" | "denied" | "unavailable"
 
 type AccelerationVector = { x: number; y: number; z: number }
 
 type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
   requestPermission?: () => Promise<PermissionState>
-}
-
-function readPersistedMotionPermission(): PersistedMotionPermission | null {
-  try {
-    const permission = window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)
-    if (permission === "granted" || permission === "denied" || permission === "unavailable") {
-      return permission
-    }
-  } catch {
-    // Storage can be unavailable in private browsing or locked-down embeds.
-  }
-
-  return null
-}
-
-function persistMotionPermission(permission: PersistedMotionPermission) {
-  try {
-    window.localStorage.setItem(MOTION_PERMISSION_STORAGE_KEY, permission)
-  } catch {
-    // Shake-to-report should still work when persistence is unavailable.
-  }
 }
 
 export function useShakeToReport(onShake: () => void) {

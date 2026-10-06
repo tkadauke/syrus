@@ -4,7 +4,7 @@ import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
-import { Form } from "../components/ui"
+import { Form, Pill } from "../components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
@@ -42,6 +42,11 @@ import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, register
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
 import type { ProviderAvailability, ProviderUsageWindow } from "../api/providerAvailability"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
+import {
+  clearPersistedMotionPermission,
+  readPersistedMotionPermissionState,
+  type MotionPermissionStorageState
+} from "../lib/shakeToReportPermission"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -428,6 +433,10 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
           </Form.Field>
         ) : null}
 
+        {section === "preferences" ? (
+          <BrowserPermissionsPanel onNotice={onNotice} />
+        ) : null}
+
         {section === "agent" ? (
           <Form.Field>
             <Form.Label>{t('account_settings.auto_approval_fallback')}</Form.Label>
@@ -444,6 +453,55 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
       </form>
     </section>
   )
+}
+
+function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
+  const [motionPermissionState, setMotionPermissionState] = useState<MotionPermissionStorageState>(() => readPersistedMotionPermissionState())
+  const statusKey = motionPermissionState.storageAvailable
+    ? motionPermissionState.permission ?? "not_set"
+    : "storage_unavailable"
+  const canReset = motionPermissionState.storageAvailable && motionPermissionState.permission != null
+
+  function resetMotionPermission() {
+    onNotice(null)
+    if (clearPersistedMotionPermission()) {
+      setMotionPermissionState(readPersistedMotionPermissionState())
+      onNotice(t("account_settings.browser_permissions_reset_notice"))
+    } else {
+      setMotionPermissionState({ permission: null, storageAvailable: false })
+      onNotice(t("account_settings.browser_permissions_reset_unavailable_notice"))
+    }
+  }
+
+  return (
+    <Form.Field>
+      <Form.Label>{t("account_settings.browser_permissions_heading")}</Form.Label>
+      <Form.HelpText>{t("account_settings.browser_permissions_desc")}</Form.HelpText>
+      <div aria-label={t("account_settings.browser_permissions_heading")} className={browserPermissionRowClass} role="region">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text-primary">{t("account_settings.motion_permission_label")}</p>
+          <p className="mt-1 text-xs text-text-muted">{t("account_settings.motion_permission_desc")}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill tone={motionPermissionStatusTone(statusKey)}>
+            {t(`account_settings.motion_permission_status.${statusKey}`)}
+          </Pill>
+          <Button disabled={!canReset} onClick={resetMotionPermission} size="sm" variant="secondary">
+            {t("account_settings.browser_permissions_reset")}
+          </Button>
+        </div>
+      </div>
+    </Form.Field>
+  )
+}
+
+const browserPermissionRowClass = "mt-2 grid gap-3 rounded-[var(--radius-panel)] border border-border bg-surface-inset p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+
+function motionPermissionStatusTone(status: string) {
+  if (status === "granted") return "success"
+  if (status === "denied" || status === "unavailable" || status === "storage_unavailable") return "warning"
+  return "neutral"
 }
 
 const passkeysQueryKey = ["passkeys"] as const
