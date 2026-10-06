@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, chatQueryKey, contextFindSurface } from "./Chat"
+import { Compose } from "./chat/Compose"
 import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -3254,6 +3255,49 @@ describe("chat message image attachments", () => {
     fireEvent.click(screen.getByRole("button", { name: "Media" }))
     const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
     expect(await within(workspace).findByText("uploaded.png")).toBeInTheDocument()
+  })
+
+  it("reports user image attachments before publishing the updated chat payload", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const setQueryData = vi.spyOn(queryClient, "setQueryData")
+    const onMessageSent = vi.fn()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          chat: { chat_image_count: 1, has_chat_images: true }
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Compose
+            chatId="8"
+            commandHandlers={{ openBookmarks: vi.fn(), openSettings: vi.fn() }}
+            onMessageSent={onMessageSent}
+            onNotice={vi.fn()}
+            payload={chatPayload()}
+            prefix="/app-shell"
+            queryKey={chatQueryKey(8, "")}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "uploaded.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove uploaded.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => {
+      expect(onMessageSent).toHaveBeenCalledWith({ hadImageAttachments: true })
+    })
+    expect(onMessageSent.mock.invocationCallOrder[0]).toBeLessThan(setQueryData.mock.invocationCallOrder[0])
   })
 
   it("switches back to media when a runtime screenshot adds another chat image", async () => {
