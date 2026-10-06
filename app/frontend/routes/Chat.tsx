@@ -156,7 +156,7 @@ const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
 
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
-    <p className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400`}>
+    <p className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400`}>
       Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
@@ -894,7 +894,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         </button>
       ) : null}
       {!isDesktop && mobileHeader.hidden ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/90 via-white/55 to-transparent dark:from-gray-950/90 dark:via-gray-950/55" data-testid="mobile-chat-hidden-header-scrim" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-white dark:bg-gray-950" data-testid="mobile-chat-hidden-header-scrim" />
       ) : null}
     </div>
   )
