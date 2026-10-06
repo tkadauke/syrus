@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { useState } from "react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardPayload, DashboardSmartFolder } from "../api/dashboard"
@@ -129,6 +130,11 @@ function dragSavedFolder(sourceName: string, targetName: string) {
   fireEvent.dragOver(target, { dataTransfer })
 
   return { dataTransfer, target }
+}
+
+function savedFolderLabels() {
+  const savedNav = screen.getByRole("navigation", { name: "Saved smart folders" })
+  return within(savedNav).getAllByRole("link").map((link) => link.textContent)
 }
 
 describe("DashboardSmartFolderNav", () => {
@@ -272,6 +278,42 @@ describe("DashboardSmartFolderNav", () => {
 
     expect(fireEvent.dragOver(target, { dataTransfer })).toBe(false)
     expect(dataTransfer.dropEffect).toBe("move")
+  })
+
+  it("keeps in-progress saved folder ordering across equivalent parent rerenders", () => {
+    const folders = [
+      folder({ id: 1, name: "Review", position: 0, count: 0 }),
+      folder({ id: 2, name: "Blocked", position: 1, count: 0 }),
+      folder({ id: 3, name: "Landing", position: 2, count: 0 })
+    ]
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    function RerenderingNav() {
+      const [renderCount, setRenderCount] = useState(0)
+      const clonedFolders = folders.map((item) => ({ ...item }))
+
+      return (
+        <>
+          <button onClick={() => setRenderCount((count) => count + 1)} type="button">Rerender {renderCount}</button>
+          <DashboardSmartFolderNav payload={payload({ smart_folders: clonedFolders })} prefix="" search="" />
+        </>
+      )
+    }
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <RerenderingNav />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    dragSavedFolder("Review", "Landing")
+    expect(savedFolderLabels()).toEqual(["Blocked", "Landing", "Review"])
+
+    fireEvent.click(screen.getByRole("button", { name: "Rerender 0" }))
+
+    expect(savedFolderLabels()).toEqual(["Blocked", "Landing", "Review"])
   })
 
   it("does not render menu controls for builtin folders", () => {
