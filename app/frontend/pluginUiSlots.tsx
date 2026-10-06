@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { ChevronIcon } from "./components/ChevronIcon"
 
 type PluginModule = {
@@ -104,7 +104,10 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
   const [visibleIds, setVisibleIds] = useState<string[]>([])
 
   useEffect(() => {
-    setVisibleIds((current) => current.filter((id) => renderablePanels.some((panel) => panel.id === id)))
+    setVisibleIds((current) => {
+      const next = current.filter((id) => renderablePanels.some((panel) => panel.id === id))
+      return stringArraysEqual(current, next) ? current : next
+    })
   }, [renderablePanels])
 
   useEffect(() => {
@@ -120,14 +123,17 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
   const activeIndex = activeId ? visibleIds.indexOf(activeId) : -1
   const showControls = visibleIds.length > 1 && activeIndex >= 0
 
-  function setPanelVisible(id: string, visible: boolean) {
+  const setPanelVisible = useCallback((id: string, visible: boolean) => {
     setVisibleIds((current) => {
       const hasId = current.includes(id)
-      if (visible && !hasId) return renderablePanels.filter((panel) => panel.id === id || current.includes(panel.id)).map((panel) => panel.id)
+      if (visible && !hasId) {
+        const next = renderablePanels.filter((panel) => panel.id === id || current.includes(panel.id)).map((panel) => panel.id)
+        return stringArraysEqual(current, next) ? current : next
+      }
       if (!visible && hasId) return current.filter((currentId) => currentId !== id)
       return current
     })
-  }
+  }, [renderablePanels])
 
   return (
     <section aria-label={labels.region} className="space-y-2">
@@ -161,8 +167,9 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
         return (
           <UiSlotCarouselPanel
             active={panel.id === activeId || (activeId === null && panel.id === renderablePanels[0]?.id)}
+            id={panel.id}
             key={panel.id}
-            onVisibleChange={(visible) => setPanelVisible(panel.id, visible)}
+            onVisibleChange={setPanelVisible}
           >
             <Suspense fallback={null}>
               <Component {...(props || {})} {...(panel.props || {})} />
@@ -174,19 +181,23 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
   )
 }
 
-function UiSlotCarouselPanel({ active, children, onVisibleChange }: { active: boolean; children: ReactNode; onVisibleChange: (visible: boolean) => void }) {
+function stringArraysEqual(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function UiSlotCarouselPanel({ active, children, id, onVisibleChange }: { active: boolean; children: ReactNode; id: string; onVisibleChange: (id: string, visible: boolean) => void }) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
 
-    const report = () => onVisibleChange(node.childElementCount > 0)
+    const report = () => onVisibleChange(id, node.childElementCount > 0)
     report()
     const observer = new MutationObserver(report)
     observer.observe(node, { childList: true })
     return () => observer.disconnect()
-  }, [onVisibleChange])
+  }, [id, onVisibleChange])
 
   return (
     <div className={active ? "" : "hidden"} ref={ref}>
