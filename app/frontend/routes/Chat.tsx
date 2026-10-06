@@ -1295,7 +1295,7 @@ function MobileChatTopChrome({
 
   return (
     <div
-      className={`absolute inset-x-0 top-0 z-10 border-b border-gray-200 dark:border-gray-700 ${MOBILE_CHROME_SURFACE_CLASS} ${MOBILE_CHROME_TOP_OVERLAP_CLASS} ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
+      className={`absolute inset-x-0 top-[var(--mobile-chat-app-header-height,0px)] z-10 border-b border-gray-200 dark:border-gray-700 ${MOBILE_CHROME_SURFACE_CLASS} ${MOBILE_CHROME_TOP_OVERLAP_CLASS} ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
       data-testid="mobile-chat-tabs-shell"
       ref={topChromeRef}
       style={autoHideActive ? {
