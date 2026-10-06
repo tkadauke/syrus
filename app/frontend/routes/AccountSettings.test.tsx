@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute, PreferencesRoute } from "./AccountSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
+import { MOTION_PERMISSION_STORAGE_KEY } from "../lib/shakeToReportPermission"
 
 function credentialsPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -180,7 +181,10 @@ describe("AccountSettings ApiTokenPanel", () => {
 })
 
 describe("AccountSettings form primitives", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
 
   it("associates profile labels with their controls", async () => {
     renderRoute(credentialsPayload(), <AccountProfileRoute />)
@@ -319,5 +323,32 @@ describe("AccountSettings form primitives", () => {
       }))
     })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+  })
+
+  it("shows and resets the saved shake-to-report motion permission", async () => {
+    window.localStorage.setItem(MOTION_PERMISSION_STORAGE_KEY, "granted")
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    expect(await screen.findByRole("region", { name: "Browser permissions" })).toBeInTheDocument()
+    expect(screen.getByText("Shake-to-report motion")).toBeInTheDocument()
+    expect(screen.getByText("Granted")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }))
+
+    expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBeNull()
+    expect(screen.getByText("Not set")).toBeInTheDocument()
+    expect(screen.getByText("Motion permission reset. Shake-to-report can ask again after your next tap.")).toBeInTheDocument()
+  })
+
+  it("shows unavailable storage without breaking preferences", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable")
+    })
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    expect(await screen.findByRole("region", { name: "Browser permissions" })).toBeInTheDocument()
+    expect(screen.getByText("Storage unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByLabelText("Language")).toBeInTheDocument()
   })
 })

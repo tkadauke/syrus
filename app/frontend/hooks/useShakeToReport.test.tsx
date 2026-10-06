@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useShakeToReport } from "./useShakeToReport"
+import { MOTION_PERMISSION_STORAGE_KEY } from "../lib/shakeToReportPermission"
 
 type MotionInput = {
   acceleration?: DeviceMotionEventAcceleration | null
@@ -28,7 +29,6 @@ async function clickDocument() {
 
 describe("useShakeToReport", () => {
   const OriginalDeviceMotionEvent = window.DeviceMotionEvent
-  const storageKey = "syrus:shake-to-report:motion-permission"
 
   beforeEach(() => {
     const MockDeviceMotionEvent = class extends Event {}
@@ -110,7 +110,7 @@ describe("useShakeToReport", () => {
     await clickDocument()
 
     expect(requestPermission).toHaveBeenCalledOnce()
-    expect(window.localStorage.getItem(storageKey)).toBe("granted")
+    expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBe("granted")
 
     unmount()
 
@@ -138,7 +138,7 @@ describe("useShakeToReport", () => {
     await clickDocument()
 
     expect(requestPermission).toHaveBeenCalledOnce()
-    expect(window.localStorage.getItem(storageKey)).toBe("denied")
+    expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBe("denied")
 
     unmount()
     renderHook(() => useShakeToReport(vi.fn()))
@@ -159,7 +159,7 @@ describe("useShakeToReport", () => {
     await clickDocument()
 
     expect(requestPermission).toHaveBeenCalledOnce()
-    expect(window.localStorage.getItem(storageKey)).toBe("unavailable")
+    expect(window.localStorage.getItem(MOTION_PERMISSION_STORAGE_KEY)).toBe("unavailable")
 
     unmount()
     renderHook(() => useShakeToReport(vi.fn()))
