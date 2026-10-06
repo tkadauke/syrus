@@ -314,11 +314,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
     onSuccess: (updated, draft) => {
       rememberSubmittedPrompt(draft.messageText)
+      onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
       onNotice(null)
-      onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
     },
     onError: (error, draft) => {
       restoreComposerDraft(draft)
