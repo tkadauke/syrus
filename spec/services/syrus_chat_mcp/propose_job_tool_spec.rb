@@ -43,31 +43,34 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("`\\n`")
   end
 
-  it "tells agents planned execution capabilities are required" do
+  it "tells agents planned execution is an optional OS-only override" do
     schema = described_class.input_schema_value.to_h
     planned_execution_schema = schema.fetch(:properties).fetch(:planned_execution)
 
-    expect(described_class.description_value).to include("planned_execution.capabilities")
-    expect(described_class.description_value).to include("missing or empty")
-    expect(schema.fetch(:required)).to include("planned_execution")
-    expect(planned_execution_schema.fetch(:required)).to include("capabilities")
+    expect(described_class.description_value).to include("Set planned_execution to explicitly choose")
+    expect(described_class.description_value).to include("Omit it for conservative")
+    expect(schema.fetch(:required)).not_to include("planned_execution")
+    expect(planned_execution_schema).not_to have_key(:required)
     expect(planned_execution_schema.fetch(:description)).to include("{\"os\":[\"linux\"]}")
-    expect(planned_execution_schema.fetch(:description)).to include("Required explicit")
+    expect(planned_execution_schema.fetch(:description)).to include("Optional explicit")
   end
 
-  it "rejects missing planned execution capabilities before creating a proposal" do
+  it "infers planned execution when capabilities are omitted" do
     response = call_tool_without_defaults(
       repo: repository.slug,
       title: "Fix mobile Safari layout",
       description: "This is ordinary web frontend work."
     )
 
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include("Missing required arguments: planned_execution")
-    expect(chat_session.proposals.find_by(title: "Fix mobile Safari layout")).to be_nil
+    proposal = chat_session.proposals.find_by!(title: "Fix mobile Safari layout")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.planned_execution_json).to include(
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
   end
 
-  it "rejects empty planned execution capabilities before creating a proposal" do
+  it "infers planned execution when capabilities are empty" do
     response = call_tool_without_defaults(
       repo: repository.slug,
       title: "Fix empty capabilities",
@@ -75,9 +78,12 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       planned_execution: { capabilities: {} }
     )
 
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include("planned_execution.capabilities is required")
-    expect(chat_session.proposals.find_by(title: "Fix empty capabilities")).to be_nil
+    proposal = chat_session.proposals.find_by!(title: "Fix empty capabilities")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.planned_execution_json).to include(
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
   end
 
   it "normalizes literal backslash-n sequences in the description into real line breaks" do
@@ -134,7 +140,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       planned_execution: {
         project_label: "iOS App",
         target_label: "//ios:app",
-        capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+        capabilities: { os: [ "macos" ] }
       }
     )
 
@@ -143,16 +149,31 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:planned_execution]).to include(
       source: "operator",
-      capabilities: { os: [ "macos" ], toolchains: [ "xcode" ] }
+      capabilities: { os: [ "macos" ] }
     )
 
     result = ChatProposalFiler.new(user: user, repository: repository).file!([ proposal ])
     expect(result.jobs.sole.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "operator"
     )
+  end
+
+  it "rejects malformed explicit planned execution capabilities" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Fix Xcode project",
+      description: "Repair the iOS app build.",
+      planned_execution: {
+        capabilities: "macos"
+      }
+    )
+
+    expect(response[:result][:isError]).to eq(true)
+    expect(response.fetch(:result).fetch(:content).first.fetch(:text)).to include("Invalid arguments")
+    expect(chat_session.proposals.find_by(title: "Fix Xcode project")).to be_nil
   end
 
   it "does not attach active goal provenance by default" do

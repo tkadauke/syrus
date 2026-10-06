@@ -21,30 +21,53 @@ RSpec.describe PlannedExecutionRequirement do
     )
   end
 
-  it "normalizes explicit capability dimensions" do
+  it "rejects non-hash capability values with a controlled error" do
+    expect {
+      described_class.new(capabilities: "macos")
+    }.to raise_error(ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
+  end
+
+  it "normalizes explicit OS capabilities" do
     requirement = described_class.new(
       project_label: " iOS ",
       target_label: "//app:grade/tests",
-      capabilities: {
-        "os" => "macOS",
-        "arch" => [ "ARM64" ],
-        "toolchains" => [ "Xcode", "xcode", "" ],
-        "features" => "simulator"
-      },
+      capabilities: { "os" => "macOS" },
       source: "explicit"
     )
 
     expect(requirement.to_h).to eq(
       "project_label" => "iOS",
       "target_label" => "//app:grade/tests",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchains" => [ "xcode" ],
-        "features" => [ "simulator" ]
-      },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "explicit"
     )
+  end
+
+  it "rejects unsupported capability dimensions and OS values" do
+    expect {
+      described_class.new(capabilities: { "os" => [ "linux" ], "runtimes" => [ "ruby" ] })
+    }.to raise_error(ArgumentError, /unsupported keys runtimes/)
+
+    expect {
+      described_class.new(capabilities: { "os" => [ "windows" ] })
+    }.to raise_error(ArgumentError, /os: values must be one of linux, macos/)
+  end
+
+  it "prevents runtime labels from being persisted on Jobs" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Job.new(
+      user: user,
+      repository: repository,
+      issue_number: 42,
+      issue_title: "Fix Rails and Node install",
+      issue_body: "Backend work should not request runtime placement labels.",
+      planned_execution_capabilities: { "os" => [ "linux" ], "runtimes" => [ "ruby", "node" ] },
+      planned_execution_source: "prompt"
+    )
+
+    expect(job).not_to be_valid
+    expect(job.errors[:planned_execution_capabilities].join).to include("unsupported keys runtimes")
   end
 
   it "defaults new jobs and manually created workflows" do
@@ -62,6 +85,31 @@ RSpec.describe PlannedExecutionRequirement do
     expect(workflow.planned_execution_json).to eq(job.planned_execution_json)
   end
 
+  it "defaults blank persisted capability rows to ordinary Linux execution" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    job.update_columns(planned_execution_capabilities: nil, planned_execution_source: nil)
+
+    expect(job.reload.planned_execution_json).to eq(
+      "project_label" => nil,
+      "target_label" => nil,
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    )
+  end
+
+  it "rejects malformed persisted capability values on planned execution records" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    expect(Job.new(user: user, repository: repository, issue_number: 42, planned_execution_capabilities: "macos")).not_to be_valid
+    expect(Workflow.new(job: job, user: user, trigger_kind: "manual", planned_execution_capabilities: "macos")).not_to be_valid
+    expect(ChatProposal.new(chat_session: chat, slug: "bad-capabilities", title: "Bad capabilities", body: "Body.", planned_execution_capabilities: "macos")).not_to be_valid
+  end
+
   it "plans new jobs from root project capabilities before workflow launch" do
     user = Factories.user
     repository = Factories.repository(user: user)
@@ -72,7 +120,6 @@ RSpec.describe PlannedExecutionRequirement do
           label: iOS App
           capabilities:
             os: macos
-            toolchains: [xcode]
       YAML
     )
 
@@ -81,7 +128,7 @@ RSpec.describe PlannedExecutionRequirement do
     expect(requirement.to_h).to eq(
       "project_label" => "iOS App",
       "target_label" => "//:repo",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "inferred"
     )
     expect(job.reload.planned_execution_json).to eq(requirement.to_h)

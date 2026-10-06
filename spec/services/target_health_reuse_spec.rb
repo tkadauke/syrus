@@ -117,7 +117,7 @@ RSpec.describe TargetHealthReuse do
 
   def worker_environment(os)
     {
-      "capabilities" => { "os" => [ os ], "arch" => [ "arm64" ] },
+      "capabilities" => { "os" => [ os ] },
       "runtime" => { "ruby_platform" => "#{os}-ruby" },
       "tool_versions" => { "ruby" => "ruby 3.4.10" }
     }

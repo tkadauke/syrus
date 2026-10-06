@@ -12,7 +12,7 @@
                    index (they enqueue Index*Job onto `indexing`, which the
                    home worker consumes).
       - `runs-<os>-<arch>` — capability-specific compute lanes such as
-                   `runs-macos-arm64` and `runs-windows-amd64`.
+                   `runs-macos-arm64`.
       - `merges` — deterministic landing / rebase / stack-rebase Workflows.
       - `merges-<os>-<arch>` — capability-specific landing/validation lanes.
     Each pod also consumes its storage-affinity

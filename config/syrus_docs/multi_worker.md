@@ -36,24 +36,20 @@ queues across two worker configs and select one per pod with the
 ## Worker capability advertisement
 
 Workers advertise normalized execution capabilities on their heartbeat and
-worker-health samples. Syrus detects `os` and `arch` automatically and probes
-for common optional capabilities when the tools are present: Docker
-(`features:docker`), Xcode (`toolchains:xcode`), and visible iOS simulator
-runtimes (`runtimes:ios_simulator`). Operators can override or extend that
-with `SYRUS_WORKER_CAPABILITIES`, using comma or space separated
+worker-health samples. Syrus advertises only the supported `os` capability and
+keeps host architecture, Docker, Xcode, and simulator checks as diagnostics.
+Operators can override the OS placement class with
+`SYRUS_WORKER_CAPABILITIES`, using comma or space separated
 `dimension:value` pairs:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+SYRUS_WORKER_CAPABILITIES=os:macos
 ```
 
-Use the singular aliases `toolchain`, `runtime`, and `feature` for readability
-or the stored plural dimensions `toolchains`, `runtimes`, and `features`.
-Explicit values win over detected defaults for constrained dimensions such as
-`os` and `arch`, so a native macOS worker should set the variable even though
-the heartbeat also probes the host. Linux k3s and Docker Compose workers can
-usually rely on detected `os:linux` plus their CPU architecture, adding only
-extra features or toolchains that the image actually contains.
+Only `os:linux` and `os:macos` are admitted. Other dimensions and unsupported
+OS values are ignored for worker advertisements, so a native macOS worker
+should set `os:macos` and let diagnostics report the installed toolchain state.
+Linux k3s and Docker Compose workers can usually rely on detected `os:linux`.
 
 Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
 and `read_queue` all include the normalized capability map and probe
@@ -113,7 +109,7 @@ SOLID_QUEUE_SKIP_RECURRING=1
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_APP_HOST=syrus.example.internal
 SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+SYRUS_WORKER_CAPABILITIES=os:macos
 GIT_SHA=<release sha>
 ```
 
@@ -220,8 +216,7 @@ surfaces even though Linux pressure charts are empty.
 
 When a macOS-capability Workflow is blocked with no capable worker, check Admin
 Workers or `read_queue` for a fresh Mac worker heartbeat, matching
-`os:macos`, `arch:arm64`, `toolchains:xcode`, and `runtimes:ios_simulator`
-capabilities, and consumption of `runs-macos-arm64` or the expected
+`os:macos` capability, and consumption of `runs-macos-arm64` or the expected
 `resume-<worker-storage-key>` queue. A drained or updating Mac worker is
 intentionally excluded from compatible capacity until the update completes.
 
@@ -234,8 +229,8 @@ deployment has run migrations.
 If `bin/macos-worker-check --env-file /etc/syrus/worker.env` reports Xcode
 failures, fix Command Line Tools or `xcode-select`, install full Xcode, accept
 the Xcode license, and install the required simulator runtimes. Missing
-simulators usually show up as absent `runtime:ios_simulator` capabilities on
-the next heartbeat.
+simulators are reported by the worker check and capability diagnostics rather
+than as execution capability labels.
 
 For Keychain and signing failures, validate the launchd user rather than an
 interactive admin shell: the worker user must be able to unlock or access the
@@ -249,20 +244,16 @@ Runs with the default Linux implementation requirement stay on the broad
 host requirements for a distinct execution class, Syrus routes the Run to a
 capability-specific queue derived from the workflow template's base queue:
 
-- `runs-linux-amd64`, `runs-macos-arm64`, `runs-windows-amd64`
-- `merges-linux-amd64`, `merges-macos-arm64`, `merges-windows-amd64`
+- `runs-linux-amd64`, `runs-macos-arm64`
+- `merges-linux-amd64`, `merges-macos-arm64`
 
-Architecture tokens are normalized for queue names: `x86_64`, `x64`, and
-`amd64` all resolve to the `amd64` suffix; `aarch64` and `arm64` resolve to
-`arm64`. macOS requirements without an explicit architecture use the
-`macos-arm64` lane, and Windows requirements without an explicit architecture
-use `windows-amd64`.
+Queue suffixes use Syrus defaults for the supported OS values: Linux uses the
+`linux-amd64` lane and macOS uses the `macos-arm64` lane.
 
 `config/queue.yml` and `config/queue.compute.yml` render their compute queues
 from the worker's advertised capabilities. A default Linux worker consumes
 `runs`, `runs-linux-amd64`, `merges`, and `merges-linux-amd64`; a macOS worker
-advertising `os:macos,arch:arm64` consumes the macOS lanes; a Windows x64
-worker consumes the Windows lanes. This keeps scarce native workers from
+advertising `os:macos` consumes the macOS lanes. This keeps scarce native workers from
 claiming ordinary Linux work while still documenting every queue Syrus may
 select.
 
@@ -273,12 +264,11 @@ review, and adversarial review inherit the Workflow's planned primary
 capabilities. Immutable distributed grader steps use their target-specific
 requirements. Control-plane phases such as grader fanout and collection stay on
 the broad `runs` / `merges` queues, so scarce native workers do not claim
-orchestration work just because the primary workflow runs on macOS or Windows.
+orchestration work just because the primary workflow runs on macOS.
 
 The resolver checks capability-specific queues, and also checks broad queues
-when explicit Linux requirements add dimensions such as `features:docker` or
-`toolchains:node`. If no fresh worker both consumes the selected queue and
-advertises compatible capabilities, the Workflow stays queued with
+when explicit Linux requirements are present. If no fresh worker both consumes
+the selected queue and advertises compatible capabilities, the Workflow stays queued with
 `start_blocked_reason: no_capable_worker`; `start_blocked_details` and
 `run_queue_admission_decision` record the selected queue, requirements, and
 phase step so operators can see why it is waiting. Syrus schedules a normal

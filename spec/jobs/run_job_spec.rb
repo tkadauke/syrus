@@ -1025,7 +1025,7 @@ RSpec.describe RunJob, :ci_only do
           desired_git_sha: "abc1234"
         )
         allow(WorkerCapabilities).to receive(:current).and_return(
-          capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+          capabilities: { "os" => [ "macos" ] },
           diagnostics: {}
         )
         allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-a")

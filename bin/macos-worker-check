@@ -197,10 +197,10 @@ else
 fi
 
 worker_capabilities="${SYRUS_WORKER_CAPABILITIES:-}"
-if [[ "$worker_capabilities" == *"os:macos"* && "$worker_capabilities" == *"toolchain:xcode"* ]]; then
-  ok "worker capabilities include macOS and Xcode"
+if [[ "$worker_capabilities" == *"os:macos"* ]]; then
+  ok "worker capabilities include macOS"
 else
-  fail "SYRUS_WORKER_CAPABILITIES should include os:macos and toolchain:xcode"
+  fail "SYRUS_WORKER_CAPABILITIES should include os:macos"
 fi
 
 if [[ "$FAILURES" -gt 0 ]]; then

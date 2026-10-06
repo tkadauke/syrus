@@ -264,33 +264,31 @@ their toolchains. Two layers cover this:
   For anything beyond apt, edit `Dockerfile.local` (it just extends the base
   worker image).
 
-Compose workers advertise `os:linux` and their CPU architecture automatically.
-If you bake additional host capabilities into the local worker image, set
-`SYRUS_WORKER_CAPABILITIES` in `.env` so admin health, queue diagnostics, and
-capability-aware routing see the same shape:
+Compose workers advertise `os:linux` automatically. `SYRUS_WORKER_CAPABILITIES`
+only accepts the supported OS placement values, so most Compose installs do not
+need to set it:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:linux,arch:arm64,feature:docker
+SYRUS_WORKER_CAPABILITIES=os:linux
 ```
 
 For native macOS workers outside Compose, set the same variable on the worker
-process, for example
-`os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`.
+process, for example `os:macos`.
 
 Syrus routes non-default pinned workspace work onto capability-specific worker
-queues such as `runs-macos-arm64`, `runs-windows-amd64`, and the matching
-`merges-*` queues. Distributed graders can use target-specific capability
+queues such as `runs-macos-arm64` and the matching `merges-*` queues.
+Distributed graders can use target-specific capability
 requirements, while orchestration phases stay on the broad compute queues.
 Docker Compose's default worker consumes the broad Linux queues from
-`config/queue.yml`; native Mac or Windows workers consume only the matching
-capability lanes when they advertise their host class. Split deployments should
-run `config/queue.compute.yml` on compute workers so those queues are consumed
-without moving chat, polling, or indexing work onto native compute hosts.
-If a workflow phase requires a host class or explicit Linux feature/toolchain
-that no live worker advertises, Syrus keeps the workflow queued with a visible
-queue-capability diagnostic and retries admission instead of creating work that
-would be stranded. Run enqueue repeats the same check as a backstop if worker
-capacity disappears between admission and dispatch.
+`config/queue.yml`; native Mac workers consume only the macOS capability lanes
+when they advertise `os:macos`. Split deployments should run
+`config/queue.compute.yml` on compute workers so those queues are consumed
+without moving chat, polling, or indexing work onto native compute hosts. If a
+workflow phase requires macOS and no live macOS worker is available, Syrus keeps
+the workflow queued with a visible queue-capability diagnostic and retries
+admission instead of creating work that would be stranded. Run enqueue repeats
+the same check as a backstop if worker capacity disappears between admission
+and dispatch.
 
 Local source builds use the Docker cache on your machine by default. To also
 reuse the registry-backed BuildKit cache written by production deploys, provide

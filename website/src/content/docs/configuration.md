@@ -81,7 +81,7 @@ Schema:
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
-| `project.capabilities` / target `capabilities` | Mapping | Execution host/toolchain constraints such as `os: macos`, `toolchains: [xcode]`, or `runtimes: [ios_simulator]` |
+| `project.capabilities` / target `capabilities` | Mapping | Execution host OS constraints: only `os: linux` or `os: macos` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |
 | `review_notes.low_signal` | Array of strings | Low-signal guidance for the Review Notes pass |
@@ -100,31 +100,29 @@ work that is already in flight. Jobs without a stored plan use the ordinary
 Linux/default execution class. Direct Job API calls and chat proposal cards can
 set an explicit planned execution override; otherwise Syrus infers
 conservatively from the request and repository capability metadata. Backend-only
-work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS with
-Xcode, and mixed iOS plus backend work should use macOS/Xcode for the primary
-implementation placement while backend graders fan out separately later.
-Windows work uses Windows. If a single Job looks like it needs mutually
-incompatible primary hosts, Syrus asks for a split or an explicit primary host
-instead of guessing. Missing capability metadata is a warning rather than a
-blocker.
+work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS, and
+mixed iOS plus backend work should use macOS for the primary implementation
+placement while backend graders fan out separately later. Windows has no
+capability value today; Windows-targeted work stays defaulted unless an
+operator explicitly chooses Linux or macOS as the primary host. If a single Job
+looks like it needs mutually incompatible primary hosts, Syrus asks for a split
+or an explicit primary host instead of guessing. Missing capability metadata is
+a warning rather than a blocker.
 
 Workers advertise their available host capabilities separately from repository
-requirements. Each worker heartbeat includes detected `os` and `arch` plus
-common optional probes for Docker, Xcode, and iOS simulator runtimes. Set
-`SYRUS_WORKER_CAPABILITIES` on a worker to make its placement class explicit or
-to add capabilities that cannot be detected reliably:
+requirements. Each worker heartbeat includes only the supported `os`
+capability, plus diagnostics about host architecture and optional probes for
+Docker, Xcode, and iOS simulator runtimes. Set `SYRUS_WORKER_CAPABILITIES` on a
+worker only to make its OS placement class explicit:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+SYRUS_WORKER_CAPABILITIES=os:macos
 ```
 
-Use comma or space separated `dimension:value` pairs. Singular aliases
-`toolchain`, `runtime`, and `feature` are accepted; Syrus stores the normalized
-plural dimensions `toolchains`, `runtimes`, and `features`. Explicit `os` and
-`arch` values override detected defaults, which is useful for native macOS
-workers. Linux k3s and Docker Compose workers normally get sensible
-`os:linux` and architecture defaults without configuration, then add only
-extra features or toolchains actually present in the image.
+Use comma or space separated `dimension:value` pairs if needed, but only
+`os:linux` and `os:macos` are admitted. Other dimensions and unsupported OS
+values are ignored for worker advertisements. Linux k3s and Docker Compose
+workers normally get `os:linux` without configuration.
 
 After implementation, Syrus compares the actual changed files against the
 target graph as a safety net. If the diff affects a more constrained target
@@ -609,7 +607,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
 | `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
-| `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement such as `os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`; detected defaults cover Linux/local OS and architecture |
+| `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement; only `os:linux` and `os:macos` are supported |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
 | `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |

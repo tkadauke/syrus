@@ -94,16 +94,16 @@ the rest of the tree.
 
 ### capabilities
 
-`capabilities:` describes the host/toolchain constraints needed to execute
-implementation work or an executable target. It is separate from workspace
+`capabilities:` describes the host OS needed to execute implementation work or
+an executable target. It is separate from workspace
 placement policy: capabilities choose an eligible worker/backend; placement
 policy describes how source is materialized.
 
-Supported dimensions are `os`, `arch`, `toolchains`, `runtimes`, and
-free-form `features`. Each dimension accepts either one string or an array.
-Values are normalized to lowercase and must be token-like (`letters`, `digits`,
-`_`, `.`, `+`, `-`). `any` can be used alone but cannot be combined with
-specific values.
+The only supported dimension is `os`, and the only supported values are
+`linux` and `macos`. The value accepts either one string or an array. Syrus
+intentionally rejects architecture, toolchain, runtime, feature, Windows, and
+free-form capability dimensions so hallucinated placement constraints cannot
+strand work behind impossible worker-admission gates.
 
 Use project-level capabilities as implementation hints:
 
@@ -113,8 +113,6 @@ project:
   label: iOS App
   capabilities:
     os: macos
-    toolchains: [xcode]
-    runtimes: [ios_simulator]
 ```
 
 Use target-level capabilities on executable target declarations or legacy
@@ -127,7 +125,6 @@ targets:
     run: xcodebuild build -scheme MobileApp
     capabilities:
       os: macos
-      toolchains: [xcode]
 
 grade:
   - name: backend
@@ -358,7 +355,7 @@ most once per workflow workspace.
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
-| `capabilities` | no | — | Execution requirements for this grader target: `os`, `arch`, `toolchains`, `runtimes`, and/or `features` |
+| `capabilities` | no | — | Execution requirements for this grader target: only `os: linux` or `os: macos` |
 
 There are two grader declaration families:
 

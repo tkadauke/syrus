@@ -1,13 +1,6 @@
 class RunQueueResolver
   BLOCKED_OUTCOME = "no_capable_worker".freeze
   DEFAULT_RUN_CAPABILITIES = { "os" => [ "linux" ] }.freeze
-  ARCH_MATCH_ALIASES = {
-    "amd64" => %w[amd64 x86_64 x64],
-    "x86_64" => %w[amd64 x86_64 x64],
-    "x64" => %w[amd64 x86_64 x64],
-    "arm64" => %w[arm64 aarch64],
-    "aarch64" => %w[arm64 aarch64]
-  }.freeze
 
   Candidate = Data.define(:workflow, :step, :trigger_kind) do
     def distributed_parallel_run?
@@ -113,8 +106,7 @@ class RunQueueResolver
     os = single_token(requirements["os"])
     return nil if os.blank? || os == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
-    arch = single_token(requirements["arch"])
-    arch = default_queue_arch_for(os) if arch.blank?
+    arch = default_queue_arch_for(os)
     return nil if arch.blank? || arch == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
     [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")
@@ -124,7 +116,7 @@ class RunQueueResolver
     return false if requirements.blank?
     return false if requirements == DEFAULT_RUN_CAPABILITIES && !explicit_target_requirements?
 
-    requirements["os"].present? || requirements["arch"].present?
+    requirements["os"].present?
   end
 
   def capability_specific_queue?(queue)
@@ -257,8 +249,7 @@ class RunQueueResolver
     return true if required == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
     return true if worker_values.include?(TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD)
 
-    acceptable = dimension == "arch" ? ARCH_MATCH_ALIASES.fetch(required, [ required ]) : [ required ]
-    (worker_values & acceptable).any?
+    worker_values.include?(required)
   end
 
   def details_for(queue, requirements)

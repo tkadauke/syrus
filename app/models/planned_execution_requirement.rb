@@ -19,6 +19,9 @@ class PlannedExecutionRequirement
 
   def self.from_attributes(attributes)
     return default if attributes.blank?
+    unless attributes.respond_to?(:to_h)
+      raise ArgumentError, "planned execution attributes must be a Hash"
+    end
 
     attrs = attributes.to_h.deep_symbolize_keys
     new(**attrs.slice(:project_label, :target_label, :capabilities, :source))
@@ -28,6 +31,23 @@ class PlannedExecutionRequirement
     return from_attributes(override) if override.present?
 
     from_record(job)
+  end
+
+  def self.normalize_capabilities(value)
+    return value.to_h if value.is_a?(TargetGraph::ExecutionCapabilities)
+
+    raw = value.presence || DEFAULT_CAPABILITIES
+    unless raw.is_a?(Hash)
+      raise ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities"
+    end
+
+    raw = raw.deep_stringify_keys
+    unsupported_keys = raw.keys - TargetGraph::ExecutionCapabilities::DIMENSIONS
+    if unsupported_keys.any?
+      raise ArgumentError, "planned execution capabilities include unsupported keys #{unsupported_keys.join(', ')}; supported keys: #{TargetGraph::ExecutionCapabilities::DIMENSIONS.join(', ')}"
+    end
+
+    TargetGraph::ExecutionCapabilities.new(**raw.symbolize_keys).to_h
   end
 
   def initialize(project_label: nil, target_label: nil, capabilities: nil, source: nil)
@@ -67,9 +87,6 @@ class PlannedExecutionRequirement
   end
 
   def normalize_capabilities(value)
-    return value.to_h if value.is_a?(TargetGraph::ExecutionCapabilities)
-
-    raw = value.presence || DEFAULT_CAPABILITIES
-    TargetGraph::ExecutionCapabilities.new(**raw.symbolize_keys).to_h
+    self.class.normalize_capabilities(value)
   end
 end

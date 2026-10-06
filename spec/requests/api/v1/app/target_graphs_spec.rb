@@ -72,7 +72,6 @@ RSpec.describe "App API target graph inspection", type: :request do
           sources: ["app/frontend/**/*"]
           capabilities:
             os: linux
-            toolchains: [node]
       grade:
         - name: tests
           run: bin/rspec
@@ -103,7 +102,7 @@ RSpec.describe "App API target graph inspection", type: :request do
         "executable" => true,
         "executable_metadata" => include(
           "command" => "npm run build",
-          "capabilities" => { "os" => [ "linux" ], "toolchains" => [ "node" ] }
+          "capabilities" => { "os" => [ "linux" ] }
         )
       )
       tests = body["targets"].find { |target| target["label"] == "//:grade/tests" }

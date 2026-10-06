@@ -1015,23 +1015,19 @@ function ChatWorkspace({
     revealHeader()
   }, [activeMobileTab, isDesktop, revealHeader, showMobileWorkspaceTabs])
 
-  // Confirming a job/epic proposal optimistically patches the chat query
-  // cache so the "jobs" tab becomes available, but that cache update lands
-  // through a separate (async) notification than the synchronous tab-select
-  // call the confirm handler makes — setting activeTab="jobs" right away
-  // would race the guard effect above, which reverts to the default tab
-  // whenever the tab it sees isn't in availableTabs yet. Deferring the
-  // actual switch until availableTabs already contains "jobs" (in the same
-  // render that observes it) means the guard effect never has a reason to
-  // revert it.
+  // Confirming a job/epic proposal optimistically patches the chat query cache
+  // so the "jobs" tab becomes available. Desktop split view can open that
+  // workspace immediately, but mobile single-pane chat should only reveal the
+  // tab and leave the transcript/composer selected.
   useEffect(() => {
     if (!pendingJobsTabRequest || !availableTabs.includes("jobs")) return
 
     setPendingJobsTabRequest(false)
+    if (!isDesktop) return
+
     setPanelCollapsed(false)
-    setActiveMobileTab("jobs")
     selectTab("jobs")
-  }, [pendingJobsTabRequest, availableTabs])
+  }, [pendingJobsTabRequest, availableTabs, isDesktop])
 
   useEffect(() => {
     const previous = previousMediaRef.current

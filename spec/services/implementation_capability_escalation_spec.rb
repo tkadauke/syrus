@@ -15,7 +15,7 @@ RSpec.describe ImplementationCapabilityEscalation do
         project_id: "repo",
         source_scope: [ "ios/**/*" ],
         command: "xcodebuild test",
-        capabilities: TargetGraph::ExecutionCapabilities.new(os: "macos", toolchains: [ "xcode" ])
+        capabilities: TargetGraph::ExecutionCapabilities.new(os: "macos")
       )
     )
     graph.add_target(
@@ -31,15 +31,15 @@ RSpec.describe ImplementationCapabilityEscalation do
     graph
   end
 
-  def add_windows_target(graph)
+  def add_linux_package_target(graph)
     graph.add_target(
       TargetGraph::Target.new(
-        label: TargetGraph::Label.parse("//windows:grade/package"),
+        label: TargetGraph::Label.parse("//linux:grade/package"),
         kind: "grader",
         project_id: "repo",
-        source_scope: [ "windows/**/*" ],
-        command: "msbuild",
-        capabilities: TargetGraph::ExecutionCapabilities.new(os: "windows", arch: [ "x64" ])
+        source_scope: [ "linux/**/*" ],
+        command: "bin/linux-package",
+        capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
       )
     )
     graph
@@ -58,16 +58,15 @@ RSpec.describe ImplementationCapabilityEscalation do
     )
 
     expect(result).to be_escalated
-    expect(result.required_capabilities).to eq("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+    expect(result.required_capabilities).to eq("os" => [ "macos" ])
     expect(result.mismatches).to include(
-      include("dimension" => "os", "planned" => [ "linux" ], "required" => [ "macos" ], "missing" => [ "macos" ]),
-      include("dimension" => "toolchains", "planned" => [], "required" => [ "xcode" ], "missing" => [ "xcode" ])
+      include("dimension" => "os", "planned" => [ "linux" ], "required" => [ "macos" ], "missing" => [ "macos" ])
     )
   end
 
   it "does not warn for mixed changes when the primary plan satisfies the most constrained target" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
 
@@ -81,30 +80,20 @@ RSpec.describe ImplementationCapabilityEscalation do
     expect(result.most_constrained_target.fetch("target_label")).to eq("//ios:grade/ui")
   end
 
-  it "reports an equal-weight target mismatch even when the first max target is satisfied" do
+  it "does not warn for mixed macOS and Linux changes when macOS is the primary placement" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
-    graph = add_windows_target(graph_with_targets)
+    graph = add_linux_package_target(graph_with_targets)
 
     result = described_class.call(
       workflow: workflow,
       graph: graph,
-      changed_files: [ "ios/App/View.swift", "windows/App/App.sln" ]
+      changed_files: [ "ios/App/View.swift", "linux/package.sh" ]
     )
 
-    expect(result).to be_escalated
-    expect(result.most_constrained_targets.map { |target| target.fetch("target_label") }).to contain_exactly(
-      "//ios:grade/ui",
-      "//windows:grade/package"
-    )
-    expect(result.mismatched_targets.map { |target| target.fetch("target_label") })
-      .to eq([ "//windows:grade/package" ])
-    expect(result.required_capabilities).to eq("os" => [ "windows" ], "arch" => [ "x64" ])
-    expect(result.mismatches).to include(
-      include("target_label" => "//windows:grade/package", "dimension" => "os", "missing" => [ "windows" ]),
-      include("target_label" => "//windows:grade/package", "dimension" => "arch", "missing" => [ "x64" ])
-    )
+    expect(result).not_to be_escalated
+    expect(result.mismatched_targets).to be_empty
   end
 end

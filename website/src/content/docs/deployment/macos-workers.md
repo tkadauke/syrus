@@ -35,7 +35,7 @@ RAILS_ENV=production
 SYRUS_APP_HOST=https://syrus.example.internal
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
+SYRUS_WORKER_CAPABILITIES=os:macos
 GIT_SHA=<release sha>
 ```
 
@@ -132,12 +132,12 @@ keeps desired release details visible to every Mac worker, but only returns
 `enabled: true` to the selected worker once that worker is ready to update or
 has been explicitly forced.
 
-After the worker heartbeats at the desired `git_sha`, Syrus verifies the host
-still advertises macOS and Xcode capabilities before clearing the drain and
-moving to the next Mac. Admin worker health and queue views show drain/update
-state, failed updates, stale versions, and force-restart requests. If all Mac
-workers are draining or updating, Syrus does not advertise Mac capacity for new
-macOS/Xcode Runs.
+After the worker heartbeats at the desired `git_sha`, Syrus verifies that the
+host still advertises `os:macos` and reports healthy Xcode diagnostics before
+clearing the drain and moving to the next Mac. Admin worker health and queue
+views show drain/update state, failed updates, stale versions, and force-restart
+requests. If all Mac workers are draining or updating, Syrus does not advertise
+Mac capacity for new macOS Runs.
 
 Drain-aware updates are the normal pool-update path. The role-wide admin
 restart mechanism can restart worker-role processes, but it is too broad for a
@@ -165,7 +165,7 @@ drain/update state still report normally.
 | No capable worker online | Confirm a fresh heartbeat, `SYRUS_WORKER_CAPABILITIES`, `runs-macos-arm64` queue consumption, and whether all Macs are draining/updating. |
 | Stale Mac worker version | Check updater status, `SYRUS_API_TOKEN`, desired release metadata, artifact URL access, and checksum verification failures. |
 | Xcode not installed or licensed | Run `bin/macos-worker-check`, fix `xcode-select`, install Command Line Tools/full Xcode, and accept the Xcode license as needed. |
-| Missing simulators | Install the required iOS runtime in Xcode and confirm `runtime:ios_simulator` appears in capabilities after the next heartbeat. |
+| Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics rather than as an execution capability. |
 | Keychain or signing failures | Verify the launchd user can access the signing keychain, certificates, provisioning profiles, and any private signing/notarization services. |
 | Package installs fail only on Macs | Check outbound registry access, host-local dependency caches, Xcode/SDK compatibility, and target-repo private registry credentials. |
 

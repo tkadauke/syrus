@@ -341,17 +341,12 @@ RSpec.describe SyrusYml do
         id: ios
         capabilities:
           os: macOS
-          arch: [arm64, ARM64]
-          toolchains: [xcode]
-          runtimes: [ios_simulator]
-          features: [metal-gpu]
       targets:
         - name: simulator-tests
           kind: grader
           run: xcodebuild test
           capabilities:
             os: [macos]
-            toolchains: xcode
       grade:
         - name: backend
           run: bin/rspec
@@ -359,21 +354,12 @@ RSpec.describe SyrusYml do
             os: linux
     YAML
 
-    expect(config.project.capabilities.to_h).to eq(
-      "os" => [ "macos" ],
-      "arch" => [ "arm64" ],
-      "toolchains" => [ "xcode" ],
-      "runtimes" => [ "ios_simulator" ],
-      "features" => [ "metal-gpu" ]
-    )
-    expect(config.targets.first.capabilities.to_h).to eq(
-      "os" => [ "macos" ],
-      "toolchains" => [ "xcode" ]
-    )
+    expect(config.project.capabilities.to_h).to eq("os" => [ "macos" ])
+    expect(config.targets.first.capabilities.to_h).to eq("os" => [ "macos" ])
     expect(config.grade.steps.first.capabilities.to_h).to eq("os" => [ "linux" ])
   end
 
-  it "rejects invalid capability declarations with the owning field path" do
+  it "rejects unsupported OS values with the owning field path" do
     expect {
       parse(<<~YAML)
         targets:
@@ -381,9 +367,9 @@ RSpec.describe SyrusYml do
             kind: grader
             run: xcodebuild test
             capabilities:
-              os: [any, macos]
+              os: [windows]
       YAML
-    }.to raise_error(described_class::ParseError, /targets\[0\]\.capabilities\.os: "any" cannot be combined/)
+    }.to raise_error(described_class::ParseError, /targets\[0\]\.capabilities\.os: values must be one of linux, macos/)
   end
 
   it "rejects unknown capability dimensions" do
@@ -394,6 +380,19 @@ RSpec.describe SyrusYml do
             gpu: metal
       YAML
     }.to raise_error(described_class::ParseError, /project\.capabilities: unknown keys gpu/)
+  end
+
+  it "rejects formerly supported non-OS capability dimensions" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: ios-tests
+            run: xcodebuild test
+            capabilities:
+              os: macos
+              toolchains: xcode
+      YAML
+    }.to raise_error(described_class::ParseError, /grade\.steps\[0\]\.capabilities: unknown keys toolchains/)
   end
 
   it "rejects non-positive explicit target timeouts" do

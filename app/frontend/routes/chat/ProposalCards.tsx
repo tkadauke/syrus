@@ -382,8 +382,12 @@ function sameValues(first: string[], second: string[]) {
 // "job" and "syrus_issue" proposals both materialize a direct Job on confirm
 // (ChatJobStatusQuery::JOB_PROPOSAL_KINDS mirrors this on the backend); only
 // "github_issue" files to GitHub instead of creating a Job immediately.
-function proposalCreatesJob(proposal: Pick<ChatProposal, "kind">) {
-  return proposal.kind === "job" || proposal.kind === "syrus_issue"
+function proposalCreatesJob(proposal: Pick<ChatProposal, "kind"> & { materialized?: ChatProposal["materialized"] }) {
+  return proposal.kind === "job" || proposal.kind === "syrus_issue" || proposal.materialized?.kind === "job"
+}
+
+function proposalBacksJobsTab(proposal: Pick<ChatProposal, "kind"> & { materialized?: ChatProposal["materialized"] }) {
+  return proposalCreatesJob(proposal) || proposal.kind === "epic" || proposal.materialized?.kind === "epic"
 }
 
 function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epic_bundle"> | EditableProposal) {
@@ -527,15 +531,16 @@ export function ProposalCard({
     },
     onSuccess: (updated, variables) => {
       const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
-      const shouldSelectJobsTab = variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic") && !jobsTabAlreadyVisible
+      const confirmedProposal = isChatPayload(updated) ? proposal : (updated.proposal || proposal)
+      const shouldRevealJobsTab = variables.action === "confirm" && proposalBacksJobsTab(confirmedProposal)
+      const shouldSelectJobsTab = shouldRevealJobsTab && !jobsTabAlreadyVisible
 
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => {
         const next = applyProposalActionResult(current, updated, queryKey[1])
         // The confirm response doesn't carry updated chat.confirmed_proposal_count
         // (the real count only arrives via a later, separate refetch), so without
-        // this the "jobs" tab wouldn't be in availableTabs yet and ChatWorkspace's
-        // own guard effect would immediately revert the tab switch below.
-        if (!next || !shouldSelectJobsTab) return next
+        // this the "jobs" tab may disappear once the pending-proposal count drops.
+        if (!next || !shouldRevealJobsTab || (next.chat.confirmed_proposal_count ?? 0) > 0 || (next.chat.linked_direct_job_count ?? 0) > 0) return next
         return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
       })
       onNotice(updated.message || null)

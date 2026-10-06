@@ -376,10 +376,10 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     sign_in_as(admin)
     solid_queue_process(hostname: "worker-a", pid: 101, metadata: { "queues" => "runs", "thread_pool_size" => 2 })
     solid_queue_process(hostname: "worker-old", pid: 102, last_heartbeat_at: 3.minutes.ago, metadata: { "queues" => "runs" })
-    solid_queue_process(kind: "Dispatcher", hostname: "dispatcher-a", pid: 202, metadata: { "capabilities" => { "features" => [ "scheduler" ] } })
+    solid_queue_process(kind: "Dispatcher", hostname: "dispatcher-a", pid: 202, metadata: { "capabilities" => { "os" => [ "linux" ] } })
     InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
                             started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago,
-                            capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+                            capabilities: { "os" => [ "linux" ] },
                             capability_diagnostics: { "docker" => true })
     InstanceVersion.create!(hostname: "worker-old", role: "worker", version: "abc123",
                             started_at: 10.minutes.ago, last_heartbeat_at: 3.minutes.ago)
@@ -418,13 +418,13 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "threads" => 2,
       "stale" => false,
       "status" => "current",
-      "capabilities" => { "os" => [ "linux" ], "arch" => [ "x86_64" ] },
+      "capabilities" => { "os" => [ "linux" ] },
       "capability_diagnostics" => { "docker" => true },
       "macos_worker_drain" => include("state" => "draining", "desired_git_sha" => "newsha")
     )
     expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher", "Worker", "Worker" ])
     expect(body["all_processes"].find { |process| process["kind"] == "Dispatcher" }).to include(
-      "capabilities" => { "features" => [ "scheduler" ] }
+      "capabilities" => { "os" => [ "linux" ] }
     )
     expect(body["all_processes"].find { |process| process["hostname"] == "worker-old" }).to include(
       "stale" => true,
