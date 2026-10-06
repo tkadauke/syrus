@@ -339,13 +339,21 @@ prepull_worker_image() {
     return 0
   fi
 
-  local affinity tolerations
+  local affinity tolerations pull_secrets
   affinity=$(KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" \
     -o jsonpath='{.spec.template.spec.affinity}' 2>/dev/null)
   tolerations=$(KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" \
     -o jsonpath='{.spec.template.spec.tolerations}' 2>/dev/null)
+  # Read from the workload we are pre-pulling for, the same way affinity and
+  # tolerations are. This used to interpolate $GHCR_PULL_SECRET_NAME, which was
+  # never defined anywhere: under `set -u` the heredoc aborted, the apply never
+  # ran, and every deploy silently skipped the pre-pull and left each node to
+  # pull a ~1GB image cold during the rollout.
+  pull_secrets=$(KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" \
+    -o jsonpath='{.spec.template.spec.imagePullSecrets}' 2>/dev/null)
   [ -n "$affinity" ] || affinity="{}"
   [ -n "$tolerations" ] || tolerations="[]"
+  [ -n "$pull_secrets" ] || pull_secrets="[]"
 
   echo "→ ${label}: pre-pulling ${WORKER_DEV_REGISTRY}:${SHA} on every compute node"
   ACTIVE_PREPULL_KUBECONFIG="$kubeconfig"
@@ -368,8 +376,7 @@ spec:
         name: ${PREPULL_DAEMONSET}
     spec:
       terminationGracePeriodSeconds: 0
-      imagePullSecrets:
-        - name: ${GHCR_PULL_SECRET_NAME}
+      imagePullSecrets: ${pull_secrets}
       affinity: ${affinity}
       tolerations: ${tolerations}
       containers:

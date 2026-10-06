@@ -61,6 +61,38 @@ RSpec.describe "bin/deploy image pre-pull" do
       "both the failure and success paths have to clean up"
   end
 
+  # Every assertion here reads the script as text, which is why this bug
+  # survived: the manifest interpolated $GHCR_PULL_SECRET_NAME, a name defined
+  # nowhere. Under `set -u` the heredoc aborted, the apply never ran, and the
+  # "never turn a pre-pull failure into a deploy failure" guarantee below
+  # swallowed it -- so every deploy silently skipped the warm-up and each node
+  # pulled a multi-gigabyte image cold during the rollout.
+  it "interpolates only names the script actually defines" do
+    helper = deploy[/^prepull_worker_image\(\) \{.*?\n\}/m]
+    expect(helper).not_to be_nil
+
+    referenced = helper.scan(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/).flatten.uniq
+    expect(referenced).not_to be_empty
+
+    undefined = referenced.reject do |name|
+      deploy.match?(/^\s*(?:local\s+[^\n]*\b)?#{Regexp.escape(name)}=/) ||
+        deploy.match?(/^\s*local\s+[^\n=]*\b#{Regexp.escape(name)}\b/) ||
+        deploy.match?(/^\s*(?:export\s+)?#{Regexp.escape(name)}=/)
+    end
+
+    expect(undefined).to be_empty,
+      "the pre-pull manifest interpolates #{undefined.join(', ')}, which bin/deploy never assigns; " \
+      "under `set -u` that aborts the heredoc and silently skips the warm-up"
+  end
+
+  # The secret belongs to the workload being warmed, exactly like affinity and
+  # tolerations. Hardcoding a name here would drift the moment a namespace used
+  # a different one.
+  it "copies image pull secrets from the live compute DaemonSet" do
+    expect(deploy).to include("jsonpath='{.spec.template.spec.imagePullSecrets}'")
+    expect(deploy).to include('[ -n "$pull_secrets" ] || pull_secrets="[]"')
+  end
+
   it "can be skipped for a tag every node already has" do
     expect(deploy).to include('PREPULL="${PREPULL:-1}"')
     expect(deploy).to include('if [ "$PREPULL" = "0" ]')
