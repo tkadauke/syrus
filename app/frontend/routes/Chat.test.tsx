@@ -16,6 +16,7 @@ import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilde
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
+import type { ChatPayload } from "../api/chats"
 
 const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
 
@@ -3280,7 +3281,7 @@ describe("chat message image attachments", () => {
             commandHandlers={{ openBookmarks: vi.fn(), openSettings: vi.fn() }}
             onMessageSent={onMessageSent}
             onNotice={vi.fn()}
-            payload={chatPayload()}
+            payload={chatPayload() as unknown as ChatPayload}
             prefix="/app-shell"
             queryKey={chatQueryKey(8, "")}
           />
@@ -6471,7 +6472,9 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     workspace_tabs: [
       { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
     ],
+    coding_mode_enabled: false,
     local_mode_enabled: false,
+    local_tunnel_connected: false,
     speech_to_text: {
       enabled: false,
       modes: {
