@@ -63,13 +63,11 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
-      Set jobs[].planned_execution.capabilities explicitly for every child
-      Job so the proposal card shows the intended implementation placement.
-      Use {"os":["linux"]} for normal Linux/backend/web work,
-      {"os":["macos"],"toolchains":["xcode"]} for iOS/Xcode work, or
-      {"os":["windows"],"arch":["x64"]} for Windows work. The tool rejects
-      any child with missing or empty planned_execution.capabilities before
-      creating a card.
+      Set jobs[].planned_execution only when you need to explicitly choose
+      the primary implementation placement. Only the os dimension is
+      supported: use {"os":["linux"]} for normal Linux/backend/web work or
+      {"os":["macos"]} for iOS/Xcode work. Omit it for conservative automatic
+      inference from the child Job text and repository capability metadata.
       epic.description and jobs[].description are stored and rendered as
       Markdown after JSON decoding of this tool call, so write them as plain
       Markdown prose: real newline characters between paragraphs, lists, and
