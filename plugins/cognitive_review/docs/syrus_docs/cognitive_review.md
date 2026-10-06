@@ -21,9 +21,10 @@ their diff version is selected.
 
 After an implementation workflow finishes its final diff, Syrus starts a
 review-note pass when the plugin is enabled and the workflow kind is an
-implementation or feedback kind. The pass asks the agent to flag only ranges
-that deserve operator attention: risky behavior, subtle coupling, missing
-verification, migration or data concerns, or other review guidance.
+implementation, feedback, or Coding Mode handoff kind. The pass asks the agent
+to flag only ranges that deserve operator attention: risky behavior, subtle
+coupling, missing verification, migration or data concerns, or other review
+guidance.
 
 If there are no such ranges, the agent must still call
 `submit_review_notes` with an empty `notes` array. Providers that request this

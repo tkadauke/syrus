@@ -125,6 +125,28 @@ RSpec.describe Workflows::CodingHandoff do
         end
       end
     end
+
+    context "with post-implementation review providers" do
+      after do
+        Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
+      end
+
+      it "appends the generic review-note host step after pr_open when an enabled provider requests coding handoff review" do
+        provider = Class.new do
+          include Syrus::Plugin::PostImplementationReviewProvider
+
+          def self.review_needed?(job:, trigger_kind:)
+            trigger_kind == "coding_handoff"
+          end
+        end
+
+        Syrus::PluginRegistry.register(name: "coding_handoff_review_notes", version: "1.0.0", provides: { post_implementation_review_provider: provider })
+
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind).last(2)).to eq(%w[ pr_open post_implementation_review ])
+      end
+    end
   end
 
   describe ".after_success" do
