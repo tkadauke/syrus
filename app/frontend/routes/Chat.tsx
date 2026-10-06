@@ -793,7 +793,16 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream" onClick={handleStreamClick} onScroll={handleScroll} onTouchMove={handleTouchMove} onWheel={handleWheel} ref={streamRef}>
+      <div
+        className="flex h-full min-h-0 flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400"
+        data-testid="chat-message-stream"
+        onClick={handleStreamClick}
+        onScroll={handleScroll}
+        onTouchMove={handleTouchMove}
+        onWheel={handleWheel}
+        ref={streamRef}
+        style={!isDesktop ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined}
+      >
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
           <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
@@ -831,11 +840,12 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : "sm:pt-4"}`}
+        className={`min-h-0 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
         onScroll={handleScroll}
+        style={!isDesktop ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined}
         onTouchMove={handleTouchMove}
         onWheel={handleWheel}
         ref={streamRef}
@@ -1131,8 +1141,9 @@ function ChatWorkspace({
     return (
       <div
         className="relative flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950"
+        data-testid="mobile-chat-route-shell"
         style={{
-          "--mobile-chat-top-inset": `${mobileChatTopInset}px`
+          "--mobile-chat-stream-top-breathing-room": `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px + 0.75rem)`
         } as CSSProperties}
       >
         <MobileChatTopChrome
@@ -1143,7 +1154,7 @@ function ChatWorkspace({
           showMobileWorkspaceTabs={showMobileWorkspaceTabs}
           onSelectMobileTab={selectMobileTab}
         />
-        <div className="flex min-h-0 w-full flex-1 pt-[var(--mobile-chat-top-inset,0px)]">
+        <div className="flex min-h-0 w-full flex-1" data-testid="mobile-chat-surface">
           {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (

@@ -503,7 +503,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           a <main> here nested a second one inside it on every page, which is
           invalid and made locator("main") ambiguous. */}
       <div
-        className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}
+        className={`min-w-0 flex-1 ${isMobileChatPage ? "relative flex flex-col overflow-hidden" : "overflow-auto"}`}
         data-testid="app-scroll-pane"
         onScroll={isMobileLayeredChromePage ? handleMobileLayeredChromeScroll : undefined}
         onTouchMove={isMobileLayeredChromePage ? handleMobileLayeredChromeTouchMove : undefined}
@@ -552,7 +552,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           </div>
         </div>
         {isMobileChatPage ? (
-          <div className="flex min-h-0 flex-1 flex-col pt-[var(--mobile-chat-app-header-height,0px)]">
+          <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-chat-content-shell">
             <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
             <FlashBanner flash={data?.flash} />
             <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
