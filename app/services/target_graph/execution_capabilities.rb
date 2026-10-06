@@ -1,17 +1,13 @@
 class TargetGraph
-  class ExecutionCapabilities < Data.define(:os, :arch, :toolchains, :runtimes, :features)
-    DIMENSIONS = %w[os arch toolchains runtimes features].freeze
-    CONSTRAINED_DIMENSIONS = %w[os arch].freeze
+  class ExecutionCapabilities < Data.define(:os)
+    DIMENSIONS = %w[os].freeze
+    ALLOWED_OS_VALUES = %w[linux macos].freeze
     TOKEN_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9_.+-]*\z/
     CONFLICTING_WILDCARD = "any".freeze
 
-    def initialize(os: [], arch: [], toolchains: [], runtimes: [], features: [])
+    def initialize(os: [])
       super(
-        os: normalize_dimension(os, "os"),
-        arch: normalize_dimension(arch, "arch"),
-        toolchains: normalize_dimension(toolchains, "toolchains"),
-        runtimes: normalize_dimension(runtimes, "runtimes"),
-        features: normalize_dimension(features, "features")
+        os: normalize_os(os)
       )
     end
 
@@ -31,23 +27,29 @@ class TargetGraph
       raise ArgumentError, "capabilities must be a TargetGraph::ExecutionCapabilities" unless other.is_a?(self.class)
 
       self.class.new(
-        os: merge_dimension(other, "os"),
-        arch: merge_dimension(other, "arch"),
-        toolchains: merge_dimension(other, "toolchains"),
-        runtimes: merge_dimension(other, "runtimes"),
-        features: merge_dimension(other, "features")
+        os: merge_dimension(other, "os")
       )
     end
 
     private
 
+    def normalize_os(raw)
+      values = normalize_dimension(raw, "os")
+      unsupported = values - ALLOWED_OS_VALUES
+      if unsupported.any?
+        raise ArgumentError, "os: values must be one of #{ALLOWED_OS_VALUES.join(', ')}; invalid #{unsupported.join(', ')}"
+      end
+      if values.size > 1
+        raise ArgumentError, "os: choose exactly one of #{ALLOWED_OS_VALUES.join(', ')}"
+      end
+
+      values
+    end
+
     def normalize_dimension(raw, dimension)
       values = Array(raw).map { |value| value.to_s.strip.downcase }.reject(&:empty?).uniq
       invalid = values.reject { |value| value.match?(TOKEN_PATTERN) }
       raise ArgumentError, "#{dimension}: values must match #{TOKEN_PATTERN.inspect}; invalid #{invalid.join(', ')}" if invalid.any?
-      if values.include?(CONFLICTING_WILDCARD) && values.size > 1
-        raise ArgumentError, "#{dimension}: #{CONFLICTING_WILDCARD.inspect} cannot be combined with specific values"
-      end
 
       values
     end
@@ -60,11 +62,11 @@ class TargetGraph
       return existing if addition == [ CONFLICTING_WILDCARD ]
       return addition if existing == [ CONFLICTING_WILDCARD ]
 
-      if CONSTRAINED_DIMENSIONS.include?(dimension) && existing != addition
+      if existing != addition
         raise ArgumentError, "#{dimension}: imported values #{existing.inspect} conflict with overlay values #{addition.inspect}"
       end
 
-      (existing + addition).uniq
+      existing
     end
   end
 end

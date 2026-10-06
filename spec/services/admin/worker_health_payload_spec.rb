@@ -58,7 +58,7 @@ RSpec.describe Admin::WorkerHealthPayload do
         version: "abc123",
         started_at: now - 5.minutes,
         last_heartbeat_at: now,
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        capabilities: { "os" => [ "macos" ] },
         capability_diagnostics: { "xcode" => true }
       )
       WorkerHostHealthSample.create!(
@@ -68,15 +68,15 @@ RSpec.describe Admin::WorkerHealthPayload do
         version: "abc123",
         observed_at: now - 1.minute,
         cpu_used_percent: 20,
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchains" => [ "xcode" ] },
+        capabilities: { "os" => [ "macos" ] },
         capability_diagnostics: { "xcode" => true }
       )
 
       payload = described_class.new(since: (now - 1.hour).iso8601, until_time: now.iso8601).as_json
 
-      expect(payload.dig(:current, 0, :capabilities)).to include("os" => [ "macos" ], "toolchains" => [ "xcode" ])
+      expect(payload.dig(:current, 0, :capabilities)).to include("os" => [ "macos" ])
       expect(payload.dig(:current, 0, :capability_diagnostics)).to include("xcode" => true)
-      expect(payload.dig(:hosts, 0, :recent_samples, 0, :capabilities)).to include("arch" => [ "arm64" ])
+      expect(payload.dig(:hosts, 0, :recent_samples, 0, :capabilities)).to include("os" => [ "macos" ])
     end
   end
 

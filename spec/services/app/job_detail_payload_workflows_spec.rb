@@ -92,7 +92,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       job.update!(
         planned_execution_project_label: "iOS",
         planned_execution_target_label: "//ios:app",
-        planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        planned_execution_capabilities: { "os" => [ "macos" ] },
         planned_execution_source: "explicit"
       )
       workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
@@ -100,7 +100,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expected = {
         "project_label" => "iOS",
         "target_label" => "//ios:app",
-        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+        "capabilities" => { "os" => [ "macos" ] },
         "source" => "explicit"
       }
 

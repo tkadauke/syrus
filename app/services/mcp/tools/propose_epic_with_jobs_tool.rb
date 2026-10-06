@@ -115,8 +115,7 @@ module Mcp::Tools
                   capabilities: { type: "object" },
                   source: { type: "string" }
                 },
-                required: %w[capabilities],
-                description: "Required explicit primary implementation placement. Use capabilities like {\"os\":[\"linux\"]} for normal Linux/backend/web work, {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode, or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+                description: "Optional explicit primary implementation placement override. Only os is supported: use {\"os\":[\"macos\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
               },
               media: {
                 type: "array",
@@ -124,7 +123,7 @@ module Mcp::Tools
                 description: "Media references to attach to this child Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), or pass chat image IDs as \"chat_image:123\". Omit if no media is relevant."
               }
             },
-            required: %w[slug title description planned_execution]
+            required: %w[slug title description]
           },
           description: "Child Jobs to create if the Epic proposal is confirmed."
         },
@@ -176,7 +175,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("unknown job target_repo for #{job[:slug]}: #{job[:target_repo]}") unless repository
           return Mcp::Tools.invalid("proposal item #{job[:slug]} target_repo must match the Epic target_repo") unless repository.id == epic_repository.id
 
-          job[:planned_execution_attrs] = planned_execution_attributes(job)
+          job[:planned_execution_attrs] = planned_execution_attributes(repository, job)
           return Mcp::Tools.invalid("proposal item #{job[:slug]} #{job[:planned_execution_attrs]}") if job[:planned_execution_attrs].is_a?(String)
 
           job_repositories[job[:slug]] = repository
@@ -255,27 +254,18 @@ module Mcp::Tools
         }
       end
 
-      def planned_execution_attributes(job)
-        return planned_execution_capabilities_required_message if missing_capabilities?(job[:planned_execution])
-
+      def planned_execution_attributes(repository, job)
         explicit = PlannedExecutionParams.from_params({ "planned_execution" => job[:planned_execution] }.compact)
-        return explicit if explicit[:planned_execution_capabilities].present?
+        return explicit if explicit.present?
 
-        planned_execution_capabilities_required_message
-      end
-
-      def missing_capabilities?(planned_execution)
-        return true unless planned_execution.is_a?(Hash)
-
-        capabilities = planned_execution.with_indifferent_access[:capabilities] ||
-          planned_execution.with_indifferent_access[:planned_execution_capabilities]
-        return true unless capabilities.is_a?(Hash)
-
-        TargetGraph::ExecutionCapabilities.new(**capabilities.symbolize_keys).empty?
-      end
-
-      def planned_execution_capabilities_required_message
-        'planned_execution.capabilities is required; choose explicit capabilities such as {"os":["linux"]}'
+        probe = repository.user.jobs.new(repository: repository, issue_title: job[:title], issue_body: job[:description])
+        requirement = PlannedExecutionPlanner.for_job(probe)
+        {
+          planned_execution_project_label: requirement.project_label,
+          planned_execution_target_label: requirement.target_label,
+          planned_execution_capabilities: requirement.capabilities,
+          planned_execution_source: requirement.source
+        }
       end
 
       def normalize_string_list(value)

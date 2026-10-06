@@ -65,7 +65,7 @@ RSpec.describe WorkUnits::Launcher do
     job.update!(
       planned_execution_project_label: "iOS",
       planned_execution_target_label: "//ios:app",
-      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
 
@@ -74,7 +74,7 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.planned_execution_json).to eq(
       "project_label" => "iOS",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "inferred"
     )
   end
@@ -86,7 +86,6 @@ RSpec.describe WorkUnits::Launcher do
           label: macOS Client
           capabilities:
             os: macos
-            toolchains: [xcode]
       YAML
     )
 
@@ -95,7 +94,7 @@ RSpec.describe WorkUnits::Launcher do
     expected = {
       "project_label" => "macOS Client",
       "target_label" => "//:repo",
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "inferred"
     }
     expect(job.reload.planned_execution_json).to eq(expected)
@@ -104,9 +103,9 @@ RSpec.describe WorkUnits::Launcher do
 
   it "copies the job plan when a workflow template is instantiated directly" do
     job.update!(
-      planned_execution_project_label: "Desktop",
+      planned_execution_project_label: "macOS Desktop",
       planned_execution_target_label: "//desktop:app",
-      planned_execution_capabilities: { "os" => [ "windows" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "explicit"
     )
     allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
@@ -120,9 +119,9 @@ RSpec.describe WorkUnits::Launcher do
 
   it "preserves planned execution requirements for follow-up workflows" do
     job.update!(
-      planned_execution_project_label: "Windows",
-      planned_execution_target_label: "//desktop:grade/windows",
-      planned_execution_capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      planned_execution_project_label: "macOS",
+      planned_execution_target_label: "//desktop:grade/macos",
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "explicit"
     )
 
@@ -148,17 +147,17 @@ RSpec.describe WorkUnits::Launcher do
       job: job,
       artifacts: { "manual_agentic_run_instructions" => "Check Windows packaging." },
       planned_execution_requirements: {
-        project_label: "Windows",
+        project_label: "macOS",
         target_label: "//desktop:package",
-        capabilities: { "os" => [ "windows" ], "arch" => [ "x64" ] },
+        capabilities: { "os" => [ "macos" ] },
         source: "explicit"
       }
     )
 
     expect(workflow.planned_execution_json).to eq(
-      "project_label" => "Windows",
+      "project_label" => "macOS",
       "target_label" => "//desktop:package",
-      "capabilities" => { "os" => [ "windows" ], "arch" => [ "x64" ] },
+      "capabilities" => { "os" => [ "macos" ] },
       "source" => "explicit"
     )
     expect(job.reload.planned_execution_json).to eq(

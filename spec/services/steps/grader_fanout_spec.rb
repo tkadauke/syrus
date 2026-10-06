@@ -176,7 +176,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            toolchains: [xcode]
         - name: backend-tests
           run: bin/rspec
           when_files_changed: ["app/**/*.rb"]
@@ -192,7 +191,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       include(
         "name" => "ios-tests",
         "target_label" => "//:grade/ios-tests",
-        "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+        "capabilities" => { "os" => [ "macos" ] }
       ),
       include(
         "name" => "backend-tests",
@@ -203,8 +202,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     materialized = workflow.steps.where(kind: "grader").index_by { |grader_step| grader_step.details["name"] }
     expect(materialized.fetch("ios-tests").details).to include(
-      "capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
-      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      "capabilities" => { "os" => [ "macos" ] },
+      "required_capabilities" => { "os" => [ "macos" ] }
     )
     expect(materialized.fetch("backend-tests").details).to include(
       "capabilities" => { "os" => [ "linux" ] },
@@ -212,7 +211,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
     log_text = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(log_text).to include("selected ios-tests")
-    expect(log_text).to include("[//:grade/ios-tests] capabilities: os=macos, toolchains=xcode")
+    expect(log_text).to include("[//:grade/ios-tests] capabilities: os=macos")
     expect(log_text).to include("selected backend-tests")
     expect(log_text).to include("[//:grade/backend-tests] capabilities: os=linux")
   end
@@ -229,7 +228,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            toolchains: [xcode]
         - name: backend-tests
           run: bin/rspec
           when_files_changed: ["app/**/*.rb"]
@@ -244,7 +242,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(warning).to have_attributes(severity: "high", step: step)
     expect(warning.evidence).to include(
       "planned_capabilities" => { "os" => [ "linux" ] },
-      "required_capabilities" => { "os" => [ "macos" ], "toolchains" => [ "xcode" ] }
+      "required_capabilities" => { "os" => [ "macos" ] }
     )
     expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/ios-tests")
     expect(warning.suggested_prompt).to include("Do not move a mutable workspace across platforms")
@@ -252,7 +250,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   it "does not warn when macOS primary placement covers mixed iOS and backend target changes" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
     write_config(<<~YAML)
@@ -262,7 +260,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            toolchains: [xcode]
         - name: backend-tests
           run: bin/rspec
           when_files_changed: ["app/**/*.rb"]
@@ -279,7 +276,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   it "warns when an equally constrained affected target is not covered by the primary placement" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ], "toolchains" => [ "xcode" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
     )
     write_config(<<~YAML)
@@ -289,29 +286,26 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-            toolchains: [xcode]
-        - name: windows-package
-          run: msbuild
-          when_files_changed: ["windows/**/*"]
+        - name: linux-package
+          run: bin/linux-package
+          when_files_changed: ["linux/**/*"]
           capabilities:
-            os: windows
-            arch: [x64]
+            os: linux
     YAML
-    stub_changed_files("ios/App/View.swift", "windows/App/App.sln")
+    stub_changed_files("ios/App/View.swift", "linux/package.sh")
 
     handler.call
 
     warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/windows-package")
+    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/linux-package")
     expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
       "//:grade/ios-tests",
-      "//:grade/windows-package"
+      "//:grade/linux-package"
     )
     expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/windows-package" ])
+      .to eq([ "//:grade/linux-package" ])
     expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/windows-package", "dimension" => "os", "missing" => [ "windows" ]),
-      include("target_label" => "//:grade/windows-package", "dimension" => "arch", "missing" => [ "x64" ])
+      include("target_label" => "//:grade/linux-package", "dimension" => "os", "missing" => [ "linux" ])
     )
   end
 

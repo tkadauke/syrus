@@ -264,22 +264,20 @@ their toolchains. Two layers cover this:
   For anything beyond apt, edit `Dockerfile.local` (it just extends the base
   worker image).
 
-Compose workers advertise `os:linux` and their CPU architecture automatically.
-If you bake additional host capabilities into the local worker image, set
-`SYRUS_WORKER_CAPABILITIES` in `.env` so admin health, queue diagnostics, and
-capability-aware routing see the same shape:
+Compose workers advertise `os:linux` automatically. `SYRUS_WORKER_CAPABILITIES`
+only accepts the supported OS placement values, so most Compose installs do not
+need to set it:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:linux,arch:arm64,feature:docker
+SYRUS_WORKER_CAPABILITIES=os:linux
 ```
 
 For native macOS workers outside Compose, set the same variable on the worker
-process, for example
-`os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator`.
+process, for example `os:macos`.
 
 Syrus routes non-default pinned workspace work onto capability-specific worker
-queues such as `runs-macos-arm64`, `runs-windows-amd64`, and the matching
-`merges-*` queues. Distributed graders can use target-specific capability
+queues such as `runs-macos-arm64` and the matching `merges-*` queues.
+Distributed graders can use target-specific capability
 requirements, while orchestration phases stay on the broad compute queues.
 Docker Compose's default worker consumes the broad Linux queues from
 `config/queue.yml`; native Mac or Windows workers consume only the matching

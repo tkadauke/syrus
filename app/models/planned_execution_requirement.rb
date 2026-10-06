@@ -41,6 +41,12 @@ class PlannedExecutionRequirement
       raise ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities"
     end
 
+    raw = raw.deep_stringify_keys
+    unsupported_keys = raw.keys - TargetGraph::ExecutionCapabilities::DIMENSIONS
+    if unsupported_keys.any?
+      raise ArgumentError, "planned execution capabilities include unsupported keys #{unsupported_keys.join(', ')}; supported keys: #{TargetGraph::ExecutionCapabilities::DIMENSIONS.join(', ')}"
+    end
+
     TargetGraph::ExecutionCapabilities.new(**raw.symbolize_keys).to_h
   end
 
