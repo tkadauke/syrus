@@ -213,7 +213,7 @@ RSpec.describe SystemAlerts do
       expect(alert.message).to include("weekly 18% remaining")
     end
 
-    it "surfaces expired provider auth with a direct agent-settings action" do
+    it "surfaces expired provider auth with a direct credentials action" do
       user = Factories.user
       repository = Factories.repository(user: user)
       job = Factories.job(repository: repository, user: user, agent_provider: "codex")
