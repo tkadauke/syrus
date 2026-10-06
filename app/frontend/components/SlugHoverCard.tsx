@@ -5,6 +5,7 @@ import { pluginSlugPreviewCardComponentForPrefix, type PluginSlugPreviewCardProp
 import { hrefForSlugReference, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import { useT } from "../hooks/useT"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
+import { CloseIcon } from "./CloseIcon"
 import { CopyIcon } from "./CopyableSlug"
 import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
@@ -16,7 +17,7 @@ const corePreviewCards: Record<string, ComponentType<{ id: number; compact?: boo
   job: JobPreviewCard
 }
 const actionCloseButtonClassName =
-  "shrink-0 rounded px-2 py-1 text-sm text-text-secondary hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"
 const actionButtonClassName =
   "inline-flex items-center gap-1 rounded border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary shadow-sm hover:bg-surface-raised focus:outline-none focus:ring-2 focus:ring-brand"
 const actionOpenClassName =
@@ -231,8 +232,8 @@ function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: (
           <div className="break-all font-mono text-sm font-semibold">{slug}</div>
           <div className="text-xs text-text-secondary">{entry.displayLabel}</div>
         </div>
-        <button className={actionCloseButtonClassName} onClick={close} type="button">
-          {t("slug_reference.close")}
+        <button aria-label={t("slug_reference.close")} className={actionCloseButtonClassName} onClick={close} type="button">
+          <CloseIcon className="h-4 w-4" />
         </button>
       </div>
 
@@ -251,7 +252,7 @@ function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: (
       </div>
 
       {entry.previewAvailable ? (
-        <div className="max-h-[65vh] overflow-auto sm:max-h-[28rem]">
+        <div className="max-h-[65vh] w-full overflow-auto sm:max-h-[28rem] [&>*]:!w-full">
           <PreviewCard entry={entry} id={id} slug={slug} />
         </div>
       ) : (

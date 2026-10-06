@@ -111,6 +111,9 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     expect(screen.getByRole("link", { name: "Open JOB-42" })).toHaveAttribute("href", "/refs/42")
     expect(screen.getByRole("button", { name: "Copy JOB-42" })).toBeInTheDocument()
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
+    expect(screen.getByTestId("job-card").parentElement).toHaveClass("w-full", "[&>*]:!w-full")
+    expect(screen.getByRole("button", { name: "Close" })).toContainHTML("svg")
+    expect(screen.queryByText("Close")).not.toBeInTheDocument()
 
     await act(async () => {
       fireEvent.pointerDown(document.body)
