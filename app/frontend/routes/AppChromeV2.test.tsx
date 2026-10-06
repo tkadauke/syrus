@@ -1400,10 +1400,10 @@ describe("AppChromeV2 mobile header pinning", () => {
       expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
 
       const contentLayer = Array.from(document.querySelectorAll("div")).find((element): element is HTMLDivElement => (
-        element instanceof HTMLDivElement && element.className.includes("pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]")
+        element instanceof HTMLDivElement && element.style.paddingTop === "var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))"
       ))
       expect(contentLayer).not.toBeNull()
-      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]")
+      expect(contentLayer).toHaveStyle({ paddingTop: "var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))" })
       expect(contentLayer).toContainElement(screen.getByText("Claude sign-in expired."))
       expect(screen.getByText("Deployment is paused.")).toBeInTheDocument()
     } finally {

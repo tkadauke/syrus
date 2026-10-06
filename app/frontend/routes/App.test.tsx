@@ -12131,7 +12131,7 @@ describe("App", () => {
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
       expect(mobileChatShell.style.getPropertyValue("--mobile-chat-top-inset")).toBe("70px")
-      expect(mobileContentLayer).toHaveClass("pt-[var(--mobile-chat-top-inset,0px)]")
+      expect(mobileContentLayer).toHaveStyle({ paddingTop: "var(--mobile-chat-top-inset,0px)" })
       setScrollMetrics(stream, { scrollHeight: 1600, clientHeight: 400, scrollTop: 100 })
       fireEvent.scroll(stream, { target: { scrollTop: 100 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })

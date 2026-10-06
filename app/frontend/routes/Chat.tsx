@@ -1147,7 +1147,7 @@ function ChatWorkspace({
           showMobileWorkspaceTabs={showMobileWorkspaceTabs}
           onSelectMobileTab={selectMobileTab}
         />
-        <div className="flex min-h-0 w-full flex-1 pt-[var(--mobile-chat-top-inset,0px)]">
+        <div className="flex min-h-0 w-full flex-1" style={{ paddingTop: "var(--mobile-chat-top-inset,0px)" }}>
           {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
