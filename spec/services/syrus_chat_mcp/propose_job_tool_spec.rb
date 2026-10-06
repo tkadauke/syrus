@@ -14,8 +14,18 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
   end
 
   def call_tool(arguments)
+    arguments = arguments.deep_dup
+    arguments[:planned_execution] = default_planned_execution unless arguments.key?(:planned_execution)
+    call_tool_without_defaults(arguments)
+  end
+
+  def call_tool_without_defaults(arguments)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "propose_job", arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
+  end
+
+  def default_planned_execution
+    { capabilities: { os: [ "linux" ] } }
   end
 
   def response_payload(response)
@@ -31,6 +41,41 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("real newline characters")
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("literal")
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("`\\n`")
+  end
+
+  it "tells agents planned execution capabilities are required" do
+    schema = described_class.input_schema_value.to_h
+    planned_execution_schema = schema.fetch(:properties).fetch(:planned_execution)
+
+    expect(described_class.description_value).to include("planned_execution.capabilities")
+    expect(described_class.description_value).to include("missing or empty")
+    expect(planned_execution_schema.fetch(:description)).to include("{\"os\":[\"linux\"]}")
+    expect(planned_execution_schema.fetch(:description)).to include("Required explicit")
+  end
+
+  it "rejects missing planned execution capabilities before creating a proposal" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix mobile Safari layout",
+      description: "This is ordinary web frontend work."
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include('planned_execution.capabilities is required; choose explicit capabilities such as {"os":["linux"]}')
+    expect(chat_session.proposals.find_by(title: "Fix mobile Safari layout")).to be_nil
+  end
+
+  it "rejects empty planned execution capabilities before creating a proposal" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix empty capabilities",
+      description: "This must name a real execution placement.",
+      planned_execution: { capabilities: {} }
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix empty capabilities")).to be_nil
   end
 
   it "normalizes literal backslash-n sequences in the description into real line breaks" do

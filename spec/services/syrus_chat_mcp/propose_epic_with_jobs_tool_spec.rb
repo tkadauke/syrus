@@ -19,11 +19,114 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   def call_tool(arguments)
+    arguments = arguments.deep_dup
+    Array(arguments[:jobs] || arguments["jobs"]).each do |job|
+      next if job.key?(:planned_execution) || job.key?("planned_execution")
+
+      job[:planned_execution] = default_planned_execution
+    end
+    call_tool_without_defaults(arguments)
+  end
+
+  def call_tool_without_defaults(arguments)
     jsonrpc(server, "tools/call", params: { name: "propose_epic_with_jobs", arguments: arguments })
+  end
+
+  def default_planned_execution
+    { capabilities: { os: [ "linux" ] } }
   end
 
   def response_payload(response)
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+  end
+
+  it "tells agents child planned execution capabilities are required" do
+    schema = described_class.input_schema_value.to_h
+    child_schema = schema.fetch(:properties).fetch(:jobs).fetch(:items)
+    planned_execution_schema = child_schema.fetch(:properties).fetch(:planned_execution)
+
+    expect(described_class.description_value).to include("jobs[].planned_execution.capabilities")
+    expect(described_class.description_value).to include("missing or empty")
+    expect(planned_execution_schema.fetch(:description)).to include("{\"os\":[\"linux\"]}")
+    expect(planned_execution_schema.fetch(:description)).to include("Required explicit")
+  end
+
+  it "rejects a child with missing planned execution capabilities before creating proposals" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "missing-placement",
+        title: "Missing placement",
+        description: "Every child must choose placement.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "missing-child",
+          target_repo: repository.slug,
+          title: "Missing child",
+          description: "No placement here."
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include('proposal item missing-child planned_execution.capabilities is required; choose explicit capabilities such as {"os":["linux"]}')
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects a child with empty planned execution capabilities before creating proposals" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "empty-placement",
+        title: "Empty placement",
+        description: "Every child must choose placement.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "empty-child",
+          target_repo: repository.slug,
+          title: "Empty child",
+          description: "Empty placement here.",
+          planned_execution: { capabilities: {} }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("proposal item empty-child planned_execution.capabilities is required")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects a mixed batch atomically when any child omits planned execution capabilities" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "mixed-placement",
+        title: "Mixed placement",
+        description: "One child is valid and one is not.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "valid-child",
+          target_repo: repository.slug,
+          title: "Valid child",
+          description: "Has explicit Linux placement.",
+          planned_execution: { capabilities: { os: [ "linux" ] } }
+        },
+        {
+          slug: "missing-child",
+          target_repo: repository.slug,
+          title: "Missing child",
+          description: "No placement here.",
+          depends_on: [ "valid-child" ]
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("proposal item missing-child planned_execution.capabilities is required")
+    expect(chat_session.proposals.count).to eq(0)
   end
 
   it "creates one Epic proposal card with child Job rows and sibling dependencies" do
