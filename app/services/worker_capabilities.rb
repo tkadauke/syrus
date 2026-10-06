@@ -73,6 +73,7 @@ class WorkerCapabilities
 
     def normalize(raw)
       return {} if blank_value?(raw)
+      return normalize_string(raw) if raw.is_a?(String)
 
       TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.to_h.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
     end
@@ -106,6 +107,19 @@ class WorkerCapabilities
     end
 
     private
+
+    # A JSON column can hand back a JSON-encoded string (double-encoded
+    # write) or a "key:value" env-style string instead of a Hash.
+    def normalize_string(raw)
+      parsed = begin
+        JSON.parse(raw)
+      rescue JSON::ParserError
+        nil
+      end
+      return normalize(parsed) if parsed.is_a?(Hash)
+
+      parse(raw)
+    end
 
     def detected_defaults
       capabilities = {

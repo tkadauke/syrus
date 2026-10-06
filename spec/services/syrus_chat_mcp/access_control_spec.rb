@@ -198,7 +198,8 @@ RSpec.describe "Mcp::Tools access control" do
       "propose_job",
       title: "Ship a change",
       description: "Do the work.",
-      repo: other_repository.slug
+      repo: other_repository.slug,
+      planned_execution: { capabilities: { os: [ "linux" ] } }
     )
 
     expect(response.dig(:result, :isError)).to be(true)

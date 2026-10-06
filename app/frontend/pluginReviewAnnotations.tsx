@@ -2,6 +2,7 @@ import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import type { DiffReviewAnnotation, DiffReviewAnnotationAction, DiffReviewAnnotationPanel } from "./api/jobs"
 import { Button, buttonClasses } from "./components/Button"
 import { useT } from "./hooks/useT"
+import { Markdown } from "./lib/Markdown"
 
 export type PluginReviewAnnotationComponentProps = {
   item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction
@@ -66,7 +67,7 @@ export function ReviewAnnotationCard({ item }: { item: DiffReviewAnnotation | Di
   const fallback = (
     <div className={`rounded border p-3 text-sm ${annotationToneClass(item.tone)}`}>
       <div className="font-medium">{title}</div>
-      {body ? <p className="mt-1 whitespace-pre-wrap text-text-secondary">{body}</p> : null}
+      {body ? <Markdown className="mt-1 text-text-secondary" text={body} /> : null}
       {"actions" in item && item.actions?.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {item.actions.map((action, index) => (

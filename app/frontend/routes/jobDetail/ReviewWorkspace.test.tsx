@@ -144,7 +144,7 @@ describe("ReviewWorkspace", () => {
             }
           },
           ranges: {},
-          panels: [{ id: "panel-1", title: "Review note detail", body: "Provider supplied note copy." }],
+          panels: [{ id: "panel-1", title: "Review note detail", body: "Provider supplied `note` **copy**." }],
           actions: [{ id: "ack", label: "Acknowledge", href: "/ack" }],
           counts: [{ id: "open", label: "Open", value: 1, tone: "warning" }]
         }
@@ -157,7 +157,9 @@ describe("ReviewWorkspace", () => {
     expect(await screen.findByText("Review conversation")).toBeInTheDocument()
     expect(screen.getByText("Open: 1")).toBeInTheDocument()
     expect(screen.getByText("Review note detail")).toBeInTheDocument()
-    expect(screen.getByText("Provider supplied note copy.")).toBeInTheDocument()
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    expect(within(sidebar).getByText("note").tagName).toBe("CODE")
+    expect(within(sidebar).getByText("copy").tagName).toBe("STRONG")
     expect(screen.getByRole("link", { name: "Acknowledge" })).toHaveAttribute("href", "/ack")
     expect(screen.getByTitle("Inspect this branch")).toHaveTextContent("1")
   })
@@ -199,7 +201,7 @@ describe("ReviewWorkspace", () => {
                   start_line: 1,
                   end_line: 1,
                   title: "Inspect this branch",
-                  explanation: "The provider flagged this range.",
+                  explanation: "The provider flagged `setQueryData` and **ordering** in this range.",
                   open_unhandled: true,
                   priority: "high",
                   confidence: 0.82,
@@ -233,7 +235,7 @@ describe("ReviewWorkspace", () => {
                     start_line: 1,
                     end_line: 1,
                     title: "Inspect this branch",
-                    explanation: "The provider flagged this range.",
+                    explanation: "The provider flagged `setQueryData` and **ordering** in this range.",
                     priority: "high",
                     confidence: 0.82,
                     reason_codes: ["state"]
@@ -262,10 +264,12 @@ describe("ReviewWorkspace", () => {
     })
     const viewer = screen.getByTestId("agent-diff-viewer")
     expect(within(viewer).getByText("Inspect this branch")).toBeInTheDocument()
-    expect(within(viewer).getByText("The provider flagged this range.")).toBeInTheDocument()
+    expect(within(viewer).getByText(/The provider flagged/)).toBeInTheDocument()
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
-    expect(within(sidebar).getByText("The provider flagged this range.")).toBeInTheDocument()
+    expect(within(sidebar).getByText("setQueryData").tagName).toBe("CODE")
+    expect(within(sidebar).getByText("ordering").tagName).toBe("STRONG")
+    expect(within(sidebar).queryByText(/`setQueryData`/)).not.toBeInTheDocument()
     expect(screen.getByText("Open notes: 1")).toBeInTheDocument()
     expect(screen.getByText("0 acknowledged")).toBeInTheDocument()
     expect(screen.queryByText("0 handled")).not.toBeInTheDocument()

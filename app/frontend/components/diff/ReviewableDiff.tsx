@@ -14,6 +14,7 @@ import type { DiffReviewAnnotation, DiffReviewAnnotationCount, DiffReviewAnnotat
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { renderPluginReviewAnnotation } from "../../pluginReviewAnnotations"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
+import { Markdown } from "../../lib/Markdown"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
   DEFAULT_FILE_HEADER_HEIGHT_PX,
@@ -2250,7 +2251,7 @@ function reviewAnnotationFallbackPanel(note: DiffReviewAnnotation) {
   return (
     <div className={`rounded border p-3 text-sm ${reviewAnnotationToneClass(note.tone)}`}>
       {note.title ? <div className="font-medium">{note.title}</div> : null}
-      {note.body ? <p className="mt-1 whitespace-pre-wrap text-text-secondary">{note.body}</p> : null}
+      {note.body ? <Markdown className="mt-1 text-text-secondary" text={note.body} /> : null}
     </div>
   )
 }

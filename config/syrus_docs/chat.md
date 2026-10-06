@@ -719,6 +719,15 @@ advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
 
+`propose_job` requires `planned_execution.capabilities`, and
+`propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
+every child Job. Callers must choose explicit execution capabilities before the
+proposal card is created, for example `{"os":["linux"]}` for normal
+Linux/backend/web work, `{"os":["macos"],"toolchains":["xcode"]}` for iOS/Xcode
+work, or `{"os":["windows"],"arch":["x64"]}` for Windows work. Missing or empty
+capabilities are rejected instead of being inferred from proposal title/body
+text.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the

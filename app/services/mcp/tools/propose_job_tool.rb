@@ -61,11 +61,12 @@ module Mcp::Tools
       the Job inherits the repository/user default provider at confirmation
       time. Unknown provider values are rejected before the proposal card is
       created.
-      Set planned_execution to explicitly choose the primary implementation
-      placement when the request is ambiguous, such as macos/xcode for iOS
-      work or windows/x64 for Windows work. Omit it for conservative
-      automatic inference from the proposal text and repository capability
-      metadata.
+      Set planned_execution.capabilities explicitly for every proposal so the
+      proposal card shows the intended implementation placement. Use
+      {"os":["linux"]} for normal Linux/backend/web work,
+      {"os":["macos"],"toolchains":["xcode"]} for iOS/Xcode work, or
+      {"os":["windows"],"arch":["x64"]} for Windows work. The tool rejects
+      missing or empty planned_execution.capabilities before creating a card.
     DESC
 
     input_schema(
@@ -93,11 +94,12 @@ module Mcp::Tools
             capabilities: { type: "object", description: "Execution capabilities: os, arch, toolchains, runtimes, and/or features." },
             source: { type: "string", description: "Decision provenance. Defaults to operator for this explicit override." }
           },
-          description: "Optional explicit primary implementation placement override. Use capabilities like {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
+          required: %w[capabilities],
+          description: "Required explicit primary implementation placement. Use capabilities like {\"os\":[\"linux\"]} for normal Linux/backend/web work, {\"os\":[\"macos\"],\"toolchains\":[\"xcode\"]} for iOS/Xcode, or {\"os\":[\"windows\"],\"arch\":[\"x64\"]} for Windows."
         },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
-      required: %w[repo title description]
+      required: %w[repo title description planned_execution]
     )
 
     class << self
@@ -115,7 +117,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("description is required") if description.empty?
         provider_setting, provider_error = normalize_provider_setting(provider)
         return Mcp::Tools.invalid(provider_error) if provider_error
-        planned_execution_attrs = planned_execution_attributes(repository, title, description, planned_execution)
+        planned_execution_attrs = planned_execution_attributes(planned_execution)
+        return Mcp::Tools.invalid(planned_execution_attrs) if planned_execution_attrs.is_a?(String)
         goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
         return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
@@ -187,18 +190,27 @@ module Mcp::Tools
 
       private
 
-      def planned_execution_attributes(repository, title, description, planned_execution)
-        explicit = PlannedExecutionParams.from_params({ "planned_execution" => planned_execution }.compact)
-        return explicit if explicit.present?
+      def planned_execution_attributes(planned_execution)
+        return planned_execution_capabilities_required_message if missing_capabilities?(planned_execution)
 
-        probe = repository.user.jobs.new(repository: repository, issue_title: title, issue_body: description)
-        requirement = PlannedExecutionPlanner.for_job(probe)
-        {
-          planned_execution_project_label: requirement.project_label,
-          planned_execution_target_label: requirement.target_label,
-          planned_execution_capabilities: requirement.capabilities,
-          planned_execution_source: requirement.source
-        }
+        explicit = PlannedExecutionParams.from_params({ "planned_execution" => planned_execution }.compact)
+        return explicit if explicit[:planned_execution_capabilities].present?
+
+        planned_execution_capabilities_required_message
+      end
+
+      def missing_capabilities?(planned_execution)
+        return true unless planned_execution.is_a?(Hash)
+
+        capabilities = planned_execution.with_indifferent_access[:capabilities] ||
+          planned_execution.with_indifferent_access[:planned_execution_capabilities]
+        return true unless capabilities.is_a?(Hash)
+
+        TargetGraph::ExecutionCapabilities.new(**capabilities.symbolize_keys).empty?
+      end
+
+      def planned_execution_capabilities_required_message
+        'planned_execution.capabilities is required; choose explicit capabilities such as {"os":["linux"]}'
       end
 
       def goal_provenance_attributes(chat_session, for_active_goal)

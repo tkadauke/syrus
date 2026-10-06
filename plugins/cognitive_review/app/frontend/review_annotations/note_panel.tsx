@@ -3,6 +3,7 @@ import { useRef, useState, type FocusEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
 import { useT } from "@app/hooks/useT"
+import { Markdown } from "@app/lib/Markdown"
 import { acknowledgeCognitiveReviewNote, createCognitiveReviewNoteComment, startCognitiveReviewNoteDiscussion } from "../api/cognitiveReviewNotes"
 
 type CognitiveReviewNote = {
@@ -228,7 +229,7 @@ function CognitiveReviewNoteCard({ note }: { note: CognitiveReviewNote }) {
           {handled ? t("note.handled") : t("note.agent_authored")}
         </span>
       </div>
-      {note.explanation ? <p className="mt-2 whitespace-pre-wrap text-sm text-text-secondary">{note.explanation}</p> : null}
+      {note.explanation ? <Markdown className="mt-2 text-sm text-text-secondary" text={note.explanation} /> : null}
       <NoteMetadata note={note} />
       <LegacyDiscussionEntries entries={note.discussion_entries ?? []} />
       <div className="mt-3 flex flex-wrap gap-2">
