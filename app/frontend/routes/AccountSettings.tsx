@@ -459,6 +459,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
 function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   const [motionPermissionState, setMotionPermissionState] = useState<MotionPermissionStorageState>(() => readPersistedMotionPermissionState())
+  const [resetNotice, setResetNotice] = useState<string | null>(null)
   const statusKey = motionPermissionState.storageAvailable
     ? motionPermissionState.permission ?? "not_set"
     : "storage_unavailable"
@@ -467,6 +468,7 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
   useEffect(() => {
     function refreshMotionPermissionState() {
       setMotionPermissionState(readPersistedMotionPermissionState())
+      setResetNotice(null)
     }
 
     window.addEventListener(MOTION_PERMISSION_CHANGED_EVENT, refreshMotionPermissionState)
@@ -486,10 +488,10 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
     onNotice(null)
     if (clearPersistedMotionPermission()) {
       setMotionPermissionState(readPersistedMotionPermissionState())
-      onNotice(t("account_settings.browser_permissions_reset_notice"))
+      setResetNotice(t("account_settings.browser_permissions_reset_notice"))
     } else {
       setMotionPermissionState({ permission: null, storageAvailable: false })
-      onNotice(t("account_settings.browser_permissions_reset_unavailable_notice"))
+      setResetNotice(t("account_settings.browser_permissions_reset_unavailable_notice"))
     }
   }
 
@@ -506,10 +508,11 @@ function BrowserPermissionsPanel({ onNotice }: { onNotice: (message: string | nu
           <Pill tone={motionPermissionStatusTone(statusKey)}>
             {t(`account_settings.motion_permission_status.${statusKey}`)}
           </Pill>
-          <Button disabled={!canReset} onClick={resetMotionPermission} size="sm" variant="secondary">
+          <Button disabled={!canReset} onClick={resetMotionPermission} size="sm" type="button" variant="secondary">
             {t("account_settings.browser_permissions_reset")}
           </Button>
         </div>
+        {resetNotice ? <p className="text-xs font-medium text-success-text sm:col-span-2" role="status">{resetNotice}</p> : null}
       </div>
     </Form.Field>
   )
