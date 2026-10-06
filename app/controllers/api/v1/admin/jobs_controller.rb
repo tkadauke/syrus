@@ -177,7 +177,8 @@ module Api
           source.permit(
             :repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id,
             :target_branch, :delivery_track, :planned_execution_project_label, :planned_execution_target_label,
-            :planned_execution_source, planned_execution_capabilities: {}, planned_execution: [ :project_label, :target_label, :source, { capabilities: {} } ]
+            :planned_execution_source, :planned_execution_capabilities, planned_execution_capabilities: {},
+            planned_execution: [ :project_label, :target_label, :source, :capabilities, { capabilities: {} } ]
           )
         end
 

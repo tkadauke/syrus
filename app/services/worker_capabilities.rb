@@ -74,8 +74,13 @@ class WorkerCapabilities
     def normalize(raw)
       return {} if blank_value?(raw)
       return normalize_string(raw) if raw.is_a?(String)
+      return raw.to_h if raw.is_a?(TargetGraph::ExecutionCapabilities)
 
-      TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.to_h.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
+      unless raw.is_a?(Hash)
+        raise ArgumentError, "worker capabilities must be a Hash, String, or TargetGraph::ExecutionCapabilities"
+      end
+
+      TargetGraph::ExecutionCapabilities.new(**symbolize_keys(raw.slice(*TargetGraph::ExecutionCapabilities::DIMENSIONS))).to_h
     end
 
     def queue_names_for(base_queue, capabilities: current.fetch(:capabilities))

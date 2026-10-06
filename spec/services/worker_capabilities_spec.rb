@@ -33,6 +33,18 @@ RSpec.describe WorkerCapabilities do
     it "accepts an env-style string" do
       expect(described_class.normalize("os:linux,arch:arm64")).to eq("os" => [ "linux" ], "arch" => [ "arm64" ])
     end
+
+    it "accepts execution capability objects" do
+      capabilities = TargetGraph::ExecutionCapabilities.new(os: [ "macos" ])
+
+      expect(described_class.normalize(capabilities)).to eq("os" => [ "macos" ])
+    end
+
+    it "rejects non-hash capability values with a controlled error" do
+      expect {
+        described_class.normalize(Object.new)
+      }.to raise_error(ArgumentError, "worker capabilities must be a Hash, String, or TargetGraph::ExecutionCapabilities")
+    end
   end
 
   describe ".current" do
