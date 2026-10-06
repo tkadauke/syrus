@@ -13,12 +13,14 @@ jobs:
       template: true
       kind: initial
 events:
-  - name: exhaust codex usage once the workflow is running
+  # Exhausted BEFORE the first admission: the ProviderAvailability gate runs
+  # at admission, so work already in flight is never re-gated.
+  - name: exhaust codex usage before the first admission
     once: true
     when:
-      workflow:
-        job: first
-        state: running
+      job:
+        id: first
+        state: queued
     do:
       exhaust_provider_usage: codex
   - name: switch job to alternate provider once the unit is provider-blocked
@@ -41,5 +43,11 @@ expect:
     active_runs: empty
     active_work_units: empty
   events:
-    - "event exhaust codex usage once the workflow is running"
-    - "reconciler stale_provider_blocked_work_unit"
+    # The gate must actually have engaged and the switch must actually have
+    # released the blocked unit -- otherwise a job that simply ran would pass.
+    # (StaleProviderRelauncher's preemption path, which this scenario used to
+    # reach only because the simulator re-admitted work every tick, is covered
+    # end-to-end in spec/services/work_engine/reconciler_spec.rb.)
+    - "event exhaust codex usage before the first admission"
+    - "switched JOB"
+    - "1 deferred phases resumed"

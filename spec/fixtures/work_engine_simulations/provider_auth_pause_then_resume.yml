@@ -20,16 +20,20 @@ jobs:
       template: true
       kind: initial
 events:
-  - name: break codex auth once workflows are running
+  # Broken BEFORE the first admission, not after the workflows are already
+  # running. The ProviderAvailability gate runs when work is admitted
+  # (WorkDefinitions::Base), so an in-flight workflow is never re-gated and
+  # breaking auth mid-flight pauses nothing.
+  - name: break codex auth before the first admission
     once: true
     when:
       any:
-        - workflow:
-            job: first
-            state: running
-        - workflow:
-            job: second
-            state: running
+        - job:
+            id: first
+            state: queued
+        - job:
+            id: second
+            state: queued
     do:
       set_provider_status:
         provider: codex
@@ -70,5 +74,8 @@ expect:
     active_runs: empty
     active_work_units: empty
   events:
-    - "event break codex auth once workflows are running"
-    - "deferred phases resumed"
+    # The pause must have engaged and the wake must have admitted both blocked
+    # workflows -- without a count, jobs succeeding would pass even if the gate
+    # never engaged and the wake resumed nothing.
+    - "event break codex auth before the first admission"
+    - "provider admission wakeup: 2 workflows"

@@ -39,6 +39,24 @@ RSpec.describe "bin/simulator", :ci_only do
     expect(stdout).to include("work-engine simulations passed (1 scenarios)")
   end
 
+  # Each scenario runs inside a wrapper transaction that is rolled back at the
+  # end. While that wrapper was joinable, it swallowed every inner commit: a
+  # `save` joined the wrapper instead of opening its own transaction, so
+  # `after_commit` callbacks were deferred to an outer commit that never came.
+  # The simulator was therefore blind to the entire commit-callback layer --
+  # Step#advance_next_step!, Run#propagate_succeeded_run!,
+  # Workflow#schedule_auto_retry!, Job#start_dependent_jobs_after_implementation
+  # -- and the per-tick "wake every job" pass silently stood in for all of it.
+  #
+  # This scenario's dependent Job starts only from that callback chain, so it
+  # gets stuck if the wrapper is ever made joinable again.
+  it "runs after_commit callbacks inside a scenario" do
+    stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/job_dependency_success.yml")
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("job dependency success: success")
+  end
+
   # This used to delete storage/test.sqlite3 and storage/test_search.sqlite3
   # before and after the run, to prove the simulator did not create them. But
   # that is the database the rspec process running this very example is

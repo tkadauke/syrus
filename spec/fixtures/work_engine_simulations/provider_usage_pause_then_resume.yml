@@ -20,16 +20,18 @@ jobs:
       template: true
       kind: initial
 events:
-  - name: exhaust codex usage once workflows are running
+  # Exhausted BEFORE the first admission: the ProviderAvailability gate runs
+  # at admission, so work already in flight is never re-gated.
+  - name: exhaust codex usage before the first admission
     once: true
     when:
       any:
-        - workflow:
-            job: first
-            state: running
-        - workflow:
-            job: second
-            state: running
+        - job:
+            id: first
+            state: queued
+        - job:
+            id: second
+            state: queued
     do:
       exhaust_provider_usage: codex
   - name: refresh codex usage once units are provider-blocked
@@ -68,7 +70,8 @@ expect:
     active_runs: empty
     active_work_units: empty
   events:
-    # The pause must have engaged (units blocked, wake ran the resume) --
-    # without these, jobs succeeding would pass even if the gate broke.
-    - "event exhaust codex usage once workflows are running"
-    - "deferred phases resumed"
+    # The pause must have engaged and the wake must have admitted both
+    # blocked workflows -- without a count, jobs succeeding would pass even if
+    # the gate never engaged and the wake resumed nothing.
+    - "event exhaust codex usage before the first admission"
+    - "provider admission wakeup: 2 workflows"

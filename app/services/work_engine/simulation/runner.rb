@@ -128,7 +128,7 @@ module WorkEngine
             reconcile!(tick)
             process_auto_retry_attempts!(tick)
             retry_failed_jobs!(tick)
-            wake_jobs!
+            wake_jobs!(tick)
             process_landing_queue!(tick)
             execute_active_runs!(tick)
             next if retryable_failed_jobs?
@@ -292,9 +292,18 @@ module WorkEngine
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
+          when "wake" then wake_jobs_event!(tick, value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
+      end
+
+      # `wake: all` or `wake: [job_id, ...]` models the real wake a production
+      # event would have performed, for scenarios that legitimately need one
+      # after tick 0.
+      def wake_jobs_event!(tick, value)
+        explicit_wake_ticks << tick
+        wake_all_jobs!(only: value == "all" ? nil : value)
       end
 
       def approve_job!(job_id)
@@ -407,7 +416,13 @@ module WorkEngine
         job = Job.find(attrs.fetch("job"))
         provider = resolve_simulated_provider(attrs.fetch("provider"))
         job.switch_job_provider_setting!(provider)
-        events << "switched #{job.slug} provider to #{provider}"
+        # switch_job_provider_setting! finishes by calling
+        # ProviderAvailabilityWakeup, which only *enqueues*
+        # WorkflowPhaseAdmissionJob. There are no queue workers here, so admit
+        # the repinned workflows inline -- same stand-in as
+        # resume_blocked_workflows! below.
+        resumed = resume_blocked_workflows!(WorkUnits::Gates::ProviderAvailability::REASON, provider: provider)
+        events << "switched #{job.slug} provider to #{provider}, #{resumed} deferred phases resumed"
       end
 
       # Models someone merging (or closing) the job's PR on GitHub, outside
@@ -668,13 +683,39 @@ module WorkEngine
         end
       end
 
-      def wake_jobs!
+      # Production only wakes a Job when something happens to it: a dependency
+      # closes, an Epic releases its children, a landing defers, an operator
+      # acts. There are a couple of dozen such call sites, and
+      # Maintenance::ReleaseStuckEpicBlockedJobs exists purely to repair Jobs
+      # that were never woken -- so a missing wake is a real and recurring
+      # production bug.
+      #
+      # Waking every open Job on every tick hid that entire class: a scenario
+      # progressed whether or not the code under test actually woke anything,
+      # and a `LockConflict` here was retried next tick where production simply
+      # loses the wake. Tick 0 still wakes, because a scenario seeds Jobs that
+      # were "just created" and something has to start them; after that a
+      # Workflow moves only if the engine, a reconciler repair, or an explicit
+      # `wake` event moves it.
+      def wake_jobs!(tick)
+        return unless tick.zero? || explicit_wake_ticks.include?(tick)
+
+        wake_all_jobs!
+      end
+
+      def wake_all_jobs!(only: nil)
         jobs.each do |job|
+          next if only.present? && !Array(only).map(&:to_s).include?(job.id.to_s)
+
           job.reload
           job.start_pending_workflows_if_dependencies_satisfied! if job.open?
         rescue WorkUnits::Launcher::LockConflict => e
           events << "wakeup #{job.slug}: active lock #{e.lock_key}"
         end
+      end
+
+      def explicit_wake_ticks
+        @explicit_wake_ticks ||= Set.new
       end
 
       def process_landing_queue!(tick)
