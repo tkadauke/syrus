@@ -1401,8 +1401,8 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const contentLayer = screen.getByTestId("mobile-chat-content-shell")
       expect(contentLayer).toHaveClass("flex", "min-h-0", "flex-1", "flex-col")
-      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))]")
       expect(contentLayer.className).not.toContain("pt-[var(--mobile-chat-top-inset")
+      expect(contentLayer).toHaveStyle({ paddingTop: "var(--mobile-chat-app-header-visible-height,var(--mobile-chat-app-header-height,0px))" })
       expect(contentLayer).toContainElement(screen.getByText("Claude sign-in expired."))
       expect(screen.getByText("Deployment is paused.")).toBeInTheDocument()
     } finally {
