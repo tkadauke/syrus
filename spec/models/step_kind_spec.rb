@@ -87,6 +87,14 @@ RSpec.describe Step::Kind do
       Syrus::PluginRegistry.restore(registry_snapshot) if registry_snapshot
     end
 
+    it "falls back to implementation, response, and coding handoff repair profiles for post-implementation review" do
+      entry = described_class.fetch("post_implementation_review")
+
+      expect(entry.resource_profile_lookup_groups_for).to include(
+        [ [ "implement", nil ], [ "respond", nil ], [ "coding_handoff_fix", nil ] ]
+      )
+    end
+
     it "keeps retired review_plan executable for persisted legacy workflows without MCP tools" do
       entry = described_class.fetch("review_plan")
 
