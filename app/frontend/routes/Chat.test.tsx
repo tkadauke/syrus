@@ -3555,6 +3555,55 @@ describe("chat jobs tab", () => {
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
+
+  it("keeps the Jobs tab available on mobile after confirming a pending job proposal to backlog", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse({ pending_proposals: [], items: [] }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: proposal({
+            proposed: false,
+            resolved: true,
+            state: "confirmed",
+            state_label: "Confirmed",
+            route_to_backlog: true,
+            materialized: { kind: "job", job_id: 99, job_title: "Survey aqueduct route", job_state: "open" }
+          }),
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        chat: { confirmed_proposal_count: 0 },
+        messages: [messageWithProposal(9, proposal({ route_to_backlog: true }))]
+      }, { pending_proposal_count: 1 })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss proposal 9.")
+    const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(mobileTabs).getByRole("button", { name: "Jobs" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal to backlog" }))
+
+    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: "Jobs" })).toBeInTheDocument())
+    expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Jobs" }))
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
 })
 
 describe("chat pinned tab", () => {
