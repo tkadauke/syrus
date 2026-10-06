@@ -25,6 +25,16 @@ RSpec.describe WorkerCapabilities do
     end
   end
 
+  describe ".normalize" do
+    it "accepts a JSON-encoded string from a double-encoded json column" do
+      expect(described_class.normalize('{"os":["linux"]}')).to eq("os" => [ "linux" ])
+    end
+
+    it "accepts an env-style string" do
+      expect(described_class.normalize("os:linux,arch:arm64")).to eq("os" => [ "linux" ], "arch" => [ "arm64" ])
+    end
+  end
+
   describe ".current" do
     it "lets configured constrained dimensions override detected defaults" do
       allow(described_class).to receive(:command_available?).and_return(false)
