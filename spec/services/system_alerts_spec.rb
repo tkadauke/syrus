@@ -213,7 +213,7 @@ RSpec.describe SystemAlerts do
       expect(alert.message).to include("weekly 18% remaining")
     end
 
-    it "surfaces expired provider auth with a direct agent-settings action" do
+    it "surfaces expired provider auth with a direct credentials action" do
       user = Factories.user
       repository = Factories.repository(user: user)
       job = Factories.job(repository: repository, user: user, agent_provider: "codex")
@@ -247,7 +247,7 @@ RSpec.describe SystemAlerts do
       expect(alert).to have_attributes(
         severity: :alarm,
         title: "Codex sign-in expired.",
-        cta: { text: "Open agent settings", path: "/settings/agent" }
+        cta: { text: "Open credentials", path: "/credentials" }
       )
       expect(alert.message).to include("Syrus cannot start Codex-backed work")
       expect(alert.actions).to contain_exactly(
