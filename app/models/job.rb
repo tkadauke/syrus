@@ -815,7 +815,7 @@ class Job < ApplicationRecord
   after_create_commit :publish_job_created_event
   after_update_commit :publish_job_closed_event, if: :saved_change_to_closed?
   after_update_commit :publish_job_approved_event, if: :saved_change_to_approved?
-  after_update_commit :publish_job_state_changed_event, if: :saved_change_to_state?
+  after_update_commit :publish_job_state_changed_event, if: :state_changed_in_transaction?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :finish_stale_work_units_after_close, if: :saved_change_to_closed?
   after_update_commit :cancel_stale_work_intents_after_close, if: :saved_change_to_closed?
@@ -1478,12 +1478,17 @@ class Job < ApplicationRecord
     self[:slug] = candidate
   end
 
+  # These keep their `saved_change_to_*` names because that is what the
+  # after_*_commit guards above read, but they deliberately do NOT consult
+  # `saved_changes`: a callback earlier in the commit chain that writes or
+  # reloads the record would disarm every guard behind it. See
+  # RecordsStateTransitions#state_changed_in_transaction?.
   def saved_change_to_implemented?
-    saved_change_to_state? && implemented?
+    state_changed_in_transaction? && implemented?
   end
 
   def saved_change_to_closed?
-    saved_change_to_state? && closed?
+    state_changed_in_transaction? && closed?
   end
 
   def saved_change_to_closed_main_branch_repair?
@@ -1504,7 +1509,7 @@ class Job < ApplicationRecord
   end
 
   def saved_change_to_approved?
-    saved_change_to_state? && approved?
+    state_changed_in_transaction? && approved?
   end
 
   def ensure_main_branch_repair_after_close
@@ -2088,16 +2093,16 @@ class Job < ApplicationRecord
   end
 
   def saved_change_to_stack_parent_resolved_terminal?
-    saved_change_to_state? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
+    state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
   end
 
   def saved_change_to_successful_closed_dependency?
-    saved_change_to_state? && closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason)
+    state_changed_in_transaction? && closed? && SUCCESSFUL_CLOSURE_REASONS.include?(closure_reason)
   end
 
   def saved_change_needs_landing_queue_processor?
-    return true if saved_change_to_state? && approved?
-    return true if saved_change_to_state? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
+    return true if state_changed_in_transaction? && approved?
+    return true if state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
 
     false
   end

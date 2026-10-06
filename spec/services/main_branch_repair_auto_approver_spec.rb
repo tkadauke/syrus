@@ -61,6 +61,12 @@ RSpec.describe MainBranchRepairAutoApprover do
     expect(job.reload).to be_implemented
   end
 
+  # This used to drive the auto-approval by hand, because the
+  # after_update_commit that is supposed to run it never fired: a callback
+  # earlier in the commit chain reloads the Job, which cleared the dirty
+  # tracking its guard read (see RecordsStateTransitions). The transition alone
+  # is enough now, which is the point -- in production nobody calls the private
+  # callback for it.
   it "runs when a repair job transitions to implemented" do
     job = repair_job(state: "running")
 
@@ -68,8 +74,6 @@ RSpec.describe MainBranchRepairAutoApprover do
 
     job.mark_implemented!
     job.save!
-    expect(job).to be_implemented
-    job.send(:auto_approve_main_branch_repair_after_implementation)
 
     expect(job.reload).to be_approved
   end
