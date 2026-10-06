@@ -423,6 +423,13 @@ describe("ProposalCard layout", () => {
     expect(screen.getByTestId("proposal-state-pill")).toHaveTextContent("Confirmed")
   })
 
+  it("wraps long proposal titles inside the card", () => {
+    const title = "HAWebhookNowPlayingUpdatesPlaybackStateBrowserDeepLinkToSpecificIntegrationSurfaceWithoutNaturalBreaks"
+    renderProposalCard(proposal({ title }))
+
+    expect(screen.getByRole("heading", { name: title })).toHaveClass("min-w-0", "break-words")
+  })
+
   it("gives the dependency info a content-based flex basis so it wraps below a long slug instead of being squeezed onto its line", () => {
     // flex-1 (flex-basis: 0%) reports a zero hypothetical main size to the flex
     // line-wrapping algorithm, so the browser always packs it onto the slug's
