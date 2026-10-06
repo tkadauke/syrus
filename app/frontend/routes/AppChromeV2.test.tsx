@@ -1372,7 +1372,7 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
-  it("offsets app-level banners below the absolute mobile chat header", () => {
+  it("keeps mobile chat content at the viewport top under the absolute header", () => {
     const restoreMatchMedia = mockNarrowViewport()
 
     try {
@@ -1396,11 +1396,10 @@ describe("AppChromeV2 mobile header pinning", () => {
       const scrollPane = screen.getByTestId("app-scroll-pane")
       expect(scrollPane.style.getPropertyValue("--mobile-chat-app-header-height")).toBe("72px")
 
-      const contentLayer = Array.from(document.querySelectorAll("div")).find((element): element is HTMLDivElement => (
-        element instanceof HTMLDivElement && element.className.includes("pt-[var(--mobile-chat-app-header-height,0px)]")
-      ))
-      expect(contentLayer).not.toBeNull()
-      expect(contentLayer).toHaveClass("pt-[var(--mobile-chat-app-header-height,0px)]")
+      const contentLayer = screen.getByTestId("mobile-chat-content-shell")
+      expect(contentLayer).toHaveClass("flex", "min-h-0", "flex-1", "flex-col")
+      expect(contentLayer.className).not.toContain("pt-[var(--mobile-chat-app-header-height")
+      expect(contentLayer.className).not.toContain("pt-[var(--mobile-chat-top-inset")
       expect(contentLayer).toContainElement(screen.getByText("Claude sign-in expired."))
       expect(screen.getByText("Deployment is paused.")).toBeInTheDocument()
     } finally {
