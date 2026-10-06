@@ -11,6 +11,7 @@ class Job < ApplicationRecord
   include JobDependencies
   include JobExecutionAccessors
   include JobLifecycle
+  include NormalizesPlannedExecutionRequirements
 
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
@@ -149,7 +150,6 @@ class Job < ApplicationRecord
   before_validation :default_origin, on: :create
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
-  before_validation :default_planned_execution_requirements, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :set_target_repository_from_epic, on: :create
   before_validation :defer_stale_closed_epic_assignment
@@ -1663,10 +1663,6 @@ class Job < ApplicationRecord
 
   def planned_execution_json
     planned_execution_requirement.as_json
-  end
-
-  def default_planned_execution_requirements
-    PlannedExecutionRequirement.from_record(self).assign_to(self)
   end
 
   def ensure_planned_execution_requirements!

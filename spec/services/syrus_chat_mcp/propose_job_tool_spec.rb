@@ -108,6 +108,21 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     )
   end
 
+  it "rejects malformed explicit planned execution capabilities" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Fix Xcode project",
+      description: "Repair the iOS app build.",
+      planned_execution: {
+        capabilities: "macos"
+      }
+    )
+
+    expect(response[:result][:isError]).to eq(true)
+    expect(response.fetch(:result).fetch(:content).first.fetch(:text)).to include("Invalid arguments")
+    expect(chat_session.proposals.find_by(title: "Fix Xcode project")).to be_nil
+  end
+
   it "does not attach active goal provenance by default" do
     ChatGoal.create!(
       chat_session: chat_session,
