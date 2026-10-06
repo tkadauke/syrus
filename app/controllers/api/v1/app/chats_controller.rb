@@ -23,6 +23,12 @@ module Api
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
+        CODING_FILE_PREVIEW_MAX_BYTES = 1.megabyte
+        DEVELOPMENT_PREVIEW_REPOSITORY_FILES = {
+          "README.md" => "# Mobile chrome fixture\n",
+          "app/models/user.rb" => "# app/models/user.rb\n",
+          "app/frontend/routes/Chat.tsx" => "// app/frontend/routes/Chat.tsx\n"
+        }.freeze
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
           "claim the Epic as a developer to elaborate it.".freeze
 
@@ -1187,12 +1193,22 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "files", params: relay_params)
           if relay_response.nil?
+            if (repository_payload = read_only_repository_files_payload(chat_session, ref: relay_params[:ref]))
+              render json: repository_payload
+              return
+            end
+
             render_coding_relay_unavailable!(chat_session)
             return
           end
 
           status, result = relay_response
           unless status == 200
+            if (repository_payload = read_only_repository_files_payload(chat_session, ref: relay_params[:ref]))
+              render json: repository_payload
+              return
+            end
+
             render_error("not_found", "Coding checkout not available.", status: :not_found)
             return
           end
@@ -1254,12 +1270,30 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "file", params: relay_params)
           if relay_response.nil?
+            repository_payload = read_only_repository_file_payload(chat_session, file_path, ref: relay_params[:ref])
+            if repository_payload == :not_found
+              render_error("not_found", "File not found in attached repository.", status: :not_found)
+              return
+            elsif repository_payload
+              render json: repository_payload
+              return
+            end
+
             render_coding_relay_unavailable!(chat_session)
             return
           end
 
           status, result = relay_response
           unless status == 200
+            repository_payload = read_only_repository_file_payload(chat_session, file_path, ref: relay_params[:ref])
+            if repository_payload == :not_found
+              render_error("not_found", "File not found in attached repository.", status: :not_found)
+              return
+            elsif repository_payload
+              render json: repository_payload
+              return
+            end
+
             render_error("not_found", "File not found in coding checkout.", status: :not_found)
             return
           end
@@ -1470,6 +1504,77 @@ module Api
           else
             render_error("not_found", missing_message, status: :not_found)
           end
+        end
+
+        def read_only_repository_files_payload(chat_session, ref:)
+          return nil if chat_session.mode == "coding"
+          return nil unless chat_session.repository
+
+          if (fixture_payload = development_preview_repository_files_payload(chat_session))
+            return fixture_payload
+          end
+
+          content = RepositoryContent.for(chat_session.repository, user: Current.user)
+          revision = content.resolve(ref.presence || chat_session.repository.default_branch)
+          files = content.tree(revision).select(&:file?).map(&:path).sort
+          { files: files, checkout_branch: nil }
+        rescue RepositoryContent::Error => e
+          Rails.logger.info("[ChatsController] repository content unavailable for chat #{chat_session.id}: #{e.class}: #{e.message}")
+          nil
+        end
+
+        def read_only_repository_file_payload(chat_session, file_path, ref:)
+          return nil if chat_session.mode == "coding"
+          return nil unless chat_session.repository
+
+          if (fixture_payload = development_preview_repository_file_payload(chat_session, file_path))
+            return fixture_payload
+          end
+
+          content = RepositoryContent.for(chat_session.repository, user: Current.user)
+          revision = content.resolve(ref.presence || chat_session.repository.default_branch)
+          blob = content.read(revision, file_path, max_bytes: CODING_FILE_PREVIEW_MAX_BYTES)
+          binary = binary_content?(blob.bytes)
+          {
+            path: blob.path,
+            content: binary || blob.truncated ? nil : blob.text,
+            binary: binary,
+            too_large: blob.truncated,
+            size: blob.size
+          }
+        rescue RepositoryContent::NotFound
+          :not_found
+        rescue RepositoryContent::Error => e
+          Rails.logger.info("[ChatsController] repository content unavailable for chat #{chat_session.id}: #{e.class}: #{e.message}")
+          nil
+        end
+
+        def development_preview_repository_files_payload(chat_session)
+          return nil unless development_preview_repository?(chat_session.repository)
+
+          { files: DEVELOPMENT_PREVIEW_REPOSITORY_FILES.keys, checkout_branch: nil }
+        end
+
+        def development_preview_repository_file_payload(chat_session, file_path)
+          return nil unless development_preview_repository?(chat_session.repository)
+          return :not_found unless DEVELOPMENT_PREVIEW_REPOSITORY_FILES.key?(file_path)
+
+          content = DEVELOPMENT_PREVIEW_REPOSITORY_FILES.fetch(file_path)
+          {
+            path: file_path,
+            content: content,
+            binary: false,
+            too_large: false,
+            size: content.bytesize
+          }
+        end
+
+        def development_preview_repository?(repository)
+          Rails.env.development? && repository&.owner == "demo" && repository.name == "syrus-preview"
+        end
+
+        def binary_content?(bytes)
+          bytes.include?("\x00".b)
         end
 
         def preview_panel_text_content_type?(content_type, path)

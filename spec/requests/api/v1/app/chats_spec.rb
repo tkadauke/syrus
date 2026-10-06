@@ -2944,6 +2944,37 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["files"]).to eq([ "README.md" ])
     end
 
+    it "falls back to repository content for a planning-mode chat when no relay is available" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      stub_repository_content(repository, files: {
+        "README.md" => "# Widgets\n",
+        "app/models/user.rb" => "class User\nend\n"
+      })
+      enable_coding_mode!(enabled: false)
+
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_files"
+      }.not_to have_enqueued_job(ChatCodingRelayRefreshJob)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["files"]).to eq([ "README.md", "app/models/user.rb" ])
+      expect(parse_body["checkout_branch"]).to be_nil
+    end
+
+    it "serves the development preview repository fixture without a relay" do
+      sign_in_as(user)
+      preview_repository = Factories.repository(user: user, owner: "demo", name: "syrus-preview")
+      chat = ChatSession.create!(user: user, repository: preview_repository)
+      allow(Rails.env).to receive(:development?).and_return(true)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["files"]).to include("README.md", "app/models/user.rb", "app/frontend/routes/Chat.tsx")
+      expect(parse_body["checkout_branch"]).to be_nil
+    end
+
     it "404s when no repository is attached" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, coding_checkout_branch: "syrus-chat-norepo")
@@ -2954,9 +2985,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "returns 503 and queues a relay refresh when no checkout has been established yet, coding branch or not" do
+    it "returns 503 and queues a relay refresh when a coding chat has no relay available" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository)
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
       expect {
@@ -2979,7 +3010,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "returns 503 and queues a relay refresh when relay address is blank" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
       expect {
@@ -2994,7 +3025,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
       stub_request(:get, "http://127.0.0.1:9283/workspace/files")
@@ -3012,7 +3043,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "returns 503 without clearing relay credentials when a live relay times out while responding" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
       stub_request(:get, "http://127.0.0.1:9283/workspace/files")
@@ -3028,7 +3059,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "queues the relay refresh on the worker's own resume queue when workspace_storage_key is set" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42",
         workspace_storage_key: "worker-abc123")
       enable_coding_mode!
 
@@ -3041,7 +3072,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "throttles duplicate relay refresh jobs during the client backoff window" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
       cache_store = ActiveSupport::Cache::MemoryStore.new
       allow(Rails).to receive(:cache).and_return(cache_store)
@@ -3111,7 +3142,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "returns 503 and queues a relay refresh when relay address is blank" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
       expect {
@@ -3126,7 +3157,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
       stub_request(:get, "http://127.0.0.1:9283/workspace/file")
@@ -3156,6 +3187,43 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["content"]).to eq("# Widgets\n")
+    end
+
+    it "falls back to repository content for a planning-mode chat when no relay is available" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      stub_repository_content(repository, files: { "README.md" => "# Widgets\n" })
+      enable_coding_mode!(enabled: false)
+
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
+      }.not_to have_enqueued_job(ChatCodingRelayRefreshJob)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "path" => "README.md",
+        "content" => "# Widgets\n",
+        "binary" => false,
+        "too_large" => false,
+        "size" => "# Widgets\n".bytesize
+      )
+    end
+
+    it "serves development preview repository fixture content without a relay" do
+      sign_in_as(user)
+      preview_repository = Factories.repository(user: user, owner: "demo", name: "syrus-preview")
+      chat = ChatSession.create!(user: user, repository: preview_repository)
+      allow(Rails.env).to receive(:development?).and_return(true)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "path" => "README.md",
+        "content" => "# Mobile chrome fixture\n",
+        "binary" => false,
+        "too_large" => false
+      )
     end
 
     it "404s when no repository is attached" do
