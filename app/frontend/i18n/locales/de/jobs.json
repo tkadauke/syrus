@@ -84,7 +84,7 @@
   "feedback_panel_title": "Feedback geben",
   "feedback_placeholder": "Was soll geändert werden?",
   "feedback_error": "Feedback konnte nicht gesendet werden.",
-  "submit_feedback": "Feedback senden",
+  "submit_feedback": "Senden",
   "submitting": "Wird gesendet...",
   "request_changes_coding_mode_panel_description": "Dies öffnet die Aufgabe in einem Coding-Modus-Chat und sendet dieses Feedback als erste Aufforderung.",
   "request_changes_error": "Änderungen konnten nicht angefordert werden.",
