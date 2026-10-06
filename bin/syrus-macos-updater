@@ -76,6 +76,12 @@ require_command ruby
 require_command shasum
 require_command tar
 
+# Expanded as ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} at every callsite,
+# never as a bare "${CURL_AUTH_ARGS[@]}". macOS ships bash 3.2, where `set -u`
+# treats expanding an EMPTY array as an unbound variable -- so with no
+# SYRUS_API_TOKEN set, every curl in this script aborted with
+# "CURL_AUTH_ARGS[@]: unbound variable". Bash 4.4+ (Linux) is fine either way,
+# which is exactly why this hid: the script only ever runs on macOS.
 CURL_AUTH_ARGS=()
 if [[ -n "${SYRUS_API_TOKEN:-}" ]]; then
   CURL_AUTH_ARGS=(-H "Authorization: Bearer $SYRUS_API_TOKEN")
@@ -138,7 +144,7 @@ fetch_metadata() {
     return
   fi
 
-  curl -fsSL "$url" "${CURL_AUTH_ARGS[@]}"
+  curl -fsSL "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"}
 }
 
 extract_metadata() {
@@ -223,7 +229,7 @@ report_state() {
       }.delete_if { |_k, v| v.respond_to?(:empty?) && v.empty? }
       print JSON.generate(status: status)
     ' |
-    curl -fsS -X POST "$url" "${CURL_AUTH_ARGS[@]}" -H "Content-Type: application/json" --data-binary @- >/dev/null || true
+    curl -fsS -X POST "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -H "Content-Type: application/json" --data-binary @- >/dev/null || true
 }
 
 verify_artifact() {
@@ -280,11 +286,20 @@ restart_worker() {
 
 prune_releases() {
   local keep_count="$1"
-  local current_real
+  local current_real releases_real
   [[ -d "$RELEASES_DIR" ]] || return 0
 
+  # Both sides of the "is this the active release?" comparison below have to be
+  # physical paths. `pwd -P` resolves every symlink in the path, and on macOS
+  # /var is itself a symlink to /private/var -- so a current link under
+  # /var/folders/... came back as /private/var/folders/..., while `find`
+  # printed its results under the unresolved $RELEASES_DIR prefix. Nothing ever
+  # matched, the just-activated release was pruned as stale, and `current` was
+  # left dangling. Walking `find` over the resolved releases dir puts both
+  # sides in the same namespace.
   current_real="$(cd "$CURRENT_LINK" 2>/dev/null && pwd -P || true)"
-  find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -print |
+  releases_real="$(cd "$RELEASES_DIR" 2>/dev/null && pwd -P || printf '%s' "$RELEASES_DIR")"
+  find "$releases_real" -mindepth 1 -maxdepth 1 -type d -print |
     while IFS= read -r release; do
       printf '%s\t%s\n' "$(stat -f '%m' "$release" 2>/dev/null || stat -c '%Y' "$release")" "$release"
     done |
@@ -349,7 +364,7 @@ run_once() {
   if [[ "$ARTIFACT_URL" == file://* ]]; then
     cp "${ARTIFACT_URL#file://}" "$artifact"
   else
-    curl -fL "$ARTIFACT_URL" "${CURL_AUTH_ARGS[@]}" -o "$artifact"
+    curl -fL "$ARTIFACT_URL" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -o "$artifact"
   fi
   if ! verify_artifact "$artifact" "$ARTIFACT_SHA256"; then
     report_state "failed" "artifact checksum mismatch"

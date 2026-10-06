@@ -64,7 +64,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "passes worker identity when polling the Syrus metadata endpoint" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       env_file = File.join(dir, "worker.env")
       data_root = File.join(dir, "data")
       request_file = File.join(dir, "request.txt")
@@ -99,7 +104,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "downloads, verifies, activates, and prunes releases" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "install")
       releases_dir = File.join(install_root, "releases")
       current_link = File.join(install_root, "current")
@@ -141,8 +151,65 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  # prune_releases decides what is stale by comparing each release directory
+  # against the resolved target of the `current` symlink. `pwd -P` resolves
+  # every symlink in a path, so if the install root is itself reached through
+  # one, the release just activated did not match and was pruned as stale --
+  # leaving `current` pointing at a directory that no longer existed, which
+  # breaks the worker on its next start. A symlinked install path is ordinary
+  # on macOS (/var and /tmp are both symlinks).
+  it "keeps the activated release when the install root is reached through a symlink" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      real_root = File.join(dir, "real_install")
+      install_root = File.join(dir, "install")
+      FileUtils.mkdir_p(real_root)
+      File.symlink(real_root, install_root)
+
+      releases_dir = File.join(install_root, "releases")
+      current_link = File.join(install_root, "current")
+      new_sha = "abc1234"
+      FileUtils.mkdir_p(releases_dir)
+      %w[old-a old-b].each do |name|
+        path = File.join(releases_dir, name)
+        FileUtils.mkdir_p(path)
+        File.write(File.join(path, "GIT_SHA"), "#{name}\n")
+      end
+      File.symlink(File.join(releases_dir, "old-a"), current_link)
+
+      artifact = make_artifact(dir, sha: new_sha)
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: new_sha, retention_count: 2)
+      write_env(env_file, metadata: metadata)
+
+      stdout, stderr, status = Open3.capture3(
+        {
+          "PATH" => "#{stub_prepare_commands(dir)}:#{ENV.fetch("PATH")}",
+          "SYRUS_MACOS_INSTALL_ROOT" => install_root,
+          "SYRUS_MACOS_CURRENT_LINK" => current_link
+        },
+        "bash",
+        script,
+        "--env-file",
+        env_file,
+        "--once",
+        "--skip-restart"
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(Dir.children(releases_dir)).to include(new_sha)
+      expect(File.realpath(current_link)).to eq(File.join(real_root, "releases", new_sha))
+    end
+  end
+
   it "honors install path overrides from the worker env file" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "env-install")
       releases_dir = File.join(install_root, "releases")
       current_link = File.join(install_root, "current")
@@ -179,7 +246,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "skips activation when the current release already matches the desired sha" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "install")
       releases_dir = File.join(install_root, "releases")
       same_sha = "123abcd"
@@ -211,7 +283,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "does not activate a desired release until the drain directive allows updating" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "install")
       releases_dir = File.join(install_root, "releases")
       current_release = File.join(releases_dir, "aaa1111")
@@ -244,7 +321,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "reports a failed checksum without flipping the current symlink" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "install")
       releases_dir = File.join(install_root, "releases")
       current_release = File.join(releases_dir, "aaa1111")
@@ -292,7 +374,12 @@ RSpec.describe "native macOS worker updater" do
   end
 
   it "rejects target shas that could escape the releases directory" do
-    Dir.mktmpdir do |dir|
+    Dir.mktmpdir do |raw_dir|
+      # macOS symlinks /var to /private/var, so mktmpdir hands back an
+      # unresolved path while File.realpath (and the updater's own `pwd -P`)
+      # report the resolved one. Resolve once here so every path derived below
+      # is in the same namespace as what we compare it against.
+      dir = File.realpath(raw_dir)
       install_root = File.join(dir, "install")
       releases_dir = File.join(install_root, "releases")
       current_release = File.join(releases_dir, "aaa1111")
