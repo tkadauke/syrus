@@ -1,4 +1,5 @@
 export const MOTION_PERMISSION_STORAGE_KEY = "syrus:shake-to-report:motion-permission"
+export const MOTION_PERMISSION_CHANGED_EVENT = "syrus:shake-to-report:motion-permission-changed"
 
 export type PersistedMotionPermission = "granted" | "denied" | "unavailable"
 
@@ -29,6 +30,7 @@ export function readPersistedMotionPermission(): PersistedMotionPermission | nul
 export function persistMotionPermission(permission: PersistedMotionPermission) {
   try {
     window.localStorage.setItem(MOTION_PERMISSION_STORAGE_KEY, permission)
+    notifyMotionPermissionChanged()
   } catch {
     // Shake-to-report should still work when persistence is unavailable.
   }
@@ -37,8 +39,13 @@ export function persistMotionPermission(permission: PersistedMotionPermission) {
 export function clearPersistedMotionPermission() {
   try {
     window.localStorage.removeItem(MOTION_PERMISSION_STORAGE_KEY)
+    notifyMotionPermissionChanged()
     return true
   } catch {
     return false
   }
+}
+
+function notifyMotionPermissionChanged() {
+  window.dispatchEvent(new Event(MOTION_PERMISSION_CHANGED_EVENT))
 }
