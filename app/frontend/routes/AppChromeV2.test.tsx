@@ -1219,7 +1219,9 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       })
 
       const header = screen.getByTestId("mobile-app-header")
+      const contentLayer = screen.getByTestId("mobile-chat-content-shell")
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
+      expect(contentLayer).toHaveStyle({ paddingTop: "72px" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
       expect(header).toHaveStyle({ opacity: "0", transform: "translateY(-72px)" })
@@ -1228,10 +1230,12 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       expect(hiddenButton).toHaveAccessibleName("Open sidebar")
       expect(hiddenButton).toHaveClass("fixed", "rounded-full", "bg-gray-950", "text-white")
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("0px")
+      expect(contentLayer).toHaveStyle({ paddingTop: "0px" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 60 } })
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
       expect(screen.getByTestId("app-scroll-pane").style.getPropertyValue("--mobile-chat-app-header-visible-height")).toBe("72px")
+      expect(contentLayer).toHaveStyle({ paddingTop: "72px" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 120 } })
       expect(header).toHaveStyle({ transform: "translateY(-72px)" })
