@@ -9,6 +9,21 @@ RSpec.describe WorkerCapabilities do
     previous.nil? ? ENV.delete(described_class::ENV_KEY) : ENV[described_class::ENV_KEY] = previous
   end
 
+  describe "probe detection" do
+    # Detection runs on every instance heartbeat (InstanceVersionSupervisor,
+    # WorkerHostHealthSampler) and spawns a subprocess per probe, so repeating
+    # it on each call would be several processes for an answer that cannot
+    # change without a restart.
+    it "probes once per process rather than on every call" do
+      allow(described_class).to receive(:command_available?).and_return(true)
+
+      3.times { described_class.current }
+
+      expect(described_class).to have_received(:command_available?)
+        .at_most(described_class::TOOL_PROBES.size).times
+    end
+  end
+
   describe ".parse" do
     it "normalizes comma and space separated OS capabilities only" do
       expect(described_class.parse("os:macos,arch:arm64 toolchain:xcode,runtime:ios_simulator,feature:docker")).to eq(

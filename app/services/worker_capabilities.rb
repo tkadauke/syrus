@@ -56,6 +56,12 @@ class WorkerCapabilities
       }
     end
 
+    # Detection is memoized for the process; tests that stub probes need a way
+    # to clear it.
+    def reset_detection_cache!
+      @detected_defaults = nil
+    end
+
     def parse(raw)
       return {} if blank_value?(raw)
 
@@ -129,7 +135,18 @@ class WorkerCapabilities
       parse(raw)
     end
 
+    # Memoized for the life of the process. Probing spawns a subprocess per
+    # TOOL_PROBE, and this runs on every heartbeat
+    # (InstanceVersionSupervisor, WorkerHostHealthSampler), so re-detecting
+    # each time pays for several processes to learn an answer that cannot
+    # change: a worker does not gain a toolchain without being restarted. A
+    # worker whose toolchain is changed underneath it reports the old answer
+    # until it restarts, which is the same contract the os token already had.
     def detected_defaults
+      @detected_defaults ||= detect_defaults
+    end
+
+    def detect_defaults
       os = os_token
       capabilities = {}
       capabilities["os"] = [ os ] if TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES.include?(os)
