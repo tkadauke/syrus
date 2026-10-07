@@ -22,6 +22,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      workflow_preview_health_check_timeout_seconds: 60,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       workflow_admission_control_changed_at: null,
@@ -109,6 +110,36 @@ describe("AdminSettings SecretRow", () => {
 
     await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.anything())
+  })
+})
+
+describe("AdminSettings form", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("submits the workflow preview health-check timeout setting", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+
+    const input = await screen.findByLabelText("Workflow preview health-check timeout (seconds)")
+    fireEvent.change(input, { target: { value: "120" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([input, init]) => String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+        app_setting: {
+          workflow_preview_health_check_timeout_seconds: 120
+        }
+      })
+    })
   })
 })
 

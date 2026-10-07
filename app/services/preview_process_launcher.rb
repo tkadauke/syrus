@@ -166,7 +166,7 @@ class PreviewProcessLauncher
   end
 
   def safe_command_summary(command)
-    redacted = command.to_s.gsub(/((?:token|secret|password|passwd|api[_-]?key|access[_-]?key)=)([^\s]+)/i, '\1[REDACTED]')
+    redacted = CommandRedactor.redact(command)
     redacted.length > 220 ? "#{redacted.first(217)}..." : redacted
   end
 
