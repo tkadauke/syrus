@@ -15020,6 +15020,54 @@ describe("App", () => {
     }
   })
 
+  it("loads older chat messages when touch-dragging at the top edge without a scroll event", async () => {
+    const restoreSize = stubChatStreamSize({ scrollHeight: 1200, clientHeight: 600 })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/messages?before=9") {
+        return Promise.resolve(new Response(JSON.stringify({
+          has_more_older: false,
+          messages: [
+            {
+              type: "message",
+              id: 4,
+              role: "assistant",
+              text: "Earlier **aqueduct** note.",
+              bookmarkable: true
+            }
+          ]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload({ hasMoreOlder: true })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const stream = await screen.findByTestId("chat-message-stream")
+      setScrollMetrics(stream, { scrollHeight: 1200, clientHeight: 600, scrollTop: 0 })
+      fireEvent.touchMove(stream)
+
+      expect(await screen.findByText("aqueduct")).toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/8/messages?before=9",
+        expect.objectContaining({
+          credentials: "same-origin",
+          headers: { Accept: "application/json" }
+        })
+      )
+    } finally {
+      restoreSize()
+    }
+  })
+
   it("loads older chat messages when the initial transcript does not fill the viewport", async () => {
     const restoreSize = stubChatStreamSize({ scrollHeight: 420, clientHeight: 600 })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {

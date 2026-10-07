@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
-import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent, WheelEvent as ReactWheelEvent } from "react"
+import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, TouchEvent as ReactTouchEvent, UIEvent, WheelEvent as ReactWheelEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -650,13 +650,23 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     lastUserScrollIntentAtRef.current = Date.now()
   }, [])
 
-  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    if (event.deltaY !== 0) markUserScrollIntent()
-  }, [markUserScrollIntent])
+  const requestOlderMessagesIfNearTop = useCallback((stream: HTMLElement | null) => {
+    if (stream && isMessageStreamNearTop(stream)) {
+      requestOlderMessages({ preserveScroll: true })
+    }
+  }, [requestOlderMessages])
 
-  const handleTouchMove = useCallback(() => {
+  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY === 0) return
+
     markUserScrollIntent()
-  }, [markUserScrollIntent])
+    if (event.deltaY < 0) requestOlderMessagesIfNearTop(event.currentTarget)
+  }, [markUserScrollIntent, requestOlderMessagesIfNearTop])
+
+  const handleTouchMove = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    markUserScrollIntent()
+    requestOlderMessagesIfNearTop(event.currentTarget)
+  }, [markUserScrollIntent, requestOlderMessagesIfNearTop])
 
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const stream = event.currentTarget
