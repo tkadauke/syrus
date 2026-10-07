@@ -1,6 +1,7 @@
 class AppSetting < ApplicationRecord
   SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
+  WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_ENV = "SYRUS_WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_SECONDS".freeze
 
   CLEARABLE_SECRETS = {
     "telegram_bot_token" => "Telegram bot token",
@@ -99,6 +100,13 @@ class AppSetting < ApplicationRecord
 
   def self.rebase_failure_cooldown_minutes
     current.rebase_failure_cooldown_minutes
+  end
+
+  def self.workflow_preview_health_check_timeout_seconds
+    env_timeout = positive_integer_env(WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_ENV)
+    return env_timeout if env_timeout
+
+    current.workflow_preview_health_check_timeout_seconds.presence || 60
   end
 
   def self.workflow_admission_control_enabled?
@@ -218,6 +226,18 @@ class AppSetting < ApplicationRecord
   def self.clearable_secrets
     CLEARABLE_SECRETS.select { |key, _label| column_names.include?(key) }
   end
+
+  def self.positive_integer_env(name)
+    raw = ENV[name].to_s.strip
+    return nil if raw.blank?
+
+    value = Integer(raw, exception: false)
+    return value if value&.positive?
+
+    Rails.logger.warn("[AppSetting] ignoring invalid #{name}=#{raw.inspect}; expected a positive integer")
+    nil
+  end
+  private_class_method :positive_integer_env
 
   def github_app_registered?
     github_app_id.present?

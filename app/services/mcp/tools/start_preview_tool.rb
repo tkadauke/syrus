@@ -17,8 +17,11 @@ module Mcp::Tools
     description <<~DESC
       Start the target application as a background process in the workflow runner
       container. Runs the configured seed command (if any), spawns the app on the
-      requested port, polls the health check path for up to 60 seconds, then returns
-      the local URL and process ID on success.
+      requested port, polls the health check path for the configured workflow
+      preview timeout (60 seconds by default), then returns the local URL and
+      process ID on success. On timeout, the error includes the effective timeout,
+      health-check URL, startup-output path, configured app log paths, and recent
+      stdout/stderr from the spawned process.
 
       The preview is auto-killed when the workflow step ends. Call stop_preview when
       you no longer need the app running.
