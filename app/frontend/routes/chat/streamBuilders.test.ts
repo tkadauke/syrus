@@ -155,6 +155,68 @@ describe("buildMessageStreamItems pending action groups", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("hides operator-cancelled dangling tool calls and keeps the terminal system message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "sleep 10" } }),
+      toolResult(2, {
+        toolUseId: "tu_bash_1",
+        content: [{ type: "text", text: "Cancelled by operator before this tool returned." }],
+        isError: true
+      }),
+      toolUse(3, { toolUseId: "tu_bash_2", toolName: "bash", input: { command: "sleep 20" } }),
+      toolResult(4, {
+        toolUseId: "tu_bash_2",
+        content: [{ type: "text", text: "Cancelled by operator before this tool returned." }],
+        isError: true
+      }),
+      {
+        type: "message",
+        id: 5,
+        role: "system",
+        tool_name: null,
+        content: { text: "Cancelled by operator." },
+        text: "Cancelled by operator.",
+        bookmarkable: false
+      } as ChatMessageItem
+    ])
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ type: "message", role: "system", text: "Cancelled by operator." })
+  })
+
+  it("removes only operator-cancelled calls from a mixed tool group", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "echo done" } }),
+      toolResult(2, { toolUseId: "tu_bash_1", content: "done" }),
+      toolUse(3, { toolUseId: "tu_bash_2", toolName: "bash", input: { command: "sleep 20" } }),
+      toolResult(4, {
+        toolUseId: "tu_bash_2",
+        content: [{ type: "text", text: "Cancelled by operator before this tool returned." }],
+        isError: true
+      })
+    ])
+
+    const item = group(items[0])
+
+    expect(items).toHaveLength(1)
+    expect(item.outcome_label).toBe("Done")
+    expect(item.calls).toHaveLength(1)
+    expect(item.calls[0].result_body).toBe("done")
+  })
+
+  it("hides standalone operator-cancelled tool results when their tool_use is outside the loaded page", () => {
+    const items = renderChatMessages([
+      toolResult(1, {
+        toolUseId: "tu_missing",
+        content: [{ type: "text", text: "Cancelled by operator before this tool returned." }],
+        isError: true,
+        tool_name: "bash"
+      })
+    ])
+
+    expect(items).toEqual([])
+  })
+
   it("uses Browser plugin collapsed summaries with the paired tool input", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_resize", toolName: "browser_resize", input: { width: 390, height: 844 } }),
