@@ -167,8 +167,9 @@ type FilesPopupPlacement = {
 
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
-const DIFF_INLINE_REVIEW_PANEL_CLASS =
-  "sticky left-0 z-[1] box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+const DIFF_INLINE_REVIEW_PANEL_BASE_CLASS =
+  "box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+const DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS = `sticky left-0 z-[1] ${DIFF_INLINE_REVIEW_PANEL_BASE_CLASS}`
 const DIFF_FILE_HEADER_CONTROL_BASE_CLASS =
   "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
 
@@ -1639,7 +1640,7 @@ export function UnifiedDiffTable({
     if (threads.length === 0) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
         {threads.map((thread) => (
           <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1720,7 +1721,7 @@ export function UnifiedDiffTable({
     if (!isComposingHere) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} bg-brand/5`}>
+      <div className={`${DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS} bg-brand/5`}>
         <div className="space-y-2">
           <textarea
             aria-label={t("diff_review_composer.comment")}
@@ -1774,8 +1775,9 @@ export function UnifiedDiffTable({
     const rowToneClass = reviewAnnotationRowToneClass(reviewNotes)
     const panelToneClass = reviewAnnotationPanelToneClass(reviewNotes)
 
+    const panelClass = diffInlineReviewPanelClass(!splitRow)
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_CLASS} space-y-3 ${panelToneClass}`}>
+      <div className={`${panelClass} space-y-3 ${panelToneClass}`}>
         {reviewNotes.map((note, index) => {
           const inlineNote = reviewAnnotationInlineItem(note)
           return (
@@ -2423,6 +2425,10 @@ function diffDensityClasses(settings: ReviewDiffSettings) {
 
 function diffInlineReviewCellClass(settings: ReviewDiffSettings) {
   return `w-[min(44rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] align-top max-md:w-auto max-md:max-w-none max-md:p-0 ${diffDensityClasses(settings).inlineReviewCell}`
+}
+
+function diffInlineReviewPanelClass(sticky: boolean) {
+  return sticky ? DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS : DIFF_INLINE_REVIEW_PANEL_BASE_CLASS
 }
 
 function reviewDisplayCode(code: string, settings: ReviewDiffSettings) {
