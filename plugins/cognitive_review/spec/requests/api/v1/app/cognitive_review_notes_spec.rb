@@ -140,7 +140,7 @@ RSpec.describe "App API review notes", type: :request do
     discussion_entry_count = CognitiveReview::DiscussionEntry.count
 
     expect {
-      post "#{note_path(note)}/start_discussion", as: :json
+      post "#{note_path(note)}/start_discussion", params: { message: "Please inspect the lifecycle edge before changing this." }, as: :json
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
       .and have_enqueued_job(ChatTurnJob).with(kind_of(Integer), kind_of(Integer))
@@ -154,10 +154,58 @@ RSpec.describe "App API review notes", type: :request do
       "Discuss this Review Note with the operator.",
       "Location: #{note.path}:#{note.start_line}-#{note.end_line} (#{note.side}).",
       note.title,
-      note.explanation
+      note.explanation,
+      "Operator prompt:",
+      "Please inspect the lifecycle edge before changing this."
     )
     expect(parse_body["notes"].first).to include("id" => note.id, "state" => "discussed")
     expect(parse_body["debt_rollup"]).to include("open_unhandled_count" => 0, "discussed_count" => 1, "handled_count" => 1)
+  end
+
+  it "reopens an already-discussed note chat without creating a duplicate message or turn" do
+    note = create_note
+    chat = ChatSession.create!(user: user, repository: repo)
+    job.chat_attachments.create!(chat_session: chat)
+    note.start_discussion!(user: user)
+    discussed_at = note.last_discussed_at
+
+    expect {
+      post "#{note_path(note)}/start_discussion", params: { message: "Do not send this twice." }, as: :json
+    }.not_to change(ChatMessage, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatSession.count).to eq(1)
+    expect(ChatTurnJob).not_to have_been_enqueued
+    expect(note.reload).to have_attributes(state: "discussed", last_discussed_at: discussed_at)
+    expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
+  end
+
+  it "reuses the chat attached by a concurrent discussion winner" do
+    note = create_note
+    winning_chat = nil
+    allow_any_instance_of(CognitiveReview::Note).to receive(:start_discussion!) do |record, user:|
+      record.update!(
+        state: "discussed",
+        discussion_started_at: Time.current,
+        discussion_started_by_user: user,
+        last_discussed_at: Time.current,
+        last_discussed_by_user: user
+      )
+      winning_chat = ChatSession.create!(user: user, repository: repo)
+      job.chat_attachments.create!(chat_session: winning_chat)
+      false
+    end
+    message_count = ChatMessage.count
+
+    expect {
+      post "#{note_path(note)}/start_discussion", params: { message: "Please inspect this." }, as: :json
+    }.to change(ChatSession, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatMessage.count).to eq(message_count)
+    expect(job.reload.discussion_chat).to eq(winning_chat)
+    expect(parse_body["redirect_to"]).to eq("/chats/#{winning_chat.id}")
+    expect(ChatTurnJob).not_to have_been_enqueued
   end
 
   it "counts operator diff comments on covered ranges as handled" do
