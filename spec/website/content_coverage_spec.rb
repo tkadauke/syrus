@@ -14,7 +14,7 @@ RSpec.describe "website content coverage" do
     expect(readme).to include("Information Architecture")
     expect(readme).to include("Home")
     expect(readme).to include("Download")
-    expect(readme).to include("Guided help")
+    expect(readme).to include("Open-source onboarding")
     expect(readme).to include("Copy lives in `lib/site.ts`")
     expect(readme).to include("A feature is not done if the user-facing page that explains it is stale")
   end
@@ -31,6 +31,7 @@ RSpec.describe "website content coverage" do
         "Issue or ticket",
         "Scheduled task"
       ],
+      "components/demo.tsx" => ["Open-source onboarding", "GitHub", "Getting started"],
       "components/nav.tsx" => ["How it works", "Why Syrus", "Entry points", "Watch demo"]
     }
 
