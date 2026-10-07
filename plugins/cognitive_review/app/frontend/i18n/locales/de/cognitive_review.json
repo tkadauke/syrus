@@ -3,9 +3,13 @@
     "acknowledge": "Bestatigen",
     "acknowledging": "Wird bestatigt...",
     "cancel": "Abbrechen",
+    "close_discussion": "Diskussionsprompt schliessen",
     "discuss": "Besprechen",
     "discussing": "Wird geoffnet...",
     "discussion_body": "Diskussionsnotiz",
+    "discussion_error": "Diese Diskussion konnte nicht geoffnet werden.",
+    "discussion_prompt": "Erster Prompt",
+    "discussion_title": "Review-Notiz besprechen",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
     "feedback_reply_body": "Antwort",
     "feedback_reply_hint": "Fugt einen Review-Kommentar-Entwurf fur diese Notiz hinzu. Verwende Feedback senden in der Seitenleiste, um ausgewahlte Kommentare an den Agenten zu senden.",
@@ -13,6 +17,7 @@
     "save_feedback_reply": "Kommentar hinzufugen",
     "saving_feedback_reply": "Wird gespeichert...",
     "save_discussion": "Diskussion offnen",
+    "start_discussion": "Diskussion starten",
     "view_range": "Bereich anzeigen"
   },
   "note": {

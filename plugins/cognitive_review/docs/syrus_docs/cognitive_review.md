@@ -65,10 +65,15 @@ submitted an explicit empty result. Hovering or focusing a note card highlights
 its covered line range in the displayed diff when that version is selected.
 The side panel lets operators jump to flagged ranges and offers `Acknowledge`
 and `Discuss` actions. `Acknowledge` marks an open note handled without adding
-a reply. `Discuss` opens the Job discussion chat with Review Note context and
-marks the note discussed; it is for talking with the agent about the note, not
-for submitting review feedback. To leave feedback for the implementation,
-operators use the note card's feedback reply action. That action creates a
+a reply. For an open or acknowledged note, `Discuss` first opens a prompt
+dialog; submitting it opens the Job discussion chat, sends one user message
+with Review Note context plus the operator's prompt, and marks the note
+discussed. Cancelling the dialog does not create a chat or send a message. For
+an already-discussed note, `Discuss` only reopens the existing Job discussion
+chat and does not send another message or start another agent turn. It is for
+talking with the agent about the note, not for submitting review feedback. To
+leave feedback for the implementation, operators use the note card's feedback
+reply action. That action creates a
 normal diff review comment anchored to the note's diff version, path, side, and
 range, with structured Review Note provenance in the comment context. The
 comment handles the open note, appears in the unified Review conversation, and
