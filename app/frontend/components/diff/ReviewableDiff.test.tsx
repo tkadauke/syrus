@@ -688,7 +688,7 @@ describe("ReviewableDiff", () => {
       expect(annotationCells[0]).toHaveClass("border-warning-border/60")
       expect(annotationCells[1]).toHaveTextContent("*")
       expect(annotationCells[2]).toBe(panelCell)
-      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-4.5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
       expect(panel).not.toHaveClass("sticky", "left-0")
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
