@@ -201,6 +201,21 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(body.dig("task", "cron_template_id")).to eq(template.id)
   end
 
+  it "returns repository-scoped form defaults from a recommendation preset" do
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/new", params: { preset: "scheduled_coverage" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(body["from_template"]).to be_nil
+    expect(body.dig("task", "name")).to eq("Increase test coverage")
+    expect(body.dig("task", "prompt")).to include("Find under-tested files in {{repo_slug}}")
+    expect(body.dig("task", "schedule_input")).to eq("0 9 * * 5")
+    expect(body.dig("task", "pr_pileup_policy")).to eq("skip")
+  end
+
   it "lists alive scheduled tasks for a repository" do
     sign_in_as(user)
     active = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs.merge(name: "Active"))

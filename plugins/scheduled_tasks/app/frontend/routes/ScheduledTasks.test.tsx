@@ -241,7 +241,7 @@ describe("ScheduledTaskDetailRoute recent jobs", () => {
   })
 })
 
-function newFormPayload() {
+function newFormPayload(taskOverrides: Record<string, unknown> = {}) {
   return {
     task: {
       id: null,
@@ -256,7 +256,8 @@ function newFormPayload() {
       fire_at: "",
       pr_pileup_policy: "skip",
       auto_approve_mode: "never",
-      cron_template_id: null
+      cron_template_id: null,
+      ...taskOverrides
     },
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
     from_template: null,
@@ -268,13 +269,13 @@ function newFormPayload() {
   }
 }
 
-function renderNewForm() {
+function renderNewForm(path = "/app-shell/repositories/1/scheduled_tasks/new", routePath = "/app-shell/repositories/:repositoryId/scheduled_tasks/new") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/repositories/1/scheduled_tasks/new"]}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route element={<ScheduledTaskFormRoute mode="new" />} path="/app-shell/repositories/:repositoryId/scheduled_tasks/new" />
+          <Route element={<ScheduledTaskFormRoute mode="new" />} path={routePath} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -331,6 +332,86 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
     await waitFor(() => {
       expect(screen.getByText("Every Monday at 9:00 AM UTC")).toBeInTheDocument()
     })
+  })
+
+  it("passes recommendation preset query params through to the form payload", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            schedule_input: body.schedule_input,
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Friday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: "0 9 * * 5",
+            errors: [],
+            source: "cron",
+            structured_intent: null
+          })
+        )
+      }
+      if (url === "/api/v1/app/repositories/1/scheduled_tasks/new?preset=scheduled_coverage") {
+        return Promise.resolve(jsonResponse(newFormPayload({
+          name: "Increase test coverage",
+          prompt: "Find under-tested files in {{repo_slug}}.",
+          cron_expression: "0 9 * * 5",
+          schedule_input: "0 9 * * 5"
+        })))
+      }
+      return Promise.reject(new Error(`unexpected fetch ${url}`))
+    })
+
+    renderNewForm("/app-shell/repositories/1/scheduled_tasks/new?preset=scheduled_coverage")
+
+    expect(await screen.findByDisplayValue("Increase test coverage")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Find under-tested files in {{repo_slug}}.")).toBeInTheDocument()
+  })
+
+  it("uses the plugin repository route param without showing the repository picker", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            schedule_input: body.schedule_input,
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Friday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: "0 9 * * 5",
+            errors: [],
+            source: "cron",
+            structured_intent: null
+          })
+        )
+      }
+      if (url === "/api/v1/app/repositories/1/scheduled_tasks/new?preset=scheduled_coverage") {
+        return Promise.resolve(
+          jsonResponse(
+            newFormPayload({
+              name: "Increase test coverage",
+              prompt: "Find under-tested files in {{repo_slug}}.",
+              cron_expression: "0 9 * * 5",
+              schedule_input: "0 9 * * 5"
+            })
+          )
+        )
+      }
+      return Promise.reject(new Error(`unexpected fetch ${url}`))
+    })
+
+    renderNewForm("/app-shell/repositories/1/scheduled_tasks/new?preset=scheduled_coverage", "/app-shell/repositories/:repository_id/scheduled_tasks/new")
+
+    expect(screen.queryByLabelText("Repository")).not.toBeInTheDocument()
+    expect(await screen.findByDisplayValue("Increase test coverage")).toBeInTheDocument()
   })
 
   it("labels an LLM-assisted preview as a deterministic explanation with an AI-assist badge", async () => {

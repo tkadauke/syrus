@@ -136,7 +136,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const location = useLocation()
   const params = useParams()
   const id = params.id || ""
-  const routeRepositoryId = params.repositoryId || ""
+  const routeRepositoryId = params.repositoryId || params.repository_id || ""
   const [pickedRepositoryId, setPickedRepositoryId] = useState("")
   const repositoryId = routeRepositoryId || pickedRepositoryId
   // The top-level /scheduled_tasks/new route has no :repositoryId param, so
@@ -144,6 +144,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   // before it can even fetch the (per-repository) new-task form payload.
   const needsRepositoryPick = mode === "new" && !routeRepositoryId
   const fromTemplate = new URLSearchParams(location.search).get("from_template")
+  const preset = new URLSearchParams(location.search).get("preset")
   const basePath = tasksBase(location.pathname)
 
   const repositoryOptions = useQuery({
@@ -152,8 +153,8 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
     enabled: needsRepositoryPick && repositoryId.length === 0
   })
   const form = useQuery({
-    queryKey: ["scheduled_tasks", "new", repositoryId, fromTemplate],
-    queryFn: () => fetchNewScheduledTaskForm(repositoryId, fromTemplate),
+    queryKey: ["scheduled_tasks", "new", repositoryId, fromTemplate, preset],
+    queryFn: () => fetchNewScheduledTaskForm(repositoryId, fromTemplate, preset),
     enabled: mode === "new" && repositoryId.length > 0
   })
   const detail = useQuery({

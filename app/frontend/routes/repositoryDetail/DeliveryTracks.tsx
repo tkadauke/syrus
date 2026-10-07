@@ -1,6 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { TonePill } from "../../components/StatusPill"
 import { DataTable } from "../../components/ui"
+import { usePageGutterRestoreClassName } from "../../components/ui/Page"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -68,10 +69,11 @@ function healthTone(health: string | null): "green" | "red" | "gray" | "amber" {
 
 export function DeliveryTracksSection({ delivery, prefix }: { delivery: RepositoryDeliveryPayload; prefix: string }) {
   const { t } = useT("settings")
+  const contentGutter = usePageGutterRestoreClassName("padding")
 
   return (
     <section aria-label={t("delivery.aria_section")}>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <h2 className={`mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100 ${contentGutter}`}>
         {t("delivery.heading")}
       </h2>
       <div className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">

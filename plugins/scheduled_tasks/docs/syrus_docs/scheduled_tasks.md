@@ -16,7 +16,7 @@ disabled.
 
 ## Creating tasks
 
-Tasks are usually created from a repository's Schedules tab (`/repositories/:id/scheduled_tasks/new`), which is already scoped to that repository. The top-level `/scheduled_tasks` index also has a "New scheduled task" button; since that page isn't scoped to any repository, it presents a mandatory repository picker first (`GET /api/v1/app/scheduled_tasks/new` lists the operator's active repositories) and, once a repository is chosen, hands off to the same per-repository form and `createScheduledTask(repositoryId, ...)` submit path used by the repo-scoped flow.
+Tasks are usually created from a repository's Schedules tab (`/repositories/:id/scheduled_tasks/new`), which is already scoped to that repository. The top-level `/scheduled_tasks` index also has a "New scheduled task" button; since that page isn't scoped to any repository, it presents a mandatory repository picker first (`GET /api/v1/app/scheduled_tasks/new` lists the operator's active repositories) and, once a repository is chosen, hands off to the same per-repository form and `createScheduledTask(repositoryId, ...)` submit path used by the repo-scoped flow. Repository recommendation CTAs also use the repository-scoped form and may include a `preset` query parameter so the form opens with the repository selected plus a suggested name, cadence, prompt, and pile-up policy even when the operator has not created the matching cron template.
 
 ## Task kinds
 

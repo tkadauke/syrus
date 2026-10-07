@@ -149,8 +149,12 @@ export function fetchScheduledTask(id: string) {
   return getJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}`)
 }
 
-export function fetchNewScheduledTaskForm(repositoryId: string, fromTemplate?: string | null) {
-  const query = fromTemplate ? `?${new URLSearchParams({ from_template: fromTemplate }).toString()}` : ""
+export function fetchNewScheduledTaskForm(repositoryId: string, fromTemplate?: string | null, preset?: string | null) {
+  const queryParams = new URLSearchParams()
+  if (fromTemplate) queryParams.set("from_template", fromTemplate)
+  if (preset) queryParams.set("preset", preset)
+  const encodedQuery = queryParams.toString()
+  const query = encodedQuery ? `?${encodedQuery}` : ""
   return getJson<ScheduledTaskFormPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/new${query}`)
 }
 
