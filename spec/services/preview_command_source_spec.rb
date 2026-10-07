@@ -23,6 +23,7 @@ RSpec.describe PreviewCommandSource do
               - "bundle install"
             seed: "bin/seed"
             health_check: "/health"
+            health_check_timeout_seconds: 120
             logs:
               - "log/server.log"
             env:
@@ -62,6 +63,11 @@ RSpec.describe PreviewCommandSource do
         expect(result.health_check_path).to eq("/health")
       end
 
+      it "returns health_check_timeout_seconds from yml" do
+        result = described_class.new(workspace).resolve
+        expect(result.health_check_timeout_seconds).to eq(120)
+      end
+
       it "returns log_paths from yml" do
         result = described_class.new(workspace).resolve
         expect(result.log_paths).to eq([ "log/server.log" ])
@@ -82,6 +88,7 @@ RSpec.describe PreviewCommandSource do
           preview:
             start: "npm run dev -- --port $PORT"
             health_check: "/ready"
+            health_check_timeout_seconds: 90
             logs:
               - "logs/web.log"
         YAML
@@ -90,6 +97,7 @@ RSpec.describe PreviewCommandSource do
 
         expect(result.start_command_for.call(port: 4173)).to eq("npm run dev -- --port 4173")
         expect(result.health_check_path).to eq("/ready")
+        expect(result.health_check_timeout_seconds).to eq(90)
         expect(result.log_paths).to eq([ "logs/web.log" ])
       end
     end

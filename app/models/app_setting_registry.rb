@@ -122,19 +122,6 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
-      key: :workflow_preview_health_check_timeout_seconds,
-      type: :integer,
-      default: 60,
-      min: 1,
-      max: nil,
-      category: "Workflow behavior",
-      operational_meaning: "Seconds workflow start_preview waits for a spawned preview server health check before timing out.",
-      zero_means: nil,
-      admin_editable: true,
-      secret: false,
-      surface: :admin_settings
-    ),
-    Definition.new(
       key: :merge_train_enabled,
       type: :boolean,
       default: false,

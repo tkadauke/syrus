@@ -1568,6 +1568,7 @@ RSpec.describe SyrusYml do
             - "npm ci"
           seed: "bin/rails db:seed"
           health_check: "/health"
+          health_check_timeout_seconds: 120
           logs:
             - log/development.log
           env:
@@ -1582,6 +1583,7 @@ RSpec.describe SyrusYml do
       expect(config.preview.setup).to eq([ "bundle install", "npm ci" ])
       expect(config.preview.seed).to eq("bin/rails db:seed")
       expect(config.preview.health_check).to eq("/health")
+      expect(config.preview.health_check_timeout_seconds).to eq(120)
       expect(config.preview.logs).to eq([ "log/development.log" ])
       expect(config.preview.env).to eq(
         "RAILS_ENV" => "development",
@@ -1611,9 +1613,16 @@ RSpec.describe SyrusYml do
 
       expect(config.preview.setup).to eq([])
       expect(config.preview.seed).to be_nil
+      expect(config.preview.health_check_timeout_seconds).to be_nil
       expect(config.preview.logs).to eq([])
       expect(config.preview.env).to eq({})
       expect(config.preview.unset_env).to eq([])
+    end
+
+    it "rejects a non-positive preview health-check timeout" do
+      expect {
+        parse("preview:\n  start: node server.js\n  health_check_timeout_seconds: 0\n")
+      }.to raise_error(SyrusYml::ParseError, /preview\.health_check_timeout_seconds/)
     end
 
     it "accepts a single unset_env string" do

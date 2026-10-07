@@ -126,7 +126,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
   const [showWorkUnitDebug, setShowWorkUnitDebug] = useState(payload.settings.show_work_unit_debug)
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
-  const [workflowPreviewHealthCheckTimeout, setWorkflowPreviewHealthCheckTimeout] = useState(String(payload.settings.workflow_preview_health_check_timeout_seconds))
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
   const [chatCodingWorkspaceBudgetMb, setChatCodingWorkspaceBudgetMb] = useState(String(payload.settings.chat_coding_workspace_budget_mb))
@@ -146,7 +145,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
       show_work_unit_debug: showWorkUnitDebug,
       rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
-      workflow_preview_health_check_timeout_seconds: Number(workflowPreviewHealthCheckTimeout),
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
       workflow_admission_policy: workflowAdmissionPolicy,
       chat_coding_workspace_budget_mb: Number(chatCodingWorkspaceBudgetMb)
@@ -172,11 +170,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
     setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
-    setWorkflowPreviewHealthCheckTimeout(String(payload.settings.workflow_preview_health_check_timeout_seconds))
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
-  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_preview_health_check_timeout_seconds, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
+  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -391,20 +388,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setRebaseFailureCooldown(event.target.value)}
           type="number"
           value={rebaseFailureCooldown}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-preview-health-check-timeout">{t("settings.workflow_preview_health_check_timeout_label")}</label>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_preview_health_check_timeout_help")}</span>
-        <Input
-          className="mt-1 w-32"
-          fullWidth={false}
-          id="admin-settings-workflow-preview-health-check-timeout"
-          min={1}
-          onChange={(event) => setWorkflowPreviewHealthCheckTimeout(event.target.value)}
-          type="number"
-          value={workflowPreviewHealthCheckTimeout}
         />
       </div>
 

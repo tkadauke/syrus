@@ -260,6 +260,7 @@ preview:
   seed: bin/rails db:prepare db:seed
   start: bin/rails server -p $PORT -b 0.0.0.0 -e development
   health_check: /up
+  health_check_timeout_seconds: 120
   logs:
     - log/development.log
 ```
@@ -270,6 +271,13 @@ the nested directory. Job previews are filtered to previewable projects touched
 by the Job diff: one match starts directly, multiple matches show a project
 selector, and zero matches show a no-preview message. Root-only repositories
 keep the legacy root preview behavior.
+
+`health_check_timeout_seconds` tunes how long workflow-agent `start_preview`
+waits for the spawned preview server's health check before timing out. Omit it
+to keep the historical 60-second workflow default. Timeout responses include
+the effective timeout, health-check URL/path, selected project id when present,
+a redacted command summary, the startup stdout/stderr path, configured app log
+paths, and a short recent output tail.
 
 ## grade
 

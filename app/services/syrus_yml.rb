@@ -237,7 +237,11 @@ class SyrusYml
   end
   TargetGraphConfig = Data.define(:imports)
   TargetGraphImportConfig = Data.define(:provider, :failures, :config)
-  PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
+  PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :health_check_timeout_seconds, :logs, :env, :unset_env) do
+    def initialize(health_check_timeout_seconds: nil, **rest)
+      super(health_check_timeout_seconds: health_check_timeout_seconds, **rest)
+    end
+  end
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
@@ -1026,10 +1030,20 @@ class SyrusYml
       setup:        parse_preview_commands(raw["setup"], "preview.setup"),
       seed:         raw["seed"].to_s.strip.presence,
       health_check: raw["health_check"].to_s.strip.presence || "/",
+      health_check_timeout_seconds: parse_preview_health_check_timeout(raw["health_check_timeout_seconds"]),
       logs:         Array(raw["logs"]).map { |p| p.to_s.strip }.reject(&:empty?),
       env:          parse_preview_env(raw["env"]),
       unset_env:    parse_preview_unset_env(raw["unset_env"])
     )
+  end
+
+  def parse_preview_health_check_timeout(raw)
+    return nil if raw.nil?
+
+    value = Integer(raw, exception: false)
+    raise ParseError, "preview.health_check_timeout_seconds: must be a positive integer" unless value&.positive?
+
+    value
   end
 
   def parse_preview_env(raw)

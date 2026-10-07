@@ -13,6 +13,7 @@ module Syrus
     #     def setup_commands = ["bundle install"]
     #     def seed_command = "bin/rails db:seed"
     #     def health_check_path = "/"
+    #     def health_check_timeout_seconds = 120
     #     def log_paths = ["log/development.log"]
     #     def env = { "RAILS_ENV" => "development" }
     #     def unset_env = ["DATABASE_URL"]
@@ -100,6 +101,10 @@ module Syrus
 
       def health_check_path
         "/"
+      end
+
+      def health_check_timeout_seconds
+        nil
       end
 
       def log_paths
