@@ -7907,6 +7907,7 @@ describe("App", () => {
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      workflow_preview_health_check_timeout_seconds: 60,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       workflow_admission_control_changed_at: null,
@@ -7929,6 +7930,7 @@ describe("App", () => {
       proactive_rebase_commit_threshold: 20,
       show_work_unit_debug: false,
       rebase_failure_cooldown_minutes: 60,
+      workflow_preview_health_check_timeout_seconds: 60,
       workflow_admission_control_enabled: true,
       workflow_admission_policy: "whole_workflow",
       chat_coding_workspace_budget_mb: 0
