@@ -25,8 +25,11 @@ export function acknowledgeCognitiveReviewNote(jobId: number, noteId: number) {
   return postJson<CognitiveReviewNotesPayload>(`/api/v1/app/jobs/${jobId}/review_notes/${noteId}/acknowledge`)
 }
 
-export function startCognitiveReviewNoteDiscussion(jobId: number, noteId: number) {
-  return postJson<CognitiveReviewNotesPayload & { redirect_to: string }>(`/api/v1/app/jobs/${jobId}/review_notes/${noteId}/start_discussion`)
+export function startCognitiveReviewNoteDiscussion(jobId: number, noteId: number, message?: string) {
+  return postJson<CognitiveReviewNotesPayload & { redirect_to: string }>(
+    `/api/v1/app/jobs/${jobId}/review_notes/${noteId}/start_discussion`,
+    message ? { message } : undefined
+  )
 }
 
 export function createCognitiveReviewNoteComment(jobId: number, input: DiffReviewCommentInput) {

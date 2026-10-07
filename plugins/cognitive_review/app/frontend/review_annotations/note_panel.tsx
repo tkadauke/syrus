@@ -1,8 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useRef, useState, type FocusEvent } from "react"
+import { useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
+import { CloseIcon } from "@app/components/CloseIcon"
+import { Modal } from "@app/components/Modal"
 import { useT } from "@app/hooks/useT"
+import { errorMessage } from "@app/lib/errorMessage"
 import { Markdown } from "@app/lib/Markdown"
 import { acknowledgeCognitiveReviewNote, createCognitiveReviewNoteComment, startCognitiveReviewNoteDiscussion } from "../api/cognitiveReviewNotes"
 
@@ -63,6 +66,14 @@ const FEEDBACK_REPLY_TEXTAREA_CLASS = [
   "min-h-16 w-full rounded border border-border bg-surface px-3 py-2",
   "text-sm text-text-primary shadow-sm",
   "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+].join(" ")
+const DISCUSSION_DIALOG_CLASS = [
+  "w-full max-w-lg rounded border border-border bg-surface p-4",
+  "shadow-[var(--shadow-panel)]"
+].join(" ")
+const DISCUSSION_PROMPT_TEXTAREA_CLASS = [
+  "min-h-36 w-full rounded border border-border bg-surface px-3 py-2",
+  "text-sm text-text-primary shadow-sm focus:outline-brand"
 ].join(" ")
 
 export default function CognitiveReviewNotePanel({ item, surface }: PluginReviewAnnotationComponentProps) {
@@ -147,6 +158,7 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
   const focusedRef = useRef(false)
   const [replyBody, setReplyBody] = useState("")
   const [replyOpen, setReplyOpen] = useState(false)
+  const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false)
   const highlightConditionRefs = { focus: focusedRef, hover: hoveredRef }
   const annotationId = `cognitive_review_note:${note.note_id}`
   const openUnhandled = noteOpenUnhandled(note)
@@ -164,8 +176,9 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
     onSuccess: () => invalidateReviewQueries(queryClient, note.job_id)
   })
   const discuss = useMutation({
-    mutationFn: () => startCognitiveReviewNoteDiscussion(note.job_id, note.note_id),
+    mutationFn: (message?: string) => startCognitiveReviewNoteDiscussion(note.job_id, note.note_id, message),
     onSuccess: (payload) => {
+      setDiscussionDialogOpen(false)
       invalidateReviewQueries(queryClient, note.job_id)
       window.location.assign(payload.redirect_to)
     }
@@ -212,6 +225,21 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
     setHighlightCondition("focus", false)
   }
 
+  function openDiscussion() {
+    if (note.state === "discussed") {
+      discuss.mutate(undefined)
+      return
+    }
+    discuss.reset()
+    setDiscussionDialogOpen(true)
+  }
+
+  function closeDiscussionDialog() {
+    if (discuss.isPending) return
+    discuss.reset()
+    setDiscussionDialogOpen(false)
+  }
+
   return (
     <article
       className={`${NOTE_CARD_CLASS} ${openUnhandled ? OPEN_NOTE_CARD_CLASS : HANDLED_NOTE_CARD_CLASS}`}
@@ -247,10 +275,18 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
         <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => setReplyOpen(true)} size="sm" variant="secondary">
           {t("actions.reply")}
         </Button>
-        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={() => discuss.mutate()} size="sm" variant="secondary">
+        <Button disabled={acknowledge.isPending || discuss.isPending || comment.isPending} onClick={openDiscussion} size="sm" variant="secondary">
           {discuss.isPending ? t("actions.discussing") : t("actions.discuss")}
         </Button>
       </div>
+      {discussionDialogOpen ? (
+        <ReviewNoteDiscussionDialog
+          error={discuss.error}
+          isPending={discuss.isPending}
+          onClose={closeDiscussionDialog}
+          onSubmit={(message) => discuss.mutate(message)}
+        />
+      ) : null}
       {replyOpen ? (
         <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
           <p className="mb-2 text-xs text-text-secondary">{t("actions.feedback_reply_hint")}</p>
@@ -270,8 +306,83 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
           </div>
         </div>
       ) : null}
-      {acknowledge.isError || discuss.isError || comment.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
+      {acknowledge.isError || (!discussionDialogOpen && discuss.isError) || comment.isError ? <p className="mt-2 text-xs text-danger-text">{t("actions.error")}</p> : null}
     </article>
+  )
+}
+
+function ReviewNoteDiscussionDialog({
+  error,
+  isPending,
+  onClose,
+  onSubmit
+}: {
+  error: Error | null
+  isPending: boolean
+  onClose: () => void
+  onSubmit: (message: string) => void
+}) {
+  const { t } = useT("cognitive_review")
+  const [prompt, setPrompt] = useState("")
+  const trimmedPrompt = prompt.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedPrompt || isPending) return
+
+    onSubmit(trimmedPrompt)
+  }
+
+  function submitOnShortcut(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if (isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+
+    event.preventDefault()
+    event.currentTarget.requestSubmit()
+  }
+
+  return (
+    <Modal
+      className={DISCUSSION_DIALOG_CLASS}
+      closeOnBackdropClick={false}
+      closeOnEscape={!isPending}
+      labelledBy="review-note-discussion-title"
+      onClose={isPending ? () => {} : onClose}
+      open
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-base font-semibold text-text-primary" id="review-note-discussion-title">{t("actions.discussion_title")}</h2>
+        <button
+          aria-label={t("actions.close_discussion")}
+          className="inline-flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-surface-muted hover:text-text-primary"
+          disabled={isPending}
+          onClick={onClose}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <form className="mt-4 space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
+        <label className="block text-sm font-medium text-text-secondary" htmlFor="review-note-discussion-prompt">
+          {t("actions.discussion_prompt")}
+        </label>
+        <textarea
+          autoFocus
+          className={DISCUSSION_PROMPT_TEXTAREA_CLASS}
+          disabled={isPending}
+          id="review-note-discussion-prompt"
+          onChange={(event) => setPrompt(event.target.value)}
+          required
+          value={prompt}
+        />
+        {error ? <p className="text-sm text-danger-text" role="alert">{errorMessage(error, t("actions.discussion_error"))}</p> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button disabled={isPending} onClick={onClose} variant="secondary">{t("actions.cancel")}</Button>
+          <Button disabled={isPending || !trimmedPrompt} type="submit" variant="primary">
+            {isPending ? t("actions.discussing") : t("actions.start_discussion")}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

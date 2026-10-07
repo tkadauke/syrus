@@ -118,11 +118,6 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
     if (!activeId || !visibleIds.includes(activeId)) setActiveId(visibleIds[0])
   }, [activeId, visibleIds])
 
-  if (renderablePanels.length === 0) return null
-
-  const activeIndex = activeId ? visibleIds.indexOf(activeId) : -1
-  const showControls = visibleIds.length > 1 && activeIndex >= 0
-
   const setPanelVisible = useCallback((id: string, visible: boolean) => {
     setVisibleIds((current) => {
       const hasId = current.includes(id)
@@ -134,6 +129,11 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
       return current
     })
   }, [renderablePanels])
+
+  if (renderablePanels.length === 0) return null
+
+  const activeIndex = activeId ? visibleIds.indexOf(activeId) : -1
+  const showControls = visibleIds.length > 1 && activeIndex >= 0
 
   return (
     <section aria-label={labels.region} className="space-y-2">
