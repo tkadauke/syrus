@@ -199,6 +199,58 @@ RSpec.describe App::DiffReviewVersionsPayload do
     )
   end
 
+  it "falls back to matching same-job coverage for an all-changes version without coverage provenance" do
+    coverage_workflow = job.workflows.first
+    all_changes_workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "chat_feedback", agent_provider: "claude", state: "succeeded")
+    Workflow::CoverageArtifact.write!(coverage_workflow, {
+      "diff_annotations" => {
+        "app/models/selected.rb" => { "1" => "covered" },
+        "app/models/other.rb" => { "1" => "uncovered" }
+      }
+    })
+    selected = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: all_changes_workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: [
+        { path: "app/models/selected.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+selected" }
+      ],
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
+    )
+
+    show = described_class.show(version: selected, user: job.user)
+
+    expect(show[:coverage_annotations]).to eq(
+      "app/models/selected.rb" => { "1" => "covered" }
+    )
+  end
+
+  it "does not fall back to same-job coverage for an explicit source diff selection" do
+    coverage_workflow = job.workflows.first
+    Workflow::CoverageArtifact.write!(coverage_workflow, {
+      "diff_annotations" => {
+        "app/models/selected.rb" => { "1" => "covered" }
+      }
+    })
+    selected = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "old-base",
+      head_sha: "old-head",
+      files: [
+        { path: "app/models/selected.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+selected" }
+      ],
+      reason: "source_diff_selection",
+      metadata: { "range_kind" => "explicit_selection" }
+    )
+
+    show = described_class.show(version: selected, user: job.user)
+
+    expect(show[:coverage_annotations]).to eq({})
+  end
+
   it "keeps a resumed Run's second, different commit range as its own distinguishable payload entry instead of a look-alike duplicate" do
     workflow = job.workflows.first
     run = job.runs.first

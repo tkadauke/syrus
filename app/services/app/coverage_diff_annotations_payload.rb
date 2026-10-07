@@ -41,21 +41,37 @@ module App
     def relevant_coverage_artifact
       relevant_workflows.each do |workflow|
         artifact = Workflow::CoverageArtifact.read(workflow)
-        return artifact if artifact.present?
+        return artifact if relevant_artifact?(artifact)
       end
       nil
     end
 
     def relevant_workflows
-      candidates = []
-      candidates << @version&.workflow
-      candidates << @version&.run&.workflow
-
-      if @version.nil? && candidates.compact.empty?
-        candidates.concat(@job.workflows.reorder(created_at: :desc, id: :desc).to_a)
-      end
+      candidates = provenance_workflows
+      candidates.concat(same_job_fallback_workflows) if same_job_fallback_allowed?
 
       candidates.compact.uniq
+    end
+
+    def provenance_workflows
+      [ @version&.workflow, @version&.run&.workflow ]
+    end
+
+    def same_job_fallback_allowed?
+      @version.nil? || @version.reviewable_all_changes?
+    end
+
+    def same_job_fallback_workflows
+      @job.workflows.reorder(created_at: :desc, id: :desc).to_a
+    end
+
+    def relevant_artifact?(artifact)
+      return false unless artifact.is_a?(Hash)
+
+      annotations = artifact["diff_annotations"]
+      return false unless annotations.is_a?(Hash)
+
+      file_paths.any? { |path| annotations[path].is_a?(Hash) }
     end
 
     def file_paths
