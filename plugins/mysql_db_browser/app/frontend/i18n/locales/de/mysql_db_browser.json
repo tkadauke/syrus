@@ -15,6 +15,8 @@
   "close_button": "Schließen",
   "add_heading": "Verbindung hinzufügen",
   "edit_heading": "Verbindung bearbeiten",
+  "field_connection_url": "Verbindungs-URL",
+  "field_connection_url_hint": "Eine mysql://- oder mysql2://-URL einfügen, um die Felder unten auszufüllen.",
   "field_label": "Bezeichnung",
   "field_host": "Host",
   "field_port": "Port",
