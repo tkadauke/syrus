@@ -12179,7 +12179,8 @@ describe("App", () => {
       expect(stream.style.paddingTop).toBe("var(--mobile-chat-stream-top-breathing-room,1rem)")
       const streamContent = screen.getByTestId("chat-message-stream-content")
       expect(streamContent).toHaveAttribute("data-mobile-header-hidden", "true")
-      expect(streamContent).toHaveClass("data-[mobile-header-hidden=true]:-translate-y-8")
+      expect(streamContent).toHaveClass("transition-transform", "motion-reduce:transition-none")
+      expect(streamContent).toHaveStyle({ transform: "translateY(-2rem)" })
       expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
 
       fireEvent.click(screen.getByRole("link", { name: "Example" }))
