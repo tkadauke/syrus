@@ -1,6 +1,6 @@
 import { jsonResponse } from "../../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { MainBranchHealthSection } from "./MainBranchHealth"
@@ -393,5 +393,16 @@ describe("MainBranchHealthSection health history", () => {
     expect(screen.queryByRole("columnheader", { name: "Commit" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "abc123d" })).toBeInTheDocument()
     expect(screen.getByText("rspec")).toBeInTheDocument()
+
+    const row = screen.getByRole("link", { name: "abc123d" }).closest("tr")
+    expect(row).not.toBeNull()
+    const cells = within(row!).getAllByRole("cell")
+    expect(cells).toHaveLength(2)
+    expect(within(cells[0]).getByText("Source")).toBeInTheDocument()
+    expect(within(cells[0]).getByText("Graders")).toBeInTheDocument()
+    expect(within(cells[1]).getByText("CI")).toBeInTheDocument()
+    expect(within(cells[1]).getByText("Healthy")).toBeInTheDocument()
+    expect(within(cells[1]).getByText("Broken")).toBeInTheDocument()
+    expect(within(cells[1]).queryByText("Source")).not.toBeInTheDocument()
   })
 })

@@ -563,6 +563,7 @@
     "health_col_ci": "CI",
     "health_col_graders": "Prüfer",
     "health_col_failures": "Fehler",
+    "health_source_label": "Quelle",
     "health_monitoring_disabled": "Haupt-Branch-Gesundheitsüberwachung ist deaktiviert.",
     "health_work_pause_enabled": "Arbeitspause bei defektem Haupt-Branch aktiviert",
     "health_work_pause_disabled": "Arbeitspause bei defektem Haupt-Branch deaktiviert",
