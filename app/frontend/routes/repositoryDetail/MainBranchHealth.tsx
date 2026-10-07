@@ -4,6 +4,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { PanelMessage } from "../../components/PanelMessage"
 import { TonePill } from "../../components/StatusPill"
 import { DataTable } from "../../components/ui"
+import { useMediaQuery } from "../dashboard/components"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -19,6 +20,7 @@ import { useT } from "../../hooks/useT"
 import { resumeRepositoryLanding, runMainBranchGraders, repairMainBranch, checkCiNow, type RepositoryDetailPayload, type RepositoryHealthCheckRecord, type RepositoryHealthHistory } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
+import type { ReactNode } from "react"
 
 
 // Repository main-branch health section extracted from RepositoryDetail.tsx:
@@ -292,6 +294,7 @@ function buildHealthHistoryColumns({ prefix, t }: { prefix: string; t: (key: str
 function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthCheckRecord[]; prefix: string; t: (key: string, options?: Record<string, unknown>) => string }) {
   const columns = buildHealthHistoryColumns({ prefix, t })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: "syrus.repository_detail.main_branch_health_history.visible_columns" })
+  const isMobile = useMediaQuery("(max-width: 639px)", false)
 
   if (records.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("repository.health_no_history")}</p>
@@ -301,31 +304,104 @@ function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthC
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t("repository.health_history_heading")}</h3>
-        <DataTableColumnMenu
-          columns={columns}
-          downLabel={t("repositories.column_down")}
-          menuId="main-branch-health-history-columns-menu"
-          moveDownLabel={(title) => t("repositories.column_move_down", { title })}
-          moveUpLabel={(title) => t("repositories.column_move_up", { title })}
-          onChange={preferences.onChange}
-          order={preferences.order}
-          triggerAriaLabel={t("repositories.columns")}
-          upLabel={t("repositories.column_up")}
-          visibleLabel={t("repositories.visible_columns")}
-        />
+        {!isMobile ? (
+          <DataTableColumnMenu
+            columns={columns}
+            downLabel={t("repositories.column_down")}
+            menuId="main-branch-health-history-columns-menu"
+            moveDownLabel={(title) => t("repositories.column_move_down", { title })}
+            moveUpLabel={(title) => t("repositories.column_move_up", { title })}
+            onChange={preferences.onChange}
+            order={preferences.order}
+            triggerAriaLabel={t("repositories.columns")}
+            upLabel={t("repositories.column_up")}
+            visibleLabel={t("repositories.visible_columns")}
+          />
+        ) : null}
       </div>
-      <DataTable.Root>
-        <DataTable.Header>
-          <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
-        </DataTable.Header>
-        <DataTable.Body>
-          {records.map((record) => (
-            <DataTable.Row key={record.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={record} />
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+      {isMobile ? (
+        <MobileHealthHistoryTable records={records} prefix={prefix} t={t} />
+      ) : (
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTableColumnHeaderRow columns={columns} onReorder={preferences.onChange} order={preferences.order} />
+          </DataTable.Header>
+          <DataTable.Body>
+            {records.map((record) => (
+              <DataTable.Row key={record.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={record} />
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      )}
+    </div>
+  )
+}
+
+function MobileHealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthCheckRecord[]; prefix: string; t: (key: string, options?: Record<string, unknown>) => string }) {
+  return (
+    <DataTable.Root>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("repository.health_col_check")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("repository.health_col_signals")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {records.map((record) => (
+          <DataTable.Row key={record.id}>
+            <DataTable.Cell className="min-w-0">
+              <div className="space-y-1">
+                <div className="whitespace-nowrap text-gray-500 dark:text-gray-400">
+                  <RelativeTimestamp value={record.checked_at} />
+                </div>
+                <a className="block truncate font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">
+                  {record.sha}
+                </a>
+                <HealthHistoryFailures record={record} />
+              </div>
+            </DataTable.Cell>
+            <DataTable.Cell>
+              <div className="space-y-2">
+                <MobileHealthSignal label={t("repository.health_col_ci")}>
+                  <TonePill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</TonePill>
+                </MobileHealthSignal>
+                <MobileHealthSignal label={t("repository.health_col_graders")}>
+                  {record.workflow_path ? (
+                    <Link to={withRoutePrefix(record.workflow_path, prefix)}>
+                      <TonePill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</TonePill>
+                    </Link>
+                  ) : (
+                    <TonePill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</TonePill>
+                  )}
+                  <HealthSourceBadge source={record.source} t={t} />
+                </MobileHealthSignal>
+              </div>
+            </DataTable.Cell>
+          </DataTable.Row>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
+  )
+}
+
+function HealthHistoryFailures({ record }: { record: RepositoryHealthCheckRecord }) {
+  const failureNames = [ ...record.ci_failed_checks.map((c) => c.name), ...record.grader_failed_names ]
+  if (failureNames.length === 0) return null
+
+  return (
+    <div className="text-xs text-gray-600 dark:text-gray-400">
+      {failureNames.join(", ")}
+    </div>
+  )
+}
+
+function MobileHealthSignal({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      {children}
     </div>
   )
 }
