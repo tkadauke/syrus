@@ -21,6 +21,7 @@ preview:
   seed: bin/rails db:prepare db:seed
   start: bin/rails server -p $PORT -b 0.0.0.0 -e development
   health_check: /up
+  health_check_timeout_seconds: 120
 ```
 
 Syrus assigns `$PORT`, starts the process under its process monitor, and
@@ -54,6 +55,13 @@ Preview processes run as tracked spawned processes. Their stdout, stderr,
 state transitions, exit status, and recent logs are available from the Job
 detail UI and through the preview log tools. When a preview does not boot, read
 those logs before assuming the browser is at fault.
+
+Workflow visual review waits 60 seconds by default for `start_preview` health
+checks. Repositories that need longer boot time can set
+`preview.health_check_timeout_seconds` in the owning `.syrus.yml`. Timeout
+errors include the effective timeout, health-check URL, project id when one was
+selected, configured app log paths, the startup stdout/stderr file under
+`.syrus/preview/`, and a short recent output tail.
 
 ## Visual Review
 

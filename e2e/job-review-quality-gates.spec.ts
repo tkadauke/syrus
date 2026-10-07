@@ -252,15 +252,31 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
 
   const layout = await page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth
-    const range = Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] [data-diff-review-annotation-ids~="cognitive_review_note:7"]'))
-      .at(-1)
-      ?.getBoundingClientRect()
+    const rangeRows = Array.from(
+      document.querySelectorAll('[data-testid="agent-diff-viewer"] tr[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
+    )
+    const rangeRow = rangeRows.at(-1) as HTMLTableRowElement | undefined
+    const range = rangeRow?.getBoundingClientRect()
+    const rangeCells = rangeRow ? Array.from(rangeRow.cells) : []
+    const rangeCodeCell = rangeCells[2]?.getBoundingClientRect()
+    const annotationRow = document.querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"]') as HTMLTableRowElement | null
+    const annotationCells = annotationRow ? Array.from(annotationRow.cells) : []
+    const annotationGutter = annotationCells[0]?.getBoundingClientRect()
+    const annotationMarker = annotationCells[1]?.getBoundingClientRect()
+    const annotationCodeCell = annotationCells[2]?.getBoundingClientRect()
+    const annotationScroller = annotationRow?.closest('[data-testid="diff-file-scroll"]') as HTMLElement | null
     const card = document
       .querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"] [data-cognitive-review-note-id="7"]')
       ?.getBoundingClientRect()
     const next = Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] [data-diff-kind="hunk"]'))
       .at(1)
       ?.getBoundingClientRect()
+    const codeRowIntersections = card
+      ? Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] tr[data-diff-kind]'))
+          .map((row) => ({ kind: row.getAttribute("data-diff-kind"), rect: row.getBoundingClientRect() }))
+          .filter(({ rect }) => rect.bottom > card.top && rect.top < card.bottom)
+          .map(({ kind, rect }) => ({ bottom: rect.bottom, kind, top: rect.top }))
+      : []
 
     return {
       bodyScrollWidth: document.documentElement.scrollWidth,
@@ -270,7 +286,16 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
       cardTop: card?.top ?? 0,
       cardWidth: card?.width ?? 0,
       clientWidth: viewportWidth,
+      codeRowIntersections,
+      annotationCodeCellLeft: annotationCodeCell?.left ?? -1,
+      annotationGutterLeft: annotationGutter?.left ?? -1,
+      annotationGutterRight: annotationGutter?.right ?? -1,
+      annotationMarkerLeft: annotationMarker?.left ?? -1,
+      annotationMarkerRight: annotationMarker?.right ?? -1,
+      annotationScrollLeft: annotationScroller?.scrollLeft ?? -1,
+      annotationCellCount: annotationCells.length,
       nextTop: next?.top ?? 0,
+      rangeCodeCellLeft: rangeCodeCell?.left ?? -1,
       rangeBottom: range?.bottom ?? 0
     }
   })
@@ -278,8 +303,16 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
   expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
   expect(layout.cardWidth).toBeGreaterThan(240)
   expect(layout.cardLeft).toBeGreaterThanOrEqual(0)
-  expect(layout.cardRight).toBeLessThanOrEqual(402)
+  expect(layout.cardRight).toBeLessThanOrEqual(layout.clientWidth + 1)
+  expect(layout.annotationCellCount).toBe(3)
+  expect(layout.annotationScrollLeft).toBeLessThanOrEqual(1)
+  expect(layout.annotationGutterLeft).toBeGreaterThanOrEqual(0)
+  expect(layout.annotationGutterRight).toBeLessThanOrEqual(layout.annotationMarkerLeft + 1)
+  expect(layout.annotationMarkerRight).toBeLessThanOrEqual(layout.annotationCodeCellLeft + 1)
+  expect(Math.abs(layout.cardLeft - layout.annotationCodeCellLeft)).toBeLessThanOrEqual(1)
+  expect(Math.abs(layout.cardLeft - layout.rangeCodeCellLeft)).toBeLessThanOrEqual(1)
   expect(layout.cardTop).toBeGreaterThanOrEqual(layout.rangeBottom)
+  expect(layout.codeRowIntersections).toEqual([])
   expect(layout.nextTop).toBeGreaterThan(layout.cardBottom)
   await expect(nextHunk).toBeVisible()
 })

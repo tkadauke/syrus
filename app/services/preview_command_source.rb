@@ -14,7 +14,11 @@ require "syrus/plugin/preview_provider"
 # can pick a free port and hand it off in one step.
 class PreviewCommandSource
   # `start_command_for` — callable(port:) → String
-  Config = Data.define(:start_command_for, :setup_commands, :seed_command, :health_check_path, :log_paths, :env, :unset_env)
+  Config = Data.define(:start_command_for, :setup_commands, :seed_command, :health_check_path, :health_check_timeout_seconds, :log_paths, :env, :unset_env) do
+    def initialize(health_check_timeout_seconds: nil, **rest)
+      super(health_check_timeout_seconds: health_check_timeout_seconds, **rest)
+    end
+  end
 
   def initialize(workspace_path, project_id: nil)
     @workspace_path = workspace_path
@@ -39,6 +43,7 @@ class PreviewCommandSource
       setup_commands:    p.setup,
       seed_command:      p.seed,
       health_check_path: p.health_check,
+      health_check_timeout_seconds: p.health_check_timeout_seconds,
       log_paths:         p.logs,
       env:               p.env,
       unset_env:         p.unset_env
@@ -60,6 +65,7 @@ class PreviewCommandSource
       setup_commands:    p.setup,
       seed_command:      p.seed,
       health_check_path: p.health_check,
+      health_check_timeout_seconds: p.health_check_timeout_seconds,
       log_paths:         p.logs,
       env:               p.env,
       unset_env:         p.unset_env
@@ -77,6 +83,7 @@ class PreviewCommandSource
       setup_commands:    provider.respond_to?(:setup_commands) ? provider.setup_commands : [],
       seed_command:      provider.seed_command,
       health_check_path: provider.health_check_path,
+      health_check_timeout_seconds: provider.respond_to?(:health_check_timeout_seconds) ? provider.health_check_timeout_seconds : nil,
       log_paths:         provider.log_paths,
       env:               provider.respond_to?(:env) ? provider.env : {},
       unset_env:         provider.respond_to?(:unset_env) ? provider.unset_env : []

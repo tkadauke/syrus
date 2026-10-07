@@ -78,6 +78,10 @@ RSpec.describe Syrus::Plugin::PreviewProvider do
       expect(concrete.health_check_path).to eq("/")
     end
 
+    it "defaults health_check_timeout_seconds to nil" do
+      expect(concrete.health_check_timeout_seconds).to be_nil
+    end
+
     it "defaults log_paths to empty array" do
       expect(concrete.log_paths).to eq([])
     end

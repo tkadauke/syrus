@@ -165,16 +165,41 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
   end
 
   context "when the health check times out" do
+    let(:preview_config) do
+      PreviewCommandSource::Config.new(
+        start_command_for: ->(port:) { "bin/rails server -p #{port}" },
+        setup_commands:    [],
+        seed_command:      nil,
+        health_check_path: "/health",
+        health_check_timeout_seconds: 1,
+        log_paths:         [ "log/development.log" ],
+        env:               {},
+        unset_env:         []
+      )
+    end
+
     before do
-      stub_const("PreviewProcessLauncher::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
-      allow(Process).to receive(:spawn).and_return(12345)
+      allow(launcher).to receive(:sleep) { travel 2.seconds }
+      allow(Process).to receive(:spawn) do |*, **options|
+        options.fetch(:out).puts("Vite failed to bind fixed port 5173")
+        12345
+      end
       allow(launcher).to receive(:http_ok?).and_return(false)
     end
 
-    it "returns an error mentioning the timeout" do
+    it "returns diagnostic timeout evidence without dumping full logs" do
       response = call
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("timed out")
+      expect(response.content.first[:text]).to include(
+        "preview health check timed out after 1s",
+        "health check: http://127.0.0.1:3001/health (path /health)",
+        "start command: bin/rails server -p 3001",
+        "configured app logs: log/development.log",
+        "Use read_preview_log",
+        "recent startup output:",
+        "Vite failed to bind fixed port 5173"
+      )
+      expect(response.content.first[:text]).to include(File.join(workspace_path, ".syrus/preview/startup-#{run.id}.log"))
     end
 
     it "removes the process from the registry after timeout" do
@@ -185,6 +210,29 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     it "calls AgentPreviewRegistry.kill to stop the orphaned process" do
       expect(Mcp::Tools::AgentPreviewRegistry).to receive(:kill).with(run.id).and_call_original
       call
+    end
+
+    context "when the start command contains credentials" do
+      let(:preview_config) do
+        PreviewCommandSource::Config.new(
+          start_command_for: ->(port:) { "git clone https://x-access-token:github_pat_secret123@github.com/acme/app.git && GITHUB_TOKEN=ghp_secret bin/rails server -p #{port}" },
+          setup_commands:    [],
+          seed_command:      nil,
+          health_check_path: "/health",
+          health_check_timeout_seconds: 1,
+          log_paths:         [ "log/development.log" ],
+          env:               {},
+          unset_env:         []
+        )
+      end
+
+      it "redacts shared command secret patterns in the timeout message" do
+        response = call
+
+        expect(response.content.first[:text]).to include("https://x-access-token:[REDACTED]@github.com/acme/app.git")
+        expect(response.content.first[:text]).not_to include("github_pat_secret123")
+        expect(response.content.first[:text]).not_to include("ghp_secret")
+      end
     end
   end
 
