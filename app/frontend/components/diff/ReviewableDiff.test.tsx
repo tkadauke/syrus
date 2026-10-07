@@ -649,7 +649,7 @@ describe("ReviewableDiff", () => {
     expect(annotationRow.previousElementSibling).toBe(addedRow)
   })
 
-  it("keeps mobile full-width review-note panels statically anchored in their diff row", () => {
+  it("keeps mobile review-note panels aligned to the code column after the gutter", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -680,10 +680,15 @@ describe("ReviewableDiff", () => {
       )
 
       const annotationRow = screen.getByTestId("diff-review-annotation")
-      const panel = within(annotationRow).getByText("Inspect changed range").closest("td")?.firstElementChild
+      const annotationCells = Array.from(annotationRow.querySelectorAll("td"))
+      const panelCell = within(annotationRow).getByText("Inspect changed range").closest("td")
+      const panel = panelCell?.firstElementChild
 
-      expect(annotationRow.querySelectorAll("td")).toHaveLength(1)
-      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(annotationCells).toHaveLength(3)
+      expect(annotationCells[0]).toHaveClass("border-warning-border/60")
+      expect(annotationCells[1]).toHaveTextContent("*")
+      expect(annotationCells[2]).toBe(panelCell)
+      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-4.5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
       expect(panel).not.toHaveClass("sticky", "left-0")
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
