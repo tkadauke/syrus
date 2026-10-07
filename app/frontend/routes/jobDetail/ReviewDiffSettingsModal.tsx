@@ -27,10 +27,12 @@ export type ReviewDiffSettingsMetricOption = {
 export function ReviewDiffSettingsModal({
   initialSettings,
   metricGutterOptions = [],
+  onChange,
   onClose
 }: {
   initialSettings: ReviewDiffSettings
   metricGutterOptions?: ReviewDiffSettingsMetricOption[]
+  onChange?: (patch: Partial<ReviewDiffSettings>) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -47,7 +49,12 @@ export function ReviewDiffSettingsModal({
   function updateSetting<Key extends keyof ReviewDiffSettings>(key: Key, value: ReviewDiffSettings[Key]) {
     const next = { ...settings, [key]: value }
     setSettings(next)
-    mutation.mutate({ [key]: value })
+    const patch = { [key]: value } as Partial<ReviewDiffSettings>
+    if (onChange) {
+      onChange(patch)
+    } else {
+      mutation.mutate(patch)
+    }
   }
 
   const activeMetricGutterValue = metricGutterSettingValue(settings.metric_gutter, metricGutterOptions)
