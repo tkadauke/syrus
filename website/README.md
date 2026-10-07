@@ -40,10 +40,9 @@ release (`release.yml` → `publish-website`).
   `npm run sync-release` (the workflow runs it each build).
 - **Product demo** (`components/product-media.tsx`) leads the homepage with the
   generated screencast from `public/media/syrus-product-screencast.*`.
-- **Guided help form** (`components/demo.tsx`) POSTs to a self-hosted SMTP endpoint at
-  `NEXT_PUBLIC_API_BASE` (default `https://api.syrus-ai.dev`), which sends the
-  branded confirmation + team notification. If that endpoint is unreachable,
-  the form falls back to a `mailto:` — the site itself stays fully static.
+- **Open-source onboarding** (`components/demo.tsx`) closes the homepage with
+  static calls to download, read the docs, browse GitHub, and file issues. The
+  site has no message collection backend.
 - **Custom domain** is set by `public/CNAME` (`syrus-ai.dev`). The apex/`www`
   DNS must point at GitHub Pages, and the domain must be set in the repo's
   Pages settings.
@@ -59,14 +58,14 @@ rendered at `/docs`.
 
 The current static site is intentionally small:
 
-| Page/section | Path | Purpose |
-| --- | --- | --- |
-| Home | `src/app/page.tsx` | Marketing landing page assembled from hero, product video, workflow, feature, entry-point, and guided-help sections |
-| Download | `src/app/download/page.tsx` | Desktop and CLI release downloads |
-| Docs | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files |
-| Product video | `components/product-media.tsx` | Embedded screencast and screenshots for the homepage demo |
-| Guided help | `components/demo.tsx` | Secondary contact form with mailto fallback |
-| Product copy | `lib/site.ts` | Source of truth for hero copy, workflow steps, feature pillars, and entry points |
+| Page/section           | Path                                     | Purpose                                                                                                                        |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Home                   | `src/app/page.tsx`                       | Marketing landing page assembled from hero, product video, workflow, feature, entry-point, and open-source onboarding sections |
+| Download               | `src/app/download/page.tsx`              | Desktop and CLI release downloads                                                                                              |
+| Docs                   | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files                                                                    |
+| Product video          | `components/product-media.tsx`           | Embedded screencast and screenshots for the homepage demo                                                                      |
+| Open-source onboarding | `components/demo.tsx`                    | Static download, docs, GitHub, and issue-tracker calls to action                                                               |
+| Product copy           | `lib/site.ts`                            | Source of truth for hero copy, workflow steps, feature pillars, and entry points                                               |
 
 Copy lives in `lib/site.ts`. Prefer updating that shared copy over scattering
 parallel wording through components.
