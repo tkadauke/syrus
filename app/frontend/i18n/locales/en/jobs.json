@@ -569,6 +569,7 @@
   "review_version_separator": " - ",
   "review_artifacts_show": "Show",
   "review_artifacts_hide": "Hide",
+  "review_artifacts_selector_label": "Artifact",
   "review_artifacts_unversioned": "Unversioned",
   "review_artifacts_no_version_match": "No artifacts for the selected version.",
   "review_artifacts_iteration": "Iteration {{number}}",

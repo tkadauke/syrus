@@ -1,11 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
 import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { TypedArtifact } from "../../api/artifacts"
+import type { TFunction } from "i18next"
 import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
 import { measureAsync, useMarkedRender } from "../../lib/performanceMarkers"
@@ -45,7 +46,7 @@ import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRang
 import { ReviewDiffSettingsModal, type ReviewDiffSettingsMetricOption } from "./ReviewDiffSettingsModal"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
-import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
+import { Section, Select, Surface, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
 type ReviewAnnotationFocusDetail = {
   annotationId?: string
@@ -940,35 +941,130 @@ function VersionedArtifactsList({
       matching.push(artifact)
     }
   }
-  const displayed = [...matching, ...unversioned]
+  const displayed = [
+    ...matching.slice().sort(compareArtifactsNewestFirst),
+    ...unversioned.slice().sort(compareArtifactsNewestFirst)
+  ]
 
   if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 
+  const selectionScopeKey = artifactSelectionScopeKey(selectedVersion, selectedRange)
+
   return (
-    <div className="min-w-0 space-y-4">
-      {displayed.map((artifact, index) => (
-        <div
-          className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
-          key={artifactKey(artifact, index)}
+    <ArtifactVersionSelector artifacts={displayed} selectionScopeKey={selectionScopeKey} versions={versions} />
+  )
+}
+
+function ArtifactVersionSelector({
+  artifacts,
+  selectionScopeKey,
+  versions
+}: {
+  artifacts: TypedArtifact[]
+  selectionScopeKey: string
+  versions: DiffReviewVersion[]
+}) {
+  const { t } = useT("jobs")
+  const selectorId = useId()
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedScopeKey, setSelectedScopeKey] = useState(selectionScopeKey)
+  const artifactEntries = useMemo(() => artifacts.map((artifact, index) => ({ artifact, key: artifactKey(artifact, index) })), [artifacts])
+  const defaultEntry = artifactEntries[0] || null
+  const selectedEntry =
+    selectedScopeKey === selectionScopeKey
+      ? artifactEntries.find((entry) => entry.key === selectedKey) || defaultEntry
+      : defaultEntry
+
+  useEffect(() => {
+    if (!defaultEntry) return
+    if (selectedScopeKey !== selectionScopeKey || !artifactEntries.some((entry) => entry.key === selectedKey)) {
+      setSelectedKey(defaultEntry.key)
+      setSelectedScopeKey(selectionScopeKey)
+    }
+  }, [artifactEntries, defaultEntry, selectedKey, selectedScopeKey, selectionScopeKey])
+
+  if (!selectedEntry) return null
+
+  if (artifactEntries.length === 1) {
+    return <ReviewArtifactCard artifact={selectedEntry.artifact} versions={versions} />
+  }
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="max-w-xl min-w-0 space-y-1">
+        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={selectorId}>
+          {t("review_artifacts_selector_label")}
+        </label>
+        <Select
+          className="min-w-0 shadow-sm"
+          id={selectorId}
+          onChange={(event) => {
+            setSelectedKey(event.target.value)
+            setSelectedScopeKey(selectionScopeKey)
+          }}
+          value={selectedEntry.key}
         >
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
-            <span className="min-w-0 break-words font-semibold text-text-primary">{artifact.title}</span>
-            <span className="min-w-0 break-all text-xs text-text-muted">{artifact.type}</span>
-          </div>
-          <div className="border-b border-border px-4 py-1.5">
-            <ArtifactProvenance artifact={artifact} versions={versions} />
-          </div>
-          <div className="overflow-x-auto p-4">
-            <ArtifactBody artifact={artifact} />
-          </div>
-        </div>
-      ))}
+          {artifactEntries.map(({ artifact, key }) => (
+            <option key={key} value={key}>
+              {artifactOptionLabel(t, artifact)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <ReviewArtifactCard artifact={selectedEntry.artifact} versions={versions} />
     </div>
   )
 }
 
+function ReviewArtifactCard({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
+  return (
+    <Surface className="min-w-0 overflow-hidden" padding="none" variant="panel">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
+        <span className="min-w-0 break-words font-semibold text-text-primary">{artifact.title}</span>
+        <span className="min-w-0 break-all text-xs text-text-muted">{artifact.type}</span>
+      </div>
+      <div className="border-b border-border px-4 py-1.5">
+        <ArtifactProvenance artifact={artifact} versions={versions} />
+      </div>
+      <div className="overflow-x-auto p-4">
+        <ArtifactBody artifact={artifact} />
+      </div>
+    </Surface>
+  )
+}
+
 function artifactKey(artifact: TypedArtifact, index: number) {
-  return [artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index].join("-")
+  return [artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.step_id ?? "x", artifact.created_at ?? "x", index].join("-")
+}
+
+function artifactSelectionScopeKey(selectedVersion: DiffReviewVersion | null, selectedRange: { baseSha: string; headSha: string } | null) {
+  if (selectedRange) return ["range", selectedRange.baseSha, selectedRange.headSha].join(":")
+  return ["version", selectedVersion?.id ?? "latest", selectedVersion?.head_sha ?? "x"].join(":")
+}
+
+function compareArtifactsNewestFirst(a: TypedArtifact, b: TypedArtifact) {
+  return (
+    timestampForArtifact(b) - timestampForArtifact(a) ||
+    (b.workflow_id ?? 0) - (a.workflow_id ?? 0) ||
+    (b.run_id ?? 0) - (a.run_id ?? 0) ||
+    (b.step_id ?? 0) - (a.step_id ?? 0) ||
+    b.title.localeCompare(a.title) ||
+    b.type.localeCompare(a.type)
+  )
+}
+
+function timestampForArtifact(artifact: TypedArtifact) {
+  const timestamp = Date.parse(artifact.created_at)
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function artifactOptionLabel(t: TFunction<"jobs">, artifact: TypedArtifact) {
+  return [
+    artifact.title,
+    artifact.type,
+    hasArtifactProvenance(artifact) ? null : t("review_artifacts_unversioned"),
+    ...artifactProvenanceParts(t, artifact, [])
+  ].filter((part): part is string => Boolean(part)).join(" - ")
 }
 
 function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
@@ -978,18 +1074,32 @@ function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; v
     return <span className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("review_artifacts_unversioned")}</span>
   }
 
+  const parts = artifactProvenanceParts(t, artifact, versions)
+
+  return <span className="text-xs text-text-muted">{parts.join(" · ")}</span>
+}
+
+function artifactProvenanceParts(t: TFunction<"jobs">, artifact: TypedArtifact, versions: DiffReviewVersion[]) {
   const version = artifact.diff_review_version_id != null ? versions.find((candidate) => candidate.id === artifact.diff_review_version_id) : null
   const iteration = artifactIteration(artifact)
-  const parts = [
+  return [
     version ? version.label || t("review_version_prefix", { version: version.version_index }) : null,
     artifact.workflow_id != null ? t("review_version_workflow", { id: artifact.workflow_id }) : null,
     artifact.run_id != null ? t("review_version_run", { id: artifact.run_id }) : null,
     artifact.trigger_kind || null,
     iteration != null ? t("review_artifacts_iteration", { number: iteration }) : null,
+    artifact.created_at ? formattedArtifactTimestamp(artifact.created_at) : null,
     artifact.base_sha && artifact.head_sha ? `${shortSha(artifact.base_sha)} → ${shortSha(artifact.head_sha)}` : null
   ].filter((part): part is string => Boolean(part))
+}
 
-  return <span className="text-xs text-text-muted">{parts.join(" · ")}</span>
+function formattedArtifactTimestamp(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  })
 }
 
 function artifactIteration(artifact: TypedArtifact) {

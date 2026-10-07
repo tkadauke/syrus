@@ -947,6 +947,96 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByText("Column")).toBeInTheDocument()
     expect(screen.getByText("name")).toBeInTheDocument()
     expect(screen.queryByText("data_table")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Artifact")).not.toBeInTheDocument()
+  })
+
+  it("defaults multiple matching review artifacts to the latest artifact instead of expanding every body", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Older migration artifact",
+          payload: { headers: ["Column"], rows: [["older-body"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table",
+          workflow_id: 10,
+          run_id: 10,
+          step_id: 10,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Latest migration artifact",
+          payload: { headers: ["Column"], rows: [["latest-body"]] },
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "data_table",
+          workflow_id: 11,
+          run_id: 11,
+          step_id: 11,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByLabelText("Artifact")).toBeInTheDocument()
+    expect(screen.getByText("Latest migration artifact")).toBeInTheDocument()
+    expect(screen.getByText("latest-body")).toBeInTheDocument()
+    expect(screen.queryByText("older-body")).not.toBeInTheDocument()
+  })
+
+  it("lets reviewers choose an older artifact for the current diff selection", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Older migration artifact",
+          payload: { headers: ["Column"], rows: [["older-body"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table",
+          workflow_id: 10,
+          run_id: 10,
+          step_id: 10,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Latest migration artifact",
+          payload: { headers: ["Column"], rows: [["latest-body"]] },
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "data_table",
+          workflow_id: 11,
+          run_id: 11,
+          step_id: 11,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const olderOption = within(selector).getByRole("option", { name: /Older migration artifact/ }) as HTMLOptionElement
+    fireEvent.change(selector, { target: { value: olderOption.value } })
+
+    expect(screen.getByText("Older migration artifact")).toBeInTheDocument()
+    expect(screen.getByText("older-body")).toBeInTheDocument()
+    expect(screen.queryByText("latest-body")).not.toBeInTheDocument()
   })
 
   it("labels a version-matched review artifact with version, workflow/run, trigger kind, iteration, and sha range", async () => {
@@ -1011,7 +1101,7 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByText("Unversioned")).toBeInTheDocument()
   })
 
-  it("filters out artifacts tied to a different diff review version while keeping unversioned ones visible", async () => {
+  it("filters out artifacts tied to a different diff review version while keeping unversioned ones selectable", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
         version: version({ id: 100 }),
@@ -1057,8 +1147,96 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
 
     expect(screen.getByText("Matches selected version")).toBeInTheDocument()
-    expect(screen.getByText("No provenance at all")).toBeInTheDocument()
     expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
+    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const unversionedOption = within(selector).getByRole("option", { name: /No provenance at all/ }) as HTMLOptionElement
+    fireEvent.change(selector, { target: { value: unversionedOption.value } })
+
+    expect(screen.getByText("No provenance at all")).toBeInTheDocument()
+    expect(screen.getByText("Unversioned")).toBeInTheDocument()
+  })
+
+  it("resets artifact selection to the latest artifact when the diff version changes", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+        versions: [
+          version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+          version({ id: 200, version_index: 2, label: "Repair", run_id: 22, head_sha: "repair-head-sha" })
+        ]
+      })
+    )
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 200, version_index: 2, label: "Repair", run_id: 22, head_sha: "repair-head-sha" }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: sourceDiffPayload().files
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Older initial artifact",
+          payload: { headers: ["Column"], rows: [["older-initial-body"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 10,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Latest initial artifact",
+          payload: { headers: ["Column"], rows: [["latest-initial-body"]] },
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 11,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Older repair artifact",
+          payload: { headers: ["Column"], rows: [["older-repair-body"]] },
+          created_at: "2026-01-03T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 20,
+          head_sha: "repair-head-sha",
+          diff_review_version_id: 200
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Latest repair artifact",
+          payload: { headers: ["Column"], rows: [["latest-repair-body"]] },
+          created_at: "2026-01-04T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 21,
+          head_sha: "repair-head-sha",
+          diff_review_version_id: 200
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    const artifactSelector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const olderInitial = within(artifactSelector).getByRole("option", { name: /Older initial artifact/ }) as HTMLOptionElement
+    fireEvent.change(artifactSelector, { target: { value: olderInitial.value } })
+    expect(screen.getByText("older-initial-body")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v2 RUN-22" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Show" }))
+
+    await waitFor(() => expect(screen.getByText("latest-repair-body")).toBeInTheDocument())
+    expect(screen.getByText("Latest repair artifact")).toBeInTheDocument()
+    expect(screen.queryByText("older-repair-body")).not.toBeInTheDocument()
+    expect(screen.queryByText("older-initial-body")).not.toBeInTheDocument()
   })
 
   it("creates a whole-review comment from the permanent comment form", async () => {
