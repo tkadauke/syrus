@@ -15,6 +15,7 @@ accepted without enabling writes.
 ## What It Adds
 
 - Admin UI and API endpoints for MySQL connection management.
+- Connection URL paste support for `mysql://` and `mysql2://` URLs.
 - Schema browsing for databases, tables, and columns.
 - Controlled query execution against configured external connections.
 

@@ -52,6 +52,44 @@ const EMPTY_FORM: MysqlConnectionInput = {
 
 type BrowseTarget = { connectionId: number; label: string }
 type FormTarget = "create" | MysqlConnectionRow
+type ParsedConnectionUrl = Pick<MysqlConnectionInput, "default_database" | "host" | "label" | "password" | "port" | "username">
+
+function safeDecodeURIComponent(value: string): string | null {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return null
+  }
+}
+
+function parseMysqlConnectionUrl(value: string): ParsedConnectionUrl | null {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    return null
+  }
+
+  if (url.protocol !== "mysql:" && url.protocol !== "mysql2:") return null
+  if (!url.hostname) return null
+
+  const port = url.port ? Number(url.port) : 3306
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null
+
+  const defaultDatabase = safeDecodeURIComponent(url.pathname.replace(/^\/+/, ""))
+  const username = safeDecodeURIComponent(url.username)
+  const password = url.password ? safeDecodeURIComponent(url.password) : ""
+  if (defaultDatabase === null || username === null || password === null) return null
+
+  return {
+    label: defaultDatabase || url.hostname,
+    host: url.hostname,
+    port,
+    username,
+    password,
+    default_database: defaultDatabase
+  }
+}
 
 export function MysqlConnections() {
   const { t } = useT("mysql_db_browser")
@@ -568,13 +606,28 @@ function ConnectionFieldsGrid({
   values: MysqlConnectionInput
 }) {
   const { t } = useT("mysql_db_browser")
+  const [connectionUrl, setConnectionUrl] = useState("")
 
   function set<K extends keyof MysqlConnectionInput>(key: K, value: MysqlConnectionInput[K]) {
     onChange({ ...values, [key]: value })
   }
 
+  function fillFromConnectionUrl(value: string) {
+    setConnectionUrl(value)
+    const parsed = parseMysqlConnectionUrl(value)
+    if (!parsed) return
+
+    onChange({ ...values, ...parsed })
+    setConnectionUrl("")
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Form.Field className="sm:col-span-2 lg:col-span-3" controlId={`${idPrefix}-connection-url`}>
+        <Form.Label>{t("field_connection_url")}</Form.Label>
+        <Form.Input autoComplete="off" onChange={(event) => fillFromConnectionUrl(event.target.value)} type="text" value={connectionUrl} />
+        <Form.HelpText>{t("field_connection_url_hint")}</Form.HelpText>
+      </Form.Field>
       <Form.Field controlId={`${idPrefix}-label`}>
         <Form.Label>{t("field_label")}</Form.Label>
         <Form.Input onChange={(event) => set("label", event.target.value)} required type="text" value={values.label} />
