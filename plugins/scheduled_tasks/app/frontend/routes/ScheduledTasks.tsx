@@ -171,7 +171,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const showRepositoryPicker = needsRepositoryPick && repositoryId.length === 0
 
   return (
-    <Page.Root aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} gutter="responsive" size="form">
+    <Page.Root aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} size="form">
       <Page.Header className="block">
         <PageHeading>{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</PageHeading>
         {repository ? <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p> : null}
