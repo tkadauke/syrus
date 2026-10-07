@@ -134,7 +134,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
     }
   }
 
-  return items
+  return pruneOperatorCancelledToolGroups(items)
 }
 
 function updateToolGroupState(group: ChatToolGroupItem) {
@@ -178,6 +178,42 @@ function collapseSettledToolGroup(group: ChatToolGroupItem) {
   for (const call of group.calls) {
     for (const nested of call.nested || []) collapseSettledToolGroup(nested)
   }
+}
+
+function pruneOperatorCancelledToolGroups(items: ChatRenderItem[]): ChatRenderItem[] {
+  const result: ChatRenderItem[] = []
+
+  for (const item of items) {
+    if (item.type !== "tool_group") {
+      result.push(item)
+      continue
+    }
+
+    const pruned = pruneOperatorCancelledToolGroup(item)
+    if (pruned) result.push(pruned)
+  }
+
+  return result
+}
+
+function pruneOperatorCancelledToolGroup(group: ChatToolGroupItem): ChatToolGroupItem | null {
+  const calls = group.calls.map((call) => ({
+    ...call,
+    nested: pruneOperatorCancelledToolGroups(call.nested || []).filter((item): item is ChatToolGroupItem => item.type === "tool_group")
+  })).filter((call) => {
+    if (!operatorCancelledToolCall(call)) return true
+
+    // Keep the parent wrapper if a nested agent/tool call still has meaningful
+    // output; otherwise the synthetic cancellation result is just stop
+    // bookkeeping and the system cancellation message is enough.
+    return (call.nested || []).length > 0
+  })
+
+  if (calls.length === 0) return null
+
+  const pruned = { ...group, calls }
+  updateToolGroupState(pruned)
+  return pruned
 }
 
 function readOnlyTool(name: string) {
@@ -356,6 +392,8 @@ export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
+    if (operatorCancelledToolResultMessage(message)) return null
+
     return { ...message, tool: structuredTool(message) }
   }
 
@@ -368,4 +406,22 @@ export function groupableToolUse(message: ChatMessageItem) {
 
 export function groupableToolResult(message: ChatMessageItem) {
   return message.role === "tool_result" && !message.proposal
+}
+
+function operatorCancelledToolCall(call: ChatToolGroupCall) {
+  return call.result_error === true && operatorCancelledToolResultText(call.result_body)
+}
+
+function operatorCancelledToolResultMessage(message: ChatMessageItem) {
+  if (message.role !== "tool_result") return false
+
+  const content = contentRecord(message.content)
+  if (content?.is_error !== true) return false
+
+  const rawResult = content.content ?? content.result ?? message.content ?? message.text
+  return operatorCancelledToolResultText(fullResultBodyUnbounded(rawResult))
+}
+
+function operatorCancelledToolResultText(text: string) {
+  return /^Cancelled by operator before this tool returned\.?$/i.test(text.trim())
 }
