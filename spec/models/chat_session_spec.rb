@@ -392,6 +392,41 @@ RSpec.describe ChatSession do
     expect(session.last_message_at.to_i).to eq(assistant_message.created_at.to_i)
   end
 
+  it "keeps reporting a turn in flight when progress messages are appended during a claimed turn" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    user_message = session.messages.create!(role: "user", content: { "text" => "Ave" })
+    session.begin_turn_for!(user_message)
+
+    session.messages.create!(role: "system", content: { "text" => "[mcp_config]" })
+
+    expect(session.reload).to be_turn_in_flight
+  end
+
+  it "clears the turn in flight state when the owning turn finishes" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    user_message = session.messages.create!(role: "user", content: { "text" => "Ave" })
+    session.begin_turn_for!(user_message)
+
+    session.end_turn_for!(user_message)
+
+    expect(session.reload).not_to be_turn_in_flight
+    expect(session.current_turn_message_id).to be_nil
+  end
+
+  it "does not let an older turn clear a newer turn claim" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    older = session.messages.create!(role: "user", content: { "text" => "Ave" })
+    newer = session.messages.create!(role: "user", content: { "text" => "Salve" })
+    session.begin_turn_for!(older)
+    stale_older_turn = described_class.find(session.id)
+    session.begin_turn_for!(newer)
+
+    stale_older_turn.end_turn_for!(older)
+
+    expect(session.reload).to be_turn_in_flight
+    expect(session.current_turn_message_id).to eq(newer.id)
+  end
+
   it "does not report a turn in flight for a user message that skips the turn trigger" do
     session = described_class.create!(repository: repo, user: repo.user)
 
@@ -414,6 +449,26 @@ RSpec.describe ChatSession do
     expect(session).not_to be_agent_busy
 
     pidless.update!(pid: 1234)
+
+    expect(session).to be_agent_busy
+  end
+
+  it "reports an attributed agent process as busy even when its workdir differs from the stored workspace path" do
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      workspace_path: "/home/rails/.syrus/chat-workspaces/busy-path-mismatch"
+    )
+
+    SpawnedProcess.create!(
+      chat_session: session,
+      kind: "agent",
+      command: "codex exec",
+      workdir: "/syrus-home/.syrus/chat-workspaces/#{session.id}",
+      hostname: "worker-1",
+      pid: 1234,
+      started_at: Time.current
+    )
 
     expect(session).to be_agent_busy
   end
