@@ -1490,18 +1490,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const textarea = textareaRef.current
     if (!textarea) return
 
-    autosizeChatTextarea(textarea)
-  }, [text])
+    autosizeChatTextarea(textarea, Boolean(ghostSuggestion))
+  }, [ghostSuggestion, text])
 
   useEffect(() => {
     function handleResize() {
       const textarea = textareaRef.current
-      if (textarea) autosizeChatTextarea(textarea)
+      if (textarea) autosizeChatTextarea(textarea, Boolean(ghostSuggestion))
     }
 
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [])
+  }, [ghostSuggestion])
 
   // The floating composer's rendered height grows with typed lines and
   // attachment/walkthrough rows; report it so ChatColumn can keep the
@@ -1929,8 +1929,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             value={text}
           />
           {ghostSuggestion ? (
-            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden py-1.5 pl-3 pr-1.5 text-base leading-6 sm:py-1 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span aria-hidden="true" className="min-w-0 flex-1 truncate pr-2 text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-start gap-2 overflow-hidden py-2.5 pl-3 pr-1.5 text-base leading-6 sm:py-2 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+              <span aria-hidden="true" className="pointer-events-auto max-h-full min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words pr-2 text-gray-400 dark:text-gray-500" data-testid="chat-suggestion-ghost-text">{ghostSuggestion}</span>
               <button
                 aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
                 className="pointer-events-auto grid h-8 w-8 shrink-0 place-items-center rounded text-gray-500 leading-none transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"
@@ -3190,7 +3190,7 @@ function approximateBase64Bytes(data: string) {
   return Math.max(0, Math.ceil((base64.length * 3) / 4) - padding)
 }
 
-function autosizeChatTextarea(textarea: HTMLTextAreaElement) {
+function autosizeChatTextarea(textarea: HTMLTextAreaElement, reserveMaxRows = false) {
   textarea.style.height = "auto"
 
   const style = window.getComputedStyle(textarea)
@@ -3199,10 +3199,10 @@ function autosizeChatTextarea(textarea: HTMLTextAreaElement) {
   const verticalBorder = parsePixelValue(style.borderTopWidth) + parsePixelValue(style.borderBottomWidth)
   const minHeight = lineHeight + verticalPadding + verticalBorder
   const maxHeight = (lineHeight * CHAT_COMPOSE_MAX_ROWS) + verticalPadding + verticalBorder
-  const nextHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)
+  const nextHeight = reserveMaxRows ? maxHeight : Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)
 
   textarea.style.height = `${nextHeight}px`
-  textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden"
+  textarea.style.overflowY = reserveMaxRows || textarea.scrollHeight > maxHeight ? "auto" : "hidden"
 }
 
 function useSubmitChatWithEnter() {

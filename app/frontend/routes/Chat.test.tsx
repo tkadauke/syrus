@@ -3868,6 +3868,25 @@ describe("composer next-step suggestion", () => {
     expect(screen.getByText("Suggested next message: Create an Epic from these findings. Tap the suggestion button or press Tab to accept.")).toBeInTheDocument()
   })
 
+  it("wraps long ghost suggestions and keeps them scrollable within the composer row limit", async () => {
+    mockMobileViewport()
+    const longSuggestion = [
+      "Draft a follow-up to expose PR coverage in the Source diff settings too.",
+      "Mention that operators should open the review diff, use the settings gear, and check the metric gutter dropdown."
+    ].join(" ")
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: longSuggestion } }))
+
+    renderRoute()
+
+    const ghostText = await screen.findByTestId("chat-suggestion-ghost-text")
+    const textarea = await findComposerTextarea()
+
+    expect(ghostText).toHaveTextContent(longSuggestion)
+    expect(ghostText).toHaveClass("pointer-events-auto", "max-h-full", "whitespace-pre-wrap", "break-words", "overflow-y-auto")
+    expect(ghostText).not.toHaveClass("truncate")
+    expect(textarea).toHaveStyle({ height: "100px", overflowY: "auto" })
+  })
+
   it("does not render ghost text when no suggestion is stored", async () => {
     mockChatRouteFetch(chatPayload())
 
