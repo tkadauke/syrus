@@ -556,6 +556,8 @@
     "health_checked_sha": "Inspectum apud",
     "health_no_history": "Nulla inspectio sanitatis adhuc recordata.",
     "health_history_heading": "Inspectiones recentes",
+    "health_col_check": "Inspectio",
+    "health_col_signals": "Signa",
     "health_col_time": "Tempus",
     "health_col_sha": "Commissum",
     "health_col_ci": "CI",

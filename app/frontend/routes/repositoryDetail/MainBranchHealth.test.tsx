@@ -8,6 +8,31 @@ import * as useConfirmModule from "../../hooks/useConfirm"
 import type { RepositoryDetailPayload, RepositoryHealthCheckRecord, RepositoryHealthHistory } from "../../api/repositories"
 
 const RESUME_PATH = "/api/v1/app/repositories/1/resume_landing"
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+function setMobileViewport() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(max-width: 639px)",
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
+function restoreMatchMedia() {
+  if (originalMatchMedia) {
+    Object.defineProperty(window, "matchMedia", originalMatchMedia)
+  } else {
+    Reflect.deleteProperty(window, "matchMedia")
+  }
+}
 
 function buildHistory(records: RepositoryHealthCheckRecord[] = []): RepositoryHealthHistory {
   return {
@@ -298,6 +323,10 @@ describe("MainBranchHealthSection blocking repair job", () => {
 })
 
 describe("MainBranchHealthSection health history", () => {
+  afterEach(() => {
+    restoreMatchMedia()
+  })
+
   it("renders localized source badges for history rows", () => {
     const { container } = renderSection(buildHistory([
       buildHealthRecord({ id: 1, source: "grader_workflow" }),
@@ -345,5 +374,24 @@ describe("MainBranchHealthSection health history", () => {
     expect(screen.getByText("new1234")).toBeInTheDocument()
     expect(screen.getAllByText("Unknown")).toHaveLength(2)
     expect(screen.getByText("rspec, rspec")).toBeInTheDocument()
+  })
+
+  it("uses combined health history columns on mobile without column selection", () => {
+    setMobileViewport()
+    renderSection(buildHistory([
+      buildHealthRecord({
+        ci_health: "healthy",
+        grader_health: "broken",
+        grader_failed_names: [ "rspec" ]
+      })
+    ]))
+
+    expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Check" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Signals" })).toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Time" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Commit" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "abc123d" })).toBeInTheDocument()
+    expect(screen.getByText("rspec")).toBeInTheDocument()
   })
 })

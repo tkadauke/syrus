@@ -557,6 +557,8 @@
     "health_checked_sha": "Checked at",
     "health_no_history": "No health checks recorded yet.",
     "health_history_heading": "Recent health checks",
+    "health_col_check": "Check",
+    "health_col_signals": "Signals",
     "health_col_time": "Time",
     "health_col_sha": "Commit",
     "health_col_ci": "CI",
