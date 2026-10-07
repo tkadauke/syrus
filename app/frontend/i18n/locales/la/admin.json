@@ -642,6 +642,8 @@
     "proactive_rebase_commit_threshold_help": "Numerus commissionum quibus petitio tractionis post basim suam manere debet antequam Syrus eam proactive rebasificat, etiam cum mergeable_state GitHub mundus est. Utile cum protectio rami non postulat ramos recentes esse. Minimum 1 esse debet.",
     "rebase_failure_cooldown_label": "Mora post rebase defectum (minuta)",
     "rebase_failure_cooldown_help": "Quamdiu scrutinium automaticum status fusionis exspectet antequam post repetitos defectus rebase agentis iterum temptet, capite et basi petitionis tractus non mutatis. Rebase ab operatore petitum, finis morae, et mutationes capitis/basis hoc praetereunt. 0 moram exstinguit.",
+    "workflow_preview_health_check_timeout_label": "Tempus maximum probationis salutis pro praevista processus (secunda)",
+    "workflow_preview_health_check_timeout_help": "Quamdiu workflow start_preview exspectet dum server praevistae genitus probationi salutis respondet ante defectum temporis. Minimum 1 esse debet. Variabile ambitus deployment hoc praeceptum adhuc superare potest.",
     "workflow_admission_control_label": "Admissio cursuum",
     "workflow_admission_control_help": "Cum activum, Syrus initia cursuum differt quae capacitatem operariorum praedictam excederent. Tantum in incidentibus exstingue; circuitus provisorum, dependentiae, morae fusionis, receptacula archivata, et dura exhaustio operariorum adhuc impediunt.",
     "workflow_admission_control_warning": "Exstinctum: Syrus operarios onerare et throughput minuere potest donec hoc iterum activetur.",

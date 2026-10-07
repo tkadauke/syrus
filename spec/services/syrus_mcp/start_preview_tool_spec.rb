@@ -199,6 +199,28 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       expect(Mcp::Tools::AgentPreviewRegistry).to receive(:kill).with(run.id).and_call_original
       call
     end
+
+    context "when the start command contains credentials" do
+      let(:preview_config) do
+        PreviewCommandSource::Config.new(
+          start_command_for: ->(port:) { "git clone https://x-access-token:github_pat_secret123@github.com/acme/app.git && GITHUB_TOKEN=ghp_secret bin/rails server -p #{port}" },
+          setup_commands:    [],
+          seed_command:      nil,
+          health_check_path: "/health",
+          log_paths:         [ "log/development.log" ],
+          env:               {},
+          unset_env:         []
+        )
+      end
+
+      it "redacts shared command secret patterns in the timeout message" do
+        response = call
+
+        expect(response.content.first[:text]).to include("https://x-access-token:[REDACTED]@github.com/acme/app.git")
+        expect(response.content.first[:text]).not_to include("github_pat_secret123")
+        expect(response.content.first[:text]).not_to include("ghp_secret")
+      end
+    end
   end
 
   context "when a seed command is configured" do
