@@ -851,9 +851,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         ref={streamRef}
       >
         <div
-          className={`space-y-4 ${isDesktop ? "" : "transition-transform duration-150 ease-out data-[mobile-header-hidden=true]:-translate-y-8 motion-reduce:transition-none"}`}
+          className={`space-y-4 ${isDesktop ? "" : "transition-transform duration-150 ease-out motion-reduce:transition-none"}`}
           data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
           data-testid="chat-message-stream-content"
+          style={!isDesktop && mobileHeader.hidden ? { transform: "translateY(-2rem)" } : undefined}
         >
           {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
           {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
