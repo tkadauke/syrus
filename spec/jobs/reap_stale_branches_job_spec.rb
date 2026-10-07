@@ -1,4 +1,5 @@
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe ReapStaleBranchesJob do
   let(:user) { Factories.user(github_token: "ghp_test") }
@@ -8,6 +9,8 @@ RSpec.describe ReapStaleBranchesJob do
   before do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:delete_branch).and_return(true)
+    allow(DiffReviewVersions::FinalSnapshot).to receive(:materialize)
+      .and_return(OpenStruct.new(materialized?: true, reason: "existing_final_snapshot"))
   end
 
   def closed_job(branch_name:, finished_at:, branch_deleted_at: nil)
@@ -27,8 +30,20 @@ RSpec.describe ReapStaleBranchesJob do
 
       described_class.perform_now
 
+      expect(DiffReviewVersions::FinalSnapshot).to have_received(:materialize).with(job: job, user: job.user)
       expect(client).to have_received(:delete_branch).with("acme/widgets", "syrus/issue-1")
       expect(job.reload.branch_deleted_at).to be_present
+    end
+
+    it "skips deletion when a final review snapshot cannot be materialized" do
+      job = closed_job(branch_name: "syrus/issue-snapshot-missing", finished_at: 24.hours.ago)
+      allow(DiffReviewVersions::FinalSnapshot).to receive(:materialize)
+        .and_return(OpenStruct.new(materialized?: false, reason: "no_trustworthy_diff"))
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_nil
     end
 
     it "skips jobs closed less than 23 hours ago" do
