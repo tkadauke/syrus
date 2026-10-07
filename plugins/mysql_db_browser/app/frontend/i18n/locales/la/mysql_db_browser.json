@@ -15,6 +15,8 @@
   "close_button": "Claude",
   "add_heading": "Nexum adde",
   "edit_heading": "Nexum muta",
+  "field_connection_url": "URL nexus",
+  "field_connection_url_hint": "URL mysql:// vel mysql2:// insere ut campos infra impleat.",
   "field_label": "Titulus",
   "field_host": "Hospes",
   "field_port": "Porta",
