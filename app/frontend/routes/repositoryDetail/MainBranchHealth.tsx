@@ -359,6 +359,7 @@ function MobileHealthHistoryTable({ records, prefix, t }: { records: RepositoryH
                 <a className="block truncate font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">
                   {record.sha}
                 </a>
+                <MobileHealthSource source={record.source} t={t} />
                 <HealthHistoryFailures record={record} />
               </div>
             </DataTable.Cell>
@@ -375,7 +376,6 @@ function MobileHealthHistoryTable({ records, prefix, t }: { records: RepositoryH
                   ) : (
                     <TonePill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</TonePill>
                   )}
-                  <HealthSourceBadge source={record.source} t={t} />
                 </MobileHealthSignal>
               </div>
             </DataTable.Cell>
@@ -393,6 +393,15 @@ function HealthHistoryFailures({ record }: { record: RepositoryHealthCheckRecord
   return (
     <div className="text-xs text-gray-600 dark:text-gray-400">
       {failureNames.join(", ")}
+    </div>
+  )
+}
+
+function MobileHealthSource({ source, t }: { source: string; t: (key: string) => string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-text-muted">
+      <span>{t("repository.health_source_label")}</span>
+      <HealthSourceBadge source={source} t={t} />
     </div>
   )
 }
