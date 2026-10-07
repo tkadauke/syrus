@@ -122,6 +122,18 @@ detail Preview panel exposes these logs on demand, and workflow agents can read
 them through `read_preview_log`. The bundled Rails provider exposes both
 `log/development.log` and `log/vite.log`.
 
+Workflow-agent `start_preview` uses the instance setting
+`workflow_preview_health_check_timeout_seconds` for the server health-check
+wait. The default is 60 seconds, preserving the historical workflow behavior;
+operators can tune it in admin settings or override it for a deployment with
+`SYRUS_WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_SECONDS`. When the health check
+times out, the MCP response includes the effective timeout, health-check URL
+and path, selected `project_id` when present, a redacted start-command summary,
+the startup stdout/stderr file under `.syrus/preview/`, configured app log
+paths, and a short tail of recent startup output. The response intentionally
+does not inline full logs; use `read_preview_log` for configured app logs or
+inspect the startup-output path for the spawned server's own stdout/stderr.
+
 The web process does not share a filesystem with `preview` (they are separate
 Deployments), so `GET /api/v1/app/jobs/:job_id/preview/logs` cannot read the
 preview workspace directly. Instead it makes an internal HTTP request to the
