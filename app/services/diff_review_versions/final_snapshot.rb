@@ -107,7 +107,7 @@ module DiffReviewVersions
       run = best_historical_run
       return unless run
 
-      diff = trusted_diff_for(run)
+      diff = full_diff_for(run)
       files = DiffReviewVersions::UnifiedDiffFiles.parse(diff)
       return if files.empty?
 
@@ -217,7 +217,7 @@ module DiffReviewVersions
          .detect do |run|
            run.base_sha != run.head_sha &&
              trusted_step?(run) &&
-             trusted_diff_for(run).present?
+             full_diff_for(run).present?
          end
     end
 
@@ -225,8 +225,8 @@ module DiffReviewVersions
       run.step.nil? || TRUSTED_STEP_KINDS.include?(run.step.kind)
     end
 
-    def trusted_diff_for(run)
-      run.step_agent_diff.presence || run.agent_diff.presence
+    def full_diff_for(run)
+      run.agent_diff.presence
     end
   end
 end
