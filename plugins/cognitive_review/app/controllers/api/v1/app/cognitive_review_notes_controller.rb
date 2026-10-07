@@ -52,20 +52,20 @@ module Api
           return unless authorize_job_mutation!(job)
 
           note = find_note(job)
-          chat_session = job.discussion_chat
+          chat_session = nil
           user_message = nil
           previous_state = note.state
 
           ApplicationRecord.transaction do
-            note.start_discussion!(user: Current.user)
-            chat_session ||= ChatSession.create!(user: Current.user, repository: job.repository)
-            chat_session.chat_attachments.find_or_create_by!(attachable: job)
-            user_message = chat_session.messages.create!(
-              role: "user",
-              content: { "text" => discussion_message(job, note, previous_state: previous_state) },
-              sender_user_id: Current.user.id
-            )
-            chat_session.pin_chat_provider!
+            started_discussion = note.start_discussion!(user: Current.user)
+            chat_session = discussion_chat_for(job)
+            if started_discussion
+              user_message = chat_session.messages.create!(
+                role: "user",
+                content: { "text" => discussion_message(job, note, previous_state: previous_state) },
+                sender_user_id: Current.user.id
+              )
+            end
           end
 
           enqueue_chat_title(chat_session, user_message) if user_message && chat_session.messages.where(role: "user").count == 1
@@ -135,7 +135,7 @@ module Api
         end
 
         def discussion_message(job, note, previous_state:)
-          [
+          lines = [
             "Discuss this Review Note with the operator.",
             "Job: #{job.slug}.",
             "Repository: #{job.repository.slug}.",
@@ -148,7 +148,17 @@ module Api
             "",
             "Explanation:",
             note.explanation
-          ].join("\n")
+          ]
+          operator_prompt = params[:message].to_s.strip
+          lines.concat([ "", "Operator prompt:", operator_prompt.truncate(8_000) ]) if operator_prompt.present?
+          lines.join("\n")
+        end
+
+        def discussion_chat_for(job)
+          chat_session = job.discussion_chat || ChatSession.create!(user: Current.user, repository: job.repository)
+          chat_session.chat_attachments.find_or_create_by!(attachable: job)
+          chat_session.pin_chat_provider!
+          chat_session
         end
 
         def by_path(notes)
