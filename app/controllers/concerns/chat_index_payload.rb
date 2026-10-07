@@ -202,17 +202,23 @@ module ChatIndexPayload
     ids = chat_sessions.map(&:id)
     blank_title_ids = chat_sessions.select { |chat_session| chat_session.title.blank? }.map(&:id)
     workdirs_by_id = chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.workspace_root.to_s ] }
-    busy_workdirs = if workdirs_by_id.empty?
-      Set.new
+    busy_agent_scope = SpawnedProcess.live_agent
+    busy_agent_rows = if ids.empty? && workdirs_by_id.empty?
+      []
     else
-      SpawnedProcess.live_agent.where(workdir: workdirs_by_id.values).pluck(:workdir).to_set
+      busy_agent_scope
+        .where(chat_session_id: ids)
+        .or(busy_agent_scope.where(workdir: workdirs_by_id.values))
+        .pluck(:chat_session_id, :workdir)
     end
+    busy_ids = busy_agent_rows.filter_map { |chat_id, _workdir| chat_id }.to_set
+    busy_workdirs = busy_agent_rows.filter_map { |_chat_id, workdir| workdir }.to_set
     providers = chat_sessions.map(&:effective_chat_provider).compact.uniq
 
     {
       repositories: chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.repository ] },
       title_pending_ids: blank_title_ids.empty? ? [] : ChatMessage.where(chat_session_id: blank_title_ids, role: "user").distinct.pluck(:chat_session_id),
-      agent_busy_ids: workdirs_by_id.select { |_id, workdir| busy_workdirs.include?(workdir) }.keys,
+      agent_busy_ids: workdirs_by_id.filter_map { |id, workdir| id if busy_ids.include?(id) || busy_workdirs.include?(workdir) },
       pending_proposal_counts: chat_index_pending_proposal_counts(ids),
       scratchpad_counts: ids.empty? ? {} : ChatScratchpadItem.where(chat_session_id: ids).group(:chat_session_id).count,
       provider_availability: providers.to_h { |provider| [ provider, ::App::ProviderAvailability.for_user(Current.user, provider) ] },
