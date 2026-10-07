@@ -136,7 +136,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const location = useLocation()
   const params = useParams()
   const id = params.id || ""
-  const routeRepositoryId = params.repositoryId || ""
+  const routeRepositoryId = params.repositoryId || params.repository_id || ""
   const [pickedRepositoryId, setPickedRepositoryId] = useState("")
   const repositoryId = routeRepositoryId || pickedRepositoryId
   // The top-level /scheduled_tasks/new route has no :repositoryId param, so
