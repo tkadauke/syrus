@@ -7,12 +7,13 @@ import { detectFenceLanguage } from "./highlighter"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type RenderInlineOptions = { linkifySlugs?: boolean; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
+type SlugTone = "default" | "inverted"
+type RenderInlineOptions = { linkifySlugs?: boolean; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean; slugTone?: SlugTone }
 type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
-type MarkdownProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler }
-type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler }
+type MarkdownProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
+type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
 type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
@@ -25,14 +26,14 @@ const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   prose: 2.4
 }
 
-export function Markdown({ className, text, linkifyUrls = false, onLinkClick }: MarkdownProps) {
+export function Markdown({ className, text, linkifyUrls = false, onLinkClick, slugTone }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { linkifyUrls, onLinkClick })}</div>
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { linkifyUrls, onLinkClick, slugTone })}</div>
 }
 
-export function PlainText({ className, text, linkifyUrls = false, onLinkClick }: PlainTextProps) {
-  return <div className={className}>{linkifyUrls ? renderInlineText(text, true, 0, { linkifyUrls, onLinkClick }) : text}</div>
+export function PlainText({ className, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
+  return <div className={className}>{linkifyUrls ? renderInlineText(text, true, 0, { linkifyUrls, onLinkClick, slugTone }) : text}</div>
 }
 
 // Shared "light markdown" preview renderer for truncated content cards
@@ -520,7 +521,7 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
   const decoded = decodeHtmlEntities(text)
   if (options.linkifyUrls) return linkifyPlainUrls(decoded, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(decoded)) {
-    return <Fragment key={key}>{linkifySlugs(decoded)}</Fragment>
+    return <Fragment key={key}>{linkifySlugs(decoded, { tone: options.slugTone })}</Fragment>
   }
   return decoded
 }
@@ -536,19 +537,19 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
     const url = plainUrlFromMatch(rawUrl)
     if (!url) continue
 
-    if (start > cursor) nodes.push(renderNonUrlText(text.slice(cursor, start), shouldLinkifySlugs, `text-${partKey++}`))
+    if (start > cursor) nodes.push(renderNonUrlText(text.slice(cursor, start), shouldLinkifySlugs, `text-${partKey++}`, options))
     nodes.push(renderPlainUrlLink(url.href, `url-${partKey++}`, options))
-    if (url.trailing) nodes.push(renderNonUrlText(url.trailing, shouldLinkifySlugs, `text-${partKey++}`))
+    if (url.trailing) nodes.push(renderNonUrlText(url.trailing, shouldLinkifySlugs, `text-${partKey++}`, options))
     cursor = start + rawUrl.length
   }
 
-  if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`))
-  if (nodes.length === 0) return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text)}</Fragment> : text
+  if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`, options))
+  if (nodes.length === 0) return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment> : text
   return <Fragment key={key}>{nodes}</Fragment>
 }
 
-function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string) {
-  if (shouldLinkifySlugs && containsSlug(text)) return <Fragment key={key}>{linkifySlugs(text)}</Fragment>
+function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string, options: RenderInlineOptions) {
+  if (shouldLinkifySlugs && containsSlug(text)) return <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment>
   return <Fragment key={key}>{text}</Fragment>
 }
 
