@@ -264,6 +264,7 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
     const annotationGutter = annotationCells[0]?.getBoundingClientRect()
     const annotationMarker = annotationCells[1]?.getBoundingClientRect()
     const annotationCodeCell = annotationCells[2]?.getBoundingClientRect()
+    const annotationScroller = annotationRow?.closest('[data-testid="diff-file-scroll"]') as HTMLElement | null
     const card = document
       .querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"] [data-cognitive-review-note-id="7"]')
       ?.getBoundingClientRect()
@@ -291,6 +292,7 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
       annotationGutterRight: annotationGutter?.right ?? -1,
       annotationMarkerLeft: annotationMarker?.left ?? -1,
       annotationMarkerRight: annotationMarker?.right ?? -1,
+      annotationScrollLeft: annotationScroller?.scrollLeft ?? -1,
       annotationCellCount: annotationCells.length,
       nextTop: next?.top ?? 0,
       rangeCodeCellLeft: rangeCodeCell?.left ?? -1,
@@ -301,8 +303,9 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
   expect(layout.bodyScrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
   expect(layout.cardWidth).toBeGreaterThan(240)
   expect(layout.cardLeft).toBeGreaterThanOrEqual(0)
-  expect(layout.cardRight).toBeLessThanOrEqual(402)
+  expect(layout.cardRight).toBeLessThanOrEqual(layout.clientWidth + 1)
   expect(layout.annotationCellCount).toBe(3)
+  expect(layout.annotationScrollLeft).toBeLessThanOrEqual(1)
   expect(layout.annotationGutterLeft).toBeGreaterThanOrEqual(0)
   expect(layout.annotationGutterRight).toBeLessThanOrEqual(layout.annotationMarkerLeft + 1)
   expect(layout.annotationMarkerRight).toBeLessThanOrEqual(layout.annotationCodeCellLeft + 1)
