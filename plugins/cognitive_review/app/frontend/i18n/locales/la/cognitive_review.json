@@ -3,9 +3,13 @@
     "acknowledge": "Agnosce",
     "acknowledging": "Agnoscitur...",
     "cancel": "Revoca",
+    "close_discussion": "Promptum disputationis claude",
     "discuss": "Disputa",
     "discussing": "Aperitur...",
     "discussion_body": "Nota disputationis",
+    "discussion_error": "Haec disputatio aperiri non potuit.",
+    "discussion_prompt": "Promptum initale",
+    "discussion_title": "Notam recensionis disputa",
     "error": "Haec nota recognitionis renovari non potuit.",
     "feedback_reply_body": "Responde",
     "feedback_reply_hint": "Commentarium recensionis in schemate huic notae addit. Utere Submit Feedback in latere ut commentaria electa agenti mittas.",
@@ -13,6 +17,7 @@
     "save_feedback_reply": "Commentarium adde",
     "saving_feedback_reply": "Servatur...",
     "save_discussion": "Disputationem aperi",
+    "start_discussion": "Disputationem incipe",
     "view_range": "Intervallum vide"
   },
   "note": {

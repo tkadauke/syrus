@@ -3,9 +3,13 @@
     "acknowledge": "Acknowledge",
     "acknowledging": "Acknowledging...",
     "cancel": "Cancel",
+    "close_discussion": "Close discussion prompt",
     "discuss": "Discuss",
     "discussing": "Opening...",
     "discussion_body": "Discussion note",
+    "discussion_error": "Could not open this discussion.",
+    "discussion_prompt": "Initial prompt",
+    "discussion_title": "Discuss review note",
     "error": "Could not update this review note.",
     "feedback_reply_body": "Reply",
     "feedback_reply_hint": "Adds a draft review comment for this note. Use Submit Feedback in the sidebar to send selected comments to the agent.",
@@ -13,6 +17,7 @@
     "save_feedback_reply": "Add comment",
     "saving_feedback_reply": "Saving...",
     "save_discussion": "Open discussion",
+    "start_discussion": "Start discussion",
     "view_range": "View range"
   },
   "note": {

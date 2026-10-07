@@ -152,6 +152,8 @@ module CognitiveReview
 
     def start_discussion!(user:)
       with_lock do
+        return false if state == "discussed"
+
         timestamp = Time.current
         update!(
           state: "discussed",
@@ -160,6 +162,7 @@ module CognitiveReview
           last_discussed_at: timestamp,
           last_discussed_by_user: user
         )
+        true
       end
     end
 

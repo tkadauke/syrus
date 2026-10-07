@@ -425,8 +425,57 @@ describe("ReviewWorkspace", () => {
     expect(within(sidebar).getByRole("button", { name: "Discuss" })).toBeInTheDocument()
   })
 
-  it("renders handled review-note ranges in a resolved state and opens agent discussion without showing acknowledge while pending", async () => {
+  it("opens a prompt dialog for first review-note discussion and does not post until submitted", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithReviewNotes())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Inspect this branch")
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const noteCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
+
+    expect(await screen.findByRole("dialog", { name: "Discuss review note" })).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText("Initial prompt"), { target: { value: "Please inspect the lifecycle edge." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start discussion" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/review_notes/7/start_discussion",
+        expect.objectContaining({
+          body: JSON.stringify({ message: "Please inspect the lifecycle edge." }),
+          method: "POST"
+        })
+      )
+    })
+    expect(within(noteCard).getAllByRole("button", { name: "Opening..." })[0]).toBeDisabled()
+    expect(within(noteCard).queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
+  })
+
+  it("does not start review-note discussion when the prompt dialog is cancelled", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithReviewNotes())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Inspect this branch")
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const noteCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
+    fireEvent.change(await screen.findByLabelText("Initial prompt"), { target: { value: "Do not send this." } })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByRole("dialog", { name: "Discuss review note" })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("hides acknowledge while first review-note discussion is pending and keeps the typed prompt on error", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
         review_annotations: {
@@ -562,15 +611,40 @@ describe("ReviewWorkspace", () => {
     expect(groupedMarker).toHaveClass("bg-success-bg", "text-success-text", "ring-success-border")
     expect(groupedMarker).not.toHaveClass("bg-warning-bg", "text-warning-text", "ring-warning-border")
 
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ error: { message: "boom" } }, { status: 500 }))
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
     const firstAcknowledgedCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
     fireEvent.click(within(firstAcknowledgedCard).getByRole("button", { name: "Discuss" }))
+    fireEvent.change(await screen.findByLabelText("Initial prompt"), { target: { value: "Keep this prompt." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start discussion" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/review_notes/7/start_discussion", expect.objectContaining({ method: "POST" }))
     })
-    expect(within(sidebar).getByRole("button", { name: "Opening..." })).toBeDisabled()
     expect(within(sidebar).queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
+    expect(await screen.findByRole("alert")).toHaveTextContent("boom")
+    expect(screen.getByLabelText("Initial prompt")).toHaveValue("Keep this prompt.")
+  })
+
+  it("reopens an already-discussed review note without prompting for another message", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayloadWithReviewNotes({ state: "discussed" }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Inspect this branch")
+    const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
+    const noteCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/review_notes/7/start_discussion",
+        expect.objectContaining({ body: undefined, method: "POST" })
+      )
+    })
+    expect(screen.queryByRole("dialog", { name: "Discuss review note" })).not.toBeInTheDocument()
   })
 
   it("renders every changed file's diff without an internal max-height and navigates via the changed-files popup", async () => {
@@ -3029,6 +3103,76 @@ function sourceDiffPayloadWithCognitiveReviewRisk(overrides: Partial<JobSourceDi
   })
 }
 
+function sourceDiffPayloadWithReviewNotes({ state = "open" }: { state?: "open" | "acknowledged" | "discussed" } = {}): JobSourceDiffPayload {
+  const handled = state === "acknowledged" || state === "discussed"
+  const tone = handled ? "success" : "warning"
+  const note = {
+    note_id: 7,
+    job_id: 42,
+    path: "app/models/user.rb",
+    side: "new" as const,
+    start_line: 1,
+    end_line: 1,
+    title: "Inspect this branch",
+    summary: "Branch state risk",
+    explanation: "The provider flagged this range.",
+    handled,
+    open_unhandled: !handled,
+    state
+  }
+
+  return sourceDiffPayload({
+    review_annotations: {
+      annotations: {},
+      ranges: {
+        "app/models/user.rb": [
+          {
+            id: "cognitive_review_note:7",
+            component: "cognitive_review/note_marker",
+            marker_component: "cognitive_review/note_marker",
+            inline_component: "cognitive_review/note_panel",
+            path: "app/models/user.rb",
+            side: "new",
+            start_line: 1,
+            end_line: 1,
+            title: "Inspect this branch",
+            body: "The provider flagged this range.",
+            tone,
+            props: note
+          }
+        ]
+      },
+      panels: [
+        {
+          id: "cognitive_review.summary",
+          component: "cognitive_review/note_panel",
+          props: {
+            total: 1,
+            rollup: {
+              total_flagged_ranges: 1,
+              open_unhandled_count: handled ? 0 : 1,
+              acknowledged_count: state === "acknowledged" ? 1 : 0,
+              discussed_count: state === "discussed" ? 1 : 0,
+              user_commented_count: 0,
+              dismissed_count: 0,
+              handled_count: handled ? 1 : 0,
+              zero_note_state: false
+            },
+            notes: [note]
+          }
+        }
+      ],
+      actions: [],
+      counts: [
+        { id: "cognitive_review.total", label: "Flagged ranges", value: 1 },
+        { id: "cognitive_review.open", label: "Open notes", value: handled ? 0 : 1, tone: handled ? "success" : "warning" },
+        { id: "cognitive_review.handled", label: "Acknowledged", value: handled ? 1 : 0, tone: "success" },
+        { id: "cognitive_review.dismissed", label: "Dismissed", value: 0 }
+      ]
+    }
+  })
+}
+
 function sourceDiffPayloadWithCoverageAnnotations(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPayload {
   return sourceDiffPayload({
     coverage_annotations: {
@@ -3036,6 +3180,14 @@ function sourceDiffPayloadWithCoverageAnnotations(overrides: Partial<JobSourceDi
       "app/models/run.rb": { "5": "uncovered" }
     },
     ...overrides
+  })
+}
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init
   })
 }
 
