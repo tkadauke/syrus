@@ -255,7 +255,15 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
     const rangeRows = Array.from(
       document.querySelectorAll('[data-testid="agent-diff-viewer"] tr[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
     )
-    const range = rangeRows.at(-1)?.getBoundingClientRect()
+    const rangeRow = rangeRows.at(-1) as HTMLTableRowElement | undefined
+    const range = rangeRow?.getBoundingClientRect()
+    const rangeCells = rangeRow ? Array.from(rangeRow.cells) : []
+    const rangeCodeCell = rangeCells[2]?.getBoundingClientRect()
+    const annotationRow = document.querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"]') as HTMLTableRowElement | null
+    const annotationCells = annotationRow ? Array.from(annotationRow.cells) : []
+    const annotationGutter = annotationCells[0]?.getBoundingClientRect()
+    const annotationMarker = annotationCells[1]?.getBoundingClientRect()
+    const annotationCodeCell = annotationCells[2]?.getBoundingClientRect()
     const card = document
       .querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"] [data-cognitive-review-note-id="7"]')
       ?.getBoundingClientRect()
@@ -278,7 +286,14 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
       cardWidth: card?.width ?? 0,
       clientWidth: viewportWidth,
       codeRowIntersections,
+      annotationCodeCellLeft: annotationCodeCell?.left ?? -1,
+      annotationGutterLeft: annotationGutter?.left ?? -1,
+      annotationGutterRight: annotationGutter?.right ?? -1,
+      annotationMarkerLeft: annotationMarker?.left ?? -1,
+      annotationMarkerRight: annotationMarker?.right ?? -1,
+      annotationCellCount: annotationCells.length,
       nextTop: next?.top ?? 0,
+      rangeCodeCellLeft: rangeCodeCell?.left ?? -1,
       rangeBottom: range?.bottom ?? 0
     }
   })
@@ -287,6 +302,12 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
   expect(layout.cardWidth).toBeGreaterThan(240)
   expect(layout.cardLeft).toBeGreaterThanOrEqual(0)
   expect(layout.cardRight).toBeLessThanOrEqual(402)
+  expect(layout.annotationCellCount).toBe(3)
+  expect(layout.annotationGutterLeft).toBeGreaterThanOrEqual(0)
+  expect(layout.annotationGutterRight).toBeLessThanOrEqual(layout.annotationMarkerLeft + 1)
+  expect(layout.annotationMarkerRight).toBeLessThanOrEqual(layout.annotationCodeCellLeft + 1)
+  expect(Math.abs(layout.cardLeft - layout.annotationCodeCellLeft)).toBeLessThanOrEqual(1)
+  expect(Math.abs(layout.cardLeft - layout.rangeCodeCellLeft)).toBeLessThanOrEqual(1)
   expect(layout.cardTop).toBeGreaterThanOrEqual(layout.rangeBottom)
   expect(layout.codeRowIntersections).toEqual([])
   expect(layout.nextTop).toBeGreaterThan(layout.cardBottom)

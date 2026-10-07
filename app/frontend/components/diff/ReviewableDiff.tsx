@@ -169,6 +169,8 @@ const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
 const DIFF_INLINE_REVIEW_PANEL_BASE_CLASS =
   "box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+const DIFF_INLINE_REVIEW_PANEL_MOBILE_CODE_COLUMN_CLASS =
+  "box-border min-w-0 w-[min(44rem,calc(100vw-4.5rem))] max-w-[min(44rem,calc(100vw-4.5rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
 const DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS = `sticky left-0 z-[1] ${DIFF_INLINE_REVIEW_PANEL_BASE_CLASS}`
 const DIFF_FILE_HEADER_CONTROL_BASE_CLASS =
   "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
@@ -1775,7 +1777,7 @@ export function UnifiedDiffTable({
     const rowToneClass = reviewAnnotationRowToneClass(reviewNotes)
     const panelToneClass = reviewAnnotationPanelToneClass(reviewNotes)
 
-    const panelClass = diffInlineReviewPanelClass(!splitRow)
+    const panelClass = diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)
     const panel = (
       <div className={`${panelClass} space-y-3 ${panelToneClass}`}>
         {reviewNotes.map((note, index) => {
@@ -1976,7 +1978,7 @@ export function UnifiedDiffTable({
                   {showReviewNotes ? <ReviewNotesCell reviewNotes={reviewNotes} reviewSettings={reviewSettings} /> : null}
                   {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
                 </tr>
-                {renderReviewAnnotationRow(inlineReviewNotes, fullWidthInlineRows)}
+                {renderReviewAnnotationRow(inlineReviewNotes, false)}
                 {renderThreadRow(threads, fullWidthInlineRows)}
                 {renderComposerRow(isComposingHere, fullWidthInlineRows)}
               </Fragment>
@@ -2427,7 +2429,8 @@ function diffInlineReviewCellClass(settings: ReviewDiffSettings) {
   return `w-[min(44rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] align-top max-md:w-auto max-md:max-w-none max-md:p-0 ${diffDensityClasses(settings).inlineReviewCell}`
 }
 
-function diffInlineReviewPanelClass(sticky: boolean) {
+function diffInlineReviewPanelClass(sticky: boolean, mobileCodeColumn = false) {
+  if (mobileCodeColumn) return DIFF_INLINE_REVIEW_PANEL_MOBILE_CODE_COLUMN_CLASS
   return sticky ? DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS : DIFF_INLINE_REVIEW_PANEL_BASE_CLASS
 }
 
