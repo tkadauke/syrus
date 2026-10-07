@@ -81,4 +81,14 @@ RSpec.describe Metrics::WorkerSource do
       expect(source.max_concurrent_agent_runs).to eq(7)
     end
   end
+
+  describe "#finished_steps" do
+    it "has a covering index matching the metrics sampler window query" do
+      index = ActiveRecord::Base.connection.indexes(:steps).find do |candidate|
+        candidate.name == "idx_steps_worker_duration_metric"
+      end
+
+      expect(index&.columns).to eq(%w[ state finished_at kind ])
+    end
+  end
 end

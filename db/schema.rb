@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_100213) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3168,6 +3168,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
     t.index ["kind", "workflow_id"], name: "idx_steps_kind_workflow_id"
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
     t.index ["placement_policy"], name: "index_steps_on_placement_policy"
+    t.index ["state", "finished_at", "kind"], name: "idx_steps_worker_duration_metric"
     t.index ["state", "updated_at", "id"], name: "idx_steps_state_updated_id"
     t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
