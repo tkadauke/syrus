@@ -250,16 +250,16 @@ module Mcp::Tools
       return { message_counts: {}, pending_action_counts: {}, busy_chat_ids: Set.new } if chat_ids.empty?
 
       workdirs_by_chat_id = chats.to_h { |chat| [ chat.id, chat.workspace_root.to_s ] }
-      busy_workdirs = SpawnedProcess.live_agent
-                                  .where(workdir: workdirs_by_chat_id.values)
-                                  .distinct
-                                  .pluck(:workdir)
-                                  .to_set
+      busy_agent_scope = SpawnedProcess.live_agent
+      attributed_busy_chat_ids = busy_agent_scope.where(chat_session_id: chat_ids).distinct.pluck(:chat_session_id).to_set
+      busy_workdirs = busy_agent_scope.where(workdir: workdirs_by_chat_id.values).distinct.pluck(:workdir).to_set
 
       {
         message_counts: ChatMessage.where(chat_session_id: chat_ids).group(:chat_session_id).count,
         pending_action_counts: ChatPendingAction.pending.where(chat_session_id: chat_ids).group(:chat_session_id).count,
-        busy_chat_ids: workdirs_by_chat_id.filter_map { |chat_id, workdir| chat_id if busy_workdirs.include?(workdir) }.to_set
+        busy_chat_ids: workdirs_by_chat_id.filter_map do |chat_id, workdir|
+          chat_id if attributed_busy_chat_ids.include?(chat_id) || busy_workdirs.include?(workdir)
+        end.to_set
       }
     end
 

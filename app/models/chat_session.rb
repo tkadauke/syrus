@@ -297,7 +297,7 @@ class ChatSession < ApplicationRecord
   end
 
   def record_message_turn_state!(message, trigger_turn: true)
-    in_flight = message.role == "user" && trigger_turn
+    in_flight = current_turn_message_id.present? || (message.role == "user" && trigger_turn)
     update_columns(
       turn_in_flight: in_flight,
       last_message_at: message.created_at || Time.current
@@ -307,18 +307,7 @@ class ChatSession < ApplicationRecord
   end
 
   def recalculate_turn_state!
-    latest_user_message = messages.where(role: "user").order(:created_at, :id).last
-    next_value = if latest_user_message
-      messages
-        .where("created_at > ? OR (created_at = ? AND id > ?)",
-               latest_user_message.created_at,
-               latest_user_message.created_at,
-               latest_user_message.id)
-        .where.not(role: "user")
-        .none?
-    else
-      false
-    end
+    next_value = current_turn_message_id.present?
 
     update_columns(turn_in_flight: next_value)
     self.turn_in_flight = next_value
@@ -332,24 +321,27 @@ class ChatSession < ApplicationRecord
   # message (a proposal confirmation, for example) and system messages are
   # appended throughout a turn.
   def begin_turn_for!(message)
-    update_columns(current_turn_message_id: message.id)
+    update_columns(current_turn_message_id: message.id, turn_in_flight: true)
     self.current_turn_message_id = message.id
+    self.turn_in_flight = true
   end
 
   def end_turn_for!(message)
     # Only clear our own turn: a newer turn may already have claimed the slot,
     # and clearing that one would make its token look like it belongs to an
     # ended turn.
-    return unless current_turn_message_id == message.id
+    updated = self.class
+      .where(id: id, current_turn_message_id: message.id)
+      .update_all(current_turn_message_id: nil, turn_in_flight: false)
+    return if updated.zero?
 
-    update_columns(current_turn_message_id: nil)
     self.current_turn_message_id = nil
+    self.turn_in_flight = false
   end
 
   def agent_busy?
-    SpawnedProcess.live_agent
-                  .where(workdir: workspace_root.to_s)
-                  .exists?
+    live_agents = SpawnedProcess.live_agent
+    live_agents.where(chat_session_id: id).or(live_agents.where(workdir: workspace_root.to_s)).exists?
   end
 
   def shell_command_in_flight?
