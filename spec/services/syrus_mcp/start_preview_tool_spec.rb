@@ -166,15 +166,28 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
   context "when the health check times out" do
     before do
-      stub_const("PreviewProcessLauncher::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
-      allow(Process).to receive(:spawn).and_return(12345)
+      allow(launcher).to receive(:health_check_timeout_seconds).and_return(1)
+      allow(launcher).to receive(:sleep) { travel 2.seconds }
+      allow(Process).to receive(:spawn) do |*, **options|
+        options.fetch(:out).puts("Vite failed to bind fixed port 5173")
+        12345
+      end
       allow(launcher).to receive(:http_ok?).and_return(false)
     end
 
-    it "returns an error mentioning the timeout" do
+    it "returns diagnostic timeout evidence without dumping full logs" do
       response = call
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("timed out")
+      expect(response.content.first[:text]).to include(
+        "preview health check timed out after 1s",
+        "health check: http://127.0.0.1:3001/health (path /health)",
+        "start command: bin/rails server -p 3001",
+        "configured app logs: log/development.log",
+        "Use read_preview_log",
+        "recent startup output:",
+        "Vite failed to bind fixed port 5173"
+      )
+      expect(response.content.first[:text]).to include(File.join(workspace_path, ".syrus/preview/startup-#{run.id}.log"))
     end
 
     it "removes the process from the registry after timeout" do
