@@ -284,6 +284,16 @@ function renderNewForm() {
 describe("ScheduledTaskFormRoute cadence preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("keeps the repository-scoped form inside the standard mobile page gutter", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(newFormPayload()))
+
+    renderNewForm()
+
+    const page = await screen.findByRole("main", { name: "New scheduled task" })
+    expect(page).toHaveClass("px-[var(--space-page-x)]")
+    expect(page).not.toHaveClass("px-0")
+  })
+
   it("previews the pre-filled placeholder cadence successfully on load", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
