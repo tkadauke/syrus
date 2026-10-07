@@ -146,10 +146,10 @@ the transcript and diff.
 
 ## Do you offer a hosted version?
 
-No. Syrus is self-host-first by design. A hosted version would change the
-trust model: the operator would hold user code, model credentials,
-transcripts, and GitHub tokens. That is not the project this is trying to
-be.
+No. Syrus is an open-source self-hosted project, not a hosted product.
+Offering hosted Syrus would change the trust model: the operator would
+hold user code, model credentials, transcripts, and GitHub tokens. That
+is not the project this is trying to be.
 
 ## Why polling instead of inbound callbacks?
 

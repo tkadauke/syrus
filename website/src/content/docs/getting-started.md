@@ -19,12 +19,12 @@ before asking Syrus to do bigger work.
 
 Use the path that answers the question you have right now.
 
-| If you want to... | Start here | What you will see |
-| --- | --- | --- |
-| Install Syrus on your Mac with no terminal | [Desktop app](/docs/desktop) | A DMG download, a guided setup that installs the Docker backend for you, the full web UI in a native window, and a menu-bar inbox. When the app later updates its local backend, a sidebar notice shows the progress (download percentage, restart, database migration) until Syrus is reachable again. |
-| Try the full product loop for yourself or a small team | [Docker Compose](/docs/deployment/docker-compose) or your operator-provided setup | Web UI, worker, database, repository polling, Job history, and a real GitHub PR. |
-| Develop Syrus itself | The project README | Source checkout, Ruby/Node/Go toolchain, `bin/dev`, and fast reloads. |
-| Self-host on shared infrastructure | [Deployment](/docs/deployment) and [Kubernetes](/docs/deployment/kubernetes) | The same app on your own infrastructure, once you have chosen ingress, storage, secrets, backups, and operations. |
+| If you want to...                                      | Start here                                                                        | What you will see                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install Syrus on your Mac with no terminal             | [Desktop app](/docs/desktop)                                                      | A DMG download, a first-run setup that installs the Docker backend for you, the full web UI in a native window, and a menu-bar inbox. When the app later updates its local backend, a sidebar notice shows the progress (download percentage, restart, database migration) until Syrus is reachable again. |
+| Try the full product loop for yourself or a small team | [Docker Compose](/docs/deployment/docker-compose) or your operator-provided setup | Web UI, worker, database, repository polling, Job history, and a real GitHub PR.                                                                                                                                                                                                                           |
+| Develop Syrus itself                                   | The project README                                                                | Source checkout, Ruby/Node/Go toolchain, `bin/dev`, and fast reloads.                                                                                                                                                                                                                                      |
+| Self-host on shared infrastructure                     | [Deployment](/docs/deployment) and [Kubernetes](/docs/deployment/kubernetes)      | The same app on your own infrastructure, once you have chosen ingress, storage, secrets, backups, and operations.                                                                                                                                                                                          |
 
 ## Hosted Setup
 
@@ -128,7 +128,7 @@ step guides you through them one at a time:
    Syrus offers GitHub's install page for the App. Keep GitHub's
    **All repositories** default and every repository you add to Syrus
    connects to the App automatically; Syrus detects the installation by
-   itself within seconds and shows *Installed on \<account\>*. If you skip
+   itself within seconds and shows _Installed on \<account\>_. If you skip
    it, Syrus works through your PAT and offers a per-repository install
    link whenever you add a repository that isn't covered.
 
@@ -142,7 +142,7 @@ can tell whether a run used App credentials or PAT fallback.
 
 One caveat for reinstalls: the App registration lives in your instance's
 database, so ordinary updates keep it. Wiping the instance (deleting its
-data volume) and reinstalling registers a *new* App — the old one's
+data volume) and reinstalling registers a _new_ App — the old one's
 private key is not recoverable — and orphaned Syrus Apps from previous
 installs can be deleted at
 [github.com/settings/apps](https://github.com/settings/apps).
@@ -150,7 +150,7 @@ installs can be deleted at
 ### 3. Add a repository
 
 On the **First-run setup** checklist, the **Add repository** step opens a
-guided modal for your *first* repository. It walks you through GitHub
+guided modal for your _first_ repository. It walks you through GitHub
 dropdowns: pick a **User/Org**, then the **Repository** dropdown for that owner
 appears, and once you choose a repository the **Default branch** dropdown lists
 its branches with `main`/`master` pre-selected. (There is no free-text entry —
@@ -361,13 +361,13 @@ If a Job appears but no PR is created, start with
 
 Syrus uses five core words throughout the UI and API:
 
-| Term | Short version |
-| --- | --- |
-| **Epic** | A group of related Jobs in one repository, useful when a goal needs several sequenced PRs. |
-| **Job** | The thread of work for one source of truth: a GitHub issue, scheduled task, or ad-hoc prompt. |
-| **Workflow** | One attempt to handle that Job. |
-| **Step** | One stage inside a Workflow, such as prepare, implement, summarize, or push. |
-| **Run** | One execution attempt for a Step, carrying prompt, agent metadata, diff, and PR copy. |
+| Term         | Short version                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| **Epic**     | A group of related Jobs in one repository, useful when a goal needs several sequenced PRs.    |
+| **Job**      | The thread of work for one source of truth: a GitHub issue, scheduled task, or ad-hoc prompt. |
+| **Workflow** | One attempt to handle that Job.                                                               |
+| **Step**     | One stage inside a Workflow, such as prepare, implement, summarize, or push.                  |
+| **Run**      | One execution attempt for a Step, carrying prompt, agent metadata, diff, and PR copy.         |
 
 For the deeper version, including state machines and trigger kinds,
 read [Concepts](/docs/concepts).
