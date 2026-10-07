@@ -25,6 +25,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
+import { usePageGutterRestoreClassName } from "../components/ui/Page"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
@@ -552,6 +553,7 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const search = queryKey[3]
+  const contentGutter = useRepositoryContentGutterClassName()
   const release = useMutation({
     mutationFn: (jobId: number) => releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
     onSuccess: (updated) => {
@@ -564,7 +566,7 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 
   return (
     <section>
-      <SectionHeading className="mb-3">
+      <SectionHeading className={`mb-3 ${contentGutter}`}>
         {t('repository.needs_triage')}
         {payload.needs_triage_count > payload.needs_triage_jobs.length ? (
           <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
@@ -687,11 +689,12 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
   const { t } = useT("settings")
   const columns = buildRecentJobsColumns({ prefix, t })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: RECENT_JOBS_VISIBLE_COLUMNS_STORAGE_KEY })
+  const contentGutter = useRepositoryContentGutterClassName()
 
   if (payload.jobs.length === 0) {
     return (
       <section>
-        <SectionHeading className="mb-3">
+        <SectionHeading className={`mb-3 ${contentGutter}`}>
           {t('repository.recent_jobs')}
         </SectionHeading>
         <OnboardingEmptyState
@@ -708,7 +711,7 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className={`mb-3 flex items-center justify-between gap-3 ${contentGutter}`}>
         <SectionHeading>
           {t('repository.recent_jobs')}
         </SectionHeading>
@@ -740,6 +743,10 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
       <Pagination payload={payload} prefix={prefix} />
     </section>
   )
+}
+
+function useRepositoryContentGutterClassName() {
+  return usePageGutterRestoreClassName("padding")
 }
 
 function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
