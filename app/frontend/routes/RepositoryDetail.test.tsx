@@ -222,6 +222,17 @@ describe("RepositoryDetailRoute more menu", () => {
 describe("RepositoryDetailRoute jobs", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("restores the mobile content gutter on repository section titles", async () => {
+    renderRoute({
+      can_release_triage_jobs: true,
+      needs_triage_count: 0,
+      needs_triage_jobs: []
+    })
+
+    expect(await screen.findByRole("heading", { name: "Needs triage" })).toHaveClass("px-4", "sm:px-0")
+    expect(screen.getByRole("heading", { name: "Recent jobs" })).toHaveClass("px-4", "sm:px-0")
+  })
+
   it("shows provider failover on recent job rows", async () => {
     renderRoute({
       jobs: [
