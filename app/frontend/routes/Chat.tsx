@@ -840,7 +840,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
+        className={`min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
@@ -850,39 +850,45 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         onWheel={handleWheel}
         ref={streamRef}
       >
-        {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
-        {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
-        {hiddenSystemMessageCount > 0 ? (
-          <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
-        ) : null}
-        {streamItems.map((item) => item.type === "timestamp" ? (
-          <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
-        ) : item.type === "day_divider" ? (
-          <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
-        ) : item.type === "pending_action" ? (
-          <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
-        ) : item.type === "pending_action_group" ? (
-          <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
-        ) : item.type === "tool_group" ? (
-          <ToolGroup item={item} key={renderItemKey(item)} />
-        ) : (
-          <ChatMessage
-            animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
-            item={item}
-            key={renderItemKey(item)}
-            payload={payload}
-            pendingActionIds={pendingActionIds}
-            prefix={prefix}
-            queryKey={queryKey}
-            retryText={retryTextMap.get(item.id) ?? null}
-            retrying={retryTurn.isPending}
-            onNotice={onNotice}
-            onRetry={(text) => retryTurn.mutate(text)}
-            onSelectWorkspaceTab={onSelectWorkspaceTab}
-          />
-        ))}
-        {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
+        <div
+          className={`space-y-4 ${isDesktop ? "" : "transition-transform duration-150 ease-out data-[mobile-header-hidden=true]:-translate-y-8 motion-reduce:transition-none"}`}
+          data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
+          data-testid="chat-message-stream-content"
+        >
+          {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
+          {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
+          {hiddenSystemMessageCount > 0 ? (
+            <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
+          ) : null}
+          {streamItems.map((item) => item.type === "timestamp" ? (
+            <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
+          ) : item.type === "day_divider" ? (
+            <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
+          ) : item.type === "pending_action" ? (
+            <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
+          ) : item.type === "pending_action_group" ? (
+            <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
+          ) : item.type === "tool_group" ? (
+            <ToolGroup item={item} key={renderItemKey(item)} />
+          ) : (
+            <ChatMessage
+              animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
+              item={item}
+              key={renderItemKey(item)}
+              payload={payload}
+              pendingActionIds={pendingActionIds}
+              prefix={prefix}
+              queryKey={queryKey}
+              retryText={retryTextMap.get(item.id) ?? null}
+              retrying={retryTurn.isPending}
+              onNotice={onNotice}
+              onRetry={(text) => retryTurn.mutate(text)}
+              onSelectWorkspaceTab={onSelectWorkspaceTab}
+            />
+          ))}
+          {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
+          <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
+        </div>
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -894,7 +900,14 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         </button>
       ) : null}
       {!isDesktop && mobileHeader.hidden ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/90 via-white/55 to-transparent dark:from-gray-950/90 dark:via-gray-950/55" data-testid="mobile-chat-hidden-header-scrim" />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-white/75 via-white/30 to-transparent backdrop-blur-md backdrop-saturate-150 dark:from-gray-950/75 dark:via-gray-950/30"
+          data-testid="mobile-chat-hidden-header-scrim"
+          style={{
+            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 38%, rgba(0,0,0,0.72) 58%, rgba(0,0,0,0.28) 80%, transparent 100%)",
+            maskImage: "linear-gradient(to bottom, black 0%, black 38%, rgba(0,0,0,0.72) 58%, rgba(0,0,0,0.28) 80%, transparent 100%)"
+          }}
+        />
       ) : null}
     </div>
   )
