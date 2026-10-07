@@ -649,6 +649,48 @@ describe("ReviewableDiff", () => {
     expect(annotationRow.previousElementSibling).toBe(addedRow)
   })
 
+  it("keeps mobile full-width review-note panels statically anchored in their diff row", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(
+        <ReviewableDiff
+          files={files}
+          mode="single-file"
+          reviewAnnotationRanges={{
+            "app/models/run.rb": [
+              {
+                id: "note-1",
+                side: "new",
+                start_line: 5,
+                end_line: 6,
+                title: "Inspect changed range",
+                body: "This explanation should appear inside the diff body.",
+                marker_component: "missing/marker",
+                inline_component: "missing/panel"
+              }
+            ]
+          }}
+          selectedPath="app/models/run.rb"
+        />
+      )
+
+      const annotationRow = screen.getByTestId("diff-review-annotation")
+      const panel = within(annotationRow).getByText("Inspect changed range").closest("td")?.firstElementChild
+
+      expect(annotationRow.querySelectorAll("td")).toHaveLength(1)
+      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(panel).not.toHaveClass("sticky", "left-0")
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
   it("keeps the diff metric gutter hidden when no metric is registered", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
