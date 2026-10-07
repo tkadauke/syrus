@@ -585,6 +585,48 @@ RSpec.describe App::JobSourceDiffPayload do
     )
   end
 
+  it "opens a closed merged Job from its final stored review snapshot without resolving the deleted branch" do
+    job.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+    version = DiffReviewVersion.create!(
+      job: job,
+      version_index: DiffReviewVersion.next_index_for(job),
+      base_sha: "branch-base",
+      head_sha: "merged-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      source_key: DiffReviewVersions::FinalSnapshot::FINAL_SOURCE_KEY,
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [
+        { "path" => "app/models/merged.rb", "status" => "modified", "additions" => 3, "deletions" => 1, "patch" => "@@ -1 +1,3 @@\n+merged" }
+      ],
+      metadata: { "range_kind" => "all_changes", "final_snapshot" => true }
+    )
+    stub_repository_content_failure(repo, RepositoryContent::UnknownRevision.new("unknown ref syrus/issue-42"))
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:diff_error]).to be_nil
+    expect(payload.dig(:version, :id)).to eq(version.id)
+    expect(payload).to include(
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      base_sha: "branch-base",
+      head_sha: "merged-head"
+    )
+    expect(payload[:files]).to contain_exactly(
+      path: "app/models/merged.rb",
+      status: "modified",
+      additions: 3,
+      deletions: 1,
+      patch: "@@ -1 +1,3 @@\n+merged",
+      is_image: false
+    )
+    operations = FakeRepositoryContentProvider.calls.map(&:first)
+    expect(FakeRepositoryContentProvider.calls).not_to include([ :resolve, "syrus/issue-42" ])
+    expect(operations).not_to include(:history, :changes)
+  end
+
   it "does not create an All changes version with main as the head when an ahead branch has no stored review version" do
     stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "old-main-base")
     forbid_repository_changes!
