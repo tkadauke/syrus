@@ -18,6 +18,7 @@ import { PanelMessage } from "./components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
 import { ReviewDiffSettingsModal } from "./ReviewDiffSettingsModal"
+import { activeDiffMetricGutterId, coverageDiffLineMetricProviders, metricCandidateFromProvider, useReviewDiffSettingsMutation } from "./reviewDiffMetrics"
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree } from "./sourceTree"
 
@@ -256,7 +257,7 @@ function SourceShell({
   )
 }
 
-function SourceDiffBrowser({
+export function SourceDiffBrowser({
   canReviewDiff,
   diffAnnotations,
   mode,
@@ -276,6 +277,7 @@ function SourceDiffBrowser({
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
+  const { t: commonT } = useT("common")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [renderMode, setRenderMode] = useState<"single-file" | "continuous">("single-file")
@@ -285,6 +287,13 @@ function SourceDiffBrowser({
     staleTime: Infinity
   })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
+  const settingsMutation = useReviewDiffSettingsMutation(reviewSettings)
+  const diffMetricProviders = useMemo(
+    () => coverageDiffLineMetricProviders(payload.coverage_annotations, commonT),
+    [commonT, payload.coverage_annotations]
+  )
+  const diffMetricCandidates = diffMetricProviders.map(metricCandidateFromProvider)
+  const activeMetricGutterId = activeDiffMetricGutterId(reviewSettings.metric_gutter, diffMetricCandidates)
   const sortedDiffFiles = useMemo(() => sortReviewFiles(payload.files, reviewSettings.file_sort), [payload.files, reviewSettings.file_sort])
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
@@ -418,6 +427,8 @@ function SourceDiffBrowser({
                 <ImageDiffThumbnails baseRef={payload.base_sha ?? payload.base_ref} file={file} headRef={payload.head_sha ?? payload.head_ref} jobId={payload.job_id} />
               )}
               reviewSettings={reviewSettings}
+              activeDiffLineMetricProviderId={activeMetricGutterId}
+              diffLineMetricProviders={diffMetricProviders}
               selectedPath={selectedPath}
               showFileHeaders
               unavailableState={t("source_diff_not_available")}
@@ -425,7 +436,14 @@ function SourceDiffBrowser({
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
         </div>
       </div>
-      {settingsOpen ? <ReviewDiffSettingsModal initialSettings={reviewSettings} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? (
+        <ReviewDiffSettingsModal
+          initialSettings={reviewSettings}
+          metricGutterOptions={diffMetricCandidates}
+          onChange={(patch) => settingsMutation.mutate(patch)}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </SourceShell>
   )
 }

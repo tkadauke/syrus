@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
@@ -14,8 +14,6 @@ import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
   fetchDiffReviewVersion,
-  type CoverageDiffAnnotationStatus,
-  type CoverageDiffAnnotationsPayload,
   type DiffReviewAnnotationsPayload,
   type DiffReviewComment,
   type DiffReviewVersion,
@@ -25,16 +23,13 @@ import {
 import {
   DEFAULT_REVIEW_DIFF_SETTINGS,
   fetchReviewDiffSettings,
-  patchReviewDiffSettings,
-  type ReviewDiffSettings,
-  type ReviewDiffSettingsPayload
+  type ReviewDiffSettings
 } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import {
   ReviewableDiff,
   diffLineMetricProvidersForReview,
   type DiffLineMetricProvider,
-  type DiffLineMetricTone,
   type DiffLineSelection
 } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
@@ -43,6 +38,7 @@ import { useMediaQuery } from "../dashboard/components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { ReviewDiffSettingsModal, type ReviewDiffSettingsMetricOption } from "./ReviewDiffSettingsModal"
+import { activeDiffMetricGutterId, coverageDiffLineMetricProviders, metricCandidateFromProvider, useReviewDiffSettingsMutation } from "./reviewDiffMetrics"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
@@ -659,29 +655,6 @@ function clearTimer(timerRef: { current: number | null }) {
 
 const REVIEW_SHORTCUT_GROUP_ORDER = 2
 
-function useReviewDiffSettingsMutation(reviewSettings: ReviewDiffSettings) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: patchReviewDiffSettings,
-    onMutate: async (patch: Partial<ReviewDiffSettings>) => {
-      await queryClient.cancelQueries({ queryKey: ["review_diff_settings"] })
-      const previous = queryClient.getQueryData<ReviewDiffSettingsPayload>(["review_diff_settings"])
-      const currentSettings = previous?.review_diff_settings ?? reviewSettings
-      queryClient.setQueryData<ReviewDiffSettingsPayload>(["review_diff_settings"], {
-        ...previous,
-        review_diff_settings: { ...currentSettings, ...patch }
-      })
-      return { previous }
-    },
-    onError: (_error, _patch, context) => {
-      if (context?.previous) queryClient.setQueryData(["review_diff_settings"], context.previous)
-    },
-    onSuccess: (payload) => {
-      queryClient.setQueryData(["review_diff_settings"], payload)
-    }
-  })
-}
-
 function useReviewDiffSettingsShortcuts(reviewSettings: ReviewDiffSettings) {
   const { t } = useT("jobs")
   const shortcutGroup = t("review_shortcuts_group")
@@ -768,62 +741,12 @@ function ReviewMetricGutterShortcut({
   return null
 }
 
-function metricCandidateFromProvider(provider: DiffLineMetricProvider): DiffMetricCandidate {
-  return { id: provider.id, label: provider.label }
-}
-
 function staleRangeErrorMessage(error: unknown, t: (key: string, options?: Record<string, unknown>) => string) {
   const message = error instanceof Error ? error.message : errorMessage(error, t("source_diff_error"))
   const staleRef = message.match(/unknown ref\s+([^\s]+)/i)?.[1]
   if (!staleRef) return message
 
   return t("source_diff_stale_ref_error", { ref: staleRef })
-}
-
-function activeDiffMetricGutterId(configuredId: string, candidates: DiffMetricCandidate[]) {
-  if (configuredId === "off") return "off"
-  if (candidates.some((candidate) => candidate.id === configuredId)) return configuredId
-  return candidates[0]?.id ?? "off"
-}
-
-function coverageDiffLineMetricProviders(
-  annotations: CoverageDiffAnnotationsPayload | null | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string
-): DiffLineMetricProvider[] {
-  if (!hasCoverageAnnotations(annotations)) return []
-
-  return [
-    {
-      id: "coverage.pr",
-      label: t("diff_review.metrics.pr_coverage"),
-      metricForLine: ({ file, line }) => {
-        if (line.kind !== "add" || line.newLine == null) return null
-
-        const status = annotations?.[file.path]?.[String(line.newLine)]
-        if (!status) return null
-
-        return {
-          id: "coverage.pr",
-          label: t("diff_review.metrics.pr_coverage"),
-          tone: coverageMetricTone(status),
-          title: t(`diff_review.metrics.pr_coverage_${status}`)
-        }
-      }
-    }
-  ]
-}
-
-function hasCoverageAnnotations(annotations: CoverageDiffAnnotationsPayload | null | undefined) {
-  return Object.values(annotations ?? {}).some((lines) => Object.keys(lines).length > 0)
-}
-
-function coverageMetricTone(status: CoverageDiffAnnotationStatus): DiffLineMetricTone {
-  const tones: Record<CoverageDiffAnnotationStatus, DiffLineMetricTone> = {
-    covered: "success",
-    not_executable: "neutral",
-    uncovered: "danger"
-  }
-  return tones[status]
 }
 
 function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
