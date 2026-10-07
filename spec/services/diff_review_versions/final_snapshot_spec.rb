@@ -15,6 +15,7 @@ RSpec.describe DiffReviewVersions::FinalSnapshot do
         state: "succeeded",
         base_sha: base_sha,
         head_sha: head_sha,
+        agent_diff: diff,
         step_agent_diff: diff
       }
     )
