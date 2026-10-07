@@ -165,8 +165,20 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
   end
 
   context "when the health check times out" do
+    let(:preview_config) do
+      PreviewCommandSource::Config.new(
+        start_command_for: ->(port:) { "bin/rails server -p #{port}" },
+        setup_commands:    [],
+        seed_command:      nil,
+        health_check_path: "/health",
+        health_check_timeout_seconds: 1,
+        log_paths:         [ "log/development.log" ],
+        env:               {},
+        unset_env:         []
+      )
+    end
+
     before do
-      allow(launcher).to receive(:health_check_timeout_seconds).and_return(1)
       allow(launcher).to receive(:sleep) { travel 2.seconds }
       allow(Process).to receive(:spawn) do |*, **options|
         options.fetch(:out).puts("Vite failed to bind fixed port 5173")
@@ -207,6 +219,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
           setup_commands:    [],
           seed_command:      nil,
           health_check_path: "/health",
+          health_check_timeout_seconds: 1,
           log_paths:         [ "log/development.log" ],
           env:               {},
           unset_env:         []
