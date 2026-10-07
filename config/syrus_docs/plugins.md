@@ -578,6 +578,7 @@ Include `Syrus::Plugin::PreviewProvider` and implement the interface methods:
 | `setup_commands` | `() → Array<String>` | Commands to prepare the fresh preview checkout before seed/start |
 | `seed_command` | `() → String \| nil` | Command to seed the database (nil = skip) |
 | `health_check_path` | `() → String` | URL path polled to determine readiness |
+| `health_check_timeout_seconds` | `() → Integer \| nil` | Seconds workflow `start_preview` waits for readiness (`nil` = default 60s) |
 | `log_paths` | `() → Array<String>` | Log paths (relative to repo root) to tail |
 | `env` | `() → Hash<String, String>` | Environment variables to set for setup, seed, and server commands |
 | `unset_env` | `() → Array<String>` | Inherited environment variables to remove for setup, seed, and server commands |
