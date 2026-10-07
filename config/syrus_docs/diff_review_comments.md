@@ -66,6 +66,26 @@ persists a version for the displayed comparison, including explicit `base`/
 /diff_review_versions/:id` returns the selected version plus its stored
 `files` array; it does not call GitHub or depend on the current branch head.
 
+Closed Jobs may also have a final `"All changes"` `DiffReviewVersion` with
+`reason: "source_diff"` and `metadata.final_snapshot: true`. Syrus creates or
+reuses that immutable snapshot before `ReapStaleBranchesJob` deletes a closed
+Job's branch, so the Review tab can keep rendering after GitHub removes the
+branch. When the branch still exists, the final snapshot is computed from the
+repository compare for the Job's full base-to-head range. For legacy closed
+Jobs whose branch is already gone, operators can run:
+
+```bash
+bin/rails syrus:backfill_final_diff_review_versions
+```
+
+The backfill is idempotent. It uses the latest successful `implement` or
+`respond` Run only when that Run has a full `agent_diff` plus distinct
+`base_sha`/`head_sha`; it deliberately ignores `step_agent_diff` by itself
+because that field may contain only a feedback step's incremental patch, not
+the full branch diff. Jobs without a trustworthy artifact are skipped and
+reported with a reason instead of receiving an empty or misleading final
+snapshot.
+
 Each file entry in `source_diff`'s `files` array (and the equivalent
 `diff_review_versions` `files` array) also carries `is_image`: true only when
 `patch` is `nil` (GitHub omitted it for a binary/oversized file) and the path's

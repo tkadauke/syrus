@@ -136,11 +136,13 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
 }
 
 function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
+  const slugTone = isCurrentUserBubble(item, payload) ? "inverted" : "default"
+
   if (shouldRenderUserMarkdown(item.text)) {
-    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls />
+    return <Markdown className={humanMarkdownMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
   }
 
-  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls />
+  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
 }
 
 function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
