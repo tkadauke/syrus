@@ -75,4 +75,44 @@ describe("pluginUiSlots", () => {
       window.MutationObserver = originalMutationObserver
     }
   })
+
+  it("keeps a stable hook order when dashboard notice panels disappear", async () => {
+    const labels = {
+      region: "Dashboard notices",
+      position: (index: number, count: number) => `${index} of ${count}`,
+      previous: "Previous",
+      next: "Next"
+    }
+    const panels: UiSlotPanel[] = [
+      {
+        id: "github_source.untagged_issues",
+        component: "github_source/UntaggedIssuesBanner",
+        order: 10,
+        props: {
+          untagged_issues: {
+            total: 1,
+            repositories: [
+              { id: 1, slug: "acme/widgets", count: 1, issues_path: "/repositories/1/plugin/github/issues" }
+            ]
+          }
+        }
+      }
+    ]
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <PluginUiSlotCarousel labels={labels} panels={panels} props={{ prefix: "" }} />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByRole("status")).toHaveTextContent("1 unlabeled open issue")
+
+    expect(() =>
+      rerender(
+        <MemoryRouter>
+          <PluginUiSlotCarousel labels={labels} panels={[]} props={{ prefix: "" }} />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
+  })
 })
