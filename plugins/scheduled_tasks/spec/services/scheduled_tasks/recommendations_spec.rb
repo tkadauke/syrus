@@ -18,7 +18,7 @@ RSpec.describe ScheduledTasks::Recommendations do
     entries = described_class.repository_recommendations(repository: repository, user: user)
 
     expect(entries.map { |entry| entry[:id] }).to eq([ "scheduled_coverage" ])
-    expect(entries.first[:cta][:path]).to eq("/repositories/#{repository.id}/scheduled_tasks/new")
+    expect(entries.first[:cta][:path]).to eq("/repositories/#{repository.id}/scheduled_tasks/new?preset=scheduled_coverage")
   end
 
   it "says nothing once the repository has a live schedule" do
