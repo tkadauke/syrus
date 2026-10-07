@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, chatQueryKey, contextFindSurface } from "./Chat"
 import { Compose } from "./chat/Compose"
+import { MobileChatHeaderContext, type MobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -485,6 +486,28 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(within(updatedTabs).getByRole("button", { name: "Media" })).not.toHaveClass("text-brand")
     expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+  })
+
+  it("keeps non-chat mobile workspace tabs below the app header and tab chrome", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch()
+
+    renderRouteWithMobileChromeContext({ topInset: 44 })
+
+    expect(await screen.findByTestId("chat-message-stream")).toBeInTheDocument()
+    expect(screen.getByTestId("mobile-chat-surface")).not.toHaveStyle({ paddingTop: "calc(var(--mobile-chat-app-header-height,0px) + 44px)" })
+
+    const mobileTabs = screen.getByRole("navigation", { name: "Chat mobile tabs" })
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Files" }))
+
+    const workspaceShell = await screen.findByTestId("mobile-workspace-panel-shell")
+    expect(workspaceShell).toHaveStyle({ paddingTop: "calc(var(--mobile-chat-app-header-height,0px) + 44px)" })
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+
+    fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
+
+    expect(await screen.findByTestId("chat-message-stream")).toBeInTheDocument()
+    expect(screen.queryByTestId("mobile-workspace-panel-shell")).not.toBeInTheDocument()
   })
 })
 
@@ -5989,6 +6012,33 @@ function renderRoute() {
           <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
         </Routes>
       </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function renderRouteWithMobileChromeContext(overrides: Partial<MobileChatHeaderControls> = {}) {
+  const controls: MobileChatHeaderControls = {
+    autoHideEnabled: false,
+    hidden: false,
+    hideHeader: vi.fn(),
+    offset: 0,
+    reportScrollDelta: vi.fn(),
+    revealHeader: vi.fn(),
+    setContentHeight: vi.fn(),
+    topInset: 0,
+    visibleTopInset: 0,
+    ...overrides
+  }
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MobileChatHeaderContext.Provider value={controls}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </MobileChatHeaderContext.Provider>
     </QueryClientProvider>
   )
 }

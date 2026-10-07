@@ -1012,6 +1012,9 @@ function ChatWorkspace({
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
+  const mobileWorkspacePanelStyle = !isDesktop && !showMobileChatColumn
+    ? { paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties
+    : undefined
 
   useLayoutEffect(() => {
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
@@ -1172,19 +1175,21 @@ function ChatWorkspace({
           {showMobileChatColumn ? (
             <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
-            <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
-              <ChatWorkspacePanel
-                activeTab={activeTab}
-                showTabs={false}
-                onSelectTab={selectTab}
-                payload={payload}
-                queryKey={queryKey}
-                onNotice={onNotice}
-                onBookmarkSelect={selectBookmark}
-                contextFindOpenerRef={filesFindOpenerRef}
-                onSurfaceActive={() => setActiveFindSurface("workspace")}
-              />
-            </Suspense>
+            <div className="min-h-0 flex-1 overflow-hidden" data-testid="mobile-workspace-panel-shell" style={mobileWorkspacePanelStyle}>
+              <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
+                <ChatWorkspacePanel
+                  activeTab={activeTab}
+                  showTabs={false}
+                  onSelectTab={selectTab}
+                  payload={payload}
+                  queryKey={queryKey}
+                  onNotice={onNotice}
+                  onBookmarkSelect={selectBookmark}
+                  contextFindOpenerRef={filesFindOpenerRef}
+                  onSurfaceActive={() => setActiveFindSurface("workspace")}
+                />
+              </Suspense>
+            </div>
           )}
         </div>
         {settingsOpen ? (
