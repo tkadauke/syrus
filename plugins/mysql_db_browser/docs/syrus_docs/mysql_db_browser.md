@@ -34,7 +34,9 @@ Managed from **Admin → DB Browser** (`/db_browser`, admin-only sidebar page,
 `MysqlDbBrowser::SidebarPages`) via `GET/POST/PATCH/DELETE
 /api/v1/app/admin/mysql_connections` and a connect-test endpoint
 (`POST .../test` or `.../:id/test`, backed by `MysqlDbBrowser::ConnectionTester`)
-that never persists a draft connection.
+that never persists a draft connection. The create/edit form also accepts a
+`mysql://` or `mysql2://` connection URL and fills label, host, port, username,
+password, and default database from it before saving through the same API.
 
 ## Schema browsing
 
