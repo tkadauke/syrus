@@ -252,15 +252,22 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
 
   const layout = await page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth
-    const range = Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] [data-diff-review-annotation-ids~="cognitive_review_note:7"]'))
-      .at(-1)
-      ?.getBoundingClientRect()
+    const rangeRows = Array.from(
+      document.querySelectorAll('[data-testid="agent-diff-viewer"] tr[data-diff-review-annotation-ids~="cognitive_review_note:7"]')
+    )
+    const range = rangeRows.at(-1)?.getBoundingClientRect()
     const card = document
       .querySelector('[data-testid="agent-diff-viewer"] [data-testid="diff-review-annotation"] [data-cognitive-review-note-id="7"]')
       ?.getBoundingClientRect()
     const next = Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] [data-diff-kind="hunk"]'))
       .at(1)
       ?.getBoundingClientRect()
+    const codeRowIntersections = card
+      ? Array.from(document.querySelectorAll('[data-testid="agent-diff-viewer"] tr[data-diff-kind]'))
+          .map((row) => ({ kind: row.getAttribute("data-diff-kind"), rect: row.getBoundingClientRect() }))
+          .filter(({ rect }) => rect.bottom > card.top && rect.top < card.bottom)
+          .map(({ kind, rect }) => ({ bottom: rect.bottom, kind, top: rect.top }))
+      : []
 
     return {
       bodyScrollWidth: document.documentElement.scrollWidth,
@@ -270,6 +277,7 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
       cardTop: card?.top ?? 0,
       cardWidth: card?.width ?? 0,
       clientWidth: viewportWidth,
+      codeRowIntersections,
       nextTop: next?.top ?? 0,
       rangeBottom: range?.bottom ?? 0
     }
@@ -280,6 +288,7 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
   expect(layout.cardLeft).toBeGreaterThanOrEqual(0)
   expect(layout.cardRight).toBeLessThanOrEqual(402)
   expect(layout.cardTop).toBeGreaterThanOrEqual(layout.rangeBottom)
+  expect(layout.codeRowIntersections).toEqual([])
   expect(layout.nextTop).toBeGreaterThan(layout.cardBottom)
   await expect(nextHunk).toBeVisible()
 })
