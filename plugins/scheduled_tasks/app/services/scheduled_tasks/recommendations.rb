@@ -10,6 +10,7 @@ module ScheduledTasks
 
     ACTIVE_STATES = %w[scheduled paused auto_paused].freeze
     COVERAGE_TEMPLATE = "Increase test coverage".freeze
+    COVERAGE_PRESET = "scheduled_coverage".freeze
 
     def self.repository_recommendations(repository:, user: nil)
       return [] if repository.blank?
@@ -17,7 +18,8 @@ module ScheduledTasks
 
       template = user && ScheduledTasks::CronTemplate.find_by(user_id: user.id, name: COVERAGE_TEMPLATE)
       path = "/repositories/#{repository.id}/scheduled_tasks/new"
-      path += "?from_template=#{template.id}" if template
+      query = template ? { from_template: template.id } : { preset: COVERAGE_PRESET }
+      path += "?#{query.to_query}"
 
       [
         {

@@ -25,6 +25,8 @@ module Api
           if params[:from_template].present?
             from_template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).find_by(id: params[:from_template])
             assign_from_template(task, from_template) if from_template
+          elsif params[:preset].present?
+            ScheduledTasks::RecommendationPresets.apply(task, params[:preset])
           end
 
           render json: scheduled_task_form_payload(task, repository: repository, from_template: from_template)
