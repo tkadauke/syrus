@@ -15,6 +15,10 @@ module App
 
     def payload
       return fixture_payload if preview_fixture.present?
+      if immutable_closed_review_payload?
+        return stored_review_version_payload(branch_commits: [], merge_base_sha: nil)
+      end
+
       return unavailable_payload unless source_available?
 
       # Defaulted up front, not just inside branch_history, so the rescue
@@ -188,6 +192,12 @@ module App
         review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot)),
         coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot))
       )
+    end
+
+    def immutable_closed_review_payload?
+      !explicit_selection? &&
+        @job.closed? &&
+        DiffReviewVersion.default_for_review(@job)&.reviewable_all_changes?
     end
 
     def no_branch_diff_payload(branch_commits:, merge_base_sha:)
