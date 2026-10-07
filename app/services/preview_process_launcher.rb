@@ -127,7 +127,10 @@ class PreviewProcessLauncher
   end
 
   def health_check_timeout_seconds
-    AppSetting.workflow_preview_health_check_timeout_seconds
+    configured_timeout = Integer(source.health_check_timeout_seconds, exception: false)
+    return configured_timeout if configured_timeout&.positive?
+
+    HEALTH_CHECK_TIMEOUT_SECONDS
   end
 
   def http_ok?(url)

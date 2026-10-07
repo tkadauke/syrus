@@ -110,32 +110,6 @@ RSpec.describe AppSetting do
     expect(AppSetting.adversarial_review_rounds).to eq(2)
   end
 
-  describe ".workflow_preview_health_check_timeout_seconds" do
-    it "defaults to 60 and reflects the setting" do
-      expect(AppSetting.workflow_preview_health_check_timeout_seconds).to eq(60)
-
-      AppSetting.current.update!(workflow_preview_health_check_timeout_seconds: 90)
-
-      expect(AppSetting.workflow_preview_health_check_timeout_seconds).to eq(90)
-    end
-
-    it "uses an explicit positive env override" do
-      AppSetting.current.update!(workflow_preview_health_check_timeout_seconds: 90)
-      allow(ENV).to receive(:[]).and_call_original
-      allow(ENV).to receive(:[]).with("SYRUS_WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_SECONDS").and_return("120")
-
-      expect(AppSetting.workflow_preview_health_check_timeout_seconds).to eq(120)
-    end
-
-    it "ignores invalid env overrides" do
-      AppSetting.current.update!(workflow_preview_health_check_timeout_seconds: 90)
-      allow(ENV).to receive(:[]).and_call_original
-      allow(ENV).to receive(:[]).with("SYRUS_WORKFLOW_PREVIEW_HEALTH_CHECK_TIMEOUT_SECONDS").and_return("0")
-
-      expect(AppSetting.workflow_preview_health_check_timeout_seconds).to eq(90)
-    end
-  end
-
   it "rejects grade_max_iterations above 10" do
     expect(AppSettingRegistry.fetch(:grade_max_iterations).max).to eq(10)
 
@@ -159,17 +133,14 @@ RSpec.describe AppSetting do
   it "rejects zero for failure and merge-train thresholds that are used as hard caps" do
     expect(AppSettingRegistry.fetch(:max_job_failures).min).to eq(1)
     expect(AppSettingRegistry.fetch(:merge_train_max_size).min).to eq(1)
-    expect(AppSettingRegistry.fetch(:workflow_preview_health_check_timeout_seconds).min).to eq(1)
 
     setting = AppSetting.current
     setting.max_job_failures = 0
     setting.merge_train_max_size = 0
-    setting.workflow_preview_health_check_timeout_seconds = 0
 
     expect(setting).not_to be_valid
     expect(setting.errors[:max_job_failures]).to include("must be greater than or equal to 1")
     expect(setting.errors[:merge_train_max_size]).to include("must be greater than or equal to 1")
-    expect(setting.errors[:workflow_preview_health_check_timeout_seconds]).to include("must be greater than or equal to 1")
   end
 
   it ".video_retention_days returns the column value (default 7)" do
