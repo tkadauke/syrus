@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
+import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -15,6 +16,18 @@ vi.mock("../../api/chats", async (importOriginal) => {
     createChatMessagePin: vi.fn(),
     deleteChatMessagePin: vi.fn()
   }
+})
+
+const registryEntry = (overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry => ({
+  displayLabel: overrides.prefix,
+  copyable: true,
+  linkable: true,
+  previewAvailable: true,
+  linkifiesGeneratedText: true,
+  hrefTemplate: `/${overrides.type}s/:id`,
+  mobileInteractionHints: { tap: "open", long_press: "copy" },
+  pluginPreviewComponent: null,
+  ...overrides
 })
 
 function makePayload(): ChatPayload {
@@ -157,6 +170,7 @@ function systemMessageItem(system: ChatSystemMessage, overrides: Partial<Extract
 }
 
 beforeEach(() => {
+  setSlugReferenceRegistryForTests(null)
   vi.mocked(fetchSourceFileContent).mockReset()
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
   vi.mocked(createChatMessagePin).mockReset()
@@ -197,6 +211,18 @@ describe("user message markdown heuristic", () => {
     expect(bubble).toHaveClass("bg-brand", "text-on-brand", "chat-prose-invert")
     expect(bubble).not.toHaveClass("whitespace-pre-wrap")
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
+  })
+
+  it("uses inverted slug controls inside current-user bubbles", () => {
+    setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
+
+    renderChatMessageItem(userMessage("Can you check JOB-42?"))
+
+    const slugLink = screen.getByRole("link", { name: "JOB-42" })
+    const copyButton = screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })
+    expect(slugLink).toHaveClass("text-on-brand")
+    expect(copyButton).toHaveClass("text-on-brand/80")
+    expect(slugLink.closest("[class*='bg-brand']")).toBeInTheDocument()
   })
 
   it("keeps other participant markdown bubbles on the alternate group colors", () => {
