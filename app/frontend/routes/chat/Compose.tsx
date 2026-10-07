@@ -1933,7 +1933,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               <span aria-hidden="true" className="min-w-0 flex-1 truncate pr-2 text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
               <button
                 aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
-                className="pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus-visible:ring-offset-gray-950"
+                className="pointer-events-auto grid h-8 w-8 shrink-0 place-items-center rounded text-gray-500 leading-none transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"
                 onClick={() => acceptGhostSuggestion(ghostSuggestion)}
                 title={t("suggestion_accept")}
                 type="button"

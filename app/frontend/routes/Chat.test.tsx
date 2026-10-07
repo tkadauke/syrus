@@ -3838,7 +3838,10 @@ describe("composer next-step suggestion", () => {
 
     const ghost = await screen.findByTestId("chat-suggestion-ghost")
     expect(ghost).toHaveTextContent("Create an Epic from these findings")
-    expect(within(ghost).getByRole("button", { name: "Accept suggested message: Create an Epic from these findings" })).toBeInTheDocument()
+    const acceptButton = within(ghost).getByRole("button", { name: "Accept suggested message: Create an Epic from these findings" })
+    expect(acceptButton).toBeInTheDocument()
+    expect(acceptButton).toHaveClass("grid", "place-items-center")
+    expect(acceptButton.className).not.toMatch(/\bborder(?:-|$)/)
     expect(screen.getByText("Suggested next message: Create an Epic from these findings. Tap the suggestion button or press Tab to accept.")).toBeInTheDocument()
   })
 
