@@ -57,6 +57,44 @@ RSpec.describe PlannedExecutionRequestAnalyzer do
       expect(result.requirement.capabilities).to eq("os" => [ "macos" ])
     end
 
+    # Regression: Syrus is not the only application that files issues it then
+    # picks up. Another app's in-app reporter appends its own metadata block --
+    # a "### Page context" list with bold labels, nothing like the Environment
+    # section -- so the heading-based exclusion did not apply and the
+    # User-Agent reached #ios_request? unchanged. Measured in production: three
+    # ordinary frontend Jobs were planned for macOS, and because no worker
+    # advertises that, each blocked on `no_capable_worker` and retried every
+    # two minutes until an operator intervened.
+    it "ignores a User-Agent in a context block it has never seen before" do
+      body = <<~MARKDOWN
+        Fix the bug icon. Its right legs are weird.
+
+        ### Page context
+
+        - **URL:** https://example.test/equipment
+        - **Viewport:** 352x625
+        - **Browser:** Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1
+        - **Reported at:** 2026-10-07T13:09:00.144Z
+      MARKDOWN
+
+      result = described_class.call(job: job(title: "Bug icon messed up", body: body))
+
+      expect(result).not_to be_ambiguous
+      expect(result.requirement&.capabilities.to_h["os"].to_a).not_to include("macos")
+    end
+
+    # Same metadata, written as prose: a note recording which device a
+    # screenshot came from, with the viewport beside the device name.
+    it "ignores a device named only as a screenshot viewport" do
+      body = "Context from the attached bug report screenshot (/agent_activity, iPhone 402x812): " \
+             "expanded transcripts overflow their container."
+
+      result = described_class.call(job: job(title: "Unify transcript rendering", body: body))
+
+      expect(result).not_to be_ambiguous
+      expect(result.requirement&.capabilities.to_h["os"].to_a).not_to include("macos")
+    end
+
     # Regression: Jobs filed automatically from a captured browser error embed
     # the whole event payload in a fenced JSON block, and that payload carries
     # the reporter's User-Agent. Excluding only the Environment section missed

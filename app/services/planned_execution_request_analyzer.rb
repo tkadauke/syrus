@@ -77,11 +77,31 @@ class PlannedExecutionRequestAnalyzer
   # analyze a half-quoted blob.
   UNTERMINATED_FENCE = /^[ \t]*(?:`{3,}|~{3,}).*\z/m
 
+  # A User-Agent names the device a report was filed from. It never names the
+  # host the work has to run on, so it must not reach the matchers at all.
+  #
+  # Excluding known context sections is not enough on its own, because reports
+  # reach Syrus in more than one shape: its own in-app reporter appends the
+  # Environment section above, while other applications file issues with their
+  # own metadata blocks -- a "### Page context" list, say -- that this code has
+  # never heard of. Keying off a heading only strips the format that happened
+  # to be known, and the first foreign one puts "iPhone" back in front of
+  # #ios_request?. Dropping the User-Agent itself covers every format, present
+  # and future, because the string is recognizable wherever it sits.
+  USER_AGENT = %r{\bMozilla/\d[^\n]*}i
+
+  # The same metadata by another name: "iPhone 402x812" in a screenshot note is
+  # the reporter's viewport, not a request for iOS work.
+  DEVICE_VIEWPORT = /\b(?:iphone|ipad|android)\s+\d{2,4}\s*[x×]\s*\d{2,4}\b/i
+
   def authored_body
     body = job.issue_body.to_s
     start = body.index(BugReports::ContextFormatter::SECTION_START)
     body = body[0...start] if start
-    body.gsub(FENCED_BLOCK, "\n").sub(UNTERMINATED_FENCE, "\n")
+    body.gsub(FENCED_BLOCK, "\n")
+        .sub(UNTERMINATED_FENCE, "\n")
+        .gsub(USER_AGENT, " ")
+        .gsub(DEVICE_VIEWPORT, " ")
   end
 
   def ios_request?
