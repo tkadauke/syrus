@@ -62,7 +62,7 @@ class VisualDiffSubmission
 
     return failure("Before/after comparison can only be run on implemented, approved, or landing Jobs with no active run.") unless runnable?
     return failure("Visual review is not configured for this repository.") unless RepoVisualReviewPlan.for_job(job).enabled?
-    return failure("No visual review screenshots are available to compare.") if after_artifacts.empty?
+    return failure("No visual review screenshots are available to compare.") if raw_after_artifacts.empty?
 
     result = WorkUnits::Launcher.create_and_start!(
       kind: "visual_diff",
@@ -111,17 +111,30 @@ class VisualDiffSubmission
   end
 
   def launch_artifacts
+    validation = after_artifact_validation
     {
       "visual_diff_source" => source,
       "visual_diff_after_workflow_id" => after_workflow&.id,
       "visual_diff_after_iteration" => after_iteration,
-      "visual_diff_after_artifacts" => after_artifacts,
+      "visual_diff_after_artifacts" => validation.accepted_artifacts,
+      "visual_diff_rejected_after_artifacts" => validation.rejected_artifacts,
       "visual_diff_baseline_type" => BASELINE_TYPE
     }
   end
 
   def after_artifacts
-    @after_artifacts ||= begin
+    @after_artifacts ||= after_artifact_validation.accepted_artifacts
+  end
+
+  def after_artifact_validation
+    @after_artifact_validation ||= VisualReviewEvidenceGuard.validate_visual_diff_after_artifacts(
+      job: job,
+      artifacts: raw_after_artifacts
+    )
+  end
+
+  def raw_after_artifacts
+    @raw_after_artifacts ||= begin
       if after_workflow
         artifacts_for_workflow(after_workflow, after_iteration)
       else

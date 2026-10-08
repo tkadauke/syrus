@@ -3,6 +3,10 @@ class VisualReviewEvidenceGuard
     def accepted? = accepted
     def rejected? = !accepted
   end
+  VisualDiffResult = Data.define(:accepted_artifacts, :rejected_artifacts) do
+    def accepted? = rejected_artifacts.empty?
+    def rejected? = rejected_artifacts.any?
+  end
 
   AUTH_PATH_PATTERN = %r{
     \A/
@@ -43,8 +47,14 @@ class VisualReviewEvidenceGuard
     new(run: run, verdict: verdict, artifacts: artifacts).validate_approval
   end
 
-  def initialize(run:, verdict:, artifacts:)
+  def self.validate_visual_diff_after_artifacts(job:, artifacts:, prompt: nil)
+    new(run: nil, job: job, prompt: prompt, verdict: nil, artifacts: artifacts).validate_visual_diff_after_artifacts
+  end
+
+  def initialize(run:, verdict:, artifacts:, job: nil, prompt: nil)
     @run = run
+    @job = job || run&.job
+    @prompt = prompt
     @verdict = verdict.to_s
     @artifacts = Array(artifacts)
   end
@@ -65,6 +75,24 @@ class VisualReviewEvidenceGuard
       "intended surface #{intended.inspect}, captured fallback #{captured}. " \
       "Submit skipped for tooling/auth/seed blockers or needs_work for an implementation/preview defect."
     )
+  end
+
+  def validate_visual_diff_after_artifacts
+    intended = intended_surface
+    return VisualDiffResult.new(accepted_artifacts: @artifacts, rejected_artifacts: []) if intended.blank?
+    return VisualDiffResult.new(accepted_artifacts: @artifacts, rejected_artifacts: []) if wall_surface?(path: intended, title: nil, text: nil)
+
+    accepted = []
+    rejected = []
+    @artifacts.each do |artifact|
+      if wall_artifact?(artifact)
+        rejected << rejected_visual_diff_artifact(artifact, intended)
+      else
+        accepted << artifact
+      end
+    end
+
+    VisualDiffResult.new(accepted_artifacts: accepted, rejected_artifacts: rejected)
   end
 
   private
@@ -106,9 +134,9 @@ class VisualReviewEvidenceGuard
 
   def source_texts
     [
-      @run.job.issue_title,
-      @run.job.issue_body,
-      @run.prompt
+      @job&.issue_title,
+      @job&.issue_body,
+      @prompt || @run&.prompt
     ].compact_blank
   end
 
@@ -135,8 +163,18 @@ class VisualReviewEvidenceGuard
 
   def captured_surface_label(artifact)
     page = artifact["page"].is_a?(Hash) ? artifact["page"] : {}
-    path = normalize_path(page["path"] || page["url"])
-    title = page["title"].to_s.strip
+    payload = artifact["payload"].is_a?(Hash) ? artifact["payload"] : {}
+    payload_page = payload["page"].is_a?(Hash) ? payload["page"] : {}
+    path = normalize_path(page["path"] || page["url"] || payload_page["path"] || payload_page["url"])
+    title = (page["title"] || payload_page["title"]).to_s.strip
     title.present? ? "#{path.inspect} titled #{title.inspect}" : path.inspect
+  end
+
+  def rejected_visual_diff_artifact(artifact, intended)
+    label = artifact["title"].presence || artifact["type"].presence || "untitled visual artifact"
+    reason =
+      "Rejected #{label.inspect}: captured #{captured_surface_label(artifact)} appears to be an auth/error screen, " \
+      "but the changed surface appears to be #{intended.inspect}."
+    artifact.merge("rejected_reason" => reason)
   end
 end
