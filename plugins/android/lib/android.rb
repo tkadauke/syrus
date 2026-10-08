@@ -5,6 +5,11 @@ require "android/prompt_context"
 require "android/review_criteria_provider"
 require "android/step_environment"
 require "android/toolchain_diagnostic"
+require "android/gradle_grader_type"
+require "android/assemble_grader_type"
+require "android/unit_test_grader_type"
+require "android/instrumented_test_grader_type"
+require "android/managed_device_grader_type"
 
 module Android
   extend Syrus::PluginApi
@@ -35,6 +40,12 @@ module Android
     provides prepare_detector: "Android::PrepareDetector",
              prompt_injector: "Android::PromptContext",
              review_criteria_provider: "Android::ReviewCriteriaProvider",
-             step_environment: "Android::StepEnvironment"
+             step_environment: "Android::StepEnvironment",
+             grader_type: [
+               "Android::AssembleGraderType",
+               "Android::UnitTestGraderType",
+               "Android::InstrumentedTestGraderType",
+               "Android::ManagedDeviceGraderType"
+             ]
   end
 end
