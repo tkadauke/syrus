@@ -23,6 +23,7 @@ import {
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
+const FRAME_STALE_AFTER_MS = 30_000
 const MAX_LOG_LINES = 500
 
 // Take Control requests RuntimeControlLease::MAX_DURATION (the longest
@@ -41,6 +42,35 @@ function runtimeSessionsQueryKey(chatId: string | number) {
 
 function sessionIsActive(session: RuntimeSession | undefined): boolean {
   return Boolean(session && RUNTIME_SESSION_ACTIVE_STATES.includes(session.state))
+}
+
+function capabilityStrings(value: unknown): string[] {
+  if (typeof value === "string") return [ value ]
+  if (Array.isArray(value)) return value.filter((candidate): candidate is string => typeof candidate === "string")
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(capabilityStrings)
+  }
+
+  return []
+}
+
+function sessionSupportsVisualFrames(session: RuntimeSession): boolean {
+  const values = [
+    ...capabilityStrings(session.capabilities.stream),
+    ...capabilityStrings(session.capabilities.frame),
+    ...capabilityStrings(session.capabilities.frames),
+    ...capabilityStrings(session.capabilities.screenshot),
+    ...capabilityStrings(session.capabilities.screenshots)
+  ].map((value) => value.toLowerCase())
+
+  return values.some((value) => [ "frame", "frames", "image", "screenshot", "screenshots" ].includes(value))
+}
+
+function latestFrameIsStale(session: RuntimeSession): boolean {
+  if (!session.latest_frame_at || !sessionIsActive(session)) return false
+
+  const capturedAtMs = new Date(session.latest_frame_at).getTime()
+  return Number.isFinite(capturedAtMs) && Date.now() - capturedAtMs > FRAME_STALE_AFTER_MS
 }
 
 // Cursor-based log tailing (DOC-17's "logs with cursor-based refresh"):
@@ -105,6 +135,69 @@ function ProviderMetadata({ session }: { session: RuntimeSession }) {
         </Fragment>
       ))}
     </dl>
+  )
+}
+
+function GenericVisualFrame({ session }: { session: RuntimeSession }) {
+  const { t } = useT("chat")
+  const [ streamFailed, setStreamFailed ] = useState(false)
+  const [ imageLoaded, setImageLoaded ] = useState(false)
+  const visualStream = session.stream_url && sessionSupportsVisualFrames(session) ? session.stream_url : null
+  const frameSource = visualStream && !streamFailed ? visualStream : session.latest_frame_url
+  const usingStream = Boolean(visualStream && frameSource === visualStream)
+  const usingLatestFallback = Boolean(frameSource && !usingStream)
+  const failed = session.state === "failed" || Boolean(session.last_error)
+  const stale = usingLatestFallback && latestFrameIsStale(session)
+
+  useEffect(() => {
+    setStreamFailed(false)
+  }, [ session.id, session.stream_url ])
+
+  useEffect(() => {
+    setImageLoaded(false)
+  }, [ frameSource ])
+
+  let status = t("runtime_no_frame_yet")
+  if (failed) {
+    status = t("runtime_frame_disconnected")
+  } else if (usingStream) {
+    status = imageLoaded ? t("runtime_frame_live") : t("runtime_frame_refreshing")
+  } else if (usingLatestFallback && visualStream) {
+    status = t("runtime_frame_latest_fallback")
+  } else if (stale) {
+    status = t("runtime_frame_stale")
+  } else if (usingLatestFallback) {
+    status = t("runtime_frame_latest")
+  }
+
+  if (!frameSource) {
+    return <p className={`text-xs ${failed ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{status}</p>
+  }
+
+  return (
+    <div>
+      <img
+        alt={t("runtime_latest_frame")}
+        className="max-h-64 w-full rounded border border-gray-200 object-contain dark:border-gray-700"
+        key={frameSource}
+        onError={() => {
+          if (usingStream && session.latest_frame_url) {
+            setStreamFailed(true)
+          }
+        }}
+        onLoad={() => setImageLoaded(true)}
+        src={frameSource}
+      />
+      <p className={`mt-1 text-xs ${failed ? "text-red-600 dark:text-red-400" : stale ? "text-amber-700 dark:text-amber-300" : "text-gray-400 dark:text-gray-500"}`}>
+        {status}
+        {usingLatestFallback && session.latest_frame_at ? (
+          <>
+            {" "}
+            <RelativeTimestamp value={session.latest_frame_at} />
+          </>
+        ) : null}
+      </p>
+    </div>
   )
 }
 
@@ -322,20 +415,8 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
             inputEnabled={runtimeSessionInputEnabled(session, myLease)}
             session={session}
           />
-        ) : session.latest_frame_url ? (
-          <div>
-            <img
-              alt={t("runtime_latest_frame")}
-              className="max-h-64 w-full rounded border border-gray-200 object-contain dark:border-gray-700"
-              key={session.latest_frame_url}
-              src={session.latest_frame_url}
-            />
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              <RelativeTimestamp value={session.latest_frame_at} />
-            </p>
-          </div>
         ) : (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t("runtime_no_frame_yet")}</p>
+          <GenericVisualFrame session={session} />
         )}
         {captureError ? <p className="text-xs text-red-600 dark:text-red-400">{captureError}</p> : null}
       </div>
@@ -405,7 +486,7 @@ export function RuntimePanel({ chatId }: { chatId: string | number }) {
         <div className="flex flex-wrap gap-1.5">
           {sessions.map((session) => (
             <button
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${session.id === selected.id ? "bg-brand text-on-brand" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${session.id === selected.id ? "bg-brand text-on-brand" : "bg-surface text-text-secondary ring-1 ring-border hover:bg-surface-raised"}`}
               key={session.id}
               onClick={() => setSelectedId(session.id)}
               type="button"

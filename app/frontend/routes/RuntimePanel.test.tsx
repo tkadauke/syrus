@@ -211,6 +211,100 @@ describe("RuntimePanel session detail", () => {
     expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
   })
 
+  it("renders a provider-neutral live visual frame for screenshot-stream sessions", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            stream_url: "/api/v1/app/chats/8/runtime_sessions/101/stream"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    const image = await screen.findByAltText("Latest screenshot")
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/stream")
+    expect(screen.getByText("Refreshing live frame...")).toBeInTheDocument()
+
+    fireEvent.load(image)
+    expect(await screen.findByText("Live frame")).toBeInTheDocument()
+  })
+
+  it("falls back to the latest captured frame when a visual stream fails", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            stream_url: "/api/v1/app/chats/8/runtime_sessions/101/stream",
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    const image = await screen.findByAltText("Latest screenshot")
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/stream")
+    fireEvent.error(image)
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+    })
+    expect(screen.getByText(/Live frame unavailable; showing latest capture/)).toBeInTheDocument()
+  })
+
+  it("marks latest-frame fallback stale when an active visual session stops refreshing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-01-01T00:01:00Z"))
+
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText(/Latest capture may be stale/)).toBeInTheDocument()
+  })
+
+  it("shows visual runtime failures without hiding the latest frame fallback", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            state: "failed",
+            capabilities: { stream: "screenshot" },
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z",
+            last_error: "browser died"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+    expect(screen.getByText("Runtime disconnected or failed.")).toBeInTheDocument()
+  })
+
   it("polls and appends new log lines using the returned cursor", async () => {
     let logCalls = 0
     mockFetch((url) => {
