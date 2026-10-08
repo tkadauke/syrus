@@ -45,8 +45,6 @@
     "provider_sessions_bytes": "Spatium sessionum praebitoris",
     "provider_sessions_rows": "Lineae sessionum praebitoris",
     "auto_retry_attempts": "Conatus automatici iterandi, per exitum",
-    "escalations_per_landing": "Escalationes per perductionem",
-    "attention_items_open": "Res attentionis apertae, per codicem problematis",
     "feature_usage": "Usus facultatum, per facultatem",
     "plugin_enabled": "Instrumenta incitata",
     "event_amplification_ratio": "Proportio amplificationis eventuum, per rem",

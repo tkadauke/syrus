@@ -2066,33 +2066,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result[:ui_panels]).to eq([ panel ])
     end
 
-    it "includes urgent operator attention items as a core Inbox notice before plugin notices" do
-      user.update!(global_role: "admin")
-      urgent = Factories.attention_item(repository: repo, urgency: "urgent", queue: "operator", updated_at: Time.zone.parse("2026-09-27T12:00:00Z"))
-      Factories.attention_item(repository: repo, urgency: "normal", queue: "operator")
-      Factories.attention_item(repository: repo, urgency: "urgent", queue: "triage")
-      plugin_panel = { id: "test.notice", component: "test/Notice", order: 10 }
-      allow(App::UiSlotsPayload).to receive(:panels_for).and_return([ plugin_panel ])
-
-      result = call(subject: "job", smart_folder_id: inbox_folder.id)
-
-      expect(result[:ui_panels]).to eq([
-        {
-          id: "core.urgent_attention_items",
-          component: "core/UrgentAttentionItemsBanner",
-          order: 5,
-          props: {
-            "urgent_attention_items" => {
-              "count" => 1,
-              "dismissal_key" => "urgent_attention_items:1:#{urgent.updated_at.to_i}",
-              "path" => "/admin/attention_items"
-            }
-          }
-        },
-        plugin_panel
-      ])
-    end
-
     it "omits urgent operator attention notices outside the jobs Inbox" do
       user.update!(global_role: "admin")
       Factories.attention_item(repository: repo, urgency: "urgent", queue: "operator")

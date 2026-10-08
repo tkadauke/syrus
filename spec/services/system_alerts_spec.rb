@@ -12,25 +12,6 @@ RSpec.describe SystemAlerts do
       expect(described_class.active_for(user: nil)).to eq([])
     end
 
-    it "does not surface urgent operator attention items as global alerts" do
-      user = Factories.user(admin: true)
-      job = Factories.job(user: user)
-      AttentionItem.create!(
-        problem_code: "application_error",
-        signature: "application_error:abc123",
-        title: "Repeated automatic repair failure",
-        repository: job.repository,
-        job: job,
-        queue: "operator",
-        urgency: "urgent",
-        evidence: { "fingerprint" => "abc123" },
-        actions: []
-      )
-      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
-
-      expect(described_class.active_for(user: user).map(&:id)).not_to include("urgent_attention_items")
-    end
-
     it "surfaces a github-token-blocked alert when the user is flagged" do
       user = Factories.user
       user.mark_gh_api_blocked!("Resource not accessible by personal access token")

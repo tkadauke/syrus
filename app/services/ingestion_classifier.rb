@@ -165,18 +165,7 @@ class IngestionClassifier
       job.mark_classifier_uncertain!
       job.update_columns(triaging_uncertainty_reason: reason.to_s.truncate(1_000))
     end
-    open_triage_decision!
     failure(reason)
-  end
-
-  # `AttentionItems::Triage` was written for exactly this and never had a
-  # caller, so the attention_items table stayed empty while uncertain Jobs
-  # accumulated. It is advisory -- a decision we cannot open must not turn a
-  # soft "needs a human" into a hard failure.
-  def open_triage_decision!
-    AttentionItems::Triage.call(job: job.reload)
-  rescue StandardError => e
-    Rails.logger.warn("[IngestionClassifier] could not open a triage decision for #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def epic_index
