@@ -123,6 +123,15 @@ export function TeamIcon({ className = "h-4 w-4 shrink-0" }: { className?: strin
   )
 }
 
+export function LockIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <rect height="9.5" rx="2" stroke="currentColor" strokeWidth="1.7" width="14.5" x="4.75" y="10.25" />
+      <path d="M8.25 10.25V8a3.75 3.75 0 0 1 7.5 0v2.25M12 14.25v2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function TargetIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">

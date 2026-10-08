@@ -45,7 +45,6 @@ module CredentialStore
         credentials: credentials.map { |credential| credential_json(credential, manageable_scope_keys: manageable_scope_keys) },
         options: {
           credential_types: credential_types,
-          scopes: Credential::ALLOWED_SCOPES.map { |scope| { value: scope, label: scope.titleize } },
           safe_metadata_keys: Credential::SAFE_METADATA_KEYS,
           target_constraint_keys: Credential::TARGET_CONSTRAINT_KEYS
         }.merge(authorization.manageable_options)
