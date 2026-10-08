@@ -74,11 +74,11 @@ module Mcp::Tools
       values are rejected before the proposal card is created.
       Set jobs[].planned_execution to declare where each child has to run.
       Nothing reads the child Job text to guess this, so if a child needs a
-      host other than Linux you must say so here. Only the os dimension is
-      supported: {"os":["linux"]} for normal backend/web/frontend work,
-      {"os":["macos"]} for work that genuinely needs a Mac, such as Xcode
-      builds or iOS simulators. Mentioning a platform in a description does
-      nothing -- including saying a platform is out of scope.
+      host other than Linux you must say so here. Supported dimensions are os,
+      arch, toolchain, and runtime: {"os":["linux"]} for normal backend/web/frontend
+      work, {"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}
+      for work that genuinely needs Xcode builds or iOS simulators. Mentioning
+      a platform in a description does nothing -- including saying a platform is out of scope.
       jobs[].planned_execution.capabilities is REQUIRED on every child. A batch
       where any child omits it, or passes empty capabilities, is rejected
       before the cards are created -- choose each child's placement yourself
@@ -130,7 +130,7 @@ module Mcp::Tools
                   capabilities: { type: "object" },
                   source: { type: "string" }
                 },
-                description: "Optional explicit primary implementation placement override. Only os is supported: use {\"os\":[\"macos\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
+                description: "Optional explicit primary implementation placement override. Use {\"os\":[\"macos\"],\"arch\":[\"arm64\"],\"toolchain\":[\"xcode\"],\"runtime\":[\"ios_simulator\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
               },
               media: {
                 type: "array",
