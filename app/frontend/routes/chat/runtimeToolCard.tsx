@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
 import {
   Badge,
@@ -741,6 +742,10 @@ function RuntimeErrorCard({ message }: { message: string }) {
   )
 }
 
+function RuntimeNotice({ tone, message }: { tone: BannerTone; message: string }) {
+  return <div className={`rounded border px-2 py-1 ${BANNER_TONE_CLASSES[tone]}`}>{message}</div>
+}
+
 function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "lifecycle" }> }) {
   const tone = card.error ? "failure" : card.action === "stop" ? "neutral" : "success"
   return (
@@ -1047,17 +1052,10 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "acquire") {
     const confirmed = card.lease?.owner === "agent" && card.lease.state === "active"
+    const message = confirmed ? "Agent owns Runtime control." : (card.error ?? "Runtime control ownership was not confirmed.")
     return (
       <CardShell>
-        <div
-          className={
-            confirmed
-              ? "rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-              : "rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-          }
-        >
-          {confirmed ? "Agent owns Runtime control." : (card.error ?? "Runtime control ownership was not confirmed.")}
-        </div>
+        <RuntimeNotice message={message} tone={confirmed ? "success" : "warning"} />
         <LeaseDetails lease={card.lease} />
         <RawRuntimeDetails value={card.raw} />
       </CardShell>
@@ -1068,9 +1066,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         {card.error ? (
-          <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {card.error}
-          </div>
+          <RuntimeNotice message={card.error} tone="error" />
         ) : card.released.length === 0 ? (
           <EmptyState>No active agent Runtime control leases were held.</EmptyState>
         ) : (
