@@ -596,6 +596,21 @@ module WorkEngine
             evidence: run_evidence(run).merge(solid_queue_state: "missing", age_seconds: seconds_since(run.created_at)),
             explanation: "Run ##{run.id} is queued but no active SolidQueue RunJob references it."
           )
+        elsif host_admission_deferral_budget_exhausted?(run)
+          issue(
+            kind: :queued_run_host_admission_deferral_budget_exhausted,
+            severity: :error,
+            affected_ids: ids_for(run).merge(solid_queue_job_ids: sqs.map { |sq| sq[:id] }),
+            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+            recommended_repair_action: "reenqueue_run",
+            evidence: run_evidence(run).merge(
+              solid_queue: sqs,
+              solid_queue_state: "host_admission_deferral_budget_exhausted",
+              run_host_admission: workflow.artifact("run_host_admission")
+            ),
+            explanation: "Run ##{run.id} has repeatedly been admitted and deferred by host admission while pinned " \
+                         "to workflow storage, so it is no longer making queue progress."
+          )
         elsif (sq = sqs.find { |candidate| wedged_queue_claim?(candidate) })
           issue(
             kind: :queued_run_with_wedged_queue_claim,
@@ -3137,6 +3152,16 @@ module WorkEngine
     # ready rows, one of them queued for twelve and a half hours.
     def orphaned_queue_job?(sq)
       !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:failed]
+    end
+
+    def host_admission_deferral_budget_exhausted?(run)
+      workflow = run.workflow
+      return false unless workflow&.worker_storage_key.present?
+
+      admission = workflow.artifact("run_host_admission").to_h
+      admission["reason"] == "local_worker_pressure_critical" &&
+        admission["run_id"].to_i == run.id &&
+        admission["deferral_count"].to_i >= RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
     end
 
     # Held far too long to be making progress, whatever the heartbeat says.

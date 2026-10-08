@@ -1,0 +1,47 @@
+name: pinned host admission deferral budget reenqueues elsewhere
+repository:
+  owner: simulation
+  name: pinned-host-admission-deferral-budget-reenqueues-elsewhere
+jobs:
+  job:
+    title: Pinned host admission deferral budget reenqueues elsewhere
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-critical
+      worker_storage_key: storage-critical
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          run:
+            state: queued
+            created_at: "2000-01-01 00:00:00 UTC"
+            host_admission_deferral:
+              hostname: worker-critical
+              deferral_count: 40
+              deferral_budget: 40
+            solid_queue:
+              scheduled_at: "2000-01-01 00:00:30 UTC"
+              queue_name: resume-storage-critical
+              created_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - queued_run_host_admission_deferral_budget_exhausted
+    - implement -> success

@@ -532,13 +532,14 @@ module WorkEngine
             # A wedged claim needs the same treatment as a dead resume queue, for
             # the opposite reason: the worker is still heartbeating, so routing
             # would hand the Run straight back to the storage key it is stuck
-            # on and the repair would loop. Dropping the affinity sends it to
-            # the general queue (the workspace is re-prepared, as it is for a
-            # dead queue), and deleting the claimed job stops that worker
-            # running it later if it ever wakes up.
-            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job])
-              clear_dead_resume_affinity!(run)
+            # on and the repair would loop. Delete the existing queue rows
+            # before dropping affinity so no old resume-queue job can stamp the
+            # same storage key back onto the workflow while repair is running.
+            # Dropping affinity then sends the replacement to the general queue
+            # (the workspace is re-prepared, as it is for a dead queue).
+            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job queued_run_host_admission_deferral_budget_exhausted])
               delete_stale_solid_queue_jobs!
+              clear_dead_resume_affinity!(run)
             end
             run.reenqueue!
             success("re-enqueued #{run_label(run)}")

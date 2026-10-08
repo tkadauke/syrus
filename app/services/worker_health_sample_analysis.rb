@@ -23,9 +23,12 @@ class WorkerHealthSampleAnalysis
     [ "cpu", :cpu_used_percent, 90, 98 ],
     [ "memory", :memory_used_percent, 85, 95 ],
     [ "data root disk", :data_root_used_percent, DataRootDiskUsage::WARNING_USED_PERCENT, DataRootDiskUsage::CRITICAL_USED_PERCENT ],
-    [ "CPU pressure", :cpu_pressure_some, 20, 50 ],
     [ "IO pressure", :io_pressure_some, 20, 50 ]
   ].freeze
+  CPU_PRESSURE_SOME_WARNING = 20
+  CPU_PRESSURE_SOME_CRITICAL = 50
+  CPU_PRESSURE_FULL_CRITICAL = 5
+  CPU_PRESSURE_CPU_USED_CRITICAL = 90
 
   class << self
     def summarize(samples, fields: NUMERIC_FIELDS, include_sample_count: true)
@@ -51,6 +54,7 @@ class WorkerHealthSampleAnalysis
       THRESHOLDS.each do |label, field, warning, critical|
         level, reasons = apply_threshold(level, reasons, label, sample.public_send(field), warning: warning, critical: critical)
       end
+      level, reasons = apply_cpu_pressure_threshold(level, reasons, sample)
 
       { level: level, reasons: reasons }
     end
@@ -81,6 +85,24 @@ class WorkerHealthSampleAnalysis
       else
         [ level, reasons ]
       end
+    end
+
+    def apply_cpu_pressure_threshold(level, reasons, sample)
+      some = sample.cpu_pressure_some
+      return [ level, reasons ] if some.nil?
+
+      if some >= CPU_PRESSURE_SOME_CRITICAL && cpu_pressure_corroborated?(sample)
+        [ max_level(level, "critical"), reasons + [ "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_CRITICAL}%" ] ]
+      elsif some >= CPU_PRESSURE_SOME_WARNING
+        [ max_level(level, "warning"), reasons + [ "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_WARNING}%" ] ]
+      else
+        [ level, reasons ]
+      end
+    end
+
+    def cpu_pressure_corroborated?(sample)
+      sample.cpu_pressure_full.to_f >= CPU_PRESSURE_FULL_CRITICAL ||
+        sample.cpu_used_percent.to_f >= CPU_PRESSURE_CPU_USED_CRITICAL
     end
   end
 end
