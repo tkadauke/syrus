@@ -1221,7 +1221,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
 
 - **Profile** stores display name, role, GitHub handle, avatar, bio, and public team profile fields.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
-- **Credential Store** is the admin surface for generic scoped credentials
+- **Credential Store** is the management surface for generic scoped credentials
   owned by the bundled `credential_store` plugin. It stores payload material as
   encrypted write-only blobs, exposes only safe metadata and last-used audit
   details, and lets operators scope credentials to a user, repository, team, or

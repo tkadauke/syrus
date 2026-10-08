@@ -38,6 +38,7 @@ module CredentialStore
 
     def manageable_options
       {
+        scopes: manageable_scopes,
         users: manageable_users.map { |candidate| user_option(candidate) },
         repositories: manageable_repositories.map { |repository| repository_option(repository) },
         teams: manageable_teams.map { |team| team_option(team) }
@@ -47,6 +48,21 @@ module CredentialStore
     private
 
     attr_reader :user
+
+    def manageable_scopes
+      return [] unless user
+
+      options = []
+      options << scope_option("user") if manageable_users.exists?
+      options << scope_option("repository") if manageable_repositories.exists?
+      options << scope_option("team") if manageable_teams.exists?
+      options << scope_option("instance") if user.admin?
+      options
+    end
+
+    def scope_option(scope)
+      { value: scope, label: scope.titleize }
+    end
 
     def visible_relation
       return "1=0" unless user

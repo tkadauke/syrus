@@ -70,7 +70,8 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     page = parse_body.fetch("pages").find { |entry| entry.fetch("id") == "credential_store.credentials" }
     expect(page).to include(
       "path" => "/credential_store",
-      "component" => "credential_store/CredentialStoreAdmin"
+      "component" => "credential_store/CredentialStoreAdmin",
+      "icon" => "lock"
     )
   end
 
@@ -170,12 +171,18 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
   it "authorizes instance-scoped credentials to global admins only" do
     sign_in_as(operator)
+    get "/api/v1/app/credential_store/credentials"
+    expect(parse_body.dig("options", "scopes").map { |scope| scope.fetch("value") }).not_to include("instance")
+
     post "/api/v1/app/credential_store/credentials", params: {
       credential: credential_params(scope_type: "instance", scope_id: nil, payload: "instance-secret")
     }
     expect(response).to have_http_status(:forbidden)
 
     sign_in_as(admin)
+    get "/api/v1/app/credential_store/credentials"
+    expect(parse_body.dig("options", "scopes").map { |scope| scope.fetch("value") }).to include("instance")
+
     post "/api/v1/app/credential_store/credentials", params: {
       credential: credential_params(scope_type: "instance", scope_id: nil, payload: "instance-secret")
     }

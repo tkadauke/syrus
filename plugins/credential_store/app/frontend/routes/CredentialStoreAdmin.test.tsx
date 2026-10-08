@@ -8,6 +8,15 @@ import { CredentialStoreAdmin } from "./CredentialStoreAdmin"
 import type { CredentialStorePayload } from "../api/credentialStore"
 
 describe("CredentialStoreAdmin", () => {
+  it("frames the normal credential page without an admin eyebrow", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />, "/credential_store")
+
+    expect(await screen.findByRole("heading", { name: "Credential Store" })).toBeInTheDocument()
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument()
+  })
+
   it("renders safe metadata and write-only fields without exposing secret payloads", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
       credentials: [
@@ -119,10 +128,10 @@ describe("CredentialStoreAdmin", () => {
   })
 })
 
-function renderRoute(children: ReactNode) {
+function renderRoute(children: ReactNode, path = "/admin/credential_store") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/admin/credential_store"]}>
+      <MemoryRouter initialEntries={[path]}>
         {children}
       </MemoryRouter>
     </QueryClientProvider>
