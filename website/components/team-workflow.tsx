@@ -7,7 +7,7 @@ const roleMeta: Record<
   { label: string; node: string; dot: string }
 > = {
   human: {
-    label: "You & your team",
+    label: "Operator",
     node: "border border-clay/45 bg-ink-soft text-clay",
     dot: "border border-clay",
   },
@@ -30,16 +30,16 @@ export function TeamWorkflow() {
     <section id="how" className="relative py-24 sm:py-32">
       <div className="wrap">
         <SectionHeader
-          eyebrow="How your team works with Syrus"
-          title="You steer it. Syrus builds it. Your team ships it."
-          subtitle="Every goal turns into tracked epics and tickets, so you always see what's in progress, what's in review, and what shipped — and someone on your team signs off before anything merges, per the review policy you set."
+          eyebrow="How work flows through Syrus"
+          title="You steer it. Syrus opens the PR. Review stays yours."
+          subtitle="Every goal turns into tracked epics and jobs, so you can see what's in progress, what's in review, and what shipped — and the merge still waits for the review policy you set."
         />
 
         {/* legend */}
         <Reveal className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.82rem] text-cream-dim">
           <span className="inline-flex items-center gap-2">
             <span className="size-2.5 rounded-full border border-clay" />
-            You &amp; your team
+            Operator
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="size-2.5 rounded-full clay-gradient" />

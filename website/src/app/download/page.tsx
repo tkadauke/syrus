@@ -73,9 +73,9 @@ export default function DownloadPage() {
         </h1>
         <p className="mt-4 text-pretty text-[1.02rem] leading-relaxed text-cream-dim">
           The Syrus desktop app for macOS sets up a complete local Syrus
-          (Docker included) or connects to your team&apos;s instance. The build
-          is universal: one download runs natively on
-          both Apple&nbsp;Silicon and Intel Macs.
+          (Docker included) or connects to an existing self-hosted instance. The
+          build is universal: one download runs natively on both
+          Apple&nbsp;Silicon and Intel Macs.
         </p>
 
         <div className="mt-10 grid gap-4">

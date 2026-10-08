@@ -400,7 +400,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Generic scoped credential | Encrypted write-only payload owned by the `credential_store` plugin, with safe metadata, target constraints, last-used audit metadata, and user/repository/team/instance scope; default type names include `ssh_private_key`, `token`, `json`, `env`, and `file_blob`, while plugins can add names such as `k8s_cluster.kubeconfig`; managed from Credential Store in the sidebar or Admin > Credential Store |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
 | Antigravity credential | Encrypted Gemini API key shared by Antigravity and Gemini-backed features such as walkthrough-video analysis; configured on `/credentials` |
-| Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created at [ai.developer.meta.com](https://ai.developer.meta.com/) under API keys and configured on `/credentials` |
+| Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created in the Muse developer dashboard and configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user; configured on `/settings/preferences` |
@@ -419,10 +419,10 @@ downstream run fails.
 Muse keys begin with `LLM|` and are shown only once at creation, with no later
 reveal or rotation. If you signed in with a Muse subscription through `muse
 login` and no longer have the key, recover it from the CLI's own credential
-store -- on macOS that is Keychain Access, item `ai.meta.dev.credentials` -- and
-paste the whole JSON entry into the Muse field; Syrus keeps only the API key
-from it and discards the OAuth token stored alongside. The account login itself
-cannot be used for agent runs, which is why the key is required separately.
+store and paste the whole JSON entry into the Muse field; Syrus keeps only the
+API key from it and discards any account token stored alongside. The account
+login itself cannot be used for agent runs, which is why the key is required
+separately.
 
 For Claude Code, click **Authorize with Claude** in the credentials form,
 approve access in the Claude tab, then paste the short code Claude shows
