@@ -389,25 +389,24 @@ ingested Job, neither of which was proposed from a chat -- offers a
 either kind of chat link: the proposal-provenance `source_chat`/`origin_chat`
 above, or a discussion chat already started this way.
 
-Starting one first asks the operator for an initial prompt. Submitting that
-prompt creates a fresh ordinary chat scoped to the Job's repository, seeds a
-first user turn with the generated Job/repository/title/state context followed
-by the operator's prompt, pins the chat provider, and enqueues the
-title-generation and chat-turn jobs so the agent responds immediately after
-redirect. It also attaches the Job via the same `ChatAttachment` polymorphic
-join that backs the sidebar attachment lists in this doc -- so the link is
-immediately visible both ways: the chat's Jobs attachment list includes the
-Job, and the Job detail page's chat link now points at this chat going forward
-(`Job#discussion_chat`, the earliest-attached chat session; see
-`App::JobDetailPayload#discussion_chat_json`). Re-running the action once a
-discussion chat exists reuses it instead of creating a second one. The
-endpoint itself requires write access to the Job (creator, write-tier
-repository member, or admin -- the same `authorize_job_mutation!` gate other
-Job actions use); `ChatAttachment`'s validation only requires read access to
-the Job's repository, matching the looser bar Repository attachments already
-use, so it never blocks the write-gated action above it. This link is plain
-conversation, not ownership: unlike Coding/Local Mode's `linked_chat_id`, it
-never blocks automation or takes over the Job's implement step.
+Starting one creates a fresh ordinary chat scoped to the Job's repository,
+seeds a first user turn with only a durable Job reference, pins the chat
+provider, and enqueues the title-generation and chat-turn jobs so the agent
+responds immediately after redirect. It also attaches the Job via the same
+`ChatAttachment` polymorphic join that backs the sidebar attachment lists in
+this doc -- so the link is immediately visible both ways: the chat's Jobs
+attachment list includes the Job, and the Job detail page's chat link now
+points at this chat going forward (`Job#discussion_chat`, the earliest-attached
+chat session; see `App::JobDetailPayload#discussion_chat_json`). Re-running the
+action once a discussion chat exists redirects to that chat without creating a
+second thread or synthetic turn. The endpoint itself requires write access to
+the Job (creator, write-tier repository member, or admin -- the same
+`authorize_job_mutation!` gate other Job actions use); `ChatAttachment`'s
+validation only requires read access to the Job's repository, matching the
+looser bar Repository attachments already use, so it never blocks the
+write-gated action above it. This link is plain conversation, not ownership:
+unlike Coding/Local Mode's `linked_chat_id`, it never blocks automation or
+takes over the Job's implement step.
 
 The `chat_context_compaction` feature flag currently has no effect: its
 algorithm would keep a chat's durable `ChatMessage` transcript while no longer

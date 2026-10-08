@@ -32,25 +32,23 @@ RSpec.describe "App API job chats", type: :request do
       expect(chat).to be_turn_in_flight
       expect(message.role).to eq("user")
       expect(message.sender_user_id).to eq(user.id)
-      expect(message.content["text"]).to include("Context: discuss JOB-#{job.id}.")
-      expect(message.content["text"]).to include("Repository: #{repo.slug}.")
+      expect(message.content["text"]).to eq("Context: discuss JOB-#{job.id}.")
       expect(job.reload.discussion_chat).to eq(chat)
       expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
       expect(ChatTitleJob).to have_been_enqueued.with(chat.id, message.id)
       expect(ChatTurnJob).to have_been_enqueued.with(chat.id, message.id)
     end
 
-    it "reuses the existing discussion chat and injects a context message" do
+    it "reuses the existing discussion chat without injecting a duplicate context turn" do
       existing_chat = ChatSession.create!(user: user, repository: repo)
       job.chat_attachments.create!(chat_session: existing_chat)
 
       expect {
         post path(job), as: :json
-      }.to change(ChatMessage, :count).by(1)
-        .and have_enqueued_job(ChatTurnJob).with(existing_chat.id, kind_of(Integer))
+      }.not_to change(ChatMessage, :count)
       expect(ChatSession.count).to eq(1)
 
-      expect(existing_chat.messages.sole.content["text"]).to include("Context: discuss JOB-#{job.id}.")
+      expect(ChatTurnJob).not_to have_been_enqueued
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 
@@ -93,9 +91,6 @@ RSpec.describe "App API job chats", type: :request do
       message = existing_chat.messages.sole
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
-        Repository: #{repo.slug}.
-        Title: #{job.issue_title.presence || job.slug}.
-        State: #{job.state}.
 
         Revision: abc123
         Location: app/models/widget.rb:12
@@ -106,7 +101,7 @@ RSpec.describe "App API job chats", type: :request do
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 
-    it "adds a supplied initial prompt to a fresh job chat after the context card" do
+    it "adds a supplied prompt to a fresh job chat after the job reference" do
       expect {
         post path(job), params: { message: "Please explain what is blocked." }, as: :json
       }.to change(ChatSession, :count).by(1)
@@ -116,9 +111,6 @@ RSpec.describe "App API job chats", type: :request do
       message = job.reload.discussion_chat.messages.sole
       expect(message.content["text"]).to eq(<<~TEXT.strip)
         Context: discuss JOB-#{job.id}.
-        Repository: #{repo.slug}.
-        Title: #{job.issue_title.presence || job.slug}.
-        State: #{job.state}.
 
         Please explain what is blocked.
       TEXT
