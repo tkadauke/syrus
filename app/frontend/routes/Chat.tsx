@@ -394,19 +394,13 @@ type BookmarkTarget = {
 function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { t } = useT("chat")
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       {!payload.chat_available ? (
-        <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-          <div className="font-semibold">{t("credentials_required_title")}</div>
-          <p className="mt-1">
-            {t("credentials_required_body_prefix")} <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>{t("credentials_required_link")}</Link> {t("credentials_required_body_suffix")}
-          </p>
-        </section>
+        <UnavailableChatNotice prefix={prefix} />
       ) : (
         <ChatWorkspace
           chatId={chatId}
@@ -420,6 +414,30 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       )}
 
       <ThemePreviewModal chatId={chatId} prefix={prefix} />
+    </div>
+  )
+}
+
+function UnavailableChatNotice({ prefix }: { prefix: string }) {
+  const { t } = useT("chat")
+  const isDesktopChrome = useMediaQuery("(min-width: 1024px)", true)
+  const { revealHeader, topInset } = useMobileChatHeaderControls()
+  const mobileStyle = !isDesktopChrome
+    ? { paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${topInset}px + 0.75rem)` } as CSSProperties
+    : undefined
+
+  useLayoutEffect(() => {
+    revealHeader()
+  }, [revealHeader])
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-4" data-testid="unavailable-chat-shell" style={mobileStyle}>
+      <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+        <div className="font-semibold">{t("credentials_required_title")}</div>
+        <p className="mt-1">
+          {t("credentials_required_body_prefix")} <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>{t("credentials_required_link")}</Link> {t("credentials_required_body_suffix")}
+        </p>
+      </section>
     </div>
   )
 }
