@@ -21,8 +21,8 @@ export type CoreArtifactRendererEntry = ArtifactRendererDefinition & { examples:
 export const RAW_JSON_RENDERER_TYPE = "raw_json"
 
 function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
-  const headers = Array.isArray(payload.headers) ? payload.headers as string[] : []
-  const rows = Array.isArray(payload.rows) ? payload.rows as unknown[][] : []
+  const headers = Array.isArray(payload.headers) ? (payload.headers as string[]) : []
+  const rows = Array.isArray(payload.rows) ? (payload.rows as unknown[][]) : []
 
   if (headers.length === 0 && rows.length === 0) {
     return <RawArtifactBody payload={payload} />
@@ -35,7 +35,12 @@ function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
           <thead>
             <tr>
               {headers.map((h, i) => (
-                <th className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={i}>{String(h)}</th>
+                <th
+                  className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  key={i}
+                >
+                  {String(h)}
+                </th>
               ))}
             </tr>
           </thead>
@@ -44,7 +49,9 @@ function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
           {rows.map((row, ri) => (
             <tr className="even:bg-gray-50 dark:even:bg-gray-800/50" key={ri}>
               {(Array.isArray(row) ? row : [row]).map((cell, ci) => (
-                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>{String(cell ?? "")}</td>
+                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>
+                  {String(cell ?? "")}
+                </td>
               ))}
             </tr>
           ))}
@@ -67,11 +74,15 @@ function BeforeAfterDiffBody({ payload }: { payload: Record<string, unknown> }) 
     <div className="grid min-w-0 gap-3 lg:grid-cols-2">
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{before ?? "(empty)"}</pre>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          {before ?? "(empty)"}
+        </pre>
       </div>
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          {after ?? "(empty)"}
+        </pre>
       </div>
     </div>
   )
@@ -83,9 +94,38 @@ function ImageDiffBody({ payload, title }: { payload: ImageDiffPayload; title: s
   }
 
   return (
-    <a href={payload.image_url} target="_blank" rel="noreferrer">
-      <img src={payload.image_url} alt={title} className="max-w-full rounded border border-gray-200" />
-    </a>
+    <div className="space-y-2">
+      <a href={payload.image_url} target="_blank" rel="noreferrer">
+        <img src={payload.image_url} alt={title} className="max-w-full rounded border border-gray-200" />
+      </a>
+      <ImageProvenance payload={payload} />
+    </div>
+  )
+}
+
+function ImageProvenance({ payload }: { payload: ImageDiffPayload }) {
+  const { t } = useT("jobs")
+  const items = [
+    payload.page?.path ? { label: t("artifact_provenance_path"), value: payload.page.path } : null,
+    payload.page?.title ? { label: t("artifact_provenance_title"), value: payload.page.title } : null,
+    payload.viewport?.width && payload.viewport?.height
+      ? { label: t("artifact_provenance_viewport"), value: `${payload.viewport.width}x${payload.viewport.height}` }
+      : null,
+    payload.source ? { label: t("artifact_provenance_source"), value: payload.source } : null,
+    payload.captured_at ? { label: t("artifact_provenance_captured_at"), value: payload.captured_at } : null
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+
+  if (items.length === 0) return null
+
+  return (
+    <dl className="grid gap-x-3 gap-y-1 text-xs text-gray-600 sm:grid-cols-[max-content_1fr]">
+      {items.map((item) => (
+        <div className="contents" key={item.label}>
+          <dt className="font-medium text-gray-500">{item.label}</dt>
+          <dd className="min-w-0 break-words">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
@@ -124,11 +164,7 @@ function VisualPane({ label, image }: { label: string; image: BeforeAfterVisualI
 }
 
 export function RawArtifactBody({ payload }: { payload: unknown }) {
-  return (
-    <pre className="overflow-x-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
-      {JSON.stringify(payload, null, 2)}
-    </pre>
-  )
+  return <pre className="overflow-x-auto rounded bg-surface-subtle p-3 text-xs text-text-secondary">{JSON.stringify(payload, null, 2)}</pre>
 }
 
 export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
@@ -170,7 +206,7 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
   },
   {
     rendererType: "before_after_visual_diff",
-    artifactTypes: [ "visual_diff_comparison" ],
+    artifactTypes: ["visual_diff_comparison"],
     displayLabel: "Before/after visual diff",
     description: "Renders one or more merge-base/PR screenshot pairs side by side.",
     supportedPayloadShape: "{ pairs: Array<{ title?: string; before: { image_url }; after: { image_url } }> }",
@@ -246,7 +282,13 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
           title: "Coverage by file",
           created_at: "2026-09-01T12:00:00Z",
           renderer_type: "data_table",
-          payload: { headers: [ "File", "Lines" ], rows: [ [ "app/models/job.rb", "92%" ], [ "app/models/run.rb", "88%" ] ] }
+          payload: {
+            headers: ["File", "Lines"],
+            rows: [
+              ["app/models/job.rb", "92%"],
+              ["app/models/run.rb", "88%"]
+            ]
+          }
         }
       },
       {
@@ -272,8 +314,8 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
           created_at: "2026-09-01T12:00:00Z",
           renderer_type: "data_table",
           payload: {
-            headers: [ "File", "Lines", "Branches" ],
-            rows: Array.from({ length: 60 }, (_, i) => [ `app/models/example_model_${i}.rb`, `${70 + (i % 30)}%`, `${50 + (i % 40)}%` ])
+            headers: ["File", "Lines", "Branches"],
+            rows: Array.from({ length: 60 }, (_, i) => [`app/models/example_model_${i}.rb`, `${70 + (i % 30)}%`, `${50 + (i % 40)}%`])
           }
         }
       }
