@@ -220,13 +220,13 @@ RSpec.describe Java::Engine do
   end
 
   describe Java::PromptContext do
-    it "returns wrapper, JDK, and Android-boundary guidance" do
+    it "returns wrapper, JDK, and mobile-platform boundary guidance" do
       text = described_class.call(repository: nil, job: nil)
 
       expect(text).to include("./gradlew")
       expect(text).to include("./mvnw")
       expect(text).to include(".java-version")
-      expect(text).to include("Android")
+      expect(text).to include("Mobile platform Gradle plugins")
     end
   end
 
