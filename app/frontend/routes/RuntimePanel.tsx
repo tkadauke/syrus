@@ -560,7 +560,7 @@ export function RuntimePanel({ chatId }: { chatId: string | number }) {
 
   if (isLoading) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("runtime_loading")}</p>
   if (isError) return <p className="text-sm text-red-600 dark:text-red-400">{t("runtime_error")}</p>
-  if (sessions.length === 0) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("runtime_empty")}</p>
+  if (sessions.length === 0) return <p className="text-sm text-text-secondary">{t("runtime_empty")}</p>
 
   const selected = sessions.find((session) => session.id === selectedId) ?? sessions[0]
 
