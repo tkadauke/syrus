@@ -87,19 +87,20 @@ module Android
       avd_name = config[:avd_name].presence || "syrus-runtime-#{runtime_session.id}"
       log_path = runtime_log_path(workspace_ref, runtime_session)
 
-      ensure_avd!(avd_name, config, env: session_env, chdir: workspace_ref)
+      avd = ensure_avd!(avd_name, config, env: session_env, chdir: workspace_ref)
       handle = start_emulator!(avd_name, serial, config, env: session_env, chdir: workspace_ref, log_path: log_path)
       wait_for_boot!(serial, env: session_env, chdir: workspace_ref, timeout: Integer(config[:boot_timeout_seconds] || BOOT_TIMEOUT_SECONDS))
 
       {
         avd_name: avd_name,
+        avd_created: avd.created?,
         serial: serial,
         emulator_pid: handle.pid,
         emulator_log_path: log_path,
         android_env: session_env.slice("ANDROID_HOME", "ANDROID_SDK_ROOT", "ANDROID_AVD_HOME", "ANDROID_USER_HOME")
       }.compact
     rescue StandardError => e
-      cleanup_after_start_failure(serial: serial, avd_name: avd_name, pid: handle&.pid, env: session_env, chdir: workspace_ref, delete_avd: config[:delete_avd_on_failure] != false)
+      cleanup_after_start_failure(serial: serial, avd_name: avd_name, pid: handle&.pid, env: session_env, chdir: workspace_ref, delete_avd: avd&.created? && config[:delete_avd_on_failure] != false)
       raise e
     end
 
@@ -149,7 +150,8 @@ module Android
       png = result.stdout.to_s.b
       raise RuntimeError, "frame refresh failed: adb screencap returned no PNG bytes" if png.blank?
 
-      document = persist_frame(runtime_session, png)
+      dimensions = png_dimensions(png)
+      document = persist_frame(runtime_session, png, dimensions: dimensions)
       latest_frame_payload(runtime_session.reload, document: document, bytes: png.bytesize, fallback: false)
     rescue StandardError => e
       return latest_frame_payload(runtime_session.reload, fallback: true, warning: e.message) if runtime_session.latest_frame_url.present?
@@ -178,7 +180,7 @@ module Android
         return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
-      argv = InputEvent.for(event).adb_args
+      argv = InputEvent.for(event, runtime_session: runtime_session).adb_args
       adb!(runtime_session, *argv)
       lease.record_input!(event)
 
@@ -230,7 +232,7 @@ module Android
 
     def ensure_avd!(avd_name, config, env:, chdir:)
       existing = capture!(%w[avdmanager list avd], env: env, chdir: chdir)
-      return if existing.stdout.to_s.match?(/Name:\s+#{Regexp.escape(avd_name)}\b/)
+      return AvdState.reused(avd_name) if existing.stdout.to_s.match?(/Name:\s+#{Regexp.escape(avd_name)}\b/)
 
       package = config[:system_image].presence || "system-images;android-36;google_apis;x86_64"
       device = config[:device].presence || "pixel_6"
@@ -241,6 +243,7 @@ module Android
         timeout: Integer(config[:avd_timeout_seconds] || 120),
         stdin_data: "no\n"
       )
+      AvdState.created(avd_name)
     rescue RuntimeError => e
       raise RuntimeError, "failed to create Android AVD #{avd_name.inspect}: #{e.message}"
     end
@@ -310,7 +313,7 @@ module Android
       nil
     end
 
-    def persist_frame(runtime_session, png)
+    def persist_frame(runtime_session, png, dimensions:)
       chat_session = runtime_session.chat_session
       return nil unless chat_session
 
@@ -323,9 +326,23 @@ module Android
       runtime_session.update!(
         latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame",
         latest_frame_at: Time.current,
-        metadata: runtime_session.metadata.merge("latest_frame_document_id" => document.id)
+        metadata: runtime_session.metadata.merge(
+          {
+            "latest_frame_document_id" => document.id,
+            "frame_width" => dimensions&.fetch(:width, nil),
+            "frame_height" => dimensions&.fetch(:height, nil)
+          }.compact
+        )
       )
       document
+    end
+
+    def png_dimensions(png)
+      return nil unless png.bytesize >= 24
+      return nil unless png.byteslice(0, 8) == "\x89PNG\r\n\x1a\n".b
+      return nil unless png.byteslice(12, 4) == "IHDR"
+
+      { width: png.byteslice(16, 4).unpack1("N"), height: png.byteslice(20, 4).unpack1("N") }
     end
 
     def latest_frame_payload(runtime_session, document: nil, bytes: nil, fallback: nil, warning: nil)
@@ -404,11 +421,17 @@ module Android
       File.join(workspace_ref, ".syrus", "android", "runtime-session-#{runtime_session.id}.log")
     end
 
+    AvdState = Data.define(:name, :created) do
+      def self.created(name) = new(name: name, created: true)
+      def self.reused(name) = new(name: name, created: false)
+      def created? = created
+    end
+
     class InputEvent
-      def self.for(event)
+      def self.for(event, runtime_session:)
         event_type = event.fetch("type", "").to_s
         event_class = registry.fetch(event_type) { raise ArgumentError, "unsupported Android input event #{event.inspect}" }
-        event_class.new(event)
+        event_class.new(event, runtime_session: runtime_session)
       end
 
       def self.registry
@@ -422,13 +445,14 @@ module Android
         }
       end
 
-      def initialize(event)
+      def initialize(event, runtime_session:)
         @event = event
+        @runtime_session = runtime_session
       end
 
       private
 
-      attr_reader :event
+      attr_reader :event, :runtime_session
 
       def integer!(value, name)
         Integer(value)
@@ -449,18 +473,68 @@ module Android
       private
 
       def tap_args
-        [ "shell", "input", "tap", integer!(event["x"], "x").to_s, integer!(event["y"], "y").to_s ]
+        point = point_for(prefix: nil)
+        [ "shell", "input", "tap", point.fetch(:x).to_s, point.fetch(:y).to_s ]
       end
 
       def swipe_args
+        from = point_for(prefix: nil)
+        to = point_for(prefix: "to_")
         [
           "shell", "input", "swipe",
-          integer!(event["x"], "x").to_s,
-          integer!(event["y"], "y").to_s,
-          integer!(event["to_x"], "to_x").to_s,
-          integer!(event["to_y"], "to_y").to_s,
+          from.fetch(:x).to_s,
+          from.fetch(:y).to_s,
+          to.fetch(:x).to_s,
+          to.fetch(:y).to_s,
           Integer(event["duration_ms"].presence || 300).to_s
         ]
+      end
+
+      def point_for(prefix:)
+        raw_x_key = "#{prefix}x"
+        raw_y_key = "#{prefix}y"
+        normalized_x_key = normalized_key(prefix, "x")
+        normalized_y_key = normalized_key(prefix, "y")
+
+        if event[normalized_x_key].present? && event[normalized_y_key].present? && frame_width && frame_height
+          return {
+            x: scale_coordinate(event[normalized_x_key], frame_width, normalized_x_key),
+            y: scale_coordinate(event[normalized_y_key], frame_height, normalized_y_key)
+          }
+        end
+
+        { x: integer!(event[raw_x_key], raw_x_key), y: integer!(event[raw_y_key], raw_y_key) }
+      end
+
+      def scale_coordinate(value, extent, name)
+        normalized = begin
+          Float(value)
+        rescue ArgumentError, TypeError
+          raise ArgumentError, "#{name} must be a number between 0 and 1"
+        end
+        raise ArgumentError, "#{name} must be between 0 and 1" unless normalized.between?(0.0, 1.0)
+
+        (normalized * extent).round.clamp(0, extent - 1)
+      end
+
+      def normalized_key(prefix, axis)
+        prefix.present? ? "normalized_#{prefix}#{axis}" : "normalized_#{axis}"
+      end
+
+      def frame_width
+        positive_integer_metadata("frame_width")
+      end
+
+      def frame_height
+        positive_integer_metadata("frame_height")
+      end
+
+      def positive_integer_metadata(key)
+        value = runtime_session.metadata[key]
+        integer = Integer(value)
+        integer.positive? ? integer : nil
+      rescue ArgumentError, TypeError
+        nil
       end
     end
 

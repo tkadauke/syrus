@@ -89,6 +89,14 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
     runner.captures.any? { |call| call[:argv] == argv }
   end
 
+  def png_with_dimensions(width:, height:)
+    "\x89PNG\r\n\x1a\n".b +
+      [ 13 ].pack("N") +
+      "IHDR" +
+      [ width, height, 8, 2, 0, 0, 0 ].pack("NNCCCCC") +
+      "fakecrc"
+  end
+
   describe ".detect and .capabilities" do
     it "detects Android workspaces and advertises visual/input operations" do
       FileUtils.mkdir_p(File.join(@workspace, "app/src/main"))
@@ -115,6 +123,7 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
 
       expect(metadata).to include(
         avd_name: "syrus-runtime-#{session.id}",
+        avd_created: true,
         serial: "emulator-#{5554 + (session.id % 64) * 2}",
         emulator_pid: 12_345
       )
@@ -145,6 +154,19 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
 
       expect(runner.killed_pids).to include(12_345)
       expect(command_seen?("avdmanager", "delete", "avd", "--name", "syrus-runtime-#{session.id}")).to be true
+    end
+
+    it "does not delete an existing AVD after a boot timeout" do
+      session = runtime_session(state: "starting", metadata: {})
+      runner.enqueue(->(argv) { argv == %w[avdmanager list avd] }, stdout: "Name: existing\n")
+      allow(provider).to receive(:sleep)
+
+      expect do
+        provider.start_session(@workspace, runtime_session: session, avd_name: "existing", serial: "emulator-5580", boot_timeout_seconds: 0)
+      end.to raise_error(described_class::RuntimeError, /boot timeout/)
+
+      expect(runner.killed_pids).to include(12_345)
+      expect(command_seen?("avdmanager", "delete", "avd", "--name", "existing")).to be false
     end
   end
 
@@ -184,7 +206,7 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
   describe "#snapshot and #inspect" do
     it "captures a PNG frame, files it as chat media, and stamps latest-frame metadata" do
       session = runtime_session
-      png = "\x89PNG\r\n\x1a\npixels".b
+      png = png_with_dimensions(width: 1080, height: 2400)
       runner.enqueue(->(argv) { argv == %w[adb -s emulator-5580 exec-out screencap -p] }, stdout: png)
 
       payload = provider.snapshot(session.id)
@@ -193,6 +215,7 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       expect(payload).to include(kind: "android_screenshot", content_type: "image/png", bytes: png.bytesize, fallback: false)
       expect(session.latest_frame_url).to eq("/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame")
       expect(session.metadata["latest_frame_document_id"]).to be_present
+      expect(session.metadata).to include("frame_width" => 1080, "frame_height" => 2400)
       expect(chat_session.chat_attachments.reload.map(&:attachable_id)).to include(session.metadata["latest_frame_document_id"])
     end
 
@@ -237,6 +260,29 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       expect(command_seen?("adb", "-s", "emulator-5580", "shell", "input", "tap", "5", "7")).to be true
       expect(command_seen?("adb", "-s", "emulator-5580", "shell", "input", "text", "hello%sworld")).to be true
       expect(command_seen?("adb", "-s", "emulator-5580", "shell", "input", "keyevent", "KEYCODE_BACK")).to be true
+    end
+
+    it "scales Runtime panel normalized pointer coordinates to screenshot pixels" do
+      session = runtime_session(metadata: { "serial" => "emulator-5580", "frame_width" => 1080, "frame_height" => 2400 })
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "user", owner_ref: "operator:#{user.id}", mode: "input", reason: "manual tap")
+
+      result = provider.input(
+        session.id,
+        {
+          type: "pointer",
+          action: "click",
+          x: 54,
+          y: 120,
+          normalized_x: 0.5,
+          normalized_y: 0.25,
+          source_width: 108,
+          source_height: 240,
+          "_runtime_control_owner" => "user"
+        }
+      )
+
+      expect(result).to include(delivered: true)
+      expect(command_seen?("adb", "-s", "emulator-5580", "shell", "input", "tap", "540", "600")).to be true
     end
 
     it "pages logcat output by cursor" do
