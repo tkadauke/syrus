@@ -53,7 +53,10 @@ module Mcp::Tools
       question about behavior) where no pull request is expected. Confirming
       such a proposal creates a Job that runs a narrative investigate ->
       report chain instead of the normal implement -> PR chain, so a
-      thorough answer with no code changes is a fully successful outcome.
+      thorough answer with no code changes is a fully successful outcome. Use
+      this standalone investigation path instead of placing spike, audit-only,
+      discovery-only, or investigation-style child Jobs inside an Epic; Epic
+      child Jobs should be reviewable, landable implementation work.
       Leave it false (the default) for any proposal that should produce a
       code change and a PR.
       Set provider to pin the implementing provider for the filed Job (e.g.
@@ -83,7 +86,7 @@ module Mcp::Tools
           description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), pass chat image IDs as \"chat_image:123\", or pass a preview panel's current version id as \"preview_panel_version:42\" to hand the implementing agent that mockup's source files. Omit if no media is relevant."
         },
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
-        investigation: { type: "boolean", description: "When true, confirming this proposal creates a read-only investigation Job (no PR expected) instead of a normal implementation Job. Defaults to false." },
+        investigation: { type: "boolean", description: "When true, confirming this proposal creates a standalone read-only investigation Job (no PR expected) instead of a normal implementation Job. Use this for exploratory spike, audit-only, discovery-only, or investigation-style work rather than placing that work inside an Epic. Defaults to false." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
         planned_execution: {
           type: "object",
