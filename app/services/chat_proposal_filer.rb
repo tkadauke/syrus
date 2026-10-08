@@ -6,9 +6,10 @@ class ChatProposalFiler
     end
   end
 
-  def initialize(user:, repository:)
+  def initialize(user:, repository:, direct_job_options: {})
     @user = user
     @repository = repository
+    @direct_job_options = direct_job_options
   end
 
   def file!(selected_proposals)
@@ -129,6 +130,7 @@ class ChatProposalFiler
     # agent_provider is resolved through the proposal's provider override so
     # a pinned provider wins over the repository default; a "default"
     # proposal keeps the historical repository-default resolution.
+    direct_options = direct_job_options_for(proposal)
     job = user.jobs.new(
       repository: target_repository,
       epic: proposal.target_epic,
@@ -136,10 +138,17 @@ class ChatProposalFiler
       investigation: proposal.investigation?,
       issue_number: nil,
       issue_title: proposal.title,
+      title_pending: direct_options.fetch(:title_pending, false),
       issue_body: proposal.body,
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       job_provider_setting: provider_setting,
+      model: direct_options[:model],
+      effort_level: direct_options[:effort_level],
+      priority: direct_options[:priority].presence || "medium",
+      owner_user: direct_options[:owner_user],
+      target_branch: direct_options[:target_branch],
+      delivery_track: direct_options[:delivery_track],
       planned_execution_project_label: proposal.planned_execution_project_label,
       planned_execution_target_label: proposal.planned_execution_target_label,
       planned_execution_capabilities: proposal.planned_execution_capabilities,
@@ -177,7 +186,13 @@ class ChatProposalFiler
   end
 
   def should_advance_after_triage?(proposal, job)
+    return false if direct_job_options_for(proposal)[:defer_advance]
+
     !proposal.route_to_backlog? && job.may_advance_after_triage?
+  end
+
+  def direct_job_options_for(proposal)
+    @direct_job_options.fetch(proposal.id, {})
   end
 
   def attach_to_chat_session!(proposal, attachable)
