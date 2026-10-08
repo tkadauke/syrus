@@ -113,8 +113,12 @@ advertises cannot start at all.
 Workers advertise their available host capabilities separately from repository
 requirements. Each worker heartbeat includes only the supported `os`
 capability, plus diagnostics about host architecture and optional probes for
-Docker, Xcode, and iOS simulator runtimes. Set `SYRUS_WORKER_CAPABILITIES` on a
-worker only to make its OS placement class explicit:
+Docker, Xcode, and iOS simulator runtimes. Android work runs on Linux workers,
+not an `os:android` placement class. The published worker image includes the
+Android SDK command-line baseline used by the Android plugin, while Java/JDK and
+Gradle behavior stay with the JVM plugins and repository wrappers. Set
+`SYRUS_WORKER_CAPABILITIES` on a worker only to make its OS placement class
+explicit:
 
 ```dotenv
 SYRUS_WORKER_CAPABILITIES=os:macos
@@ -124,6 +128,16 @@ Use comma or space separated `dimension:value` pairs if needed, but only
 `os:linux` and `os:macos` are admitted. Other dimensions and unsupported OS
 values are ignored for worker advertisements. Linux k3s and Docker Compose
 workers normally get `os:linux` without configuration.
+
+Android emulator-backed graders and Runtime Sessions need more than the SDK.
+The Linux host must expose CPU virtualization and KVM, and the worker container
+or pod must be allowed to read and write `/dev/kvm`. On Docker Compose that is
+typically a worker device mapping such as `/dev/kvm:/dev/kvm`; on Kubernetes it
+usually means scheduling onto KVM-capable nodes and exposing the device through
+your runtime class, device plugin, or pod security policy. If this is missing,
+non-emulator Android builds can still pass, but emulator launches fail with
+messages like `/dev/kvm: Permission denied`, `KVM is required to run this AVD`,
+or `x86 emulation currently requires hardware acceleration`.
 
 After implementation, Syrus compares the actual changed files against the
 target graph as a safety net. If the diff affects a more constrained target

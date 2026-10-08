@@ -3350,11 +3350,19 @@ Bundled plugins:
   `:prepare_detector` for Android repos, detecting Android Gradle Plugin
   declarations, Kotlin Android plugin declarations, Android Gradle Plugin
   buildscript classpath entries, and conventional `AndroidManifest.xml` paths.
-  The scaffold returns no prepare command until Android SDK/emulator
-  capability handling lands, so generic Linux workers do not run SDK-heavy
-  commands by detection alone. It reuses Java's `.java-version` declaration
-  and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager`
-  span labels. Also provides `:prompt_injector` (`Android::PromptContext` —
+  It returns no prepare command by detection alone, so generic Linux workers
+  do not invent project-specific SDK-heavy Gradle work. The worker image
+  provides the shared Android SDK baseline at `/opt/android-sdk` with
+  command-line tools, platform-tools, emulator, `platforms;android-36`,
+  `build-tools;36.0.0`, and accepted licenses. Android's `:step_environment`
+  provider forwards `ANDROID_HOME`/`ANDROID_SDK_ROOT` from the worker image and
+  scopes mutable Android user/AVD state to `.syrus/android` inside each
+  workflow workspace. `Android::ToolchainDiagnostic.call` reports installed SDK
+  packages, license state, command availability, `adb`/emulator readiness,
+  `/dev/kvm` and acceleration diagnostics, plus Java/Gradle facts read through
+  JVM support. It reuses Java's `.java-version` declaration and adds Android
+  Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` span labels. Also
+  provides `:prompt_injector` (`Android::PromptContext` —
   documents that Java/Kotlin own generic JVM behavior, Android owns Android
   Gradle Plugin, SDK, emulator/device, artifact, and mobile runtime behavior,
   Android work uses Linux capabilities rather than `os: android`, and live

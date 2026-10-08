@@ -9,7 +9,8 @@ and `kotlin`.
 
 | Extension point | What it does |
 |---|---|
-| `:prepare_detector` | Detects Android Gradle Plugin declarations (`com.android.application`, `com.android.library`, `com.android.test`, dynamic feature and asset-pack plugins), Android Kotlin plugin declarations, `com.android.tools.build:gradle` buildscript classpath entries, and conventional `AndroidManifest.xml` paths. It returns no prepare command in this scaffold so generic Linux workers do not run SDK/emulator work before Android worker capabilities exist. It reuses `.java-version` as the JVM version file and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` command-span labels for worker-health diagnostics. |
+| `:prepare_detector` | Detects Android Gradle Plugin declarations (`com.android.application`, `com.android.library`, `com.android.test`, dynamic feature and asset-pack plugins), Android Kotlin plugin declarations, `com.android.tools.build:gradle` buildscript classpath entries, and conventional `AndroidManifest.xml` paths. It returns no prepare command by detection alone, so generic Linux workers do not invent project-specific Android Gradle work. It reuses `.java-version` as the JVM version file and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` command-span labels for worker-health diagnostics. |
+| `:step_environment` | Forwards `ANDROID_HOME` and `ANDROID_SDK_ROOT` from the worker image into prepare/grader subprocesses and computes per-workspace `ANDROID_USER_HOME`, `ANDROID_PREFS_ROOT`, and `ANDROID_AVD_HOME` under `.syrus/android`. This keeps SDK installation global while Android user state, repositories, and AVD metadata stay scoped to the workflow workspace. |
 | `:prompt_injector` | Tells agents to keep Java/Kotlin/JVM conventions in the Java/Kotlin plugins, treat Android Gradle Plugin, SDK, emulator/device, artifact, and runtime behavior as Android-owned, run Android work on Linux execution capabilities, and use Runtime Sessions' provider-neutral visual frame/input contract for live emulator viewing and control. |
 | `:review_criteria_provider` | Adds review criteria for declared worker capabilities, APK/AAB variant/signing distinctions, and avoiding Android-specific bypasses around Runtime Session visual frame/input. |
 
@@ -44,10 +45,73 @@ The detector recognizes:
   `org.jetbrains.kotlin.android`.
 - Conventional Android manifests such as `app/src/main/AndroidManifest.xml`.
 
-The detector intentionally returns `[]` from `prepare_commands`. That keeps
-the scaffold safe on generic workers while still letting RepoPluginDetector,
-Admin -> Plugins suggestions, prompt context, review criteria, and future
-Android-specific typed graders/providers recognize the repository.
+The detector intentionally returns `[]` from `prepare_commands`. SDK packages
+are now available in the shared Linux worker image, but project-owned Android
+Gradle tasks vary too much for detection alone to invent a safe prepare
+command. This still lets RepoPluginDetector, Admin -> Plugins suggestions,
+prompt context, review criteria, and future Android-specific typed
+graders/providers recognize the repository.
+
+## Worker SDK baseline
+
+The worker image installs a pinned Linux Android SDK baseline under
+`/opt/android-sdk`: Android command-line tools, platform-tools, emulator,
+`platforms;android-36`, `build-tools;36.0.0`, and accepted SDK licenses.
+`ANDROID_HOME` and `ANDROID_SDK_ROOT` point at that shared SDK. The plugin's
+step environment keeps mutable Android user state in the current workflow
+workspace:
+
+```text
+ANDROID_USER_HOME=<workspace>/.syrus/android
+ANDROID_PREFS_ROOT=<workspace>/.syrus/android
+ANDROID_AVD_HOME=<workspace>/.syrus/android/avd
+```
+
+Do not use this plugin to choose JDKs, Gradle versions, Maven, or Kotlin/JVM
+settings. Those remain Java/Kotlin plugin and repository-wrapper concerns.
+
+## Toolchain diagnostic
+
+`Android::ToolchainDiagnostic.call` returns a hash suitable for Android grader
+and runtime-provider checks. It reports:
+
+- SDK root env and whether the SDK directory exists.
+- Installed package readiness for command-line tools, platform-tools, emulator,
+  the selected platform SDK, and selected build-tools.
+- Accepted-license presence.
+- `sdkmanager`, `avdmanager`, `adb`, `emulator`, `java`, `javac`, and `gradle`
+  command availability and version summaries.
+- JVM facts read through Java support, including the shared `.java-version`
+  convention.
+- Emulator runtime prerequisites: `/dev/kvm` existence/read/write access, CPU
+  virtualization flags, and `emulator -accel-check` output when the emulator
+  command is available.
+
+Missing commands or emulator acceleration failures are reported in the payload
+rather than raised as plugin load errors. Android typed graders and runtime
+providers should use that diagnostic to produce actionable failure messages.
+
+## Emulator host and container prerequisites
+
+SDK install alone is enough for local unit tests, lint, APK/AAB assembly, and
+other non-emulator Gradle tasks. Emulator-backed graders and Runtime Sessions
+also require host and container support:
+
+- The Linux host must expose hardware virtualization (`vmx` or `svm`) and KVM.
+- The worker container must be allowed to access `/dev/kvm` with read/write
+  permissions. In Docker Compose that usually means adding a worker device
+  mapping such as `/dev/kvm:/dev/kvm`. In Kubernetes it usually means a node
+  with KVM plus a runtime class, device plugin, or security policy that exposes
+  `/dev/kvm` to the worker pod.
+- Nested virtualization must be enabled when the host itself is a VM.
+- The container must have enough memory and disk for emulator system images,
+  snapshots, and Gradle output.
+
+When these prerequisites are absent, Android builds that do not launch an
+emulator can still pass. Emulator-backed work usually fails with messages such
+as `x86 emulation currently requires hardware acceleration`, `KVM is required
+to run this AVD`, `/dev/kvm: Permission denied`, or an
+`emulator -accel-check` diagnostic reporting unavailable acceleration.
 
 ## Future Android-owned work
 
@@ -56,7 +120,6 @@ possible:
 
 - Android Gradle Plugin typed graders, including unit-test, lint, assemble,
   connected-test, and Gradle Managed Device conventions.
-- Android SDK and emulator/device capability checks for Linux workers.
 - APK/AAB artifact discovery and display.
 - A runtime provider that launches an emulator/device session and feeds visual
   frames plus touch/key/text input through the generic Runtime Session

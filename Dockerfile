@@ -342,6 +342,16 @@ USER root
 ARG POETRY_VERSION=2.4.1
 ARG UV_VERSION=0.12.3
 ARG MISE_GO_VERSION="1.26.5"
+ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902
+ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
+ARG ANDROID_PLATFORM_VERSION=android-36
+ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_HOME=/opt/android-sdk \
+    ANDROID_USER_HOME=/home/rails/.android \
+    ANDROID_PREFS_ROOT=/home/rails/.android \
+    ANDROID_AVD_HOME=/home/rails/.android/avd
 
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
 # justified in greenacres#16 / syrus#114; ripgrep+fd in particular speed
@@ -365,12 +375,34 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       default-libmysqlclient-dev libpq-dev libsqlite3-dev \
       libbenchmark-dev libgtest-dev libxkbcommon-dev libxkbcommon-x11-dev \
       sqlite3 postgresql-client default-mysql-client \
-      wget openssh-client jq ripgrep fd-find less vim \
+      wget unzip openssh-client jq ripgrep fd-find less vim \
       python3 python3-pip python3-venv \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Android SDK command-line baseline for Android plugin graders and emulator
+# runtime sessions. Java/JDK/Gradle remain owned by the JVM plugins and project
+# wrappers; this installs only the Android SDK manager packages shared by
+# Android builds and emulator-backed sessions.
+RUN set -eu; \
+    mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" "${ANDROID_USER_HOME}" "${ANDROID_AVD_HOME}"; \
+    cmdline_zip="/tmp/android-commandlinetools.zip"; \
+    curl -fsSL -o "${cmdline_zip}" \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip"; \
+    echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${cmdline_zip}" | sha256sum -c -; \
+    unzip -q "${cmdline_zip}" -d /tmp/android-cmdline-tools; \
+    mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest"; \
+    rm -f "${cmdline_zip}"; \
+    rm -rf /tmp/android-cmdline-tools; \
+    yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null; \
+    "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+      "platform-tools" \
+      "emulator" \
+      "platforms;${ANDROID_PLATFORM_VERSION}" \
+      "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"; \
+    chown -R 1000:1000 "${ANDROID_SDK_ROOT}" "${ANDROID_USER_HOME}"
 
 # sccache — transparent remote compiler cache for C/C++ builds .
 # Installed as a real binary, then masqueraded onto PATH under the names
@@ -450,7 +482,7 @@ RUN npm install -g yarn pnpm && npm cache clean --force && \
     ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
     ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 
-ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
+ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_DATA_DIR=/opt/mise \
     MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml \
     SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}

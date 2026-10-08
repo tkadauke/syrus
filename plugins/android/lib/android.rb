@@ -3,14 +3,16 @@ require "kotlin"
 require "android/prepare_detector"
 require "android/prompt_context"
 require "android/review_criteria_provider"
+require "android/step_environment"
+require "android/toolchain_diagnostic"
 
 module Android
   extend Syrus::PluginApi
 
   syrus_plugin "android" do
     display_name "Android"
-    description "Android project intelligence: Android Gradle Plugin detection, Android/JVM prompt guidance, " \
-                "and mobile review criteria"
+    description "Android project intelligence: Android Gradle Plugin detection, SDK environment wiring, " \
+                "toolchain diagnostics, Android/JVM prompt guidance, and mobile review criteria"
     long_description "Android layers mobile-platform awareness on top of the bundled Java and Kotlin plugins. " \
                      "It detects Android Gradle Plugin and AndroidManifest layouts, keeps generic " \
                      "JDK/Gradle/Kotlin conventions delegated to Java and Kotlin, and draws the boundary for " \
@@ -32,6 +34,7 @@ module Android
 
     provides prepare_detector: "Android::PrepareDetector",
              prompt_injector: "Android::PromptContext",
-             review_criteria_provider: "Android::ReviewCriteriaProvider"
+             review_criteria_provider: "Android::ReviewCriteriaProvider",
+             step_environment: "Android::StepEnvironment"
   end
 end
