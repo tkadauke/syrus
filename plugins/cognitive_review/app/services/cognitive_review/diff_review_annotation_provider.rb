@@ -13,7 +13,8 @@ module CognitiveReview
       extra_comment_versions = extra_comment_versions_for(version)
       extra_comment_version_ids = extra_comment_versions.map(&:id)
       sidebar_review_comments = CognitiveReview::Note.review_comments_for(all_notes, diff_review_version_ids: extra_comment_version_ids)
-      sidebar_notes = CognitiveReview::Note.open_for_pr_debt(all_notes, review_comments: sidebar_review_comments, diff_review_version_ids: extra_comment_version_ids)
+      sidebar_notes = all_notes.reject(&:dismissed?)
+      sidebar_open_notes = CognitiveReview::Note.open_for_pr_debt(sidebar_notes, review_comments: sidebar_review_comments, diff_review_version_ids: extra_comment_version_ids)
       rollup = CognitiveReview::DebtRollup.for(job: job, diff_review_version: version, notes: notes, comment_diff_review_versions: extra_comment_versions)
       return {} if sidebar_notes.empty? && !rollup.submitted?
 
@@ -24,7 +25,7 @@ module CognitiveReview
 
       payload = {
         sidebar_panels: note_panels_for(sidebar_notes, comments_by_note_id: sidebar_comments_by_note_id),
-        sidebar_counts: [ open_count(sidebar_notes) ],
+        sidebar_counts: [ open_count(sidebar_open_notes) ],
         counts: counts_for(rollup)
       }
 

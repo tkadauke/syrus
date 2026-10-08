@@ -323,6 +323,92 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       handled_count: 1
     )
     expect(handled_payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+    expect(handled_payload[:sidebar_panels]).to contain_exactly(
+      hash_including(
+        id: "cognitive_review.note.#{included_note.id}",
+        tone: "success",
+        props: hash_including(notes: [ hash_including(note_id: included_note.id, handled: true, handled_by_comment: true) ])
+      ),
+      hash_including(title: "Outside note", tone: "warning")
+    )
+  end
+
+  it "keeps mixed open and handled notes visible in the sidebar while counting only open debt" do
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+    open_note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 4,
+      end_line: 4,
+      title: "Open note",
+      explanation: "Still needs operator attention.",
+      source_metadata: {}
+    )
+    acknowledged_note = CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 5,
+      end_line: 5,
+      title: "Acknowledged note",
+      explanation: "Already acknowledged.",
+      state: "acknowledged",
+      source_metadata: {}
+    )
+    CognitiveReview::Note.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      diff_review_version: version,
+      path: "app/models/job.rb",
+      side: "new",
+      start_line: 6,
+      end_line: 6,
+      title: "Dismissed note",
+      explanation: "Dismissed notes stay out of the sidebar list.",
+      state: "dismissed",
+      source_metadata: {}
+    )
+
+    payload = described_class.review_annotations(
+      job: job,
+      user: job.user,
+      version: version,
+      base_sha: "base",
+      head_sha: "head",
+      files: []
+    )
+
+    expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 1))
+    expect(payload[:sidebar_panels]).to contain_exactly(
+      hash_including(
+        id: "cognitive_review.note.#{open_note.id}",
+        tone: "warning",
+        props: hash_including(notes: [ hash_including(note_id: open_note.id, handled: false, open_unhandled: true) ])
+      ),
+      hash_including(
+        id: "cognitive_review.note.#{acknowledged_note.id}",
+        tone: "success",
+        props: hash_including(notes: [ hash_including(note_id: acknowledged_note.id, handled: true, open_unhandled: false) ])
+      )
+    )
   end
 
   it "keeps a cross-hunk All changes note inline when no single hunk covers the full range" do
@@ -517,6 +603,12 @@ RSpec.describe CognitiveReview::DiffReviewAnnotationProvider do
       dismissed_count: 1,
       handled_count: 3,
       zero_note_state: false
+    )
+    expect(payload[:sidebar_counts]).to contain_exactly(hash_including(id: "cognitive_review.open", value: 0))
+    expect(payload[:sidebar_panels]).to contain_exactly(
+      hash_including(title: "Acknowledged note", tone: "success", props: hash_including(notes: [ hash_including(handled: true, open_unhandled: false) ])),
+      hash_including(title: "Discussed note", tone: "success", props: hash_including(notes: [ hash_including(handled: true, open_unhandled: false) ])),
+      hash_including(title: "User-commented note", tone: "success", props: hash_including(notes: [ hash_including(handled: true, handled_by_comment: true, open_unhandled: false) ]))
     )
     expect(discussed).to be_handled
   end
