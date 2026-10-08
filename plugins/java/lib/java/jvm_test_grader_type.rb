@@ -8,21 +8,37 @@ module Java
     DEFAULT_CHANGED_FILES = [
       "**/*.java",
       "src/main/java/**/*",
+      "**/src/main/java/**/*",
       "src/test/java/**/*",
+      "**/src/test/java/**/*",
       "src/main/resources/**/*",
+      "**/src/main/resources/**/*",
       "src/test/resources/**/*",
+      "**/src/test/resources/**/*",
       "build.gradle",
+      "**/build.gradle",
       "build.gradle.kts",
+      "**/build.gradle.kts",
       "settings.gradle",
+      "**/settings.gradle",
       "settings.gradle.kts",
+      "**/settings.gradle.kts",
       "gradle.properties",
+      "**/gradle.properties",
       "gradle/**/*",
+      "**/gradle/**/*",
       "gradlew",
+      "**/gradlew",
       "gradlew.bat",
+      "**/gradlew.bat",
       "pom.xml",
+      "**/pom.xml",
       ".mvn/**/*",
+      "**/.mvn/**/*",
       "mvnw",
-      "mvnw.cmd"
+      "**/mvnw",
+      "mvnw.cmd",
+      "**/mvnw.cmd"
     ].freeze
 
     def self.grade_steps(config:, default_failures:)
