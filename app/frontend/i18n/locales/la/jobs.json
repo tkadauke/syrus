@@ -161,6 +161,11 @@
   "artifact_diff_before": "Ante",
   "artifact_diff_after": "Post",
   "artifact_image_alt": "Imago capturae",
+  "artifact_provenance_path": "Semita",
+  "artifact_provenance_title": "Titulus paginae",
+  "artifact_provenance_viewport": "Viewport",
+  "artifact_provenance_source": "Fons",
+  "artifact_provenance_captured_at": "Captum",
   "merge_train_phase": {
     "assembling": "Epic merge train assembling",
     "reconciling": "Epic merge train reconciling",
