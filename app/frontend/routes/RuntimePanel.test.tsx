@@ -484,6 +484,42 @@ describe("RuntimePanel visual input", () => {
     expect(inputPayloads[1]).toMatchObject({ type: "keyboard", action: "key_down", key: "Enter", code: "Enter" })
     expect(inputPayloads[2]).toMatchObject({ type: "text", text: "hello" })
   })
+
+  it("hydrates an existing operator lease after the Runtime tab remounts", async () => {
+    const inputPayloads: unknown[] = []
+    const visualSession = sessionFixture({
+      active_user_input_lease: operatorLeaseFixture(),
+      capabilities: { stream: "screenshot", input: ["pointer", "keyboard"] },
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+      latest_frame_at: "2026-01-01T00:00:00Z"
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = (init?.method || "GET").toUpperCase()
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [], cursor: 0 }))
+      if (url.includes("/input") && method === "POST") {
+        inputPayloads.push(JSON.parse(String(init?.body)).event)
+        return Promise.resolve(jsonResponse({ runtime_session: visualSession, result: { delivered: true } }))
+      }
+      if (url.includes("/take_control") && method === "POST") {
+        return Promise.resolve(jsonResponse({ error: { code: "validation_failed", message: "runtime session already has an active input lease" } }, 422))
+      }
+      return Promise.resolve(jsonResponse({ runtime_sessions: [visualSession] }))
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Release Control" })).toBeInTheDocument()
+
+    const surface = screen.getByLabelText("Runtime visual input surface")
+    fireEvent.pointerUp(surface, { clientX: 100, clientY: 120, button: 0, pointerType: "mouse" })
+
+    await waitFor(() => {
+      expect(inputPayloads).toHaveLength(1)
+    })
+    expect(screen.queryByRole("button", { name: "Take Control" })).not.toBeInTheDocument()
+  })
 })
 
 describe("RuntimePanel terminal live view", () => {

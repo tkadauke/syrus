@@ -29,6 +29,23 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(parse_body["runtime_sessions"].map { |s| s["id"] }).to eq([ session.id ])
     end
 
+    it "includes the current operator's active input lease" do
+      sign_in_as(user)
+      session = build_runtime_session
+      lease = RuntimeControlLease.acquire!(
+        runtime_session: session,
+        owner: "user",
+        owner_ref: "operator:#{user.id}",
+        mode: "input",
+        reason: "manual check"
+      )
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("runtime_sessions", 0, "active_user_input_lease", "id")).to eq(lease.id)
+    end
+
     it "404s when Coding Mode is disabled" do
       allow(Feature).to receive(:coding_mode_enabled?).and_return(false)
       sign_in_as(user)

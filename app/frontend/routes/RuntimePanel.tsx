@@ -457,8 +457,8 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
   const logs = useRuntimeLogs(chatId, hasLiveView ? null : session.id, !hasLiveView && active)
 
   useEffect(() => {
-    setMyLease(null)
-  }, [session.id])
+    setMyLease(session.active_user_input_lease ?? null)
+  }, [session.id, session.active_user_input_lease?.id, session.active_user_input_lease?.expires_at])
 
   function patchSession(updated: RuntimeSession) {
     queryClient.setQueryData<{ runtime_sessions: RuntimeSession[] } | undefined>(runtimeSessionsQueryKey(chatId), (current) =>
