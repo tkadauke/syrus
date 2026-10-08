@@ -104,6 +104,19 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`investigation: true` Jobs")
   end
 
+  it "frames Epic child Jobs as landable implementation work and sends exploration to investigation Jobs" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("Epic child Job shape:")
+    expect(out).to include("Epics are sequences of reviewable, landable implementation Jobs.")
+    expect(out).to include("Do not include spike, audit-only, discovery-only, or\ninvestigation-style child Jobs in an Epic.")
+    expect(out).to include("propose a standalone `propose_job` card with\n`investigation: true`")
+    expect(out).to include("Do not\nsplit documentation into its own Epic child unless that documentation\ndirectly supports")
+    expect(out).to include("include the docs update in the relevant implementation Job")
+  end
+
   it "tells Local Mode chats to route local job phrases to create_coding_job" do
     chat = ChatSession.create!(user: repo.user, repository: repo, mode: "local")
 
