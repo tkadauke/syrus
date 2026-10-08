@@ -162,11 +162,17 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
       RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
 
-      result = provider.input(runtime_session.id, { type: "pointer", action: "click", x: 10, y: 12, "_runtime_control_owner" => "agent" })
+      result = provider.input(
+        runtime_session.id,
+        { type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5, "_runtime_control_owner" => "agent" }
+      )
 
       expect(result[:error]).to be false
       expect(result[:delivered]).to be true
-      expect(browser_session).to have_received(:call_tool).with(name: "browser_evaluate", arguments: { "function" => include("elementFromPoint") })
+      expect(browser_session).to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: { "function" => include("normalized_x", "window.innerWidth", "elementFromPoint") }
+      )
     ensure
       SyrusBrowser::SessionRegistry.reset!
     end
