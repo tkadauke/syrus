@@ -12,6 +12,8 @@ const KNOWN_PLUGIN_ICONS: Record<string, string> = {
   ruby: "/plugin-icons/ruby.svg",
   "syrus-rails": "/plugin-icons/syrus-rails.svg",
   javascript: "/plugin-icons/javascript.svg",
+  java: "/plugin-icons/java.svg",
+  kotlin: "/plugin-icons/kotlin.svg",
   python: "/plugin-icons/python.svg",
   django: "/plugin-icons/django.svg",
   go: "/plugin-icons/go.svg",

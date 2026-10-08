@@ -294,7 +294,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 
 | Key | Label | Bundled plugins |
 |---|---|---|
-| `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
+| `language` | Language & framework intelligence | `ruby`, `javascript`, `java`, `kotlin`, `python`, `go`, `syrus-rails`, `django` |
 | `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent`, `muse_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory`, `credential_store` |
 | `input_source` | Input source | `github_source`, `linear_source` |
@@ -2272,9 +2272,27 @@ order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 `pyproject.toml` → `pip install -e .`. The `go` plugin registers a
 `:prepare_detector` for `go.mod` → `GOWORK=off go mod download` at `prepare_priority: 40`
 — Go modules have a single package-manifest signal, so there's no
-priority list to pick between.
+priority list to pick between. The `java` plugin registers a
+`:prepare_detector` for Gradle/Maven/JVM signals at `prepare_priority: 45`:
+Gradle projects prepare with `./gradlew --no-daemon testClasses` when the
+wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
+projects prepare with `./mvnw -B test-compile` when the wrapper is present,
+otherwise `mvn -B test-compile`; conventional source-only Java layouts are
+detectable but do not add a prepare command. Android Gradle Plugin projects
+are intentionally skipped by the generic Java detector so Android-specific
+support can own SDK setup and task selection. The `kotlin` plugin registers a
+`:prepare_detector` for Kotlin/JVM signals at `prepare_priority: 46`, depends
+on `java`, and delegates concrete Gradle/Maven prepare commands to
+`Java::PrepareDetector` so wrapper-aware JVM setup stays centralized. It
+detects `.kt`, `.kts`, `build.gradle.kts`, Kotlin JVM Gradle plugin
+declarations, and conventional Kotlin source/test paths while intentionally
+skipping Android, Kotlin Android, Kotlin Multiplatform, and Kotlin native
+markers.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
+Identical commands from layered plugins are de-duplicated in provider order,
+so a Kotlin/JVM Gradle project detected by both Java and Kotlin still prepares
+once.
 
 ### `mise_version_file`
 
@@ -2284,11 +2302,13 @@ workspace contains a mise version-pin file. The two universal triggers
 plugins are registered. Per-language version-pin filenames come from each
 enabled `:prepare_detector` plugin's `mise_version_file` instead of a
 hardcoded list: the `ruby` plugin declares `.ruby-version`, `javascript`
-declares `.node-version`, `python` declares `.python-version`, and `go`
-declares `.go-version`. A disabled plugin's version file no longer triggers
-`mise install`. `mise_version_file` is independent of `detect?` — the version
-file can be present even when the plugin's own primary signal (`Gemfile`,
-`package.json`, etc.) isn't.
+declares `.node-version`, `python` declares `.python-version`, `go` declares
+`.go-version`, and `java` declares `.java-version`. The `kotlin` plugin
+reuses the Java plugin's `.java-version` declaration because Kotlin/JVM uses
+the same JDK/toolchain placement. A disabled plugin's version file no longer
+triggers `mise install`. `mise_version_file` is independent of `detect?` —
+the version file can be present even when the plugin's own primary signal
+(`Gemfile`, `package.json`, etc.) isn't.
 
 ### `span_labels`
 
@@ -2302,9 +2322,9 @@ label built from the sub-command itself. The `ruby` plugin declares labels
 for `bundle check`, `bundle install`, `db:test:prepare`, `rspec`, and
 `rubocop`; `javascript` declares `frontend tests` and `frontend build`;
 `python` declares `pytest`, `ruff`, and `mypy`; `go` declares `go test`,
-`go vet`, and `go build`. This is display polish only — a plugin that
-doesn't declare `span_labels` still gets a usable generic label, never an
-error.
+`go vet`, and `go build`; `java` declares `gradle`, `maven`, `java version`,
+and `javac`. This is display polish only — a plugin that doesn't declare
+`span_labels` still gets a usable generic label, never an error.
 
 ## `ci_log_parser`
 
@@ -2366,7 +2386,8 @@ two extension points that already implement per-repo detection instead of
 inventing a third mechanism:
 
 - Every enabled `:prepare_detector` plugin's `detect?(repo_path)` (a class
-  method — language plugins: `ruby`, `javascript`, `python`, `go`).
+  method — language plugins: `ruby`, `javascript`, `java`, `kotlin`,
+  `python`, `go`).
 - Every enabled `:preview_provider` plugin's `detect?(repo_path)` (an
   instance method — framework plugins that don't register their own
   `:prepare_detector`, such as `syrus-rails` and `django`).
@@ -2427,13 +2448,15 @@ already set up. Providers typically gate their contribution on the same
 repo-detection signal their `:prepare_detector` counterpart uses, so criteria
 tuned for one ecosystem don't show up in an unrelated repo's review.
 
-The `ruby`, `javascript`, `python`, and `go` plugins each register one seed
-criterion, gated on the same signal their `:prepare_detector` uses:
+The `ruby`, `javascript`, `java`, `kotlin`, `python`, and `go` plugins register
+seed criteria gated on the same signal their `:prepare_detector` uses:
 
 | Plugin | Gate | Criterion |
 |---|---|---|
 | `ruby` | `Gemfile` present | Flag new N+1 query patterns in ActiveRecord code |
 | `javascript` | lockfile/`package.json` present | Flag newly introduced `any` types |
+| `java` | Gradle/Maven/JVM signal present | Flag swallowed InterruptedException without restoring interrupt status |
+| `kotlin` | Kotlin/JVM signal present | Flag swallowed coroutine cancellation and unsafe null assertions at external boundaries |
 | `python` | uv/poetry/pip signal present | Flag missing type hints on new public functions |
 | `go` | `go.mod` present | Flag swallowed errors (`` `_ = err` ``) |
 
@@ -3289,6 +3312,40 @@ Bundled plugins:
   `:dependency_audit_command` (`JavaScript::DependencyAuditCommand` — picks
   `yarn audit --json`/`pnpm audit --json`/`npm audit --json` matching
   whichever of `:prepare_detector`'s true lockfiles is present).
+- `java` — default-enabled. Provides `:prepare_detector` for generic Java/JVM
+  repos, detecting Gradle files (`build.gradle`, `build.gradle.kts`,
+  `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files
+  (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and
+  conventional Java source/test paths (`src/main/java`, `src/test/java`).
+  Gradle projects prepare with `./gradlew --no-daemon testClasses` when the
+  wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
+  projects prepare with `./mvnw -B test-compile` when the wrapper is present,
+  otherwise `mvn -B test-compile`. Source-only Java layouts are detectable
+  but do not add a prepare command. Android Gradle Plugin projects are skipped
+  here so Android support can own SDK setup and task selection. Also provides
+  `:prompt_injector`
+  (`Java::PromptContext` — reminds agents to prefer project wrappers and the
+  repository-declared JDK version while keeping Android SDK/device concerns
+  out of generic Java handling) and `:review_criteria_provider`
+  (`Java::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging swallowed `InterruptedException` handling, gated on the
+  same generic Java/JVM signal as `:prepare_detector`).
+- `kotlin` — default-enabled, depends on `java`. Provides `:prepare_detector`
+  for Kotlin/JVM repos, detecting `.kt`, `.kts`, Gradle Kotlin DSL files
+  (`build.gradle.kts`, `settings.gradle.kts`), Kotlin JVM Gradle plugin
+  declarations, and conventional Kotlin source/test paths
+  (`src/main/kotlin`, `src/test/kotlin`). Concrete Gradle/Maven prepare
+  commands, `.java-version`, and JVM span labels are reused from
+  `Java::PrepareDetector`; `RepoPrepPlan` de-duplicates identical commands
+  when Java and Kotlin both match the same Gradle/Maven project. Android,
+  Kotlin Android, Kotlin Multiplatform, and Kotlin native markers are skipped
+  so platform-specific plugins can own SDK/device and native target behavior.
+  Also provides `:prompt_injector` (`Kotlin::PromptContext` — reminds agents
+  to treat Kotlin source and Gradle Kotlin DSL as JVM signals while respecting
+  repository-declared JDK/Kotlin Gradle plugin versions) and
+  `:review_criteria_provider` (`Kotlin::ReviewCriteriaProvider` — seeds
+  Kotlin/JVM criteria for swallowed coroutine cancellation and unsafe null
+  assertions at external boundaries).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,

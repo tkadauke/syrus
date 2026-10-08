@@ -121,6 +121,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/java
+  specs:
+    java (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/javascript
   specs:
     javascript (0.1.0)
@@ -131,6 +137,12 @@ PATH
   specs:
     k8s_cluster (0.1.0)
       kubeclient (~> 4.13)
+      rails (>= 8.1)
+
+PATH
+  remote: plugins/kotlin
+  specs:
+    kotlin (0.1.0)
       rails (>= 8.1)
 
 PATH
@@ -883,10 +895,12 @@ DEPENDENCIES
   global_search!
   go!
   image_processing (~> 2.2)
+  java!
   javascript!
   jbuilder
   k8s_cluster!
   kamal
+  kotlin!
   linear_source!
   mcp
   metrics_dashboard!
@@ -1051,6 +1065,7 @@ CHECKSUMS
   image_processing (2.2.0) sha256=e0cb9892a4395ac2b7bb2fac5c6f5bc63361f2f18ed08773e21fce5b111c6974
   io-console (0.9.4) sha256=a403304f32928ee85e56d457b4612ca43f2703b561a3258844992bd24085fbb1
   irb (1.18.0) sha256=de9454a0703a54704b9811a5ef31a60c86949fbf4013fcf244fabc7c775248e3
+  java (0.1.0)
   javascript (0.1.0)
   jbuilder (2.15.1) sha256=2430bec28fb0cebacb5875b1009cf9d8bc3c303ccb810c4c8b062a4b51457637
   jmespath (1.6.2) sha256=238d774a58723d6c090494c8879b5e9918c19485f7e840f2c1c7532cf84ebcb1
@@ -1060,6 +1075,7 @@ CHECKSUMS
   jwt (3.3.0) sha256=44cc34fbc341c148233cf66641522b4bce0dfb1ce55e8073f05c56f44f4ee546
   k8s_cluster (0.1.0)
   kamal (2.12.0) sha256=c51d1ab085e515470f98d0c0f043637122b5ebf76e8b610cb1fbbed0b7f9b8fa
+  kotlin (0.1.0)
   kubeclient (4.13.0) sha256=51f666b14461e1933328670c5b21114d52518b420562728792e1579a9dde0693
   language_server-protocol (3.17.0.6) sha256=5ef2c0c138f8267e1bc631d3328347d354f96724b0af22f2c79516120443b7f0
   linear_source (0.1.0)
