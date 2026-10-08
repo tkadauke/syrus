@@ -17,12 +17,12 @@ module Api
         # GET /api/v1/app/chats/:chat_id/runtime_sessions
         def index
           sessions = @chat_session.runtime_sessions.order(:created_at)
-          render json: { runtime_sessions: sessions.map { |session| RuntimeSessionPresenter.session_payload(session) } }
+          render json: { runtime_sessions: sessions.map { |session| session_payload(session) } }
         end
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id
         def show
-          render json: RuntimeSessionPresenter.session_payload(@runtime_session)
+          render json: session_payload(@runtime_session)
         end
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id/logs
@@ -38,7 +38,7 @@ module Api
         # POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/capture
         def capture
           provider_for(@runtime_session).snapshot(@runtime_session.id, artifact_type: params[:artifact_type])
-          render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload) }
+          render json: { runtime_session: session_payload(@runtime_session.reload) }
         rescue RuntimeSessionProviders::ConfigurationError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue StandardError => e
@@ -79,7 +79,7 @@ module Api
             duration_seconds: params[:duration_seconds]
           )
 
-          render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload), lease: RuntimeSessionPresenter.lease_payload(lease) }
+          render json: { runtime_session: session_payload(@runtime_session.reload), lease: RuntimeSessionPresenter.lease_payload(lease) }
         rescue RuntimeControlLease::Conflict => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
@@ -91,7 +91,7 @@ module Api
         # the operator's own active lease(s), returning control to the agent.
         def release_control
           released = @runtime_session.runtime_control_leases.active.held_by("user").map(&:release!)
-          render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload), released: released.map { |lease| RuntimeSessionPresenter.lease_payload(lease) } }
+          render json: { runtime_session: session_payload(@runtime_session.reload), released: released.map { |lease| RuntimeSessionPresenter.lease_payload(lease) } }
         end
 
         # POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/renew_control
@@ -110,7 +110,7 @@ module Api
           end
 
           lease.renew!(duration_seconds: params[:duration_seconds])
-          render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload), lease: RuntimeSessionPresenter.lease_payload(lease) }
+          render json: { runtime_session: session_payload(@runtime_session.reload), lease: RuntimeSessionPresenter.lease_payload(lease) }
         rescue RuntimeControlLease::NotRenewable => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
@@ -141,7 +141,7 @@ module Api
             return
           end
 
-          render json: { result: result, runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload) }
+          render json: { result: result, runtime_session: session_payload(@runtime_session.reload) }
         rescue RuntimeSessionProviders::ConfigurationError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue StandardError => e
@@ -170,8 +170,14 @@ module Api
           RuntimeSessionProviders.for(runtime_session.provider_key).new
         end
 
-        def current_user_input_lease
-          @runtime_session.runtime_control_leases.active
+        def session_payload(runtime_session)
+          RuntimeSessionPresenter.session_payload(runtime_session).merge(
+            active_user_input_lease: RuntimeSessionPresenter.lease_payload(current_user_input_lease(runtime_session))
+          )
+        end
+
+        def current_user_input_lease(runtime_session = @runtime_session)
+          runtime_session.runtime_control_leases.active
             .held_by("user")
             .for_mode("input")
             .find_by(owner_ref: "operator:#{Current.user.id}")

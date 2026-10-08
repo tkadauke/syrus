@@ -1602,6 +1602,7 @@ export type RuntimeSession = {
   latest_frame_at: string | null
   last_error: string | null
   active_agent_input_lease: RuntimeControlLease | null
+  active_user_input_lease?: RuntimeControlLease | null
 }
 
 export type RuntimeSessionLogs = {
