@@ -69,6 +69,18 @@ export type ImageDiffPayload = {
   image_url: string
   content_type?: string
   byte_size?: number
+  source?: string
+  captured_at?: string
+  page?: {
+    url?: string
+    path?: string
+    title?: string
+  }
+  viewport?: {
+    width?: number
+    height?: number
+    device_scale_factor?: number
+  }
 }
 
 export type BeforeAfterVisualImage = ImageDiffPayload & {

@@ -322,11 +322,16 @@ module Prompts
         4. By default, test the change at both a desktop viewport
            (#{viewport_label(DESKTOP_VIEWPORT)}) and a mobile viewport
            (#{viewport_label(MOBILE_VIEWPORT)}) via `browser_resize`, capturing screenshots at each
-           with `submit_visual_artifact` and titling them clearly (e.g. "Desktop — ..." /
-           "Mobile — ..."). You may skip one viewport when the issue/diff context makes it clearly
-           irrelevant (a mobile-nav-only bug report, a component hidden below a desktop breakpoint,
-           an admin-only desktop tool) — but if you skip a viewport, state why in your critique so it
-           is an auditable judgment call, not a silent omission. `browser_resize` fully re-applies the
+           with `submit_visual_artifact(capture_current_browser: true, ...)` and titling them clearly
+           (e.g. "Desktop — ..." / "Mobile — ..."). If your tool schema does not expose
+           `capture_current_browser`, omit `image_path` and `image_base64`; the tool defaults to the
+           same current-browser capture path. Use that path rather than copying Playwright temp files or
+           launching another browser, because it preserves the authenticated page URL, title, viewport,
+           source, and capture timestamp as artifact provenance. You may skip one viewport when the issue/diff context makes it clearly
+           irrelevant (a mobile-nav-only bug
+           report, a component hidden below a desktop breakpoint, an admin-only desktop tool) — but if
+           you skip a viewport, state why in your critique so it is an auditable judgment call, not a silent omission.
+           `browser_resize` fully re-applies the
            viewport each time, so there's no need to reset between calls; but a resize triggers a
            layout reflow, so re-run `browser_snapshot` before the next click/fill after resizing —
            never reuse refs captured at the previous viewport size.
