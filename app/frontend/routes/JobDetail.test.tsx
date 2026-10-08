@@ -318,17 +318,19 @@ describe("JobDetailView", () => {
   // mid-chain on main-branch health explained itself nowhere on its own
   // detail page.
   it("explains a running job blocked on main-branch health", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        state: "running",
-        summary_state: "running",
-        start_blocked_reason: "main_branch_health",
-        start_blocked_at: "2026-09-23T14:34:00Z",
-        start_blocked_next_check_at: "2026-09-23T14:39:00Z",
-        start_blocked_details: { repository_slug: "acme/widgets", main_health_state: "broken" }
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "running",
+          summary_state: "running",
+          start_blocked_reason: "main_branch_health",
+          start_blocked_at: "2026-09-23T14:34:00Z",
+          start_blocked_next_check_at: "2026-09-23T14:39:00Z",
+          start_blocked_details: { repository_slug: "acme/widgets", main_health_state: "broken" }
+        }
+      })
+    )
 
     expect(screen.getByText("Waiting to continue")).toBeInTheDocument()
     expect(screen.getByText(/default branch is failing its required checks/)).toBeInTheDocument()
@@ -478,10 +480,7 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
     fireEvent.click(screen.getByRole("button", { name: "Recheck checks" }))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/recheck_pr_checks",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/recheck_pr_checks", expect.objectContaining({ method: "POST" }))
     })
     expect(screen.getByRole("button", { name: "Land anyway once" })).toBeInTheDocument()
     expect(screen.queryByText(/In landing queue: position #2/)).not.toBeInTheDocument()
@@ -956,14 +955,25 @@ describe("JobDetailView", () => {
   // the Workflow starts. A Job blocked mid-chain is "running", so the one
   // surface that explains the wait was the one guaranteed not to show it.
   it("shows the waiting banner for a running job blocked mid-chain on main-branch health", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "running", summary_state: "running", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
-      repository: {
-        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
-        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "running", summary_state: "running", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
+        repository: {
+          id: 2,
+          slug: "acme/widgets",
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          review_policy: "self",
+          feedback_policy: "confirm",
+          repository_path: "/repositories/2",
+          edit_repository_path: "/repositories/2/edit",
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        }
+      })
+    )
 
     expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
     // The banner owns this reason; the generic panel stands down rather than
@@ -2584,7 +2594,16 @@ describe("JobDetailRoute", () => {
 
     const header = main.querySelector("header")
     expect(header).toHaveClass("px-4", "sm:px-0", "block", "space-y-3")
-    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass("flex", "flex-row", "flex-wrap", "items-center", "justify-between", "gap-x-3", "gap-y-3", "sm:gap-x-6")
+    expect(screen.getByTestId("job-header-actions").parentElement).toHaveClass(
+      "flex",
+      "flex-row",
+      "flex-wrap",
+      "items-center",
+      "justify-between",
+      "gap-x-3",
+      "gap-y-3",
+      "sm:gap-x-6"
+    )
 
     const tabChrome = screen.getByRole("navigation", { name: "Job sections" }).parentElement
     expect(tabChrome).toHaveClass("px-4", "sm:px-0")
@@ -3261,6 +3280,41 @@ describe("ArtifactsTab", () => {
     const image = screen.getByRole("img", { name: "Homepage after fix" })
     expect(image).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
     expect(image.closest("a")).toHaveAttribute("href", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
+  })
+
+  it("renders image_diff provenance when visual artifacts include browser metadata", () => {
+    renderArtifactsTab([
+      {
+        type: "visual_review_screenshot",
+        title: "Credential store desktop",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {
+          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+          source: "current_browser",
+          captured_at: "2026-10-08T15:04:05.123Z",
+          page: {
+            url: "http://127.0.0.1:3000/credential_store",
+            path: "/credential_store",
+            title: "Credential store"
+          },
+          viewport: {
+            width: 1440,
+            height: 900,
+            device_scale_factor: 1
+          }
+        }
+      }
+    ])
+
+    expect(screen.getByText("Path")).toBeInTheDocument()
+    expect(screen.getByText("/credential_store")).toBeInTheDocument()
+    expect(screen.getByText("Page title")).toBeInTheDocument()
+    expect(screen.getByText("Credential store")).toBeInTheDocument()
+    expect(screen.getByText("Viewport")).toBeInTheDocument()
+    expect(screen.getByText("1440x900")).toBeInTheDocument()
+    expect(screen.getByText("Source")).toBeInTheDocument()
+    expect(screen.getByText("current_browser")).toBeInTheDocument()
   })
 
   it("renders before_after_visual_diff: linked before and after screenshots", () => {
@@ -4161,10 +4215,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/close_investigation",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/close_investigation", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -4534,7 +4585,9 @@ function requestUrl(input: Parameters<typeof fetch>[0]) {
 
 function jobPathsFor(id: number): JobDetailPayload["paths"] {
   const paths = jobPayload().paths
-  return Object.fromEntries(Object.entries(paths).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("/jobs/1", `/jobs/${id}`) : value])) as JobDetailPayload["paths"]
+  return Object.fromEntries(
+    Object.entries(paths).map(([key, value]) => [key, typeof value === "string" ? value.replaceAll("/jobs/1", `/jobs/${id}`) : value])
+  ) as JobDetailPayload["paths"]
 }
 
 function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
