@@ -349,7 +349,7 @@ describe("dashboard DataTable migrations", () => {
     expect(within(notices).getByText("plugin notice test.first")).toBeInTheDocument()
   })
 
-  it("cycles the urgent attention notice with plugin notices in the same carousel", () => {
+  it("orders dashboard plugin notices in the same carousel", () => {
     setDesktop(true)
 
     renderWithProviders(
@@ -363,21 +363,21 @@ describe("dashboard DataTable migrations", () => {
         t={(key, opts) => key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key}
         uiPanels={[
           { id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 },
-          { id: "core.urgent_attention_items", component: "core/UrgentAttentionItemsBanner", order: 5 }
+          { id: "test.first_notice", component: "test/Notice", order: 5 }
         ]}
       />
     )
 
     const notices = screen.getByRole("region", { name: "notice_panels" })
     expect(within(notices).getByText("Notice 1 of 2")).toBeInTheDocument()
-    expect(within(notices).getByText("plugin notice core.urgent_attention_items")).toBeInTheDocument()
+    expect(within(notices).getByText("plugin notice test.first_notice")).toBeInTheDocument()
     expect(screen.queryByText("plugin notice github_source.untagged_issues")).not.toBeInTheDocument()
 
     fireEvent.click(within(notices).getByRole("button", { name: "next_notice" }))
 
     expect(within(notices).getByText("Notice 2 of 2")).toBeInTheDocument()
     expect(within(notices).getByText("plugin notice github_source.untagged_issues")).toBeInTheDocument()
-    expect(screen.queryByText("plugin notice core.urgent_attention_items")).not.toBeInTheDocument()
+    expect(screen.queryByText("plugin notice test.first_notice")).not.toBeInTheDocument()
   })
 
   it("omits dashboard plugin panels when none are resolved", () => {

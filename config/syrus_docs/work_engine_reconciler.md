@@ -106,8 +106,8 @@ The classifier currently emits these families:
 - `retryable_run_failure`
 - `repeated_failure_circuit_open` — pauses automatic retry/rebuild when the
   same failed-Run exception fingerprint recurs on the same app revision for
-  the configured streak threshold; opens or refreshes one urgent operator
-  Attention Item for the affected Job's repeated-failure circuit.
+  the configured streak threshold; logs the open circuit and leaves the
+  fingerprint details in reconciler evidence for operator review.
   `WorkEngine::RepeatedFailureCircuit::THRESHOLD` must stay **above**
   `AutoRetryAttempt::MAX_ATTEMPTS`, because the circuit is for failures that
   survive retrying. When the two were equal, the circuit opened on the very
@@ -255,19 +255,12 @@ Planner examples:
   streak because the revision is part of the fingerprint; a different
   exception, message, or top stack frame also starts a new streak.
 
-  The circuit opens or refreshes a single urgent operator `AttentionItem` for
-  the affected Job's repeated-failure circuit. Its evidence carries the latest
-  fingerprint, app revision, streak count, threshold, error class/message, top
-  stack frames, and current Job/Workflow/Step/Run identifiers, but the open item
-  identity deliberately excludes the fingerprint and app revision. If the same
-  actionable circuit trips again after a retry workflow or deploy, the surviving
-  item is refreshed with the new evidence and older repeated-failure rows are
-  marked `superseded`, so the admin queue and Dashboard jobs Inbox notice still
-  represent one operator decision. Operators should inspect the latest evidence
-  and only retry manually after the underlying condition has changed or they
-  deliberately decide the evidence was a false positive. The urgent Attention
-  Item notice is scoped to the Dashboard jobs Inbox notice area rather than the
-  global system-alert banner.
+  The circuit logs the open condition and returns the latest fingerprint, app
+  revision, streak count, threshold, error class/message, top stack frames, and
+  current Job/Workflow/Step/Run identifiers in reconciler evidence. Operators
+  should inspect that evidence and only retry manually after the underlying
+  condition has changed or they deliberately decide the evidence was a false
+  positive.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - `branch_diverged_pr_open` is never planned while the same Workflow already

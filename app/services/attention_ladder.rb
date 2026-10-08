@@ -5,7 +5,7 @@
 #   1 · deterministic repair        cheap     format/generate, auto_rebase, backoff
 #   2 · agentic repair              one turn  landing_fix, the implement loop
 #   3 · agentic adjudication        one turn  Adjudicators::AgenticGraderReview
-#   4 · human decision              expensive AttentionItems::Escalator
+#   4 · human review                expensive operator intervention
 #
 # The ladder differs per work definition because the cost of being wrong
 # differs. A stalled landing is the expensive failure, so auto_merge spends a
@@ -14,8 +14,8 @@
 # than the failure.
 #
 # Rung 3 is deliberately enabled for one definition to begin with. It costs a
-# turn every time it runs, and the plan's own instruction is to let the
-# escalations-per-landing metric decide whether to widen it.
+# turn every time it runs, so widen it deliberately based on observed repair
+# outcomes.
 module AttentionLadder
   RUNGS = %i[deterministic deterministic_repair agentic_repair adjudicate escalate].freeze
 

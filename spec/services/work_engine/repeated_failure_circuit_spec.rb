@@ -48,7 +48,7 @@ RSpec.describe WorkEngine::RepeatedFailureCircuit do
       latest_run = failed_attempt(finished_at: finished_at - minutes_ago.minutes, app_revision: app_revision)
     end
 
-    described_class.new(run: latest_run).open_attention_item!
+    described_class.new(run: latest_run).log_open_circuit!
   end
 
   it "opens only after the auto-retry budget has been spent" do
@@ -64,48 +64,19 @@ RSpec.describe WorkEngine::RepeatedFailureCircuit do
     expect(described_class::THRESHOLD).to be > AutoRetryAttempt::MAX_ATTEMPTS
   end
 
-  it "keeps one open attention item across retry workflows and app revisions" do
+  it "logs and returns the open circuit result without creating persisted alarms" do
     now = Time.zone.parse("2026-09-21 15:13:00 UTC")
+    allow(Rails.logger).to receive(:warn)
 
-    first = trip_circuit(app_revision: "pre-fix-sha", finished_at: now - 10.minutes).decision
-    second = trip_circuit(app_revision: "post-fix-sha", finished_at: now).decision
+    result = trip_circuit(app_revision: "pre-fix-sha", finished_at: now)
 
-    expect(second).to eq(first)
-    expect(AttentionItem.open_decisions.where(problem_code: "application_error", job: job)).to contain_exactly(first)
-    expect(first.reload.evidence).to include(
-      "app_revision" => "post-fix-sha",
-      "streak_count" => described_class::THRESHOLD,
-      "workflow_id" => job.workflows.order(:finished_at).last.id,
-      "circuit" => described_class::CIRCUIT
+    expect(result).to be_open
+    expect(result).to have_attributes(
+      app_revision: "pre-fix-sha",
+      streak_count: described_class::THRESHOLD
     )
-  end
-
-  it "supersedes older open repeated-failure rows with volatile signatures" do
-    now = Time.zone.parse("2026-09-21 15:13:00 UTC")
-    stale = AttentionItem.create!(
-      problem_code: "application_error",
-      signature: "application_error:old-revision-specific-signature",
-      title: "Repeated automatic repair failure on #{job.slug}",
-      repository: job.repository,
-      job: job,
-      state: "open",
-      urgency: "urgent",
-      evidence: {
-        "fingerprint" => "old-fingerprint",
-        "app_revision" => "old-sha",
-        "streak_count" => described_class::THRESHOLD,
-        "threshold" => described_class::THRESHOLD,
-        "job_id" => job.id
-      },
-      actions: []
+    expect(Rails.logger).to have_received(:warn).with(
+      a_string_matching(/automatic retries paused for #{job.slug}/)
     )
-
-    result = trip_circuit(app_revision: "current-sha", finished_at: now)
-
-    expect(result.decision).to be_open
-    expect(stale.reload.state).to eq("superseded")
-    open_repeated_failures = AttentionItem.open_decisions.where(problem_code: "application_error", job: job)
-    expect(open_repeated_failures).to contain_exactly(result.decision)
-    expect(result.decision.evidence).to include("app_revision" => "current-sha")
   end
 end
