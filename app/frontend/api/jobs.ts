@@ -482,6 +482,8 @@ export type JobInvestigationReport = {
   title: string
   narrative: string
   findings: string[]
+  escalate: boolean
+  escalation_reason: string | null
   references: JobInvestigationReportReference[]
 }
 

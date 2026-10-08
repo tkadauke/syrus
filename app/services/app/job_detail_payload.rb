@@ -736,6 +736,8 @@ module App
           title: report["title"],
           narrative: report["narrative"],
           findings: Array(report["findings"]),
+          escalate: report["escalate"] == true,
+          escalation_reason: report["escalation_reason"].presence,
           references: report_references_json(report["references"])
         }
       end

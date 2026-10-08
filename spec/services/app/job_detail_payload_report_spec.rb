@@ -49,7 +49,9 @@ RSpec.describe "investigation report in job detail payload" do
       workflow_id: run.workflow_id,
       title: "Dashboard slowness",
       narrative: "It's slow because of an N+1 query.",
-      findings: [ "N+1 query in DashboardController#index" ]
+      findings: [ "N+1 query in DashboardController#index" ],
+      escalate: false,
+      escalation_reason: nil
     )
     expect(report[:references]).to contain_exactly(
       include(
@@ -57,6 +59,26 @@ RSpec.describe "investigation report in job detail payload" do
         caption: "The offending screen",
         artifact: include(type: "dashboard_screenshot", title: "Dashboard screenshot", renderer_type: "image_diff")
       )
+    )
+  end
+
+  it "exposes escalation fields from the submitted report" do
+    job = investigation_job
+    workflow = job.workflows.last
+    submit_report_step = workflow.steps.find_by!(kind: "submit_report")
+    run = submit_report_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+    Mcp::Tools::SubmitReportTool.call(
+      title: "Host remediation blocked",
+      narrative: "The host cannot be safely rebooted by the agent.",
+      escalate: true,
+      escalation_reason: "unsafe_to_proceed",
+      server_context: { run: run }
+    )
+
+    expect(payload_for(job.reload)[:report]).to include(
+      escalate: true,
+      escalation_reason: "unsafe_to_proceed"
     )
   end
 

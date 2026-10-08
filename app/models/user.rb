@@ -159,7 +159,8 @@ class User < ApplicationRecord
     "main_broken" => true,
     "main_inconclusive" => true,
     "main_recovered" => true,
-    "external_pr_feedback" => true
+    "external_pr_feedback" => true,
+    "investigation_escalated" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
   # Deliberately not an `enum :global_role` — that macro validates the
