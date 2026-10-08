@@ -2278,7 +2278,9 @@ Gradle projects prepare with `./gradlew --no-daemon testClasses` when the
 wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
 projects prepare with `./mvnw -B test-compile` when the wrapper is present,
 otherwise `mvn -B test-compile`; conventional source-only Java layouts are
-detectable but do not add a prepare command.
+detectable but do not add a prepare command. Android Gradle Plugin projects
+are intentionally skipped by the generic Java detector so Android-specific
+support can own SDK setup and task selection.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
 
@@ -3305,7 +3307,9 @@ Bundled plugins:
   wrapper is present, otherwise `gradle --no-daemon testClasses`; Maven
   projects prepare with `./mvnw -B test-compile` when the wrapper is present,
   otherwise `mvn -B test-compile`. Source-only Java layouts are detectable
-  but do not add a prepare command. Also provides `:prompt_injector`
+  but do not add a prepare command. Android Gradle Plugin projects are skipped
+  here so Android support can own SDK setup and task selection. Also provides
+  `:prompt_injector`
   (`Java::PromptContext` — reminds agents to prefer project wrappers and the
   repository-declared JDK version while keeping Android SDK/device concerns
   out of generic Java handling) and `:review_criteria_provider`

@@ -8,7 +8,7 @@ It is default-ON, disableable, category `language`, `prepare_priority: 45`.
 
 | Extension point | What it does |
 |---|---|
-| `:prepare_detector` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle wins when both Gradle and Maven signals are present. Wrapper commands are preferred over system tools. Source-only Java layouts are detectable but do not add a prepare command. Also declares `.java-version` as the `mise` version file and labels common Gradle, Maven, `java -version`, and `javac` command spans for worker-health diagnostics. |
+| `:prepare_detector` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle wins when both Gradle and Maven signals are present. Wrapper commands are preferred over system tools. Source-only Java layouts are detectable but do not add a prepare command. Android Gradle Plugin projects are intentionally not claimed by this generic detector. Also declares `.java-version` as the `mise` version file and labels common Gradle, Maven, `java -version`, and `javac` command spans for worker-health diagnostics. |
 | `:prompt_injector` | Reminds implementing agents to use project wrappers and repository-declared JDK versions instead of assuming the system JDK is correct. It also documents that Android-specific SDK, emulator, device, and runtime concerns are outside the generic Java boundary. |
 | `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed InterruptedException without restoring interrupt status" — when a generic Java/JVM signal is present. |
 
@@ -48,8 +48,10 @@ build command without a Gradle or Maven signal.
 Java owns generic JVM conventions: JDK selection, Maven, Gradle, wrapper
 usage, and source-layout detection. Android owns Android Gradle Plugin,
 Android SDK setup, emulator/device requirements, APK/runtime behavior, and
-other mobile-platform concerns. Keep Android-specific preparation or review
-guidance out of this generic plugin.
+other mobile-platform concerns. Repositories with Android Gradle Plugin markers
+or conventional Android manifest paths are skipped by this detector so an
+Android plugin can handle SDK setup and Android task selection. Keep
+Android-specific preparation or review guidance out of this generic plugin.
 
 ## Self-suggestion
 
@@ -62,6 +64,7 @@ layout matched the plugin's own detector.
 No Android prepare or runtime handling. A Gradle project can be a plain JVM
 project or an Android project; Android-specific behavior needs the Android
 plugin so SDK and device assumptions do not leak into generic Java work.
+Android Gradle Plugin projects are not detected as generic Java projects.
 
 No custom `:preview_provider`. Java has no single language-level server
 convention; Spring Boot, Dropwizard, Quarkus, Micronaut, and command-line apps
