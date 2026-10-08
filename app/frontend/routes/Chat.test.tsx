@@ -515,6 +515,18 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(await screen.findByTestId("chat-message-stream")).toBeInTheDocument()
     expect(screen.queryByTestId("mobile-workspace-panel-shell")).not.toBeInTheDocument()
   })
+
+  it("keeps unavailable-chat credentials notices below the mobile app header", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(chatPayload({}, { chat_available: false }))
+
+    renderRouteWithMobileChromeContext({ topInset: 44 })
+
+    expect(await screen.findByText("Claude credentials are required.")).toBeInTheDocument()
+    const unavailableShell = screen.getByTestId("unavailable-chat-shell")
+    expect(unavailableShell).toHaveStyle({ paddingTop: "calc(var(--mobile-chat-app-header-height,0px) + 44px + 0.75rem)" })
+    expect(screen.queryByTestId("mobile-chat-route-shell")).not.toBeInTheDocument()
+  })
 })
 
 describe("chat message tail refetch", () => {
