@@ -442,6 +442,7 @@ describe("Runtime tool cards", () => {
       kind: "android_screenshot",
       content_type: "image/png",
       document_id: 31,
+      preview_url: "/api/v1/app/chats/8/media/chat_images/31/file",
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
       latest_frame_at: "2026-09-10T12:11:00Z",
       fallback: true,
@@ -451,7 +452,7 @@ describe("Runtime tool cards", () => {
     expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of android_screenshot")
 
     render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/7/frame")
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/31/file")
     expect(screen.getAllByText("android_screenshot").length).toBeGreaterThan(0)
     expect(screen.getAllByText("31").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
@@ -499,6 +500,7 @@ describe("Runtime tool cards", () => {
       kind: "android_screenshot",
       content_type: "image/png",
       document_id: 44,
+      file_path: "/api/v1/app/chats/8/media/chat_images/44/file",
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
       latest_frame_at: "2026-09-10T12:12:00Z"
     }
@@ -508,7 +510,7 @@ describe("Runtime tool cards", () => {
     )
 
     render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
-    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/7/frame")
+    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/44/file")
     expect(screen.getAllByText("44").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
   })

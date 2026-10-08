@@ -346,16 +346,26 @@ module Android
     end
 
     def latest_frame_payload(runtime_session, document: nil, bytes: nil, fallback: nil, warning: nil)
+      document_id = document&.id || runtime_session.metadata["latest_frame_document_id"]
+      file_path = chat_media_file_path(runtime_session, document_id)
       {
         kind: "android_screenshot",
         content_type: "image/png",
         bytes: bytes,
-        document_id: document&.id || runtime_session.metadata["latest_frame_document_id"],
+        document_id: document_id,
+        file_path: file_path,
+        preview_url: file_path,
         latest_frame_url: runtime_session.latest_frame_url,
         latest_frame_at: runtime_session.latest_frame_at&.iso8601,
         fallback: fallback,
         warning: warning
       }.compact
+    end
+
+    def chat_media_file_path(runtime_session, document_id)
+      return nil unless runtime_session.chat_session_id && document_id
+
+      "/api/v1/app/chats/#{runtime_session.chat_session_id}/media/chat_images/#{document_id}/file"
     end
 
     def input_lease_for(runtime_session, owner)

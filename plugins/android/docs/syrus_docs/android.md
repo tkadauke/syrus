@@ -224,9 +224,11 @@ as other visual providers:
 
 - Snapshots and `runtime_capture_artifact` return `kind: android_screenshot`,
   `content_type: image/png`, the captured byte count, the chat-media
-  `document_id`, `latest_frame_url`, and `latest_frame_at`. The frame URL is
-  the standard Runtime Session frame endpoint, so the generic Runtime panel and
-  chat tool cards render it without Android-specific UI.
+  `document_id`, stable `file_path`/`preview_url` media links,
+  `latest_frame_url`, and `latest_frame_at`. The stable media links are what
+  historical chat tool cards render for the captured artifact; the latest-frame
+  URL is the standard mutable Runtime Session frame endpoint for the live
+  Runtime panel.
 - Latest-frame metadata is stamped on the `RuntimeSession`, including frame
   dimensions when the PNG header can be read. Pointer input can use normalized
   coordinates from the visual panel, which the provider scales back to the
