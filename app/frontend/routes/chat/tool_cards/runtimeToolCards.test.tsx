@@ -109,7 +109,9 @@ describe("Runtime tool cards", () => {
       ]
     }
 
-    expect(runtimeListSessionsToolCard.collapsedSummary?.(context("runtime_list_sessions", { parsedResult }))).toBe("2 Runtime sessions: #2 failed, agent input lease active, 1 error state")
+    expect(runtimeListSessionsToolCard.collapsedSummary?.(context("runtime_list_sessions", { parsedResult }))).toBe(
+      "2 Runtime sessions: #2 failed, agent input lease active, 1 error state"
+    )
 
     render(<>{runtimeListSessionsToolCard.renderExpanded(context("runtime_list_sessions", { parsedResult }))}</>)
     expect(screen.getByText("Runtime #1")).toBeInTheDocument()
@@ -151,7 +153,9 @@ describe("Runtime tool cards", () => {
   it("renders build/reload success and failure distinctly", () => {
     const parsedResult = { status: "rebuilt", command: "npm run dev", url: "http://127.0.0.1:4173" }
 
-    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(context("runtime_build_or_reload", { parsedResult }))).toBe("Runtime build/reload: rebuilt at http://127.0.0.1:4173")
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(context("runtime_build_or_reload", { parsedResult }))).toBe(
+      "Runtime build/reload: rebuilt at http://127.0.0.1:4173"
+    )
 
     render(<>{runtimeBuildOrReloadToolCard.renderExpanded(context("runtime_build_or_reload", { parsedResult }))}</>)
     expect(screen.getByText("Runtime build/reload")).toBeInTheDocument()
@@ -228,7 +232,9 @@ describe("Runtime tool cards", () => {
       content: [{ type: "text", text: "Snapshot: button Open settings" }]
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
+      "Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning"
+    )
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
     expect(screen.getByText("healthy")).toBeInTheDocument()
@@ -241,6 +247,21 @@ describe("Runtime tool cards", () => {
     expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult: sparse }))).toBe("Runtime inspect: no health fields")
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: sparse }))}</>)
     expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
+  })
+
+  it("renders Android UIAutomator inspection output without browser-only fields", () => {
+    const parsedResult = {
+      kind: "android_uiautomator",
+      xml: "<?xml version='1.0'?><hierarchy><node text='Sign in' /></hierarchy>",
+      bytes: 67
+    }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: no health fields")
+
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("Inspection details")).toBeInTheDocument()
+    expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
+    expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
   it("renders long Runtime logs as a collapsed preview with truncation details", () => {
@@ -330,7 +351,9 @@ describe("Runtime tool cards", () => {
   it("distinguishes stale acquired leases from confirmed ownership", () => {
     const parsedResult = lease({ state: "expired" })
 
-    expect(runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", { parsedResult }))).toBe("Runtime control stale: agent input lease expired")
+    expect(runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", { parsedResult }))).toBe(
+      "Runtime control stale: agent input lease expired"
+    )
 
     render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult }))}</>)
     expect(screen.getByText("Runtime control ownership was not confirmed.")).toBeInTheDocument()
@@ -414,6 +437,27 @@ describe("Runtime tool cards", () => {
     expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
   })
 
+  it("renders Android latest-frame snapshots with provider metadata", () => {
+    const parsedResult = {
+      kind: "android_screenshot",
+      content_type: "image/png",
+      document_id: 31,
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
+      latest_frame_at: "2026-09-10T12:11:00Z",
+      fallback: true,
+      warning: "device offline"
+    }
+
+    expect(runtimeSnapshotToolCard.collapsedSummary?.(context("runtime_snapshot", { parsedResult }))).toBe("Runtime snapshot captured of android_screenshot")
+
+    render(<>{runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult }))}</>)
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/7/frame")
+    expect(screen.getAllByText("android_screenshot").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("31").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+    expect(screen.getByText("device offline")).toBeInTheDocument()
+  })
+
   it("shows missing Runtime artifacts as an explicit empty state", () => {
     const parsedResult = { found: false }
 
@@ -436,7 +480,9 @@ describe("Runtime tool cards", () => {
       }
     }
 
-    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe("Runtime artifact captured: settings.png")
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
+      "Runtime artifact captured: settings.png"
+    )
 
     render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
     expect(screen.getByRole("img", { name: "settings.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
@@ -446,6 +492,25 @@ describe("Runtime tool cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open settings.png" }))
     const dialog = screen.getByRole("dialog", { name: "Runtime artifact preview" })
     expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
+  })
+
+  it("renders Android screenshot payloads as generic Runtime artifacts", () => {
+    const parsedResult = {
+      kind: "android_screenshot",
+      content_type: "image/png",
+      document_id: 44,
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/7/frame",
+      latest_frame_at: "2026-09-10T12:12:00Z"
+    }
+
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe(
+      "Runtime artifact captured: android_screenshot"
+    )
+
+    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
+    expect(screen.getByRole("img", { name: "android_screenshot" })).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/7/frame")
+    expect(screen.getAllByText("44").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
   })
 
   it("renders Runtime capture failures distinctly", () => {

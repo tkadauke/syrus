@@ -219,6 +219,29 @@ The generic Runtime Session tools and Runtime panel drive the provider:
 - `runtime_stop` asks the emulator to exit and terminates the remembered
   process. Sessions can opt into AVD deletion on stop through metadata.
 
+Android runtime evidence uses the same provider-neutral Runtime Session shape
+as other visual providers:
+
+- Snapshots and `runtime_capture_artifact` return `kind: android_screenshot`,
+  `content_type: image/png`, the captured byte count, the chat-media
+  `document_id`, `latest_frame_url`, and `latest_frame_at`. The frame URL is
+  the standard Runtime Session frame endpoint, so the generic Runtime panel and
+  chat tool cards render it without Android-specific UI.
+- Latest-frame metadata is stamped on the `RuntimeSession`, including frame
+  dimensions when the PNG header can be read. Pointer input can use normalized
+  coordinates from the visual panel, which the provider scales back to the
+  captured Android frame dimensions.
+- Logs return `{ entries, cursor }` from `adb logcat -d -v time`, matching the
+  generic paged Runtime log card shape.
+- Input returns `{ delivered: true, event }` on success or provider-neutral
+  error codes such as `lease_required`, `unsupported_input`, and
+  `input_failed`.
+- Structural inspection currently supports only the Android UIAutomator
+  hierarchy (`kind: android_uiautomator`, `xml`, `bytes`). DOM inspection,
+  browser accessibility snapshots, and other browser-only inspection modes are
+  intentionally unsupported by this provider; callers should treat the
+  provider capability metadata as the source of available modes.
+
 ## Future Android-owned work
 
 Android-specific follow-up work should stay inside this plugin wherever
