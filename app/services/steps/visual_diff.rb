@@ -9,11 +9,15 @@ module Steps
         return
       end
 
+      after_artifacts = validated_after_artifacts
+      if after_artifacts.empty?
+        reason = rejected_after_artifact_reasons.presence&.join(" ") || "No after screenshots are available for visual_diff."
+        skip!(reason)
+        return
+      end
+
       workspace.setup
       record_base_revision!
-      after_artifacts = Array(workflow.artifact("visual_diff_after_artifacts"))
-      raise StepFailed, "no after screenshots available for visual_diff" if after_artifacts.empty?
-
       before_count = baseline_entries.size
       run.update!(prompt: prompt(after_artifacts)) if run.prompt.blank?
       run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_visual_artifact])
@@ -68,6 +72,38 @@ module Steps
         baseline_type: workflow.artifact("visual_diff_baseline_type").presence || ::VisualDiffSubmission::BASELINE_TYPE,
         base_branch: job.effective_base_branch
       ).to_s
+    end
+
+    def validated_after_artifacts
+      raw_after_artifacts = Array(workflow.artifact("visual_diff_after_artifacts"))
+      raise StepFailed, "no after screenshots available for visual_diff" if raw_after_artifacts.empty? && rejected_after_artifact_reasons.empty?
+
+      validation = VisualReviewEvidenceGuard.validate_visual_diff_after_artifacts(
+        job: job,
+        prompt: run.prompt,
+        artifacts: raw_after_artifacts
+      )
+      rejected = Array(workflow.artifact("visual_diff_rejected_after_artifacts")) + validation.rejected_artifacts
+      rejected.uniq! { |artifact| [ artifact["type"], artifact["title"], artifact["image_url"], artifact["rejected_reason"] ] }
+      workflow.set_artifact!("visual_diff_rejected_after_artifacts", rejected) if rejected.present?
+      workflow.set_artifact!("visual_diff_after_artifacts", validation.accepted_artifacts) if validation.rejected?
+      log_rejected_after_artifacts(rejected)
+      validation.accepted_artifacts
+    end
+
+    def rejected_after_artifact_reasons
+      Array(workflow.artifact("visual_diff_rejected_after_artifacts")).filter_map do |artifact|
+        artifact["rejected_reason"].presence if artifact.is_a?(Hash)
+      end
+    end
+
+    def log_rejected_after_artifacts(rejected)
+      rejected_after_artifact_reasons = rejected.filter_map { |artifact| artifact["rejected_reason"].presence if artifact.is_a?(Hash) }
+      return if rejected_after_artifact_reasons.empty?
+
+      rejected_after_artifact_reasons.each do |reason|
+        log("[visual_diff] invalid after artifact: #{reason}", kind: "system")
+      end
     end
 
     def baseline_entries
