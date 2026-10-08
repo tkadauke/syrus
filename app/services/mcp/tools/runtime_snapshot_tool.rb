@@ -7,12 +7,11 @@ module Mcp::Tools
     tool_name "runtime_snapshot"
 
     description <<~DESC
-      Capture a point-in-time view of a Runtime Session (DOC-17) -- for the
-      browser provider, a screenshot delegated to the same context-aware
-      browser_screenshot tool implementation and ArtifactSink resolution
-      visual review uses, so it also files as chat media in Coding Mode.
-      Defaults to the chat's primary active session when `session_id` is
-      omitted.
+      Capture a point-in-time view of a Runtime Session (DOC-17), using the
+      selected provider's visual snapshot path. Visual providers should return
+      image metadata in the generic Runtime shape and file durable artifacts
+      through the same media/artifact plumbing used by visual review. Defaults
+      to the chat's primary active session when `session_id` is omitted.
     DESC
 
     input_schema(
@@ -20,7 +19,7 @@ module Mcp::Tools
         session_id: { description: "Runtime Session id. Defaults to the chat's primary active session." },
         options: {
           type: "object",
-          description: "Provider-specific snapshot options (e.g. { \"target\": \"e1\" } to screenshot one element for the browser provider)."
+          description: "Provider-specific snapshot options, such as a visual target or refresh timeout."
         }
       }
     )

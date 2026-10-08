@@ -8,10 +8,9 @@ module Mcp::Tools
 
     description <<~DESC
       Return a structural inspection of a Runtime Session's target (DOC-17)
-      -- for the browser provider, an accessibility-tree snapshot delegated
-      to the same context-aware browser_snapshot tool implementation visual
-      review uses. Defaults to the chat's primary active session when
-      `session_id` is omitted.
+      using the selected provider's supported inspection mode, such as browser
+      accessibility data or an Android UI hierarchy. Defaults to the chat's
+      primary active session when `session_id` is omitted.
     DESC
 
     input_schema(
