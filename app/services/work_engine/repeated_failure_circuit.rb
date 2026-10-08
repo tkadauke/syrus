@@ -33,25 +33,15 @@ module WorkEngine
       )
     end
 
-    def open_attention_item!(result = call)
+    def log_open_circuit!(result = call)
       return unless result.open?
 
-      result = AttentionItems::Opener.call(
-        problem: Problem[PROBLEM_CODE, evidence: evidence_for(result)],
-        title: "Repeated automatic repair failure on #{job.slug}",
-        summary: "Automatic retries are paused after #{result.streak_count} identical failures on #{result.app_revision}.",
-        urgency: "urgent",
-        actions: actions,
-        job: job,
-        workflow: run.workflow,
-        step: run.step,
-        signature: attention_signature
+      Rails.logger.warn(
+        "[WorkEngine::RepeatedFailureCircuit] automatic retries paused for #{job.slug}: " \
+        "#{result.streak_count} identical failures on #{result.app_revision} " \
+        "(#{result.error_class}: #{result.error_message})"
       )
-      supersede_stale_attention_items!(survivor: result.decision || result.prior)
       result
-    rescue StandardError => e
-      Rails.logger.warn("[WorkEngine::RepeatedFailureCircuit] failed to open attention item for Run ##{run.id}: #{e.class}: #{e.message}")
-      nil
     end
 
     private
@@ -126,64 +116,6 @@ module WorkEngine
         error_message: error_message,
         top_stack_frames: top_stack_frames
       }
-    end
-
-    def evidence_for(result)
-      {
-        fingerprint: result.fingerprint,
-        app_revision: result.app_revision,
-        error_class: result.error_class,
-        error_message: result.error_message,
-        top_stack_frames: result.top_stack_frames,
-        streak_count: result.streak_count,
-        threshold: threshold,
-        circuit: CIRCUIT,
-        actionable_scope: "job:#{job.id}:#{CIRCUIT}",
-        job_id: job.id,
-        workflow_id: run.workflow_id,
-        step_id: run.step_id,
-        run_id: run.id,
-        step_kind: run.step&.kind,
-        trigger_kind: run.workflow&.trigger_kind
-      }.compact
-    end
-
-    def actions
-      [
-        { "action_key" => "retry_job", "label" => "Retry manually after deploy or fix",
-          "payload" => { "job_id" => job.id } }
-      ].select { |action| known_action?(action["action_key"]) }
-    end
-
-    def known_action?(key)
-      PendingActions.for(key)
-      true
-    rescue PendingActions::UnknownAction
-      false
-    end
-
-    def attention_signature
-      "#{PROBLEM_CODE}:#{CIRCUIT}:job:#{job.id}"
-    end
-
-    def supersede_stale_attention_items!(survivor:)
-      stale_repeated_failure_items(survivor: survivor).each do |item|
-        item.update!(state: "superseded")
-      end
-    end
-
-    def stale_repeated_failure_items(survivor:)
-      scope = AttentionItem
-        .open_decisions
-        .where(problem_code: PROBLEM_CODE, job_id: job.id, repository_id: job.repository_id)
-      scope = scope.where.not(id: survivor.id) if survivor
-      scope.select { |item| repeated_failure_attention_item?(item) }
-    end
-
-    def repeated_failure_attention_item?(item)
-      evidence = item.evidence.to_h
-      evidence["circuit"] == CIRCUIT ||
-        (evidence.key?("threshold") && evidence.key?("fingerprint") && evidence.key?("streak_count"))
     end
 
     def job

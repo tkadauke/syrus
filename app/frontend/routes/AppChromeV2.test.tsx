@@ -2737,7 +2737,6 @@ describe("buildAdminNavItems", () => {
     expect(opItems).toEqual([
       "queue",
       "stuck",
-      "attention_items",
       "work_units",
       "maintenance_tasks",
       "processes",

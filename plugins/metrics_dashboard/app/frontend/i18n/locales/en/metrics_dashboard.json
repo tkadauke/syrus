@@ -45,8 +45,6 @@
     "provider_sessions_bytes": "Provider session storage",
     "provider_sessions_rows": "Provider session rows",
     "auto_retry_attempts": "Auto-retry attempts, by outcome",
-    "escalations_per_landing": "Escalations per landing",
-    "attention_items_open": "Open attention items, by problem code",
     "feature_usage": "Feature uses, by feature",
     "plugin_enabled": "Plugins enabled",
     "event_amplification_ratio": "Event amplification ratio, by resource",

@@ -401,12 +401,6 @@ Rails.application.routes.draw do
               post :dismiss
             end
           end
-          resources :attention_items, only: %i[ index ] do
-            member do
-              post :decide
-              post :act
-            end
-          end
           get "reconciler_activity", to: "reconciler_activity#index"
           get "browser_errors", to: "browser_errors#index"
           get "backend_exceptions", to: "backend_exceptions#index"
