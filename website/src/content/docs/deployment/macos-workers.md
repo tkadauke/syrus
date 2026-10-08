@@ -98,7 +98,11 @@ Before loading or reloading the worker, run:
 
 The check validates Ruby/Bundler, Node/npm, Git, Xcode Command Line Tools, full
 Xcode selection, iOS simulator runtimes, required env, and production
-credentials without starting Solid Queue.
+credentials without starting Solid Queue. The continuous worker readiness
+probes use the same read-only posture: Syrus records version and listing facts
+from `sw_vers`, `xcode-select`, `xcodebuild -version`, `xcrun --find
+xcodebuild`, and `xcrun simctl list`, but does not mutate keychains, signing
+state, simulator contents, or selected devices.
 
 ## Pull-Based Updates
 
@@ -150,10 +154,15 @@ Admin worker health and queue views show the details you need to operate the
 pool:
 
 - Hostname, worker role, reported `git_sha`, and updater status.
-- Normalized capabilities and capability probe diagnostics.
+- Normalized capabilities and capability probe diagnostics, including macOS
+  version, architecture, selected developer directory, Xcode version/build,
+  command-line-tool usability, available iOS simulator runtimes, and a bounded
+  sample of available simulator devices.
 - Consumed queues, including `runs-macos-arm64` and resume queues.
 - Drain/update state and desired release metadata.
-- `no_capable_worker` admission details when a Workflow cannot start.
+- `no_capable_worker` admission details when a Workflow cannot start, including
+  the live worker queue/capability snapshots used to diagnose an iOS capacity
+  shortage.
 
 Mac host CPU/memory pressure charts may be sparse because some low-level health
 metrics are Linux-specific. Capability, version, disk, queue, heartbeat, and
