@@ -32,7 +32,13 @@ RSpec.describe Android::Engine do
             prepare_detector:         Android::PrepareDetector,
             prompt_injector:          Android::PromptContext,
             review_criteria_provider: Android::ReviewCriteriaProvider,
-            step_environment:         Android::StepEnvironment
+            step_environment:         Android::StepEnvironment,
+            grader_type:              [
+              Android::AssembleGraderType,
+              Android::UnitTestGraderType,
+              Android::InstrumentedTestGraderType,
+              Android::ManagedDeviceGraderType
+            ]
           }
         )
       end
@@ -53,12 +59,13 @@ RSpec.describe Android::Engine do
       expect(registration.depends_on).to eq([ "java", "kotlin" ])
     end
 
-    it "provides only immediately safe extension points" do
+    it "provides the Android extension points" do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :prompt_injector,
         :review_criteria_provider,
-        :step_environment
+        :step_environment,
+        :grader_type
       )
     end
 
@@ -67,6 +74,21 @@ RSpec.describe Android::Engine do
       expect(registration.provides[:prompt_injector]).to eq(Android::PromptContext)
       expect(registration.provides[:review_criteria_provider]).to eq(Android::ReviewCriteriaProvider)
       expect(registration.provides[:step_environment]).to eq(Android::StepEnvironment)
+    end
+
+    it "registers Android typed graders" do
+      expect(registration.provides[:grader_type]).to eq([
+        Android::AssembleGraderType,
+        Android::UnitTestGraderType,
+        Android::InstrumentedTestGraderType,
+        Android::ManagedDeviceGraderType
+      ])
+      expect(Syrus::PluginRegistry.providers_for(:grader_type)).to include(
+        Android::AssembleGraderType,
+        Android::UnitTestGraderType,
+        Android::InstrumentedTestGraderType,
+        Android::ManagedDeviceGraderType
+      )
     end
   end
 
@@ -124,6 +146,13 @@ RSpec.describe Android::Engine do
 
     it "detects conventional Android manifest paths" do
       write("app/src/main/AndroidManifest.xml", "<manifest />")
+
+      expect(described_class.detect?(@dir)).to be true
+    end
+
+    it "detects conventional Android resource and instrumented test paths" do
+      FileUtils.mkdir_p(File.join(@dir, "feature/src/main/res/values"))
+      FileUtils.mkdir_p(File.join(@dir, "feature/src/androidTest/java"))
 
       expect(described_class.detect?(@dir)).to be true
     end
