@@ -42,10 +42,9 @@ When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message. A Job
 with no chat link at all yet — a bug report, or a Job ingested from an
 external PR — instead shows a "Chat about this" action; using it starts a
-new chat only after the operator enters an initial prompt. The first user
-turn includes generated Job context plus that prompt so the agent responds
-immediately, permanently attaches the Job to it (visible in that chat's Jobs
-list), and the Job page then links to that chat going forward.
+new chat seeded with a durable reference to the Job so the agent responds
+against the current report, permanently attaches the Job to it (visible in
+that chat's Jobs list), and the Job page then links to that chat going forward.
 A chat's right-sidebar Jobs tab shows a "Proposed" section above its
 confirmed Job/Epic status cards, listing that chat's own pending Job and Epic
 proposals; each card links straight to the message where the proposal was

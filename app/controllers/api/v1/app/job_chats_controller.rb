@@ -15,21 +15,22 @@ module Api
           return unless authorize_job_mutation!(job)
 
           chat_session = job.discussion_chat
-          user_message = nil
-          message_text = requested_message(job).presence
+          created_chat = false
+          requested_message_text = requested_message(job)
+          message_text = requested_message_text || reference_message(job)
 
           ApplicationRecord.transaction do
-            chat_session ||= ChatSession.create!(user: Current.user, repository: job.repository)
+            unless chat_session
+              chat_session = ChatSession.create!(user: Current.user, repository: job.repository)
+              created_chat = true
+            end
             chat_session.chat_attachments.find_or_create_by!(attachable: job)
-            user_message = chat_session.messages.create!(
-              role: "user",
-              content: { "text" => message_text || opening_message(job) },
-              sender_user_id: Current.user.id
-            )
             chat_session.pin_chat_provider!
           end
 
-          enqueue_chat_title(chat_session, user_message) if user_message && chat_session.messages.where(role: "user").count == 1
+          user_message = create_user_message(chat_session, message_text) if created_chat || requested_message_text
+
+          enqueue_chat_title(chat_session, user_message) if created_chat && user_message
           enqueue_chat_turn(chat_session, user_message) if user_message
 
           render json: { redirect_to: "/chats/#{chat_session.id}" }
@@ -47,24 +48,23 @@ module Api
           find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
         end
 
-        def opening_message(job)
-          context_card(job)
+        def create_user_message(chat_session, text)
+          chat_session.messages.create!(
+            role: "user",
+            content: { "text" => text },
+            sender_user_id: Current.user.id
+          )
         end
 
         def requested_message(job)
           body = params[:message].to_s.strip
           return if body.blank?
 
-          [ context_card(job), body.truncate(8_000) ].join("\n\n")
+          [ reference_message(job), body.truncate(8_000) ].join("\n\n")
         end
 
-        def context_card(job)
-          [
-            "Context: discuss #{job.slug}.",
-            "Repository: #{job.repository.slug}.",
-            "Title: #{job.issue_title.presence || job.slug}.",
-            "State: #{job.state}."
-          ].join("\n")
+        def reference_message(job)
+          "Context: discuss #{job.slug}."
         end
       end
     end

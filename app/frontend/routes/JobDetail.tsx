@@ -2,14 +2,13 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
-import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react"
+import type { FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { ChevronIcon } from "../components/ChevronIcon"
-import { CloseIcon } from "../components/CloseIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
@@ -519,19 +518,12 @@ function HeaderChatAffordance({
 }) {
   const { t } = useT("jobs")
   const navigate = useNavigate()
-  const [promptDialogOpen, setPromptDialogOpen] = useState(false)
   const startChat = useMutation({
-    mutationFn: (message: string) => startJobDiscussionChat(payload.job.id, message),
+    mutationFn: () => startJobDiscussionChat(payload.job.id),
     onSuccess: (result) => {
-      setPromptDialogOpen(false)
       navigate(withRoutePrefix(result.redirect_to, prefix))
     }
   })
-
-  function closePromptDialog() {
-    startChat.reset()
-    setPromptDialogOpen(false)
-  }
 
   if (payload.job.source_chat) {
     return (
@@ -578,86 +570,19 @@ function HeaderChatAffordance({
           aria-label={t("chat_about_this")}
           className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
           disabled={startChat.isPending}
-          onClick={() => setPromptDialogOpen(true)}
+          onClick={() => startChat.mutate()}
           type="button"
         >
           <ChatBubbleIcon />
           <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
           <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
         </button>
-        {promptDialogOpen ? (
-          <StartDiscussionChatDialog
-            error={startChat.error}
-            isPending={startChat.isPending}
-            onClose={closePromptDialog}
-            onSubmit={(message) => startChat.mutate(message)}
-          />
-        ) : null}
+        {startChat.isError ? <span className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(startChat.error, t("start_discussion_chat_error"))}</span> : null}
       </>
     )
   }
 
   return null
-}
-
-function StartDiscussionChatDialog({ error, isPending, onClose, onSubmit }: { error: Error | null; isPending: boolean; onClose: () => void; onSubmit: (message: string) => void }) {
-  const { t } = useT("jobs")
-  const [prompt, setPrompt] = useState("")
-  const trimmedPrompt = prompt.trim()
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!trimmedPrompt || isPending) return
-
-    onSubmit(trimmedPrompt)
-  }
-
-  function submitOnShortcut(event: ReactKeyboardEvent<HTMLFormElement>) {
-    if (isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
-
-    event.preventDefault()
-    event.currentTarget.requestSubmit()
-  }
-
-  return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 p-4" role="presentation">
-      <section aria-labelledby="start-discussion-chat-title" aria-modal="true" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="start-discussion-chat-title">{t("start_discussion_chat_title")}</h2>
-          <button
-            aria-label={t("close_start_discussion_chat")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-            disabled={isPending}
-            onClick={onClose}
-            type="button"
-          >
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </div>
-        <form className="mt-4 space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="start-discussion-chat-prompt">
-            {t("start_discussion_chat_prompt_label")}
-          </label>
-          <textarea
-            autoFocus
-            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-            disabled={isPending}
-            id="start-discussion-chat-prompt"
-            onChange={(event) => setPrompt(event.target.value)}
-            required
-            value={prompt}
-          />
-          {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("start_discussion_chat_error"))}</p> : null}
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button disabled={isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
-            <Button disabled={isPending || !trimmedPrompt} type="submit" variant="primary">
-              {isPending ? t("submitting") : t("start_discussion_chat_submit")}
-            </Button>
-          </div>
-        </form>
-      </section>
-    </div>
-  )
 }
 
 function JobNavigationControl({ context, currentJobId, prefix }: { context: JobNavigationContext | null; currentJobId: number; prefix: string }) {
