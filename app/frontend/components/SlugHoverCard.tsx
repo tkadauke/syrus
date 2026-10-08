@@ -22,6 +22,7 @@ const actionButtonClassName =
   "inline-flex items-center gap-1 rounded border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary shadow-sm hover:bg-surface-raised focus:outline-none focus:ring-2 focus:ring-brand"
 const actionOpenClassName =
   "inline-flex items-center rounded bg-brand px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-brand-emphasis focus:outline-none focus:ring-2 focus:ring-brand"
+const mobileSheetExitMs = 160
 
 interface SlugReferenceCardProps {
   entry: SlugReferenceRegistryEntry
@@ -55,12 +56,22 @@ function detectPointerFine(): boolean {
   return !window.matchMedia("(hover: none) and (pointer: coarse)").matches
 }
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false
+
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
 export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugReferenceCardProps) {
   const { t } = useT("common")
   const [isOpen, setIsOpen] = useState(false)
+  const [surfaceIsMounted, setSurfaceIsMounted] = useState(false)
+  const [surfaceIsVisible, setSurfaceIsVisible] = useState(false)
   const [surfaceMode, setSurfaceMode] = useState<"preview" | "actions">("preview")
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enterFrame = useRef<number | null>(null)
+  const unmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Checked once on first render; pointer capability doesn't change during a session
   const canHover = useRef(detectPointerFine())
   const slug = slugProp ?? `${entry.prefix}-${id}`
@@ -74,13 +85,40 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
   const open = useCallback((mode: "preview" | "actions") => {
     if (mode === "preview" && !entry.previewAvailable) return
     if (mode === "actions" && !entry.previewAvailable && !hasActions) return
+    if (unmountTimer.current) clearTimeout(unmountTimer.current)
+    if (enterFrame.current !== null) window.cancelAnimationFrame(enterFrame.current)
     setSurfaceMode(mode)
+    setSurfaceIsVisible(false)
+    setSurfaceIsMounted(true)
     setIsOpen(true)
+    enterFrame.current = window.requestAnimationFrame(() => {
+      setSurfaceIsVisible(true)
+      enterFrame.current = null
+    })
   }, [entry.previewAvailable, hasActions])
 
   const close = useCallback(() => {
+    if (enterFrame.current !== null) {
+      window.cancelAnimationFrame(enterFrame.current)
+      enterFrame.current = null
+    }
     setIsOpen(false)
-  }, [])
+    setSurfaceIsVisible(false)
+
+    if (surfaceMode === "actions" && !canHover.current) {
+      if (unmountTimer.current) clearTimeout(unmountTimer.current)
+      if (prefersReducedMotion()) {
+        setSurfaceIsMounted(false)
+        return
+      }
+      unmountTimer.current = setTimeout(() => {
+        setSurfaceIsMounted(false)
+        unmountTimer.current = null
+      }, mobileSheetExitMs)
+    } else {
+      setSurfaceIsMounted(false)
+    }
+  }, [surfaceMode])
 
   const handleReferenceEnter = useCallback(() => {
     if (!entry.previewAvailable) return
@@ -94,16 +132,16 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
     if (!canHover.current) return
     if (openTimer.current) clearTimeout(openTimer.current)
     // Small grace period so the cursor can reach the floating card
-    closeTimer.current = setTimeout(() => setIsOpen(false), 100)
-  }, [entry.previewAvailable])
+    closeTimer.current = setTimeout(() => close(), 100)
+  }, [close, entry.previewAvailable])
 
   const handleFloatingEnter = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
   }, [])
 
   const handleFloatingLeave = useCallback(() => {
-    setIsOpen(false)
-  }, [])
+    close()
+  }, [close])
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLSpanElement>) => {
@@ -163,15 +201,20 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
     return () => {
       if (openTimer.current) clearTimeout(openTimer.current)
       if (closeTimer.current) clearTimeout(closeTimer.current)
+      if (unmountTimer.current) clearTimeout(unmountTimer.current)
+      if (enterFrame.current !== null) window.cancelAnimationFrame(enterFrame.current)
     }
   }, [])
 
   const actionSurfaceIsBottomSheet = surfaceMode === "actions" && !canHover.current
   const wrapperIsInteractive = entry.previewAvailable && !hasActions
+  const mobileSheetAnimationClassName = actionSurfaceIsBottomSheet
+    ? `transform transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none ${surfaceIsVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`
+    : ""
   const floatingClassName =
     surfaceMode === "actions"
       ? actionSurfaceIsBottomSheet
-        ? "fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface p-3 shadow-2xl [&>*]:max-w-[calc(100vw-1rem)]"
+        ? `fixed inset-x-2 bottom-0 z-50 rounded-t-2xl border border-b-0 border-border bg-surface p-3 shadow-2xl [&>*]:max-w-[calc(100vw-1rem)] ${mobileSheetAnimationClassName}`
         : "z-50 w-80 rounded-lg border border-border bg-surface p-2 shadow-2xl [&>*]:max-w-[calc(100vw-1rem)]"
       : "[&>*]:max-w-[calc(100vw-1rem)]"
   const floatingStyle = actionSurfaceIsBottomSheet ? undefined : { ...floatingStyles, zIndex: 50 }
@@ -194,7 +237,7 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
       >
         {children}
       </span>
-      {isOpen && (
+      {surfaceIsMounted && (
         <FloatingPortal>
           <div
             aria-label={surfaceMode === "actions" ? t("slug_reference.surface_label", { slug }) : undefined}
