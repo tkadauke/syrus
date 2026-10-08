@@ -21,6 +21,8 @@ class RunJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
+  PINNED_HOST_ADMISSION_DEFERRAL_BUDGET = 40
+
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
     attr_accessor :agent_runner
@@ -217,7 +219,14 @@ class RunJob < ApplicationJob
     admission = RunHostAdmission.call(run: @run, queue_name: queue_name)
     return false if admission.admit?
 
-    record_host_admission_deferral!(admission)
+    admission_artifact = record_host_admission_deferral!(admission)
+    if pinned_host_admission_budget_exhausted?(admission, admission_artifact)
+      clear_workflow_storage_affinity!
+      Rails.logger.warn(
+        "[RunJob] host admission #{admission.reason} exhausted pinned deferral budget on " \
+          "#{admission.details['hostname']} - rerouting Run ##{@run.id} to the base queue"
+      )
+    end
     Rails.logger.info(
       "[RunJob] host admission #{admission.reason} on #{admission.details['hostname']} - " \
         "deferring Run ##{@run.id} by #{admission.delay.inspect}"
@@ -280,14 +289,24 @@ class RunJob < ApplicationJob
   end
 
   def record_host_admission_deferral!(admission)
+    prior = @workflow.artifact("run_host_admission").to_h
+    count = prior["reason"] == admission.reason && prior["run_id"].to_i == @run.id ? prior["deferral_count"].to_i + 1 : 1
+    first_deferred_at = count == 1 ? Time.current.iso8601 : prior["first_deferred_at"].presence || Time.current.iso8601
+    payload = admission.details.merge(
+      "action" => admission.action,
+      "reason" => admission.reason,
+      "run_id" => @run.id,
+      "step_id" => @step.id,
+      "workflow_id" => @workflow.id,
+      "deferred_at" => Time.current.iso8601,
+      "first_deferred_at" => first_deferred_at,
+      "retry_at" => (Time.current + admission.delay).iso8601,
+      "deferral_count" => count,
+      "deferral_budget" => PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
+    )
     @workflow.update!(
       artifacts: (@workflow.artifacts || {}).merge(
-        "run_host_admission" => admission.details.merge(
-          "action" => admission.action,
-          "reason" => admission.reason,
-          "deferred_at" => Time.current.iso8601,
-          "retry_at" => (Time.current + admission.delay).iso8601
-        )
+        "run_host_admission" => payload
       )
     )
     JobLog.append!(
@@ -295,8 +314,25 @@ class RunJob < ApplicationJob
       kind: "system",
       chunk: "compute host admission deferred before #{@step.kind}: #{admission.reason}"
     ) unless admission_deferral_log_exists?("compute host admission deferred before #{@step.kind}: #{admission.reason}")
+    payload
   rescue StandardError => e
     Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
+    admission.details.merge("reason" => admission.reason, "run_id" => @run.id, "deferral_count" => 1)
+  end
+
+  def pinned_host_admission_budget_exhausted?(admission, artifact)
+    return false unless admission.reason == "local_worker_pressure_critical"
+    return false unless @workflow.worker_storage_key.present?
+    return false unless artifact.to_h["run_id"].to_i == @run.id
+
+    artifact.to_h["deferral_count"].to_i >= PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
+  end
+
+  def clear_workflow_storage_affinity!
+    @workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+    @workflow.reload
+    @step.association(:workflow).reset
+    @run.association(:step).reset
   end
 
   def admission_deferral_log_exists?(chunk)

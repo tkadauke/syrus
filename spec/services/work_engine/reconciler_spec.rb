@@ -494,6 +494,70 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "classifies a pinned queued Run that exhausted its host admission deferral budget" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
+    workflow.update_columns(
+      state: "running",
+      started_at: 20.minutes.ago,
+      worker_hostname: "worker-critical",
+      worker_storage_key: "storage-critical",
+      artifacts: {
+        "run_host_admission" => {
+          "reason" => "local_worker_pressure_critical",
+          "run_id" => run.id,
+          "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "deferral_budget" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "hostname" => "worker-critical"
+        }
+      }
+    )
+    queue_job = solid_queue_run_job(run, run_at: 15.seconds.from_now, queue_name: "resume-storage-critical", created_at: Time.current)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :queued_run_host_admission_deferral_budget_exhausted)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reenqueue_run"
+    )
+    expect(issue.affected_ids[:solid_queue_job_ids]).to eq([ queue_job.id ])
+    expect(issue.evidence["solid_queue_state"]).to eq("host_admission_deferral_budget_exhausted")
+    expect(issue.evidence.dig("run_host_admission", "deferral_count")).to eq(RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET)
+    expect(plan(result, :reenqueue_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id
+    )
+  end
+
+  it "ignores exhausted host admission deferral evidence from a different Run" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
+    workflow.update_columns(
+      state: "running",
+      started_at: 20.minutes.ago,
+      worker_hostname: "worker-critical",
+      worker_storage_key: "storage-critical",
+      artifacts: {
+        "run_host_admission" => {
+          "reason" => "local_worker_pressure_critical",
+          "run_id" => run.id + 10_000,
+          "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "deferral_budget" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "hostname" => "worker-critical"
+        }
+      }
+    )
+    solid_queue_run_job(run, run_at: 15.seconds.from_now, queue_name: "runs", created_at: Time.current)
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :queued_run_host_admission_deferral_budget_exhausted)).to be_nil
+    expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
+  end
+
   # The threshold is generous on purpose: a real agent run takes many minutes
   # and sometimes hours, so a claim that is merely recent is work in progress.
   it "leaves a recent claim alone while its worker heartbeats" do
@@ -2923,6 +2987,35 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       match(/\[work-engine reconciler\] applying reenqueue_run/),
       match(/\[work-engine reconciler\] applied reenqueue_run/)
     )
+  end
+
+  it "repairs exhausted pinned host admission deferrals by deleting queue rows before clearing affinity and re-enqueueing" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
+    workflow.update_columns(
+      state: "running",
+      started_at: 20.minutes.ago,
+      worker_hostname: "worker-critical",
+      worker_storage_key: "storage-critical",
+      artifacts: {
+        "run_host_admission" => {
+          "reason" => "local_worker_pressure_critical",
+          "run_id" => run.id,
+          "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "deferral_budget" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+          "hostname" => "worker-critical"
+        }
+      }
+    )
+    stale_job = solid_queue_run_job(run, ready: true, queue_name: "resume-storage-critical", created_at: 20.minutes.ago)
+
+    expect {
+      reconcile_and_execute(run_id: run.id)
+    }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+    expect(SolidQueue::Job.where(id: stale_job.id)).to be_empty
+    expect(workflow.reload.worker_hostname).to be_nil
+    expect(workflow.worker_storage_key).to be_nil
   end
 
   it "classifies a queued Run with a stale SolidQueue claim" do

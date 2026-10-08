@@ -493,6 +493,7 @@ module WorkEngine
               classified_at: parse_optional_time(classification["classified_at"]) || Time.current
             )
           end
+          create_host_admission_deferral!(workflow, run, config["host_admission_deferral"]) if config["host_admission_deferral"].present?
           Array(config["spawned_processes"]).each do |process|
             SpawnedProcess.create!(
               run: run,
@@ -510,6 +511,22 @@ module WorkEngine
           end
           create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
         end
+      end
+
+      def create_host_admission_deferral!(workflow, run, config)
+        attrs = config.to_h
+        workflow.set_artifact!(
+          "run_host_admission",
+          attrs.merge(
+            "action" => attrs.fetch("action", "defer"),
+            "reason" => attrs.fetch("reason", "local_worker_pressure_critical"),
+            "run_id" => run.id,
+            "step_id" => run.step_id,
+            "workflow_id" => workflow.id,
+            "deferral_count" => attrs.fetch("deferral_count", RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET),
+            "deferral_budget" => attrs.fetch("deferral_budget", RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET)
+          )
+        )
       end
 
       def create_solid_queue_state!(run, config)
