@@ -12,9 +12,9 @@ module SyrusMcp
     description <<~DESC
       Lists the typed_artifacts entries recorded on a Workflow (written by
       submit_artifact / submit_visual_artifact), including visual review
-      screenshots. Returns type, title, content_type, byte_size, run_id,
-      step_id, iteration, and image_url per entry so an agent can find the
-      `type` key to pass to read_artifact without guessing.
+      screenshots. Returns type, title, image fields, and available provenance
+      per entry so an agent can find the `type` key to pass to read_artifact
+      without guessing.
     DESC
 
     input_schema(
@@ -63,7 +63,11 @@ module SyrusMcp
             run_id: entry["run_id"] || payload["run_id"],
             step_id: entry["step_id"] || payload["step_id"],
             iteration: payload["iteration"],
-            image_url: payload["image_url"]
+            image_url: payload["image_url"],
+            source: payload["source"],
+            captured_at: payload["captured_at"],
+            page: payload["page"],
+            viewport: payload["viewport"]
           }
         end
       end
