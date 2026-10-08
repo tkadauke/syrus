@@ -54,9 +54,8 @@ class TargetHealthReuse
       [
         capability_token(capabilities, "os"),
         capability_token(capabilities, "arch"),
-        capability_token(capabilities, "toolchains"),
-        capability_token(capabilities, "runtimes"),
-        capability_token(capabilities, "features"),
+        capability_token(capabilities, "toolchain") || capability_token(capabilities, "toolchains"),
+        capability_token(capabilities, "runtime") || capability_token(capabilities, "runtimes"),
         runtime["ruby_platform"].presence
       ].compact_blank.join(" ")
     end
