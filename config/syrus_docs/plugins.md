@@ -298,7 +298,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent`, `muse_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory`, `credential_store` |
 | `input_source` | Input source | `github_source`, `linear_source` |
-| `platform_delivery` | Platform delivery | `discord` |
+| `platform_delivery` | Platform delivery | `android`, `discord` |
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `agent_activity`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
 | `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
@@ -2386,8 +2386,8 @@ two extension points that already implement per-repo detection instead of
 inventing a third mechanism:
 
 - Every enabled `:prepare_detector` plugin's `detect?(repo_path)` (a class
-  method — language plugins: `ruby`, `javascript`, `java`, `kotlin`,
-  `python`, `go`).
+  method — language/platform plugins: `ruby`, `javascript`, `java`,
+  `kotlin`, `android`, `python`, `go`).
 - Every enabled `:preview_provider` plugin's `detect?(repo_path)` (an
   instance method — framework plugins that don't register their own
   `:prepare_detector`, such as `syrus-rails` and `django`).
@@ -3346,6 +3346,23 @@ Bundled plugins:
   `:review_criteria_provider` (`Kotlin::ReviewCriteriaProvider` — seeds
   Kotlin/JVM criteria for swallowed coroutine cancellation and unsafe null
   assertions at external boundaries).
+- `android` — default-enabled, depends on `java` and `kotlin`. Provides
+  `:prepare_detector` for Android repos, detecting Android Gradle Plugin
+  declarations, Kotlin Android plugin declarations, Android Gradle Plugin
+  buildscript classpath entries, and conventional `AndroidManifest.xml` paths.
+  The scaffold returns no prepare command until Android SDK/emulator
+  capability handling lands, so generic Linux workers do not run SDK-heavy
+  commands by detection alone. It reuses Java's `.java-version` declaration
+  and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager`
+  span labels. Also provides `:prompt_injector` (`Android::PromptContext` —
+  documents that Java/Kotlin own generic JVM behavior, Android owns Android
+  Gradle Plugin, SDK, emulator/device, artifact, and mobile runtime behavior,
+  Android work uses Linux capabilities rather than `os: android`, and live
+  emulator viewing/control should use Runtime Sessions' provider-neutral
+  visual frame/input path) and `:review_criteria_provider`
+  (`Android::ReviewCriteriaProvider` — seeds Android-specific criteria for
+  worker capabilities, APK/AAB handling, and Runtime Session visual input
+  boundaries).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
