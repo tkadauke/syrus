@@ -3854,19 +3854,28 @@ describe("composer next-step suggestion", () => {
     return screen.findByRole("textbox")
   }
 
-  function stubGhostSuggestionScrollHeight(height: number) {
-    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight")
+  function stubGhostSuggestionMeasurements({ buttonHeight = 0, textHeight }: { buttonHeight?: number; textHeight: number }) {
+    const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight")
+    const originalGetBoundingClientRect = window.HTMLElement.prototype.getBoundingClientRect
     Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", {
       configurable: true,
       get() {
-        if (this instanceof HTMLElement && this.dataset.testid === "chat-suggestion-ghost-text") return height
-        return descriptor?.get?.call(this) ?? 0
+        if (this instanceof HTMLElement && this.dataset.testid === "chat-suggestion-ghost-text") return textHeight
+        return scrollHeightDescriptor?.get?.call(this) ?? 0
       }
     })
+    window.HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this instanceof HTMLElement && this.dataset.testid === "chat-suggestion-accept-button") {
+        return { height: buttonHeight, width: buttonHeight, top: 0, left: 0, right: buttonHeight, bottom: buttonHeight, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+      }
+
+      return originalGetBoundingClientRect.call(this)
+    }
 
     return () => {
-      if (descriptor) {
-        Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", descriptor)
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
+      if (scrollHeightDescriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", scrollHeightDescriptor)
       } else {
         Reflect.deleteProperty(window.HTMLElement.prototype, "scrollHeight")
       }
@@ -3889,7 +3898,7 @@ describe("composer next-step suggestion", () => {
 
   it("sizes short ghost suggestions to their content instead of reserving the row limit", async () => {
     mockMobileViewport()
-    const restoreScrollHeight = stubGhostSuggestionScrollHeight(40)
+    const restoreMeasurements = stubGhostSuggestionMeasurements({ buttonHeight: 32, textHeight: 20 })
     mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Check whether these rows need a second bug" } }))
 
     try {
@@ -3899,15 +3908,16 @@ describe("composer next-step suggestion", () => {
       const textarea = await findComposerTextarea()
 
       expect(ghostText).toHaveTextContent("Check whether these rows need a second bug")
-      expect(textarea).toHaveStyle({ height: "40px", overflowY: "hidden" })
+      expect(screen.getByTestId("chat-suggestion-accept-button").getBoundingClientRect().height).toBe(32)
+      expect(textarea).toHaveStyle({ height: "32px", overflowY: "hidden" })
     } finally {
-      restoreScrollHeight()
+      restoreMeasurements()
     }
   })
 
   it("wraps long ghost suggestions and keeps them scrollable within the composer row limit", async () => {
     mockMobileViewport()
-    const restoreScrollHeight = stubGhostSuggestionScrollHeight(180)
+    const restoreMeasurements = stubGhostSuggestionMeasurements({ buttonHeight: 32, textHeight: 180 })
     const longSuggestion = [
       "Draft a follow-up to expose PR coverage in the Source diff settings too.",
       "Mention that operators should open the review diff, use the settings gear, and check the metric gutter dropdown."
@@ -3925,7 +3935,7 @@ describe("composer next-step suggestion", () => {
       expect(ghostText).not.toHaveClass("truncate")
       expect(textarea).toHaveStyle({ height: "100px", overflowY: "auto" })
     } finally {
-      restoreScrollHeight()
+      restoreMeasurements()
     }
   })
 
