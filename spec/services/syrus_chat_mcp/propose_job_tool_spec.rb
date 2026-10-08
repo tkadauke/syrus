@@ -641,6 +641,16 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       depends_on_job_ids_desc = schema.fetch(:properties).fetch(:depends_on_job_ids).fetch(:description)
       expect(depends_on_job_ids_desc).to include("non-empty Epic")
     end
+
+    it "aligns investigation guidance with Epic child Job constraints" do
+      investigation_desc = schema.fetch(:properties).fetch(:investigation).fetch(:description)
+
+      expect(tool_description).to include("Use\nthis standalone investigation path instead of placing spike, audit-only,\ndiscovery-only, or investigation-style child Jobs inside an Epic")
+      expect(tool_description).to include("Epic\nchild Jobs should be reviewable, landable implementation work")
+      expect(investigation_desc).to include("standalone read-only investigation Job")
+      expect(investigation_desc).to include("exploratory spike, audit-only, discovery-only, or investigation-style work")
+      expect(investigation_desc).to include("rather than placing that work inside an Epic")
+    end
   end
 
   describe "provider override" do
