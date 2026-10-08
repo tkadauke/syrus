@@ -25,7 +25,7 @@ function mockMatchMedia(matches: boolean) {
     configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query.includes("pointer: coarse") ? !matches : matches,
+      matches: query.includes("(hover: hover) and (pointer: fine)") ? matches : query.includes("(hover: none) and (pointer: coarse)") ? !matches : false,
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -86,7 +86,10 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
       value: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
   })
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it("renders children without opening from hover", () => {
     renderCard("job", 1)
@@ -98,6 +101,7 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
   })
 
   it("opens an action sheet on tap/click and dismisses it on outside pointer down", async () => {
+    vi.useFakeTimers()
     renderCard("job", 42)
     const link = screen.getByRole("link", { name: "JOB-42" })
 
@@ -107,7 +111,9 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
     })
 
     expect(clickResult).toBe(false)
-    expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog", { name: "Actions for JOB-42" })
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveClass("rounded-t-2xl", "inset-x-2", "transition-[transform,opacity]", "motion-reduce:transition-none")
     expect(screen.getByRole("link", { name: "Open JOB-42" })).toHaveAttribute("href", "/refs/42")
     expect(screen.getByRole("button", { name: "Copy JOB-42" })).toBeInTheDocument()
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
@@ -119,10 +125,19 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
       fireEvent.pointerDown(document.body)
     })
 
+    expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toHaveClass("translate-y-3", "opacity-0")
+    expect(screen.getByTestId("job-card")).toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(160)
+    })
+
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it("opens the same action surface from Enter and dismisses it with Escape", async () => {
+    vi.useFakeTimers()
     renderCard("job", 42)
     const link = screen.getByRole("link", { name: "JOB-42" })
 
@@ -138,7 +153,15 @@ describe("SlugReferenceCard on a touch / non-pointer device", () => {
       fireEvent.keyDown(document, { key: "Escape" })
     })
 
+    expect(screen.getByRole("dialog", { name: "Actions for JOB-42" })).toHaveClass("translate-y-3", "opacity-0")
+    expect(screen.getByTestId("job-card")).toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(160)
+    })
+
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it("opens copy-only registered refs with an unavailable-preview state", async () => {
