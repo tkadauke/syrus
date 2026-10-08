@@ -15,6 +15,55 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     described_class.call(critique: critique, verdict: verdict, server_context: { run: run })
   end
 
+  def visual_run_for(job)
+    workflow = job.latest_workflow
+    step = Step.create!(workflow: workflow, kind: "visual_review", position: 99)
+    step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, prompt: "Review /credential_store.")
+  end
+
+  def add_visual_screenshot(target_run, path:, title:)
+    target_run.workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_screenshot_run_#{target_run.id}_1",
+        "original_type" => "visual_review_screenshot",
+        "title" => "Credential Store after change",
+        "payload" => {
+          "run_id" => target_run.id,
+          "image_url" => "/api/v1/app/workflows/#{target_run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{target_run.id}_1",
+          "content_type" => "image/png",
+          "byte_size" => 1234,
+          "source" => "current_browser",
+          "page" => {
+            "url" => "http://127.0.0.1:3000#{path}",
+            "path" => path,
+            "title" => title
+          }
+        }
+      }
+    ])
+  end
+
+  def add_visual_screenshot_with_text(target_run, path:, title:, text:)
+    target_run.workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_screenshot_run_#{target_run.id}_1",
+        "original_type" => "visual_review_screenshot",
+        "title" => "Credential Store after change",
+        "payload" => {
+          "run_id" => target_run.id,
+          "image_url" => "/api/v1/app/workflows/#{target_run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{target_run.id}_1",
+          "content_type" => "image/png",
+          "byte_size" => 1234,
+          "page" => {
+            "path" => path,
+            "title" => title
+          },
+          "dom_text" => text
+        }
+      }
+    ])
+  end
+
   it "accepts a run_id-only sidecar context" do
     described_class.call(
       critique: "No visual issues found.",
@@ -58,7 +107,12 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
           "run_id" => run.id,
           "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
           "content_type" => "image/jpeg",
-          "byte_size" => 1234
+          "byte_size" => 1234,
+          "source" => "current_browser",
+          "page" => {
+            "path" => "/dashboard",
+            "title" => "Dashboard"
+          }
         }
       },
       {
@@ -82,10 +136,98 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
         "content_type" => "image/jpeg",
         "byte_size" => 1234,
+        "page" => {
+          "path" => "/dashboard",
+          "title" => "Dashboard"
+        },
+        "source" => "current_browser",
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
     expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
+  end
+
+  it "rejects an approved review when the intended route only has sign-in screenshots" do
+    credential_job = Factories.job(
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is /credential_store."
+    )
+    credential_run = visual_run_for(credential_job)
+    add_visual_screenshot(credential_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "Credential Store looks correct.",
+      verdict: "approved",
+      server_context: { run: credential_run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("/credential_store")
+    expect(response.content.first[:text]).to include("/session/new")
+    expect(response.content.first[:text]).to include("Sign in")
+    expect(response.content.first[:text]).to include("Submit skipped")
+    expect(credential_run.workflow.reload.artifact("visual_review_iterations")).to be_nil
+  end
+
+  it "rejects approval using text evidence of an auth wall without persisting the text dump" do
+    credential_job = Factories.job(
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is /credential_store."
+    )
+    credential_run = visual_run_for(credential_job)
+    add_visual_screenshot_with_text(
+      credential_run,
+      path: "/credential_store",
+      title: "Credential Store",
+      text: "Authentication required. Sign in to continue."
+    )
+
+    response = described_class.call(
+      critique: "Credential Store looks correct.",
+      verdict: "approved",
+      server_context: { run: credential_run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("/credential_store")
+    expect(credential_run.workflow.reload.artifact("visual_review_iterations")).to be_nil
+  end
+
+  it "allows skipped for an auth blocker on a non-auth intended route" do
+    credential_job = Factories.job(
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is /credential_store."
+    )
+    credential_run = visual_run_for(credential_job)
+    add_visual_screenshot(credential_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "Could not reach /credential_store; the browser was redirected to /session/new.",
+      verdict: "skipped",
+      server_context: { run: credential_run }
+    )
+
+    expect(response).not_to be_error
+    expect(credential_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "skipped")
+  end
+
+  it "allows approval when the intended surface is itself sign-in" do
+    auth_job = Factories.job(
+      issue_title: "Polish the sign-in page",
+      issue_body: "The changed surface is /session/new."
+    )
+    auth_run = visual_run_for(auth_job)
+    auth_run.update!(prompt: "Review /session/new.")
+    add_visual_screenshot(auth_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "The sign-in page looks correct.",
+      verdict: "approved",
+      server_context: { run: auth_run }
+    )
+
+    expect(response).not_to be_error
+    expect(auth_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "approved")
   end
 
   it "accepts the skipped verdict for changes that aren't visually testable" do
