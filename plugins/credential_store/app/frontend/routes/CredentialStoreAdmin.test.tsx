@@ -150,6 +150,16 @@ describe("CredentialStoreAdmin", () => {
     expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
   })
 
+  it("offers a visible text filter in the shared FilterBar", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
+
+    expect(screen.getByRole("button", { name: "Text text" })).toBeInTheDocument()
+  })
+
   it("filters credentials from the shared FilterBar q parameter", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
       credentials: [
