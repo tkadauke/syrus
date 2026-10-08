@@ -288,13 +288,20 @@ actually tested.
 When an approved visual-review iteration records after screenshots, Syrus
 also requests a low-priority `visual_diff` workflow on the same Job. That
 deferred workflow checks out the merge-base for `Job#effective_base_branch`,
-starts the same preview/browser capture flow on that before revision, asks
-the agent to capture matching baseline screenshots, then persists a
+inspects the after screenshots' page provenance, starts the same
+preview/browser capture flow on that before revision, asks the agent to
+capture matching baseline screenshots, then persists a
 `visual_diff_comparison` typed artifact with `before` (merge-base) and
 `after` (PR/head) images side by side. This work does not block approval or
 landing; automatically queued comparisons are cancelled or skipped once the
 Job has already moved to approval/landing, while operators can still request
 an explicit rerun from the Job detail actions.
+
+If an after screenshot looks like an auth/sign-in/error wall for a different
+changed surface, `visual_diff` records the rejected artifact and skips rather
+than training the baseline agent to reproduce the wall. Comparisons for
+auth/session pages themselves remain valid when the Job or prompt names that
+auth route as the intended surface.
 
 ## Manual "Run visual review" trigger
 
