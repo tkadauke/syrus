@@ -229,7 +229,6 @@ module Factories
       job(**attrs).initial_run
     end
   end
-
 end
 
 RSpec.configure do |config|
