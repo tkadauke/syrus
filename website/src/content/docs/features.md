@@ -1337,8 +1337,9 @@ flow, while Linear can poll a team and optional label filter.
 
 Admins can open **Admin → Plugins** to inspect the plugin registry without
 checking the Gemfile. Each plugin shows its own icon — a real brand mark for
-plugins like Ruby, Rails, JavaScript, Python, Django, Go, GitHub, Discord,
-Linear, and Claude, and a shared SPQR-eagle placeholder for plugins with no
+plugins like Ruby, Rails, JavaScript, Java, Kotlin, Android, Python, Django,
+Go, GitHub, Discord, Linear, and Claude, and a shared SPQR-eagle placeholder
+for plugins with no
 natural mark of their own — the same icons also appear in agent/chat provider
 pickers and next to a Workflow's detected-language list. The page lists each
 registered plugin's version, enabled state, default enabled policy,
