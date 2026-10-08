@@ -1,0 +1,9 @@
+project:
+  id: java
+  label: "java plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
