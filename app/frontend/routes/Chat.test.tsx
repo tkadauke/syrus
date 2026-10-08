@@ -396,7 +396,14 @@ describe("ChatWorkspace split breakpoint", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     const tabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
-    expect(screen.getByTestId("mobile-chat-tabs-shell")).toHaveClass("bg-white", "dark:bg-gray-950", "before:-top-px", "before:h-1", "before:bg-white", "dark:before:bg-gray-950")
+    expect(screen.getByTestId("mobile-chat-tabs-shell")).toHaveClass(
+      "bg-white",
+      "dark:bg-gray-950",
+      "before:-top-[var(--mobile-chat-app-header-height,0px)]",
+      "before:h-[var(--mobile-chat-app-header-height,0px)]",
+      "before:bg-white",
+      "dark:before:bg-gray-950"
+    )
     const usageOverlay = screen.getByText(/Tokens:/)
     const composerShell = screen.getByPlaceholderText("Ask about this repository...").closest("form")
     expect(usageOverlay).toHaveClass("bg-white", "dark:bg-gray-950")
