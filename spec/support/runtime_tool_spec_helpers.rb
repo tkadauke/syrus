@@ -32,7 +32,14 @@ module RuntimeToolSpecHelpers
 
       def input(session_id, event)
         runtime_session = RuntimeSession.find(session_id)
-        return { error: "lease_required" } unless runtime_session.active_agent_input_lease
+        event = event.to_h.stringify_keys
+        owner = event.delete("_runtime_control_owner").presence || "agent"
+        lease = if owner == "user"
+          runtime_session.runtime_control_leases.active.held_by("user").for_mode("input").first
+        else
+          runtime_session.active_agent_input_lease
+        end
+        return { error: "lease_required" } unless lease
 
         { delivered: event }
       end

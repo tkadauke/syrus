@@ -702,15 +702,15 @@ A tool opts into the artifact-sink axis with `captures_artifact!` (see
 `SyrusBrowser::BrowserTool`); most proxied actions (click, fill, navigate)
 have nothing to capture and leave it off.
 
-**Input-lease enforcement: the same axis gates both entry points.** `click`,
-`fill`, `hover`, `drag`, `drop`, `file_upload`, and `evaluate` are the only
-working way to deliver real pointer/keyboard/file input to a browser
-`RuntimeSession` today (`RuntimeSessionProvider#input` itself still answers
-`not_yet_supported`), and they are reachable two ways — directly as
-`browser_click`/`browser_fill`/`browser_hover`/`browser_drag`/`browser_drop`/
-`browser_file_upload`/`browser_evaluate` via `SyrusBrowser::ChatToolSet`, and
-indirectly as the (currently unimplemented) backing for the generic
-`runtime_input` tool. `evaluate` earns the same gate as the others because
+**Input-lease enforcement: the same axis gates both entry points.** Browser
+can deliver pointer/keyboard/text input to a `RuntimeSession` through generic
+`runtime_input` (and the operator panel's matching app API) or through the
+direct `browser_click`/`browser_fill`/`browser_hover`/`browser_drag`/
+`browser_drop`/`browser_file_upload`/`browser_evaluate` tools exposed by
+`SyrusBrowser::ChatToolSet`. Generic input payloads carry the caller owner
+(`agent` or `user`) so `SyrusBrowser::RuntimeSessionProvider#input` can
+require the matching active input lease before translating the provider-neutral
+event into DOM input. `evaluate` earns the same gate as the others because
 arbitrary JS can dispatch synthetic click/keyboard events or set form field
 values, functionally simulating the same input the rest of the gated tools
 perform — a JS-execution escape hatch would otherwise make the lease
@@ -784,10 +784,10 @@ lease and a build lease at once but never two input leases. Leases are
 short-lived (`MIN_DURATION`/`MAX_DURATION` clamp to 15-60s, default 30s) and a
 second `acquire!` for an already-held group raises `RuntimeControlLease::Conflict`
 (surfaced as an `invalid` tool response). `runtime_acquire_control` always
-acquires as `owner: "agent"`; `runtime_input` does not check the lease
-itself — it delegates straight to the provider's own `#input`, which is what
+acquires as `owner: "agent"`; `runtime_input` tags provider input payloads as
+agent-owned and delegates to the provider's own `#input`, which is what
 actually enforces the gate (see `SyrusBrowser::RuntimeSessionProvider#input`,
-returning `{error: "lease_required"}` with no active agent input lease). The
+returning `{error: "lease_required"}` with no matching active input lease). The
 same lease also gates the raw `browser_click`/`browser_fill`/`browser_hover`/
 `browser_drag`/`browser_drop`/`browser_file_upload`/`browser_evaluate` tools
 directly (see `requires_input_lease!` above) so there is exactly one
@@ -807,7 +807,9 @@ instead: `Api::V1::App::RuntimeSessionsController`
 the MCP tools (`Feature.coding_mode_enabled?` and `chat_session.coding?`).
 `index`/`show`/`logs` mirror `runtime_list_sessions`/`runtime_status`/
 `runtime_logs` (same `RuntimeSessionPresenter` JSON shape both surfaces
-share); `capture` mirrors `runtime_capture_artifact`; terminal-backed
+share); `capture` mirrors `runtime_capture_artifact`; `input` is the
+operator-side user-owned input path for visual providers and refuses events
+unless the current operator holds an active user input lease; terminal-backed
 `cli_tui` sessions render live through the terminal plugin's shared xterm
 component and subscribe directly to `TerminalChannel` with the mapped
 `Terminal::Session#id` from `metadata["terminal_session_id"]` rather than

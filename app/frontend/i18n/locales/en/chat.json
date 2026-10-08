@@ -336,6 +336,8 @@
   "runtime_take_control_reason": "Operator took control from the Runtime panel.",
   "runtime_take_control_error": "Could not take control of this runtime session.",
   "runtime_release_control_error": "Could not release control of this runtime session.",
+  "runtime_input_error": "Could not send input to this runtime session.",
+  "runtime_visual_input_surface": "Runtime visual input surface",
   "runtime_last_error": "Last run failed",
   "runtime_latest_frame": "Latest screenshot",
   "runtime_terminal_live": "Live terminal",
