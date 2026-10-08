@@ -926,7 +926,7 @@ class ChatTurnJob < ApplicationJob
     unless @cancelled
       @cancelled = true
       flush_current_assistant_content!
-      close_dangling_tool_calls!("Cancelled by operator before this tool returned.")
+      close_dangling_tool_calls!("operator_cancelled")
       create_message!("system", text: "Cancelled by operator.")
     end
     true
@@ -937,7 +937,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat.reload
     turn_in_flight = @chat.turn_in_flight?
-    closed_tool_calls = close_dangling_tool_calls!("Agent turn failed before this tool returned.")
+    closed_tool_calls = close_dangling_tool_calls!("turn_failed")
     return unless turn_in_flight || closed_tool_calls.positive?
 
     create_message!("system", terminal_failure_content(exception: exception, result: result, provider: provider))
@@ -957,8 +957,8 @@ class ChatTurnJob < ApplicationJob
     @chat.messages.create!(role: role, content: content.stringify_keys)
   end
 
-  def close_dangling_tool_calls!(message = ChatDanglingToolCallCloser::DEFAULT_MESSAGE)
-    ChatDanglingToolCallCloser.close!(chat_session: @chat, message: message)
+  def close_dangling_tool_calls!(reason = ChatDanglingToolCallCloser::DEFAULT_REASON)
+    ChatDanglingToolCallCloser.close!(chat_session: @chat, reason: reason)
   end
 
   def terminal_failure_content(exception:, result:, provider:)

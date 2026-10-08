@@ -654,3 +654,94 @@ describe("renderChatMessages tool grouping", () => {
     expect(grep?.calls[0].result_body).toBe("app/models/foo.rb:1")
   })
 })
+
+// ChatDanglingToolCallCloser writes a synthetic tool_result when a tool call
+// never returned, and stamps `benign_cleanup` to say whether that is ordinary
+// bookkeeping or a failure the reader needs. Suppression reads that flag.
+//
+// It used to read the sentence instead, which is why these floods kept coming
+// back: every new closing path needed the regex taught another phrase, and a
+// reworded constant would have filled chat with failed-looking bash cards
+// while both sides' tests passed, because they hardcoded the same literals.
+describe("renderChatMessages benign cleanup suppression", () => {
+  function cleanupResult(
+    id: number,
+    options: { toolUseId: string; text: string; benign?: boolean }
+  ): ChatMessageItem {
+    const content: Record<string, unknown> = {
+      type: "tool_result",
+      tool_use_id: options.toolUseId,
+      content: [{ type: "text", text: options.text }],
+      is_error: true
+    }
+    if (options.benign !== undefined) content.benign_cleanup = options.benign
+
+    return {
+      type: "message",
+      id,
+      role: "tool_result",
+      tool_name: "bash",
+      content,
+      text: "",
+      bookmarkable: false
+    } as unknown as ChatMessageItem
+  }
+
+  function toolGroups(items: ChatRenderItem[]) {
+    return items.filter((item) => item.type === "tool_group")
+  }
+
+  // The point of the whole change: wording the frontend has never seen is
+  // still suppressed, because the producer declared it benign.
+  it("suppresses a benign cleanup whose wording it has never seen", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
+      cleanupResult(2, { toolUseId: "tu_1", text: "Closed for a reason invented next year.", benign: true })
+    ])
+
+    expect(toolGroups(items)).toHaveLength(0)
+  })
+
+  it("keeps a cleanup the producer marked as a failure", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
+      cleanupResult(2, { toolUseId: "tu_1", text: "Agent turn failed before this tool returned.", benign: false })
+    ])
+
+    expect(toolGroups(items)).toHaveLength(1)
+  })
+
+  // A cleanup row whose tool_use fell off an earlier page renders on its own
+  // rather than inside a group, so assert the row itself is gone -- counting
+  // groups here would pass whether or not it was suppressed.
+  it("suppresses a standalone benign cleanup with no matching tool_use", () => {
+    const items = renderChatMessages([
+      cleanupResult(1, { toolUseId: "tu_missing", text: "Closed for a reason invented next year.", benign: true })
+    ])
+
+    expect(items).toHaveLength(0)
+  })
+
+  // Every transcript already stored carries prose and no flag, so history has
+  // to keep rendering clean without it.
+  it.each([
+    "Agent turn ended before this tool returned.",
+    "Cancelled by operator before this tool returned."
+  ])("suppresses the unflagged legacy row %s", (text) => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
+      cleanupResult(2, { toolUseId: "tu_1", text })
+    ])
+
+    expect(toolGroups(items)).toHaveLength(0)
+  })
+
+  it("keeps an unflagged legacy failure row visible", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
+      cleanupResult(2, { toolUseId: "tu_1", text: "Agent turn failed before this tool returned." })
+    ])
+
+    expect(toolGroups(items)).toHaveLength(1)
+  })
+})

@@ -244,10 +244,7 @@ class ChatTurnAutoRetryReconciler
   end
 
   def close_dangling_tool_calls!(chat)
-    ChatDanglingToolCallCloser.close!(
-      chat_session: chat,
-      message: "#{FAILED_MESSAGE.delete_suffix(".")} before this tool returned."
-    )
+    ChatDanglingToolCallCloser.close!(chat_session: chat, reason: "turn_failed")
   end
 
   def broadcast(chat)

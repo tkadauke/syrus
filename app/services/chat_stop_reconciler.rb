@@ -66,7 +66,10 @@ class ChatStopReconciler
 
       turn_in_flight = chat.turn_in_flight?
       message = stop_request ? @message : FAILED_MESSAGE
-      closed_tool_calls = close_dangling_tool_calls!(chat, message)
+      # The terminal system message keeps using `message`; the tool-cleanup
+      # prose no longer derives from it (see ChatDanglingToolCallCloser).
+      reason = stop_request ? "operator_cancelled" : "turn_failed"
+      closed_tool_calls = close_dangling_tool_calls!(chat, reason)
       if turn_in_flight || closed_tool_calls.positive?
         create_terminal_message!(chat, message)
       end
@@ -160,10 +163,7 @@ class ChatStopReconciler
     chat.messages.create!(role: "system", content: { "text" => message })
   end
 
-  def close_dangling_tool_calls!(chat, message)
-    ChatDanglingToolCallCloser.close!(
-      chat_session: chat,
-      message: "#{message.delete_suffix(".")} before this tool returned."
-    )
+  def close_dangling_tool_calls!(chat, reason)
+    ChatDanglingToolCallCloser.close!(chat_session: chat, reason: reason)
   end
 end

@@ -406,6 +406,12 @@ export type ChatToolGroupCall = {
   raw_payload: unknown
   result_body: string
   result_settled?: boolean
+  // Stamped by ChatDanglingToolCallCloser on a synthetic result it wrote to
+  // close a tool call that never returned. True means ordinary bookkeeping
+  // (the turn ended or the operator cancelled); false means the turn failed
+  // and the reader needs to see it. Absent on rows written before the closer
+  // stamped it.
+  result_benign_cleanup?: boolean
   // Best-effort JSON.parse of the tool result's complete, untruncated text
   // (see fullResultBodyUnbounded) -- `result_body` itself is a
   // display-bounded preview (fullResultBody/toolResultPreview) that can cut

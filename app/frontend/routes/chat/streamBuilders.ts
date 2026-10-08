@@ -104,6 +104,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
+        open.call.result_benign_cleanup = content?.benign_cleanup === true
         // The tool_result message itself essentially never carries its own
         // pending_action (anchoring happens on the tool_use message above),
         // but prefer it if some future call shape does -- otherwise keep
@@ -408,19 +409,30 @@ export function groupableToolResult(message: ChatMessageItem) {
 }
 
 function benignDanglingToolCall(call: ChatToolGroupCall) {
-  return call.result_error === true && benignDanglingToolResultText(call.result_body)
+  if (call.result_benign_cleanup === true) return true
+
+  return call.result_error === true && legacyBenignDanglingText(call.result_body)
 }
 
 function benignDanglingToolResultMessage(message: ChatMessageItem) {
   if (message.role !== "tool_result") return false
 
   const content = contentRecord(message.content)
+  if (content?.benign_cleanup === true) return true
   if (content?.is_error !== true) return false
 
   const rawResult = content.content ?? content.result ?? message.content ?? message.text
-  return benignDanglingToolResultText(fullResultBodyUnbounded(rawResult))
+  return legacyBenignDanglingText(fullResultBodyUnbounded(rawResult))
 }
 
-function benignDanglingToolResultText(text: string) {
-  return /^(?:Cancelled by operator|Agent turn ended) before this tool returned\.?$/i.test(text.trim())
+// Only for rows written before ChatDanglingToolCallCloser stamped
+// `benign_cleanup`, which is every transcript already in the database --
+// dropping it would flood chat history with failed-looking tool cards, the
+// very thing this suppression exists to prevent. New reasons must NOT be added
+// here: they arrive with the flag set and the checks above see them. These two
+// sentences are the only benign ones the closer has ever written.
+const LEGACY_BENIGN_DANGLING = /^(?:Cancelled by operator|Agent turn ended) before this tool returned\.?$/i
+
+function legacyBenignDanglingText(text: string) {
+  return LEGACY_BENIGN_DANGLING.test(text.trim())
 }
