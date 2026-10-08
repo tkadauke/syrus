@@ -166,7 +166,12 @@ RSpec.describe IngestionClassifier do
     expect(job.state).to eq("queued")
   end
 
-  it "leaves incompatible host requests in triage for an operator decision" do
+  # Naming several platforms used to strand the Job in triage, because
+  # placement was inferred from the issue text and two keyword lists matched.
+  # The text is not read for placement any more, so an issue mentioning
+  # platforms is ordinary work: it queues on the Linux default, and a Job that
+  # truly needs another host gets `planned_execution` from the classifier.
+  it "queues an issue naming several platforms on the default host" do
     job = Job.create!(
       user: user,
       repository: repository,
@@ -181,10 +186,8 @@ RSpec.describe IngestionClassifier do
       "planned_execution" => nil
     })
 
-    expect(job.reload).to be_triaging
-    expect(job.triaging_reason).to eq("classifier_uncertain")
-    expect(job.triaging_uncertainty_reason).to include("mutually incompatible")
-    expect(job.runs).to be_empty
+    expect(job.reload).not_to be_triaging
+    expect(job.planned_execution_capabilities).to eq("os" => [ "linux" ])
   end
 
   it "marks classifier failures as uncertain without queueing the job" do

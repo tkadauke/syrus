@@ -128,8 +128,6 @@ class IngestionClassifier
       end
     requirement.assign_to(job)
     job.save! if job.planned_execution_changed?
-  rescue PlannedExecutionPlanner::AmbiguousRequest => e
-    raise e
   rescue StandardError => e
     Rails.logger.warn("[IngestionClassifier] planned execution classification failed for #{job.slug}: #{e.class}: #{e.message}")
     PlannedExecutionPlanner.for_job(job).assign_to(job)

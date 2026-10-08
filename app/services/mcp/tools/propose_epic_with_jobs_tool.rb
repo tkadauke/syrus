@@ -72,11 +72,19 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
-      Set jobs[].planned_execution only when you need to explicitly choose
-      the primary implementation placement. Only the os dimension is
-      supported: use {"os":["linux"]} for normal Linux/backend/web work or
-      {"os":["macos"]} for iOS/Xcode work. Omit it for conservative automatic
-      inference from the child Job text and repository capability metadata.
+      Set jobs[].planned_execution to declare where each child has to run.
+      Nothing reads the child Job text to guess this, so if a child needs a
+      host other than Linux you must say so here. Only the os dimension is
+      supported: {"os":["linux"]} for normal backend/web/frontend work,
+      {"os":["macos"]} for work that genuinely needs a Mac, such as Xcode
+      builds or iOS simulators. Mentioning a platform in a description does
+      nothing -- including saying a platform is out of scope.
+      jobs[].planned_execution.capabilities is REQUIRED on every child. A batch
+      where any child omits it, or passes empty capabilities, is rejected
+      before the cards are created -- choose each child's placement yourself
+      rather than leaving it to be guessed. Do not request macos
+      speculatively: a Job planned for a host no worker advertises cannot
+      start at all.
       epic.description and jobs[].description are stored and rendered as
       Markdown after JSON decoding of this tool call, so write them as plain
       Markdown prose: real newline characters between paragraphs, lists, and
@@ -205,7 +213,7 @@ module Mcp::Tools
         Mcp::Tools.success(payload_for(proposal.reload))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
-      rescue PlannedExecutionPlanner::AmbiguousRequest, ArgumentError => e
+      rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       end
 
@@ -261,18 +269,16 @@ module Mcp::Tools
         }
       end
 
-      def planned_execution_attributes(repository, job)
+      # Each child declares where it runs. There is no fallback: this used to
+      # build a probe Job and let PlannedExecutionPlanner guess from the
+      # child's title and description, which planned ordinary work for a macOS
+      # host no worker advertises, so the Job could never start. Returning a
+      # String signals an invalid request, matching this tool's convention.
+      def planned_execution_attributes(_repository, job)
         explicit = PlannedExecutionParams.from_params({ "planned_execution" => job[:planned_execution] }.compact)
         return explicit if explicit.present?
 
-        probe = repository.user.jobs.new(repository: repository, issue_title: job[:title], issue_body: job[:description])
-        requirement = PlannedExecutionPlanner.for_job(probe)
-        {
-          planned_execution_project_label: requirement.project_label,
-          planned_execution_target_label: requirement.target_label,
-          planned_execution_capabilities: requirement.capabilities,
-          planned_execution_source: requirement.source
-        }
+        Mcp::Tools::ProposeJobTool::REQUIRED_PLACEMENT_MESSAGE
       end
 
       def normalize_string_list(value)

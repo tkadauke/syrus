@@ -28,8 +28,8 @@ module Prompts
         - For backend-only work, leave planned_execution null so Syrus uses default Linux compute.
         - For iOS, mobile Apple, or Xcode-targeted work, set planned_execution capabilities to {"os":["macos"]}.
         - For mixed iOS and backend work, choose macos as the primary implementation placement; backend graders can run elsewhere later.
-        - For Windows-targeted work, leave planned_execution null unless an operator explicitly selects linux or macos as the primary host.
-        - If the issue appears to require mutually incompatible primary hosts, leave planned_execution null and return no invalid classification; the Job will remain in triage for an operator to split or select a primary host.
+        - Only os is supported, with values linux and macos. There is no Windows value; leave planned_execution null for Windows-targeted work so it takes the Linux default.
+        - An issue naming several platforms is not a conflict: nothing reads the issue text to pick a host, so either name the host the implementation needs or leave planned_execution null for the Linux default.
         - Otherwise return nulls so normal triage can continue.
 
         Evidence requirements:

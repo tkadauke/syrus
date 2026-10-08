@@ -40,20 +40,24 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "tells agents child planned execution is an optional OS-only override" do
+  it "tells agents to declare where work runs and that the text is never read" do
     schema = described_class.input_schema_value.to_h
     child_schema = schema.fetch(:properties).fetch(:jobs).fetch(:items)
     planned_execution_schema = child_schema.fetch(:properties).fetch(:planned_execution)
 
-    expect(described_class.description_value).to include("Set jobs[].planned_execution only when")
-    expect(described_class.description_value).to include("Omit it for conservative automatic")
+    expect(described_class.description_value).to include("Nothing reads the child Job text to guess this")
+    expect(described_class.description_value).to include("including saying a platform is out of scope")
+    expect(described_class.description_value).to include("jobs[].planned_execution.capabilities is REQUIRED on every child")
     expect(child_schema.fetch(:required)).not_to include("planned_execution")
     expect(planned_execution_schema).not_to have_key(:required)
     expect(planned_execution_schema.fetch(:description)).to include("{\"os\":[\"linux\"]}")
     expect(planned_execution_schema.fetch(:description)).to include("Optional explicit")
   end
 
-  it "infers child planned execution when capabilities are omitted" do
+  # Documented contract (config/syrus_docs/chat.md): every child declares its
+  # placement before the card exists, and missing or empty capabilities are
+  # rejected rather than inferred from the child's text.
+  it "rejects a child that declares no placement" do
     response = call_tool_without_defaults(
       epic: {
         slug: "missing-placement",
@@ -71,15 +75,12 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       ]
     )
 
-    child = chat_session.proposals.find_by!(slug: "missing-child")
-    expect(response[:result][:isError]).to be_falsey
-    expect(child.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "defaulted"
-    )
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "missing-child")).to be_nil
   end
 
-  it "infers child planned execution when capabilities are empty" do
+  it "rejects a child that declares empty capabilities" do
     response = call_tool_without_defaults(
       epic: {
         slug: "empty-placement",
@@ -98,15 +99,15 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       ]
     )
 
-    child = chat_session.proposals.find_by!(slug: "empty-child")
-    expect(response[:result][:isError]).to be_falsey
-    expect(child.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "defaulted"
-    )
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "empty-child")).to be_nil
   end
 
-  it "infers planned execution for every child in a mixed batch" do
+  # One undeclared child fails the whole batch rather than being silently
+  # defaulted alongside its declared sibling: the Epic is created atomically,
+  # so a half-declared batch has no valid outcome.
+  it "rejects the whole batch when any child declares no placement" do
     response = call_tool_without_defaults(
       epic: {
         slug: "mixed-placement",
@@ -132,17 +133,10 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       ]
     )
 
-    valid_child = chat_session.proposals.find_by!(slug: "valid-child")
-    missing_child = chat_session.proposals.find_by!(slug: "missing-child")
-    expect(response[:result][:isError]).to be_falsey
-    expect(valid_child.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "operator"
-    )
-    expect(missing_child.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "defaulted"
-    )
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "valid-child")).to be_nil
+    expect(chat_session.proposals.find_by(slug: "missing-child")).to be_nil
   end
 
   it "creates one Epic proposal card with child Job rows and sibling dependencies" do

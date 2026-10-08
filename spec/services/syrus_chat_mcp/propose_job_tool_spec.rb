@@ -43,34 +43,38 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("`\\n`")
   end
 
-  it "tells agents planned execution is an optional OS-only override" do
+  it "tells agents to declare where work runs and that the text is never read" do
     schema = described_class.input_schema_value.to_h
     planned_execution_schema = schema.fetch(:properties).fetch(:planned_execution)
 
-    expect(described_class.description_value).to include("Set planned_execution to explicitly choose")
-    expect(described_class.description_value).to include("Omit it for conservative")
+    expect(described_class.description_value).to include("reads the proposal text to guess this")
+    expect(described_class.description_value).to include("including saying a platform is out of scope")
+    expect(described_class.description_value).to include("planned_execution.capabilities is REQUIRED")
     expect(schema.fetch(:required)).not_to include("planned_execution")
     expect(planned_execution_schema).not_to have_key(:required)
     expect(planned_execution_schema.fetch(:description)).to include("{\"os\":[\"linux\"]}")
     expect(planned_execution_schema.fetch(:description)).to include("Optional explicit")
   end
 
-  it "infers planned execution when capabilities are omitted" do
+  # Documented contract (config/syrus_docs/chat.md): the caller declares
+  # placement before the card exists, and missing or empty capabilities are
+  # rejected rather than inferred from the title and description. Inferring
+  # them planned ordinary work for a macOS host no worker advertises, so the
+  # Job could never start -- a phone-filed bug report matched "iphone" in a
+  # User-Agent, and a Kotlin/JVM Job matched the sentence excluding iOS.
+  it "rejects a proposal that declares no placement" do
     response = call_tool_without_defaults(
       repo: repository.slug,
       title: "Fix mobile Safari layout",
       description: "This is ordinary web frontend work."
     )
 
-    proposal = chat_session.proposals.find_by!(title: "Fix mobile Safari layout")
-    expect(response[:result][:isError]).to be_falsey
-    expect(proposal.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "defaulted"
-    )
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix mobile Safari layout")).to be_nil
   end
 
-  it "infers planned execution when capabilities are empty" do
+  it "rejects a proposal that declares empty capabilities" do
     response = call_tool_without_defaults(
       repo: repository.slug,
       title: "Fix empty capabilities",
@@ -78,12 +82,9 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       planned_execution: { capabilities: {} }
     )
 
-    proposal = chat_session.proposals.find_by!(title: "Fix empty capabilities")
-    expect(response[:result][:isError]).to be_falsey
-    expect(proposal.planned_execution_json).to include(
-      "capabilities" => { "os" => [ "linux" ] },
-      "source" => "defaulted"
-    )
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix empty capabilities")).to be_nil
   end
 
   it "normalizes literal backslash-n sequences in the description into real line breaks" do

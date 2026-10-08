@@ -4,6 +4,13 @@ module Mcp::Tools
   class ProposeJobTool < MCP::Tool
     extend ProposalToolSupport
 
+    REQUIRED_PLACEMENT_MESSAGE = <<~MSG.squish.freeze
+      planned_execution.capabilities is required: declare where the work runs, for
+      example {"os":["linux"]} for backend/web/frontend work or {"os":["macos"]}
+      for work that genuinely needs a Mac. It is never inferred from the title or
+      description.
+    MSG
+
     tool_name "propose_job"
 
     description <<~DESC
@@ -64,11 +71,18 @@ module Mcp::Tools
       the Job inherits the repository/user default provider at confirmation
       time. Unknown provider values are rejected before the proposal card is
       created.
-      Set planned_execution to explicitly choose the primary implementation
-      placement when the request is ambiguous, such as os:macos for iOS
-      work. Omit it for conservative
-      automatic inference from the proposal text and repository capability
-      metadata.
+      Set planned_execution to declare where the work has to run. Nothing
+      reads the proposal text to guess this, so if the work needs a host other
+      than Linux you must say so here. Only the os dimension is supported:
+      {"os":["linux"]} for normal backend/web/frontend work, {"os":["macos"]}
+      for work that genuinely needs a Mac, such as Xcode builds or iOS
+      simulators. Mentioning a platform in the description does nothing --
+      including saying a platform is out of scope.
+      planned_execution.capabilities is REQUIRED. A proposal that omits it, or
+      passes empty capabilities, is rejected before the card is created --
+      choose the placement yourself rather than leaving it to be guessed. Do
+      not request macos speculatively: a Job planned for a host no worker
+      advertises cannot start at all.
     DESC
 
     input_schema(
@@ -118,7 +132,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("description is required") if description.empty?
         provider_setting, provider_error = normalize_provider_setting(provider)
         return Mcp::Tools.invalid(provider_error) if provider_error
-        planned_execution_attrs = planned_execution_attributes(repository, title, description, planned_execution)
+        planned_execution_attrs = planned_execution_attributes(planned_execution)
+        return Mcp::Tools.invalid(planned_execution_attrs) if planned_execution_attrs.is_a?(String)
         goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
         return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
@@ -184,24 +199,22 @@ module Mcp::Tools
         Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
-      rescue PlannedExecutionPlanner::AmbiguousRequest, ArgumentError => e
+      rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       end
 
       private
 
-      def planned_execution_attributes(repository, title, description, planned_execution)
+      # The caller declares where the work runs. There is no fallback: this
+      # used to build a probe Job and let PlannedExecutionPlanner guess from
+      # the title and description, which planned ordinary work for a macOS
+      # host no worker advertises, so the Job could never start. Returning a
+      # String signals an invalid request to #call.
+      def planned_execution_attributes(planned_execution)
         explicit = PlannedExecutionParams.from_params({ "planned_execution" => planned_execution }.compact)
         return explicit if explicit.present?
 
-        probe = repository.user.jobs.new(repository: repository, issue_title: title, issue_body: description)
-        requirement = PlannedExecutionPlanner.for_job(probe)
-        {
-          planned_execution_project_label: requirement.project_label,
-          planned_execution_target_label: requirement.target_label,
-          planned_execution_capabilities: requirement.capabilities,
-          planned_execution_source: requirement.source
-        }
+        REQUIRED_PLACEMENT_MESSAGE
       end
 
       def goal_provenance_attributes(chat_session, for_active_goal)

@@ -98,16 +98,17 @@ the placement was inferred, explicitly requested, or defaulted. Each Workflow
 snapshots that plan when it is created, so later `.syrus.yml` edits do not move
 work that is already in flight. Jobs without a stored plan use the ordinary
 Linux/default execution class. Direct Job API calls and chat proposal cards can
-set an explicit planned execution override; otherwise Syrus infers
-conservatively from the request and repository capability metadata. Backend-only
-work stays on default/Linux compute, iOS/mobile/Xcode work uses macOS, and
-mixed iOS plus backend work should use macOS for the primary implementation
-placement while backend graders fan out separately later. Windows has no
-capability value today; Windows-targeted work stays defaulted unless an
-operator explicitly chooses Linux or macOS as the primary host. If a single Job
-looks like it needs mutually incompatible primary hosts, Syrus asks for a split
-or an explicit primary host instead of guessing. Missing capability metadata is
-a warning rather than a blocker.
+set an explicit planned execution requirement, and the chat proposal tools
+require one. Capabilities are declared, never guessed from the request text: a
+Job created without them runs on the repository's `.syrus.yml` project
+capabilities when it declares any, and the ordinary Linux default otherwise.
+Only the `os` dimension is supported, with values `linux` and `macos`.
+
+Because nothing is inferred from a Job's wording, mentioning a platform in a
+title or description does not move the work — including saying that a platform
+is out of scope. Ask for `macos` only when the work genuinely needs a Mac, such
+as an Xcode build or an iOS simulator; a Job planned for a host no worker
+advertises cannot start at all.
 
 Workers advertise their available host capabilities separately from repository
 requirements. Each worker heartbeat includes only the supported `os`

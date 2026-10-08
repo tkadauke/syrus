@@ -101,7 +101,12 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("error", "message")).to include("planned execution capabilities must be a Hash")
   end
 
-  it "rejects ambiguous direct Jobs without an explicit primary placement" do
+  # This used to be rejected as "mutually incompatible", because placement was
+  # inferred by matching the prompt against platform keyword lists and this
+  # prompt matched two of them. Nothing reads the prompt now, so there is no
+  # conflict to detect and no reason to refuse the Job: it is created and runs
+  # on the Linux default until someone declares otherwise.
+  it "creates a direct Job on the default host however many platforms its prompt names" do
     sign_in_as(user)
 
     post "/api/v1/app/jobs", params: {
@@ -110,8 +115,10 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
       prompt: "Update the Xcode project and the Windows MSBuild installer."
     }
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("mutually incompatible")
+    expect(response).to have_http_status(:created)
+    job = Job.order(:id).last
+    expect(job.planned_execution_capabilities).to eq("os" => [ "linux" ])
+    expect(job.planned_execution_source).to eq("defaulted")
   end
 
   it "returns the direct job form options for the signed-in user" do

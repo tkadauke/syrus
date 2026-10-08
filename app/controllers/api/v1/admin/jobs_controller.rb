@@ -154,8 +154,6 @@ module Api
             message: I18n.t("api.direct_jobs.created"),
             job: serialize(job.reload)
           }, status: :created
-        rescue PlannedExecutionPlanner::AmbiguousRequest => e
-          render_error("validation_failed", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ArgumentError => e

@@ -395,16 +395,20 @@ module Prompts
             `planned_execution.capabilities: { "os": ["macos"] }`.
           - Mixed iOS plus backend work still uses macOS as the primary
             placement; backend graders can fan out later.
-          - Windows-targeted work has no supported Windows capability value;
-            omit `planned_execution` unless the operator chooses Linux or
-            macOS as the primary implementation host.
-          - If one Job appears to require mutually incompatible primary hosts
-            (for example iOS/Xcode and Windows), recommend splitting it or set
-            an explicit primary host only if the operator tells you which one
-            should own the implementation.
+          - Only `os` is supported, with values `linux` and `macos`. There is
+            no Windows value: Windows-targeted work still has to declare one
+            of the two, so ask the operator which host should own it.
+          - A Job naming several platforms is not a conflict to resolve.
+            Nothing reads the title or description to pick a host, so choose
+            the one the implementation actually needs and say so.
 
-        Missing repository capability metadata is a warning, not a blocker:
-        infer from the request when clear, otherwise use `{ "os": ["linux"] }`.
+        Never omit `planned_execution.capabilities` and never pass empty
+        capabilities: the proposal is rejected rather than defaulted. When the
+        repository declares nothing useful and the request does not need a Mac,
+        `{ "os": ["linux"] }` is the right answer. Ask for `macos` only when
+        the work genuinely needs one, such as an Xcode build or an iOS
+        simulator -- no worker advertises macOS today, so a Job planned for it
+        cannot start at all.
       TEXT
     end
 

@@ -359,17 +359,24 @@ Job-level setting.
 Planned execution capabilities are selected before the initial Workflow starts.
 Direct Job APIs and chat proposal tools accept an explicit planned execution
 override with `project_label`, `target_label`, `capabilities`, and `source`;
-operator-provided overrides are recorded with source `operator`. When no
-override is present, Syrus infers conservatively from the request and
-repository target graph capability metadata: backend-only work remains on
-default/Linux compute, iOS/mobile/Xcode work uses macOS, and mixed iOS/backend
-work uses macOS as the primary implementation placement. Windows has no
-capability value today; Windows-targeted work stays defaulted unless an
-operator explicitly chooses Linux or macOS as the primary host. If one Job
-appears to require mutually incompatible primary
-hosts, intake stays in triage or the API/proposal call asks the operator to
-split the work or select a primary host. Missing repository capability metadata
-is logged and treated as a warning, not a blocker.
+operator-provided overrides are recorded with source `operator`. Capabilities
+are **declared, never inferred from the request text**. The chat proposal
+tools require them (`propose_job` and every child of
+`propose_epic_with_jobs`) and reject a call that omits them or passes empty
+capabilities. Direct Job APIs accept them, and a Job created without them runs
+on the repository's `.syrus.yml` project capabilities when it declares any and
+the Linux default otherwise.
+
+Only the `os` dimension is supported, with values `linux` and `macos`.
+
+Syrus does not read a Job's title or body to choose a host. It did once, by
+matching platform keywords, and that could not be made to work: a bug report
+filed from a phone matched `iphone` inside its User-Agent, and a Kotlin/JVM Job
+matched the sentence saying iOS was *"intentionally out of scope"*. Both were
+planned for macOS, which no worker advertises, so each blocked on
+`no_capable_worker` and retried indefinitely. Because nothing is guessed, there
+is also no "mutually incompatible hosts" case to resolve: a request naming
+several platforms is ordinary work on the declared or default host.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
