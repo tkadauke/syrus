@@ -7,10 +7,16 @@ module Java
     DEFAULT_TIMEOUT_MINUTES = 20
     DEFAULT_CHANGED_FILES = [
       "**/*.java",
+      "**/*.kt",
+      "**/*.kts",
       "src/main/java/**/*",
       "**/src/main/java/**/*",
+      "src/main/kotlin/**/*",
+      "**/src/main/kotlin/**/*",
       "src/test/java/**/*",
       "**/src/test/java/**/*",
+      "src/test/kotlin/**/*",
+      "**/src/test/kotlin/**/*",
       "src/main/resources/**/*",
       "**/src/main/resources/**/*",
       "src/test/resources/**/*",

@@ -82,7 +82,7 @@ class RepoPrepPlan
     if matches.empty?
       Result.new(commands: [], source: "auto-detect", note: "no recognized signals — skipping")
     else
-      commands = matches.flat_map { |_label, cmds| cmds }
+      commands = matches.flat_map { |_label, cmds| cmds }.uniq
       labels = matches.map(&:first)
       Result.new(commands: commands, source: "auto-detect (#{labels.join(', ')})", note: nil)
     end
