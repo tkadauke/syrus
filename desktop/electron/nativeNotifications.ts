@@ -29,7 +29,8 @@ const KIND_LABELS: Record<string, string> = {
   pull_request_failed: "PR failed",
   pull_request_merged: "PR merged",
   pull_request_opened: "PR ready for review",
-  pull_request_ready_for_review: "PR ready for review"
+  pull_request_ready_for_review: "PR ready for review",
+  investigation_escalated: "Investigation escalated"
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -24,7 +24,8 @@ const notificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; lab
   { kind: "pr_comment_addressed", labelKey: "notifications.pref_pr_comment_addressed" },
   { kind: "pr_merged", labelKey: "notifications.pref_pr_merged" },
   { kind: "epic_completed", labelKey: "notifications.pref_epic_completed" },
-  { kind: "main_inconclusive", labelKey: "notifications.pref_main_inconclusive" }
+  { kind: "main_inconclusive", labelKey: "notifications.pref_main_inconclusive" },
+  { kind: "investigation_escalated", labelKey: "notifications.pref_investigation_escalated" }
 ]
 
 export function NotificationsSettingsRoute() {

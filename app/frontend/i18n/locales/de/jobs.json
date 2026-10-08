@@ -158,6 +158,13 @@
   "report_untitled": "Bericht ohne Titel",
   "report_not_submitted": "Noch kein Bericht übermittelt.",
   "report_findings": "Befunde",
+  "report_escalated": "Eskalierte Untersuchung",
+  "report_escalation_reason": {
+    "needs_human_decision": "Benötigt eine menschliche Entscheidung",
+    "lacks_authority": "Keine ausreichende Berechtigung",
+    "remediation_failed": "Behebung fehlgeschlagen",
+    "unsafe_to_proceed": "Fortfahren ist unsicher"
+  },
   "section_no_runs": "Keine Läufe für diesen Schritt.",
   "section_no_dependencies": "Keine Abhängigkeiten.",
   "artifact_erd_primary_key": "PK",
@@ -745,6 +752,7 @@
   "attention_reason_fallback": "Erfordert Aufmerksamkeit: {{reason}}",
   "attention_fork_pr_closed": "Der Fork-Review-PR wurde geschlossen, ohne zusammengeführt zu werden.",
   "attention_fork_pr_changes_requested": "Ein Reviewer hat Änderungen am Fork-Review-PR angefordert. Der Upstream-PR wird erst erstellt, wenn alle offenen Review-Anfragen aufgelöst sind (genehmigt oder verworfen).",
+  "attention_investigation_escalated": "Die Untersuchung wurde eskaliert und erfordert Aufmerksamkeit.",
   "attention_upstream_pr_closed": "Der Upstream-PR wurde geschlossen, ohne zusammengeführt zu werden.",
   "attention_upstream_pr_changes_requested": "Ein Reviewer hat Änderungen am Upstream-PR angefordert. Auto-Merge ist pausiert, bis das Review aufgelöst ist (genehmigt oder verworfen).",
   "grace_expired": "Die Nachfrist ist abgelaufen.",
