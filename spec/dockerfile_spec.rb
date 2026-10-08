@@ -50,7 +50,7 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include("poetry==${POETRY_VERSION}")
     expect(stage).to include("uv==${UV_VERSION}")
     expect(stage).to include("ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry")
-    expect(stage).to include("PATH=\"/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
+    expect(stage).to include("/opt/python-tools/bin:/opt/mise/shims:${PATH}")
   end
 
   it "pins a Codex CLI version with current model metadata support" do
@@ -139,10 +139,35 @@ RSpec.describe "Dockerfile" do
     expect(runtime_stage).to include("/usr/local/bin/mise use --global go@$MISE_GO_VERSION")
     expect(runtime_stage).to include("/usr/local/bin/mise reshim go")
     expect(worker_deps).to include("ARG MISE_GO_VERSION=\"1.26.5\"")
-    expect(worker_deps).to include("PATH=\"/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
+    expect(worker_deps).to include("/opt/python-tools/bin:/opt/mise/shims:${PATH}")
     expect(worker_deps).to include("MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml")
     expect(worker_deps).to include("SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}")
     expect(worker_dev).to include("RUN go version")
+  end
+
+  it "installs a pinned Android SDK baseline only in the worker image" do
+    stage = worker_deps_stage
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902")
+    expect(stage).to include("ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583")
+    expect(stage).to include("ARG ANDROID_PLATFORM_VERSION=android-36")
+    expect(stage).to include("ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0")
+    expect(stage).to include("ANDROID_SDK_ROOT=/opt/android-sdk")
+    expect(stage).to include("ANDROID_HOME=/opt/android-sdk")
+    expect(stage).to include("wget unzip openssh-client")
+    expect(stage).to include("commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip")
+    expect(stage).to include('echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${cmdline_zip}" | sha256sum -c -')
+    expect(stage).to include('mv /tmp/android-cmdline-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest"')
+    expect(stage).to include('yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses')
+    expect(stage).to include('"platform-tools"')
+    expect(stage).to include('"emulator"')
+    expect(stage).to include('"platforms;${ANDROID_PLATFORM_VERSION}"')
+    expect(stage).to include('"build-tools;${ANDROID_BUILD_TOOLS_VERSION}"')
+    expect(stage).to include('${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator')
+
+    expect(app_stage).not_to include("ANDROID_SDK_ROOT")
+    expect(app_stage).not_to include("sdkmanager")
   end
 
   it "fails worker image builds when native compilation is unavailable as the rails user" do
