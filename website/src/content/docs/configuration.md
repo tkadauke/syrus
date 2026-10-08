@@ -104,6 +104,17 @@ Job created without them runs on the repository's `.syrus.yml` project
 capabilities when it declares any, and the ordinary Linux default otherwise.
 Only the `os` dimension is supported, with values `linux` and `macos`.
 
+For iOS repositories, model the app as a project with `capabilities.os: macos`
+and put `xcodebuild` details in the target or grader command: explicit
+workspace or project, scheme, simulator destination, isolated DerivedData,
+result bundle and optional JUnit paths, plus no-signing settings for simulator
+tests. Do not add `arch`, `toolchain`, or `runtime` capability keys; workers
+advertise macOS placement separately from Xcode and simulator diagnostics.
+When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
+needs Xcode feedback, set primary planned execution to
+`{"capabilities":{"os":["macos"]}}`; backend graders can still declare
+`capabilities.os: linux` and run on Linux workers later.
+
 Because nothing is inferred from a Job's wording, mentioning a platform in a
 title or description does not move the work — including saying that a platform
 is out of scope. Ask for `macos` only when the work genuinely needs a Mac, such

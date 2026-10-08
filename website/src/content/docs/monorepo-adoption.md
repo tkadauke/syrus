@@ -205,13 +205,40 @@ iOS:
 
 ```yaml
 # apps/ios/.syrus.yml
+project:
+  id: ios
+  label: iOS App
+  kind: ios_app
+  capabilities:
+    os: macos
+
+targets:
+  - name: app-sources
+    kind: application
+    sources:
+      - "App/**/*.swift"
+      - "Packages/**/*.swift"
+      - "MobileApp.xcodeproj/**"
+      - "MobileApp.xcworkspace/**"
+
 grade:
   # Graph declaration for this project. Keep the executable xcodebuild wrapper
   # in root validation until nested grader execution lands.
   - name: swift-tests
-    run: xcodebuild test -scheme MobileApp -destination 'platform=iOS Simulator,name=iPhone 15'
+    run: >
+      xcodebuild test
+      -workspace MobileApp.xcworkspace
+      -scheme MobileApp
+      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+      -derivedDataPath "$PWD/.syrus/DerivedData"
+      -resultBundlePath "$PWD/build/syrus/MobileApp.xcresult"
+      CODE_SIGNING_ALLOWED=NO
+      CODE_SIGNING_REQUIRED=NO
+    deps: [":app-sources"]
     phases: [landing, ci]
     timeout_minutes: 30
+    capabilities:
+      os: macos
 
 coverage:
   sources:
@@ -250,11 +277,34 @@ grade:
   - name: android-unit-tests
     run: ./gradlew :apps:android:testDebugUnitTest
     when_files_changed: ["apps/android/**"]
+  - name: ios-tests
+    run: >
+      xcodebuild test
+      -workspace apps/ios/MobileApp.xcworkspace
+      -scheme MobileApp
+      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+      -derivedDataPath "$PWD/.syrus/DerivedData/ios"
+      -resultBundlePath "$PWD/build/syrus/ios/MobileApp.xcresult"
+      CODE_SIGNING_ALLOWED=NO
+      CODE_SIGNING_REQUIRED=NO
+    when_files_changed: ["apps/ios/**"]
+    phases: [landing, ci]
+    timeout_minutes: 45
+    capabilities:
+      os: macos
 ```
 
 Stay at Level 1 when directory scoping and legacy commands are clear enough.
 Many medium monorepos never need explicit targets, and they should not move
 validation out of the root plan until Syrus executes nested graders directly.
+
+For iOS, declare only `capabilities.os: macos`. Syrus does not accept
+`arch`, `toolchain`, or `runtime` capability dimensions; Xcode, simulator,
+workspace/project, scheme, destination, no-signing, DerivedData, result bundle,
+and JUnit output choices belong in the command or wrapper script. Mac worker
+readiness checks cover Xcode license acceptance and installed simulator
+runtimes, while Keychain and signing access remain host policy for the launchd
+worker user.
 
 ## Operator Checklist
 

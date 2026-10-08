@@ -723,10 +723,11 @@ validation are unchanged.
 `propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
 every child Job. Callers must choose explicit execution capabilities before the
 proposal card is created, for example `{"os":["linux"]}` for normal
-Linux/backend/web work, `{"os":["macos"],"toolchains":["xcode"]}` for iOS/Xcode
-work, or `{"os":["windows"],"arch":["x64"]}` for Windows work. Missing or empty
-capabilities are rejected instead of being inferred from proposal title/body
-text.
+Linux/backend/web work or `{"os":["macos"]}` for iOS/Xcode work. Only the `os`
+dimension is supported, with values `linux` and `macos`; architecture,
+toolchain, runtime, Windows, and free-form dimensions are rejected. Missing or
+empty capabilities are rejected instead of being inferred from proposal
+title/body text.
 
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
