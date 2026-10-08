@@ -44,7 +44,11 @@ module Mcp::Tools
 
         workflow = run.workflow
         iterations = Array(workflow.artifact("visual_review_iterations"))
-        artifacts = visual_artifacts_for_run(workflow, run)
+        artifact_evidence = visual_artifacts_for_run(workflow, run)
+        evidence = VisualReviewEvidenceGuard.validate_approval(run: run, verdict: normalized_verdict, artifacts: artifact_evidence)
+        return Mcp::Tools.invalid(evidence.reason) if evidence.rejected?
+
+        artifacts = artifact_evidence.map { |artifact| artifact.except("text") }
         iterations << {
           "iteration" => run.step.iteration,
           "step_id" => run.step_id,
@@ -87,8 +91,11 @@ module Mcp::Tools
             "image_url" => payload["image_url"],
             "content_type" => payload["content_type"],
             "byte_size" => payload["byte_size"],
+            "page" => payload["page"],
+            "source" => payload["source"],
+            "text" => payload["text"] || payload["dom_text"] || payload["body_text"],
             "created_at" => entry["created_at"]
-          }
+          }.compact
         end
       end
     end
