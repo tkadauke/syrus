@@ -42,8 +42,10 @@ RSpec.describe SyrusMcp::ListArtifactsTool do
       byte_size: png_bytes.bytesize,
       run_id: run.id,
       step_id: run.step_id,
-      iteration: run.step.iteration
+      iteration: run.step.iteration,
+      source: "base64"
     )
+    expect(artifacts.first[:captured_at]).to be_present
     expect(artifacts.first[:type]).to match(/\Avisual_review_screenshot_run_#{run.id}_1\z/)
     expect(artifacts.first[:image_url]).to eq(
       "/api/v1/app/workflows/#{run.workflow_id}/visual_artifact?type=#{artifacts.first[:type]}"
@@ -69,7 +71,11 @@ RSpec.describe SyrusMcp::ListArtifactsTool do
       run_id: run.id,
       step_id: run.step_id,
       iteration: nil,
-      image_url: nil
+      image_url: nil,
+      source: nil,
+      captured_at: nil,
+      page: nil,
+      viewport: nil
     } ])
   end
 

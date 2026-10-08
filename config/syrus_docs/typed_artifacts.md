@@ -47,19 +47,20 @@ The tool validates that `type` and `title` are non-empty and that `payload` is a
 
 ## MCP tool: `submit_visual_artifact` (workflow surface)
 
-Image-capable sibling of `submit_artifact`, for screenshots and other images. Same role availability (implement, summary_test_plan, rebase_conflict, manual). Prefer `image_path` when the image already exists in the workflow workspace, such as the file path returned by `browser_screenshot`; use `image_base64` only when the bytes are already in memory.
+Image-capable sibling of `submit_artifact`, for screenshots and other images. Same role availability (implement, summary_test_plan, rebase_conflict, manual). For visual review screenshots, prefer `capture_current_browser: true` so Syrus captures from the current authenticated MCP browser session and stamps page provenance. Omitting `capture_current_browser`, `image_path`, and `image_base64` also captures the current browser, preserving compatibility with agents that have an older cached tool schema. Use `image_path` when the image already exists in the workflow workspace; use `image_base64` only when the bytes are already in memory.
 
-| Parameter      | Type   | Required | Description                                                          |
-|----------------|--------|----------|------------------------------------------------------------------------|
-| `type`         | string | yes      | Artifact type identifier (non-empty)                                  |
-| `title`        | string | yes      | Human-readable title (non-empty)                                      |
-| `image_path`   | string | no       | Path to an image file inside the workflow workspace, relative to the workspace root or absolute within it |
-| `image_base64` | string | no       | Base64-encoded image bytes, no `data:` URI prefix                     |
-| `content_type` | string | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults from `image_path` extension, else `image/png` |
+| Parameter                 | Type    | Required | Description                                                          |
+|---------------------------|---------|----------|------------------------------------------------------------------------|
+| `type`                    | string  | yes      | Artifact type identifier (non-empty)                                  |
+| `title`                   | string  | yes      | Human-readable title (non-empty)                                      |
+| `capture_current_browser` | boolean | no       | Capture the current authenticated MCP browser page directly; this is also the default when all image inputs are omitted |
+| `image_path`              | string  | no       | Path to an image file inside the workflow workspace, relative to the workspace root or absolute within it |
+| `image_base64`            | string  | no       | Base64-encoded image bytes, no `data:` URI prefix                     |
+| `content_type`            | string  | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults from the captured image, from `image_path` extension, or to `image/png` |
 
-Provide exactly one of `image_path` or `image_base64`. Agent-supplied file paths are resolved inside the workflow workspace and rejected if they point outside it.
+Provide at most one of `capture_current_browser`, `image_path`, or `image_base64`; omitting all three captures the current browser. Agent-supplied file paths are resolved inside the workflow workspace and rejected if they point outside it.
 
-Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
+Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
 
 If the configured ActiveStorage backend is temporarily unreachable while serving that `image_url` (for example a transient MinIO connection refusal in the k3s service path), the app API returns `503` JSON with `error.code = "storage_unavailable"` and a short `Retry-After` header instead of raising a 500. The admin overview includes an "Artifact storage" tile backed by the same ActiveStorage probe so operators can distinguish a storage/backend outage from a broken workflow artifact.
 
@@ -67,7 +68,7 @@ If the configured ActiveStorage backend is temporarily unreachable while serving
 
 Read-only companions to `submit_artifact`/`submit_visual_artifact`, for an agent that needs to discover or actually see a previously submitted artifact — the only prior consumer was the human-facing `visual_artifact` HTTP endpoint and its React viewer. Same role availability as `submit_visual_artifact` (implement, summary_test_plan, rebase_conflict, manual, visual_reviewer).
 
-`list_artifacts` takes a `workflow_id` (integer, required) and returns each `typed_artifacts` entry as `{ type, title, content_type, byte_size, run_id, step_id, iteration, image_url }` — `content_type`/`byte_size`/`iteration`/`image_url` come from the entry's `payload` and are only populated for image entries written by `submit_visual_artifact`. Use this first to find the `type` key an entry was actually stored under, since `submit_visual_artifact` rewrites the caller-supplied `type` into a run-scoped stored type (e.g. `visual_review_screenshot_run_44_1`).
+`list_artifacts` takes a `workflow_id` (integer, required) and returns each `typed_artifacts` entry as `{ type, title, content_type, byte_size, run_id, step_id, iteration, image_url, source, captured_at, page, viewport }` — image fields and provenance come from the entry's `payload` and are only populated when they were available at submission time. Use this first to find the `type` key an entry was actually stored under, since `submit_visual_artifact` rewrites the caller-supplied `type` into a run-scoped stored type (e.g. `visual_review_screenshot_run_44_1`).
 
 `read_artifact` takes `workflow_id` and `type` (both required) and returns the stored image (looked up via `Workflow#visual_artifact_for(type)`) as an MCP image content block — the same mechanism `browser_screenshot` already uses to hand an agent real image bytes it can see mid-turn, not a metadata-only echo. It only succeeds for artifacts with an attached ActiveStorage blob (i.e. ones written by `submit_visual_artifact`); a `type` written only by `submit_artifact` has no image to read.
 
@@ -176,7 +177,19 @@ Rendered as a single after screenshot (`:image_diff` renderer). Payload written 
 {
   "content_type": "image/png",
   "byte_size": 48213,
-  "image_url": "/api/v1/app/workflows/123/visual_artifact?type=visual_review_screenshot"
+  "source": "current_browser",
+  "captured_at": "2026-10-08T15:04:05.123Z",
+  "image_url": "/api/v1/app/workflows/123/visual_artifact?type=visual_review_screenshot",
+  "page": {
+    "url": "http://127.0.0.1:3000/credential_store",
+    "path": "/credential_store",
+    "title": "Credential store"
+  },
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "device_scale_factor": 1
+  }
 }
 ```
 

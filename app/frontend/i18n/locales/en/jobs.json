@@ -166,6 +166,11 @@
   "artifact_diff_before": "Before",
   "artifact_diff_after": "After",
   "artifact_image_alt": "Screenshot",
+  "artifact_provenance_path": "Path",
+  "artifact_provenance_title": "Page title",
+  "artifact_provenance_viewport": "Viewport",
+  "artifact_provenance_source": "Source",
+  "artifact_provenance_captured_at": "Captured",
   "merge_train_phase": {
     "assembling": "Epic merge train assembling",
     "reconciling": "Epic merge train reconciling",

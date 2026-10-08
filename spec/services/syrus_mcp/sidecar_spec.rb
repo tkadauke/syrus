@@ -1,4 +1,5 @@
 require "rails_helper"
+require "base64"
 
 # These specs build the same MCP::Server the sidecar does, but feed
 # JSON-RPC frames directly through Server#handle_json instead of going
@@ -95,6 +96,18 @@ RSpec.describe Mcp::Sidecar do
       expect(tool[:description]).to include("read-only")
       expect(tool[:inputSchema][:properties].keys).to eq([ :detail ])
     end
+
+    it "advertises current-browser capture on submit_visual_artifact" do
+      _ = jsonrpc(server_for(run), "initialize", id: 0)
+      response = jsonrpc(server_for(run), "tools/list", id: 1)
+      tool = response[:result][:tools].find { |candidate| candidate[:name] == "submit_visual_artifact" }
+
+      expect(tool.dig(:inputSchema, :properties, :capture_current_browser)).to include(
+        type: "boolean",
+        description: a_string_including("current authenticated MCP browser")
+      )
+      expect(tool.dig(:inputSchema, :required)).to contain_exactly("type", "title")
+    end
   end
 
   describe "tools/call read_live_state" do
@@ -110,6 +123,66 @@ RSpec.describe Mcp::Sidecar do
       expect(payload.dig("run", "id")).to eq(run.id)
       expect(payload).to include("workflow", "queue", "chat")
       expect(payload.dig("links", "api_job")).to eq("/api/v1/admin/jobs/#{run.job_id}")
+    end
+  end
+
+  describe "tools/call submit_visual_artifact" do
+    it "captures the current browser through the JSON-RPC sidecar path when image inputs are omitted" do
+      encoded_png = Base64.strict_encode64("\x89PNG\r\n\x1a\n".b)
+      fake_tool_set = Class.new do
+        define_singleton_method(:available_for?) { |_repository| true }
+        define_singleton_method(:tool_definitions) do
+          [
+            { name: "browser_screenshot", description: "Screenshot", input_schema: {} },
+            { name: "browser_evaluate", description: "Evaluate", input_schema: {} }
+          ]
+        end
+
+        define_method(:handle) do |tool_name, params, server_context|
+          raise "wrong run context" unless server_context[:run].present?
+
+          case tool_name
+          when "browser_screenshot"
+            MCP::Tool::Response.new([ { type: "image", data: encoded_png, mimeType: "image/png" } ])
+          when "browser_evaluate"
+            raise "wrong evaluate function" unless params.fetch("function").include?("window.location.href")
+
+            MCP::Tool::Response.new([
+              {
+                type: "text",
+                text: <<~TEXT
+                  ### Result
+                  {"url":"http://127.0.0.1:3000/credential_store","path":"/credential_store","title":"Credential store","viewport":{"width":1440,"height":900,"deviceScaleFactor":1}}
+                  ### Ran Playwright code
+                  ```js
+                  () => ({ url: window.location.href })
+                  ```
+                TEXT
+              }
+            ])
+          else
+            MCP::Tool::Response.new([ { type: "text", text: "Error: unexpected tool" } ], error: true)
+          end
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "submit_visual_artifact",
+        arguments: {
+          type: "visual_review_screenshot",
+          title: "Credential store desktop"
+        }
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      entry = run.workflow.reload.artifact("typed_artifacts").first
+      expect(entry["payload"]).to include(
+        "source" => "current_browser",
+        "page" => include("path" => "/credential_store", "title" => "Credential store"),
+        "viewport" => include("width" => 1440, "height" => 900, "device_scale_factor" => 1)
+      )
     end
   end
 

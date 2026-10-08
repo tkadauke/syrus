@@ -42,7 +42,11 @@ module Mcp::Tools
             run_id: entry["run_id"] || payload["run_id"],
             step_id: entry["step_id"] || payload["step_id"],
             iteration: payload["iteration"],
-            image_url: payload["image_url"]
+            image_url: payload["image_url"],
+            source: payload["source"],
+            captured_at: payload["captured_at"],
+            page: payload["page"],
+            viewport: payload["viewport"]
           }
         end
       end
