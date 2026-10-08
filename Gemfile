@@ -136,6 +136,7 @@ gem "plugin_runtime", path: "plugins/plugin_runtime"
 gem "git_mirror", path: "plugins/git_mirror"
 gem "whisper_stt", path: "plugins/whisper_stt"
 gem "cognitive_review", path: "plugins/cognitive_review"
+gem "alertmanager_investigations", path: "plugins/alertmanager_investigations"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
