@@ -12,7 +12,7 @@ RSpec.describe Java::GradleGraderType do
     expect(described_class.type_name).to eq("gradle")
   end
 
-  it "expands to a wrapper-aware Gradle test grader with Java/JVM scope and JUnit metadata" do
+  it "expands to a wrapper-aware Gradle test grader with Java/Kotlin JVM scope and JUnit metadata" do
     step = described_class.grade_steps(config: {}, default_failures: "strict").first
 
     expect(step).to have_attributes(
@@ -22,7 +22,7 @@ RSpec.describe Java::GradleGraderType do
       required: true,
       timeout_minutes: 20,
       junit_output: ".syrus/grade-output/gradle-test-junit.xml",
-      when_files_changed: include("**/*.java", "build.gradle.kts", "gradlew", "pom.xml", ".mvn/**/*")
+      when_files_changed: include("**/*.java", "**/*.kt", "**/*.kts", "src/main/kotlin/**/*", "src/test/kotlin/**/*", "build.gradle.kts", "gradlew", "pom.xml", ".mvn/**/*")
     )
     expect(step.run).to include("./gradlew --no-daemon test")
     expect(step.run).to include("gradle --no-daemon test")
