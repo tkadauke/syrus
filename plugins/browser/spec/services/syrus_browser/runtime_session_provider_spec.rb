@@ -157,12 +157,57 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       expect(result[:error]).to eq("lease_required")
     end
 
-    it "reports as not yet supported once the agent holds an active input lease" do
+    it "delivers pointer input once the agent holds an active input lease" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
       RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
 
-      result = provider.input(runtime_session.id, { type: "click" })
+      result = provider.input(
+        runtime_session.id,
+        { type: "pointer", action: "click", x: 40, y: 60, normalized_x: 0.25, normalized_y: 0.5, "_runtime_control_owner" => "agent" }
+      )
 
-      expect(result[:error]).to eq("not_yet_supported")
+      expect(result[:error]).to be false
+      expect(result[:delivered]).to be true
+      expect(browser_session).to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: { "function" => include("normalized_x", "window.innerWidth", "elementFromPoint") }
+      )
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "delivers text input once the operator holds an active input lease" do
+      browser_session = instance_double(SyrusBrowser::Session, call_tool: { "result" => { "content" => [] } })
+      SyrusBrowser::SessionRegistry.session_factory = ->(_key) { browser_session }
+      RuntimeControlLease.acquire!(
+        runtime_session: runtime_session,
+        owner: "user",
+        owner_ref: "operator:#{user.id}",
+        mode: "input",
+        reason: "manual input"
+      )
+
+      result = provider.input(runtime_session.id, { type: "text", text: "hello", "_runtime_control_owner" => "user" })
+
+      expect(result[:error]).to be false
+      expect(browser_session).to have_received(:call_tool).with(name: "browser_evaluate", arguments: { "function" => include("insertText") })
+    ensure
+      SyrusBrowser::SessionRegistry.reset!
+    end
+
+    it "does not allow an agent input call while only the operator holds the lease" do
+      RuntimeControlLease.acquire!(
+        runtime_session: runtime_session,
+        owner: "user",
+        owner_ref: "operator:#{user.id}",
+        mode: "input",
+        reason: "manual input"
+      )
+
+      result = provider.input(runtime_session.id, { type: "pointer", x: 1, y: 1, "_runtime_control_owner" => "agent" })
+
+      expect(result[:error]).to eq("lease_required")
     end
   end
 

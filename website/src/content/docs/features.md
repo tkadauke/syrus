@@ -208,12 +208,14 @@ interaction never races an operator who is looking at the same session;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. This first slice covers a browser
 dev-server session, watchable from Coding Mode's right sidebar in a Runtime
-tab (once the chat has started a session): session state, the latest
-screenshot (refreshed periodically, not a live video stream, in this first
-slice), a scrolling log tail, and provider details like the dev server's URL.
-The panel also gives the operator a Take Control / Abort Agent Control button
-that immediately takes over input from the agent, and a button to capture a
-fresh screenshot on demand. Control leases are short-lived by design, but the
+tab (once the chat has started a session): session state, a generic visual
+frame viewer for providers that advertise screenshot/frame streams, latest
+captured screenshots as fallback, a scrolling log tail, and provider details
+like the dev server's URL. The panel also gives the operator a Take Control /
+Abort Agent Control button that immediately takes over input from the agent,
+lets the operator click, paste, or type into visual providers such as Browser
+while that input lease is active, and includes a button to capture a fresh
+screenshot on demand. Control leases are short-lived by design, but the
 panel renews an active operator lease automatically in the background, so
 staying on the tab keeps control without it silently expiring mid-task.
 

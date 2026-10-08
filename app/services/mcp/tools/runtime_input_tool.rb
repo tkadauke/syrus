@@ -37,7 +37,7 @@ module Mcp::Tools
         session, error = resolve_runtime_session(chat_session, session_id)
         return error if error
 
-        with_provider_call(session) { |provider| provider.input(session.id, event) }
+        with_provider_call(session) { |provider| provider.input(session.id, event.merge("_runtime_control_owner" => "agent")) }
       end
     end
   end

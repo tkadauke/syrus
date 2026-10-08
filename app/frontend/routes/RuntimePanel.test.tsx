@@ -105,7 +105,7 @@ function terminalSessionFixture(overrides: Partial<RuntimeSession> = {}): Runtim
   return sessionFixture({
     provider_key: "cli_tui",
     display_name: "Terminal",
-    capabilities: { input: [ "keyboard", "stdin", "resize" ] },
+    capabilities: { input: ["keyboard", "stdin", "resize"] },
     metadata: { terminal_session_id: 404 },
     ...overrides
   })
@@ -143,6 +143,10 @@ function agentLease(overrides: Partial<RuntimeControlLease> = {}): RuntimeContro
     cancellable: true,
     ...overrides
   }
+}
+
+function versionedFrameUrl(capturedAt: string) {
+  return `/api/v1/app/chats/8/runtime_sessions/101/frame?latest_frame_at=${encodeURIComponent(capturedAt)}`
 }
 
 function renderPanel(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
@@ -184,7 +188,7 @@ describe("RuntimePanel session detail", () => {
   it("renders the session state, provider metadata, and empty logs", async () => {
     mockFetch((url) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     renderPanel()
@@ -201,14 +205,108 @@ describe("RuntimePanel session detail", () => {
     mockFetch((url) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
       return jsonResponse({
-        runtime_sessions: [ sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:00:00Z" }) ]
+        runtime_sessions: [sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:00:00Z" })]
       })
     })
 
     renderPanel()
 
     const image = await screen.findByAltText("Latest screenshot")
-    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+    expect(image).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
+  })
+
+  it("renders a provider-neutral live visual frame for screenshot-stream sessions", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            stream_url: "/api/v1/app/chats/8/runtime_sessions/101/stream"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    const image = await screen.findByAltText("Latest screenshot")
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/stream")
+    expect(screen.getByText("Refreshing live frame...")).toBeInTheDocument()
+
+    fireEvent.load(image)
+    expect(await screen.findByText("Live frame")).toBeInTheDocument()
+  })
+
+  it("falls back to the latest captured frame when a visual stream fails", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            stream_url: "/api/v1/app/chats/8/runtime_sessions/101/stream",
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    const image = await screen.findByAltText("Latest screenshot")
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/stream")
+    fireEvent.error(image)
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
+    })
+    expect(screen.getByText(/Live frame unavailable; showing latest capture/)).toBeInTheDocument()
+  })
+
+  it("marks latest-frame fallback stale when an active visual session stops refreshing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-01-01T00:01:00Z"))
+
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            capabilities: { stream: "screenshot" },
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText(/Latest capture may be stale/)).toBeInTheDocument()
+  })
+
+  it("shows visual runtime failures without hiding the latest frame fallback", async () => {
+    mockFetch((url) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            state: "failed",
+            capabilities: { stream: "screenshot" },
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z",
+            last_error: "browser died"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
+    expect(screen.getByText("Runtime disconnected or failed.")).toBeInTheDocument()
   })
 
   it("polls and appends new log lines using the returned cursor", async () => {
@@ -217,10 +315,10 @@ describe("RuntimePanel session detail", () => {
       if (url.includes("/logs")) {
         logCalls += 1
         const cursor = new URL(url, "http://localhost").searchParams.get("cursor")
-        if (cursor === "0" || cursor === null) return jsonResponse({ entries: [ "line-1" ], cursor: 1 })
+        if (cursor === "0" || cursor === null) return jsonResponse({ entries: ["line-1"], cursor: 1 })
         return jsonResponse({ entries: [], cursor: 1 })
       }
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     renderPanel()
@@ -239,7 +337,7 @@ describe("RuntimePanel capture action", () => {
           runtime_session: sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:05:00Z" })
         })
       }
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     const client = renderPanel()
@@ -251,6 +349,177 @@ describe("RuntimePanel capture action", () => {
     expect(await screen.findByAltText("Latest screenshot")).toBeInTheDocument()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chat_media", "8"] })
   })
+
+  it("refreshes stable latest-frame URLs when capture advances latest_frame_at", async () => {
+    mockFetch((url, method) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      if (url.includes("/capture") && method === "POST") {
+        return jsonResponse({
+          runtime_session: sessionFixture({
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:05:00Z"
+          })
+        })
+      }
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
+    fireEvent.click(screen.getByRole("button", { name: "Capture" }))
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:05:00Z"))
+    })
+  })
+})
+
+describe("RuntimePanel visual input", () => {
+  function operatorLeaseFixture(overrides: Partial<RuntimeControlLease> = {}): RuntimeControlLease {
+    return {
+      id: 9,
+      owner: "user",
+      owner_ref: "operator:1",
+      mode: "input",
+      reason: "Operator took control from the Runtime panel.",
+      state: "active",
+      acquired_at: "2026-01-01T00:00:00.000Z",
+      expires_at: "2099-01-01T00:01:00.000Z",
+      cancellable: true,
+      ...overrides
+    }
+  }
+
+  it("does not send pointer input until the operator takes control", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = (init?.method || "GET").toUpperCase()
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [], cursor: 0 }))
+      if (url.includes("/input") && method === "POST") return Promise.resolve(jsonResponse({ runtime_session: sessionFixture(), result: { delivered: true } }))
+      return Promise.resolve(
+        jsonResponse({
+          runtime_sessions: [
+            sessionFixture({
+              capabilities: { stream: "screenshot", input: ["pointer", "keyboard"] },
+              latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+              latest_frame_at: "2026-01-01T00:00:00Z"
+            })
+          ]
+        })
+      )
+    })
+
+    renderPanel()
+
+    const surface = await screen.findByLabelText("Runtime visual input surface")
+    fireEvent.pointerUp(surface, { clientX: 100, clientY: 120, button: 0, pointerType: "mouse" })
+
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/input"))).toBe(false)
+  })
+
+  it("sends provider-neutral pointer, keyboard, and text input after control is taken", async () => {
+    const inputPayloads: unknown[] = []
+    vi.spyOn(HTMLImageElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 220,
+      height: 200,
+      left: 50,
+      right: 450,
+      top: 20,
+      width: 400,
+      x: 50,
+      y: 20,
+      toJSON: () => ({})
+    })
+    const visualSession = sessionFixture({
+      capabilities: { stream: "screenshot", input: ["pointer", "keyboard"] },
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+      latest_frame_at: "2026-01-01T00:00:00Z"
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = (init?.method || "GET").toUpperCase()
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [], cursor: 0 }))
+      if (url.includes("/take_control") && method === "POST") {
+        return Promise.resolve(jsonResponse({ runtime_session: visualSession, lease: operatorLeaseFixture() }))
+      }
+      if (url.includes("/input") && method === "POST") {
+        inputPayloads.push(JSON.parse(String(init?.body)).event)
+        return Promise.resolve(jsonResponse({ runtime_session: visualSession, result: { delivered: true } }))
+      }
+      return Promise.resolve(jsonResponse({ runtime_sessions: [visualSession] }))
+    })
+
+    renderPanel()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Take Control" }))
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+
+    const surface = screen.getByLabelText("Runtime visual input surface")
+    fireEvent.pointerUp(surface, { clientX: 250, clientY: 120, button: 0, pointerType: "mouse" })
+    fireEvent.keyDown(surface, { key: "Enter", code: "Enter" })
+    fireEvent.paste(surface, { clipboardData: { getData: () => "hello" } })
+
+    await waitFor(() => {
+      expect(inputPayloads).toHaveLength(3)
+    })
+    expect(inputPayloads[0]).toMatchObject({
+      type: "pointer",
+      action: "click",
+      x: 200,
+      y: 100,
+      normalized_x: 0.5,
+      normalized_y: 0.5,
+      source_width: 400,
+      source_height: 200,
+      pointer_type: "mouse"
+    })
+    expect(inputPayloads[1]).toMatchObject({ type: "keyboard", action: "key_down", key: "Enter", code: "Enter" })
+    expect(inputPayloads[2]).toMatchObject({ type: "text", text: "hello" })
+  })
+
+  it("hydrates an existing operator lease after the Runtime tab remounts", async () => {
+    const inputPayloads: unknown[] = []
+    const visualSession = sessionFixture({
+      active_user_input_lease: operatorLeaseFixture(),
+      capabilities: { stream: "screenshot", input: ["pointer", "keyboard"] },
+      latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+      latest_frame_at: "2026-01-01T00:00:00Z"
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = (init?.method || "GET").toUpperCase()
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [], cursor: 0 }))
+      if (url.includes("/input") && method === "POST") {
+        inputPayloads.push(JSON.parse(String(init?.body)).event)
+        return Promise.resolve(jsonResponse({ runtime_session: visualSession, result: { delivered: true } }))
+      }
+      if (url.includes("/take_control") && method === "POST") {
+        return Promise.resolve(jsonResponse({ error: { code: "validation_failed", message: "runtime session already has an active input lease" } }, 422))
+      }
+      return Promise.resolve(jsonResponse({ runtime_sessions: [visualSession] }))
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Release Control" })).toBeInTheDocument()
+
+    const surface = screen.getByLabelText("Runtime visual input surface")
+    fireEvent.pointerUp(surface, { clientX: 100, clientY: 120, button: 0, pointerType: "mouse" })
+
+    await waitFor(() => {
+      expect(inputPayloads).toHaveLength(1)
+    })
+    expect(screen.queryByRole("button", { name: "Take Control" })).not.toBeInTheDocument()
+  })
 })
 
 describe("RuntimePanel terminal live view", () => {
@@ -259,8 +528,8 @@ describe("RuntimePanel terminal live view", () => {
     actionCable.createSubscription.mockReturnValue(subscription)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
-      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [ "should-not-poll" ], cursor: 1 }))
-      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: ["should-not-poll"], cursor: 1 }))
+      return Promise.resolve(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
     })
 
     renderPanel()
@@ -272,12 +541,11 @@ describe("RuntimePanel terminal live view", () => {
         expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
       )
     })
-    expect(fetchSpy.mock.calls.some(([ input ]) => String(input).includes("/logs"))).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/logs"))).toBe(false)
 
-    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [
-      unknown,
-      { connected(): void; received(data: { type: string; data?: string }): void }
-    ])[1]
+    const mixin = (
+      actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { connected(): void; received(data: { type: string; data?: string }): void }]
+    )[1]
     mixin.connected()
     expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "resize", cols: 132, rows: 43 })
 
@@ -291,7 +559,7 @@ describe("RuntimePanel terminal live view", () => {
 
   it("handles terminal relay disconnects gracefully", async () => {
     actionCable.createSubscription.mockReturnValue({ perform: vi.fn(), unsubscribe: vi.fn() })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
 
     renderPanel()
 
@@ -327,7 +595,7 @@ describe("RuntimePanel terminal live view", () => {
           })
         )
       }
-      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+      return Promise.resolve(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
     })
 
     renderPanel()
@@ -376,9 +644,9 @@ describe("RuntimePanel control ownership: starting -> running -> agent takes lea
       if (url.endsWith("/runtime_sessions") && method === "GET") {
         sessionCalls += 1
         if (sessionCalls === 1) {
-          return jsonResponse({ runtime_sessions: [ sessionFixture({ state: "starting", active_agent_input_lease: null }) ] })
+          return jsonResponse({ runtime_sessions: [sessionFixture({ state: "starting", active_agent_input_lease: null })] })
         }
-        return jsonResponse({ runtime_sessions: [ sessionFixture({ state: "running", active_agent_input_lease: agentLease() }) ] })
+        return jsonResponse({ runtime_sessions: [sessionFixture({ state: "running", active_agent_input_lease: agentLease() })] })
       }
       return jsonResponse({})
     })
@@ -439,7 +707,7 @@ describe("RuntimePanel control lease heartbeat", () => {
           lease: operatorLeaseFixture({ expires_at: "2026-01-01T00:01:50.000Z" })
         })
       }
-      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [sessionFixture()] })
       return jsonResponse({})
     })
 
@@ -473,7 +741,7 @@ describe("RuntimePanel control lease heartbeat", () => {
       if (url.includes("/renew_control") && method === "POST") {
         return jsonResponse({ error: { code: "validation_failed", message: "lease already lapsed" } }, 422)
       }
-      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [sessionFixture()] })
       return jsonResponse({})
     })
 
