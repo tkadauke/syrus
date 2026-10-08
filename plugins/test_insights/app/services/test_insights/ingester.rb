@@ -2,6 +2,14 @@
 # Idempotent: an existing TestRun for the same run+grader_name is replaced.
 module TestInsights
   class Ingester
+    TRANSIENT_DATABASE_ERRORS = [
+      ActiveRecord::Deadlocked,
+      ActiveRecord::LockWaitTimeout,
+      ActiveRecord::StatementTimeout
+    ].freeze
+    MAX_INGEST_ATTEMPTS = 3
+    RETRY_BACKOFF_SECONDS = 0.1
+
     def initialize(run:, grader_name:, parsed_run:)
       @run         = run
       @grader_name = grader_name
@@ -10,6 +18,27 @@ module TestInsights
     end
 
     def ingest!
+      attempts = 0
+
+      begin
+        attempts += 1
+        perform_ingest!
+      rescue *TRANSIENT_DATABASE_ERRORS => e
+        raise if attempts >= MAX_INGEST_ATTEMPTS
+
+        Rails.logger.warn(
+          "[TestInsights::Ingester] transient database failure for Run #{@run.id} " \
+          "grader #{@grader_name}; retrying ingest attempt #{attempts + 1}/#{MAX_INGEST_ATTEMPTS}: " \
+          "#{e.class}: #{e.message}"
+        )
+        sleep(RETRY_BACKOFF_SECONDS * attempts)
+        retry
+      end
+    end
+
+    private
+
+    def perform_ingest!
       test_run = nil
       touched_test_identity_ids = []
       heartbeat!
@@ -54,8 +83,6 @@ module TestInsights
       heartbeat!
       test_run
     end
-
-    private
 
     # Retroactively excludes earlier failing cases in this run's grader retry
     # loop from the scored pool now that this iteration passed them. See
@@ -146,6 +173,8 @@ module TestInsights
 
       TestCase.insert_all!(rows)
     rescue ActiveRecord::ActiveRecordError => e
+      raise if transient_database_error?(e)
+
       report_ingestion_failure(
         "batch insert of #{rows.size} test case(s) failed, retrying row-by-row",
         error: e,
@@ -158,12 +187,18 @@ module TestInsights
       rows.each do |row|
         TestCase.insert_all!([ row ])
       rescue ActiveRecord::ActiveRecordError => e
+        raise if transient_database_error?(e)
+
         report_ingestion_failure(
           "dropped test case #{row[:suite_name]} #{row[:name]}".strip,
           error: e,
           test_run: test_run
         )
       end
+    end
+
+    def transient_database_error?(error)
+      TRANSIENT_DATABASE_ERRORS.any? { |error_class| error.is_a?(error_class) }
     end
 
     def report_ingestion_failure(message, error:, test_run:)
