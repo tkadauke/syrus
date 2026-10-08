@@ -3447,6 +3447,8 @@ describe("ReportTab", () => {
           title: "Dashboard slowness",
           narrative: "It's slow because of an **N+1 query**.",
           findings: ["N+1 query in DashboardController#index"],
+          escalate: true,
+          escalation_reason: "remediation_failed",
           references: [
             {
               type: "dashboard_screenshot",
@@ -3465,6 +3467,8 @@ describe("ReportTab", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Dashboard slowness" })).toBeInTheDocument()
+    expect(screen.getByText("Escalated investigation")).toBeInTheDocument()
+    expect(screen.getByText("Remediation failed")).toBeInTheDocument()
     expect(screen.getByText("N+1 query").tagName).toBe("STRONG")
     expect(screen.getByText("N+1 query in DashboardController#index")).toBeInTheDocument()
     expect(screen.getByText("The offending screen")).toBeInTheDocument()

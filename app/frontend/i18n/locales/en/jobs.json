@@ -159,6 +159,13 @@
   "report_untitled": "Untitled report",
   "report_not_submitted": "No report submitted yet.",
   "report_findings": "Findings",
+  "report_escalated": "Escalated investigation",
+  "report_escalation_reason": {
+    "needs_human_decision": "Needs a human decision",
+    "lacks_authority": "Lacks authority",
+    "remediation_failed": "Remediation failed",
+    "unsafe_to_proceed": "Unsafe to proceed"
+  },
   "section_no_runs": "No runs for this step.",
   "section_no_dependencies": "No dependencies.",
   "artifact_erd_primary_key": "PK",
@@ -751,6 +758,7 @@
   "attention_reason_fallback": "Needs attention: {{reason}}",
   "attention_fork_pr_closed": "The fork review PR was closed without being merged.",
   "attention_fork_pr_changes_requested": "A reviewer has requested changes on the fork review PR. The upstream PR will not be created until all outstanding review requests are resolved (approved or dismissed).",
+  "attention_investigation_escalated": "The investigation was escalated and needs operator attention.",
   "attention_upstream_pr_closed": "The upstream PR was closed without being merged.",
   "attention_upstream_pr_changes_requested": "A reviewer has requested changes on the upstream PR. Auto-merge is paused until the review is resolved (approved or dismissed).",
   "grace_expired": "Grace period has expired.",

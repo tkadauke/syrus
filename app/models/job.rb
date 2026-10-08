@@ -39,6 +39,7 @@ class Job < ApplicationRecord
   ].freeze
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
+  INVESTIGATION_ESCALATED_ATTENTION_REASON = "investigation_escalated".freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze

@@ -457,7 +457,12 @@ this run via `submit_artifact`/`submit_visual_artifact` — `SubmitReportTool`
 rejects a `type` that doesn't resolve, so the report can't carry a dangling
 pointer. `references` stores pointers, not copies, so a report renderer
 resolves each one against `Workflow#artifacts["typed_artifacts"]` at render
-time. Skips the agent call when the report is already present
+time. The tool also accepts `escalate: true` plus an `escalation_reason` of
+`needs_human_decision`, `lacks_authority`, `remediation_failed`, or
+`unsafe_to_proceed`; an escalation still succeeds and lands the Job as
+`:implemented`, but it records the escalation on the report, marks the Job as
+needing attention, and creates an `investigation_escalated` notification. Skips
+the agent call when the report is already present
 (`skip_if_artifact: "investigation_report"` on the `Step::Kind` entry mirrors
 `test_plan`'s `skip_if_artifact: "test_plan"`). Raises `Steps::Base::StepFailed`
 if the agent never calls the tool. The stored report lands on

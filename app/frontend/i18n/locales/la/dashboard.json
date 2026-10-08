@@ -192,6 +192,7 @@
   "attention_reason": {
     "fork_pr_closed": "PR furcae clausa",
     "fork_pr_changes_requested": "Mutationes petitae",
+    "investigation_escalated": "Investigatio escalata",
     "unread_pr_feedback": "Responsum PR non lectum",
     "upstream_pr_closed": "PR clausa",
     "upstream_pr_changes_requested": "Mutationes petitae"

@@ -55,7 +55,9 @@ RSpec.describe "App API investigation report", type: :request do
       "workflow_id" => run.workflow_id,
       "title" => "Dashboard slowness",
       "narrative" => "It's slow because of an N+1 query.",
-      "findings" => [ "N+1 query in DashboardController#index" ]
+      "findings" => [ "N+1 query in DashboardController#index" ],
+      "escalate" => false,
+      "escalation_reason" => nil
     )
     expect(body["report"]["references"]).to contain_exactly(
       include(
