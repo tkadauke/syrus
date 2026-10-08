@@ -2,12 +2,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
 import { CredentialStoreAdmin } from "./CredentialStoreAdmin"
 import type { CredentialStorePayload } from "../api/credentialStore"
 
 describe("CredentialStoreAdmin", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.localStorage.clear()
+  })
+
   it("frames the normal credential page without an admin eyebrow", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
 
@@ -30,6 +35,8 @@ describe("CredentialStoreAdmin", () => {
     renderRoute(<CredentialStoreAdmin />)
 
     expect(await screen.findByText("Deploy token")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByLabelText("Safe metadata"))
     expect(screen.getAllByText(/github.com/).length).toBeGreaterThan(0)
     expect(screen.queryByText("super-secret-token")).not.toBeInTheDocument()
 
@@ -126,16 +133,101 @@ describe("CredentialStoreAdmin", () => {
     expect(await screen.findByText("Revoked")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Revoke" })).toBeDisabled()
   })
+
+  it("renders the default desktop data table columns", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    expect(await screen.findByRole("columnheader", { name: "Name" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Credential type" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Scope" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Target" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Last used" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Last rotated" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Expires" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
+  })
+
+  it("filters credentials from the shared FilterBar q parameter", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
+      credentials: [
+        credential({ id: 1, name: "Deploy token", revoked_at: null, active: true }),
+        credential({ id: 2, name: "Legacy token", revoked_at: "2026-10-02T12:00:00Z", active: false })
+      ]
+    })))
+
+    renderRoute(<CredentialStoreAdmin />, `/admin/credential_store?q=${encodeFilter({ and: [{ field: "status", op: "is", value: "revoked" }] })}`)
+
+    expect(await screen.findByText("Legacy token")).toBeInTheDocument()
+    expect(screen.queryByText("Deploy token")).not.toBeInTheDocument()
+  })
+
+  it("sorts the desktop table through sortable column headers", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
+      credentials: [
+        credential({ id: 1, name: "Beta token" }),
+        credential({ id: 2, name: "Alpha token" })
+      ]
+    })))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    expect(await credentialRowNames()).toEqual(["Alpha token", "Beta token"])
+    fireEvent.click(screen.getByRole("button", { name: /Name/ }))
+    expect(await credentialRowNames()).toEqual(["Beta token", "Alpha token"])
+  })
+
+  it("uses the fixed mobile credential list without column configuration", async () => {
+    mockViewport("mobile")
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    expect(await screen.findByText("Deploy token")).toBeInTheDocument()
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("New payload for Deploy token")).toBeInTheDocument()
+  })
 })
 
-function renderRoute(children: ReactNode, path = "/admin/credential_store") {
+async function credentialRowNames() {
+  const table = await screen.findByRole("table")
+  return within(table).getAllByRole("row").slice(1).map((row) => within(row).getByText(/token$/).textContent)
+}
+
+function renderRoute(children: ReactNode, initialEntry = "/admin/credential_store") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         {children}
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function encodeFilter(filter: Record<string, unknown>) {
+  return window.btoa(unescape(encodeURIComponent(JSON.stringify(filter)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+function mockViewport(viewport: "desktop" | "mobile") {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => {
+      const matches = viewport === "mobile" ? query.includes("max-width") : query.includes("min-width")
+      return {
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }
+    })
+  })
 }
 
 function payload(overrides: Partial<Omit<CredentialStorePayload, "options">> & { options?: Partial<CredentialStorePayload["options"]> } = {}): CredentialStorePayload {
