@@ -371,8 +371,8 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
         parsed.image_url,
         parsed.preview_url,
         parsed.thumbnail_url,
-        parsed.latest_frame_url,
         parsed.file_path,
+        parsed.latest_frame_url,
         metadata.image_url,
         metadata.preview_url
       ),
@@ -410,7 +410,14 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
   const name = firstDisplayValue(artifact.name, artifact.filename, artifact.title, artifact.kind)
   const path = firstDisplayValue(artifact.path, artifact.file_path)
   const link = firstDisplayValue(artifact.link, artifact.url, artifact.href)
-  const previewUrl = firstDisplayValue(artifact.preview_url, artifact.thumbnail_url, artifact.image_url, artifact.latest_frame_url, image.dataUrl)
+  const previewUrl = firstDisplayValue(
+    artifact.preview_url,
+    artifact.thumbnail_url,
+    artifact.image_url,
+    artifact.file_path,
+    artifact.latest_frame_url,
+    image.dataUrl
+  )
   const downloadUrl = firstDisplayValue(artifact.download_url, artifact.file_url, path)
   const missing = parsed.missing === true || parsed.found === false || (!error && !id && !name && !path && !link && !previewUrl && !downloadUrl)
 

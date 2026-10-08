@@ -215,6 +215,12 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       expect(payload).to include(kind: "android_screenshot", content_type: "image/png", bytes: png.bytesize, fallback: false)
       expect(session.latest_frame_url).to eq("/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame")
       expect(session.metadata["latest_frame_document_id"]).to be_present
+      expect(payload).to include(
+        document_id: session.metadata["latest_frame_document_id"],
+        file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{session.metadata["latest_frame_document_id"]}/file",
+        preview_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{session.metadata["latest_frame_document_id"]}/file",
+        latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame"
+      )
       expect(session.metadata).to include("frame_width" => 1080, "frame_height" => 2400)
       expect(chat_session.chat_attachments.reload.map(&:attachable_id)).to include(session.metadata["latest_frame_document_id"])
     end
@@ -241,6 +247,8 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
         fallback: false
       )
       expect(payload[:document_id]).to be_present
+      expect(payload[:preview_url]).to eq("/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{payload[:document_id]}/file")
+      expect(payload[:file_path]).to eq(payload[:preview_url])
       expect(session.reload.metadata).to include("frame_width" => 1080, "frame_height" => 2400)
     end
 
@@ -250,7 +258,13 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
 
       payload = provider.snapshot(session.id)
 
-      expect(payload).to include(fallback: true, latest_frame_url: "/frame.png", document_id: 99)
+      expect(payload).to include(
+        fallback: true,
+        latest_frame_url: "/frame.png",
+        document_id: 99,
+        file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/99/file",
+        preview_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/99/file"
+      )
       expect(payload[:warning]).to include("device offline")
     end
 
