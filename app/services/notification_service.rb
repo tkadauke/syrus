@@ -84,7 +84,7 @@ class NotificationService
   # event pipeline entirely -- they are still notifications, the user sees
   # them, they just do not wake a scoped chat.
   CHAT_WORK_EVENT_KINDS = %w[
-    job_failed main_broken main_inconclusive upstream_pr_closed
+    job_failed main_broken main_inconclusive upstream_pr_closed investigation_escalated
     job_implemented pr_merged epic_completed main_recovered
   ].freeze
 
@@ -118,7 +118,7 @@ class NotificationService
   def self.severity_for(kind)
     case kind.to_s
     when "job_failed", "main_broken" then "critical"
-    when "main_inconclusive", "upstream_pr_closed" then "warning"
+    when "main_inconclusive", "upstream_pr_closed", "investigation_escalated" then "warning"
     else "info"
     end
   end
