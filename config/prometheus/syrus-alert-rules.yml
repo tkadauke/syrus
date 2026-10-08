@@ -35,12 +35,3 @@ groups:
         annotations:
           summary: "Syrus recurring job {{ $labels.job }} is stale"
           description: "Recurring job {{ $labels.job }} has not completed successfully within the expected window."
-
-      - alert: SyrusAttentionItemsGrowing
-        expr: sum(syrus_attention_items_open_total) > 0 and deriv(sum(syrus_attention_items_open_total)[30m:5m]) > 0
-        for: 30m
-        labels:
-          severity: page
-        annotations:
-          summary: "Syrus attention item backlog is growing"
-          description: "The open AttentionItem count has been trending upward for 30 minutes."

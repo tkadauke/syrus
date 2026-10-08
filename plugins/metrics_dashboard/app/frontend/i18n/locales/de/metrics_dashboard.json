@@ -45,8 +45,6 @@
     "provider_sessions_bytes": "Provider-Sitzungsspeicher",
     "provider_sessions_rows": "Provider-Sitzungszeilen",
     "auto_retry_attempts": "Automatische Wiederholungsversuche, nach Ergebnis",
-    "escalations_per_landing": "Eskalationen pro Landung",
-    "attention_items_open": "Offene Attention-Items, nach Problemcode",
     "feature_usage": "Feature-Nutzungen, nach Feature",
     "plugin_enabled": "Aktivierte Plugins",
     "event_amplification_ratio": "Ereignisverstärkungsverhältnis, nach Ressource",

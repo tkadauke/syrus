@@ -28,7 +28,6 @@ import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
 import { AdminWorkUnits } from "./AdminWorkUnits"
 import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks } from "./AdminMaintenanceTasks"
-import { AdminAttentionItems } from "./AdminAttentionItems"
 import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
 import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
 import { AdminSettings } from "./AdminSettings"
@@ -95,7 +94,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/queue", element: <AdminQueueRoute /> },
   { path: "/admin/queue/:tab", element: <AdminQueueRoute /> },
   { path: "/admin/stuck", element: <AdminStuck /> },
-  { path: "/admin/attention_items", element: <AdminAttentionItems /> },
   { path: "/admin/activity", element: <AdminWorkflowActivity /> },
   { path: "/admin/work_units", element: <AdminWorkUnits /> },
   { path: "/admin/maintenance_tasks", element: <AdminMaintenanceTasks /> },

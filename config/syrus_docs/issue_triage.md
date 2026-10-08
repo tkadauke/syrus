@@ -44,8 +44,8 @@ Three things happen:
    puts it back to `classifier_pending` and re-runs the classifier.
    `Job::MAX_CLASSIFIER_ATTEMPTS` (2) bounds this: a classifier that is
    uncertain twice is telling you about the issue, not about the provider.
-3. **A triage decision is opened** (`AttentionItems::Triage`, queue `triage`,
-   urgency `low`) carrying the reason and offering a "Not actionable" action.
+3. **The Job remains in a human-reviewable triage state** with the uncertainty
+   reason recorded on the Job itself.
 
 ## Accept and Reject
 

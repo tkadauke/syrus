@@ -9,16 +9,14 @@ RSpec.describe "Prometheus alert rules" do
     expect(rules.map { |rule| rule.fetch("alert") }).to contain_exactly(
       "SyrusQueueOldestAgeHigh",
       "SyrusProviderCircuitOpen",
-      "SyrusRecurringJobStale",
-      "SyrusAttentionItemsGrowing"
+      "SyrusRecurringJobStale"
     )
 
     expressions = rules.map { |rule| rule.fetch("expr") }.join("\n")
     expect(expressions).to include(
       "syrus_global_queue_oldest_age_seconds",
       "syrus_provider_circuit_state",
-      "syrus_recurring_job_last_success_seconds",
-      "syrus_attention_items_open_total"
+      "syrus_recurring_job_last_success_seconds"
     )
   end
 

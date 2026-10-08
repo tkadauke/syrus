@@ -5899,13 +5899,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(kind(result, :nonretryable_semantic_git_failure)).to be_nil
     expect(plan(result, :rebuild_merge_train)).to be_nil
     expect(plan(result, :operator_review_repeated_failure_circuit)).to have_attributes(auto_executable: false)
-    attention_item = AttentionItem.open_decisions.find_by!(problem_code: "application_error", job: job)
-    expect(attention_item).to have_attributes(urgency: "urgent", queue: "operator")
-    expect(attention_item.evidence).to include(
-      "fingerprint" => issue.evidence["fingerprint"],
-      "app_revision" => "pre-fix-sha",
-      "streak_count" => WorkEngine::RepeatedFailureCircuit::THRESHOLD
-    )
   end
 
   it "resets the repeated-failure circuit when the app revision changes" do
@@ -5933,7 +5926,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(kind(result, :repeated_failure_circuit_open)).to be_nil
     expect(kind(result, :retryable_run_failure)).to be_present
     expect(plan(result, :retry_failed_step)).to have_attributes(auto_executable: true, target_id: latest_workflow.id)
-    expect(AttentionItem.where(problem_code: "application_error", job: job)).to be_empty
   end
 
   it "schedules retryable failures with escalating backoff by attempt number" do

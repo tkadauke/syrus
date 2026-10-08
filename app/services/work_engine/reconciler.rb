@@ -2685,7 +2685,7 @@ module WorkEngine
         result = repeated_failure_circuit_for(run)
         next unless result.open?
 
-        WorkEngine::RepeatedFailureCircuit.new(run: run).open_attention_item!(result)
+        WorkEngine::RepeatedFailureCircuit.new(run: run).log_open_circuit!(result)
 
         issue(
           kind: :repeated_failure_circuit_open,

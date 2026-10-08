@@ -64,8 +64,7 @@ Prometheus alert rules for the canonical operational alerts ship at
   `syrus_global_queue_oldest_age_seconds`;
 - provider circuit open, using `syrus_provider_circuit_state`;
 - recurring job staleness over twice each configured schedule interval, using
-  `syrus_recurring_job_last_success_seconds`;
-- attention item backlog growing, using `syrus_attention_items_open_total`.
+  `syrus_recurring_job_last_success_seconds`.
 
 **Scope:** currently served by the **web** role only. Worker pods run several
 forked processes that share no memory, so scraping them needs a separate
@@ -422,46 +421,6 @@ unrecognized -- so a rate spike on one budget-exempt category is a direct
 instrument for that exact regression recurring, without waiting for the
 Job/Workflow-level symptoms to show up first.
 
-### Escalations and attention
-
-| Metric | Meaning |
-|---|---|
-| `syrus_escalations_per_landing_ratio` | escalations opened per landing over the trailing window |
-| `syrus_attention_items_open_total{problem_code}` | currently open, unexpired AttentionItems by problem code |
-
-`Metrics::AttentionSampler` (`app/services/metrics/attention_sampler.rb`) owns
-both, wiring up `Metrics::EscalationsPerLanding` and `AttentionItem` --
-services that were fully implemented but exported nowhere: not on `/metrics`,
-not on the `metrics_dashboard` plugin, not on any admin page. Both are GLOBAL
-gauges, sampled the same cache-mediated way as the queue-health gauges above
--- plain snapshots, no cursor needed, since neither is a monotonic count.
-
-**`escalations_per_landing_ratio`** is the Workflow Engine V3 "one metric"
-(see `docs/plans/workflow-engine-v3.md` and `Metrics::EscalationsPerLanding`):
-escalations (distinct `AttentionItem`s opened in the trailing window, one per
-problem rather than per occurrence) divided by landings (`auto_merge`/
-`merge_train` Workflows that succeeded in the same window). Trending down
-means the attention ladder is learning to resolve problems below the level
-that needs a human; flat means it isn't. `Metrics::EscalationsPerLanding::Result#ratio`
-is `nil` when nothing landed in the window -- an infinity would read as a
-number, and "no landings" is the honest answer -- so `#refresh_gauges!`
-`Gauge#clear`s the gauge in that case rather than `set`ting a misleading `0`.
-It does the same on a cache miss (the sampler has stopped, or has not run
-yet): a stale ratio from an earlier tick left `set` on the live instrument
-past its `CACHE_TTL` would render as "still healthy" through the exact outage
-this gauge exists to surface, so absence takes priority over staleness the
-same way the maintenance-and-pruners gauges above prefer an omitted job over
-a fabricated zero.
-
-**`attention_items_open_total`** reads `AttentionItem.open_decisions.unexpired`
-(the same scope `AttentionItem.queue_summary` uses) grouped by `problem_code`
-across both the `operator` and `triage` queues -- the current size of the
-human-attention backlog, broken down by what kind of problem is waiting.
-`problem_code` is on the cardinality allowlist because `Problem::Kind` is a
-closed, bounded registry (see `config/syrus_docs/attention_items.md` and
-`app/models/problem/kind.rb`), not a free-form string -- the same reasoning
-that allows `skip_reason` above.
-
 ### Repository content reads
 
 `syrus_repository_content_reads_total{provider, kind, outcome}` counts every
@@ -554,7 +513,7 @@ use: dividing by the all-time-since-boot total would read as a ratio for a
 window that never happened. A resource with no events in the window is
 omitted rather than reported as `0`/`Infinity`, and a dead sampler (expired
 cache) clears every ratio it previously reported rather than leaving it
-rendering forever -- the same posture as `escalations_per_landing_ratio`.
+rendering forever.
 
 **Client half.** Several of the signals only happen in the browser, and this
 metrics library cannot reach into a browser process. `ClientMetrics`
@@ -614,7 +573,6 @@ but it is not the only signal: `job_state`, `landing_queue_depth`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
 `repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
 `provider_sessions_bytes`, `provider_sessions_rows`,
-`escalations_per_landing_ratio`, `attention_items_open_total`,
 `app_events_delivered_total`, `detail_snapshot_requests_total`, and
 `event_amplification_ratio` are every bit as GLOBAL and cache-mediated as the
 `syrus_global_*` gauges, just declared without the prefix -- their
@@ -684,11 +642,6 @@ exception rather than a precedent for adding more identifiers casually.
 -- a closed, two-value set (`"app"`/`"pat"`, matching `Job#credential_mode`),
 not an identifier, so it does not carry the growth risk `repository`/`user`/
 `sha` are rejected for.
-
-`problem_code` is on the allowlist for `syrus_attention_items_open_total` for
-the same reason -- `Problem::Kind`'s registry is a closed, fixed set of codes
-(see `app/models/problem/kind.rb`), not a value that grows with the amount of
-work Syrus does.
 
 `unit_type` is on the allowlist for the `throughput` plugin's
 `syrus_throughput_landing_units_total` -- a closed two-value set (`"auto_merge"`/

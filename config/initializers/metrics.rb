@@ -23,7 +23,6 @@ Rails.application.config.to_prepare do
     "Metrics::FleetSampler",
     "Metrics::ResilienceSampler",
     "Metrics::MaintenanceSampler",
-    "Metrics::AttentionSampler",
     "WorkflowAdmissionBudget",
     "RepositoryContent",
     "Metrics::ClusterCounterSampler",
