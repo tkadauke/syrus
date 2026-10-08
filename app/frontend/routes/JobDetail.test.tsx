@@ -1876,17 +1876,39 @@ describe("JobDetailView", () => {
     expect(link).toHaveAttribute("href", "/app-shell/chats/9")
   })
 
-  it("starts a discussion chat and navigates to it", async () => {
+  it("opens and cancels the prompt dialog before starting a discussion chat", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+
+    expect(screen.getByRole("dialog", { name: "Start Job chat" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Start chat" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByRole("dialog", { name: "Start Job chat" })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("starts a discussion chat with the prompt and navigates to it", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" }))
     const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
 
     renderJobDetail(payload, { showLocation: true })
     fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.change(screen.getByLabelText("Initial prompt"), { target: { value: "Please explain the failure pattern." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/start_chat", expect.objectContaining({
-        method: "POST"
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/start_chat",
+        expect.objectContaining({
+          body: JSON.stringify({ message: "Please explain the failure pattern." }),
+          method: "POST"
+        })
+      )
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/9")
     })
   })
