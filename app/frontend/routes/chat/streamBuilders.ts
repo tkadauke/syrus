@@ -134,7 +134,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
     }
   }
 
-  return pruneOperatorCancelledToolGroups(items)
+  return pruneBenignDanglingToolGroups(items)
 }
 
 function updateToolGroupState(group: ChatToolGroupItem) {
@@ -180,7 +180,7 @@ function collapseSettledToolGroup(group: ChatToolGroupItem) {
   }
 }
 
-function pruneOperatorCancelledToolGroups(items: ChatRenderItem[]): ChatRenderItem[] {
+function pruneBenignDanglingToolGroups(items: ChatRenderItem[]): ChatRenderItem[] {
   const result: ChatRenderItem[] = []
 
   for (const item of items) {
@@ -189,23 +189,22 @@ function pruneOperatorCancelledToolGroups(items: ChatRenderItem[]): ChatRenderIt
       continue
     }
 
-    const pruned = pruneOperatorCancelledToolGroup(item)
+    const pruned = pruneBenignDanglingToolGroup(item)
     if (pruned) result.push(pruned)
   }
 
   return result
 }
 
-function pruneOperatorCancelledToolGroup(group: ChatToolGroupItem): ChatToolGroupItem | null {
+function pruneBenignDanglingToolGroup(group: ChatToolGroupItem): ChatToolGroupItem | null {
   const calls = group.calls.map((call) => ({
     ...call,
-    nested: pruneOperatorCancelledToolGroups(call.nested || []).filter((item): item is ChatToolGroupItem => item.type === "tool_group")
+    nested: pruneBenignDanglingToolGroups(call.nested || []).filter((item): item is ChatToolGroupItem => item.type === "tool_group")
   })).filter((call) => {
-    if (!operatorCancelledToolCall(call)) return true
+    if (!benignDanglingToolCall(call)) return true
 
     // Keep the parent wrapper if a nested agent/tool call still has meaningful
-    // output; otherwise the synthetic cancellation result is just stop
-    // bookkeeping and the system cancellation message is enough.
+    // output; otherwise the synthetic dangling result is terminal bookkeeping.
     return (call.nested || []).length > 0
   })
 
@@ -392,7 +391,7 @@ export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
-    if (operatorCancelledToolResultMessage(message)) return null
+    if (benignDanglingToolResultMessage(message)) return null
 
     return { ...message, tool: structuredTool(message) }
   }
@@ -408,20 +407,20 @@ export function groupableToolResult(message: ChatMessageItem) {
   return message.role === "tool_result" && !message.proposal
 }
 
-function operatorCancelledToolCall(call: ChatToolGroupCall) {
-  return call.result_error === true && operatorCancelledToolResultText(call.result_body)
+function benignDanglingToolCall(call: ChatToolGroupCall) {
+  return call.result_error === true && benignDanglingToolResultText(call.result_body)
 }
 
-function operatorCancelledToolResultMessage(message: ChatMessageItem) {
+function benignDanglingToolResultMessage(message: ChatMessageItem) {
   if (message.role !== "tool_result") return false
 
   const content = contentRecord(message.content)
   if (content?.is_error !== true) return false
 
   const rawResult = content.content ?? content.result ?? message.content ?? message.text
-  return operatorCancelledToolResultText(fullResultBodyUnbounded(rawResult))
+  return benignDanglingToolResultText(fullResultBodyUnbounded(rawResult))
 }
 
-function operatorCancelledToolResultText(text: string) {
-  return /^Cancelled by operator before this tool returned\.?$/i.test(text.trim())
+function benignDanglingToolResultText(text: string) {
+  return /^(?:Cancelled by operator|Agent turn ended) before this tool returned\.?$/i.test(text.trim())
 }
