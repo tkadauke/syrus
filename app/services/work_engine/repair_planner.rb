@@ -351,6 +351,19 @@ module WorkEngine
         end
       end
 
+      class QueuedRunWithWedgedQueueClaim < Base
+        def plan
+          automatic_plan(
+            "reenqueue_run",
+            primary_run,
+            "The Run's SolidQueue job has been claimed for hours without the Run ever starting, " \
+            "so the narrowest repair is to enqueue the same persisted Run again.",
+            execution_steps: [ "Run#reenqueue!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], queue_claim_wedged: true }
+          )
+        end
+      end
+
       class QueuedRunOnDeadResumeQueue < Base
         def plan
           automatic_plan(

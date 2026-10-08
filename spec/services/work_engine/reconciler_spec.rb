@@ -417,6 +417,80 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(affected_run_ids).not_to include(successor.id)
   end
 
+  # Production: a worker whose node went NotReady kept heartbeating to
+  # SolidQueue from a container its kubelet had stopped managing. It held four
+  # claims for between two and four hours and never advanced any of their Runs
+  # past `queued`. Every other staleness check requires the process to have
+  # stopped heartbeating first, so nothing looked at it, and because the work
+  # was pinned to that worker's storage-affinity resume queue no other worker
+  # was eligible -- five idle workers and two starved Jobs.
+  it "classifies a queued Run whose claim is hours old even though its worker still heartbeats" do
+    ensure_solid_queue_test_tables!
+    live_process = SolidQueue::Process.create!(
+      hostname: "worker-wedged",
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => %w[runs resume-storage-wedged] },
+      name: "worker-wedged:1",
+      pid: 456
+    )
+    run.update_columns(state: "queued", created_at: 5.hours.ago, updated_at: 5.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 5.hours.ago, worker_storage_key: "storage-wedged")
+    solid_queue_run_job(
+      run,
+      claimed: true,
+      queue_name: "resume-storage-wedged",
+      created_at: 4.hours.ago,
+      process_id: live_process.id
+    )
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :queued_run_with_wedged_queue_claim)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reenqueue_run"
+    )
+    expect(issue.evidence["solid_queue_state"]).to eq("wedged_claim")
+    # The whole point: the worker looks healthy and it is still wrong. A check
+    # that waited for the heartbeat to stop would wait forever.
+    expect(issue.evidence["claim_process_live"]).to eq(true)
+    expect(plan(result, :reenqueue_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id
+    )
+  end
+
+  # The threshold is generous on purpose: a real agent run takes many minutes
+  # and sometimes hours, so a claim that is merely recent is work in progress.
+  it "leaves a recent claim alone while its worker heartbeats" do
+    ensure_solid_queue_test_tables!
+    live_process = SolidQueue::Process.create!(
+      hostname: "worker-busy",
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => %w[runs resume-storage-busy] },
+      name: "worker-busy:1",
+      pid: 457
+    )
+    run.update_columns(state: "queued", created_at: 40.minutes.ago, updated_at: 40.minutes.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 40.minutes.ago, worker_storage_key: "storage-busy")
+    solid_queue_run_job(
+      run,
+      claimed: true,
+      queue_name: "resume-storage-busy",
+      created_at: 20.minutes.ago,
+      process_id: live_process.id
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :queued_run_with_wedged_queue_claim)).to be_nil
+    expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
+  end
+
   it "does not repair a queued Run when a healthy queue job exists beside stale failed queue jobs" do
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_storage_key: "storage-dead")

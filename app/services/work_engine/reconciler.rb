@@ -6,6 +6,17 @@ module WorkEngine
     DETACHED_WORKER_EVIDENCE_GRACE = 3.minutes
     NON_AGENTIC_NO_PROCESS_GRACE = 3.minutes
     QUEUE_STARVATION_AFTER = 10.minutes
+    # A claim this old cannot still be starting. Deliberately generous -- a real
+    # agent run legitimately takes many minutes, and a few of them hours -- and
+    # deliberately independent of the worker's heartbeat, which is the gap this
+    # closes: a worker whose node went NotReady kept heartbeating to SolidQueue
+    # from a container the kubelet had stopped managing, held four claims for
+    # between two and four hours, and never advanced any of their Runs past
+    # `queued`. Every existing staleness check requires the process to have
+    # stopped heartbeating first, so nothing looked at it, and because the work
+    # was pinned to that worker's storage-affinity resume queue no other worker
+    # was eligible either. Five idle workers, two starved Jobs, no detection.
+    WEDGED_QUEUE_CLAIM_AFTER = 3.hours
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
 
@@ -584,6 +595,22 @@ module WorkEngine
             recommended_repair_action: "reenqueue_run",
             evidence: run_evidence(run).merge(solid_queue_state: "missing", age_seconds: seconds_since(run.created_at)),
             explanation: "Run ##{run.id} is queued but no active SolidQueue RunJob references it."
+          )
+        elsif (sq = sqs.find { |candidate| wedged_queue_claim?(candidate) })
+          issue(
+            kind: :queued_run_with_wedged_queue_claim,
+            severity: :error,
+            affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+            recommended_repair_action: "reenqueue_run",
+            evidence: run_evidence(run).merge(
+              solid_queue: sq,
+              solid_queue_state: "wedged_claim",
+              claim_age_seconds: seconds_since(sq[:claimed_at]),
+              claim_process_live: solid_queue_process_live?(sq[:process_id])
+            ),
+            explanation: "Run ##{run.id} has been queued since its SolidQueue job was claimed " \
+                         "#{(seconds_since(sq[:claimed_at]).to_i / 3600.0).round(1)}h ago and never started."
           )
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:ready] && dead_resume_queue?(candidate[:queue_name]) })
           if grader_collect_cached_failure?(run)
@@ -3077,6 +3104,7 @@ module WorkEngine
       return false if sq[:failed]
       return true if sq[:scheduled] && !dead_resume_queue?(sq[:queue_name])
       return true if sq[:ready] && !sq[:claimed] && !dead_resume_queue?(sq[:queue_name])
+      return false if wedged_queue_claim?(sq)
       return true if sq[:claimed] && solid_queue_process_live?(sq[:process_id])
 
       false
@@ -3084,6 +3112,13 @@ module WorkEngine
 
     def stale_queue_claim?(sq)
       sq[:claimed] && older_than?(sq[:claimed_at], QUEUE_STARVATION_AFTER) && !solid_queue_process_live?(sq[:process_id])
+    end
+
+    # Held far too long to be making progress, whatever the heartbeat says.
+    # stale_queue_claim? above answers "the worker is gone"; this answers "the
+    # worker is there and the work is not moving", which no other check asked.
+    def wedged_queue_claim?(sq)
+      sq[:claimed] && older_than?(sq[:claimed_at], WEDGED_QUEUE_CLAIM_AFTER)
     end
 
     def dead_resume_queue?(queue_name)

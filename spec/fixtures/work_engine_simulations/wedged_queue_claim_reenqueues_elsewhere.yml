@@ -1,0 +1,52 @@
+# A worker whose node went NotReady kept heartbeating to SolidQueue from a
+# container the kubelet had stopped managing. It held its claims for hours
+# without ever starting their Runs, and because the work was pinned to its
+# storage-affinity resume queue, no other worker was eligible -- five idle
+# workers and a starved Job. Every staleness check required the process to
+# have stopped heartbeating first, so nothing detected it.
+#
+# The claim here is ancient and its worker's heartbeat is current, which is
+# exactly that shape: the queue reads as live, so the dead-resume-queue
+# detector does not fire, and only the claim's age gives it away.
+name: wedged queue claim reenqueues elsewhere
+repository:
+  owner: simulation
+  name: wedged-queue-claim-reenqueues-elsewhere
+jobs:
+  job:
+    title: Wedged queue claim reenqueues elsewhere
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_storage_key: wedged-worker-storage
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          run:
+            state: queued
+            created_at: "2000-01-01 00:00:00 UTC"
+            solid_queue:
+              claimed: true
+              queue_name: resume-wedged-worker-storage
+              created_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - queued_run_with_wedged_queue_claim
+    - implement -> success

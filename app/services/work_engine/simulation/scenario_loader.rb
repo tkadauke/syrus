@@ -554,7 +554,12 @@ module WorkEngine
             hostname: attrs.fetch("hostname", "simulation-worker"),
             kind: "worker",
             last_heartbeat_at: parse_optional_time(attrs["process_heartbeat_at"]) || Time.current,
-            metadata: {},
+            # A worker holding a claim on a queue plainly consumes that queue,
+            # so advertise it. With empty metadata the queue read as dead to
+            # InstanceVersion.worker_queue_live?, which meant a scenario could
+            # not express the shape production actually produced: an ancient
+            # claim held by a worker that looks perfectly healthy.
+            metadata: { "queues" => [ "runs", "merges", queue_job.queue_name ].uniq },
             name: attrs.fetch("process_name", "simulation-worker:1"),
             pid: attrs.fetch("pid", 12_345),
             created_at: created_at

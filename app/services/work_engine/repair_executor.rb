@@ -529,7 +529,14 @@ module WorkEngine
             return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
             return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
-            if plan.issue_kind == "queued_run_on_dead_resume_queue"
+            # A wedged claim needs the same treatment as a dead resume queue, for
+            # the opposite reason: the worker is still heartbeating, so routing
+            # would hand the Run straight back to the storage key it is stuck
+            # on and the repair would loop. Dropping the affinity sends it to
+            # the general queue (the workspace is re-prepared, as it is for a
+            # dead queue), and deleting the claimed job stops that worker
+            # running it later if it ever wakes up.
+            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim])
               clear_dead_resume_affinity!(run)
               delete_stale_solid_queue_jobs!
             end

@@ -125,6 +125,26 @@ terminal Run) but not harmless: while it sits it pins
 that only grows. A single such row had the dashboard reporting a 31-hour
 backlog that did not exist.
 
+A worker does not have to be *gone* to strand work. `queued_run_with_wedged_queue_claim`
+covers the other shape: the worker is still heartbeating, but its claim has been
+held for longer than `WorkEngine::Reconciler::WEDGED_QUEUE_CLAIM_AFTER` (3 hours)
+and the Run never left `queued`. Observed in production when a node went
+`NotReady` — the kubelet stopped posting status while the container kept running
+and kept heartbeating to SolidQueue, so it held four claims for two to four hours
+without starting any of their Runs. Every other staleness check requires the
+process to have stopped heartbeating first, so none of them applied, and because
+the work was pinned to that worker's `resume-` queue no other worker was
+eligible: five idle workers and two starved Jobs.
+
+The repair is `reenqueue_run`, and for this kind it also clears the workflow's
+storage affinity and deletes the claimed queue row. Both are necessary. The
+worker still looks live, so routing would hand the Run straight back to the
+storage key it is stuck on, and leaving the claimed row would let that worker
+run it later if it ever recovers. The threshold is deliberately hours, not
+minutes: a real agent Run legitimately takes many minutes and sometimes longer,
+so this is the "nothing could still be starting" bound rather than a latency
+target.
+
 ### Product-usage metrics
 
 | Metric | Meaning |
