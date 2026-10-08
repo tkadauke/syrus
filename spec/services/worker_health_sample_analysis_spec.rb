@@ -22,6 +22,37 @@ RSpec.describe WorkerHealthSampleAnalysis do
         ]
       )
     end
+
+    it "keeps high CPU pressure some as warning when utilisation and full pressure are low" do
+      health = described_class.health_for(
+        sample(
+          cpu_used_percent: 6.1,
+          load_1m: 1.8,
+          cpu_pressure_some: 67.4,
+          cpu_pressure_full: 0.0
+        )
+      )
+
+      expect(health).to eq(
+        level: "warning",
+        reasons: [ "CPU pressure 67.4% >= 20%" ]
+      )
+    end
+
+    it "treats high CPU pressure some as critical when full pressure corroborates it" do
+      health = described_class.health_for(
+        sample(
+          cpu_used_percent: 6.1,
+          cpu_pressure_some: 67.4,
+          cpu_pressure_full: 6.0
+        )
+      )
+
+      expect(health).to eq(
+        level: "critical",
+        reasons: [ "CPU pressure 67.4% >= 50%" ]
+      )
+    end
   end
 
   describe ".summarize" do

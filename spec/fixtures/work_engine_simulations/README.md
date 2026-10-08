@@ -225,3 +225,15 @@ run:
     queue_name: runs
     claimed: true
 ```
+
+Use `host_admission_deferral:` when the reconciler must see repeated
+host-admission deferrals for the Run. The loader stamps the created Run,
+Step, and Workflow ids into `workflow.artifacts["run_host_admission"]`:
+
+```yaml
+run:
+  state: queued
+  host_admission_deferral:
+    reason: local_worker_pressure_critical
+    deferral_count: 40
+```

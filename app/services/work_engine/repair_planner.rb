@@ -377,6 +377,18 @@ module WorkEngine
         end
       end
 
+      class QueuedRunHostAdmissionDeferralBudgetExhausted < Base
+        def plan
+          automatic_plan(
+            "reenqueue_run",
+            primary_run,
+            "The Run exhausted its pinned host-admission deferral budget, so the narrowest repair is to drop stale affinity and enqueue it again.",
+            execution_steps: [ "Workflow#clear_worker_affinity", "Run#reenqueue!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], host_admission_deferral_budget_exhausted: true }
+          )
+        end
+      end
+
       class QueuedRunOnDeadResumeQueue < Base
         def plan
           automatic_plan(
