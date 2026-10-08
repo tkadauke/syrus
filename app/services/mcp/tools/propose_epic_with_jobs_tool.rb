@@ -19,6 +19,15 @@ module Mcp::Tools
       Job proposal slugs from other proposal cards in this chat session.
       Confirming the card creates the Epic, child Jobs, and sibling Job
       dependencies in one Syrus transaction.
+      Child Jobs must be implementation-shaped: each child should produce a
+      reviewable, landable code, product, configuration, or directly
+      supporting documentation change intended to become a PR. Do not include
+      spike, audit-only, discovery-only, or investigation-style child Jobs in
+      an Epic. Put read-only exploratory work in a standalone propose_job card
+      with investigation=true instead. Documentation-only child Jobs are not
+      useful unless the documentation directly supports the product/code/config
+      change being landed; usually include that documentation in the relevant
+      implementation child Job.
       Child Jobs must form a SINGLE LINEAR DEPENDENCY CHAIN — Syrus Epics
       execute as one stacked branch, not parallel branches, so no two child
       Jobs may share a common dependency (fan-out) or a common dependent
@@ -100,7 +109,7 @@ module Mcp::Tools
               slug: { type: "string", description: "Stable sibling job slug unique within this chat session." },
               target_repo: { type: "string", description: "Repository slug owner/name." },
               title: { type: "string", description: "Child Job title." },
-              description: { type: "string", description: "Markdown child Job prompt/body, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
+              description: { type: "string", description: "Markdown child Job prompt/body for a reviewable, landable implementation Job. Do not use Epic children for spike, audit-only, discovery-only, or investigation-style work; propose a standalone investigation=true Job for read-only exploration. Documentation belongs here only when it directly supports the product/code/config change being landed, usually in the same child Job as that change. Stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },

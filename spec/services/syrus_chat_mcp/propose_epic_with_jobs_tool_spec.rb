@@ -1146,6 +1146,20 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       expect(tool_description).to include("ALL child jobs")
     end
 
+    it "tells agents Epic children must be landable implementation Jobs" do
+      child_description = schema.fetch(:properties).fetch(:jobs).fetch(:items).fetch(:properties).fetch(:description).fetch(:description)
+
+      expect(tool_description).to include("Child Jobs must be implementation-shaped")
+      expect(tool_description).to include("reviewable, landable code, product, configuration")
+      expect(tool_description).to include("Do not include\nspike, audit-only, discovery-only, or investigation-style child Jobs in\nan Epic")
+      expect(tool_description).to include("standalone propose_job card\nwith investigation=true")
+      expect(tool_description).to include("Documentation-only child Jobs are not\nuseful unless")
+      expect(child_description).to include("reviewable, landable implementation Job")
+      expect(child_description).to include("Do not use Epic children for spike")
+      expect(child_description).to include("standalone investigation=true Job")
+      expect(child_description).to include("Documentation belongs here only when it directly supports")
+    end
+
     it "explains the linear-chain constraint on child Jobs" do
       expect(tool_description).to match(/single linear dependency chain/i)
       expect(tool_description).to include("fan-out")

@@ -269,6 +269,20 @@ module Prompts
 
         #{implementation_job_capability_guidance}
 
+        Epic child Job shape:
+
+        Epics are sequences of reviewable, landable implementation Jobs.
+        Each child Job should produce a code, product, configuration, or
+        directly supporting documentation change intended to become a PR.
+        Do not include spike, audit-only, discovery-only, or
+        investigation-style child Jobs in an Epic. For read-only exploratory
+        work where the successful outcome is "tell me what you find" rather
+        than a PR, propose a standalone `propose_job` card with
+        `investigation: true` instead of making it an Epic child. Do not
+        split documentation into its own Epic child unless that documentation
+        directly supports the product/code/config change being landed; usually
+        include the docs update in the relevant implementation Job.
+
         #{planned_execution_guidance}
 
         Avoid proposing a single-child-Job Epic. When a piece of work
