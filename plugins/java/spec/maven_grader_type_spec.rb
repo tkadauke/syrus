@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Java::MavenGraderType do
+  def matches_scope?(patterns, path)
+    patterns.any? { |pattern| File.fnmatch(pattern, path, File::FNM_DOTMATCH) }
+  end
+
   it "registers the maven type name" do
     expect(described_class.type_name).to eq("maven")
   end
@@ -26,6 +30,15 @@ RSpec.describe Java::MavenGraderType do
     expect(step.metadata["result_outputs"]).to eq([
       { "artifact" => ".syrus/grade-output/maven-test-junit.xml", "format" => "junit" }
     ])
+  end
+
+  it "matches nested multi-module Maven descriptors and wrappers in the default scope" do
+    scope = described_class.grade_steps(config: {}, default_failures: "strict").first.when_files_changed
+
+    expect(matches_scope?(scope, "app/pom.xml")).to be(true)
+    expect(matches_scope?(scope, "app/mvnw")).to be(true)
+    expect(matches_scope?(scope, "app/mvnw.cmd")).to be(true)
+    expect(matches_scope?(scope, "app/.mvn/wrapper/maven-wrapper.properties")).to be(true)
   end
 
   it "honors configured goals and report paths" do
