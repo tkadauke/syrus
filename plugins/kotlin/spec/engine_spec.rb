@@ -190,7 +190,7 @@ RSpec.describe Kotlin::Engine do
       expect(text).to include("build.gradle.kts")
       expect(text).to include("./gradlew")
       expect(text).to include("Multiplatform")
-      expect(text).to include("Android")
+      expect(text).to include("mobile platform Gradle")
     end
   end
 
