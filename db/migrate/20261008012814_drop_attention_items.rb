@@ -31,14 +31,14 @@ class DropAttentionItems < ActiveRecord::Migration[8.1]
       t.integer :workflow_id
     end
 
-    add_index :attention_items, :decided_by_user_id
-    add_index :attention_items, :job_id
-    add_index :attention_items, :problem_code
-    add_index :attention_items, [ :queue, :state, :urgency ], name: "index_attention_items_on_queue_state_urgency"
-    add_index :attention_items, :repository_id
-    add_index :attention_items, [ :signature, :state ]
-    add_index :attention_items, :step_id
-    add_index :attention_items, :user_id
-    add_index :attention_items, :workflow_id
+    add_index :attention_items, :decided_by_user_id unless index_exists?(:attention_items, :decided_by_user_id)
+    add_index :attention_items, :job_id unless index_exists?(:attention_items, :job_id)
+    add_index :attention_items, :problem_code unless index_exists?(:attention_items, :problem_code)
+    add_index :attention_items, [ :queue, :state, :urgency ], name: "index_attention_items_on_queue_state_urgency" unless index_exists?(:attention_items, [ :queue, :state, :urgency ], name: "index_attention_items_on_queue_state_urgency")
+    add_index :attention_items, :repository_id unless index_exists?(:attention_items, :repository_id)
+    add_index :attention_items, [ :signature, :state ] unless index_exists?(:attention_items, [ :signature, :state ])
+    add_index :attention_items, :step_id unless index_exists?(:attention_items, :step_id)
+    add_index :attention_items, :user_id unless index_exists?(:attention_items, :user_id)
+    add_index :attention_items, :workflow_id unless index_exists?(:attention_items, :workflow_id)
   end
 end
