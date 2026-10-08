@@ -18,26 +18,26 @@ export const site = {
 } as const
 
 export const hero = {
-  eyebrow: "Self-hosted AI coding agents for developers",
+  eyebrow: "Open-source AI coding workflow infrastructure",
   titleLead: "Run coding agents on your repos.",
   titleAccent: "Keep every PR under control.",
   subtitle:
-    "Syrus is the open-source, self-hosted automation harness for turning issues, chats, and video walkthroughs into tracked pull requests. Developers keep the repo, credentials, checks, transcripts, review policy, and merge queue in their own infrastructure, while product and project owners get the visibility they need without turning AI work into a black box."
+    "Syrus is an open-source, self-hosted automation harness for GitHub-based AI coding workflows. It turns issues, chats, and video walkthroughs into tracked pull requests while keeping repositories, credentials, checks, transcripts, review policy, and merge flow in infrastructure you control."
 } as const
 
 // The human + AI team workflow — who does what, start to finish.
 export const workflowSteps = [
   {
     who: "human",
-    actor: "Leads & PMs",
+    actor: "Operator",
     action: "Set the goal",
-    note: "Describe the outcome in a Syrus chat — a feature, a refactor, a whole initiative. Syrus reads your repositories and drafts the plan. Nothing becomes work until you confirm it."
+    note: "Describe the outcome in a Syrus chat — a feature, a refactor, or a larger initiative. Syrus reads the selected repositories and drafts the plan. Nothing becomes work until you confirm it."
   },
   {
     who: "ai",
     actor: "Syrus AI",
     action: "Proposes epics & tickets",
-    note: "Big goals become epics: dependency-ordered stacks of scoped tickets — “Jobs”, in Syrus — that your team can accept, edit, or reject before any code is written."
+    note: "Big goals become epics: dependency-ordered stacks of scoped tickets — “Jobs”, in Syrus — that can be accepted, edited, or rejected before any code is written."
   },
   {
     who: "human",
@@ -60,12 +60,12 @@ export const workflowSteps = [
   {
     who: "human",
     actor: "Developers",
-    action: "Ship world-class code",
+    action: "Land reviewed changes",
     note: "Human approval gates the merge — self-review, two-person, or a designated final say: your policy. Once approved, Syrus lands it for you — rebased, re-checked on the exact branch, merged in dependency order. Branch protection, never bypassed."
   }
 ] as const
 
-// The product pillars — framed for teams that want leverage with control.
+// The project pillars — framed for operators who want repeatable agent workflows.
 export const features = [
   {
     id: "walkthrough",
@@ -75,13 +75,13 @@ export const features = [
   },
   {
     id: "leverage",
-    title: "Multiply your output",
+    title: "Run repeatable agent workflows",
     body: "Run many changes on one codebase at once — even changes that touch the same files. Every job works in its own isolated workspace, in-flight branches are rebased against each other automatically, and ordered work ships as stacked pull requests that land in sequence."
   },
   {
     id: "approve",
-    title: "AI speed, without the AI mess",
-    body: "Your own checks — tests, lint, typecheck — grade every change, and a red result sends the agent back to fix it before a PR ever opens. Then human approval gates the merge, per the review policy you set. AI's velocity never turns into hallucinated logic slipping into production."
+    title: "Agent changes with ordinary review gates",
+    body: "Your own checks — tests, lint, typecheck — grade every change, and a red result sends the agent back to fix it before a PR ever opens. Then human approval gates the merge, per the review policy you set, so generated changes stay inside the same review loop as human-written code."
   },
   {
     id: "landing",
@@ -96,7 +96,7 @@ export const features = [
   {
     id: "cost",
     title: "Know what every feature cost",
-    body: "Every run records what it spent. A spending dashboard breaks AI cost down by epic, person, and repository — so you know what each feature actually cost to build, not just that it shipped."
+    body: "Every run records what it spent. A spending dashboard breaks AI cost down by epic, user, and repository, so operators can understand model usage alongside the work that produced it."
   },
   {
     id: "keys",
@@ -130,7 +130,7 @@ export const entryPoints = [
   {
     id: "direct",
     title: "Chat or direct prompt",
-    body: "A confirmed chat proposal or a direct prompt from your team, no ticket needed — chores, experiments, urgent work."
+    body: "A confirmed chat proposal or a direct prompt, no ticket needed — chores, experiments, urgent work."
   },
   {
     id: "scheduled",
@@ -148,5 +148,5 @@ export const infraPoints = [
   "MIT open source and self-hosted on your infrastructure",
   "Human review and approval on every change — your policy",
   "Full transcript, diff, and cost record for every run",
-  "One-command Docker install, Kubernetes when you scale"
+  "One-command Docker install, with Kubernetes documented for larger self-hosted deployments"
 ] as const

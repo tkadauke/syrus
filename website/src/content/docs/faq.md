@@ -104,15 +104,15 @@ harness for repositories, with deterministic workflow records, provider
 adapters, PR follow-up, and merge trains.
 
 Factory is aimed at a broad hosted agent-native development platform.
-Syrus is aimed at teams that want to operate the automation themselves,
+Syrus is aimed at operators who want to run the automation themselves,
 keep GitHub as the review system of record, and make agent choice a
 replaceable adapter rather than the platform boundary.
 
 ## What does Syrus cost?
 
 Syrus itself is free and MIT-licensed. Your real cost is the model bill:
-Anthropic for Claude runs, OpenAI for Codex runs, Meta for Muse runs, and
-Google/Gemini for Antigravity runs.
+the provider charges for Claude, Codex, Muse, Antigravity, or whichever
+agent-provider plugin you configure.
 
 You also pay your own infrastructure cost. For a small team, that can be
 a Docker Compose box. For a production deployment, it is your database,
