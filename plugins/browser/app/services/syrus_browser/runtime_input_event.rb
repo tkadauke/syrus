@@ -45,8 +45,14 @@ module SyrusBrowser
         <<~JS.squish
           async () => {
             const event = #{payload_json};
-            const x = Number(event.x);
-            const y = Number(event.y);
+            const viewportWidth = Number(event.viewport_width || event.page_width || window.innerWidth || document.documentElement.clientWidth || 0);
+            const viewportHeight = Number(event.viewport_height || event.page_height || window.innerHeight || document.documentElement.clientHeight || 0);
+            const normalizedX = Number(event.normalized_x ?? event.normalizedX);
+            const normalizedY = Number(event.normalized_y ?? event.normalizedY);
+            const rawX = Number(event.x);
+            const rawY = Number(event.y);
+            const x = Number.isFinite(normalizedX) && viewportWidth > 0 ? normalizedX * viewportWidth : rawX;
+            const y = Number.isFinite(normalizedY) && viewportHeight > 0 ? normalizedY * viewportHeight : rawY;
             if (!Number.isFinite(x) || !Number.isFinite(y)) return { delivered: false, error: "invalid_coordinates" };
             const action = event.action || "click";
             const pointerType = event.pointer_type || event.pointerType || (event.type === "touch" ? "touch" : "mouse");

@@ -427,6 +427,17 @@ describe("RuntimePanel visual input", () => {
 
   it("sends provider-neutral pointer, keyboard, and text input after control is taken", async () => {
     const inputPayloads: unknown[] = []
+    vi.spyOn(HTMLImageElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 220,
+      height: 200,
+      left: 50,
+      right: 450,
+      top: 20,
+      width: 400,
+      x: 50,
+      y: 20,
+      toJSON: () => ({})
+    })
     const visualSession = sessionFixture({
       capabilities: { stream: "screenshot", input: ["pointer", "keyboard"] },
       latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
@@ -452,14 +463,24 @@ describe("RuntimePanel visual input", () => {
     expect(await screen.findByText("You (input)")).toBeInTheDocument()
 
     const surface = screen.getByLabelText("Runtime visual input surface")
-    fireEvent.pointerUp(surface, { clientX: 100, clientY: 120, button: 0, pointerType: "mouse" })
+    fireEvent.pointerUp(surface, { clientX: 250, clientY: 120, button: 0, pointerType: "mouse" })
     fireEvent.keyDown(surface, { key: "Enter", code: "Enter" })
     fireEvent.paste(surface, { clipboardData: { getData: () => "hello" } })
 
     await waitFor(() => {
       expect(inputPayloads).toHaveLength(3)
     })
-    expect(inputPayloads[0]).toMatchObject({ type: "pointer", action: "click", x: 100, y: 120, pointer_type: "mouse" })
+    expect(inputPayloads[0]).toMatchObject({
+      type: "pointer",
+      action: "click",
+      x: 200,
+      y: 100,
+      normalized_x: 0.5,
+      normalized_y: 0.5,
+      source_width: 400,
+      source_height: 200,
+      pointer_type: "mouse"
+    })
     expect(inputPayloads[1]).toMatchObject({ type: "keyboard", action: "key_down", key: "Enter", code: "Enter" })
     expect(inputPayloads[2]).toMatchObject({ type: "text", text: "hello" })
   })
