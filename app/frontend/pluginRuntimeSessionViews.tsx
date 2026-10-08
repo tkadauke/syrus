@@ -22,21 +22,18 @@ type PluginModule = {
 }
 
 const viewModules = import.meta.glob<PluginModule>(
-  [
-    "../../plugins/*/app/frontend/runtimeSessionViews/*.tsx",
-    "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"
-  ],
+  ["../../plugins/*/app/frontend/runtimeSessionViews/*.tsx", "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"],
   { eager: true }
 )
 
-const registeredViews = Object.entries(viewModules).flatMap(([ path, mod ]) => {
+const registeredViews = Object.entries(viewModules).flatMap(([path, mod]) => {
   const view = mod.default
   if (!view?.providerKey || !view.component) {
     console.warn(`[pluginRuntimeSessionViews] Skipping ${path}: default export is not a valid PluginRuntimeSessionView`)
     return []
   }
 
-  return [ view ]
+  return [view]
 })
 
 export function pluginRuntimeSessionViewComponentFor(providerKey: string | null | undefined) {
@@ -44,6 +41,15 @@ export function pluginRuntimeSessionViewComponentFor(providerKey: string | null 
   return registeredViews.find((view) => view.providerKey === providerKey)?.component ?? null
 }
 
+function capabilityStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value]
+  if (Array.isArray(value)) return value.filter((candidate): candidate is string => typeof candidate === "string")
+  if (value && typeof value === "object") return Object.values(value).flatMap(capabilityStrings)
+
+  return []
+}
+
 export function runtimeSessionInputEnabled(session: RuntimeSession, myLease: RuntimeControlLease | null) {
-  return Boolean(myLease && myLease.owner === "user" && myLease.mode === "input" && !session.active_agent_input_lease)
+  const inputCapabilities = capabilityStrings(session.capabilities.input).map((value) => value.toLowerCase())
+  return Boolean(inputCapabilities.length > 0 && myLease && myLease.owner === "user" && myLease.mode === "input" && !session.active_agent_input_lease)
 }

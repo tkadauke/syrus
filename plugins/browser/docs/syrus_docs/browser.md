@@ -3,7 +3,8 @@
 Browser gives workflow agents (`visual_review`) and Coding Mode chats
 (RuntimeSessions) a constrained, headless Playwright browser: navigate,
 click, fill, hover, drag/drop, upload, evaluate JS, snapshot, screenshot,
-resize, wait, and close. Navigation is hard-restricted to loopback URLs (see
+resize, wait, close, and provider-neutral Runtime input from the operator
+panel. Navigation is hard-restricted to loopback URLs (see
 `LoopbackGuard`) -- the browser can only drive a session's own in-step
 preview, never an arbitrary network destination. On by default.
 

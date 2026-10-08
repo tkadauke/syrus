@@ -213,8 +213,9 @@ frame viewer for providers that advertise screenshot/frame streams, latest
 captured screenshots as fallback, a scrolling log tail, and provider details
 like the dev server's URL. The panel also gives the operator a Take Control /
 Abort Agent Control button that immediately takes over input from the agent,
-and a button to capture a fresh screenshot on demand. Control leases are
-short-lived by design, but the
+lets the operator click, paste, or type into visual providers such as Browser
+while that input lease is active, and includes a button to capture a fresh
+screenshot on demand. Control leases are short-lived by design, but the
 panel renews an active operator lease automatically in the background, so
 staying on the tab keeps control without it silently expiring mid-task.
 

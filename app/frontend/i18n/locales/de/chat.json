@@ -336,6 +336,8 @@
   "runtime_take_control_reason": "Bediener hat die Kontrolle über das Runtime-Panel übernommen.",
   "runtime_take_control_error": "Kontrolle dieser Laufzeitsitzung konnte nicht übernommen werden.",
   "runtime_release_control_error": "Kontrolle dieser Laufzeitsitzung konnte nicht freigegeben werden.",
+  "runtime_input_error": "Eingabe konnte nicht an diese Laufzeitsitzung gesendet werden.",
+  "runtime_visual_input_surface": "Visuelle Eingabefläche der Laufzeitsitzung",
   "runtime_last_error": "Letzter Lauf fehlgeschlagen",
   "runtime_latest_frame": "Neuester Screenshot",
   "runtime_terminal_live": "Live-Terminal",

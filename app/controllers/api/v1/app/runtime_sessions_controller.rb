@@ -115,6 +115,39 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        # POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/input
+        # Operator-side runtime_input. The Runtime panel may only deliver
+        # pointer/keyboard/text events while the current operator holds an
+        # active user input lease; the provider still performs its own lease
+        # check with caller ownership metadata before touching the target.
+        def input
+          event = params[:event]
+          unless event.is_a?(ActionController::Parameters) || event.is_a?(Hash)
+            render_error("validation_failed", "event must be an object", status: :unprocessable_content)
+            return
+          end
+
+          lease = current_user_input_lease
+          unless lease
+            RuntimeControlLease.audit_input_rejected!(runtime_session: @runtime_session, event: input_event_hash(event))
+            render_error("validation_failed", "You must take input control before sending runtime input.", status: :unprocessable_content)
+            return
+          end
+
+          payload = input_event_hash(event).merge("_runtime_control_owner" => "user")
+          result = provider_for(@runtime_session).input(@runtime_session.id, payload)
+          if provider_input_error?(result)
+            render_error("validation_failed", provider_input_error_message(result), status: :unprocessable_content)
+            return
+          end
+
+          render json: { result: result, runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload) }
+        rescue RuntimeSessionProviders::ConfigurationError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        rescue StandardError => e
+          render_error("server_error", "Could not deliver runtime input: #{e.message}", status: :unprocessable_content)
+        end
+
         private
 
         def require_coding_mode_feature
@@ -135,6 +168,32 @@ module Api
 
         def provider_for(runtime_session)
           RuntimeSessionProviders.for(runtime_session.provider_key).new
+        end
+
+        def current_user_input_lease
+          @runtime_session.runtime_control_leases.active
+            .held_by("user")
+            .for_mode("input")
+            .find_by(owner_ref: "operator:#{Current.user.id}")
+        end
+
+        def input_event_hash(event)
+          event.respond_to?(:to_unsafe_h) ? event.to_unsafe_h : event.to_h
+        end
+
+        def provider_input_error?(result)
+          error = result.is_a?(Hash) ? result[:error] || result["error"] : nil
+          error.present? && error != false
+        end
+
+        def provider_input_error_message(result)
+          return "Runtime provider rejected the input event." unless result.is_a?(Hash)
+
+          result[:message].presence ||
+            result["message"].presence ||
+            result[:error].presence ||
+            result["error"].presence ||
+            "Runtime provider rejected the input event."
         end
       end
     end

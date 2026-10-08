@@ -192,4 +192,47 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  describe "POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/input" do
+    it "rejects input until the current operator holds an active input lease" do
+      sign_in_as(user)
+      session = build_runtime_session
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/input",
+        params: { event: { type: "pointer", action: "click", x: 10, y: 20 } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "delivers user input through the provider while the operator lease is active" do
+      sign_in_as(user)
+      session = build_runtime_session
+      RuntimeControlLease.acquire!(
+        runtime_session: session,
+        owner: "user",
+        owner_ref: "operator:#{user.id}",
+        mode: "input",
+        reason: "manual check"
+      )
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/input",
+        params: { event: { type: "keyboard", action: "key_down", key: "Enter" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("result", "delivered")).to eq("type" => "keyboard", "action" => "key_down", "key" => "Enter")
+    end
+
+    it "does not treat an agent input lease as permission for user input" do
+      sign_in_as(user)
+      session = build_runtime_session
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "input", reason: "agent typing")
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/input",
+        params: { event: { type: "text", text: "hello" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("take input control")
+    end
+  end
 end

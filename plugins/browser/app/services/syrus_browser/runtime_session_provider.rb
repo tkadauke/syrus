@@ -89,24 +89,26 @@ module SyrusBrowser
       tool_response_to_hash(response)
     end
 
-    # The agent must hold an active input-mode RuntimeControlLease (DOC-17's
-    # Shared Human/Agent Control) before any pointer/keyboard/touch/etc. event
-    # reaches the shared browser session. Actual event delivery is still a
-    # no-op pending the driving implementation, but the lease gate — and its
-    # audit trail — applies regardless so callers see the real enforcement
-    # error once it lands.
+    # The caller must hold an active input-mode RuntimeControlLease (DOC-17's
+    # Shared Human/Agent Control) before any pointer/keyboard/touch/text event
+    # reaches the shared browser session. Core tags generic runtime_input
+    # payloads with the caller owner ("agent" or "user"); Browser translates
+    # the neutral event shape into DOM-level input inside the current page.
     def input(session_id, event)
       runtime_session = find_runtime_session(session_id)
-      event = event.to_h.symbolize_keys
-      lease = runtime_session.active_agent_input_lease
+      event = event.to_h.stringify_keys
+      owner = event.delete("_runtime_control_owner").presence || "agent"
+      lease = input_lease_for(runtime_session, owner)
 
       unless lease
         RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
-        return { error: "lease_required", message: "the agent must hold an active input lease before sending input events" }
+        return { error: "lease_required", message: "the #{owner} must hold an active input lease before sending input events" }
       end
 
       lease.record_input!(event)
-      { error: "not_yet_supported", message: "browser input is not yet supported by this runtime session provider" }
+      response = RuntimeInputEvent.for(event).deliver(SessionRegistry.fetch(SessionContext.for_runtime_session(runtime_session).session_key))
+      result = tool_response_to_hash(response)
+      result.merge(delivered: !result[:error])
     end
 
     def logs(session_id, cursor, _options)
@@ -145,8 +147,22 @@ module SyrusBrowser
       { runtime_session: runtime_session }
     end
 
+    def input_lease_for(runtime_session, owner)
+      if owner == "user"
+        runtime_session.runtime_control_leases.active.held_by("user").for_mode("input").first
+      else
+        runtime_session.active_agent_input_lease
+      end
+    end
+
     def tool_response_to_hash(response)
-      { error: response.error?, content: response.content }
+      if response.respond_to?(:error?)
+        { error: response.error?, content: response.content }
+      else
+        result = response.is_a?(Hash) ? response["result"] : nil
+        content = result.is_a?(Hash) ? Array(result["content"]) : []
+        { error: result.is_a?(Hash) && result["isError"] == true, content: content }
+      end
     end
 
     def resolved_log_path(workspace_path)

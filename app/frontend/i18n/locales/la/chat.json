@@ -336,6 +336,8 @@
   "runtime_take_control_reason": "Moderator imperium ex tabula Tempus-Agendi sumpsit.",
   "runtime_take_control_error": "Imperium huius sessionis sumi non potuit.",
   "runtime_release_control_error": "Imperium huius sessionis dimitti non potuit.",
+  "runtime_input_error": "Inputum ad hanc sessionem mitti non potuit.",
+  "runtime_visual_input_surface": "Area inputi visualis sessionis",
   "runtime_last_error": "Cursus ultimus defecit",
   "runtime_latest_frame": "Novissima imago",
   "runtime_terminal_live": "Terminale vivum",
