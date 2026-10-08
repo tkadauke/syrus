@@ -73,10 +73,11 @@ module Mcp::Tools
       created.
       Set planned_execution to declare where the work has to run. Nothing
       reads the proposal text to guess this, so if the work needs a host other
-      than Linux you must say so here. Only the os dimension is supported:
-      {"os":["linux"]} for normal backend/web/frontend work, {"os":["macos"]}
-      for work that genuinely needs a Mac, such as Xcode builds or iOS
-      simulators. Mentioning a platform in the description does nothing --
+      than Linux you must say so here. Supported dimensions are os, arch,
+      toolchain, and runtime: {"os":["linux"]} for normal backend/web/frontend
+      work, {"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}
+      for work that genuinely needs Xcode builds or iOS simulators.
+      Mentioning a platform in the description does nothing --
       including saying a platform is out of scope.
       planned_execution.capabilities is REQUIRED. A proposal that omits it, or
       passes empty capabilities, is rejected before the card is created --
@@ -107,10 +108,10 @@ module Mcp::Tools
           properties: {
             project_label: { type: "string", description: "Optional operator-facing project or placement label, such as iOS App." },
             target_label: { type: "string", description: "Optional target graph label, such as //ios:app." },
-            capabilities: { type: "object", description: "Execution capabilities. Only os is supported, with values linux or macos." },
+            capabilities: { type: "object", description: "Execution capabilities. Supported dimensions are os, arch, toolchain, and runtime." },
             source: { type: "string", description: "Decision provenance. Defaults to operator for this explicit override." }
           },
-          description: "Optional explicit primary implementation placement override. Use {\"os\":[\"macos\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
+          description: "Optional explicit primary implementation placement override. Use {\"os\":[\"macos\"],\"arch\":[\"arm64\"],\"toolchain\":[\"xcode\"],\"runtime\":[\"ios_simulator\"]} for iOS/Xcode work, {\"os\":[\"linux\"]} for Linux/backend work, and omit it for Windows-targeted work unless the operator picks a supported host."
         },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },

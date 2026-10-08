@@ -347,6 +347,9 @@ RSpec.describe SyrusYml do
           run: xcodebuild test
           capabilities:
             os: [macos]
+            arch: arm64
+            toolchain: xcode
+            runtime: ios_simulator
       grade:
         - name: backend
           run: bin/rspec
@@ -355,8 +358,63 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.project.capabilities.to_h).to eq("os" => [ "macos" ])
-    expect(config.targets.first.capabilities.to_h).to eq("os" => [ "macos" ])
+    expect(config.targets.first.capabilities.to_h).to eq(
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    )
     expect(config.grade.steps.first.capabilities.to_h).to eq("os" => [ "linux" ])
+  end
+
+  it "parses an iOS project with Xcode execution details carried by commands" do
+    config = parse(<<~YAML)
+      project:
+        id: ios
+        label: iOS App
+        kind: ios_app
+        capabilities:
+          os: macos
+
+      targets:
+        - name: app-sources
+          kind: application
+          sources:
+            - "App/**/*.swift"
+            - "MobileApp.xcworkspace/**"
+
+        - name: test
+          kind: grader
+          run: >
+            xcodebuild test
+            -workspace MobileApp.xcworkspace
+            -scheme MobileApp
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+            -derivedDataPath "$PWD/.syrus/DerivedData"
+            -resultBundlePath "$PWD/build/syrus/MobileApp.xcresult"
+            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_REQUIRED=NO
+          deps: [":app-sources"]
+          phases: [review, landing, ci]
+          timeout_minutes: 45
+          capabilities:
+            os: macos
+            arch: arm64
+            toolchain: xcode
+            runtime: ios_simulator
+    YAML
+
+    expect(config.project.kind).to eq("ios_app")
+    expect(config.project.capabilities.to_h).to eq("os" => [ "macos" ])
+    expect(config.targets.second.command).to include("xcodebuild test")
+    expect(config.targets.second.command).to include("-destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'")
+    expect(config.targets.second.deps).to eq([ ":app-sources" ])
+    expect(config.targets.second.capabilities.to_h).to eq(
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    )
   end
 
   it "rejects unsupported OS values with the owning field path" do
@@ -380,19 +438,6 @@ RSpec.describe SyrusYml do
             gpu: metal
       YAML
     }.to raise_error(described_class::ParseError, /project\.capabilities: unknown keys gpu/)
-  end
-
-  it "rejects formerly supported non-OS capability dimensions" do
-    expect {
-      parse(<<~YAML)
-        grade:
-          - name: ios-tests
-            run: xcodebuild test
-            capabilities:
-              os: macos
-              toolchains: xcode
-      YAML
-    }.to raise_error(described_class::ParseError, /grade\.steps\[0\]\.capabilities: unknown keys toolchains/)
   end
 
   it "rejects non-positive explicit target timeouts" do
