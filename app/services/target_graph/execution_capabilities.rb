@@ -1,13 +1,16 @@
 class TargetGraph
-  class ExecutionCapabilities < Data.define(:os)
-    DIMENSIONS = %w[os].freeze
+  class ExecutionCapabilities < Data.define(:os, :arch, :toolchain, :runtime)
+    DIMENSIONS = %w[os arch toolchain runtime].freeze
     ALLOWED_OS_VALUES = %w[linux macos].freeze
     TOKEN_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9_.+-]*\z/
     CONFLICTING_WILDCARD = "any".freeze
 
-    def initialize(os: [])
+    def initialize(os: [], arch: [], toolchain: [], runtime: [])
       super(
-        os: normalize_os(os)
+        os: normalize_os(os),
+        arch: normalize_dimension(arch, "arch"),
+        toolchain: normalize_dimension(toolchain, "toolchain"),
+        runtime: normalize_dimension(runtime, "runtime")
       )
     end
 
@@ -27,7 +30,10 @@ class TargetGraph
       raise ArgumentError, "capabilities must be a TargetGraph::ExecutionCapabilities" unless other.is_a?(self.class)
 
       self.class.new(
-        os: merge_dimension(other, "os")
+        os: merge_dimension(other, "os"),
+        arch: merge_dimension(other, "arch"),
+        toolchain: merge_dimension(other, "toolchain"),
+        runtime: merge_dimension(other, "runtime")
       )
     end
 

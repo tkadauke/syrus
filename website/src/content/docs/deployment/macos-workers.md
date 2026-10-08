@@ -35,7 +35,7 @@ RAILS_ENV=production
 SYRUS_APP_HOST=https://syrus.example.internal
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 GIT_SHA=<release sha>
 ```
 
@@ -166,7 +166,7 @@ drain/update state still report normally.
 | No capable worker online | Confirm a fresh heartbeat, `SYRUS_WORKER_CAPABILITIES`, `runs-macos-arm64` queue consumption, and whether all Macs are draining/updating. |
 | Stale Mac worker version | Check updater status, `SYRUS_MACOS_WORKER_TOKEN`, desired release metadata, artifact URL access, and checksum verification failures. |
 | Xcode not installed or licensed | Run `bin/macos-worker-check`, fix `xcode-select`, install Command Line Tools/full Xcode, and accept the Xcode license as needed. |
-| Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics rather than as an execution capability. |
+| Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics and advertised as `runtime:ios_simulator` when available. |
 | Keychain or signing failures | Verify the launchd user can access the signing keychain, certificates, provisioning profiles, and any private signing/notarization services. |
 | Package installs fail only on Macs | Check outbound registry access, host-local dependency caches, Xcode/SDK compatibility, and target-repo private registry credentials. |
 

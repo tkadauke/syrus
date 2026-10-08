@@ -27,33 +27,38 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ArgumentError, "planned execution capabilities must be a Hash or TargetGraph::ExecutionCapabilities")
   end
 
-  it "normalizes explicit OS capabilities" do
+  it "normalizes explicit execution capabilities" do
     requirement = described_class.new(
       project_label: " iOS ",
       target_label: "//app:grade/tests",
-      capabilities: { "os" => "macOS" },
+      capabilities: { "os" => "macOS", "arch" => "ARM64", "toolchain" => "Xcode", "runtime" => "iOS_Simulator" },
       source: "explicit"
     )
 
     expect(requirement.to_h).to eq(
       "project_label" => "iOS",
       "target_label" => "//app:grade/tests",
-      "capabilities" => { "os" => [ "macos" ] },
+      "capabilities" => {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode" ],
+        "runtime" => [ "ios_simulator" ]
+      },
       "source" => "explicit"
     )
   end
 
   it "rejects unsupported capability dimensions and OS values" do
     expect {
-      described_class.new(capabilities: { "os" => [ "linux" ], "runtimes" => [ "ruby" ] })
-    }.to raise_error(ArgumentError, /unsupported keys runtimes/)
+      described_class.new(capabilities: { "os" => [ "linux" ], "feature" => [ "docker" ] })
+    }.to raise_error(ArgumentError, /unsupported keys feature/)
 
     expect {
       described_class.new(capabilities: { "os" => [ "windows" ] })
     }.to raise_error(ArgumentError, /os: values must be one of linux, macos/)
   end
 
-  it "prevents runtime labels from being persisted on Jobs" do
+  it "prevents unsupported capability labels from being persisted on Jobs" do
     user = Factories.user
     repository = Factories.repository(user: user)
     job = Job.new(
@@ -61,13 +66,13 @@ RSpec.describe PlannedExecutionRequirement do
       repository: repository,
       issue_number: 42,
       issue_title: "Fix Rails and Node install",
-      issue_body: "Backend work should not request runtime placement labels.",
-      planned_execution_capabilities: { "os" => [ "linux" ], "runtimes" => [ "ruby", "node" ] },
+      issue_body: "Backend work should not request free-form placement labels.",
+      planned_execution_capabilities: { "os" => [ "linux" ], "feature" => [ "docker" ] },
       planned_execution_source: "prompt"
     )
 
     expect(job).not_to be_valid
-    expect(job.errors[:planned_execution_capabilities].join).to include("unsupported keys runtimes")
+    expect(job.errors[:planned_execution_capabilities].join).to include("unsupported keys feature")
   end
 
   it "defaults new jobs and manually created workflows" do

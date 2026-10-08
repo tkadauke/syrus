@@ -866,6 +866,32 @@ RSpec.describe Run, :ci_only do
       )
     end
 
+    it "requires live workers to satisfy iOS toolchain and runtime requirements" do
+      requirements = {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode" ],
+        "runtime" => [ "ios_simulator" ]
+      }
+      workflow.update!(
+        planned_execution_capabilities: requirements,
+        planned_execution_source: "explicit"
+      )
+      live_capable_worker_queue!(
+        "runs-macos-arm64",
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.not_to have_enqueued_job(RunJob)
+      expect(run.reload).to be_failed
+      expect(workflow.reload.artifact("run_queue_blocked")).to include(
+        "queue_name" => "runs-macos-arm64",
+        "requirements" => requirements,
+        "reason" => "no_live_worker_for_capabilities"
+      )
+    end
+
     it "does not route new macOS work to a draining worker" do
       workflow.update!(
         planned_execution_capabilities: { "os" => [ "macos" ] },

@@ -106,7 +106,7 @@ class RunQueueResolver
     os = single_token(requirements["os"])
     return nil if os.blank? || os == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
-    arch = default_queue_arch_for(os)
+    arch = single_token(requirements["arch"]).presence || default_queue_arch_for(os)
     return nil if arch.blank? || arch == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
     [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")

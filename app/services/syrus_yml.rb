@@ -764,7 +764,10 @@ class SyrusYml
     end
 
     capabilities = TargetGraph::ExecutionCapabilities.new(
-      os: parse_capability_values(raw["os"], "#{label}.os")
+      os: parse_capability_values(raw["os"], "#{label}.os"),
+      arch: parse_capability_values(raw["arch"], "#{label}.arch"),
+      toolchain: parse_capability_values(raw["toolchain"], "#{label}.toolchain"),
+      runtime: parse_capability_values(raw["runtime"], "#{label}.runtime")
     )
     capabilities.empty? ? nil : capabilities
   rescue ArgumentError => e

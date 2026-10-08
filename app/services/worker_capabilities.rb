@@ -21,9 +21,9 @@ class WorkerCapabilities
   ToolProbe = Data.define(:dimension, :token, :diagnostic_key, :command, :available_value)
 
   TOOL_PROBES = [
-    ToolProbe.new(dimension: "toolchains", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
-    ToolProbe.new(dimension: "runtimes", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
-    ToolProbe.new(dimension: "features", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
+    ToolProbe.new(dimension: "toolchain", token: "xcode", diagnostic_key: "xcode", command: [ "xcodebuild", "-version" ], available_value: true),
+    ToolProbe.new(dimension: "runtime", token: "ios_simulator", diagnostic_key: "ios_simulator", command: [ "xcrun", "simctl", "list", "runtimes", "-j" ], available_value: true),
+    ToolProbe.new(dimension: "feature", token: "docker", diagnostic_key: "docker", command: [ "docker", "version", "--format", "{{.Server.Version}}" ], available_value: true)
   ].freeze
   VERSION_PROBES = {
     "ruby" => [ RbConfig.ruby, "-e", "print RUBY_ENGINE, ' ', RUBY_VERSION" ],
@@ -44,6 +44,7 @@ class WorkerCapabilities
       configured = parse(ENV[ENV_KEY])
       detected = detected_defaults
       merged = detected.fetch(:capabilities).merge(configured)
+      merged.delete("arch") if present_value?(configured["os"]) && blank_value?(configured["arch"])
       capabilities = TargetGraph::ExecutionCapabilities.new(**symbolize_keys(merged))
 
       {
@@ -86,17 +87,30 @@ class WorkerCapabilities
         raise ArgumentError, "worker capabilities must be a Hash, String, or TargetGraph::ExecutionCapabilities"
       end
 
-      os_values = Array(raw.to_h["os"] || raw.to_h[:os])
-        .map { |value| value.to_s.strip.downcase }
-        .select { |value| TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES.include?(value) }
+      normalized = raw.to_h.each_with_object({}) do |(key, value), hash|
+        dimension = normalize_key(key)
+        next unless TargetGraph::ExecutionCapabilities::DIMENSIONS.include?(dimension)
 
-      TargetGraph::ExecutionCapabilities.new(os: os_values).to_h
+        hash[dimension] = value
+      end
+
+      TargetGraph::ExecutionCapabilities.new(**symbolize_keys(normalized)).to_h
+    rescue ArgumentError => e
+      raise e unless raw.is_a?(Hash)
+
+      TargetGraph::ExecutionCapabilities.new(
+        os: supported_values(raw, "os", TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES),
+        arch: supported_values(raw, "arch"),
+        toolchain: supported_values(raw, "toolchain"),
+        runtime: supported_values(raw, "runtime")
+      ).to_h
     end
 
     def queue_names_for(base_queue, capabilities: current.fetch(:capabilities))
       capabilities = normalize(capabilities)
       os = Array(capabilities["os"]).first.to_s
-      arch = DEFAULT_QUEUE_ARCH_BY_OS[os]
+      requested_arch = Array(capabilities["arch"]).first
+      arch = present_value?(requested_arch) ? requested_arch : DEFAULT_QUEUE_ARCH_BY_OS[os]
       queue_arch = ARCH_QUEUE_ALIASES.fetch(arch, queue_token(arch))
 
       queues = []
@@ -150,6 +164,7 @@ class WorkerCapabilities
       os = os_token
       capabilities = {}
       capabilities["os"] = [ os ] if TargetGraph::ExecutionCapabilities::ALLOWED_OS_VALUES.include?(os)
+      capabilities["arch"] = [ arch_token ] if present_value?(arch_token)
       diagnostics = {
         "os" => os,
         "arch" => arch_token
@@ -158,6 +173,9 @@ class WorkerCapabilities
       TOOL_PROBES.each do |probe|
         result = command_available?(probe.command)
         diagnostics[probe.diagnostic_key] = result
+        next unless result && TargetGraph::ExecutionCapabilities::DIMENSIONS.include?(probe.dimension)
+
+        capabilities[probe.dimension] = Array(capabilities[probe.dimension]) | [ probe.token ]
       end
 
       { capabilities: capabilities, diagnostics: diagnostics }
@@ -166,10 +184,16 @@ class WorkerCapabilities
     def normalize_key(raw)
       key = raw.to_s.strip.downcase
       {
-        "toolchain" => "toolchains",
-        "runtime" => "runtimes",
-        "feature" => "features"
+        "toolchains" => "toolchain",
+        "runtimes" => "runtime"
       }.fetch(key, key)
+    end
+
+    def supported_values(raw, dimension, allowlist = nil)
+      value = raw.to_h[dimension] || raw.to_h[dimension.to_sym]
+      values = Array(value).map { |entry| entry.to_s.strip.downcase }.reject { |entry| blank_value?(entry) }
+      values &= allowlist if allowlist
+      values
     end
 
     def queue_token(value)

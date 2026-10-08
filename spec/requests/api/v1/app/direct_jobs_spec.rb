@@ -70,7 +70,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
       planned_execution: {
         project_label: "iOS App",
         target_label: "//ios:app",
-        capabilities: { os: [ "macos" ] }
+        capabilities: { os: [ "macos" ], arch: [ "arm64" ], toolchain: [ "xcode" ], runtime: [ "ios_simulator" ] }
       }
     }
 
@@ -78,7 +78,12 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(Job.order(:created_at).last.planned_execution_json).to include(
       "project_label" => "iOS App",
       "target_label" => "//ios:app",
-      "capabilities" => { "os" => [ "macos" ] },
+      "capabilities" => {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode" ],
+        "runtime" => [ "ios_simulator" ]
+      },
       "source" => "operator"
     )
   end
