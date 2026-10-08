@@ -11,6 +11,15 @@ module Android
       */*/src/main/AndroidManifest.xml
     ].freeze
 
+    ANDROID_SOURCE_PATH_GLOBS = %w[
+      src/main/res
+      */src/main/res
+      */*/src/main/res
+      src/androidTest
+      */src/androidTest
+      */*/src/androidTest
+    ].freeze
+
     GRADLE_FILE_GLOBS = %w[
       build.gradle
       build.gradle.kts
@@ -41,7 +50,7 @@ module Android
     def self.detect?(repo_path)
       path = Pathname.new(repo_path)
 
-      android_manifest?(path) || android_gradle_plugin?(path)
+      android_manifest?(path) || android_source_path?(path) || android_gradle_plugin?(path)
     end
 
     def self.prepare_commands(_repo_path)
@@ -60,6 +69,13 @@ module Android
       ANDROID_MANIFEST_GLOBS.any? { |pattern| any_file_matching?(path, pattern) }
     end
     private_class_method :android_manifest?
+
+    def self.android_source_path?(path)
+      ANDROID_SOURCE_PATH_GLOBS.any? do |pattern|
+        Dir.glob(path.join(pattern).to_s, File::FNM_DOTMATCH).any? { |entry| File.directory?(entry) }
+      end
+    end
+    private_class_method :android_source_path?
 
     def self.android_gradle_plugin?(path)
       gradle_files(path).any? do |file|
