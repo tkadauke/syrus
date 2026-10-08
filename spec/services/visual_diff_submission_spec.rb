@@ -36,6 +36,16 @@ RSpec.describe VisualDiffSubmission do
     }
   end
 
+  def sign_in_after_artifact
+    after_artifact.merge(
+      "title" => "Credential Store after change",
+      "page" => {
+        "path" => "/session/new",
+        "title" => "Sign in"
+      }
+    )
+  end
+
   it "dispatches a manual visual_diff workflow using existing after screenshots" do
     job = Factories.job_record(user: user, repository: repository, state: "implemented")
     after_workflow_for(job)
@@ -48,6 +58,44 @@ RSpec.describe VisualDiffSubmission do
     expect(result.workflow.artifact("visual_diff_source")).to eq("manual")
     expect(result.workflow.artifact("visual_diff_after_artifacts")).to contain_exactly(include("title" => "Dashboard"))
     expect(result.run).to be_present
+  end
+
+  it "starts a skipped comparison instead of accepting sign-in evidence for a non-auth surface" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is Credential Store."
+    )
+    after_workflow_for(job, artifacts: [ sign_in_after_artifact ])
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("visual_diff_after_artifacts")).to be_empty
+    rejected = result.workflow.artifact("visual_diff_rejected_after_artifacts")
+    expect(rejected).to contain_exactly(include(
+      "title" => "Credential Store after change",
+      "rejected_reason" => include("captured \"/session/new\" titled \"Sign in\"", "Credential Store after change")
+    ))
+  end
+
+  it "keeps auth-page visual diffs when the changed surface is the auth route" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      issue_title: "Polish sign-in",
+      issue_body: "The changed surface is /session/new."
+    )
+    after_workflow_for(job, artifacts: [ sign_in_after_artifact ])
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("visual_diff_after_artifacts")).to contain_exactly(include("title" => "Credential Store after change"))
+    expect(result.workflow.artifact("visual_diff_rejected_after_artifacts")).to be_empty
   end
 
   it "rejects a manual request without after screenshots" do
