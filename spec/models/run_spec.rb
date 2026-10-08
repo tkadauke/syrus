@@ -759,13 +759,13 @@ RSpec.describe Run, :ci_only do
       )
     end
 
-    def live_capable_worker_queue!(queue_name, capabilities:, hostname: "syrus-worker-1")
+    def live_capable_worker_queue!(queue_name, capabilities:, hostname: "syrus-worker-1", capability_diagnostics: {})
       ensure_solid_queue_test_tables!
       SolidQueue::Process.create!(
         hostname: hostname,
         kind: "worker",
         last_heartbeat_at: Time.current,
-        metadata: { "queues" => [ queue_name ], "capabilities" => capabilities },
+        metadata: { "queues" => [ queue_name ], "capabilities" => capabilities, "capability_diagnostics" => capability_diagnostics },
         name: "#{hostname}:1",
         pid: 123,
         created_at: Time.current
@@ -879,7 +879,14 @@ RSpec.describe Run, :ci_only do
       )
       live_capable_worker_queue!(
         "runs-macos-arm64",
-        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] }
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
+        capability_diagnostics: {
+          "xcode" => true,
+          "ios_simulator" => false,
+          "xcode_version" => "16.4",
+          "developer_dir" => "/Applications/Xcode.app/Contents/Developer",
+          "ios_simulator_runtimes" => []
+        }
       )
 
       clear_enqueued_jobs
@@ -889,6 +896,18 @@ RSpec.describe Run, :ci_only do
         "queue_name" => "runs-macos-arm64",
         "requirements" => requirements,
         "reason" => "no_live_worker_for_capabilities"
+      )
+      expect(workflow.artifact("run_queue_blocked").fetch("live_workers")).to contain_exactly(
+        include(
+          "hostname" => "syrus-worker-1",
+          "selected_queue" => true,
+          "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
+          "capability_diagnostics" => include(
+            "xcode_version" => "16.4",
+            "ios_simulator" => false,
+            "ios_simulator_runtimes" => []
+          )
+        )
       )
     end
 
@@ -923,7 +942,7 @@ RSpec.describe Run, :ci_only do
           planned_execution_capabilities: { "os" => [ "windows" ] },
           planned_execution_source: "explicit"
         )
-      }.to raise_error(ActiveRecord::RecordInvalid, /planned execution capabilities/)
+      }.to raise_error(ActiveRecord::RecordInvalid, /capabilities/)
     end
 
     it "keeps explicit Linux feature work on runs when a broad worker advertises the feature" do

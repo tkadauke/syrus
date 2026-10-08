@@ -50,14 +50,20 @@ Only `os:linux` and `os:macos` are admitted for the OS dimension. `arch`,
 and `ios_simulator`. Unknown dimensions and unsupported OS values are ignored
 for worker advertisements. Native macOS workers can rely on host probes for
 Xcode and simulator runtime advertisements when the tools are installed, or set
-them explicitly in the env file when operators want a fixed declaration. Linux
-k3s and Docker Compose workers can usually rely on detected `os:linux` and host
-architecture.
+them explicitly in the env file when operators want a fixed declaration. The
+macOS probes are read-only: they run version and listing commands such as
+`sw_vers`, `xcode-select`, `xcodebuild -version`, `xcrun --find xcodebuild`,
+and `xcrun simctl list`. They do not mutate keychains, signing state,
+simulator contents, or selected devices. Linux k3s and Docker Compose workers
+can usually rely on detected `os:linux` and host architecture.
 
 Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
 and `read_queue` all include the normalized capability map and probe
-diagnostics. Historical health samples keep the capability snapshot that was
-true when the sample was recorded.
+diagnostics. For iOS-capable Mac workers those diagnostics include macOS host
+version and architecture facts, selected developer directory, Xcode version and
+build version, command-line-tool usability, available iOS simulator runtimes,
+and a bounded sample of available simulator devices. Historical health samples
+keep the capability snapshot that was true when the sample was recorded.
 
 External worker pools can set `SYRUS_WORKER_POOL_NAME` to a stable
 operator-facing name such as `macos-xcode`. Syrus records that value in worker
@@ -277,9 +283,12 @@ when explicit Linux requirements are present. If no fresh worker both consumes
 the selected queue and advertises compatible capabilities, the Workflow stays queued with
 `start_blocked_reason: no_capable_worker`; `start_blocked_details` and
 `run_queue_admission_decision` record the selected queue, requirements, and
-phase step so operators can see why it is waiting. Syrus schedules a normal
-phase-admission recheck instead of creating a Run that would sit on an
-unconsumed or incompatible queue.
+phase step so operators can see why it is waiting. Those details also include a
+compact snapshot of live worker queues, capabilities, probe diagnostics, and
+drain state, so an iOS shortage can distinguish "no Mac worker online" from
+"Mac worker online but missing an iOS simulator runtime" or "Mac worker is
+draining." Syrus schedules a normal phase-admission recheck instead of
+creating a Run that would sit on an unconsumed or incompatible queue.
 
 `Run#enqueue_run_job` repeats that check at enqueue time as a backstop. When it
 does enqueue, the Workflow appends a `run_queue_decisions` artifact recording

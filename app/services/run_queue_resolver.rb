@@ -114,7 +114,7 @@ class RunQueueResolver
 
   def capability_specific_requirements?(requirements)
     return false if requirements.blank?
-    return false if requirements == DEFAULT_RUN_CAPABILITIES && !explicit_target_requirements?
+    return false if requirements == DEFAULT_RUN_CAPABILITIES
 
     requirements["os"].present?
   end
@@ -189,6 +189,7 @@ class RunQueueResolver
         worker_storage_key: process.metadata&.dig("worker_storage_key").presence || latest_sample_for(process)&.worker_storage_key,
         queues: InstanceVersion.queue_names(process.metadata&.dig("queues")),
         capabilities: capabilities,
+        capability_diagnostics: capability_diagnostics_for_process(process),
         macos_worker: macos_worker_capabilities?(capabilities)
       }
     end
@@ -204,6 +205,7 @@ class RunQueueResolver
         worker_storage_key: latest_sample_by_hostname[instance.hostname]&.worker_storage_key,
         queues: [ Workflow.resume_queue_name(instance.hostname) ],
         capabilities: capabilities,
+        capability_diagnostics: instance.capability_diagnostics || latest_sample_by_hostname[instance.hostname]&.capability_diagnostics || {},
         macos_worker: macos_worker_capabilities?(capabilities)
       }
     end
@@ -233,6 +235,13 @@ class RunQueueResolver
     WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
   end
 
+  def capability_diagnostics_for_process(process)
+    process.metadata&.dig("capability_diagnostics").presence ||
+      instance_for_process(process)&.capability_diagnostics ||
+      latest_sample_for(process)&.capability_diagnostics ||
+      {}
+  end
+
   def macos_worker_capabilities?(capabilities)
     Array(capabilities["os"]).map(&:to_s).include?("macos")
   end
@@ -257,12 +266,30 @@ class RunQueueResolver
       "queue_name" => queue,
       "base_queue_name" => base_queue_name,
       "requirements" => requirements,
+      "live_workers" => live_worker_diagnostics(queue),
       "run_id" => run.id,
       "workflow_id" => run.workflow_id,
       "step_id" => run.step_id,
       "step_kind" => step&.kind,
       "placement_policy" => step&.placement_policy
     }.compact
+  end
+
+  def live_worker_diagnostics(queue)
+    live_worker_payloads.map do |payload|
+      {
+        "hostname" => payload[:hostname],
+        "worker_storage_key" => payload[:worker_storage_key],
+        "queues" => payload.fetch(:queues),
+        "selected_queue" => WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue),
+        "draining" => payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
+          worker_storage_key: payload[:worker_storage_key],
+          hostname: payload[:hostname]
+        ),
+        "capabilities" => payload.fetch(:capabilities),
+        "capability_diagnostics" => payload.fetch(:capability_diagnostics)
+      }.compact
+    end
   end
 
   def single_token(values)
