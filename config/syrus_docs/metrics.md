@@ -145,6 +145,16 @@ minutes: a real agent Run legitimately takes many minutes and sometimes longer,
 so this is the "nothing could still be starting" bound rather than a latency
 target.
 
+A third shape needs no sick worker at all. `queued_run_with_orphaned_queue_job`
+covers an unfinished SolidQueue job carrying **no execution row** — not ready,
+not claimed, not scheduled, not failed. Nothing will claim it and nothing will
+mark it failed, so unlike a stalled claim it is unreachable rather than slow,
+and the Run behind it waits indefinitely. Two production Runs were in this
+state, one of them queued for twelve and a half hours; every other queued-Run
+check looks for a ready row, a failed row, or a claim, so none of them matched.
+The repair is the same `reenqueue_run`, including clearing storage affinity and
+deleting the unreachable row.
+
 ### Product-usage metrics
 
 | Metric | Meaning |

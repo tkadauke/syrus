@@ -351,6 +351,19 @@ module WorkEngine
         end
       end
 
+      class QueuedRunWithOrphanedQueueJob < Base
+        def plan
+          automatic_plan(
+            "reenqueue_run",
+            primary_run,
+            "The Run's SolidQueue job has no execution row, so no worker can claim it and the " \
+            "narrowest repair is to enqueue the same persisted Run again.",
+            execution_steps: [ "Run#reenqueue!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], queue_job_orphaned: true }
+          )
+        end
+      end
+
       class QueuedRunWithWedgedQueueClaim < Base
         def plan
           automatic_plan(

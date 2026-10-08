@@ -536,7 +536,7 @@ module WorkEngine
             # the general queue (the workspace is re-prepared, as it is for a
             # dead queue), and deleting the claimed job stops that worker
             # running it later if it ever wakes up.
-            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim])
+            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job])
               clear_dead_resume_affinity!(run)
               delete_stale_solid_queue_jobs!
             end

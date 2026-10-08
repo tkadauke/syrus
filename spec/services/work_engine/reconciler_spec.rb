@@ -417,6 +417,37 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(affected_run_ids).not_to include(successor.id)
   end
 
+  # Production: two Runs sat behind an unfinished SolidQueue job carrying no
+  # execution row at all. Nothing claims such a job and nothing marks it
+  # failed, so it is unreachable rather than slow -- one had been queued for
+  # twelve and a half hours. Every other queued-Run branch looks for a ready
+  # row, a failed row, or a claim, so none of them matched it.
+  it "classifies a queued Run whose SolidQueue job has no execution row" do
+    run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
+    queue_job = solid_queue_run_job(run, queue_name: "resume-storage-orphan", created_at: 3.hours.ago)
+    # No execution row of any kind: this is the shape, not an accident.
+    SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ClaimedExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::FailedExecution.where(job_id: queue_job.id).delete_all
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :queued_run_with_orphaned_queue_job)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reenqueue_run"
+    )
+    expect(issue.evidence["solid_queue_state"]).to eq("orphaned_queue_job")
+    expect(plan(result, :reenqueue_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id
+    )
+  end
+
   # Production: a worker whose node went NotReady kept heartbeating to
   # SolidQueue from a container its kubelet had stopped managing. It held four
   # claims for between two and four hours and never advanced any of their Runs

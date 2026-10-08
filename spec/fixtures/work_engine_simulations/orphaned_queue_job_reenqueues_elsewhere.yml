@@ -1,0 +1,49 @@
+# Two production Runs sat behind an unfinished SolidQueue job that carried no
+# execution row at all -- not ready, not claimed, not scheduled, not failed.
+# Nothing claims such a job and nothing marks it failed, so it is not slow, it
+# is unreachable: one of the Runs had been queued twelve and a half hours.
+#
+# The `solid_queue:` block here sets none of the execution flags, which is
+# exactly that shape. Every other queued-Run detector looks for a ready row, a
+# failed row, or a claim, so none of them saw it.
+name: orphaned queue job reenqueues elsewhere
+repository:
+  owner: simulation
+  name: orphaned-queue-job-reenqueues-elsewhere
+jobs:
+  job:
+    title: Orphaned queue job reenqueues elsewhere
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_storage_key: orphan-worker-storage
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          run:
+            state: queued
+            created_at: "2000-01-01 00:00:00 UTC"
+            solid_queue:
+              queue_name: resume-orphan-worker-storage
+              created_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - queued_run_with_orphaned_queue_job
+    - implement -> success

@@ -640,6 +640,21 @@ module WorkEngine
               explanation: "Run ##{run.id} is queued but its SolidQueue RunJob has a failed execution."
             )
           end
+        elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| orphaned_queue_job?(candidate) })
+          issue(
+            kind: :queued_run_with_orphaned_queue_job,
+            severity: :error,
+            affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+            recommended_repair_action: "reenqueue_run",
+            evidence: run_evidence(run).merge(
+              solid_queue: sq,
+              solid_queue_state: "orphaned_queue_job",
+              age_seconds: seconds_since(run.created_at)
+            ),
+            explanation: "Run ##{run.id} is queued behind an unfinished SolidQueue job with no execution row, " \
+                         "which no worker can ever claim."
+          )
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| stale_queue_claim?(candidate) })
           issue(
             kind: :queued_run_stale_queue_claim,
@@ -3112,6 +3127,16 @@ module WorkEngine
 
     def stale_queue_claim?(sq)
       sq[:claimed] && older_than?(sq[:claimed_at], QUEUE_STARVATION_AFTER) && !solid_queue_process_live?(sq[:process_id])
+    end
+
+    # An unfinished SolidQueue job carrying no execution row at all -- not
+    # ready, not claimed, not scheduled, not failed -- is invisible to every
+    # worker. Nothing will claim it and nothing will mark it failed, so unlike
+    # a stalled claim it is not slow, it is unreachable, and the Run behind it
+    # waits forever. Seen in production on two Runs whose jobs had lost their
+    # ready rows, one of them queued for twelve and a half hours.
+    def orphaned_queue_job?(sq)
+      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:failed]
     end
 
     # Held far too long to be making progress, whatever the heartbeat says.
