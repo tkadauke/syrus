@@ -482,6 +482,45 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(new_job.epic).to eq(epic)
   end
 
+  it "rejects a job added to a non-empty epic without depends_on_job_ids through the proposal path" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        epic_id: epic.id,
+        title: "Next child",
+        prompt: "Add the next stacked child."
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("already has Jobs")
+    expect(parse_body.dig("error", "message")).to include("depends_on_job_ids")
+  end
+
+  it "creates a linear dependency when depends_on_job_ids names the epic tail" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    first = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      epic_id: epic.id,
+      title: "Next child",
+      prompt: "Add the next stacked child.",
+      depends_on_job_ids: [ first.id ]
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.epic).to eq(epic)
+    expect(new_job.dependencies.map(&:depends_on_job)).to eq([ first ])
+    expect(epic.jobs.reload).to contain_exactly(first, new_job)
+  end
+
   it "rejects an epic_id that does not belong to the target repository" do
     sign_in_as(user)
     other_repo = Factories.repository(user: user)
