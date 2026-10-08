@@ -127,6 +127,62 @@ RSpec.describe Java::Engine do
       expect(described_class.prepare_commands(@dir)).to eq([ "gradle --no-daemon testClasses" ])
     end
 
+    it "does not claim Android Gradle Plugin projects using the Groovy plugins DSL" do
+      write("build.gradle", <<~GRADLE)
+        plugins {
+          id 'com.android.application' version '8.7.0' apply false
+        }
+      GRADLE
+      write("gradlew")
+
+      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.prepare_commands(@dir)).to eq([])
+    end
+
+    it "does not claim Android Gradle Plugin projects using the Kotlin plugins DSL" do
+      write("build.gradle.kts", <<~GRADLE)
+        plugins {
+          id("com.android.library") version "8.7.0" apply false
+        }
+      GRADLE
+
+      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.prepare_commands(@dir)).to eq([])
+    end
+
+    it "does not claim Android Gradle Plugin projects using buildscript classpath declarations" do
+      write("build.gradle", <<~GRADLE)
+        buildscript {
+          dependencies {
+            classpath 'com.android.tools.build:gradle:8.7.0'
+          }
+        }
+      GRADLE
+
+      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.prepare_commands(@dir)).to eq([])
+    end
+
+    it "does not claim Android Gradle Plugin projects with AGP declared in a module build file" do
+      write("settings.gradle", "pluginManagement { repositories { google() } }\n")
+      write("app/build.gradle", <<~GRADLE)
+        plugins {
+          id 'com.android.application'
+        }
+      GRADLE
+
+      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.prepare_commands(@dir)).to eq([])
+    end
+
+    it "does not claim Android projects detected by a conventional manifest path" do
+      write("app/src/main/AndroidManifest.xml", "<manifest />")
+      write("settings.gradle")
+
+      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.prepare_commands(@dir)).to eq([])
+    end
+
     it "detects conventional Java source paths without inventing a prepare command" do
       write("src/main/java/example/App.java")
 
@@ -186,6 +242,16 @@ RSpec.describe Java::Engine do
       write("pom.xml")
 
       expect(described_class.criteria(@dir)).to eq([ "Flag swallowed InterruptedException without restoring interrupt status" ])
+    end
+
+    it "does not contribute review criteria for Android Gradle Plugin projects" do
+      write("build.gradle.kts", <<~GRADLE)
+        plugins {
+          id("com.android.application") version "8.7.0"
+        }
+      GRADLE
+
+      expect(described_class.criteria(@dir)).to eq([])
     end
   end
 end

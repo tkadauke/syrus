@@ -22,14 +22,36 @@ module Java
       src/test/java
     ].freeze
 
+    ANDROID_MANIFEST_PATHS = %w[
+      AndroidManifest.xml
+      app/src/main/AndroidManifest.xml
+      src/main/AndroidManifest.xml
+    ].freeze
+
+    ANDROID_GRADLE_PLUGIN_PATTERNS = [
+      /com\.android\.(?:application|library|test|dynamic-feature|asset-pack)/,
+      /com\.android\.tools\.build:gradle/
+    ].freeze
+
+    ANDROID_GRADLE_FILE_GLOBS = %w[
+      build.gradle
+      build.gradle.kts
+      settings.gradle
+      settings.gradle.kts
+      */build.gradle
+      */build.gradle.kts
+    ].freeze
+
     def self.detect?(repo_path)
       path = Pathname.new(repo_path)
+      return false if android_project?(path)
 
       (GRADLE_FILES + MAVEN_FILES + SOURCE_PATHS).any? { |entry| path.join(entry).exist? }
     end
 
     def self.prepare_commands(repo_path)
       path = Pathname.new(repo_path)
+      return [] if android_project?(path)
 
       if gradle_project?(path)
         [ gradle_command(path) ]
@@ -59,6 +81,26 @@ module Java
       GRADLE_FILES.any? { |entry| path.join(entry).exist? }
     end
     private_class_method :gradle_project?
+
+    def self.android_project?(path)
+      ANDROID_MANIFEST_PATHS.any? { |entry| path.join(entry).exist? } ||
+        gradle_files(path).any? { |file| android_gradle_plugin?(file) }
+    end
+    private_class_method :android_project?
+
+    def self.gradle_files(path)
+      ANDROID_GRADLE_FILE_GLOBS.flat_map do |pattern|
+        Dir.glob(path.join(pattern).to_s).map { |file| Pathname.new(file) }
+      end
+    end
+    private_class_method :gradle_files
+
+    def self.android_gradle_plugin?(file)
+      contents = file.read
+
+      ANDROID_GRADLE_PLUGIN_PATTERNS.any? { |pattern| contents.match?(pattern) }
+    end
+    private_class_method :android_gradle_plugin?
 
     def self.maven_project?(path)
       MAVEN_FILES.any? { |entry| path.join(entry).exist? }
