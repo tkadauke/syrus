@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -27,11 +28,26 @@ func newJobCreateCommand() *cobra.Command {
 	var agent string
 	var epic string
 	var owner string
+	var title string
+	var body string
+	var bodyFile string
+	var dependsOn []string
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a direct Syrus job",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobCreate(cmd, repo, yes, priority, agent, epic, owner)
+			return runJobCreate(cmd, jobCreateOptions{
+				repo:      repo,
+				yes:       yes,
+				priority:  priority,
+				agent:     agent,
+				epic:      epic,
+				owner:     owner,
+				title:     title,
+				body:      body,
+				bodyFile:  bodyFile,
+				dependsOn: dependsOn,
+			})
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug, e.g. owner/name")
@@ -40,7 +56,24 @@ func newJobCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&agent, "agent", "", "agent provider slug, e.g. claude or codex")
 	cmd.Flags().StringVar(&epic, "epic", "", "attach to an epic, e.g. EPIC-42 or a slug")
 	cmd.Flags().StringVar(&owner, "owner", "", "assign a repository member as owner, by user ID")
+	cmd.Flags().StringVar(&title, "title", "", "job title")
+	cmd.Flags().StringVar(&body, "body", "", "job description")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "read the job description from a file")
+	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "existing dependency, repeatable; accepts JOB-123 or a proposal slug")
 	return cmd
+}
+
+type jobCreateOptions struct {
+	repo      string
+	yes       bool
+	priority  string
+	agent     string
+	epic      string
+	owner     string
+	title     string
+	body      string
+	bodyFile  string
+	dependsOn []string
 }
 
 func newJobActionCommand(name string, action string, message string) *cobra.Command {
@@ -121,8 +154,8 @@ func newJobOpenCommand() *cobra.Command {
 	}
 }
 
-func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, agent string, epic string, owner string) error {
-	repo = strings.TrimSpace(repo)
+func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
+	repo := strings.TrimSpace(opts.repo)
 	if repo == "" {
 		repo = cliplugin.DetectCurrentRepoSlug()
 	}
@@ -130,13 +163,13 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 		return errors.New("run from a GitHub checkout or pass --repo owner/name")
 	}
 
-	priority = strings.TrimSpace(priority)
+	priority := strings.TrimSpace(opts.priority)
 	if priority != "" && !slices.Contains(jobCreatePriorities, priority) {
 		return fmt.Errorf("invalid --priority %q: must be one of %s", priority, strings.Join(jobCreatePriorities, ", "))
 	}
 
 	var ownerUserID int64
-	owner = strings.TrimSpace(owner)
+	owner := strings.TrimSpace(opts.owner)
 	if owner != "" {
 		parsed, err := strconv.ParseInt(owner, 10, 64)
 		if err != nil {
@@ -159,7 +192,7 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 	}
 
 	reader := bufio.NewReader(cmd.InOrStdin())
-	title, description, err := promptJob(reader, cmd.OutOrStdout())
+	title, description, err := jobCreateText(reader, cmd.OutOrStdout(), opts.title, opts.body, opts.bodyFile)
 	if err != nil {
 		return err
 	}
@@ -169,7 +202,7 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 	if description == "" {
 		return errors.New("description cannot be blank")
 	}
-	if !yes {
+	if !opts.yes {
 		ok, err := confirm(reader, cmd.OutOrStdout(), fmt.Sprintf("Create job in %s? [y/N] ", repo))
 		if err != nil {
 			return err
@@ -181,7 +214,7 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 	}
 
 	var epicID int64
-	epic = strings.TrimSpace(epic)
+	epic := strings.TrimSpace(opts.epic)
 	if epic != "" {
 		_, ref, err := parseEpicRef(epic)
 		if err != nil {
@@ -194,20 +227,102 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 		epicID = resolved.Epic.ID
 	}
 
+	dependsOnJobIDs, dependsOnSlugs, err := parseJobCreateDependencies(opts.dependsOn)
+	if err != nil {
+		return err
+	}
+
 	job, err := client.CreateDirectJob(cmd.Context(), api.CreateJobParams{
-		RepositoryID:  repositoryID,
-		Title:         title,
-		Prompt:        description,
-		Priority:      priority,
-		AgentProvider: strings.TrimSpace(agent),
-		EpicID:        epicID,
-		OwnerUserID:   ownerUserID,
+		RepositoryID:    repositoryID,
+		Title:           title,
+		Prompt:          description,
+		Priority:        priority,
+		AgentProvider:   strings.TrimSpace(opts.agent),
+		EpicID:          epicID,
+		OwnerUserID:     ownerUserID,
+		DependsOn:       dependsOnSlugs,
+		DependsOnJobIDs: dependsOnJobIDs,
 	})
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s created. Track with: syrus job watch %d\n", jobSlug(job.Job.ID), job.Job.ID)
 	return nil
+}
+
+func jobCreateText(reader *bufio.Reader, out io.Writer, titleFlag string, bodyFlag string, bodyFile string) (string, string, error) {
+	title := strings.TrimSpace(titleFlag)
+	body := bodyFlag
+	bodyFile = strings.TrimSpace(bodyFile)
+	if body != "" && bodyFile != "" {
+		return "", "", errors.New("--body and --body-file cannot be used together")
+	}
+	if bodyFile != "" {
+		content, err := os.ReadFile(bodyFile)
+		if err != nil {
+			return "", "", fmt.Errorf("read --body-file: %w", err)
+		}
+		body = string(content)
+	}
+	if title != "" && body != "" {
+		return title, strings.TrimSpace(body), nil
+	}
+	promptedTitle, promptedBody, err := promptJob(reader, out)
+	if err != nil {
+		return "", "", err
+	}
+	if title == "" {
+		title = promptedTitle
+	}
+	if body == "" {
+		body = promptedBody
+	}
+	return strings.TrimSpace(title), strings.TrimSpace(body), nil
+}
+
+func parseJobCreateDependencies(tokens []string) ([]int64, []string, error) {
+	var jobIDs []int64
+	var slugs []string
+	seenJobIDs := map[int64]bool{}
+	seenSlugs := map[string]bool{}
+	for _, raw := range tokens {
+		token := strings.TrimSpace(raw)
+		if token == "" {
+			continue
+		}
+		if strings.HasPrefix(strings.ToUpper(token), "JOB-") || isNumericRef(token) {
+			_, idText, err := parseJobRef(token)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid --depends-on %q: expected JOB-123 or a proposal slug", token)
+			}
+			id, parseErr := strconv.ParseInt(idText, 10, 64)
+			if parseErr != nil {
+				return nil, nil, fmt.Errorf("invalid --depends-on %q: %w", token, parseErr)
+			}
+			if !seenJobIDs[id] {
+				jobIDs = append(jobIDs, id)
+				seenJobIDs[id] = true
+			}
+			continue
+		}
+		if !seenSlugs[token] {
+			slugs = append(slugs, token)
+			seenSlugs[token] = true
+		}
+	}
+	return jobIDs, slugs, nil
+}
+
+func isNumericRef(token string) bool {
+	if token == "" {
+		return false
+	}
+	for _, r := range token {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func promptJob(reader *bufio.Reader, out io.Writer) (string, string, error) {

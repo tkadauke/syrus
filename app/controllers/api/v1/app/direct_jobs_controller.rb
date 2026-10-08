@@ -44,9 +44,13 @@ module Api
 
           planned_execution_attrs = planned_execution_attributes
           job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner, planned_execution_attrs: planned_execution_attrs)
+          unless job
+            render_error("validation_failed", @create_direct_job_error || "Job could not be created.", status: :unprocessable_content)
+            return
+          end
           attachment_errors = attach_initial_job_attachments(job)
           if attachment_errors.any?
-            job.destroy!
+            cleanup_failed_direct_job!(job)
             render_error("validation_failed", attachment_errors.to_sentence, status: :unprocessable_content)
             return
           end
@@ -116,32 +120,51 @@ module Api
         end
 
         def create_direct_job(repository:, agent_provider:, model:, effort_level:, prompt_text:, epic: nil, owner: nil, planned_execution_attrs: {})
-          selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
           priority = "medium" unless Job::PRIORITIES.include?(priority)
           target_branch = params[:target_branch].to_s.strip.presence
           delivery_track = params[:delivery_track].to_s.strip.presence
-
-          Current.user.jobs.create!(
+          result = DirectJobs::ProposalCreator.new(user: Current.user).call(
             repository: repository,
-            kind: "direct",
-            issue_number: nil,
-            issue_title: title || GenerateJobTitleJob::PENDING_TITLE,
-            title_pending: title.blank?,
-            issue_body: prompt_text,
-            agent_provider: selected_agent_provider,
-            job_provider_setting: agent_provider || "default",
+            prompt_text: prompt_text,
+            title: title,
+            priority: priority,
+            agent_provider: agent_provider,
             model: agent_provider.present? ? model : nil,
             effort_level: agent_provider.present? ? effort_level : nil,
-            priority: priority,
             epic: epic,
-            owner_user: owner,
+            owner: owner,
             target_branch: target_branch,
             delivery_track: delivery_track,
-            **planned_execution_attrs,
-            state: Job.initial_state_for_creator(Current.user)
-          ).tap { Metrics::ProductUsage.record(:direct_job_created) }
+            planned_execution_attrs: planned_execution_attrs,
+            depends_on: Array(params[:depends_on]),
+            depends_on_job_ids: Array(params[:depends_on_job_ids]).filter_map { |id| Integer(id, exception: false) }
+          )
+          @create_direct_job_error = result.error
+          @create_direct_job_proposal = result.proposal
+          @create_direct_job_chat_session = result.chat_session
+          @created_direct_job_chat_session = result.created_chat_session
+          Metrics::ProductUsage.record(:direct_job_created) if result.success?
+          result.job
+        end
+
+        def cleanup_failed_direct_job!(job)
+          proposal = @create_direct_job_proposal
+          chat_session = @create_direct_job_chat_session
+
+          if proposal&.job_id == job.id
+            proposal.messages.destroy_all
+            chat_session&.chat_attachments&.where(attachable: job)&.destroy_all
+            proposal.destroy!
+          end
+
+          job.destroy!
+
+          if @created_direct_job_chat_session && chat_session&.system_kind == "direct_job_api" &&
+              !chat_session.proposals.exists? && !chat_session.messages.exists?
+            chat_session.destroy!
+          end
         end
 
         def planned_execution_attributes
