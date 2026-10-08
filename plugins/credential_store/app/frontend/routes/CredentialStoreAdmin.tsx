@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
-import { Button, DataTable, Input, Notice, Page, Section, Select, Text, Textarea, TonePill, Toolbar, type DataTableSortDirection } from "@app/components/ui"
+import { Button, DataTable, Input, Modal, Notice, Page, Select, Text, Textarea, TonePill, Toolbar, type DataTableSortDirection } from "@app/components/ui"
 import { FilterBar, filterTreeFromPayload, topFilterChildren, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import {
   DataTableColumnCells,
@@ -28,6 +28,9 @@ import {
 
 const QUERY_KEY = ["credential_store", "credentials"]
 const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.credential_store.visible_columns"
+const CREDENTIAL_MODAL_CLASS =
+  "flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-panel)] bg-surface shadow-[var(--shadow-panel)]"
+const ROTATION_MODAL_CLASS = "w-full max-w-lg rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
 
 type SortColumn =
   | "name"
@@ -95,13 +98,18 @@ const EMPTY_DRAFT: Draft = {
   expires_at: ""
 }
 
+type CredentialModalState = { mode: "create" } | { mode: "edit"; credential: CredentialStoreCredential }
+type RotationModalState = { credential: CredentialStoreCredential }
+type JsonField = "safe_metadata" | "target_constraints"
+type ValidationErrors = Partial<Record<JsonField, string>>
+
 export function CredentialStoreAdmin() {
   const { t } = useT("credential_store")
   usePageTitle(t("page_title"))
   const location = useLocation()
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
-  const [rotationPayloads, setRotationPayloads] = useState<Record<number, string>>({})
+  const [credentialModal, setCredentialModal] = useState<CredentialModalState | null>(null)
+  const [rotationModal, setRotationModal] = useState<RotationModalState | null>(null)
 
   const query = useQuery({
     queryKey: QUERY_KEY,
@@ -113,15 +121,15 @@ export function CredentialStoreAdmin() {
       id ? updateCredentialStoreCredential(id, input) : createCredentialStoreCredential(input),
     onSuccess: (payload) => {
       queryClient.setQueryData(QUERY_KEY, payload)
-      setDraft(EMPTY_DRAFT)
+      setCredentialModal(null)
     }
   })
 
   const rotateCredential = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: string }) => rotateCredentialStoreCredential(id, payload),
-    onSuccess: (payload, variables) => {
+    onSuccess: (payload) => {
       queryClient.setQueryData(QUERY_KEY, payload)
-      setRotationPayloads((values) => ({ ...values, [variables.id]: "" }))
+      setRotationModal(null)
     }
   })
 
@@ -130,25 +138,24 @@ export function CredentialStoreAdmin() {
     onSuccess: (payload) => queryClient.setQueryData(QUERY_KEY, payload)
   })
 
-  function editCredential(credential: CredentialStoreCredential) {
-    setDraft({
-      id: credential.id,
-      name: credential.name,
-      description: credential.description || "",
-      credential_type: credential.credential_type,
-      scope_type: credential.scope_type,
-      scope_id: credential.scope_id ? String(credential.scope_id) : "",
-      payload: "",
-      safe_metadata: JSON.stringify(credential.safe_metadata || {}, null, 2),
-      target_constraints: JSON.stringify(credential.target_constraints || {}, null, 2),
-      allowed_surfaces: credential.allowed_surfaces.join(", "),
-      allowed_tools: credential.allowed_tools.join(", "),
-      expires_at: credential.expires_at ? credential.expires_at.slice(0, 16) : ""
-    })
+  function openCredentialModal(modal: CredentialModalState) {
+    saveCredential.reset()
+    setCredentialModal(modal)
   }
 
-  function submitDraft(payload: CredentialStorePayload) {
-    saveCredential.mutate({ id: draft.id, input: inputFromDraft(draft, payload) })
+  function closeCredentialModal() {
+    saveCredential.reset()
+    setCredentialModal(null)
+  }
+
+  function openRotationModal(modal: RotationModalState) {
+    rotateCredential.reset()
+    setRotationModal(modal)
+  }
+
+  function closeRotationModal() {
+    rotateCredential.reset()
+    setRotationModal(null)
   }
 
   return (
@@ -158,55 +165,129 @@ export function CredentialStoreAdmin() {
           <Page.Title>{t("heading")}</Page.Title>
           <Page.Description>{t("description")}</Page.Description>
         </Page.HeadingGroup>
+        <Page.Actions>
+          <Button onClick={() => openCredentialModal({ mode: "create" })} type="button" variant="primary">
+            {t("new_credential")}
+          </Button>
+        </Page.Actions>
       </Page.Header>
 
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice> : null}
-      {saveCredential.isError ? <Notice tone="danger">{errorMessage(saveCredential.error, t("save_error"))}</Notice> : null}
-      {rotateCredential.isError ? <Notice tone="danger">{errorMessage(rotateCredential.error, t("rotate_error"))}</Notice> : null}
       {revokeCredential.isError ? <Notice tone="danger">{errorMessage(revokeCredential.error, t("revoke_error"))}</Notice> : null}
       {query.data ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(22rem,0.85fr),minmax(0,1.4fr)]">
-          <CredentialForm
-            draft={draft}
-            isSaving={saveCredential.isPending}
-            payload={query.data}
-            onCancel={() => setDraft(EMPTY_DRAFT)}
-            onChange={setDraft}
-            onSubmit={() => submitDraft(query.data)}
-          />
+        <>
           <CredentialList
             isRevoking={revokeCredential.isPending ? revokeCredential.variables : null}
-            isRotating={rotateCredential.isPending ? rotateCredential.variables?.id ?? null : null}
             pathname={location.pathname}
             payload={query.data}
-            rotationPayloads={rotationPayloads}
             search={location.search}
-            onEdit={editCredential}
+            onEdit={(credential) => openCredentialModal({ mode: "edit", credential })}
             onRevoke={(id) => revokeCredential.mutate(id)}
-            onRotate={(id) => rotateCredential.mutate({ id, payload: rotationPayloads[id] || "" })}
-            onRotationPayloadChange={(id, value) => setRotationPayloads((values) => ({ ...values, [id]: value }))}
+            onRotate={(credential) => openRotationModal({ credential })}
           />
-        </div>
+          {credentialModal ? (
+            <CredentialFormModal
+              key={credentialModal.mode === "edit" ? `edit-${credentialModal.credential.id}` : "create"}
+              isSaving={saveCredential.isPending}
+              modal={credentialModal}
+              payload={query.data}
+              saveError={saveCredential.error}
+              onClose={closeCredentialModal}
+              onSubmit={(id, input) => saveCredential.mutate({ id, input })}
+            />
+          ) : null}
+          {rotationModal ? (
+            <RotateCredentialModal
+              credential={rotationModal.credential}
+              error={rotateCredential.error}
+              isRotating={rotateCredential.isPending}
+              onClose={closeRotationModal}
+              onRotate={(payload) => rotateCredential.mutate({ id: rotationModal.credential.id, payload })}
+            />
+          ) : null}
+        </>
       ) : null}
     </Page.Root>
   )
 }
 
+function CredentialFormModal({
+  isSaving,
+  modal,
+  onClose,
+  onSubmit,
+  payload,
+  saveError
+}: {
+  isSaving: boolean
+  modal: CredentialModalState
+  onClose: () => void
+  onSubmit: (id: number | null, input: CredentialStoreInput) => void
+  payload: CredentialStorePayload
+  saveError: Error | null
+}) {
+  const { t } = useT("credential_store")
+  const [draft, setDraft] = useState<Draft>(() => (modal.mode === "edit" ? draftFromCredential(modal.credential) : EMPTY_DRAFT))
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({})
+  const title = modal.mode === "edit" ? t("form_edit_title") : t("form_create_title")
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = inputFromDraft(draft, payload, t)
+    setValidationErrors(result.errors)
+    if (!result.input) return
+    onSubmit(draft.id, result.input)
+  }
+
+  return (
+    <Modal className={CREDENTIAL_MODAL_CLASS} label={title} onClose={onClose} open>
+      <form className="flex min-h-0 flex-col" onSubmit={submit}>
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <Text className="mt-1" muted>
+            {t("form_description")}
+          </Text>
+        </div>
+        <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <CredentialForm
+            draft={draft}
+            payload={payload}
+            validationErrors={validationErrors}
+            onChange={(nextDraft) => {
+              setDraft(nextDraft)
+              setValidationErrors({})
+            }}
+          />
+          {saveError ? (
+            <p className="mt-4 text-sm text-danger-text" role="alert">
+              {errorMessage(saveError, t("save_error"))}
+            </p>
+          ) : null}
+        </div>
+        <Toolbar className="border-t border-border px-5 py-4">
+          <Button disabled={isSaving} type="submit">
+            {draft.id ? t("save_changes") : t("create")}
+          </Button>
+          <Button onClick={onClose} type="button" variant="secondary">
+            {t("cancel")}
+          </Button>
+        </Toolbar>
+      </form>
+    </Modal>
+  )
+}
+
 function CredentialForm({
   draft,
-  isSaving,
-  onCancel,
   onChange,
-  onSubmit,
-  payload
+  payload,
+  validationErrors
 }: {
   draft: Draft
-  isSaving: boolean
-  onCancel: () => void
   onChange: (draft: Draft) => void
-  onSubmit: () => void
   payload: CredentialStorePayload
+  validationErrors: ValidationErrors
 }) {
   const { t } = useT("credential_store")
   const scopeOptions = optionsForScope(payload, draft.scope_type)
@@ -214,14 +295,7 @@ function CredentialForm({
   const selectedType = typeOptions.find((type) => type.name === draft.credential_type)
 
   return (
-    <Section.Root>
-      <Section.Header>
-        <div>
-          <Section.Title>{draft.id ? t("form_edit_title") : t("form_create_title")}</Section.Title>
-          <Section.Description>{t("form_description")}</Section.Description>
-        </div>
-      </Section.Header>
-      <Section.Body className="space-y-4" padding="md">
+    <div className="space-y-4">
         <Field label={t("name")}>
           <Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} />
         </Field>
@@ -271,12 +345,22 @@ function CredentialForm({
         </Field>
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label={t("safe_metadata")}>
-            <Textarea value={draft.safe_metadata} onChange={(event) => onChange({ ...draft, safe_metadata: event.target.value })} />
+            <Textarea
+              aria-label={t("safe_metadata")}
+              value={draft.safe_metadata}
+              onChange={(event) => onChange({ ...draft, safe_metadata: event.target.value })}
+            />
             <Text muted variant="caption">{t("safe_metadata_hint", { keys: payload.options.safe_metadata_keys.join(", ") })}</Text>
+            {validationErrors.safe_metadata ? <FieldError>{validationErrors.safe_metadata}</FieldError> : null}
           </Field>
           <Field label={t("target_constraints")}>
-            <Textarea value={draft.target_constraints} onChange={(event) => onChange({ ...draft, target_constraints: event.target.value })} />
+            <Textarea
+              aria-label={t("target_constraints")}
+              value={draft.target_constraints}
+              onChange={(event) => onChange({ ...draft, target_constraints: event.target.value })}
+            />
             <Text muted variant="caption">{t("target_constraints_hint", { keys: payload.options.target_constraint_keys.join(", ") })}</Text>
+            {validationErrors.target_constraints ? <FieldError>{validationErrors.target_constraints}</FieldError> : null}
           </Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -290,36 +374,25 @@ function CredentialForm({
         <Field label={t("expires_at")}>
           <Input type="datetime-local" value={draft.expires_at} onChange={(event) => onChange({ ...draft, expires_at: event.target.value })} />
         </Field>
-        <Toolbar>
-          <Button disabled={isSaving} onClick={onSubmit}>{draft.id ? t("save_changes") : t("create")}</Button>
-          {draft.id ? <Button onClick={onCancel} variant="secondary">{t("cancel")}</Button> : null}
-        </Toolbar>
-      </Section.Body>
-    </Section.Root>
+    </div>
   )
 }
 
 function CredentialList({
   isRevoking,
-  isRotating,
   onEdit,
   onRevoke,
   onRotate,
-  onRotationPayloadChange,
   pathname,
   payload,
-  rotationPayloads,
   search
 }: {
   isRevoking: number | null
-  isRotating: number | null
   onEdit: (credential: CredentialStoreCredential) => void
   onRevoke: (id: number) => void
-  onRotate: (id: number) => void
-  onRotationPayloadChange: (id: number, value: string) => void
+  onRotate: (credential: CredentialStoreCredential) => void
   pathname: string
   payload: CredentialStorePayload
-  rotationPayloads: Record<number, string>
   search: string
 }) {
   const { t } = useT("credential_store")
@@ -328,8 +401,8 @@ function CredentialList({
   const filterTree = useMemo(() => filterTreeFromSearch(search), [search])
   const filterSchema = useMemo(() => credentialFilterSchema(payload, t), [payload, t])
   const columns = useMemo(
-    () => buildCredentialColumns({ isRevoking, isRotating, onEdit, onRevoke, onRotate, onRotationPayloadChange, rotationPayloads, t }),
-    [isRevoking, isRotating, onEdit, onRevoke, onRotate, onRotationPayloadChange, rotationPayloads, t]
+    () => buildCredentialColumns({ isRevoking, onEdit, onRevoke, onRotate, t }),
+    [isRevoking, onEdit, onRevoke, onRotate, t]
   )
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: VISIBLE_COLUMNS_STORAGE_KEY })
   const filteredCredentials = useMemo(
@@ -372,12 +445,9 @@ function CredentialList({
           credentials={filteredCredentials}
           emptyMessage={emptyMessage}
           isRevoking={isRevoking}
-          isRotating={isRotating}
-          rotationPayloads={rotationPayloads}
           onEdit={onEdit}
           onRevoke={onRevoke}
           onRotate={onRotate}
-          onRotationPayloadChange={onRotationPayloadChange}
         />
       ) : (
         <CredentialDataTable
@@ -444,22 +514,16 @@ function CredentialMobileList({
   credentials,
   emptyMessage,
   isRevoking,
-  isRotating,
   onEdit,
   onRevoke,
-  onRotate,
-  onRotationPayloadChange,
-  rotationPayloads
+  onRotate
 }: {
   credentials: CredentialStoreCredential[]
   emptyMessage: string
   isRevoking: number | null
-  isRotating: number | null
   onEdit: (credential: CredentialStoreCredential) => void
   onRevoke: (id: number) => void
-  onRotate: (id: number) => void
-  onRotationPayloadChange: (id: number, value: string) => void
-  rotationPayloads: Record<number, string>
+  onRotate: (credential: CredentialStoreCredential) => void
 }) {
   const { t } = useT("credential_store")
 
@@ -481,20 +545,13 @@ function CredentialMobileList({
                 {credential.credential_type} · {credential.scope_type} · {credential.scope_label || t("unknown_scope")}
               </Text>
             </div>
-            <CredentialManagementButtons credential={credential} isRevoking={isRevoking} onEdit={onEdit} onRevoke={onRevoke} />
+            <CredentialManagementButtons credential={credential} isRevoking={isRevoking} onEdit={onEdit} onRevoke={onRevoke} onRotate={onRotate} />
           </div>
           <div className="grid gap-1 text-[length:var(--text-caption)] text-text-muted">
             <span>{t("last_used")}: {formatDate(credential.last_access?.created_at || null, t("never"))}</span>
             <span>{t("last_rotated")}: {formatDate(credential.last_rotated_at, t("never"))}</span>
             <span>{t("expires")}: {formatDate(credential.expires_at, t("never"))}</span>
           </div>
-          <CredentialRotationControl
-            credential={credential}
-            isRotating={isRotating}
-            rotationPayloads={rotationPayloads}
-            onRotate={onRotate}
-            onRotationPayloadChange={onRotationPayloadChange}
-          />
         </div>
       ))}
     </div>
@@ -503,21 +560,15 @@ function CredentialMobileList({
 
 function buildCredentialColumns({
   isRevoking,
-  isRotating,
   onEdit,
   onRevoke,
   onRotate,
-  onRotationPayloadChange,
-  rotationPayloads,
   t
 }: {
   isRevoking: number | null
-  isRotating: number | null
   onEdit: (credential: CredentialStoreCredential) => void
   onRevoke: (id: number) => void
-  onRotate: (id: number) => void
-  onRotationPayloadChange: (id: number, value: string) => void
-  rotationPayloads: Record<number, string>
+  onRotate: (credential: CredentialStoreCredential) => void
   t: (key: string, options?: Record<string, unknown>) => string
 }): DataTableColumnDef<CredentialStoreCredential>[] {
   return [
@@ -627,16 +678,7 @@ function buildCredentialColumns({
       renderHeader: () => <span className="sr-only">{t("actions")}</span>,
       cellClassName: "min-w-72",
       renderCell: (credential) => (
-        <div className="flex flex-col items-stretch gap-2">
-          <CredentialManagementButtons credential={credential} isRevoking={isRevoking} onEdit={onEdit} onRevoke={onRevoke} />
-          <CredentialRotationControl
-            credential={credential}
-            isRotating={isRotating}
-            rotationPayloads={rotationPayloads}
-            onRotate={onRotate}
-            onRotationPayloadChange={onRotationPayloadChange}
-          />
-        </div>
+        <CredentialManagementButtons credential={credential} isRevoking={isRevoking} onEdit={onEdit} onRevoke={onRevoke} onRotate={onRotate} />
       )
     }
   ]
@@ -646,17 +688,20 @@ function CredentialManagementButtons({
   credential,
   isRevoking,
   onEdit,
-  onRevoke
+  onRevoke,
+  onRotate
 }: {
   credential: CredentialStoreCredential
   isRevoking: number | null
   onEdit: (credential: CredentialStoreCredential) => void
   onRevoke: (id: number) => void
+  onRotate: (credential: CredentialStoreCredential) => void
 }) {
   const { t } = useT("credential_store")
   return (
     <Toolbar className="justify-end">
       <Button disabled={!credential.can_manage} onClick={() => onEdit(credential)} size="sm" variant="secondary">{t("edit")}</Button>
+      <Button disabled={!credential.can_manage || Boolean(credential.revoked_at)} onClick={() => onRotate(credential)} size="sm" variant="secondary">{t("rotate")}</Button>
       <Button disabled={!credential.can_manage || Boolean(credential.revoked_at) || isRevoking === credential.id} onClick={() => onRevoke(credential.id)} size="sm" variant="danger">
         {t("revoke")}
       </Button>
@@ -664,39 +709,62 @@ function CredentialManagementButtons({
   )
 }
 
-function CredentialRotationControl({
+function RotateCredentialModal({
   credential,
+  error,
   isRotating,
-  onRotate,
-  onRotationPayloadChange,
-  rotationPayloads
+  onClose,
+  onRotate
 }: {
   credential: CredentialStoreCredential
-  isRotating: number | null
-  onRotate: (id: number) => void
-  onRotationPayloadChange: (id: number, value: string) => void
-  rotationPayloads: Record<number, string>
+  error: Error | null
+  isRotating: boolean
+  onClose: () => void
+  onRotate: (payload: string) => void
 }) {
   const { t } = useT("credential_store")
+  const [payload, setPayload] = useState("")
+  const title = t("rotate_title", { name: credential.name })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!payload.trim()) return
+    onRotate(payload)
+  }
+
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <Input
-        aria-label={t("rotate_payload_label", { name: credential.name })}
-        autoComplete="new-password"
-        placeholder={t("rotate_placeholder")}
-        type="password"
-        value={rotationPayloads[credential.id] || ""}
-        onChange={(event) => onRotationPayloadChange(credential.id, event.target.value)}
-      />
-      <Button
-        disabled={!credential.can_manage || isRotating === credential.id || !(rotationPayloads[credential.id] || "").trim()}
-        onClick={() => onRotate(credential.id)}
-        size="sm"
-        variant="secondary"
-      >
-        {t("rotate")}
-      </Button>
-    </div>
+    <Modal className={ROTATION_MODAL_CLASS} label={title} onClose={onClose} open>
+      <form className="space-y-4" onSubmit={submit}>
+        <div>
+          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <Text className="mt-1" muted>
+            {t("rotate_description")}
+          </Text>
+        </div>
+        <Field label={t("rotate_payload_label", { name: credential.name })}>
+          <Textarea
+            aria-label={t("rotate_payload_label", { name: credential.name })}
+            autoComplete="new-password"
+            placeholder={t("rotate_placeholder")}
+            value={payload}
+            onChange={(event) => setPayload(event.target.value)}
+          />
+        </Field>
+        {error ? (
+          <p className="text-sm text-danger-text" role="alert">
+            {errorMessage(error, t("rotate_error"))}
+          </p>
+        ) : null}
+        <Toolbar>
+          <Button disabled={isRotating || !payload.trim()} type="submit">
+            {t("rotate")}
+          </Button>
+          <Button onClick={onClose} type="button" variant="secondary">
+            {t("cancel")}
+          </Button>
+        </Toolbar>
+      </form>
+    </Modal>
   )
 }
 
@@ -718,6 +786,14 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
   )
 }
 
+function FieldError({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-sm text-danger-text" role="alert">
+      {children}
+    </p>
+  )
+}
+
 function InlineJson({ value }: { value: Record<string, unknown> }) {
   const rendered = useMemo(() => JSON.stringify(value || {}, null, 2), [value])
   return <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs text-text-secondary">{rendered}</pre>
@@ -730,32 +806,68 @@ function optionsForScope(payload: CredentialStorePayload, scope: CredentialStore
   return []
 }
 
-function inputFromDraft(draft: Draft, payload: CredentialStorePayload): CredentialStoreInput {
+function draftFromCredential(credential: CredentialStoreCredential): Draft {
+  return {
+    id: credential.id,
+    name: credential.name,
+    description: credential.description || "",
+    credential_type: credential.credential_type,
+    scope_type: credential.scope_type,
+    scope_id: credential.scope_id ? String(credential.scope_id) : "",
+    payload: "",
+    safe_metadata: JSON.stringify(credential.safe_metadata || {}, null, 2),
+    target_constraints: JSON.stringify(credential.target_constraints || {}, null, 2),
+    allowed_surfaces: credential.allowed_surfaces.join(", "),
+    allowed_tools: credential.allowed_tools.join(", "),
+    expires_at: credential.expires_at ? credential.expires_at.slice(0, 16) : ""
+  }
+}
+
+function inputFromDraft(
+  draft: Draft,
+  payload: CredentialStorePayload,
+  t: ReturnType<typeof useT>["t"]
+): { input: CredentialStoreInput | null; errors: ValidationErrors } {
   const fallbackType = payload.options.credential_types[0]?.name || ""
+  const safeMetadata = parseObject(draft.safe_metadata, t("safe_metadata"), t)
+  const targetConstraints = parseObject(draft.target_constraints, t("target_constraints"), t)
+  const errors: ValidationErrors = {}
+  if (safeMetadata.error) errors.safe_metadata = safeMetadata.error
+  if (targetConstraints.error) errors.target_constraints = targetConstraints.error
+  if (Object.keys(errors).length > 0) return { input: null, errors }
+
   const input: CredentialStoreInput = {
     name: draft.name,
     description: draft.description,
     credential_type: draft.credential_type || fallbackType,
     scope_type: draft.scope_type,
     scope_id: draft.scope_type === "instance" ? null : Number(draft.scope_id || 0),
-    safe_metadata: parseObject(draft.safe_metadata),
-    target_constraints: parseObject(draft.target_constraints),
+    safe_metadata: safeMetadata.value,
+    target_constraints: targetConstraints.value,
     allowed_surfaces: splitList(draft.allowed_surfaces),
     allowed_tools: splitList(draft.allowed_tools),
     expires_at: draft.expires_at ? new Date(draft.expires_at).toISOString() : null
   }
   if (draft.payload.trim()) input.payload = draft.payload
-  return input
+  return { input, errors: {} }
 }
 
-function parseObject(value: string) {
-  if (!value.trim()) return {}
-  const parsed = JSON.parse(value) as unknown
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+function parseObject(value: string, label: string, t: ReturnType<typeof useT>["t"]): { value: Record<string, unknown>; error: string | null } {
+  if (!value.trim()) return { value: {}, error: null }
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return { value: parsed as Record<string, unknown>, error: null }
+    return { value: {}, error: t("json_object_error", { field: label }) }
+  } catch {
+    return { value: {}, error: t("json_parse_error", { field: label }) }
+  }
 }
 
 function splitList(value: string) {
-  return value.split(",").map((item) => item.trim()).filter(Boolean)
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function formatDate(value: string | null, fallback: string) {

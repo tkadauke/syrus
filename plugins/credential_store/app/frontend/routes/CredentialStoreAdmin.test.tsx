@@ -22,7 +22,7 @@ describe("CredentialStoreAdmin", () => {
     expect(screen.queryByText("Admin")).not.toBeInTheDocument()
   })
 
-  it("renders safe metadata and write-only fields without exposing secret payloads", async () => {
+  it("renders safe metadata and opens write-only edit fields without exposing secret payloads", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
       credentials: [
         credential({
@@ -42,10 +42,85 @@ describe("CredentialStoreAdmin", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }))
 
-    const payloadField = screen.getByLabelText("Payload") as HTMLTextAreaElement
+    const dialog = screen.getByRole("dialog", { name: "Edit credential" })
+    const payloadField = within(dialog).getByLabelText("Payload") as HTMLTextAreaElement
     expect(payloadField.value).toBe("")
     expect(payloadField).toHaveAttribute("autocomplete", "new-password")
     expect(screen.queryByDisplayValue("super-secret-token")).not.toBeInTheDocument()
+  })
+
+  it("opens a create modal, saves the draft, and closes after success", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/credentials") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(payload({
+          credentials: [credential({ name: "CI token", safe_metadata: { host: "ci.example.com" } })]
+        })))
+      }
+      return Promise.resolve(jsonResponse(payload({ credentials: [] })))
+    })
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const dialog = screen.getByRole("dialog", { name: "New credential" })
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "CI token" } })
+    fireEvent.change(within(dialog).getByLabelText("Credential type"), { target: { value: "credential_store.generic" } })
+    fireEvent.change(within(dialog).getByLabelText("Scope target"), { target: { value: "1" } })
+    fireEvent.change(within(dialog).getByLabelText("Payload"), { target: { value: "super-secret-token" } })
+    fireEvent.change(within(dialog).getByLabelText("Safe metadata"), { target: { value: '{"host":"ci.example.com"}' } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials", expect.objectContaining({ method: "POST" })))
+    expect(requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST")).toEqual(expect.objectContaining({
+      name: "CI token",
+      payload: "super-secret-token",
+      safe_metadata: { host: "ci.example.com" }
+    }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "New credential" })).not.toBeInTheDocument())
+    expect(await screen.findByText("CI token")).toBeInTheDocument()
+    expect(screen.queryByText("super-secret-token")).not.toBeInTheDocument()
+  })
+
+  it("submits edit metadata without sending a blank payload", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/credentials/1") && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(payload({
+          credentials: [credential({ safe_metadata: { host: "git.example.com" } })]
+        })))
+      }
+      return Promise.resolve(jsonResponse(payload()))
+    })
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit credential" })
+    fireEvent.change(within(dialog).getByLabelText("Safe metadata"), { target: { value: '{"host":"git.example.com"}' } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials/1", expect.objectContaining({ method: "PATCH" })))
+    const body = requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials/1", "PATCH")
+    expect(body).not.toHaveProperty("payload")
+    expect(body.safe_metadata).toEqual({ host: "git.example.com" })
+    expect(await screen.findByText(/git.example.com/)).toBeInTheDocument()
+  })
+
+  it("cancels create and edit modals without submitting", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    fireEvent.change(within(screen.getByRole("dialog", { name: "New credential" })).getByLabelText("Name"), { target: { value: "Do not save" } })
+    fireEvent.click(within(screen.getByRole("dialog", { name: "New credential" })).getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("dialog", { name: "New credential" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Edit credential" })).getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("dialog", { name: "Edit credential" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
   it("shows enabled plugin credential types and omits disabled plugin type names", async () => {
@@ -60,7 +135,8 @@ describe("CredentialStoreAdmin", () => {
 
     renderRoute(<CredentialStoreAdmin />)
 
-    const typeSelect = await screen.findByLabelText("Credential type")
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const typeSelect = screen.getByLabelText("Credential type")
     expect(within(typeSelect).getByRole("option", { name: /credential_store\.generic/ })).toBeInTheDocument()
     expect(within(typeSelect).getByRole("option", { name: /k8s_cluster\.kubeconfig/ })).toBeInTheDocument()
   })
@@ -70,9 +146,51 @@ describe("CredentialStoreAdmin", () => {
 
     renderRoute(<CredentialStoreAdmin />)
 
-    const typeSelect = await screen.findByLabelText("Credential type")
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const typeSelect = screen.getByLabelText("Credential type")
     expect(within(typeSelect).getByRole("option", { name: /credential_store\.generic/ })).toBeInTheDocument()
     expect(within(typeSelect).queryByRole("option", { name: /k8s_cluster\.kubeconfig/ })).not.toBeInTheDocument()
+  })
+
+  it("shows local JSON validation errors without submitting", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const dialog = screen.getByRole("dialog", { name: "New credential" })
+    fireEvent.change(within(dialog).getByLabelText("Safe metadata"), { target: { value: "{" } })
+    fireEvent.change(within(dialog).getByLabelText("Target constraints"), { target: { value: "[]" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
+
+    expect(await within(dialog).findByText("Safe metadata must be valid JSON.")).toBeInTheDocument()
+    expect(within(dialog).getByText("Target constraints must be a JSON object.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears stale save API errors when the credential modal is reopened", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/credentials") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: { message: "Name has already been taken." } }, 422))
+      }
+      return Promise.resolve(jsonResponse(payload()))
+    })
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    let dialog = screen.getByRole("dialog", { name: "New credential" })
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Deploy token" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
+
+    expect(await within(dialog).findByText("Name has already been taken.")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("dialog", { name: "New credential" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "New credential" }))
+    dialog = screen.getByRole("dialog", { name: "New credential" })
+    expect(within(dialog).queryByText("Name has already been taken.")).not.toBeInTheDocument()
   })
 
   it("surfaces disabled-plugin API errors", async () => {
@@ -85,7 +203,7 @@ describe("CredentialStoreAdmin", () => {
     expect(await screen.findByText("Credential Store is disabled.")).toBeInTheDocument()
   })
 
-  it("rotates with a write-only payload and clears the field after success", async () => {
+  it("rotates with a write-only payload from a modal and closes after success", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/1/rotate") && init?.method === "POST") {
@@ -98,9 +216,11 @@ describe("CredentialStoreAdmin", () => {
 
     renderRoute(<CredentialStoreAdmin />)
 
-    const rotateInput = await screen.findByLabelText("New payload for Deploy token") as HTMLInputElement
+    fireEvent.click(await screen.findByRole("button", { name: "Rotate" }))
+    const dialog = screen.getByRole("dialog", { name: "Rotate Deploy token" })
+    const rotateInput = within(dialog).getByLabelText("New payload for Deploy token") as HTMLTextAreaElement
     fireEvent.change(rotateInput, { target: { value: "new-secret" } })
-    fireEvent.click(screen.getByRole("button", { name: "Rotate" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rotate" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -111,8 +231,34 @@ describe("CredentialStoreAdmin", () => {
         })
       )
     })
-    await waitFor(() => expect(rotateInput.value).toBe(""))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Rotate Deploy token" })).not.toBeInTheDocument())
     expect(screen.queryByText("new-secret")).not.toBeInTheDocument()
+  })
+
+  it("keeps the rotate modal open and surfaces API errors", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/1/rotate") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: { message: "Payload is too short." } }, 422))
+      }
+      return Promise.resolve(jsonResponse(payload()))
+    })
+
+    renderRoute(<CredentialStoreAdmin />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rotate" }))
+    const dialog = screen.getByRole("dialog", { name: "Rotate Deploy token" })
+    fireEvent.change(within(dialog).getByLabelText("New payload for Deploy token"), { target: { value: "x" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rotate" }))
+
+    expect(await within(dialog).findByText("Payload is too short.")).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "Rotate Deploy token" })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("dialog", { name: "Rotate Deploy token" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Rotate" }))
+    const reopenedDialog = screen.getByRole("dialog", { name: "Rotate Deploy token" })
+    expect(within(reopenedDialog).queryByText("Payload is too short.")).not.toBeInTheDocument()
   })
 
   it("renders revocation state after revoke succeeds", async () => {
@@ -198,7 +344,7 @@ describe("CredentialStoreAdmin", () => {
     expect(await screen.findByText("Deploy token")).toBeInTheDocument()
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
-    expect(screen.getByLabelText("New payload for Deploy token")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Rotate" })).toBeInTheDocument()
   })
 })
 
@@ -219,6 +365,12 @@ function renderRoute(children: ReactNode, initialEntry = "/admin/credential_stor
 
 function encodeFilter(filter: Record<string, unknown>) {
   return window.btoa(unescape(encodeURIComponent(JSON.stringify(filter)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+function requestCredential(fetchSpy: { mock: { calls: Array<[unknown, RequestInit?]> } }, path: string, method: string) {
+  const call = fetchSpy.mock.calls.find(([input, init]) => String(input) === path && init?.method === method)
+  expect(call).toBeTruthy()
+  return JSON.parse(String(call?.[1]?.body)).credential as Record<string, unknown>
 }
 
 function mockViewport(viewport: "desktop" | "mobile") {
