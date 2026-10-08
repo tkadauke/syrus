@@ -23,7 +23,8 @@ RSpec.describe Java::Engine do
           provides: {
             prepare_detector:         Java::PrepareDetector,
             prompt_injector:          Java::PromptContext,
-            review_criteria_provider: Java::ReviewCriteriaProvider
+            review_criteria_provider: Java::ReviewCriteriaProvider,
+            grader_type:              [ Java::GradleGraderType, Java::MavenGraderType ]
           }
         )
       end
@@ -47,7 +48,8 @@ RSpec.describe Java::Engine do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :prompt_injector,
-        :review_criteria_provider
+        :review_criteria_provider,
+        :grader_type
       )
     end
 
@@ -61,6 +63,11 @@ RSpec.describe Java::Engine do
 
     it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
       expect(registration.provides[:review_criteria_provider]).to eq(Java::ReviewCriteriaProvider)
+    end
+
+    it "registers GradleGraderType and MavenGraderType as :grader_type providers" do
+      expect(registration.provides[:grader_type]).to eq([ Java::GradleGraderType, Java::MavenGraderType ])
+      expect(Syrus::PluginRegistry.providers_for(:grader_type)).to include(Java::GradleGraderType, Java::MavenGraderType)
     end
   end
 
