@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_012814) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_212835) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -161,6 +161,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_012814) do
     t.string "resumable_type", null: false
     t.datetime "updated_at", null: false
     t.index ["resumable_type", "resumable_id"], name: "index_agents_on_resumable", unique: true
+  end
+
+  create_table "alertmanager_investigations", force: :cascade do |t|
+    t.string "fingerprint", null: false
+    t.string "host", null: false
+    t.string "runbook_url", null: false
+    t.string "runbook_repository"
+    t.string "runbook_ref"
+    t.string "runbook_path"
+    t.json "alert_payload"
+    t.integer "repository_id"
+    t.integer "job_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["fingerprint", "created_at"], name: "idx_alertmanager_investigations_fingerprint_time"
+    t.index ["host", "created_at"], name: "idx_alertmanager_investigations_host_time"
+    t.index ["job_id"], name: "index_alertmanager_investigations_on_job_id"
+    t.index ["repository_id"], name: "index_alertmanager_investigations_on_repository_id"
   end
 
   create_table "app_settings", force: :cascade do |t|
