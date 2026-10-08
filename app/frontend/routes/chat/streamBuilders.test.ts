@@ -184,6 +184,71 @@ describe("renderChatMessages tool grouping", () => {
     expect(items[0]).toMatchObject({ type: "message", role: "system", text: "Cancelled by operator." })
   })
 
+  it("hides completed-turn dangling tool cleanup rows after the assistant answer", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "sleep 10" } }),
+      toolUse(2, { toolUseId: "tu_bash_2", toolName: "bash", input: { command: "sleep 20" } }),
+      {
+        type: "message",
+        id: 3,
+        role: "assistant",
+        tool_name: null,
+        content: { text: "The answer is still useful." },
+        text: "The answer is still useful.",
+        bookmarkable: false
+      } as ChatMessageItem,
+      toolResult(4, {
+        toolUseId: "tu_bash_1",
+        content: [{ type: "text", text: "Agent turn ended before this tool returned." }],
+        isError: true
+      }),
+      toolResult(5, {
+        toolUseId: "tu_bash_2",
+        content: [{ type: "text", text: "Agent turn ended before this tool returned." }],
+        isError: true
+      })
+    ])
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ type: "message", role: "assistant", text: "The answer is still useful." })
+  })
+
+  it("hides standalone completed-turn dangling tool results when their tool_use is outside the loaded page", () => {
+    const items = renderChatMessages([
+      toolResult(1, {
+        toolUseId: "tu_missing_1",
+        content: [{ type: "text", text: "Agent turn ended before this tool returned." }],
+        isError: true,
+        tool_name: "bash"
+      }),
+      toolResult(2, {
+        toolUseId: "tu_missing_2",
+        content: [{ type: "text", text: "Agent turn ended before this tool returned." }],
+        isError: true,
+        tool_name: "bash"
+      })
+    ])
+
+    expect(items).toEqual([])
+  })
+
+  it("keeps failed-turn dangling tool cleanup rows visible", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "sleep 10" } }),
+      toolResult(2, {
+        toolUseId: "tu_bash_1",
+        content: [{ type: "text", text: "Agent turn failed before this tool returned." }],
+        isError: true
+      })
+    ])
+
+    const item = group(items[0])
+
+    expect(items).toHaveLength(1)
+    expect(item.outcome_label).toBe("Failed")
+    expect(item.calls[0].result_body).toBe("Agent turn failed before this tool returned.")
+  })
+
   it("removes only operator-cancelled calls from a mixed tool group", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "echo done" } }),
