@@ -12033,6 +12033,7 @@ describe("App", () => {
       const chromeScrollPane = screen.getByTestId("app-scroll-pane")
       expect(chromeScrollPane).toHaveClass("relative", "flex", "flex-col", "overflow-hidden")
       expect(chromeScrollPane).not.toHaveClass("overflow-auto")
+      expect(chromeScrollPane.style.getPropertyValue("--mobile-chrome-top-overlap-height")).toBe("72px")
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       const mobileChatContentShell = screen.getByTestId("mobile-chat-content-shell")
       const mobileChatRouteShell = screen.getByTestId("mobile-chat-route-shell")

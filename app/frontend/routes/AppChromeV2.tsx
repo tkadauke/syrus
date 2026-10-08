@@ -208,6 +208,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChromeVisibleTopInset = isMobileLayeredChromePage ? Math.max(0, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight - mobileChatHeaderOffset) : 0
   const mobileChatAppContentStyle = isMobileLayeredChromePage ? {
     "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px`,
+    "--mobile-chrome-top-overlap-height": `${mobileChatAppHeaderHeight}px`,
     "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
   } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
