@@ -138,6 +138,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; filterByPr?: boolean; jobState?: string; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const ghostSuggestionTextRef = useRef<HTMLSpanElement | null>(null)
+  const ghostSuggestionAcceptRef = useRef<HTMLButtonElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -1491,13 +1492,19 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const textarea = textareaRef.current
     if (!textarea) return
 
-    autosizeChatTextarea(textarea, ghostSuggestion ? ghostSuggestionTextRef.current : null)
+    autosizeChatTextarea(textarea, ghostSuggestion ? {
+      acceptControl: ghostSuggestionAcceptRef.current,
+      text: ghostSuggestionTextRef.current
+    } : null)
   }, [ghostSuggestion, text])
 
   useEffect(() => {
     function handleResize() {
       const textarea = textareaRef.current
-      if (textarea) autosizeChatTextarea(textarea, ghostSuggestion ? ghostSuggestionTextRef.current : null)
+      if (textarea) autosizeChatTextarea(textarea, ghostSuggestion ? {
+        acceptControl: ghostSuggestionAcceptRef.current,
+        text: ghostSuggestionTextRef.current
+      } : null)
     }
 
     window.addEventListener("resize", handleResize)
@@ -1935,7 +1942,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               <button
                 aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
                 className="pointer-events-auto grid h-8 w-8 shrink-0 place-items-center rounded text-gray-500 leading-none transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"
+                data-testid="chat-suggestion-accept-button"
                 onClick={() => acceptGhostSuggestion(ghostSuggestion)}
+                ref={ghostSuggestionAcceptRef}
                 title={t("suggestion_accept")}
                 type="button"
               >
@@ -3191,7 +3200,10 @@ function approximateBase64Bytes(data: string) {
   return Math.max(0, Math.ceil((base64.length * 3) / 4) - padding)
 }
 
-function autosizeChatTextarea(textarea: HTMLTextAreaElement, ghostSuggestionText: HTMLElement | null = null) {
+function autosizeChatTextarea(
+  textarea: HTMLTextAreaElement,
+  ghostSuggestion: { acceptControl: HTMLElement | null; text: HTMLElement | null } | null = null
+) {
   textarea.style.height = "auto"
 
   const style = window.getComputedStyle(textarea)
@@ -3200,8 +3212,11 @@ function autosizeChatTextarea(textarea: HTMLTextAreaElement, ghostSuggestionText
   const verticalBorder = parsePixelValue(style.borderTopWidth) + parsePixelValue(style.borderBottomWidth)
   const minHeight = lineHeight + verticalPadding + verticalBorder
   const maxHeight = (lineHeight * CHAT_COMPOSE_MAX_ROWS) + verticalPadding + verticalBorder
-  const measuredHeight = ghostSuggestionText
-    ? ghostSuggestionText.scrollHeight + verticalPadding + verticalBorder
+  const ghostSuggestionControlHeight = ghostSuggestion?.acceptControl
+    ? ghostSuggestion.acceptControl.getBoundingClientRect().height || ghostSuggestion.acceptControl.offsetHeight
+    : 0
+  const measuredHeight = ghostSuggestion?.text
+    ? Math.max(ghostSuggestion.text.scrollHeight, ghostSuggestionControlHeight) + verticalPadding + verticalBorder
     : textarea.scrollHeight
   const nextHeight = Math.min(Math.max(measuredHeight, minHeight), maxHeight)
 
