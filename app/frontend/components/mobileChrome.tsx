@@ -2,7 +2,7 @@ import { createContext, useContext } from "react"
 
 export const MOBILE_CHROME_SURFACE_CLASS = "bg-white dark:bg-gray-950"
 export const MOBILE_CHROME_BOTTOM_OVERLAP_CLASS = "shadow-[0_1px_0_0_#fff] dark:shadow-[0_1px_0_0_#030712]"
-export const MOBILE_CHROME_TOP_OVERLAP_CLASS = "before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:h-1 before:bg-white before:content-[''] dark:before:bg-gray-950"
+export const MOBILE_CHROME_TOP_OVERLAP_CLASS = "before:pointer-events-none before:absolute before:inset-x-0 before:-top-[var(--mobile-chrome-top-overlap-height,0px)] before:h-[var(--mobile-chrome-top-overlap-height,0px)] before:bg-white before:content-[''] dark:before:bg-gray-950"
 
 export type MobileChromeControls = {
   autoHideEnabled: boolean
