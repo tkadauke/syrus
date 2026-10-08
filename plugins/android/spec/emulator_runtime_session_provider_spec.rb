@@ -219,6 +219,31 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       expect(chat_session.chat_attachments.reload.map(&:attachable_id)).to include(session.metadata["latest_frame_document_id"])
     end
 
+    it "publishes Android screenshots through the generic Runtime artifact tool shape" do
+      enable_coding_mode!
+      Syrus::PluginRegistry.register(:runtime_session_provider, Android::EmulatorRuntimeSessionProvider)
+      session = runtime_session
+      png = png_with_dimensions(width: 1080, height: 2400)
+      runner.enqueue(->(argv) { argv == %w[adb -s emulator-5580 exec-out screencap -p] }, stdout: png)
+
+      response = Mcp::Tools::RuntimeCaptureArtifactTool.call(
+        artifact_type: "screenshot",
+        server_context: { chat_session: chat_session }
+      )
+      payload = JSON.parse(response.content.first[:text], symbolize_names: true)
+
+      expect(response).not_to be_error
+      expect(payload).to include(
+        kind: "android_screenshot",
+        content_type: "image/png",
+        bytes: png.bytesize,
+        latest_frame_url: "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame",
+        fallback: false
+      )
+      expect(payload[:document_id]).to be_present
+      expect(session.reload.metadata).to include("frame_width" => 1080, "frame_height" => 2400)
+    end
+
     it "falls back to the latest captured frame when a refresh fails" do
       session = runtime_session(latest_frame_url: "/frame.png", latest_frame_at: 1.minute.ago, metadata: { "serial" => "emulator-5580", "latest_frame_document_id" => 99 })
       runner.enqueue(->(argv) { argv == %w[adb -s emulator-5580 exec-out screencap -p] }, stderr: "device offline", status: 1)
