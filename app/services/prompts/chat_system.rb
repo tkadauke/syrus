@@ -392,12 +392,13 @@ module Prompts
             for every implementation Job. Use `{ "os": ["linux"] }` for
             normal Linux/backend/web work.
           - iOS, Apple mobile, or Xcode-targeted work uses
-            `planned_execution.capabilities: { "os": ["macos"] }`.
+            `planned_execution.capabilities: { "os": ["macos"], "arch": ["arm64"], "toolchain": ["xcode"], "runtime": ["ios_simulator"] }`.
           - Mixed iOS plus backend work still uses macOS as the primary
             placement; backend graders can fan out later.
-          - Only `os` is supported, with values `linux` and `macos`. There is
-            no Windows value: Windows-targeted work still has to declare one
-            of the two, so ask the operator which host should own it.
+          - Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`.
+            There is no Windows value: Windows-targeted work still has to
+            declare a supported host, so ask the operator which host should own
+            it.
           - A Job naming several platforms is not a conflict to resolve.
             Nothing reads the title or description to pick a host, so choose
             the one the implementation actually needs and say so.
