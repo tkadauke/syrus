@@ -42,7 +42,7 @@ when a Rakefile is present, and `bundle exec ruby -Itest test` otherwise.
 Use `command`, `focused_command`, `ci_command`, or `paths` when a repository
 needs a custom Minitest wrapper.
 
-Java/JVM projects can use the Java plugin's Gradle and Maven typed graders:
+Java/JVM and Kotlin/JVM projects can use the Java plugin's Gradle and Maven typed graders:
 
 ```yaml
 grade:
@@ -60,6 +60,9 @@ Both prefer project wrappers (`./gradlew`, `./mvnw`) and aggregate standard
 JUnit XML report directories into one Syrus `junit_output` artifact when
 reports are present. Use `report_paths:` for custom report directories or
 `junit_output: false` when a project does not emit JUnit XML.
+The Kotlin plugin detects Kotlin/JVM projects and Gradle Kotlin DSL files, then
+reuses the same Gradle/JUnit machinery instead of defining a separate Kotlin
+grader type.
 
 For mixed-language monorepos, put the typed grader in the JVM project's nested
 `.syrus.yml` and scope it to that project:
@@ -76,7 +79,9 @@ grade:
     tasks: [test]
     when_files_changed:
       - "src/main/java/**/*"
+      - "src/main/kotlin/**/*"
       - "src/test/java/**/*"
+      - "src/test/kotlin/**/*"
       - "build.gradle.kts"
       - "gradle/**/*"
       - "gradlew"

@@ -1,0 +1,9 @@
+project:
+  id: kotlin
+  label: "kotlin plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

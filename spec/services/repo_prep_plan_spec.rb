@@ -169,6 +169,17 @@ RSpec.describe RepoPrepPlan do
       expect(result.guessed?).to be(true)
     end
 
+    it "deduplicates identical commands from layered language plugins while keeping detector labels" do
+      register_detector(plugin_name: "test_java", file: "build.gradle.kts", command: "gradle --no-daemon testClasses", prepare_priority: 45)
+      register_detector(plugin_name: "test_kotlin", file: "build.gradle.kts", command: "gradle --no-daemon testClasses", prepare_priority: 46)
+      write("build.gradle.kts", "")
+
+      result = described_class.for(@dir)
+
+      expect(result.commands).to eq([ "gradle --no-daemon testClasses" ])
+      expect(result.source).to eq("auto-detect (Test_javaPrepareDetector, Test_kotlinPrepareDetector)")
+    end
+
     it "a single matching plugin behaves like today's single-command output" do
       register_detector(plugin_name: "test_python", file: "requirements.txt", command: "pip install -r requirements.txt")
       write("requirements.txt", "")
