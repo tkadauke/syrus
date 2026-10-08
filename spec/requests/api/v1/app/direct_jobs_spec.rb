@@ -214,6 +214,29 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title_pending")).to eq(false)
   end
 
+  it "reuses the hidden direct-job proposal session across direct jobs for the same user" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "First direct job",
+        prompt: "Create the first direct job."
+      }
+      expect(response).to have_http_status(:created)
+
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Second direct job",
+        prompt: "Create the second direct job."
+      }
+      expect(response).to have_http_status(:created)
+    }.to change(Job, :count).by(2)
+      .and change { ChatSession.where(user: user, system_kind: "direct_job_api").count }.by(1)
+
+    expect(ChatSession.where(user: user, system_kind: "direct_job_api").count).to eq(1)
+  end
+
   it "sets target_branch when provided so the PR opens against an explicit base" do
     sign_in_as(user)
 
@@ -412,19 +435,28 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
   it "rejects invalid attachments and destroys the draft job" do
     sign_in_as(user)
 
-    expect {
-      post "/api/v1/app/jobs", params: {
-        repository_id: repository.id,
-        prompt: "Use this file.",
-        job_attachment: {
-          files: [ upload_file(name: "archive.zip", content_type: "application/zip", content: "zip") ]
-        }
+    before_counts = {
+      jobs: Job.count,
+      proposals: ChatProposal.count,
+      chats: ChatSession.where(user: user, system_kind: "direct_job_api").count,
+      messages: ChatMessage.count
+    }
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      prompt: "Use this file.",
+      job_attachment: {
+        files: [ upload_file(name: "archive.zip", content_type: "application/zip", content: "zip") ]
       }
-    }.not_to change(Job, :count)
+    }
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
     expect(parse_body.dig("error", "message")).to include("supported text, PDF, Office, or image file")
+    expect(Job.count).to eq(before_counts.fetch(:jobs))
+    expect(ChatProposal.count).to eq(before_counts.fetch(:proposals))
+    expect(ChatSession.where(user: user, system_kind: "direct_job_api").count).to eq(before_counts.fetch(:chats))
+    expect(ChatMessage.count).to eq(before_counts.fetch(:messages))
   end
 
   it "rejects blank prompts, missing repositories, and unconfigured agents" do
@@ -480,6 +512,45 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(response).to have_http_status(:created)
     new_job = Job.order(:created_at).last
     expect(new_job.epic).to eq(epic)
+  end
+
+  it "rejects a job added to a non-empty epic without depends_on_job_ids through the proposal path" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        epic_id: epic.id,
+        title: "Next child",
+        prompt: "Add the next stacked child."
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("already has Jobs")
+    expect(parse_body.dig("error", "message")).to include("depends_on_job_ids")
+  end
+
+  it "creates a linear dependency when depends_on_job_ids names the epic tail" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    first = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      epic_id: epic.id,
+      title: "Next child",
+      prompt: "Add the next stacked child.",
+      depends_on_job_ids: [ first.id ]
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.epic).to eq(epic)
+    expect(new_job.dependencies.map(&:depends_on_job)).to eq([ first ])
+    expect(epic.jobs.reload).to contain_exactly(first, new_job)
   end
 
   it "rejects an epic_id that does not belong to the target repository" do
