@@ -100,6 +100,16 @@ and rejected — so a review that couldn't reach the real surface is auditable
 rather than silently passing on the strength of an adjacent page's
 screenshots.
 
+`submit_visual_review` also enforces the most obvious version of this rule at
+submission time. If an `approved` verdict's screenshots for that run are only
+auth-wall or error-wall captures (for example a sign-in route/title) while the
+Job or review prompt names a different intended route, the tool rejects the
+submission with an operator-readable error naming both the intended surface
+and the captured fallback. The reviewer must resubmit `skipped` for
+tooling/auth/seed blockers, or `needs_work` when the missing surface is an
+implementation or preview-seeding defect. Reviews of auth/session pages
+themselves are still allowed to approve sign-in screenshots.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
