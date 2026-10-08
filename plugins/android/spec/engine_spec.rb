@@ -31,7 +31,8 @@ RSpec.describe Android::Engine do
           provides: {
             prepare_detector:         Android::PrepareDetector,
             prompt_injector:          Android::PromptContext,
-            review_criteria_provider: Android::ReviewCriteriaProvider
+            review_criteria_provider: Android::ReviewCriteriaProvider,
+            step_environment:         Android::StepEnvironment
           }
         )
       end
@@ -56,7 +57,8 @@ RSpec.describe Android::Engine do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :prompt_injector,
-        :review_criteria_provider
+        :review_criteria_provider,
+        :step_environment
       )
     end
 
@@ -64,6 +66,7 @@ RSpec.describe Android::Engine do
       expect(registration.provides[:prepare_detector]).to eq(Android::PrepareDetector)
       expect(registration.provides[:prompt_injector]).to eq(Android::PromptContext)
       expect(registration.provides[:review_criteria_provider]).to eq(Android::ReviewCriteriaProvider)
+      expect(registration.provides[:step_environment]).to eq(Android::StepEnvironment)
     end
   end
 
@@ -168,6 +171,33 @@ RSpec.describe Android::Engine do
 
       expect(described_class.criteria(@dir)).to include(
         "Flag emulator or device control paths that bypass the generic Runtime Session visual frame/input contract"
+      )
+    end
+  end
+
+  describe Android::StepEnvironment do
+    let(:job) { Factories.job }
+    let(:workflow_scope) { PrepareScope.for_workflow(job.workflows.first) }
+
+    around do |ex|
+      Android.register! unless Syrus::PluginRegistry.registered_names.include?("android")
+      ex.run
+    ensure
+      Syrus::PluginRegistry.reset!
+    end
+
+    it "forwards SDK install paths from the worker environment" do
+      expect(described_class.forwarded_env_keys).to eq(%w[ANDROID_HOME ANDROID_SDK_ROOT])
+      expect(Steps::Prepare.prep_env_forward).to include("ANDROID_HOME", "ANDROID_SDK_ROOT")
+    end
+
+    it "keeps Android user and AVD state inside the workflow workspace" do
+      env = described_class.extra_env(scope: workflow_scope, workspace_path: Pathname.new("/tmp/workspace"))
+
+      expect(env).to eq(
+        "ANDROID_USER_HOME" => "/tmp/workspace/.syrus/android",
+        "ANDROID_PREFS_ROOT" => "/tmp/workspace/.syrus/android",
+        "ANDROID_AVD_HOME" => "/tmp/workspace/.syrus/android/avd"
       )
     end
   end

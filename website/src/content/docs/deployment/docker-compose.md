@@ -62,6 +62,31 @@ docker compose down                 # stop
 ./install.sh --docker               # pull updates and restart
 ```
 
+### Android emulator support
+
+The published worker image includes the Android SDK command-line baseline used
+by the Android plugin: command-line tools, platform-tools, emulator, selected
+platform/build-tools, and accepted licenses. That is enough for Android Gradle
+tasks that do not boot an emulator.
+
+Emulator-backed graders and Runtime Sessions also need host acceleration. The
+host must expose KVM, and the worker container must be allowed to use it. On a
+single-host Compose install, add a worker device mapping when the host has
+`/dev/kvm`:
+
+```yaml
+services:
+  worker:
+    devices:
+      - /dev/kvm:/dev/kvm
+```
+
+If Syrus runs inside a VM, nested virtualization must also be enabled in that
+VM. Without these pieces, Android unit/lint/build tasks may still work, but
+emulator launches usually fail with `/dev/kvm: Permission denied`,
+`KVM is required to run this AVD`, or
+`x86 emulation currently requires hardware acceleration`.
+
 ## Driving the installer from automation
 
 `install.sh --docker` doubles as a headless installer — the Syrus macOS
