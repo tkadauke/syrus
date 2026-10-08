@@ -2,6 +2,7 @@ source "https://rubygems.org"
 
 gem "ruby",        path: "plugins/ruby"
 gem "javascript",  path: "plugins/javascript"
+gem "java",        path: "plugins/java"
 gem "python",      path: "plugins/python"
 gem "django",      path: "plugins/django"
 gem "go",          path: "plugins/go"
