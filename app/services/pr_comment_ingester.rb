@@ -62,10 +62,24 @@ class PrCommentIngester
       attributed_to: attributed_to,
       actionable: actionable,
       body: comment.body,
-      comment_created_at: comment.created_at
+      comment_created_at: comment.created_at,
+      path: value_for(comment, :path),
+      side: value_for(comment, :side),
+      line: integer_value_for(comment, :line),
+      start_line: integer_value_for(comment, :start_line),
+      original_line: integer_value_for(comment, :original_line),
+      original_start_line: integer_value_for(comment, :original_start_line)
     )
   rescue ActiveRecord::RecordNotUnique
     nil
+  end
+
+  def value_for(comment, key)
+    comment.public_send(key) if comment.respond_to?(key)
+  end
+
+  def integer_value_for(comment, key)
+    Integer(value_for(comment, key), exception: false)
   end
 
   def classify_actionable(body)

@@ -230,6 +230,7 @@ export type RepositoryDetailPayload = {
     failed_7d: number
   }
   health_history?: RepositoryHealthHistory
+  cognitive_debt?: RepositoryCognitiveDebtPayload
   delivery?: RepositoryDeliveryPayload | null
   recommended_actions?: RepositoryFeatureRecommendation[]
   retry_failed_jobs: {
@@ -307,6 +308,56 @@ export type RepositorySyrusYmlSummary = {
   adversarial_review_rounds: number | null
   coverage_configured: boolean
   delivery_tracks_count: number
+}
+
+export type RepositoryCognitiveDebtPayload = {
+  generated_at: string
+  target_sha: string
+  proxy_notice: string
+  projection_notice: string | null
+  unsupported_projection_count: number
+  empty: boolean
+  summary: RepositoryCognitiveDebtRollup
+  subsystems: RepositoryCognitiveDebtRollup[]
+  files: RepositoryCognitiveDebtRollup[]
+  review_queue: RepositoryCognitiveDebtQueueItem[]
+}
+
+export type RepositoryCognitiveDebtRollup = {
+  key: string
+  line_count: number
+  covered_count: number
+  stale_count: number
+  blind_count: number
+  cognitive_coverage_pct: number | null
+}
+
+export type RepositoryCognitiveDebtQueueItem = {
+  kind: "file"
+  path: string
+  risk_score: number
+  coverage_state: string
+  explanations: string[]
+  rollup: RepositoryCognitiveDebtRollup
+  signals: {
+    churn: number
+    test_coverage_pct: number | null
+    unhealthy_target: boolean
+    reliability: number | string | null
+    unsupported_engagements: number
+  }
+  source: {
+    github_url: string
+    review_path: string | null
+    latest_engagement: {
+      source_type: string
+      engagement_kind: string
+      occurred_at: string
+      start_line: number | null
+      end_line: number | null
+      projection_supported: boolean
+    } | null
+  }
 }
 
 export type RepositoryFeatureRecommendation = {
