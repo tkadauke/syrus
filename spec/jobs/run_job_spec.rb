@@ -1073,6 +1073,44 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+    it "drops storage affinity after a pinned Run exhausts its host admission deferral budget" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      wf.update!(
+        worker_hostname: "worker-a",
+        worker_storage_key: "storage-a",
+        artifacts: {
+          "run_host_admission" => {
+            "reason" => "local_worker_pressure_critical",
+            "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET - 1,
+            "first_deferred_at" => 20.minutes.ago.iso8601
+          }
+        }
+      )
+      decision = RunHostAdmission::Decision.new(
+        action: "defer",
+        reason: "local_worker_pressure_critical",
+        delay: 30.seconds,
+        details: { "hostname" => "worker-a", "worker_storage_key" => "storage-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(wf.reload.worker_hostname).to be_nil
+      expect(wf.worker_storage_key).to be_nil
+      expect(wf.artifact("run_host_admission")).to include(
+        "action" => "defer",
+        "reason" => "local_worker_pressure_critical",
+        "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
+        "deferral_budget" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
+      )
+    end
+
     it "does not append duplicate host admission deferral logs for the same queued run" do
       job
       wf = job.workflows.last

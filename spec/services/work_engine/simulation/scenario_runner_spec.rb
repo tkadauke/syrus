@@ -196,6 +196,16 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(grader_runs.first.agent_outcome).to eq(AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
   end
 
+  it "reroutes a pinned Run after repeated host admission deferrals" do
+    result = run_scenario("pinned_host_admission_deferral_budget_reenqueues_elsewhere")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("queued_run_host_admission_deferral_budget_exhausted")
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_implemented
+    expect(job.workflows.find_by!(trigger_kind: "initial").worker_storage_key).to be_present
+  end
+
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
     result = run_scenario("stale_initial_intent_after_successful_retry")
 
