@@ -145,6 +145,10 @@ function agentLease(overrides: Partial<RuntimeControlLease> = {}): RuntimeContro
   }
 }
 
+function versionedFrameUrl(capturedAt: string) {
+  return `/api/v1/app/chats/8/runtime_sessions/101/frame?latest_frame_at=${encodeURIComponent(capturedAt)}`
+}
+
 function renderPanel(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
     <QueryClientProvider client={client}>
@@ -208,7 +212,7 @@ describe("RuntimePanel session detail", () => {
     renderPanel()
 
     const image = await screen.findByAltText("Latest screenshot")
-    expect(image).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+    expect(image).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
   })
 
   it("renders a provider-neutral live visual frame for screenshot-stream sessions", async () => {
@@ -256,7 +260,7 @@ describe("RuntimePanel session detail", () => {
     fireEvent.error(image)
 
     await waitFor(() => {
-      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
     })
     expect(screen.getByText(/Live frame unavailable; showing latest capture/)).toBeInTheDocument()
   })
@@ -301,7 +305,7 @@ describe("RuntimePanel session detail", () => {
 
     renderPanel()
 
-    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", "/api/v1/app/chats/8/runtime_sessions/101/frame")
+    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
     expect(screen.getByText("Runtime disconnected or failed.")).toBeInTheDocument()
   })
 
@@ -344,6 +348,37 @@ describe("RuntimePanel capture action", () => {
 
     expect(await screen.findByAltText("Latest screenshot")).toBeInTheDocument()
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chat_media", "8"] })
+  })
+
+  it("refreshes stable latest-frame URLs when capture advances latest_frame_at", async () => {
+    mockFetch((url, method) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      if (url.includes("/capture") && method === "POST") {
+        return jsonResponse({
+          runtime_session: sessionFixture({
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:05:00Z"
+          })
+        })
+      }
+      return jsonResponse({
+        runtime_sessions: [
+          sessionFixture({
+            latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame",
+            latest_frame_at: "2026-01-01T00:00:00Z"
+          })
+        ]
+      })
+    })
+
+    renderPanel()
+
+    expect(await screen.findByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:00:00Z"))
+    fireEvent.click(screen.getByRole("button", { name: "Capture" }))
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Latest screenshot")).toHaveAttribute("src", versionedFrameUrl("2026-01-01T00:05:00Z"))
+    })
   })
 })
 

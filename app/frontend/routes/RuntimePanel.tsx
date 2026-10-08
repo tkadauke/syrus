@@ -73,6 +73,14 @@ function latestFrameIsStale(session: RuntimeSession): boolean {
   return Number.isFinite(capturedAtMs) && Date.now() - capturedAtMs > FRAME_STALE_AFTER_MS
 }
 
+function latestFrameSource(session: RuntimeSession): string | null {
+  if (!session.latest_frame_url) return null
+  if (!session.latest_frame_at) return session.latest_frame_url
+
+  const separator = session.latest_frame_url.includes("?") ? "&" : "?"
+  return `${session.latest_frame_url}${separator}latest_frame_at=${encodeURIComponent(session.latest_frame_at)}`
+}
+
 // Cursor-based log tailing (DOC-17's "logs with cursor-based refresh"):
 // fetches once immediately, then keeps polling and appending new entries
 // while the session is still active. Resets whenever the selected session
@@ -143,7 +151,8 @@ function GenericVisualFrame({ session }: { session: RuntimeSession }) {
   const [ streamFailed, setStreamFailed ] = useState(false)
   const [ imageLoaded, setImageLoaded ] = useState(false)
   const visualStream = session.stream_url && sessionSupportsVisualFrames(session) ? session.stream_url : null
-  const frameSource = visualStream && !streamFailed ? visualStream : session.latest_frame_url
+  const latestFrame = latestFrameSource(session)
+  const frameSource = visualStream && !streamFailed ? visualStream : latestFrame
   const usingStream = Boolean(visualStream && frameSource === visualStream)
   const usingLatestFallback = Boolean(frameSource && !usingStream)
   const failed = session.state === "failed" || Boolean(session.last_error)
