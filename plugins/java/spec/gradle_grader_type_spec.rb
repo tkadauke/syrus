@@ -4,6 +4,10 @@ require "tmpdir"
 require "fileutils"
 
 RSpec.describe Java::GradleGraderType do
+  def matches_scope?(patterns, path)
+    patterns.any? { |pattern| File.fnmatch(pattern, path, File::FNM_DOTMATCH) }
+  end
+
   it "registers the gradle type name" do
     expect(described_class.type_name).to eq("gradle")
   end
@@ -33,6 +37,19 @@ RSpec.describe Java::GradleGraderType do
       { "artifact" => ".syrus/grade-output/gradle-test-junit.xml", "format" => "junit" }
     ])
     expect(step.metadata.dig("filter_capabilities", "failed_cases")).to be(true)
+  end
+
+  it "matches nested multi-module Gradle descriptors and wrappers in the default scope" do
+    scope = described_class.grade_steps(config: {}, default_failures: "strict").first.when_files_changed
+
+    expect(matches_scope?(scope, "app/build.gradle")).to be(true)
+    expect(matches_scope?(scope, "app/build.gradle.kts")).to be(true)
+    expect(matches_scope?(scope, "app/settings.gradle")).to be(true)
+    expect(matches_scope?(scope, "app/settings.gradle.kts")).to be(true)
+    expect(matches_scope?(scope, "app/gradle.properties")).to be(true)
+    expect(matches_scope?(scope, "app/gradle/wrapper/gradle-wrapper.properties")).to be(true)
+    expect(matches_scope?(scope, "app/gradlew")).to be(true)
+    expect(matches_scope?(scope, "app/gradlew.bat")).to be(true)
   end
 
   it "honors configured tasks, display name, dependencies, timeout, and required flag" do
