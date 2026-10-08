@@ -106,10 +106,7 @@ export function CredentialStoreAdmin() {
     <Page.Root aria-label={t("aria_page")} gutter="responsive" size="wide">
       <Page.Header className="items-end border-b border-border pb-4">
         <Page.HeadingGroup>
-          <Text as="p" muted variant="label">
-            {t("admin:section_label")}
-          </Text>
-          <Page.Title className="mt-1">{t("heading")}</Page.Title>
+          <Page.Title>{t("heading")}</Page.Title>
           <Page.Description>{t("description")}</Page.Description>
         </Page.HeadingGroup>
       </Page.Header>
