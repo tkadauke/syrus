@@ -5,6 +5,7 @@ require "android/prompt_context"
 require "android/review_criteria_provider"
 require "android/step_environment"
 require "android/toolchain_diagnostic"
+require "android/emulator_runtime_session_provider"
 require "android/gradle_grader_type"
 require "android/assemble_grader_type"
 require "android/unit_test_grader_type"
@@ -41,6 +42,7 @@ module Android
              prompt_injector: "Android::PromptContext",
              review_criteria_provider: "Android::ReviewCriteriaProvider",
              step_environment: "Android::StepEnvironment",
+             runtime_session_provider: "Android::EmulatorRuntimeSessionProvider",
              grader_type: [
                "Android::AssembleGraderType",
                "Android::UnitTestGraderType",

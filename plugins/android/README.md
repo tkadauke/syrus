@@ -13,6 +13,7 @@ runtime, and APK/AAB artifact behavior.
 | `:prepare_detector` | Detects Android Gradle Plugin declarations, Android Kotlin plugin declarations, Android Gradle buildscript classpath entries, and conventional `AndroidManifest.xml` layouts. It intentionally returns no prepare command, so it can safely identify repositories without inventing project-specific Android Gradle work. |
 | `:step_environment` | Forwards `ANDROID_HOME`/`ANDROID_SDK_ROOT` from the worker image and scopes mutable Android user and AVD state to `.syrus/android` inside each workflow workspace. |
 | `:grader_type` | Expands Android Gradle typed graders for assemble, local unit tests, connected instrumented tests, and Gradle Managed Devices. Generated graders declare Linux execution capabilities and record Android report, package, managed-device, and log paths. |
+| `:runtime_session_provider` | Adds the `android_emulator` Runtime Session provider for Coding Mode emulator viewing and control through the standard Runtime UI. |
 | `:prompt_injector` | Reminds agents that Android runs on Linux execution capabilities, uses Java/Kotlin for generic JVM conventions, and should use the provider-neutral Runtime Session visual frame/input path for live emulator viewing and control. |
 | `:review_criteria_provider` | Adds Android-specific adversarial-review checks for worker capabilities, mobile artifact handling, and runtime input/viewing boundaries. |
 
@@ -67,9 +68,39 @@ from JVM support. It reports missing pieces in its payload instead of raising
 so graders and runtime providers can render precise operator-facing failures.
 
 Live emulator viewing and control should use Runtime Sessions' visual frame
-and input contract. An Android emulator provider should implement the generic
-runtime provider interface and feed frames/input through that path rather than
-adding Android-only UI plumbing.
+and input contract. The bundled `android_emulator` provider implements the
+generic runtime provider interface and feeds frames/input through that path
+rather than adding Android-only UI plumbing.
+
+## Runtime Sessions
+
+Coding Mode can start an Android Runtime Session with provider
+`android_emulator`. The provider uses Android SDK tools from the worker
+environment, stores mutable AVD/user state under `.syrus/android` in the
+workspace, and records emulator metadata such as AVD name, serial, process id,
+and emulator log path on the `RuntimeSession`.
+
+Supported operations:
+
+- `runtime_start`: creates or reuses an AVD, starts the emulator, waits for
+  `sys.boot_completed`, and reports missing SDK tools, missing KVM/accelerator
+  access, AVD creation failures, and boot timeouts as Runtime Session errors.
+- `runtime_build_or_reload`: runs a Gradle task (default `assembleDebug`),
+  finds the newest APK under Android Gradle output directories, and installs it
+  with `adb install -r`.
+- `runtime_launch`: launches an explicit package/activity with `am start`, or a
+  package launcher intent with `monkey`.
+- `runtime_snapshot` and Runtime panel capture: run `adb exec-out screencap -p`,
+  file the PNG as chat media, and update `latest_frame_url`/`latest_frame_at`.
+  If refresh fails after a previous frame exists, the provider returns the
+  latest-frame fallback with the refresh warning.
+- `runtime_inspect`: returns the `uiautomator` XML hierarchy.
+- `runtime_input`: requires the normal Runtime Control Lease and translates
+  touch/pointer taps and swipes, keyboard/device buttons, and text input to
+  `adb shell input`.
+- `runtime_logs`: pages `adb logcat -d -v time`.
+- `runtime_stop`: asks the emulator to exit and terminates the remembered
+  process; sessions can opt into AVD deletion on stop through metadata.
 
 ## Loading the plugin
 

@@ -33,6 +33,7 @@ RSpec.describe Android::Engine do
             prompt_injector:          Android::PromptContext,
             review_criteria_provider: Android::ReviewCriteriaProvider,
             step_environment:         Android::StepEnvironment,
+            runtime_session_provider: Android::EmulatorRuntimeSessionProvider,
             grader_type:              [
               Android::AssembleGraderType,
               Android::UnitTestGraderType,
@@ -65,6 +66,7 @@ RSpec.describe Android::Engine do
         :prompt_injector,
         :review_criteria_provider,
         :step_environment,
+        :runtime_session_provider,
         :grader_type
       )
     end
@@ -74,6 +76,7 @@ RSpec.describe Android::Engine do
       expect(registration.provides[:prompt_injector]).to eq(Android::PromptContext)
       expect(registration.provides[:review_criteria_provider]).to eq(Android::ReviewCriteriaProvider)
       expect(registration.provides[:step_environment]).to eq(Android::StepEnvironment)
+      expect(registration.provides[:runtime_session_provider]).to eq(Android::EmulatorRuntimeSessionProvider)
     end
 
     it "registers Android typed graders" do

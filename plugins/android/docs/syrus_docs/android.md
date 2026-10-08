@@ -12,6 +12,7 @@ and `kotlin`.
 | `:prepare_detector` | Detects Android Gradle Plugin declarations (`com.android.application`, `com.android.library`, `com.android.test`, dynamic feature and asset-pack plugins), Android Kotlin plugin declarations, `com.android.tools.build:gradle` buildscript classpath entries, and conventional `AndroidManifest.xml` paths. It returns no prepare command by detection alone, so generic Linux workers do not invent project-specific Android Gradle work. It reuses `.java-version` as the JVM version file and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` command-span labels for worker-health diagnostics. |
 | `:step_environment` | Forwards `ANDROID_HOME` and `ANDROID_SDK_ROOT` from the worker image into prepare/grader subprocesses and computes per-workspace `ANDROID_USER_HOME`, `ANDROID_PREFS_ROOT`, and `ANDROID_AVD_HOME` under `.syrus/android`. This keeps SDK installation global while Android user state, repositories, and AVD metadata stay scoped to the workflow workspace. |
 | `:grader_type` | Expands `type: android-assemble`, `type: android-unit-test`, `type: android-instrumented-test`, and `type: android-managed-device` into wrapper-aware Gradle graders. Generated steps declare Linux execution capabilities, use Android source/manifest/Gradle file scopes, aggregate Android/JUnit XML reports when present, and expose package, report, managed-device, and log paths in grader metadata. |
+| `:runtime_session_provider` | Adds the `android_emulator` Coding Mode Runtime Session provider. It starts an isolated emulator/AVD, builds and installs APKs through Gradle/ADB, launches apps, captures PNG frames, inspects the UI hierarchy, pages logcat, and delivers lease-gated touch/key/text input through the standard Runtime UI. |
 | `:prompt_injector` | Tells agents to keep Java/Kotlin/JVM conventions in the Java/Kotlin plugins, treat Android Gradle Plugin, SDK, emulator/device, artifact, and runtime behavior as Android-owned, run Android work on Linux execution capabilities, and use Runtime Sessions' provider-neutral visual frame/input contract for live emulator viewing and control. |
 | `:review_criteria_provider` | Adds review criteria for declared worker capabilities, APK/AAB variant/signing distinctions, and avoiding Android-specific bypasses around Runtime Session visual frame/input. |
 
@@ -27,11 +28,12 @@ Android execution uses Linux capabilities. Do not introduce an `os: android`
 target for Android work; workers that can build or run Android should advertise
 Linux plus the relevant Android SDK/emulator/device capabilities.
 
-Interactive Android support should be a Runtime Session provider. The provider
-should implement the existing `:runtime_session_provider` interface and publish
-frames and input through Syrus's provider-neutral visual Runtime path, the same
-operator/agent control path used by other visual providers. Android should not
-add separate emulator-only UI plumbing for live viewing or input.
+Interactive Android support is owned by the `android_emulator` Runtime Session
+provider. The provider implements the existing `:runtime_session_provider`
+interface and publishes frames and input through Syrus's provider-neutral visual
+Runtime path, the same operator/agent control path used by other visual
+providers. Android does not add separate emulator-only UI plumbing for live
+viewing or input.
 
 ## Detection and prepare behavior
 
@@ -182,12 +184,46 @@ as `x86 emulation currently requires hardware acceleration`, `KVM is required
 to run this AVD`, `/dev/kvm: Permission denied`, or an
 `emulator -accel-check` diagnostic reporting unavailable acceleration.
 
+## Runtime Sessions
+
+Coding Mode can start a live Android emulator with provider
+`android_emulator`. The provider keeps SDK installation global but runtime
+state local to the workspace:
+
+- AVD/user state lives under `.syrus/android`.
+- Session metadata records the AVD name, emulator serial, process id, and
+  emulator log path for debugging.
+- Missing `adb`/`emulator`/`avdmanager`, unavailable KVM or accelerator support,
+  AVD creation failures, boot timeouts, install failures, frame refresh
+  failures, and app launch failures are surfaced as Runtime Session errors.
+
+The generic Runtime Session tools and Runtime panel drive the provider:
+
+- `runtime_start` creates or reuses an AVD, starts the emulator, and waits for
+  `sys.boot_completed`.
+- `runtime_build_or_reload` runs a Gradle task, defaulting to `assembleDebug`,
+  finds the newest APK under Android Gradle output directories, and installs it
+  with `adb install -r`.
+- `runtime_launch` starts an explicit package/activity with `am start`, or a
+  package launcher intent with `monkey`.
+- `runtime_snapshot` captures `adb exec-out screencap -p`, files the PNG as
+  chat media, and stamps `latest_frame_url`/`latest_frame_at` so the standard
+  visual Runtime UI can render the frame. When a refresh fails after a previous
+  frame exists, the provider returns the stale latest-frame fallback and the
+  refresh warning.
+- `runtime_inspect` returns the `uiautomator` XML hierarchy.
+- `runtime_input` requires the normal Runtime Control Lease before translating
+  touch/pointer taps and swipes, keyboard/device buttons, and text input to
+  `adb shell input`.
+- `runtime_logs` pages `adb logcat -d -v time`.
+- `runtime_stop` asks the emulator to exit and terminates the remembered
+  process. Sessions can opt into AVD deletion on stop through metadata.
+
 ## Future Android-owned work
 
 Android-specific follow-up work should stay inside this plugin wherever
 possible:
 
 - Android lint typed graders and richer APK/AAB artifact display.
-- A runtime provider that launches an emulator/device session and feeds visual
-  frames plus touch/key/text input through the generic Runtime Session
-  contract.
+- Richer app/package discovery for projects whose manifests omit the package
+  because it is supplied by the Android Gradle Plugin namespace.
