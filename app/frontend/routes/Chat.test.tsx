@@ -3854,6 +3854,25 @@ describe("composer next-step suggestion", () => {
     return screen.findByRole("textbox")
   }
 
+  function stubGhostSuggestionScrollHeight(height: number) {
+    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "scrollHeight")
+    Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get() {
+        if (this instanceof HTMLElement && this.dataset.testid === "chat-suggestion-ghost-text") return height
+        return descriptor?.get?.call(this) ?? 0
+      }
+    })
+
+    return () => {
+      if (descriptor) {
+        Object.defineProperty(window.HTMLElement.prototype, "scrollHeight", descriptor)
+      } else {
+        Reflect.deleteProperty(window.HTMLElement.prototype, "scrollHeight")
+      }
+    }
+  }
+
   it("renders the suggestion as ghost text with a tappable accept button when the composer is empty", async () => {
     mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
 
@@ -3868,23 +3887,46 @@ describe("composer next-step suggestion", () => {
     expect(screen.getByText("Suggested next message: Create an Epic from these findings. Tap the suggestion button or press Tab to accept.")).toBeInTheDocument()
   })
 
+  it("sizes short ghost suggestions to their content instead of reserving the row limit", async () => {
+    mockMobileViewport()
+    const restoreScrollHeight = stubGhostSuggestionScrollHeight(40)
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Check whether these rows need a second bug" } }))
+
+    try {
+      renderRoute()
+
+      const ghostText = await screen.findByTestId("chat-suggestion-ghost-text")
+      const textarea = await findComposerTextarea()
+
+      expect(ghostText).toHaveTextContent("Check whether these rows need a second bug")
+      expect(textarea).toHaveStyle({ height: "40px", overflowY: "hidden" })
+    } finally {
+      restoreScrollHeight()
+    }
+  })
+
   it("wraps long ghost suggestions and keeps them scrollable within the composer row limit", async () => {
     mockMobileViewport()
+    const restoreScrollHeight = stubGhostSuggestionScrollHeight(180)
     const longSuggestion = [
       "Draft a follow-up to expose PR coverage in the Source diff settings too.",
       "Mention that operators should open the review diff, use the settings gear, and check the metric gutter dropdown."
     ].join(" ")
     mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: longSuggestion } }))
 
-    renderRoute()
+    try {
+      renderRoute()
 
-    const ghostText = await screen.findByTestId("chat-suggestion-ghost-text")
-    const textarea = await findComposerTextarea()
+      const ghostText = await screen.findByTestId("chat-suggestion-ghost-text")
+      const textarea = await findComposerTextarea()
 
-    expect(ghostText).toHaveTextContent(longSuggestion)
-    expect(ghostText).toHaveClass("pointer-events-auto", "max-h-full", "whitespace-pre-wrap", "break-words", "overflow-y-auto")
-    expect(ghostText).not.toHaveClass("truncate")
-    expect(textarea).toHaveStyle({ height: "100px", overflowY: "auto" })
+      expect(ghostText).toHaveTextContent(longSuggestion)
+      expect(ghostText).toHaveClass("pointer-events-auto", "max-h-full", "whitespace-pre-wrap", "break-words", "overflow-y-auto")
+      expect(ghostText).not.toHaveClass("truncate")
+      expect(textarea).toHaveStyle({ height: "100px", overflowY: "auto" })
+    } finally {
+      restoreScrollHeight()
+    }
   })
 
   it("does not render ghost text when no suggestion is stored", async () => {

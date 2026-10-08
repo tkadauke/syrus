@@ -137,6 +137,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const [shellCommand, setShellCommand] = useState<ChatShellCommandRecord | null>(() => payload.chat_shell_command_in_flight ?? null)
   const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; filterByPr?: boolean; jobState?: string; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const ghostSuggestionTextRef = useRef<HTMLSpanElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -1490,13 +1491,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const textarea = textareaRef.current
     if (!textarea) return
 
-    autosizeChatTextarea(textarea, Boolean(ghostSuggestion))
+    autosizeChatTextarea(textarea, ghostSuggestion ? ghostSuggestionTextRef.current : null)
   }, [ghostSuggestion, text])
 
   useEffect(() => {
     function handleResize() {
       const textarea = textareaRef.current
-      if (textarea) autosizeChatTextarea(textarea, Boolean(ghostSuggestion))
+      if (textarea) autosizeChatTextarea(textarea, ghostSuggestion ? ghostSuggestionTextRef.current : null)
     }
 
     window.addEventListener("resize", handleResize)
@@ -1930,7 +1931,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           />
           {ghostSuggestion ? (
             <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-start gap-2 overflow-hidden py-2.5 pl-3 pr-1.5 text-base leading-6 sm:py-2 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span aria-hidden="true" className="pointer-events-auto max-h-full min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words pr-2 text-gray-400 dark:text-gray-500" data-testid="chat-suggestion-ghost-text">{ghostSuggestion}</span>
+              <span aria-hidden="true" className="pointer-events-auto max-h-full min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words pr-2 text-gray-400 dark:text-gray-500" data-testid="chat-suggestion-ghost-text" ref={ghostSuggestionTextRef}>{ghostSuggestion}</span>
               <button
                 aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
                 className="pointer-events-auto grid h-8 w-8 shrink-0 place-items-center rounded text-gray-500 leading-none transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"
@@ -3190,7 +3191,7 @@ function approximateBase64Bytes(data: string) {
   return Math.max(0, Math.ceil((base64.length * 3) / 4) - padding)
 }
 
-function autosizeChatTextarea(textarea: HTMLTextAreaElement, reserveMaxRows = false) {
+function autosizeChatTextarea(textarea: HTMLTextAreaElement, ghostSuggestionText: HTMLElement | null = null) {
   textarea.style.height = "auto"
 
   const style = window.getComputedStyle(textarea)
@@ -3199,10 +3200,13 @@ function autosizeChatTextarea(textarea: HTMLTextAreaElement, reserveMaxRows = fa
   const verticalBorder = parsePixelValue(style.borderTopWidth) + parsePixelValue(style.borderBottomWidth)
   const minHeight = lineHeight + verticalPadding + verticalBorder
   const maxHeight = (lineHeight * CHAT_COMPOSE_MAX_ROWS) + verticalPadding + verticalBorder
-  const nextHeight = reserveMaxRows ? maxHeight : Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)
+  const measuredHeight = ghostSuggestionText
+    ? ghostSuggestionText.scrollHeight + verticalPadding + verticalBorder
+    : textarea.scrollHeight
+  const nextHeight = Math.min(Math.max(measuredHeight, minHeight), maxHeight)
 
   textarea.style.height = `${nextHeight}px`
-  textarea.style.overflowY = reserveMaxRows || textarea.scrollHeight > maxHeight ? "auto" : "hidden"
+  textarea.style.overflowY = measuredHeight > maxHeight ? "auto" : "hidden"
 }
 
 function useSubmitChatWithEnter() {
