@@ -21,10 +21,12 @@ module SyrusMcp
       Stores an image (e.g. a browser screenshot) as a typed artifact on the
       current Workflow, persisted via ActiveStorage. Prefer image_path for files
       already saved in the workflow workspace, such as browser_screenshot output;
-      image_base64 remains available when bytes are already in memory. type is a
-      free-form string identifier; visual-review screenshots are persisted under
-      run-scoped internal artifact types so later review iterations do not
-      overwrite earlier evidence.
+      capture_current_browser to capture from the active MCP browser session
+      without copying temp files, omit image inputs to default to that same
+      current-browser capture, and use image_base64 only when bytes are already
+      in memory. type is a free-form string identifier; visual-review
+      screenshots are persisted under run-scoped internal artifact types so
+      later review iterations do not overwrite earlier evidence.
     DESC
 
     input_schema(
@@ -39,11 +41,15 @@ module SyrusMcp
         },
         image_base64: {
           type: "string",
-          description: "Base64-encoded image bytes (no data: URI prefix). Use exactly one of image_base64 or image_path."
+          description: "Base64-encoded image bytes (no data: URI prefix). Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
         },
         image_path: {
           type: "string",
-          description: "Path to an image file in the workflow workspace, relative to the workspace root or absolute within it. Prefer this for browser_screenshot output. Use exactly one of image_base64 or image_path."
+          description: "Path to an image file in the workflow workspace, relative to the workspace root or absolute within it. Prefer this for existing files. Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
+        },
+        capture_current_browser: {
+          type: "boolean",
+          description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. This is also the default when image_base64 and image_path are omitted."
         },
         content_type: {
           type: "string",
@@ -54,26 +60,28 @@ module SyrusMcp
     )
 
     class << self
-      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, content_type: nil)
+      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, content_type: nil)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_visual_artifact)
 
         artifact_type  = Mcp::Tools.utf8(type).strip
         artifact_title = Mcp::Tools.utf8(title).strip
-        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path)
-        mime_type      = Mcp::Tools.utf8(content_type).strip.presence || inferred_content_type(image_source[:path])
+        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser)
+        explicit_content_type = Mcp::Tools.utf8(content_type).strip.presence
 
         return Mcp::Tools.invalid("type is required")  if artifact_type.empty?
         return Mcp::Tools.invalid("title is required") if artifact_title.empty?
         return Mcp::Tools.invalid(image_source[:error]) if image_source[:error]
+
+        captured = read_image_data(image_source, run)
+        return Mcp::Tools.invalid(captured[:error]) if captured[:error]
+
+        image_data = captured.fetch(:data)
+        mime_type = explicit_content_type || captured[:content_type].presence || inferred_content_type(image_source[:path])
         unless ALLOWED_CONTENT_TYPES.include?(mime_type)
           return Mcp::Tools.invalid("content_type must be one of #{ALLOWED_CONTENT_TYPES.join(', ')}")
         end
-
-        image_data = read_image_data(image_source, run)
-        return Mcp::Tools.invalid(image_data[:error]) if image_data[:error]
-        image_data = image_data[:data]
         return Mcp::Tools.invalid("image data is empty") if image_data.empty?
         if image_data.bytesize > MAX_IMAGE_BYTES
           return Mcp::Tools.invalid("image exceeds maximum size of #{MAX_IMAGE_BYTES / 1.megabyte} MB")
@@ -89,15 +97,16 @@ module SyrusMcp
           title: artifact_title,
           original_type: artifact_type,
           renderer_type: :image_diff,
-          payload: {
-            "content_type" => mime_type,
-            "byte_size"    => image_data.bytesize,
-            "image_url"    => "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=#{CGI.escape(stored_type)}",
-            "run_id"       => run.id,
-            "step_id"      => run.step_id,
-            "iteration"    => run.step&.iteration,
-            "original_type" => artifact_type
-          },
+          payload: visual_artifact_payload(
+            workflow: workflow,
+            run: run,
+            stored_type: stored_type,
+            original_type: artifact_type,
+            source: captured[:source],
+            content_type: mime_type,
+            byte_size: image_data.bytesize,
+            metadata: captured[:metadata]
+          ),
           **TypedArtifactProvenance.for_run(run)
         )
 
@@ -123,13 +132,22 @@ module SyrusMcp
         nil
       end
 
-      def normalize_image_source(image_base64:, image_path:)
-        encoded = Mcp::Tools.utf8(image_base64).strip.presence
-        path = Mcp::Tools.utf8(image_path).strip.presence
-        return { error: "provide exactly one of image_path or image_base64" } if encoded.present? && path.present?
-        return { error: "image_path or image_base64 is required" } if encoded.blank? && path.blank?
+      def normalize_image_source(image_base64:, image_path:, capture_current_browser:)
+        encoded_text = Mcp::Tools.utf8(image_base64).strip
+        path_text = Mcp::Tools.utf8(image_path).strip
+        return { error: "image_base64 is empty" } if !image_base64.nil? && encoded_text.blank?
+        return { error: "image_path is empty" } if !image_path.nil? && path_text.blank?
 
-        encoded.present? ? { kind: :base64, value: encoded } : { kind: :path, path: path }
+        encoded = encoded_text.presence
+        path = path_text.presence
+        current_browser = ActiveModel::Type::Boolean.new.cast(capture_current_browser)
+        source_count = [ encoded.present?, path.present?, current_browser ].count(true)
+        return { error: "provide exactly one of image_path, image_base64, or capture_current_browser" } if source_count > 1
+
+        return { kind: :base64, value: encoded, source: "base64" } if encoded.present?
+        return { kind: :path, path: path, source: "image_path" } if path.present?
+
+        { kind: :current_browser, source: "current_browser" }
       end
 
       def read_image_data(image_source, run)
@@ -138,17 +156,157 @@ module SyrusMcp
           data = decode_image(image_source[:value])
           return { error: "image_base64 is not valid base64 image data" } if data.nil?
 
-          { data: data }
+          { data: data, source: image_source[:source] }
         when :path
           path = safe_image_path(image_source[:path], run)
           return { error: "image_path must point to a file inside the workflow workspace" } unless path
           return { error: "image_path not found: #{image_source[:path]}" } unless File.file?(path)
           return { error: "image exceeds maximum size of #{MAX_IMAGE_BYTES / 1.megabyte} MB" } if File.size(path) > MAX_IMAGE_BYTES
 
-          { data: File.binread(path) }
+          { data: File.binread(path), source: image_source[:source] }
+        when :current_browser
+          capture_current_browser(run)
         else
-          { error: "image_path or image_base64 is required" }
+          { error: "image_path, image_base64, or capture_current_browser is required" }
         end
+      end
+
+      def capture_current_browser(run)
+        response = call_browser_tool(run, "browser_screenshot", {})
+        return { error: "current browser screenshot failed: #{tool_error_text(response)}" } if response.nil? || response.error?
+
+        image = response.content.find { |block| block.is_a?(Hash) && block[:type] == "image" && block[:data].present? }
+        return { error: "current browser screenshot did not return image data" } unless image
+
+        data = decode_image(image[:data])
+        return { error: "current browser screenshot returned invalid image data" } if data.nil?
+
+        {
+          data: data,
+          source: "current_browser",
+          content_type: image[:mimeType].presence || image[:mime_type].presence || DEFAULT_CONTENT_TYPE,
+          metadata: current_browser_metadata(run)
+        }
+      end
+
+      def current_browser_metadata(run)
+        response = call_browser_tool(
+          run,
+          "browser_evaluate",
+          {
+            "function" => <<~JS.squish
+              () => ({
+                url: window.location.href,
+                path: window.location.pathname + window.location.search + window.location.hash,
+                title: document.title,
+                viewport: {
+                  width: window.innerWidth,
+                  height: window.innerHeight,
+                  deviceScaleFactor: window.devicePixelRatio
+                }
+              })
+            JS
+          }
+        )
+        return {} if response.nil? || response.error?
+
+        text = response.content.find { |block| block.is_a?(Hash) && block[:type] == "text" }&.dig(:text)
+        parsed = parse_browser_evaluate_json(text)
+        parsed.is_a?(Hash) ? parsed : {}
+      rescue JSON::ParserError, TypeError
+        {}
+      end
+
+      def parse_browser_evaluate_json(text)
+        body = text.to_s.strip
+        return JSON.parse(body) if body.present?
+
+        {}
+      rescue JSON::ParserError
+        section = body[/(?:\A|\n)### Result\s*\n(?<result>.*?)(?=\n### |\z)/m, :result].to_s.strip
+        return {} if section.blank?
+
+        JSON.parse(section)
+      end
+
+      def call_browser_tool(run, tool_name, params)
+        provider = browser_tool_provider(run, tool_name)
+        return unless provider
+
+        provider.new.handle(tool_name, params, { run: run })
+      end
+
+      def browser_tool_provider(run, tool_name)
+        context = McpToolContext.from_run(run)
+        Syrus::PluginRegistry.providers_for(:mcp_tool_set).find do |provider|
+          next false unless provider_available_for_context?(provider, context)
+
+          provider_tool_names(provider, context).include?(tool_name)
+        end
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusMcp::SubmitVisualArtifactTool] browser provider lookup failed: #{e.class}: #{e.message}")
+        nil
+      end
+
+      def provider_available_for_context?(provider, context)
+        if provider.respond_to?(:available_for_context?)
+          provider.available_for_context?(context)
+        else
+          provider.available_for?(context.repository)
+        end
+      end
+
+      def provider_tool_names(provider, context)
+        definitions =
+          if provider.method(:tool_definitions).parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :context }
+            provider.tool_definitions(context: context)
+          else
+            provider.tool_definitions
+          end
+        definitions.filter_map { |definition| definition[:name] || definition["name"] }
+      end
+
+      def tool_error_text(response)
+        response&.content&.first&.dig(:text).presence || "browser tool unavailable"
+      end
+
+      def visual_artifact_payload(workflow:, run:, stored_type:, original_type:, source:, content_type:, byte_size:, metadata:)
+        payload = {
+          "content_type" => content_type,
+          "byte_size"    => byte_size,
+          "image_url"    => "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=#{CGI.escape(stored_type)}",
+          "run_id"       => run.id,
+          "step_id"      => run.step_id,
+          "iteration"    => run.step&.iteration,
+          "original_type" => original_type,
+          "source"       => source,
+          "captured_at"  => Time.current.iso8601(3)
+        }
+        payload.merge!(provenance_metadata(metadata))
+        payload
+      end
+
+      def provenance_metadata(metadata)
+        metadata = metadata.to_h
+        page = {
+          "url" => metadata["url"].presence,
+          "path" => metadata["path"].presence,
+          "title" => metadata["title"].presence
+        }.compact
+        viewport = metadata["viewport"].is_a?(Hash) ? metadata["viewport"].slice("width", "height", "deviceScaleFactor", "device_scale_factor").compact : {}
+
+        {}.tap do |payload|
+          payload["page"] = page if page.present?
+          payload["viewport"] = normalize_viewport(viewport) if viewport.present?
+        end
+      end
+
+      def normalize_viewport(viewport)
+        {
+          "width" => viewport["width"],
+          "height" => viewport["height"],
+          "device_scale_factor" => viewport["deviceScaleFactor"] || viewport["device_scale_factor"]
+        }.compact
       end
 
       def safe_image_path(path, run)
