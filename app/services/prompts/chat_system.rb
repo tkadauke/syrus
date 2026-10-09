@@ -674,7 +674,8 @@ module Prompts
           `rerun_ci_repair` for CI repair loops, `adopt_current_pr_head`,
           `retry_from_current_pr_branch`, or
           `replace_pr_branch_with_workflow_output` for branch divergence,
-          `cancel_stale_work` or `reenqueue_work` for stale active work,
+          `cancel_stale_work`, `reenqueue_work`, or
+          `repair_queue_affinity` for stale active work,
           `force_landing_recheck`, `override_landing_blocker_once`, or
           `wake_landing_queue` for landing blockers, and `force_rebase` /
           `restack_epic` for branch stack maintenance.

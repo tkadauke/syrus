@@ -23,6 +23,7 @@ import overrideLandingBlockerOnceCard from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
 import cancelStaleWorkCard from "./cancel_stale_work"
 import reenqueueWorkCard from "./reenqueue_work"
+import repairQueueAffinityCard from "./repair_queue_affinity"
 import wakeLandingQueueCard from "./wake_landing_queue"
 import wakeProviderAdmissionCard from "./wake_provider_admission"
 import clearProviderCircuitCard from "./clear_provider_circuit"
@@ -66,6 +67,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["force_landing_recheck", forceLandingRecheckCard],
   ["cancel_stale_work", cancelStaleWorkCard],
   ["reenqueue_work", reenqueueWorkCard],
+  ["repair_queue_affinity", repairQueueAffinityCard],
   ["wake_landing_queue", wakeLandingQueueCard],
   ["wake_provider_admission", wakeProviderAdmissionCard],
   ["clear_provider_circuit", clearProviderCircuitCard],
@@ -84,8 +86,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(32)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(32)
+    expect(CARDS).toHaveLength(33)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(33)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
