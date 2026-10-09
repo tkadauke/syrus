@@ -1179,8 +1179,8 @@ Syrus::PluginRegistry.register(
 
 When a job's workflow contains `typed_artifacts`, the job detail page annotates
 each entry with the matching `renderer_type` from registered renderers and
-displays them in the **Artifacts** tab. Artifacts with no registered renderer
-fall back to a raw JSON display.
+displays them through contextual Review and Report artifact surfaces. Artifacts
+with no registered renderer fall back to a raw JSON display.
 
 The Ruby side above only maps `artifact_type` -> `renderer_type`; the frontend
 component a `renderer_type` actually dispatches to is registered separately,

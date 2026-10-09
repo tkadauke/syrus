@@ -38,7 +38,7 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
   )
 }
 
-// Exported so other tabs (e.g. ArtifactsTab) render the same set of
+// Exported so Job Review/Report and chat artifact surfaces render the same
 // renderer_type -> component mappings instead of duplicating this switch.
 export function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
   return <div className="min-w-0 overflow-x-auto">{renderArtifactBody(artifact)}</div>
