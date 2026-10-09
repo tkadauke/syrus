@@ -232,6 +232,14 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
   describe "adversarial review loop integration (implement is top-level; the loop starts with the review)" do
     before do
+      visual_review_plan = RepoVisualReviewPlan::Result.new(
+        enabled: false,
+        rounds: 1,
+        source: "spec",
+        note: "disabled for adversarial loop dispatch spec"
+      )
+      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
       allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
         RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
       )
