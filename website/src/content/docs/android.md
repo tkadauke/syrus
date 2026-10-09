@@ -7,7 +7,8 @@ The Syrus repository includes a first-party Android app in `android/`. The app
 uses the existing Syrus app API rather than an Android-specific backend:
 operators enter a Syrus instance URL and an API token, the app verifies the
 token with `GET /api/v1/app/bootstrap`, and it loads recent Jobs with
-`GET /api/v1/app/jobs`.
+`GET /api/v1/app/jobs`, including active Jobs so the mobile home screen can show
+current operator-facing progress.
 
 ## Local development
 

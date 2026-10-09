@@ -3,7 +3,8 @@
 This directory contains the first-party Android app foundation. The MVP keeps
 the surface intentionally small: connect to a Syrus instance with an existing
 user API token, verify the token through `/api/v1/app/bootstrap`, and load a
-compact list of recent Jobs from `/api/v1/app/jobs`.
+compact list of recent Jobs from `/api/v1/app/jobs`, including Jobs with active
+runtime work so operators can check live progress from the mobile home screen.
 
 ## Project Contract
 

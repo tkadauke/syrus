@@ -39,13 +39,15 @@ class SyrusApiClientTest {
         assertEquals(1, state.jobs.size)
         assertEquals(42, state.jobs.first().id)
         assertEquals("running", state.jobs.first().state)
+        assertEquals("Running", state.jobs.first().summaryState)
+        assertEquals("Implementing", state.jobs.first().currentStep)
         assertEquals("tkadauke/syrus", state.jobs.first().repositorySlug)
         assertEquals(
             listOf("/api/v1/app/bootstrap", "/api/v1/app/jobs"),
             requests.map { it.path },
         )
         assertTrue(requests.all { it.authorization == "Bearer syrus_token" })
-        assertEquals("limit=10", requests.last().query)
+        assertEquals("limit=10&state=all&include_active_work=true", requests.last().query)
     }
 
     @Test
@@ -69,7 +71,7 @@ class SyrusApiClientTest {
             )
             "/api/v1/app/jobs" -> TestResponse(
                 200,
-                """{"count":1,"jobs":[{"id":42,"title":"Ship Android MVP","state":"running","repository":{"slug":"tkadauke/syrus"}}]}""",
+                """{"count":1,"jobs":[{"id":42,"title":"Ship Android MVP","state":"running","summary_state":"Running","current_step":"Implementing","repository":{"slug":"tkadauke/syrus"}}]}""",
             )
             else -> TestResponse(404, """{"error":{"message":"not found"}}""")
         }

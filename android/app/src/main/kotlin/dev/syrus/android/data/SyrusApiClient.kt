@@ -30,7 +30,7 @@ class SyrusApiClient(
 
     fun loadJobs(limit: Int = 20): List<JobSummary> {
         val safeLimit = limit.coerceIn(1, 100)
-        val payload = getJson("/api/v1/app/jobs?limit=$safeLimit")
+        val payload = getJson("/api/v1/app/jobs?limit=$safeLimit&state=all&include_active_work=true")
         val jobs = payload.optJSONArray("jobs") ?: return emptyList()
         return buildList {
             for (index in 0 until jobs.length()) {
@@ -40,6 +40,8 @@ class SyrusApiClient(
                         job.optLong("id"),
                         job.optString("title", "Untitled job"),
                         job.optString("state", "unknown"),
+                        job.optString("summary_state", job.optString("state", "unknown")),
+                        job.optString("current_step", ""),
                         repositorySlug(job),
                     ),
                 )
