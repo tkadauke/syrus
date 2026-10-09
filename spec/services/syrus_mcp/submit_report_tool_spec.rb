@@ -90,6 +90,16 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     expect(Notification.where(kind: "investigation_escalated", job: job).count).to eq(1)
   end
 
+  it "publishes the escalation chat work event with the workflow dedupe key" do
+    dedupe_key = "investigation_escalated:workflow:#{run.workflow_id}"
+    expect(ChatWorkEvents).to receive(:publish!).with(hash_including(
+      kind: "investigation_escalated",
+      dedupe_key: dedupe_key
+    ))
+
+    call(escalate: true, escalation_reason: "needs_human_decision")
+  end
+
   it "rejects an unknown escalation reason code" do
     response = call(escalate: true, escalation_reason: "maybe_later")
 

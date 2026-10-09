@@ -173,6 +173,7 @@ module Mcp::Tools
 
       def handle_escalation!(run, title, escalation_reason)
         job = run.job
+        dedupe_key = "investigation_escalated:workflow:#{run.workflow_id}"
         job.set_needs_attention!(reason: Job::INVESTIGATION_ESCALATED_ATTENTION_REASON)
         NotificationService.create_for(
           user: job.owner_user || job.user,
@@ -180,7 +181,8 @@ module Mcp::Tools
           job: job,
           repository: job.repository,
           body: "#{job.slug} investigation escalated (#{escalation_reason}): #{title.truncate(80)}",
-          dedupe_key: "investigation_escalated:workflow:#{run.workflow_id}"
+          dedupe_key: dedupe_key,
+          chat_work_event_dedupe_key: dedupe_key
         )
       end
     end
