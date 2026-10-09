@@ -45,6 +45,8 @@ class AppSetting < ApplicationRecord
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
+  after_commit :refresh_experimental_plugin_installations, if: :experimental_plugins_enabled_changed?
+
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
   encrypts :discord_bot_token
@@ -261,5 +263,18 @@ class AppSetting < ApplicationRecord
     raise ArgumentError, "Unknown secret: #{secret}" unless self.class.clearable_secrets.key?(secret)
 
     update!(secret => nil)
+  end
+
+  private
+
+  def experimental_plugins_enabled_changed?
+    has_attribute?(:experimental_plugins_enabled) && saved_change_to_experimental_plugins_enabled?
+  end
+
+  def refresh_experimental_plugin_installations
+    return unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    Syrus::Installer.sync! if defined?(Syrus::Installer)
   end
 end
