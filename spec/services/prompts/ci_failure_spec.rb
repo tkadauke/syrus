@@ -67,7 +67,7 @@ RSpec.describe Prompts::CiFailure do
   it "renders a degraded prompt when failed check entries are malformed" do
     out = build(failed_checks: [ nil, "not-a-check" ]).to_s
 
-    expect(out).to include("# Failing checks (1 total")
+    expect(out).to include("# Failing checks (1 GitHub check(s)")
     expect(out).to include("No summary provided.")
     expect(out).to include("Fix the failing checks.")
   end
@@ -108,6 +108,44 @@ RSpec.describe Prompts::CiFailure do
     out = build(failed_checks: many).to_s
     expect(out).to include("check_0").and include("check_#{described_class::MAX_CHECKS - 1}")
     expect(out).not_to include("check_#{described_class::MAX_CHECKS + 1}")
+  end
+
+  it "names loop-blocking grader failures alongside GitHub checks" do
+    out = build(
+      failed_checks: [
+        { name: "e2e", conclusion: "failure", html_url: "https://github.com/x/y/runs/1", summary: "Playwright failed" }
+      ],
+      grader_iterations: [
+        [
+          {
+            "name" => "rspec-ci",
+            "required" => true,
+            "status" => "failed",
+            "command" => "bin/rspec-ci",
+            "exit_code" => 1,
+            "output" => "4197 examples, 27 failures\nFailed examples:\nrspec ./spec/models/user_spec.rb:12"
+          }
+        ]
+      ]
+    ).to_s
+
+    expect(out).to include("# Failing checks (1 GitHub check(s), showing up to 5; 1 loop-blocking required grader(s): rspec-ci)")
+    expect(out).to include("## e2e — failure")
+    expect(out).to include("The repair loop's own graders are the gate")
+    expect(out).to include("✗ rspec-ci")
+    expect(out).to include("4197 examples, 27 failures")
+    expect(out).to include("rspec ./spec/models/user_spec.rb:12")
+  end
+
+  it "states when the previous repair attempt produced no repository diff" do
+    out = build(
+      repair_attempts: [
+        { "iteration" => 1, "status" => "success", "diff" => "" }
+      ]
+    ).to_s
+
+    expect(out).to include("# Previous repair attempts")
+    expect(out).to include("Iteration 1: success; produced no repository diff.")
   end
 
   it "renders parsed CI log context as structured JSON" do

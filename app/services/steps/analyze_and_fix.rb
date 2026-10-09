@@ -51,8 +51,37 @@ module Steps
         instructions: workflow.artifact("manual_ci_repair").to_h["instructions"],
         epic: job.epic,
         job: job,
-        injected_context: collect_injected_context
+        injected_context: collect_injected_context,
+        grader_iterations: workflow.artifact("iterations"),
+        repair_attempts: previous_repair_attempts
       ).to_s
+    end
+
+    def previous_repair_attempts
+      return [] if step.loop_id.blank?
+
+      workflow.steps
+        .where(kind: step.kind, loop_id: step.loop_id)
+        .where("steps.iteration < ?", step.iteration)
+        .order(:iteration)
+        .filter_map { |prior_step| repair_attempt_for(prior_step) }
+    end
+
+    def repair_attempt_for(prior_step)
+      prior_run = prior_step.runs.order(created_at: :desc, id: :desc).first
+      return nil unless prior_run
+
+      {
+        "iteration" => prior_step.iteration,
+        "status" => prior_run.agent_outcome.presence || prior_run.state,
+        "diff" => repair_attempt_diff(prior_run)
+      }
+    end
+
+    def repair_attempt_diff(prior_run)
+      return prior_run.step_agent_diff.to_s unless prior_run.step_agent_diff.nil?
+
+      prior_run.agent_diff.to_s
     end
   end
 end
