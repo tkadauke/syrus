@@ -171,6 +171,14 @@ targets:
       - "MobileApp.xcodeproj/**"
       - "MobileApp.xcworkspace/**"
 
+  # With the bundled iOS plugin enabled, the common command can be declared as:
+  # - type: xcodebuild
+  #   workspace: MobileApp.xcworkspace
+  #   scheme: MobileApp
+  #   destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+  #   derived_data_path: .syrus/DerivedData/mobile
+  #   result_bundle_path: build/syrus/MobileApp.xcresult
+  #   junit_output: build/syrus/junit/mobile.xml
   - name: test
     kind: grader
     run: >
@@ -220,6 +228,37 @@ grade:
       toolchain: xcode
       runtime: ios_simulator
 ```
+
+With the bundled iOS plugin enabled, prefer typed graders for common commands
+so artifact paths, timeouts, and capability metadata stay consistent:
+
+```yaml
+grade:
+  - type: xcodebuild
+    workspace: apps/ios/MobileApp.xcworkspace
+    scheme: MobileApp
+    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+    derived_data_path: .syrus/DerivedData/ios
+    result_bundle_path: build/syrus/ios/MobileApp.xcresult
+    junit_output: build/syrus/junit/ios-tests.xml
+    when_files_changed:
+      - "apps/ios/**"
+    phases: [landing, ci]
+    timeout_minutes: 45
+
+  - type: swiftpm
+    package_path: apps/ios/Packages/Shared
+    build_path: .syrus/DerivedData/swiftpm-shared
+    when_files_changed:
+      - "apps/ios/Packages/Shared/**"
+    timeout_minutes: 20
+```
+
+For a repository-root Swift package, auto-detected prepare can run
+`swift package resolve`; otherwise add the same command explicitly in the
+owning root or nested `prepare:` block. Xcode package resolution should stay
+explicit because `xcodebuild -resolvePackageDependencies` needs the same
+workspace/project and scheme choices as the grader.
 
 Use `-workspace` when the app has a workspace, especially with CocoaPods or
 Swift packages that generate one. Use `-project` only for project-only apps.
