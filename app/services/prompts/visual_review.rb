@@ -283,7 +283,9 @@ module Prompts
            If multiple affected preview projects are listed above, choose the relevant project_id
            for the area you are testing. If the documented seed data above doesn't cover the feature
            under test, you may run additional ad hoc seed commands yourself via your normal shell
-           access to reach the state you need.
+           access to reach the state you need. For authenticated routes, use the seeded/demo login in
+           this same MCP browser session before capturing evidence. Treat an unexpected auth redirect
+           as a blocker unless the auth screen itself is the changed surface under review.
         3. Use your browser tools (navigate, snapshot, click, fill, hover, wait_for, resize, screenshot,
            evaluate, file_upload, drop, drag) to drive the running app against your own improvised test
            plan targeting what changed. Don't just load the homepage — exercise the actual feature. Use
@@ -326,7 +328,7 @@ module Prompts
            (e.g. "Desktop — ..." / "Mobile — ..."). If your tool schema does not expose
            `capture_current_browser`, omit `image_path` and `image_base64`; the tool defaults to the
            same current-browser capture path. Use that path rather than copying Playwright temp files or
-           launching another browser, because it preserves the authenticated page URL, title, viewport,
+           launching another unauthenticated browser context, because it preserves the authenticated page URL, title, viewport,
            source, and capture timestamp as artifact provenance. You may skip one viewport when the issue/diff context makes it clearly
            irrelevant (a mobile-nav-only bug
            report, a component hidden below a desktop breakpoint, an admin-only desktop tool) — but if
