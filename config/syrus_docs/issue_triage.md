@@ -23,6 +23,7 @@ from the admin processes surface.
 | `classifier_pending` | the classifier | automatic |
 | `pending_epic_ref` | the Epic named in the issue body to exist | automatic |
 | `classifier_uncertain` | **a person** | Accept or Reject |
+| `proposed_job` | **a person** reviewing investigation-proposed work | Accept or Reject |
 
 ## Issue body markers
 
@@ -59,13 +60,16 @@ Three things happen:
 
 ## Accept and Reject
 
-The Job page shows two buttons while `triaging_reason` is `classifier_uncertain`,
-and only then:
+The Job page shows two buttons while `triaging_reason` is
+`classifier_uncertain` or `proposed_job`, and only then:
 
 - **Accept** (`POST /api/v1/app/jobs/:job_id/accept_triage`) — "yes, work on
   this". Clears the uncertainty and advances the Job the same way a successful
   classification would: to `queued` (creating the initial Workflow) or to
-  `blocked_by_epic` if it has unresolved dependencies.
+  `blocked_by_epic` if it has unresolved dependencies. For `proposed_job`,
+  accept does not re-run classification; the investigation-authored proposal
+  already declared the work and execution capabilities, and triage is the
+  acceptance gate.
 - **Reject** (`POST /api/v1/app/jobs/:job_id/reject_triage`) — "no". Closes the
   Job with `closure_reason: cancelled`. Not one of
   `Job::SUCCESSFUL_CLOSURE_REASONS`: rejecting an unclear request delivers

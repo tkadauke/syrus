@@ -93,6 +93,10 @@ from the Job page once you have. Add the label when you file the issue: it is
 read at ingest, so adding it to an issue Syrus has already picked up does not
 convert the existing Job.
 
+When an investigation finds concrete follow-up work, it can propose a new Job.
+That follow-up lands in triage first: an operator must accept it before Syrus
+starts implementation, or reject it to close it as cancelled.
+
 ## Epic Markers
 
 Syrus reads Epic markers from standalone lines in the issue body:

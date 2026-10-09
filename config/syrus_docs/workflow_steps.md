@@ -468,6 +468,16 @@ evidence (a query log, a config dump, a screenshot) while it investigates.
 each of those calls reports back, so the following `submit_report` step can
 point at that evidence by `type`.
 
+Investigation runs may also call the workflow-surface `propose_job` tool to
+create concrete follow-up implementation work. This is not the chat proposal
+card path: it creates a real Job immediately in `triaging` with
+`triaging_reason: proposed_job`, records a link back to the investigation in
+the Job body, and waits for an operator to Accept or Reject it on the Job page
+before anything starts. The tool is available only on `investigate` and
+`submit_report` steps, caps one investigation workflow at ten proposals, and
+requires explicit `planned_execution.capabilities` using the same placement
+rule as chat proposals.
+
 ### submit_report
 
 Agentic. Follows `investigate` in `investigation` workflows. Resumes the
