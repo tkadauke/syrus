@@ -437,6 +437,31 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "does not warn when macOS primary placement has Linux grader coverage for an equally constrained target" do
+    workflow.update!(
+      planned_execution_capabilities: { "os" => [ "macos" ] },
+      planned_execution_source: "inferred"
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: xcodebuild test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+        - name: linux-package
+          run: bin/linux-package
+          when_files_changed: ["linux/**/*"]
+          capabilities:
+            os: linux
+    YAML
+    stub_changed_files("ios/App/View.swift", "linux/package.sh")
+
+    handler.call
+
+    expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
+  end
+
   it "warns when an equally constrained affected target is not covered by the primary placement" do
     workflow.update!(
       planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
