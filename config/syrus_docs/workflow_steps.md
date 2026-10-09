@@ -241,7 +241,9 @@ pre-implementation setup step. Requests are recorded on
 accuracy, but `propagate_fail_to_job!` detects this error class and closes the
 Job with `closure_reason: "no_changes"` instead of marking it failed.
 `no_changes` is a successful terminal outcome and satisfies downstream Job
-dependencies automatically.
+dependencies automatically. The failed Run records
+`agent_outcome: "no_changes_produced"` so the provider's own successful exit
+does not read as a successful effect-producing step.
 
 If the no-diff run instead matches the background-wait failure pattern — the
 agent backgrounded or scheduled work, then ended the turn expecting a later
