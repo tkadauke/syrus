@@ -154,11 +154,12 @@ function VisualPane({ label, image }: { label: string; image: BeforeAfterVisualI
   if (!image?.image_url) return null
 
   return (
-    <div>
+    <div className="space-y-2">
       <div className="mb-1 text-xs font-medium text-gray-500">{label}</div>
       <a href={image.image_url} target="_blank" rel="noreferrer">
         <img src={image.image_url} alt={`${label}: ${image.title || "screenshot"}`} className="max-w-full rounded border border-gray-200" />
       </a>
+      <ImageProvenance payload={image} />
     </div>
   )
 }

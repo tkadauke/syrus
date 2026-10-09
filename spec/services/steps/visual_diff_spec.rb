@@ -31,12 +31,44 @@ RSpec.describe Steps::VisualDiff do
   it "pairs baseline screenshots by title and falls back to capture order" do
     workflow = Workflow.create!(job: Factories.job_record, trigger_kind: "visual_diff")
     after_artifacts = [
-      { "title" => "Dashboard", "image_url" => "/after-dashboard.png", "type" => "after-1" },
+      {
+        "title" => "Dashboard",
+        "image_url" => "/after-dashboard.png",
+        "type" => "after-1",
+        "source" => "current_browser",
+        "captured_at" => "2026-10-09T12:00:00.000Z",
+        "page" => {
+          "path" => "/dashboard",
+          "title" => "Dashboard"
+        },
+        "viewport" => {
+          "width" => 1440,
+          "height" => 900,
+          "device_scale_factor" => 1
+        }
+      },
       { "title" => "Settings", "image_url" => "/after-settings.png", "type" => "after-2" }
     ]
     baselines = [
       { "type" => "before-settings", "title" => "Settings", "payload" => { "image_url" => "/before-settings.png" } },
-      { "type" => "before-dashboard", "title" => "Dashboard", "payload" => { "image_url" => "/before-dashboard.png" } }
+      {
+        "type" => "before-dashboard",
+        "title" => "Dashboard",
+        "payload" => {
+          "image_url" => "/before-dashboard.png",
+          "source" => "current_browser",
+          "captured_at" => "2026-10-09T12:05:00.000Z",
+          "page" => {
+            "path" => "/dashboard",
+            "title" => "Dashboard"
+          },
+          "viewport" => {
+            "width" => 1440,
+            "height" => 900,
+            "device_scale_factor" => 1
+          }
+        }
+      }
     ]
 
     pairs = described_class::VisualDiffPairs.new(
@@ -49,6 +81,32 @@ RSpec.describe Steps::VisualDiff do
       [ "Dashboard", "/before-dashboard.png", "/after-dashboard.png" ],
       [ "Settings", "/before-settings.png", "/after-settings.png" ]
     ])
+    expect(pairs.first.fetch("after")).to include(
+      "source" => "current_browser",
+      "captured_at" => "2026-10-09T12:00:00.000Z",
+      "page" => {
+        "path" => "/dashboard",
+        "title" => "Dashboard"
+      },
+      "viewport" => {
+        "width" => 1440,
+        "height" => 900,
+        "device_scale_factor" => 1
+      }
+    )
+    expect(pairs.first.fetch("before")).to include(
+      "source" => "current_browser",
+      "captured_at" => "2026-10-09T12:05:00.000Z",
+      "page" => {
+        "path" => "/dashboard",
+        "title" => "Dashboard"
+      },
+      "viewport" => {
+        "width" => 1440,
+        "height" => 900,
+        "device_scale_factor" => 1
+      }
+    )
   end
 
   it "returns no pairs when baseline screenshots are missing" do
