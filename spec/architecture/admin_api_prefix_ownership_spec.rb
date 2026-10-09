@@ -90,6 +90,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/epics api/v1/admin/epics#index
     POST /api/v1/admin/epics api/v1/admin/epics#create
     GET /api/v1/admin/epics/:id api/v1/admin/epics#show
+    POST /api/v1/admin/pending_actions/invoke api/v1/admin/pending_actions#invoke
     GET /api/v1/admin/runs api/v1/admin/runs#index
     GET /api/v1/admin/runs/:run_id/artifacts api/v1/admin/runs#artifacts
     GET /api/v1/admin/runs/:run_id/transcript api/v1/admin/transcripts#show
