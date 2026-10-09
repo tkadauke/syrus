@@ -13,6 +13,7 @@ export type BranchDivergence = {
   detected_at: string | null
   message: string | null
   comparison: BranchDivergenceComparison | null
+  recovery: BranchDivergenceRecoveryStatus | null
   recovery_pending: BranchDivergenceRecoveryStatus | null
   recovery_error: BranchDivergenceRecoveryStatus | null
 }
@@ -39,7 +40,6 @@ export type BranchDivergenceRecoveryStatus = {
 
 export function workflowBranchDivergence(workflow: JobWorkflow): BranchDivergence | null {
   const artifacts = workflow.artifacts || {}
-  if (artifacts.branch_divergence_recovery) return null
   const raw = artifacts.branch_divergence
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
 
@@ -51,6 +51,7 @@ export function workflowBranchDivergence(workflow: JobWorkflow): BranchDivergenc
     detected_at: typeof row.detected_at === "string" ? row.detected_at : null,
     message: typeof row.message === "string" ? row.message : null,
     comparison: parseComparison(row.comparison),
+    recovery: workflowBranchRecoveryStatus(artifacts.branch_divergence_recovery),
     recovery_pending: workflowBranchRecoveryStatus(artifacts.branch_divergence_recovery_pending),
     recovery_error: workflowBranchRecoveryStatus(artifacts.branch_divergence_recovery_error)
   }
