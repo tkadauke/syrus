@@ -11,6 +11,7 @@ module DirectJobs
     end
 
     def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [])
+      depends_on_job_ids = direct_job_dependency_ids(epic, depends_on_job_ids)
       chat_session, created_chat_session = proposal_chat_session(repository, depends_on)
       response = Mcp::Tools::ProposeJobTool.call(
         repo: repository.slug,
@@ -98,6 +99,26 @@ module DirectJobs
 
     def response_text(response)
       response.content.first.fetch(:text)
+    end
+
+    def direct_job_dependency_ids(epic, depends_on_job_ids)
+      explicit_ids = Array(depends_on_job_ids).filter_map { |id| Integer(id, exception: false) }
+      return explicit_ids if explicit_ids.any?
+      return [] unless epic&.jobs&.exists?
+
+      tail_id = current_epic_tail_job_id(epic)
+      tail_id ? [ tail_id ] : []
+    end
+
+    def current_epic_tail_job_id(epic)
+      child_ids = epic.jobs.pluck(:id)
+      downstream_dependency_ids = JobDependency
+        .joins(:job)
+        .where(depends_on_job_id: child_ids, jobs: { epic_id: epic.id })
+        .pluck(:depends_on_job_id)
+
+      tails = child_ids - downstream_dependency_ids
+      tails.one? ? tails.first : nil
     end
 
     def cleanup_empty_direct_session!(chat_session)
