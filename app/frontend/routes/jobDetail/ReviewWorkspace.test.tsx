@@ -1230,6 +1230,71 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByText("Unversioned")).toBeInTheDocument()
   })
 
+  it("keeps narrower-version review artifacts visible for All changes when they share the selected head", async () => {
+    const initialVersion = version({ id: 100, version_index: 1, label: "Initial implementation", head_sha: "first-head" })
+    const repairVersion = version({
+      id: 200,
+      version_index: 2,
+      base_sha: "first-head",
+      head_sha: "all-changes-head",
+      label: "Repair",
+      run_id: 22
+    })
+    const allChangesVersion = version({
+      id: 500,
+      version_index: 3,
+      base_sha: "base-sha",
+      head_sha: "all-changes-head",
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { range_kind: "all_changes" }
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        head_sha: "all-changes-head",
+        version: allChangesVersion,
+        versions: [initialVersion, repairVersion, allChangesVersion]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Repair migration artifact",
+          payload: { headers: ["Column"], rows: [["visible-body"]] },
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 22,
+          head_sha: "all-changes-head",
+          diff_review_version_id: 200
+        },
+        {
+          type: "visual_review_screenshot_run_9_1",
+          title: "Different head artifact",
+          payload: {},
+          created_at: "2026-01-03T00:00:00Z",
+          renderer_type: "image_diff",
+          run_id: 9,
+          head_sha: "different-head",
+          diff_review_version_id: 100
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    expect(screen.getByLabelText("Version")).toHaveTextContent("All changes")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Review the diff")).toBeInTheDocument()
+    expect(screen.getByText("Repair migration artifact")).toBeInTheDocument()
+    expect(screen.getByText("visible-body")).toBeInTheDocument()
+    expect(screen.queryByText("Different head artifact")).not.toBeInTheDocument()
+    expect(screen.queryByText("No artifacts for the selected version.")).not.toBeInTheDocument()
+  })
+
   it("resets artifact selection to the latest artifact when the diff version changes", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(
       sourceDiffPayload({
