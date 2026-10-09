@@ -30,6 +30,10 @@ RSpec.describe "Dockerfile" do
     expect(worker_stage.index("USER 1000:1000")).to be < worker_stage.index("ENTRYPOINT")
   end
 
+  it "uses a Debian base that has a populated Mull package suite" do
+    expect(dockerfile).to include("FROM docker.io/library/ruby:$RUBY_VERSION-slim-trixie AS base")
+  end
+
   it "probes readiness only for web/default image roles" do
     healthchecks = dockerfile.scan(/^HEALTHCHECK .+$/)
 
@@ -143,6 +147,24 @@ RSpec.describe "Dockerfile" do
     expect(worker_deps).to include("MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml")
     expect(worker_deps).to include("SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}")
     expect(worker_dev).to include("RUN go version")
+  end
+
+  it "installs version-matched Mull mutation testing tools in the worker image" do
+    stage = worker_deps_stage
+    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(stage).to include("ARG MULL_LLVM_VERSION=18")
+    expect(stage).to include("mull-project-mull-stable-archive-keyring.gpg")
+    expect(stage).to include("mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main")
+    expect(stage).to include("clang-${MULL_LLVM_VERSION}")
+    expect(stage).to include("mull-${MULL_LLVM_VERSION}")
+    expect(stage).to include('ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner')
+    expect(stage).to include('clang|clang++) real="/usr/bin/${name}-18"')
+    expect(worker_dev).to include('RUN clang++-18 --version && clang++ --version | grep -q "version 18" && mull-runner-18 --version && mull-runner --version')
+
+    expect(app_stage).not_to include("mull-runner")
+    expect(app_stage).not_to include("mull-project")
   end
 
   it "installs a pinned Android SDK baseline only in the worker image" do
