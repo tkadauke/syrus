@@ -1781,6 +1781,25 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   })
 
+  it("explains investigation-proposed jobs awaiting triage", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "proposed_job" }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_accept_triage: true, can_reject_triage: true },
+      paths: {
+        ...payload.paths,
+        app_accept_triage_path: "/api/v1/app/jobs/1/accept_triage",
+        app_reject_triage_path: "/api/v1/app/jobs/1/reject_triage"
+      }
+    })
+
+    expect(screen.getByText("Proposed follow-up")).toBeInTheDocument()
+    expect(screen.getByText("An investigation proposed this Job. Accept to queue it for work, or Reject to close it.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument()
+  })
+
   it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({

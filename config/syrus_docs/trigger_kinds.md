@@ -50,11 +50,11 @@ Run detail payload and `Admin::JobStateSerializer`.
 
 ## investigation
 
-**When it fires:** A `direct` Job is created with `investigation: true` set
-(`InvestigationJobs::Creator`), rather than a free-form implementation
-prompt. `Job#investigation_launch?` (`direct? && investigation?`) is what
-`Job#create_initial_run` checks to dispatch this chain instead of
-`Workflows::Initial`.
+**When it fires:** An investigable Job (`direct`, `issue`, `cron`, or a
+plugin-contributed investigable kind) is created with `investigation: true`
+set, rather than as a free-form implementation prompt.
+`Job#investigation_launch?` is what `Job#create_initial_run` checks to
+dispatch this chain instead of `Workflows::Initial`.
 
 **Step chain:** `prepare → investigate → submit_report`
 
