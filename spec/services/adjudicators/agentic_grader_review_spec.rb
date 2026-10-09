@@ -9,9 +9,9 @@ RSpec.describe Adjudicators::AgenticGraderReview do
 
   def stub_judgment(value, failed: false, error: nil)
     result = if failed
-      Judgment::Result.new(value: nil, raw_text: nil, problem: Problem[:timeout, evidence: { reason: error }], cost_usd: nil)
+      Judgment::Result.new(value: nil, raw_text: nil, problem: Problem[:timeout, evidence: { reason: error }], cost_usd: nil, spawned_process_id: nil)
     else
-      Judgment::Result.new(value: value, raw_text: nil, problem: nil, cost_usd: 0.02)
+      Judgment::Result.new(value: value, raw_text: nil, problem: nil, cost_usd: 0.02, spawned_process_id: nil)
     end
     allow(Judgment).to receive(:call).and_return(result)
   end
@@ -85,7 +85,7 @@ RSpec.describe Adjudicators::AgenticGraderReview do
   # runs a fresh session with no workspace.
   it "asks through the Judgment primitive rather than resuming a session" do
     expect(Judgment).to receive(:call).with(hash_including(scope: "grader-adjudication")).and_return(
-      Judgment::Result.new(value: { "verdict" => "inconclusive", "reason" => "x" }, raw_text: nil, problem: nil, cost_usd: nil)
+      Judgment::Result.new(value: { "verdict" => "inconclusive", "reason" => "x" }, raw_text: nil, problem: nil, cost_usd: nil, spawned_process_id: nil)
     )
 
     adjudicate

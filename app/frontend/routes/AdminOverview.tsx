@@ -103,6 +103,7 @@ function AdminOverviewPage({
   const dataRoot = data.data_root_disk_usage
   const workerHealthTone = aggregateWorkerHealthTone(data.workers, data.worker_health)
   const content = renderContent?.(data, prefix)
+  const stalledClassifier = data.stalled_classifier_jobs
 
   return (
     <Page.Root aria-label={t(ariaKey)} gutter="responsive" size="default">
@@ -122,6 +123,13 @@ function AdminOverviewPage({
           <Metric title={t("overview.failed_runs")} value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
           <Metric title={t("overview.provider_circuits")} value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
           <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
+          <Metric
+            title={t("overview.stalled_classifier_jobs")}
+            value={stalledClassifier?.total ?? 0}
+            context={stalledClassifier?.oldest_job_slug ? t("overview.oldest_classifier_job", { slug: stalledClassifier.oldest_job_slug }) : t("overview.none_stalled")}
+            href={stalledClassifier?.oldest_job_path ? withRoutePrefix(stalledClassifier.oldest_job_path, prefix) : withRoutePrefix("/admin/stuck?kind=stalled_classifier_pending_job", prefix)}
+            tone={(stalledClassifier?.total ?? 0) > 0 ? "alarm" : "ok"}
+          />
           <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
           <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
           <Metric title={t("overview.active_storage")} value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")} context={activeStorageContext(data.active_storage, t)} tone={data.active_storage?.available ? "ok" : "alarm"} />

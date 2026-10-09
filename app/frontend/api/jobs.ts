@@ -171,6 +171,22 @@ export type JobRecord = {
   deployment_stages?: JobDeploymentStage[]
 }
 
+export type JobClassificationAttempt = {
+  id: number
+  started_at: string | null
+  finished_at: string | null
+  duration_seconds: number | null
+  in_flight: boolean
+  outcome: "classified" | "uncertain" | "errored" | string | null
+  decision: Record<string, unknown> | null
+  error: string | null
+  raw_output: string | null
+  agent_provider: string | null
+  spawned_process_id: number | null
+  spawned_process_path: string | null
+  spawned_process_outcome: string | null
+}
+
 export type JobPrChecks = {
   state: "passing" | "pending" | "failing" | "unknown" | string
   sha: string | null
@@ -1049,6 +1065,7 @@ export type JobDetailPayload = {
   test_plan: JobTestPlan | null
   report: JobInvestigationReport | null
   feedback_history: JobFeedbackHistoryEntry[]
+  classification_attempts?: JobClassificationAttempt[]
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
