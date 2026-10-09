@@ -31,6 +31,8 @@
   "confirm_reject_triage": "Hoc opus reicere? Ut abruptum claudetur.",
   "triage_uncertain_title": "Consilium tuum requiritur",
   "triage_uncertain_body": "Syrus hoc problema discernere non potuit et te exspectat. Accipe ut in ordinem redigatur, aut reice ut claudatur.",
+  "triage_proposed_title": "Opus subsequens propositum",
+  "triage_proposed_body": "Investigatio hoc opus proposuit. Accipe ut in ordinem redigatur, aut reice ut claudatur.",
   "check_feedback": "Responsum inspice",
   "rebase_now": "Statim rebase fac",
   "check_mergeability": "Coniungibilitatem inspice",

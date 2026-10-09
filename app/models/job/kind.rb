@@ -23,7 +23,7 @@ class Job
       # investigation chain expects no PR, which is orthogonal to where the
       # Job came from.
       Entry.new(kind: "issue",       investigable: true),
-      Entry.new(kind: "cron",        issueless: true),
+      Entry.new(kind: "cron",        issueless: true, investigable: true),
       Entry.new(kind: "direct",      issueless: true, investigable: true),
       Entry.new(kind: "main_grader", issueless: true, infrastructure: true),
       Entry.new(kind: "external_pr", issueless: true),

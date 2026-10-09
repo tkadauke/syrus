@@ -20,6 +20,11 @@ RSpec.describe Job do
       expect(job.investigation_launch?).to eq(true)
     end
 
+    it "is true for a cron Job filed as an investigation" do
+      job = Job.new(kind: "cron", investigation: true)
+      expect(job.investigation_launch?).to eq(true)
+    end
+
     it "is false for an issue Job without the investigation flag" do
       job = Job.new(kind: "issue")
       expect(job.investigation_launch?).to eq(false)
@@ -41,6 +46,12 @@ RSpec.describe Job do
 
     it "allows investigation on a direct Job" do
       job = Job.new(user: user, repository: repository, kind: "direct", issue_number: nil, investigation: true)
+      job.valid?
+      expect(job.errors[:investigation]).to be_empty
+    end
+
+    it "allows investigation on a cron Job" do
+      job = Job.new(user: user, repository: repository, kind: "cron", issue_number: nil, investigation: true)
       job.valid?
       expect(job.errors[:investigation]).to be_empty
     end

@@ -31,6 +31,8 @@
   "confirm_reject_triage": "Diese Aufgabe ablehnen? Sie wird als abgebrochen geschlossen.",
   "triage_uncertain_title": "Entscheidung erforderlich",
   "triage_uncertain_body": "Syrus konnte dieses Issue nicht einordnen und wartet auf dich. Nimm es an, um es einzuplanen, oder lehne es ab, um es zu schließen.",
+  "triage_proposed_title": "Vorgeschlagene Folgeaufgabe",
+  "triage_proposed_body": "Eine Untersuchung hat diese Aufgabe vorgeschlagen. Nimm sie an, um sie einzuplanen, oder lehne sie ab, um sie zu schließen.",
   "check_feedback": "Feedback prüfen",
   "rebase_now": "Jetzt rebasen",
   "check_mergeability": "Mergebarkeit prüfen",
