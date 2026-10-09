@@ -1,6 +1,66 @@
 require "rails_helper"
 
 RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_assertions do
+  SCENARIO_FIXTURE_ROOT = Rails.root.join("spec/fixtures/work_engine_simulations")
+  SCENARIOS_WITH_SPECIFIC_ASSERTIONS = %w[
+    active_run_on_terminal_step
+    active_work_unit_without_workflow
+    already_landed_stack_rebase
+    cancelled_retry_until_barrier_blocks_tail
+    closed_job_active_work_unit
+    codex_overload_initial_retries
+    cross_epic_approved_parent_waits_for_merge
+    epic_chain_waits_for_operator_approval
+    epic_dependency_waits_for_upstream_epic
+    epic_merge_train_after_approval_events
+    failed_unit_running_workflow_queued_tail
+    failed_unit_unfailed_intent
+    grader_fanout_worker_loss_stays_in_loop
+    happy_path_epic_job_depends_on_external_job_lands
+    happy_path_epic_merge_train_lands
+    happy_path_epic_with_job_dependencies_lands
+    happy_path_job_dependency_dag_lands
+    happy_path_job_with_epic_dependency_lands
+    happy_path_single_job_lands
+    happy_path_two_epic_dependency_lands
+    job_dependency_success
+    manual_grade_loop_restart_ignores_superseded_failures
+    merge_train_unverified_member_reconciles_after_land
+    non_agentic_claim_without_process_retries
+    parallel_epic_siblings_implement_independently
+    parallel_grader_worker_loss_retries
+    pinned_host_admission_deferral_budget_reenqueues_elsewhere
+    queued_step_without_run
+    queued_workflow_with_failed_step
+    queued_workflow_without_first_run
+    requested_intent_without_active_unit
+    retryable_merge_train_build_rebuilds
+    running_step_with_terminal_run
+    running_workflow_with_failed_step
+    same_epic_approved_chain_runs_to_next_approval
+    same_epic_approved_parent_unblocks_child
+    single_initial_success
+    stale_active_merge_train_blocks_landing
+    stale_initial_intent_after_successful_retry
+    succeeded_merge_train_failed_member_reconciliation
+    succeeded_unit_unsatisfied_intent
+    superseded_ci_repair_base_resolves
+    superseded_unit_uncancelled_intent
+    terminal_bundle_train_final_fix_rebuilds
+    terminal_work_unit_active_lock
+    terminal_workflow_active_descendants
+    waiting_intent_with_active_unit
+    worker_died_retries_once
+    workspace_missing_diagnostic
+    zombie_terminal_unit_orphaned_run
+  ].freeze
+
+  self.use_transactional_tests = false
+
+  around do |example|
+    WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+  end
+
   before do
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
@@ -9,9 +69,18 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
   def run_scenario(name, max_ticks: 50)
     described_class.call(
-      path: Rails.root.join("spec/fixtures/work_engine_simulations/#{name}.yml"),
+      path: SCENARIO_FIXTURE_ROOT.join("#{name}.yml"),
       max_ticks: max_ticks
     )
+  end
+
+  def expected_statuses_for(name)
+    data = YAML.safe_load(
+      SCENARIO_FIXTURE_ROOT.join("#{name}.yml").read,
+      permitted_classes: [ Symbol ],
+      aliases: false
+    ).to_h
+    Array(data.fetch("expected_status", nil).presence || %w[success waiting]).map(&:to_s)
   end
 
   it "drives a queued initial workflow to an implemented job" do
@@ -22,12 +91,20 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
   end
 
   it "waits for job dependencies before starting dependent work" do
+    dependency_propagators = []
+    allow_any_instance_of(Job).to receive(:start_dependent_jobs_after_implementation).and_wrap_original do |original, *args|
+      job = original.receiver
+      dependency_propagators << job.id
+      original.call(*args)
+    end
+
     result = run_scenario("job_dependency_success")
 
     expect(result).to be_success
     parent, child = Job.where(id: result.job_ids).order(:id).to_a
     expect(parent).to be_implemented
     expect(child).to be_implemented
+    expect(dependency_propagators).to include(parent.id)
     expect(result.events.grep(/#{child.slug}.*active lock/)).to be_empty
   end
 
@@ -319,6 +396,27 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
       expect(result).to be_success
       expect(result.events.join("\n")).to include(expected_event)
       expect(WorkIntent.find(result.work_intent_ids.first).state).to eq(expected_intent_state)
+    end
+  end
+
+  omitted_fixture_names = SCENARIO_FIXTURE_ROOT.children
+    .select { |path| path.file? && path.extname.in?(%w[.yml .yaml]) }
+    .map { |path| path.basename(path.extname).to_s }
+    .sort - SCENARIOS_WITH_SPECIFIC_ASSERTIONS
+
+  omitted_fixture_names.each do |scenario|
+    it "satisfies the YAML contract for #{scenario}" do
+      result = run_scenario(scenario)
+
+      expect(expected_statuses_for(scenario)).to include(result.status), <<~MESSAGE
+        expected #{scenario} to finish in a declared status, got #{result.status}
+        events:
+        #{result.events.last(20).join("\n")}
+        stuck:
+        #{result.stuck_reasons.join("\n")}
+        waiting:
+        #{result.wait_reasons.join("\n")}
+      MESSAGE
     end
   end
 end
