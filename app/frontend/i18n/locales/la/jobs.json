@@ -764,6 +764,7 @@
   "attention_reason_fallback": "Attentionem requirit: {{reason}}",
   "attention_fork_pr_closed": "PR recognitionis furcae clausus est neque confusus.",
   "attention_fork_pr_changes_requested": "Recognitor mutationes in PR furcae poposcit. PR superior non creabitur donec omnes petitiones recognitionis solvantur (probatae aut dimissae).",
+  "attention_grader_loop_no_progress": "Circuitus reparationis constitit quia copia defectuum probatoris non minor facta est. Contextum circuitus ante iterationem inspice.",
   "attention_investigation_escalated": "Investigatio escalata est et attentionem operatoris requirit.",
   "attention_upstream_pr_closed": "PR superior clausus est neque confusus.",
   "attention_upstream_pr_changes_requested": "Recognitor mutationes in PR superiore poposcit. Automerge intermissa est donec recognitio solvatur (probata aut dimissa).",

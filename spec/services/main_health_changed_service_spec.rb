@@ -925,6 +925,34 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(workflow.reload.artifact("main_broken")).to be_nil
       end
     end
+
+    it "does not auto-spawn another repair after a no-progress stop for the same checked SHA" do
+      sha = "abc1234567890000000000000000000000000000"
+      repository.update!(
+        main_branch_health_enabled: true,
+        main_branch_repair_enabled: true,
+        ci_health: "healthy",
+        grader_health: "broken",
+        last_health_checked_sha: sha
+      )
+      repository.jobs.create!(
+        user: repository.user,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch",
+        issue_body: "Commit: #{sha}",
+        agent_provider: "claude",
+        priority: "urgent",
+        state: "closed",
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: Time.current
+      )
+
+      expect {
+        described_class.ensure_repair_job!(repository)
+      }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
+    end
   end
 
   describe ".recovered!" do

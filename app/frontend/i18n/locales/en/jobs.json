@@ -774,6 +774,7 @@
   "attention_reason_fallback": "Needs attention: {{reason}}",
   "attention_fork_pr_closed": "The fork review PR was closed without being merged.",
   "attention_fork_pr_changes_requested": "A reviewer has requested changes on the fork review PR. The upstream PR will not be created until all outstanding review requests are resolved (approved or dismissed).",
+  "attention_grader_loop_no_progress": "A repair loop stopped because the grader failure set did not shrink. Review the loop context before retrying.",
   "attention_investigation_escalated": "The investigation was escalated and needs operator attention.",
   "attention_upstream_pr_closed": "The upstream PR was closed without being merged.",
   "attention_upstream_pr_changes_requested": "A reviewer has requested changes on the upstream PR. Auto-merge is paused until the review is resolved (approved or dismissed).",

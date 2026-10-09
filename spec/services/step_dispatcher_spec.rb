@@ -2068,6 +2068,71 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(summarize.runs.last.iteration).to eq(1)
     end
 
+    it "stops a retry_until grader loop when the failing set is unchanged between rounds" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      expect {
+        described_class.fail_from(second_collect)
+      }.not_to change { retry_workflow.steps.count }
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.failure_reason).to eq("grader_loop_no_progress")
+      expect(job.reload.needs_attention_reason).to eq("grader_loop_no_progress")
+      stop = retry_workflow.artifact("grader_loop_stop")
+      expect(stop).to include(
+        "reason" => "grader_loop_no_progress",
+        "failing_set" => contain_exactly("spec/a_spec.rb", "spec/b_spec.rb")
+      )
+      expect(stop.fetch("rounds").map { |round| round.fetch("grader_results").first.fetch("failed_tests").map { |test| test.fetch("identity") } }).to eq([
+        %w[spec/a_spec.rb spec/b_spec.rb],
+        %w[spec/a_spec.rb spec/b_spec.rb]
+      ])
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_nil
+    end
+
+    it "continues a retry_until grader loop while the failing set shrinks" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb])
+
+      expect {
+        described_class.fail_from(second_collect)
+      }.to change { Run.count }.by(1)
+
+      expect(retry_workflow.reload).to be_queued
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
+      expect(job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "stops a retry_until grader loop when a repair trades failures instead of shrinking the set" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/c_spec.rb])
+
+      described_class.fail_from(second_collect)
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.artifact("grader_loop_stop")).to include(
+        "explanation" => "failing set did not shrink monotonically; fixed 1, introduced 1",
+        "failing_set" => contain_exactly("spec/a_spec.rb", "spec/c_spec.rb")
+      )
+      expect(job.reload.needs_attention_reason).to eq("grader_loop_no_progress")
+    end
+
     it "defers the next ci_failure retry iteration when the base becomes unhealthy mid-loop" do
       base_sha = "abc1234567890000000000000000000000000000"
       ci_job = Factories.job_record(
@@ -2742,6 +2807,55 @@ RSpec.describe StepDispatcher, :ci_only do
       review.update!(next_step_id: grader_fanout.id)
       grader_fanout.update!(next_step_id: grader_collect.id)
     end
+  end
+
+  def workflow_with_grader_retry_until(max_iterations:)
+    Workflow.create!(
+      job: job,
+      trigger_kind: "auto_merge",
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => max_iterations,
+          "repair" => %w[ landing_fix ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "push" }
+      ]
+    ).tap do |wf|
+      grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 0, iteration: 1, loop_id: "grade-loop")
+      grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 1, iteration: 1, loop_id: "grade-loop")
+      push = Step.create!(workflow: wf, kind: "push", position: 2)
+      grader_fanout.update!(next_step_id: grader_collect.id)
+      grader_collect.update!(next_step_id: push.id)
+    end
+  end
+
+  def add_failed_grader!(workflow, collect_step, failed_tests:)
+    workflow.steps.where("position >= ?", collect_step.position).update_all([ "position = position + ?", 1 ])
+    grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: collect_step.position,
+      iteration: collect_step.iteration,
+      loop_id: collect_step.loop_id,
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "command" => "bin/rspec",
+        "exit_code" => 1,
+        "output" => failed_tests.join("\n")
+      }
+    )
+    run = grader.runs.create!(job: workflow.job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: collect_step.iteration)
+    failures = failed_tests.map do |identity|
+      { "suite_name" => identity, "name" => identity, "file_path" => identity, "identity" => identity }
+    end
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(run, "rspec").and_return(failures)
+    collect_step.reload
+    grader
   end
 
   def workflow_with_loop(max_iterations:)
