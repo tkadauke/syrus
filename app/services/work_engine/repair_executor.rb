@@ -1997,7 +1997,7 @@ module WorkEngine
           return skipped("Job has active work") if active_runtime_work_for_job?(job)
 
           latest_workflow = job.latest_workflow
-          return skipped("Latest Workflow is not terminal") unless latest_workflow && %w[succeeded failed cancelled].include?(latest_workflow.state)
+          return skipped("Latest Workflow is not terminal") unless latest_workflow && %w[succeeded failed cancelled blocked].include?(latest_workflow.state)
           review_publication_step_kinds = review_publication_step_kinds_for(latest_workflow)
           return skipped("Latest Workflow has no review publication policy") if review_publication_step_kinds.empty?
           return skipped("Latest Workflow did not include a review publication Step") unless latest_workflow.steps.where(kind: review_publication_step_kinds).exists?

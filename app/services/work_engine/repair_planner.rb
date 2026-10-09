@@ -1407,7 +1407,7 @@ module WorkEngine
             "The workflow is terminal but still has active descendant work, so cancel those stale descendants without changing the workflow outcome.",
             execution_steps: [ "Workflow#cancel_active_descendants!" ],
             preconditions: {
-              workflow_state: %w[succeeded failed cancelled],
+              workflow_state: %w[succeeded failed cancelled blocked],
               active_step_ids: issue.evidence["active_step_ids"],
               active_run_ids: issue.evidence["active_run_ids"]
             }

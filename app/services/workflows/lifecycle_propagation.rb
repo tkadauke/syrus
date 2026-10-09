@@ -4,6 +4,7 @@ module Workflows
     def self.succeeded!(workflow) = new(workflow).succeeded!
     def self.failed!(workflow) = new(workflow).failed!
     def self.cancelled!(workflow) = new(workflow).cancelled!
+    def self.blocked!(workflow) = new(workflow).blocked!
     def self.reopened!(workflow) = new(workflow).reopened!
 
     def initialize(workflow)
@@ -41,6 +42,16 @@ module Workflows
       workflow.propagate_cancel_to_job!
       workflow.cleanup_workspace!
       dispatch_hook(:after_cancel)
+    end
+
+    def blocked!
+      workflow.finished_at = Time.current
+      workflow.work_unit&.block!(
+        reason: "agent_cannot_proceed",
+        details: workflow.artifact("cannot_proceed").to_h
+      )
+      workflow.job.set_needs_attention!(reason: "agent_cannot_proceed")
+      workflow.cleanup_workspace!
     end
 
     def reopened!

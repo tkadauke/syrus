@@ -490,7 +490,7 @@ module WorkEngine
         active_units = WorkUnit.where(state: WorkUnits::Ownership::ACTIVE_STATES)
         terminal_locked_units = WorkUnit
           .joins(:work_unit_locks)
-          .where(state: %w[succeeded failed cancelled], work_unit_locks: { released_at: nil })
+          .where(state: %w[succeeded failed cancelled blocked], work_unit_locks: { released_at: nil })
         succeeded_unsatisfied_units = WorkUnit
           .joins(:work_intent)
           .where(state: "succeeded", work_intents: { state: %w[requested waiting] })
@@ -2880,7 +2880,7 @@ module WorkEngine
     end
 
     def classify_cleanup_blockers
-      workflows.select { |workflow| %w[succeeded failed cancelled].include?(workflow.state) }.filter_map do |workflow|
+      workflows.select { |workflow| %w[succeeded failed cancelled blocked].include?(workflow.state) }.filter_map do |workflow|
         next if workflow.cleaned_up_at.present?
         next unless workflow.live_descendants?
         next if workflow.terminal_cleanup_active_descendants?

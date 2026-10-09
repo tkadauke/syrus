@@ -72,7 +72,7 @@ class Run < ApplicationRecord
     preflight_grader_fanout
   ].freeze
   ACTIVE_STATES = %w[ queued running ].freeze
-  TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
+  TERMINAL_STATES = %w[ succeeded failed cancelled skipped blocked ].freeze
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :terminal, -> { where(state: TERMINAL_STATES) }
@@ -122,7 +122,7 @@ class Run < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled, :skipped
+    state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
@@ -142,6 +142,10 @@ class Run < ApplicationRecord
 
     event :skip do
       transitions from: [ :queued, :running ], to: :skipped, after: -> { self.finished_at = Time.current }
+    end
+
+    event :block do
+      transitions from: [ :queued, :running ], to: :blocked, after: -> { self.finished_at = Time.current }
     end
   end
 

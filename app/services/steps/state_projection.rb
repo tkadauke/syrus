@@ -1,7 +1,7 @@
 module Steps
   class StateProjection
     ACTIVE_STATES = %w[ queued running ].freeze
-    TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
+    TERMINAL_STATES = %w[ succeeded failed cancelled skipped blocked ].freeze
 
     def self.for(step, runs: nil, ordered: false) = new(step, runs: runs, ordered: ordered)
 
