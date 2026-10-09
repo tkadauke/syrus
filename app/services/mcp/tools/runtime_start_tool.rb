@@ -10,16 +10,16 @@ module Mcp::Tools
       Start a new Runtime Session (DOC-17) for this Coding Mode chat's
       repository -- a live dev server/app/process the agent and operator can
       both observe and (with a control lease) interact with. Auto-detects a
-      provider from the repository checkout when `provider` is omitted
-      (currently "browser" is the only registered provider). The first
-      session started for a chat becomes its primary session.
+      provider from the repository checkout when `provider` is omitted. The
+      first session started for a chat becomes its primary session.
     DESC
 
     input_schema(
       properties: {
         provider: {
           type: "string",
-          description: "Runtime session provider key (e.g. \"browser\"). Auto-detected from the repository checkout when omitted."
+          description: "Runtime session provider key (e.g. \"browser\" or \"android_emulator\"). " \
+                       "Auto-detected from the repository checkout when omitted."
         },
         name: {
           type: "string",
