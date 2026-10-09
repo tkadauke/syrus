@@ -38,6 +38,7 @@ module Admin
         provider_breakdown: provider_rows(usages),
         server_breakdown: server_rows(usages),
         sidecar_mode_breakdown: sidecar_mode_rows(usages),
+        authority_breakdown: authority_rows(usages),
         unused_advertised_tools: (advertised - used).sort,
         custom_card_gaps: custom_card_gaps(usages),
         recent_calls: recent_call_rows(usages),
@@ -56,6 +57,7 @@ module Admin
       scope = scope.where(server_name: server_name) if server_name.present?
       scope = scope.where(provider: provider) if provider.present?
       scope = scope.where(sidecar_mode: sidecar_mode) if sidecar_mode.present?
+      scope = scope.where(authority: authority) if authority.present?
       scope = scope.where(status: status) if status.present?
       scope = scope.where(error: true) if error_param == "true"
       scope = scope.where(repository_id: integer_param(:repository_id)) if integer_param(:repository_id)
@@ -79,6 +81,7 @@ module Admin
         server_name: server_name,
         provider: provider,
         sidecar_mode: sidecar_mode,
+        authority: authority,
         status: status,
         error: error_param,
         repository_id: integer_param(:repository_id),
@@ -133,6 +136,11 @@ module Admin
     def sidecar_mode
       value = normalized_filter_value(params[:sidecar_mode])
       McpToolUsage::SIDECAR_MODES.include?(value) ? value : nil
+    end
+
+    def authority
+      value = normalized_filter_value(params[:authority])
+      McpToolUsage::AUTHORITIES.include?(value) ? value : nil
     end
 
     def status
@@ -292,6 +300,22 @@ module Admin
             .sort_by { |row| row[:sidecar_mode].to_s }
     end
 
+    def authority_rows(usages)
+      usages.group(:authority)
+            .pluck(:authority, count_sql, error_count_sql)
+            .map do |authority, count, errors|
+              count = count.to_i
+              errors = errors.to_i
+              {
+                authority: authority,
+                calls: count,
+                errors: errors,
+                error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
+              }
+            end
+            .sort_by { |row| row[:authority].to_s }
+    end
+
     def custom_card_gaps(usages)
       chat_usages = usages.where(surface: "chat")
       advertised = McpToolUsageRecorder.advertised_tools(surface: "chat", chat_session: chat_session)
@@ -364,6 +388,7 @@ module Admin
         error_class: usage.error_class,
         error_message_summary: usage.error_message_summary,
         sidecar_mode: usage.sidecar_mode,
+        authority: usage.authority,
         job_id: usage.job_id,
         job_path: usage.job_id ? "/jobs/#{usage.job_id}" : nil,
         workflow_id: usage.workflow_id,

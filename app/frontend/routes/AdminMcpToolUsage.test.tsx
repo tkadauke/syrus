@@ -44,6 +44,10 @@ function payload() {
     sidecar_mode_breakdown: [
       { sidecar_mode: "stdio", calls: 10, errors: 2, error_rate: 0.2 }
     ],
+    authority_breakdown: [
+      { authority: "workspace", calls: 6, errors: 1, error_rate: 0.1667 },
+      { authority: "operator_host", calls: 4, errors: 1, error_rate: 0.25 }
+    ],
     unused_advertised_tools: ["submit_summary"],
     custom_card_gaps: {
       ranked_gaps: [
@@ -80,6 +84,7 @@ function payload() {
         error_class: null,
         error_message_summary: null,
         sidecar_mode: "stdio",
+        authority: "workspace",
         job_id: 42,
         job_path: "/jobs/42",
         workflow_id: 7,
@@ -116,6 +121,7 @@ describe("AdminMcpToolUsage", () => {
 
     expect((await screen.findAllByText("read_live_state")).length).toBeGreaterThan(0)
     expect(screen.getAllByText("repo_info").length).toBeGreaterThan(0)
+    expect(screen.getByText("operator_host")).toBeInTheDocument()
     expect(screen.getByText("submit_summary")).toBeInTheDocument()
     expect(screen.getByText("Custom card gap ranking")).toBeInTheDocument()
     expect(screen.getByText("2.0 KB")).toBeInTheDocument()

@@ -177,6 +177,15 @@ RSpec.describe "Local Mode MCP tools" do
       payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
       expect(payload[:status]).to include("On branch")
     end
+
+    it "marks completed daemon responses as operator-host execution" do
+      stub_dispatch("git_status", {}, result: { status: "On branch main\nnothing to commit" })
+      allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
+
+      response = described_class.call(server_context: { chat_session: chat_session })
+
+      expect(response.execution_authority).to eq("operator_host")
+    end
   end
 
   describe Mcp::Tools::OpenInLocalModeTool do

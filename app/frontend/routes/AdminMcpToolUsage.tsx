@@ -41,6 +41,7 @@ const MCP_FILTER_FIELDS = [
   "server_name",
   "provider",
   "sidecar_mode",
+  "authority",
   "status",
   "error",
   "repository_id",
@@ -127,6 +128,7 @@ function McpToolUsageFilters({ search }: { search: string }) {
         { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") },
         { name: "provider", label: t("mcp_tool_usage.provider_label"), placeholder: "codex" },
         { name: "sidecar_mode", label: t("mcp_tool_usage.sidecar_mode_label"), options: ["stdio", "persistent"].map((value) => ({ label: value, value })) },
+        { name: "authority", label: t("mcp_tool_usage.authority_label"), options: ["workspace", "operator_host"].map((value) => ({ label: value, value })) },
         { name: "status", label: t("mcp_tool_usage.status_label"), options: ["started", "completed", "failed"].map((value) => ({ label: value, value })) },
         { name: "error", label: t("mcp_tool_usage.error_label"), options: [{ label: t("mcp_tool_usage.errors_only"), value: "true" }] },
         { name: "repository_id", label: t("mcp_tool_usage.repository_label"), inputMode: "numeric" },
@@ -175,6 +177,7 @@ function McpToolUsageView({ payload }: { payload: McpToolUsagePayload }) {
         <BreakdownPanel heading={t("mcp_tool_usage.provider_breakdown_heading")} labelKey="provider" rows={payload.provider_breakdown} />
         <BreakdownPanel heading={t("mcp_tool_usage.server_breakdown_heading")} labelKey="server_name" rows={payload.server_breakdown} />
         <BreakdownPanel heading={t("mcp_tool_usage.sidecar_mode_breakdown_heading")} labelKey="sidecar_mode" rows={payload.sidecar_mode_breakdown} />
+        <BreakdownPanel heading={t("mcp_tool_usage.authority_breakdown_heading")} labelKey="authority" rows={payload.authority_breakdown} />
       </div>
 
       <StartupTimingPanel section={payload.startup_timing} />
@@ -308,7 +311,7 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
 // Left off the shared column-config primitive: a compact 4-column
 // aggregation table (grouping key + three numeric stats) with no optional
 // columns worth hiding -- see ToolRowsPanel above.
-function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey: "surface" | "provider" | "server_name" | "sidecar_mode"; rows: McpToolUsageBreakdownRow[] }) {
+function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey: "surface" | "provider" | "server_name" | "sidecar_mode" | "authority"; rows: McpToolUsageBreakdownRow[] }) {
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -434,6 +437,7 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
     },
     { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_provider"), key: "provider", defaultVisible: false, sort: "provider", sortValue: (row) => row.provider || "", render: (row) => row.provider || "-" },
     { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_sidecar_mode"), key: "sidecar_mode", defaultVisible: false, sort: "sidecar_mode", sortValue: (row) => row.sidecar_mode || "", render: (row) => row.sidecar_mode || "-" },
+    { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_authority"), key: "authority", sort: "authority", sortValue: (row) => row.authority || "", render: (row) => row.authority || "-" },
     {
       className: "px-4 py-3 align-top text-xs",
       headerClassName: "px-4 py-2",

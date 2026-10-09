@@ -77,6 +77,10 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     expect(body["sidecar_mode_breakdown"]).to contain_exactly(
       include("sidecar_mode" => "stdio", "calls" => 2, "errors" => 1)
     )
+    expect(body["authority_breakdown"]).to contain_exactly(
+      include("authority" => nil, "calls" => 1, "errors" => 1),
+      include("authority" => "workspace", "calls" => 1, "errors" => 0)
+    )
     expect(body["unused_advertised_tools"]).to include("submit_summary")
     expect(body["custom_card_gaps"]).to include(
       "ranked_gaps",
@@ -103,6 +107,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       "surface" => "workflow",
       "status" => "completed",
       "error" => false,
+      "authority" => "workspace",
       "job_id" => job.id,
       "job_path" => "/jobs/#{job.id}",
       "workflow_id" => workflow.id,
@@ -120,6 +125,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       "surface" => "chat",
       "status" => "failed",
       "error" => true,
+      "authority" => nil,
       "job_id" => nil,
       "job_path" => nil,
       "chat_session_id" => chat.id,
@@ -196,6 +202,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       error: false,
       provider: "codex",
       sidecar_mode: "persistent",
+      authority: "workspace",
       repository: repository,
       user: admin,
       job: job,
@@ -248,10 +255,58 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     expect(body["recent_calls"].first).to include(
       "provider" => "codex",
       "sidecar_mode" => "persistent",
+      "authority" => "workspace",
       "input_bytes" => 512,
       "result_bytes" => 2048,
       "repository_id" => repository.id,
       "user_id" => admin.id
+    )
+  end
+
+  it "filters and exposes operator-host authority rows" do
+    repository = Factories.repository(user: admin)
+    local_chat = ChatSession.create!(user: admin, repository: repository, mode: "local")
+    planning_chat = ChatSession.create!(user: admin, repository: repository)
+
+    McpToolUsageRecorder.record_dispatch(
+      surface: "chat",
+      tool_name: "write_file",
+      tool_input: { path: "README.md" },
+      sidecar_mode: "persistent",
+      daemon_identity: { worker_id: "local-worker" },
+      chat_session: local_chat
+    ) do
+      Mcp::Tools.with_execution_authority(
+        MCP::Tool::Response.new([ { type: "text", text: "{}" } ]),
+        "operator_host"
+      )
+    end
+    McpToolUsageRecorder.record_dispatch(
+      surface: "chat",
+      tool_name: "list_jobs",
+      tool_input: {},
+      sidecar_mode: "persistent",
+      daemon_identity: { worker_id: "chat-worker" },
+      chat_session: planning_chat
+    ) { MCP::Tool::Response.new([ { type: "text", text: "{}" } ]) }
+
+    sign_in_as(admin)
+    get "/api/v1/app/admin/mcp_tool_usage", params: { authority: "operator_host" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filters"]).to include("authority" => "operator_host")
+    expect(body["totals"]).to eq("calls" => 1, "errors" => 0)
+    expect(body["authority_breakdown"]).to contain_exactly(
+      include("authority" => "operator_host", "calls" => 1, "errors" => 0)
+    )
+    expect(body["recent_calls"]).to contain_exactly(
+      include(
+        "tool_name" => "write_file",
+        "authority" => "operator_host",
+        "sidecar_mode" => "persistent",
+        "chat_session_id" => local_chat.id
+      )
     )
   end
 
@@ -318,9 +373,10 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       expect(usage_queries).to all(match(/normalized_tool_name/i))
       expect(usage_queries).to all(match(/server_name/i))
       expect(aggregate_tool_queries).to all(match(/LIMIT/i))
-      # +1 vs. the McpToolUsage-only budget: startup_timing_payload's own
-      # bounded McpStartupPhaseEvent query (see Admin::McpStartupTimingPayload).
-      expect_performance_budget(metrics, max_sql: 15, max_payload_bytes: 80.kilobytes)
+      # +2 vs. the original McpToolUsage-only budget: one bounded authority
+      # aggregate, plus startup_timing_payload's own bounded
+      # McpStartupPhaseEvent query (see Admin::McpStartupTimingPayload).
+      expect_performance_budget(metrics, max_sql: 16, max_payload_bytes: 80.kilobytes)
     end
   end
 end
