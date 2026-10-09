@@ -110,3 +110,23 @@ source Workflow has already been superseded by a newer successful Workflow. In
 that case cancellation takes precedence over re-enqueueing any stale queued Run
 inside the retry Workflow, so old auto-retry debris does not re-open completed
 work.
+
+## Queue Affinity Repair
+
+Chat agents can request `repair_queue_affinity(job_id, run_id, reason:)` when a
+queued Run is pinned to worker affinity that no live capable worker satisfies.
+The pending action refuses Runs that are not queued, Workflows that are not
+active, Runs with no recorded affinity, and affinity that still has a live
+matching worker. In those cases the Run is either not eligible for this repair
+or is waiting for capacity rather than wedged behind impossible affinity.
+
+On confirmation, the action locks the Run, Workflow, and matching unclaimed
+Solid Queue `RunJob` rows. It refuses if any matching queue row is already
+claimed by a worker. Otherwise it deletes the matching ready, scheduled,
+blocked, and failed queue executions first, clears `worker_hostname` and
+`worker_storage_key` second, and force re-enqueues the Run third. Keeping that
+order in one transaction prevents an old resume-queue delivery from
+re-stamping the stale affinity between the clear and replacement enqueue.
+
+The action records an operator-repair audit entry and captures the same
+before/after repair snapshots as the other `PendingActions` repairs.

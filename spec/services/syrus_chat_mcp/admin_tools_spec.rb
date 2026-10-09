@@ -371,6 +371,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
       "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
       "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ],
+      "repair_queue_affinity" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Affinity points at a dead worker." }, { "job_id" => workflow.job.id, "run_id" => workflow.runs.first.id } ],
       "force_rebase" => [ { job_id: workflow.job.id, reason: "Bypass the landing queue proximity guard." }, { "job_id" => workflow.job.id, "bypass_front_of_queue" => true } ],
       "restack_epic" => [ { epic_id: epic.id, reason: "Repair stale stack topology." }, { "epic_id" => epic.id, "strategy" => "dependency_topology" } ],
       "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],

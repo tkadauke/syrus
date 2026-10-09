@@ -356,6 +356,7 @@ RSpec.describe Mcp::Sidecar do
         "force_state_transition",
         "cancel_stale_work",
         "reenqueue_work",
+        "repair_queue_affinity",
         "force_rebase",
         "restack_epic",
         "force_landing_recheck",
