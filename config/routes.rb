@@ -477,6 +477,8 @@ Rails.application.routes.draw do
         # edges + pending dependency refs.
         resources :epics, only: %i[ show index create ]
 
+        post "pending_actions/invoke", to: "pending_actions#invoke"
+
         # Compact list of Runs for cross-Job investigations
         # ("show me everything that failed in the last hour"
         # without walking each Job's response). Filters via
