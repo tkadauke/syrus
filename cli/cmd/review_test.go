@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
 func TestReviewListPrintsParseableJSONAndNormalizesJobRefs(t *testing.T) {
@@ -35,20 +37,19 @@ func TestReviewListPrintsParseableJSONAndNormalizesJobRefs(t *testing.T) {
 			writeJobActionTestCredentials(t, server.URL)
 
 			output := executeReviewCommand(t, []string{"review", "list", tc.ref, "--json"})
-			var payload map[string]any
+			var payload api.DiffReviewComments
 			if err := json.Unmarshal([]byte(output), &payload); err != nil {
 				t.Fatalf("--json output is not parseable: %v\n%s", err, output)
 			}
-			comments := payload["comments"].([]any)
-			if len(comments) != 1 {
-				t.Fatalf("comments = %#v", comments)
+			if len(payload.Comments) != 1 {
+				t.Fatalf("comments = %#v", payload.Comments)
 			}
 		})
 	}
 }
 
 func TestReviewAddPostsDiffReviewComment(t *testing.T) {
-	var payload map[string]map[string]any
+	var payload api.CreateDiffReviewCommentRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s", r.Method)
@@ -74,14 +75,14 @@ func TestReviewAddPostsDiffReviewComment(t *testing.T) {
 		"--version", "3",
 	})
 
-	comment := payload["diff_review_comment"]
-	if comment["path"] != "app/models/widget.rb" || comment["body"] != "Please add a spec." {
+	comment := payload.DiffReviewComment
+	if comment.Path != "app/models/widget.rb" || comment.Body != "Please add a spec." {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if comment["surface"] != "job_source_diff" || comment["state"] != "draft" || comment["anchor_kind"] != "line" {
+	if comment.Surface != "job_source_diff" || comment.State != "draft" || comment.AnchorKind != "line" {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if comment["new_line"].(float64) != 42 || comment["diff_review_version_id"].(float64) != 3 {
+	if comment.NewLine != 42 || comment.DiffReviewVersionID != 3 {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if output != "Added review comment 12 to JOB-7.\n" {
@@ -90,7 +91,7 @@ func TestReviewAddPostsDiffReviewComment(t *testing.T) {
 }
 
 func TestReviewSubmitPostsSelectedCommentIDs(t *testing.T) {
-	var payload map[string]any
+	var payload api.SubmitDiffReviewCommentsRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s", r.Method)
@@ -110,11 +111,10 @@ func TestReviewSubmitPostsSelectedCommentIDs(t *testing.T) {
 
 	output := executeReviewCommand(t, []string{"review", "submit", "job-7", "--comment-id", "12", "--comment-id", "13", "--version", "3"})
 
-	ids := payload["comment_ids"].([]any)
-	if len(ids) != 2 || ids[0].(float64) != 12 || ids[1].(float64) != 13 {
-		t.Fatalf("comment_ids = %#v", payload["comment_ids"])
+	if len(payload.CommentIDs) != 2 || payload.CommentIDs[0] != 12 || payload.CommentIDs[1] != 13 {
+		t.Fatalf("comment_ids = %#v", payload.CommentIDs)
 	}
-	if payload["diff_review_version_id"].(float64) != 3 {
+	if payload.DiffReviewVersionID != 3 {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if output != "Submitted 2 review comment(s) for JOB-7.\n" {
