@@ -129,8 +129,8 @@ func TestJobActionsPostToAppEndpoints(t *testing.T) {
 	if err := client.ApproveJob(context.Background(), "456"); err != nil {
 		t.Fatalf("ApproveJob returned error: %v", err)
 	}
-	if err := client.RetryJob(context.Background(), "443"); err != nil {
-		t.Fatalf("RetryJob returned error: %v", err)
+	if err := client.RunJobAction(context.Background(), "443", "run_again"); err != nil {
+		t.Fatalf("RunJobAction returned error: %v", err)
 	}
 
 	want := []string{

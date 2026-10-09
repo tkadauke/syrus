@@ -37,6 +37,16 @@ type ChatList struct {
 	Repositories []ChatRepository `json:"repositories"`
 }
 
+type chatListResponse struct {
+	Chats        []ChatSession    `json:"chats"`
+	Groups       []ChatListGroup  `json:"groups"`
+	Repositories []ChatRepository `json:"repositories"`
+}
+
+type ChatListGroup struct {
+	Chats []ChatSession `json:"chats"`
+}
+
 type ChatMessage struct {
 	ID       int64          `json:"id"`
 	Role     string         `json:"role"`
@@ -102,9 +112,28 @@ type ChatStreamEvent struct {
 }
 
 func (c *Client) ListChats(ctx context.Context) (ChatList, error) {
-	var out ChatList
-	err := c.do(ctx, http.MethodGet, "/api/v1/app/chats", nil, &out)
-	return out, err
+	var response chatListResponse
+	err := c.do(ctx, http.MethodGet, "/api/v1/app/chats", nil, &response)
+	if err != nil {
+		return ChatList{}, err
+	}
+
+	chats := response.Chats
+	if len(response.Groups) > 0 {
+		seen := make(map[int64]bool)
+		chats = make([]ChatSession, 0)
+		for _, group := range response.Groups {
+			for _, chat := range group.Chats {
+				if seen[chat.ID] {
+					continue
+				}
+				seen[chat.ID] = true
+				chats = append(chats, chat)
+			}
+		}
+	}
+
+	return ChatList{Chats: chats, Repositories: response.Repositories}, nil
 }
 
 func (c *Client) GetChat(ctx context.Context, chatID string) (ChatPayload, error) {
