@@ -145,6 +145,24 @@ RSpec.describe "Dockerfile" do
     expect(worker_dev).to include("RUN go version")
   end
 
+  it "installs version-matched Mull mutation testing tools in the worker image" do
+    stage = worker_deps_stage
+    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(stage).to include("ARG MULL_LLVM_VERSION=18")
+    expect(stage).to include("llvm-toolchain-${VERSION_CODENAME}-${MULL_LLVM_VERSION}")
+    expect(stage).to include("mull-project-mull-stable-archive-keyring.gpg")
+    expect(stage).to include("mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main")
+    expect(stage).to include("clang-${MULL_LLVM_VERSION}")
+    expect(stage).to include("mull-${MULL_LLVM_VERSION}")
+    expect(stage).to include('ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner')
+    expect(worker_dev).to include("RUN clang++-18 --version && mull-runner-18 --version && mull-runner --version")
+
+    expect(app_stage).not_to include("mull-runner")
+    expect(app_stage).not_to include("mull-project")
+  end
+
   it "installs a pinned Android SDK baseline only in the worker image" do
     stage = worker_deps_stage
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
