@@ -189,6 +189,7 @@ module App
           assign_owner: writable,
           set_priority: writable,
           approve: writable && job.auto_merge_enabled? && job.may_approve? && dashboard_job_can_approve?(job),
+          accept_triage: writable && job.triaging? && job.triaging_reason_classifier_uncertain?,
           close: writable && !job.closed?
         }
       end

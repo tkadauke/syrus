@@ -69,6 +69,7 @@
   "priority": "Priority",
   "set_priority": "Set priority",
   "approve": "Approve",
+  "accept_triage": "Accept",
   "close_action": "Close",
   "move_to_in_progress": "Move to In Progress",
   "close_confirm_one": "Close {{count}} selected job?",
