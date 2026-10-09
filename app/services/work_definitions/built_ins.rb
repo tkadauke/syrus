@@ -293,6 +293,10 @@ module WorkDefinitions
       workflow.artifact("merge_train_base_sha")
     end
 
+    def active_work_lock_wait_reason_for_blocked_definition(blocked_definition)
+      blocked_definition.active_work_lock_wait_reason_when_blocked_by_merge_train
+    end
+
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
       return super if train_id.blank?
@@ -323,6 +327,8 @@ module WorkDefinitions
     def current_landing_base_ref(workflow)
       workflow.artifact("merge_train_base_sha")
     end
+
+    def active_work_lock_wait_reason_when_blocked_by_merge_train = { key: "waiting_active_merge_train" }
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
