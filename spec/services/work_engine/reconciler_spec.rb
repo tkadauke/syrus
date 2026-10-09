@@ -504,7 +504,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       worker_storage_key: "storage-critical",
       artifacts: {
         "run_host_admission" => {
-          "reason" => "local_worker_pressure_critical",
+          "reason" => "host_resource_semaphore_busy",
           "run_id" => run.id,
           "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
           "deferral_budget" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET,
