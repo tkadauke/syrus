@@ -300,6 +300,11 @@ A repository's `.syrus.yml` can opt a repository out, bound how many review
 rounds run, restrict visual review to specific changed files, and record seed
 notes (demo login, a record to look for) so the reviewer can reach an
 authenticated or populated view of the app instead of a blank one.
+For authenticated routes, reviewers use that seeded login in the same MCP
+browser session they drive for the review and submit screenshots from the
+current browser context, so artifacts keep the captured URL, path, title,
+viewport, and source. An unexpected sign-in redirect is treated as a blocker
+unless the sign-in screen is the intended surface under review.
 
 ## Review Notes
 
