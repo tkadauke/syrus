@@ -48,9 +48,18 @@ RSpec.describe WorkerHostHealthSampler do
   end
 
   describe ".sample" do
+    before do
+      allow(DataRootDiskUsage).to receive(:read).and_return(nil)
+      allow(described_class).to receive(:cpu_used_percent).and_return(1.0)
+      allow(described_class).to receive(:load_average).and_return([ 1.73, 1.2, 1.0 ])
+      allow(described_class).to receive(:memory_metrics).and_return({})
+    end
+
     it "returns partial metrics when host files are unavailable" do
       allow(File).to receive(:read).and_raise(Errno::ENOENT)
-      allow(DataRootDiskUsage).to receive(:read).and_return(nil)
+      allow(described_class).to receive(:cpu_used_percent).and_call_original
+      allow(described_class).to receive(:load_average).and_call_original
+      allow(described_class).to receive(:memory_metrics).and_call_original
 
       metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
 
@@ -68,6 +77,98 @@ RSpec.describe WorkerHostHealthSampler do
       )
     end
 
+    it "prefers cgroup v2 pressure files and records their source" do
+      allow(File).to receive(:read) do |path|
+        case path
+        when "/proc/self/cgroup"
+          "0::/kubepods.slice/pod-a/container-a\n"
+        when "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/cpu.pressure"
+          "some avg10=2.50 avg60=1.0 avg300=0.1 total=123\nfull avg10=0.20 avg60=0.1 avg300=0.0 total=4\n"
+        when "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/io.pressure"
+          "some avg10=0.75 avg60=0.2 avg300=0.1 total=456\nfull avg10=0.00 avg60=0.0 avg300=0.0 total=0\n"
+        else
+          raise Errno::ENOENT
+        end
+      end
+
+      metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
+
+      expect(metrics).to include(
+        cpu_pressure_some: 2.5,
+        cpu_pressure_full: 0.2,
+        io_pressure_some: 0.75,
+        io_pressure_full: 0.0
+      )
+      expect(metrics[:raw_metrics]).to include(
+        cpu_pressure_source: "cgroup",
+        cpu_pressure_path: "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/cpu.pressure",
+        io_pressure_source: "cgroup",
+        io_pressure_path: "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/io.pressure"
+      )
+    end
+
+    it "falls back to proc pressure files when cgroup pressure files are absent" do
+      allow(File).to receive(:read) do |path|
+        case path
+        when "/proc/self/cgroup"
+          "0::/kubepods.slice/pod-a/container-a\n"
+        when "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/cpu.pressure",
+             "/sys/fs/cgroup/kubepods.slice/pod-a/container-a/io.pressure"
+          raise Errno::ENOENT
+        when "/proc/pressure/cpu"
+          "some avg10=10.00 avg60=1.0 avg300=0.1 total=123\nfull avg10=1.00 avg60=0.1 avg300=0.0 total=4\n"
+        when "/proc/pressure/io"
+          "some avg10=3.50 avg60=0.2 avg300=0.1 total=456\nfull avg10=0.25 avg60=0.0 avg300=0.0 total=0\n"
+        else
+          raise Errno::ENOENT
+        end
+      end
+
+      metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
+
+      expect(metrics).to include(
+        cpu_pressure_some: 10.0,
+        cpu_pressure_full: 1.0,
+        io_pressure_some: 3.5,
+        io_pressure_full: 0.25
+      )
+      expect(metrics[:raw_metrics]).to include(
+        cpu_pressure_source: "proc",
+        cpu_pressure_path: "/proc/pressure/cpu",
+        io_pressure_source: "proc",
+        io_pressure_path: "/proc/pressure/io"
+      )
+    end
+
+    it "uses low cgroup pressure instead of a contradictory high node pressure sample" do
+      allow(File).to receive(:read) do |path|
+        case path
+        when "/proc/self/cgroup"
+          "0::/\n"
+        when "/sys/fs/cgroup/cpu.pressure"
+          "some avg10=0.25 avg60=0.10 avg300=0.01 total=123\nfull avg10=0.00 avg60=0.0 avg300=0.0 total=0\n"
+        when "/sys/fs/cgroup/io.pressure"
+          "some avg10=0.10 avg60=0.02 avg300=0.01 total=456\nfull avg10=0.00 avg60=0.0 avg300=0.0 total=0\n"
+        when "/proc/pressure/cpu"
+          "some avg10=68.45 avg60=55.0 avg300=30.0 total=999\nfull avg10=0.00 avg60=0.0 avg300=0.0 total=0\n"
+        when "/proc/pressure/io"
+          "some avg10=30.00 avg60=10.0 avg300=5.0 total=999\nfull avg10=0.00 avg60=0.0 avg300=0.0 total=0\n"
+        else
+          raise Errno::ENOENT
+        end
+      end
+
+      metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
+
+      expect(metrics).to include(
+        cpu_used_percent: 1.0,
+        load_1m: 1.73,
+        cpu_pressure_some: 0.25,
+        io_pressure_some: 0.1
+      )
+      expect(metrics[:raw_metrics]).to include(cpu_pressure_source: "cgroup", io_pressure_source: "cgroup")
+    end
+
     it "uses the supplied data-root snapshot instead of reading df again" do
       snapshot = DataRootDiskUsage::Snapshot.new(
         path: "/data", filesystem: "/dev/pvc", total_bytes: 100.gigabytes,
@@ -75,6 +176,9 @@ RSpec.describe WorkerHostHealthSampler do
         mounted_on: "/data", observed_at: Time.current
       )
       allow(File).to receive(:read).and_raise(Errno::ENOENT)
+      allow(described_class).to receive(:cpu_used_percent).and_call_original
+      allow(described_class).to receive(:load_average).and_call_original
+      allow(described_class).to receive(:memory_metrics).and_call_original
       expect(DataRootDiskUsage).not_to receive(:read)
 
       metrics = described_class.sample(data_root_snapshot: snapshot)
@@ -90,10 +194,19 @@ RSpec.describe WorkerHostHealthSampler do
 
   describe ".io_pressure_snapshot" do
     it "returns IO pressure and data-root filesystem context" do
-      allow(File).to receive(:read).with("/proc/pressure/io").and_return(<<~PRESSURE)
-        some avg10=1.23 avg60=0.50 avg300=0.10 total=12345
-        full avg10=0.07 avg60=0.03 avg300=0.01 total=456
-      PRESSURE
+      allow(File).to receive(:read) do |path|
+        case path
+        when "/proc/self/cgroup"
+          "0::/\n"
+        when "/sys/fs/cgroup/io.pressure"
+          <<~PRESSURE
+            some avg10=1.23 avg60=0.50 avg300=0.10 total=12345
+            full avg10=0.07 avg60=0.03 avg300=0.01 total=456
+          PRESSURE
+        else
+          raise Errno::ENOENT
+        end
+      end
       snapshot = DataRootDiskUsage::Snapshot.new(
         path: "/data", filesystem: "/dev/pvc", total_bytes: 100.gigabytes,
         used_bytes: 60.gigabytes, available_bytes: 40.gigabytes, used_percent: 60,
@@ -104,6 +217,7 @@ RSpec.describe WorkerHostHealthSampler do
       expect(described_class.io_pressure_snapshot).to eq(
         io_pressure_some: 1.23,
         io_pressure_full: 0.07,
+        io_pressure_source: "cgroup",
         data_root_used_percent: 60,
         data_root_filesystem: "/dev/pvc",
         data_root_mounted_on: "/data"
@@ -111,7 +225,7 @@ RSpec.describe WorkerHostHealthSampler do
     end
 
     it "omits fields it could not read instead of raising" do
-      allow(File).to receive(:read).with("/proc/pressure/io").and_raise(Errno::ENOENT)
+      allow(File).to receive(:read).and_raise(Errno::ENOENT)
       allow(DataRootDiskUsage).to receive(:read).and_return(nil)
 
       expect(described_class.io_pressure_snapshot).to eq({})
