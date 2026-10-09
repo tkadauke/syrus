@@ -532,9 +532,12 @@ module Syrus
 
       def experimental_plugins_enabled?
         return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
+        return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
         return true unless AppSetting.table_exists? && AppSetting.column_names.include?("experimental_plugins_enabled")
 
-        AppSetting.current.experimental_plugins_enabled?
+        AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.experimental_plugins_enabled? || false
+      rescue ActiveRecord::ActiveRecordError
+        true
       end
 
       private
@@ -555,6 +558,7 @@ module Syrus
       def upsert_plugin_record!(name:, default_enabled:, disableable:, experimental:, metadata:)
         record = PluginRecord.find_or_initialize_by(name: name)
         record.enabled = default_enabled && (!experimental || experimental_plugins_enabled?) if record.new_record?
+        record.enabled = true if stable_promotion_enables_record?(record, default_enabled, experimental)
         record.default_enabled = default_enabled if record.has_attribute?(:default_enabled)
         record.disableable = disableable if record.has_attribute?(:disableable)
         record.experimental = experimental if record.has_attribute?(:experimental)
@@ -566,6 +570,15 @@ module Syrus
         record.author = metadata[:author] if record.has_attribute?(:author)
         record.extension_points = extension_points_token_list(metadata[:extension_points]) if record.has_attribute?(:extension_points)
         record.save!
+      end
+
+      def stable_promotion_enables_record?(record, default_enabled, experimental)
+        !record.new_record? &&
+          default_enabled &&
+          !experimental &&
+          record.has_attribute?(:experimental) &&
+          record.experimental? &&
+          !record.ever_enabled?
       end
 
       def extension_points_token_list(points)
