@@ -183,6 +183,25 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     expect(parse_body["feature"]).to include("slug" => "new_runtime", "enabled" => true, "experimental" => true)
   end
 
+  it "reports existing enabled beta features as disabled when beta mode is off" do
+    sign_in_as(admin)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return([
+      { slug: "existing_beta", category: "Labs", name: "Existing beta", description: "Already enabled before the beta marker.", default_enabled: false, experimental: true }
+    ])
+    feature = Feature.create!(slug: "existing_beta", category: "Labs", name: "Existing beta", description: "Already enabled before the beta marker.", enabled: true)
+    feature.update_column(:experimental, true)
+
+    get "/api/v1/app/admin/features"
+
+    expect(response).to have_http_status(:ok)
+    beta_feature = parse_body.fetch("categories").sole.fetch("features").sole
+    expect(beta_feature).to include(
+      "slug" => "existing_beta",
+      "experimental" => true,
+      "enabled" => false
+    )
+  end
+
   it "updates a declared feature" do
     sign_in_as(admin)
 
