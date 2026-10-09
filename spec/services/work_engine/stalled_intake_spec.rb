@@ -32,6 +32,17 @@ RSpec.describe "Stalled intake reconciliation" do
     expect(found.affected_ids[:job_ids]).to include(job.id)
   end
 
+  it "plans the automatic reclassification repair" do
+    stall!
+
+    plan = reconcile.repair_plans.find { |candidate| candidate.issue_kind == "stalled_classifier_pending_job" }
+
+    expect(plan.action).to eq("reclassify_stalled_intake")
+    expect(plan.auto_executable).to be(true)
+    expect(plan.target_type).to eq("Job")
+    expect(plan.target_id).to eq(job.id)
+  end
+
   # A classify that is genuinely still in flight is not stalled.
   it "leaves a recently created Job alone" do
     stall!(age: 1.minute)
@@ -42,6 +53,13 @@ RSpec.describe "Stalled intake reconciliation" do
   it "leaves a Job that is no longer waiting on classification alone" do
     stall!
     job.update_columns(triaging_reason: "needs_more_detail")
+
+    expect(issue(reconcile)).to be_nil
+  end
+
+  it "leaves a pending Job alone once re-enqueue retries are spent" do
+    stall!
+    job.update_columns(classifier_attempts: Job::MAX_CLASSIFIER_ATTEMPTS)
 
     expect(issue(reconcile)).to be_nil
   end
@@ -90,6 +108,28 @@ RSpec.describe "Stalled intake reconciliation" do
       expect(job.reload.triaging_reason).to eq("classifier_pending")
       expect(job.triaging_uncertainty_reason).to be_nil
     end
+
+    it "audits the reconciler-owned retry mutation" do
+      uncertain!
+      plan = WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
+        auto_executable: true, target_type: "job", target_id: job.id,
+        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
+        reason: "test"
+      )
+
+      expect {
+        WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+      }.to change { StateTransition.where(subject: job, event_name: "reclassify_stalled_intake", source: "reconciler").count }.from(0).to(1)
+
+      transition = StateTransition.where(subject: job, event_name: "reclassify_stalled_intake").last
+      expect(transition.metadata).to include(
+        "repair_action" => "reclassify_stalled_intake",
+        "issue_kind" => "stalled_classifier_pending_job",
+        "from_triaging_reason" => "classifier_uncertain",
+        "triaging_reason" => "classifier_pending"
+      )
+    end
   end
 
   describe "the repair" do
@@ -105,6 +145,20 @@ RSpec.describe "Stalled intake reconciliation" do
       expect {
         WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
       }.to have_enqueued_job(ClassifyIssueJob).with(job.id)
+    end
+
+    it "spends retry budget for a pending Job so repeated lost queue jobs stop looping" do
+      stall!
+      plan = WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
+        auto_executable: true, target_type: "job", target_id: job.id,
+        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
+        reason: "test"
+      )
+
+      expect {
+        WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+      }.to change { job.reload.classifier_attempts }.by(1)
     end
   end
 
