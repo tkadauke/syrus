@@ -1177,6 +1177,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       "message" => "Epic created.",
       "redirect_to" => epic_path(epic)
     )
+    expect(parse_body.dig("epic", "number")).to eq(epic.number)
+    expect(parse_body.dig("epic", "display_number")).to eq(epic.slug)
   end
 
   it "rejects creating an epic on a repository the user cannot access" do

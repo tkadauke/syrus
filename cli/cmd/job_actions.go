@@ -58,7 +58,9 @@ func newJobCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&owner, "owner", "", "assign a repository member as owner, by user ID")
 	cmd.Flags().StringVar(&title, "title", "", "job title")
 	cmd.Flags().StringVar(&body, "body", "", "job description")
+	cmd.Flags().StringVar(&body, "prompt", "", "job description")
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "read the job description from a file")
+	cmd.Flags().StringVar(&bodyFile, "file", "", "read the job description from a file, or '-' for stdin")
 	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "existing dependency, repeatable; accepts JOB-123 or a proposal slug")
 	return cmd
 }
@@ -191,6 +193,20 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
 	}
 
+	var epicID int64
+	epic := strings.TrimSpace(opts.epic)
+	if epic != "" {
+		_, ref, err := parseEpicRef(epic)
+		if err != nil {
+			return err
+		}
+		resolved, err := client.GetEpic(cmd.Context(), ref)
+		if err != nil {
+			return fmt.Errorf("could not resolve epic %s: %w", epic, err)
+		}
+		epicID = resolved.Epic.ID
+	}
+
 	reader := bufio.NewReader(cmd.InOrStdin())
 	title, description, err := jobCreateText(reader, cmd.OutOrStdout(), opts.title, opts.body, opts.bodyFile)
 	if err != nil {
@@ -213,20 +229,6 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 		}
 	}
 
-	var epicID int64
-	epic := strings.TrimSpace(opts.epic)
-	if epic != "" {
-		_, ref, err := parseEpicRef(epic)
-		if err != nil {
-			return err
-		}
-		resolved, err := client.GetEpic(cmd.Context(), ref)
-		if err != nil {
-			return fmt.Errorf("could not resolve epic %s: %w", epic, err)
-		}
-		epicID = resolved.Epic.ID
-	}
-
 	dependsOnJobIDs, dependsOnSlugs, err := parseJobCreateDependencies(opts.dependsOn)
 	if err != nil {
 		return err
@@ -246,7 +248,7 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s created. Track with: syrus job watch %d\n", jobSlug(job.Job.ID), job.Job.ID)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", jobSlug(job.Job.ID))
 	return nil
 }
 
@@ -258,9 +260,9 @@ func jobCreateText(reader *bufio.Reader, out io.Writer, titleFlag string, bodyFl
 		return "", "", errors.New("--body and --body-file cannot be used together")
 	}
 	if bodyFile != "" {
-		content, err := os.ReadFile(bodyFile)
+		content, err := readBodyFile(reader, bodyFile)
 		if err != nil {
-			return "", "", fmt.Errorf("read --body-file: %w", err)
+			return "", "", err
 		}
 		body = string(content)
 	}
@@ -278,6 +280,21 @@ func jobCreateText(reader *bufio.Reader, out io.Writer, titleFlag string, bodyFl
 		body = promptedBody
 	}
 	return strings.TrimSpace(title), strings.TrimSpace(body), nil
+}
+
+func readBodyFile(reader *bufio.Reader, path string) ([]byte, error) {
+	if path == "-" {
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("read --file -: %w", err)
+		}
+		return content, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read --file: %w", err)
+	}
+	return content, nil
 }
 
 func parseJobCreateDependencies(tokens []string) ([]int64, []string, error) {
