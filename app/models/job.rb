@@ -1907,6 +1907,7 @@ class Job < ApplicationRecord
       next unless dependency.job.user_id == user_id
 
       dependency.resolve!(depends_on_job: self)
+      validate_resolved_parsed_epic_child_dependency!(dependency)
       Rails.logger.info(
         "[JobDependency] resolved pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
         "Depends-on: #{repository.owner}/#{repository.name}##{issue_number} -> #{slug}"
@@ -1915,7 +1916,24 @@ class Job < ApplicationRecord
       Rails.logger.warn(
         "[JobDependency] failed to resolve pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: #{e.message}"
       )
+      raise
     end
+  end
+
+  def validate_resolved_parsed_epic_child_dependency!(dependency)
+    dependent = dependency.job
+    return unless dependency.parsed?
+    return unless dependent&.issue? && dependent.epic_id.present?
+    return unless dependent.epic.jobs.where.not(id: dependent.id).exists?
+    return if dependent.dependencies.joins(:depends_on_job).where(jobs: { epic_id: dependent.epic_id }).exists?
+    return if JobDependency.joins(:job).where(depends_on_job_id: dependent.id, jobs: { epic_id: dependent.epic_id }).exists?
+
+    dependent.errors.add(
+      :base,
+      "GitHub-ingested Epic children must form one linear dependency chain. " \
+      "The resolved Depends-on reference does not point at another child issue in this Epic."
+    )
+    raise ActiveRecord::RecordInvalid, dependent
   end
 
   def log_dependency_override!(user)
