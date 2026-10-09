@@ -8,6 +8,7 @@ class MainHealthChangedService
     def fix_job_prompt
       sha = checked_sha
       prefix = repair_attachment_prefix(sha)
+      checks = health_checks_for(sha)
 
       [
         "Main branch health is broken for #{@repository.slug}.",
@@ -20,28 +21,39 @@ class MainHealthChangedService
         "- Graders: #{@repository.grader_health}",
         "",
         "Diagnostic logs are attached to this Job and will be materialized in the workflow workspace.",
-        "Start by reading tmp/attachments/#{prefix}-summary.md.",
-        "Then inspect tmp/attachments/#{prefix}-ci.md and tmp/attachments/#{prefix}-graders.md if they are present.",
+        diagnostic_prompt_instruction(sha, prefix, checks),
         "",
         "Use the attached context first. Identify the root cause from the default-branch CI and/or grader output, " \
         "then push a minimal fix to restore a green main. Do not expand scope beyond repairing main."
       ].join("\n")
     end
 
+    def refresh_repair_context!(job)
+      job.update!(issue_body: fix_job_prompt)
+      remove_repair_context_attachments!(job)
+      attach_repair_context!(job)
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[MainHealthChangedService] #{@repository.slug} failed to refresh main repair context " \
+        "for #{job.slug}: #{e.class}: #{e.message}"
+      )
+    end
+
     def attach_repair_context!(job)
       sha = checked_sha
       checks = health_checks_for(sha)
       prefix = repair_attachment_prefix(sha)
+      ci_body = build_ci_log_attachment(sha, checks)
+      grader_body = build_grader_log_attachment(sha, checks)
 
       attach_text_file!(
         job,
         filename: "#{prefix}-summary.md",
         title: "Main branch repair summary",
-        body: build_repair_summary(sha, checks),
+        body: build_repair_summary(sha, checks, ci_body: ci_body, grader_body: grader_body),
         max_bytes: MAX_SUMMARY_ATTACHMENT_BYTES
       )
 
-      ci_body = build_ci_log_attachment(sha, checks)
       if ci_body.present?
         attach_text_file!(
           job,
@@ -52,7 +64,6 @@ class MainHealthChangedService
         )
       end
 
-      grader_body = build_grader_log_attachment(sha, checks)
       if grader_body.present?
         attach_text_file!(
           job,
@@ -67,6 +78,13 @@ class MainHealthChangedService
         "[MainHealthChangedService] #{@repository.slug} failed to attach main repair context " \
         "to #{job.slug}: #{e.class}: #{e.message}"
       )
+    end
+
+    def remove_repair_context_attachments!(job)
+      job.job_attachments.where("source_url LIKE ?", "main-health://#{job.id}/%").find_each do |document|
+        document.file.purge if document.file.attached?
+        document.destroy!
+      end
     end
 
     def attach_text_file!(job, filename:, title:, body:, max_bytes:)
@@ -89,7 +107,7 @@ class MainHealthChangedService
       document.save!
     end
 
-    def build_repair_summary(sha, checks)
+    def build_repair_summary(sha, checks, ci_body: nil, grader_body: nil)
       lines = [
         "# Main branch repair context",
         "",
@@ -101,9 +119,19 @@ class MainHealthChangedService
         "- CI: #{@repository.ci_health}",
         "- Graders: #{@repository.grader_health}",
         "",
-        "Attached diagnostics:",
-        "- #{repair_attachment_prefix(sha)}-ci.md: CI failure output and GitHub check links, when CI failed.",
-        "- #{repair_attachment_prefix(sha)}-graders.md: Syrus grader workflow output, when graders reported a result.",
+        "Diagnostic attachments:",
+        diagnostic_summary_line(
+          "#{repair_attachment_prefix(sha)}-ci.md",
+          ci_body,
+          present: "CI failure output and GitHub check links.",
+          absent: "no CI failure output was captured."
+        ),
+        diagnostic_summary_line(
+          "#{repair_attachment_prefix(sha)}-graders.md",
+          grader_body,
+          present: "Syrus grader workflow output.",
+          absent: "no grader output was captured."
+        ),
         "",
         "Recent health checks:"
       ]
@@ -117,6 +145,22 @@ class MainHealthChangedService
       end
 
       lines.join("\n")
+    end
+
+    def diagnostic_prompt_instruction(sha, prefix, checks)
+      files = [ "tmp/attachments/#{prefix}-summary.md" ]
+      files << "tmp/attachments/#{prefix}-ci.md" if build_ci_log_attachment(sha, checks).present?
+      files << "tmp/attachments/#{prefix}-graders.md" if build_grader_log_attachment(sha, checks).present?
+
+      "Start by reading #{files.to_sentence}."
+    end
+
+    def diagnostic_summary_line(filename, body, present:, absent:)
+      if body.present?
+        "- #{filename}: #{present}"
+      else
+        "- #{filename}: not written; #{absent}"
+      end
     end
 
     def summary_lines_for(check)

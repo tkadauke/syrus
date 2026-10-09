@@ -23,6 +23,8 @@ module Workflows
     def self.trigger_kind = "main_branch_repair"
 
     def self.steps_for(job)
+      MainHealthChangedService.refresh_repair_context!(job)
+
       syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
         job,
