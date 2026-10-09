@@ -468,24 +468,62 @@ class PollRepositoryJob < ApplicationJob
 
     epic_url = issue_url_for_reference(marker)
     epic = repository.user.epics.find_by(github_issue_url: epic_url)
-    job = Job.create!(
-      user: repository.user,
-      repository: repository,
-      issue_number: issue.number,
-      issue_title: issue_title(issue),
-      issue_body: issue_body(issue),
-      skip_prepare: skip_prepare_label_present?(issue),
-      prepare_skip_reason_override: prepare_skip_reason(issue),
-      delivery_track: delivery_track_label_value(issue),
-      investigation: investigation_label_present?(issue),
-      epic: epic,
-      state: initial_state_for_issue(issue),
-      triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
-      pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
-    )
-    job.advance_after_triage! if job.epic && job.may_advance_after_triage?
+    job = nil
+    Job.transaction do
+      job = Job.create!(
+        user: repository.user,
+        repository: repository,
+        issue_number: issue.number,
+        issue_title: issue_title(issue),
+        issue_body: issue_body(issue),
+        skip_prepare: skip_prepare_label_present?(issue),
+        prepare_skip_reason_override: prepare_skip_reason(issue),
+        delivery_track: delivery_track_label_value(issue),
+        investigation: investigation_label_present?(issue),
+        epic: epic,
+        state: initial_state_for_issue(issue),
+        triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
+        pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
+      )
+      validate_github_epic_child_chain!(job) if job.epic
+      job.advance_after_triage! if job.may_advance_after_triage?
+    end
     enqueue_issue_image_ingest(job)
     :created
+  end
+
+  def validate_github_epic_child_chain!(job)
+    return unless job.epic_id
+
+    sibling_scope = job.epic.jobs.where.not(id: job.id)
+    return unless sibling_scope.exists?
+
+    return if same_epic_upstream_dependency?(job)
+    return if same_epic_downstream_dependency?(job)
+    return if pending_github_issue_dependency?(job)
+
+    job.errors.add(
+      :base,
+      "GitHub-ingested Epic children must form one linear dependency chain. " \
+      "Add a Depends-on: line that references the previous child issue in this Epic, " \
+      "or make another child depend on this issue if it is the chain head."
+    )
+    raise ActiveRecord::RecordInvalid, job
+  end
+
+  def same_epic_upstream_dependency?(job)
+    job.dependencies.joins(:depends_on_job).where(jobs: { epic_id: job.epic_id }).exists?
+  end
+
+  def same_epic_downstream_dependency?(job)
+    JobDependency.joins(:job).where(depends_on_job_id: job.id, jobs: { epic_id: job.epic_id }).exists?
+  end
+
+  def pending_github_issue_dependency?(job)
+    job.dependencies.pending.where(
+      unresolved_owner: job.epic.repository.owner,
+      unresolved_repo: job.epic.repository.name
+    ).exists?
   end
 
   # Hand off to a background job rather than running the classifier

@@ -1914,16 +1914,52 @@ class Job < ApplicationRecord
       # (matches the user.repositories scope used when seeding).
       next unless dependency.job.user_id == user_id
 
-      dependency.resolve!(depends_on_job: self)
+      JobDependency.transaction(requires_new: true) do
+        dependency.resolve!(depends_on_job: self)
+        validate_resolved_parsed_epic_child_dependency!(dependency)
+      end
       Rails.logger.info(
         "[JobDependency] resolved pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
         "Depends-on: #{repository.owner}/#{repository.name}##{issue_number} -> #{slug}"
       )
     rescue ActiveRecord::RecordInvalid => e
+      quarantine_pending_dependency_dependent!(dependency, e)
       Rails.logger.warn(
         "[JobDependency] failed to resolve pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: #{e.message}"
       )
     end
+  end
+
+  def validate_resolved_parsed_epic_child_dependency!(dependency)
+    dependent = dependency.job
+    return unless dependency.parsed?
+    return unless dependent&.issue? && dependent.epic_id.present?
+    return unless dependent.epic.jobs.where.not(id: dependent.id).exists?
+    return if dependent.dependencies.joins(:depends_on_job).where(jobs: { epic_id: dependent.epic_id }).exists?
+    return if JobDependency.joins(:job).where(depends_on_job_id: dependent.id, jobs: { epic_id: dependent.epic_id }).exists?
+
+    dependent.errors.add(
+      :base,
+      "GitHub-ingested Epic children must form one linear dependency chain. " \
+      "The resolved Depends-on reference does not point at another child issue in this Epic."
+    )
+    raise ActiveRecord::RecordInvalid, dependent
+  end
+
+  def quarantine_pending_dependency_dependent!(dependency, error)
+    dependent = dependency.job
+    return unless dependent&.issue? && dependent.issue_number.present?
+
+    dependent.repository.record_poll_issue_error!(
+      issue_number: dependent.issue_number,
+      issue_title: dependent.issue_title,
+      error: error
+    )
+
+    return unless dependency.parsed?
+    return if dependent.runs.where(state: %w[running succeeded failed]).exists?
+
+    dependent.destroy!
   end
 
   def log_dependency_override!(user)
