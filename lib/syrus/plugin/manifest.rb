@@ -15,6 +15,7 @@ module Syrus
       :enabled,
       :default_enabled,
       :disableable,
+      :experimental,
       :category,
       :home_queue,
       :tick_interval,
@@ -29,7 +30,7 @@ module Syrus
       :hosts,
       :events
     ) do
-      def initialize(display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, **) = super
+      def initialize(display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, **) = super
 
       # Extension points this plugin hosts for others, qualified with its own
       # name: `hosts: [:parser]` on "test_insights" offers
@@ -40,6 +41,7 @@ module Syrus
       def enabled? = enabled
       def default_enabled? = default_enabled
       def disableable? = disableable
+      def experimental? = experimental
     end
   end
 end

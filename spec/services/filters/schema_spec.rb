@@ -174,5 +174,11 @@ RSpec.describe Filters::Schema do
 
       expect(schema).not_to have_key("free_text_search")
     end
+
+    it "renders admin plugin experimental chip metadata" do
+      schema = described_class.chip_for("experimental", subject: :admin_plugins)
+
+      expect(schema["values"]).to include({ "value" => "experimental", "label" => "Experimental" })
+    end
   end
 end

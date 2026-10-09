@@ -4,6 +4,7 @@ module AgentInsights
   extend Syrus::PluginApi
 
   syrus_plugin "agent_insights" do
+    experimental true
     display_name "Agent Insights"
     description "Periodic read-only agent surveys of a repository that propose follow-up work."
     long_description "Agent Insights runs an agent over a repository\'s recent workflow activity and has it propose concrete follow-ups: jobs worth filing, facts worth remembering, memories that have gone stale.\n\nRuns are read-only -- no commits, no pull request -- and every suggestion is reviewed by an operator before anything happens. Off by default, since it spends agent budget on its own schedule."

@@ -16,6 +16,7 @@ module Android
   extend Syrus::PluginApi
 
   syrus_plugin "android" do
+    experimental true
     display_name "Android"
     description "Android project intelligence: Android Gradle Plugin detection, SDK environment wiring, " \
                 "toolchain diagnostics, Android/JVM prompt guidance, and mobile review criteria"

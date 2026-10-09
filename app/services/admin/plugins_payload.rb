@@ -27,6 +27,7 @@ module Admin
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
+          experimental_plugins_enabled: AppSetting.experimental_plugins_enabled?,
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
         }
         payload.merge!(filter: filter.to_h, controls: controls_json) if @params
@@ -43,7 +44,10 @@ module Admin
         records = PluginRecord.where(name: [ manifest.name ]).index_by(&:name)
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
 
-        { plugin: plugin_payload(manifest, records[manifest.name], dependency_graph, detail: true) }
+        {
+          experimental_plugins_enabled: AppSetting.experimental_plugins_enabled?,
+          plugin: plugin_payload(manifest, records[manifest.name], dependency_graph, detail: true)
+        }
       end
     end
 
@@ -94,6 +98,7 @@ module Admin
           enabled: manifest.enabled?,
           default_enabled: manifest.default_enabled?,
           disableable: manifest.disableable?,
+          experimental: manifest.experimental?,
           category: manifest.category,
           category_label: Syrus::Plugin::Category.label_for(manifest.category),
           description: manifest.description.presence || spec&.summary || metadata[:description],
