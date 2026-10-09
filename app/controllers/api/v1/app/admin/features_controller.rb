@@ -94,7 +94,7 @@ module Api
               name: feature.name,
               description: feature.description,
               experimental: feature.experimental?,
-              enabled: feature.enabled?,
+              enabled: feature.effective_enabled?,
               name_i18n_key: feature.name_i18n_key,
               description_i18n_key: feature.description_i18n_key
             }
