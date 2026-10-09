@@ -41,11 +41,12 @@ class RunQueueResolver
     new(workflow: workflow, step: step).resolve
   end
 
-  def initialize(run: nil, workflow: nil, step: nil)
+  def initialize(run: nil, workflow: nil, step: nil, ignore_workflow_affinity: false)
     @run = run || Candidate.new(workflow: workflow, step: step, trigger_kind: workflow&.trigger_kind)
     @workflow = workflow || run&.workflow
     @step = step || run&.step
     @trigger_kind = @workflow&.trigger_kind || run&.trigger_kind
+    @ignore_workflow_affinity = ignore_workflow_affinity
   end
 
   def resolve
@@ -76,6 +77,8 @@ class RunQueueResolver
   attr_reader :run, :workflow, :step, :trigger_kind
 
   def compatible_resume_queue(requirements)
+    return nil if @ignore_workflow_affinity
+
     queue = run.resume_worker_queue
     return nil if queue.blank?
     return queue if live_capable_worker_for?(queue, requirements, allow_unknown_default: true)

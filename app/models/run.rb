@@ -289,8 +289,8 @@ class Run < ApplicationRecord
   # SolidQueue::Job (e.g. an inline-drive successor orphaned when the
   # worker died before picking it up — see ReapStaleRunsJob). Reuses
   # the same queue + priority logic as the create-commit enqueue.
-  def reenqueue!
-    enqueue_run_job(force: true)
+  def reenqueue!(ignore_workflow_affinity: false)
+    enqueue_run_job(force: true, ignore_workflow_affinity: ignore_workflow_affinity)
   end
 
   def distributed_parallel_run?
@@ -350,7 +350,7 @@ class Run < ApplicationRecord
     job
   end
 
-  def enqueue_run_job(force: false)
+  def enqueue_run_job(force: false, ignore_workflow_affinity: false)
     return if terminal?
     # When a RunJob is currently driving this workflow inline, the
     # next Step's Run was just created by StepDispatcher and should
@@ -363,7 +363,7 @@ class Run < ApplicationRecord
       return if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
     end
 
-    decision = RunQueueResolver.resolve(run: self)
+    decision = RunQueueResolver.resolve(run: self, ignore_workflow_affinity: ignore_workflow_affinity)
     return block_for_missing_capable_worker!(decision) if decision.blocked?
 
     record_run_queue_decision!(decision)
