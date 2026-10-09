@@ -115,10 +115,8 @@ async function addChildJob(page: Page, epicId: number, title: string, prompt: st
 
   await page.getByLabel("Title").fill(title)
   await page.getByPlaceholder(/describe what you want the agent to do/i).fill(prompt)
-  await Promise.all([
-    page.waitForURL(/\/jobs\/\d+$/),
-    page.getByRole("button", { name: "Create job", exact: true }).click()
-  ])
+  await page.getByRole("button", { name: "Create job", exact: true }).click()
+  await expect(page).toHaveURL(/\/jobs\/\d+$/)
   await expect(page.getByText(title)).toBeVisible()
   return idFromUrl(page)
 }
