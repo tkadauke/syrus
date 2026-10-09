@@ -63,6 +63,7 @@ RSpec.describe RunJob, :ci_only do
     )
 
     RunJob.agent_runner = method(:default_agent_runner)
+    stub_visual_review_plan(enabled: false)
 
     @data_root = Dir.mktmpdir("syrus-data")
     ENV["SYRUS_DATA_ROOT"] = @data_root
@@ -1366,6 +1367,17 @@ RSpec.describe RunJob, :ci_only do
       sh("git -c user.name=t -c user.email=t@e -C #{workspace_path} commit --allow-empty -q -m 'rebased'")
     end
     AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
+  end
+
+  def stub_visual_review_plan(enabled:)
+    plan = RepoVisualReviewPlan::Result.new(
+      enabled: enabled,
+      rounds: 1,
+      source: "spec",
+      note: enabled ? nil : "disabled for dispatch-focused spec"
+    )
+    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(plan)
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(plan)
   end
 
   def seed_remote_with_initial_commit(bare_path)
