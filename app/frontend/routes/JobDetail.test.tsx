@@ -4600,7 +4600,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_tags_path: "/api/v1/app/jobs/1/tags",
       app_claim_path: "/api/v1/app/jobs/1/claim",
       app_dependencies_path: "/api/v1/app/jobs/1/dependencies",
-      app_dependency_override_path: "/api/v1/app/jobs/1/dependencies/override",
+      app_dependency_override_path: "/api/v1/app/admin/jobs/1/dependencies/override",
       app_epic_dependencies_path: "/api/v1/app/jobs/1/epic_dependencies",
       app_stack_base_path: "/api/v1/app/jobs/1/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/1/mark_valid",

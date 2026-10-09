@@ -143,7 +143,6 @@ Rails.application.routes.draw do
         post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/dependency_options", to: "job_metadata#dependency_options", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, dependency_id: /\d+/ }
-        post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/epic_dependencies", to: "job_metadata#add_epic_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/epic_dependencies/:depends_on_epic_id", to: "job_metadata#remove_epic_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -157,7 +156,6 @@ Rails.application.routes.draw do
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/stop_landing", to: "job_lifecycle#stop_landing", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
-        post "jobs/:job_id/force_fail", to: "job_lifecycle#force_fail", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pause", to: "job_lifecycle#pause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/unpause", to: "job_lifecycle#unpause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -389,6 +387,8 @@ Rails.application.routes.draw do
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
           get "stuck", to: "stuck#index"
+          post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+          post "jobs/:job_id/force_fail", to: "job_lifecycle#force_fail", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
           get "activity", to: "workflow_activity#index"
           get "work_units", to: "work_units#index"
           resources :maintenance_tasks, only: %i[ index show ] do

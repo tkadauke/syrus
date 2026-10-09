@@ -16,7 +16,9 @@ database ID.
 session-or-token authenticated through the app API stack, has CSRF/session
 semantics, and may return page-shaped payloads built around React components:
 filter trees, sort descriptors, pagination metadata, sidebar counts, and
-control schemas.
+control schemas. Admin-only mutations that are only launched from in-app
+operator screens, such as stuck-Job repair buttons or Job detail controls,
+belong here rather than under the user-facing `/api/v1/app/*` paths.
 
 New externally scriptable operator capabilities belong under
 `/api/v1/admin/*`. New admin-screen data fetches or mutations that exist only
@@ -43,6 +45,12 @@ The generated endpoint inventory lives in
 `config/syrus_docs/admin_api_catalog.md`; update it with
 `bin/surface-catalogs` after route changes.
 
+The user-facing `/api/v1/app/*` namespace must not grow new inline admin
+refusal checks. If an endpoint is admin-only, put it under one of the admin
+prefixes. The reviewed exceptions are limited to non-migration compatibility
+cases such as the maintenance-task sidebar returning an empty badge payload for
+non-admin users and the legacy Job lifecycle timeline endpoint.
+
 ## Current reviewed overlap
 
 These capabilities currently exist on both prefixes and should not be expanded
@@ -52,6 +60,7 @@ without a deliberate migration choice:
 - backend exceptions
 - browser errors
 - console controls
+- Job dependency override and force-fail controls for in-app repair screens
 - MCP tool usage
 - overview and stuck queues
 - plugin enablement/configuration

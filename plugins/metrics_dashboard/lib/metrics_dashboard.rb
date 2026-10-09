@@ -40,7 +40,7 @@ module MetricsDashboard
     # you cannot actually turn off.
     tick_interval 1.minute
 
-    route :get, "/api/v1/app/metrics_dashboard", to: "api/v1/app/metrics_dashboard#show"
+    route :get, "/api/v1/app/admin/metrics_dashboard", to: "api/v1/app/admin/metrics_dashboard#show"
 
     frontend routes: {
           "metrics_dashboard/MetricsDashboard" => "app/frontend/routes/MetricsDashboard.tsx"
