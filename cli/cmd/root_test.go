@@ -325,6 +325,9 @@ func TestApproveCommandReturnsAPIErrorMessage(t *testing.T) {
 
 func writeCredentials(t *testing.T, home string, url string, token string) {
 	t.Helper()
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
 
 	path := filepath.Join(home, ".syrus", "credentials")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

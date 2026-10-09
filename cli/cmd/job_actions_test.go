@@ -254,34 +254,54 @@ func TestJobActionPostsEndpoint(t *testing.T) {
 	}
 }
 
-func TestJobTestPlanRendersLatestCompletedPlan(t *testing.T) {
+func TestJobTestPlanUsesAppPayloadLikeTopLevelCommand(t *testing.T) {
+	payload := `{
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": {
+			"steps": [
+				"Navigate to /settings/profile",
+				"Click \"Upload avatar\" and select a PNG under 2 MB",
+				"Verify the avatar appears in the nav bar immediately"
+			],
+			"notes": "Avatar storage uses ActiveStorage."
+		}
+	}`
+	var requestedPaths []string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/admin/jobs/456" {
+		if r.URL.Path != "/api/v1/app/jobs/456" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
+		requestedPaths = append(requestedPaths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"id":456,
-			"workflows":[
-				{"id":1,"state":"succeeded","artifacts":{"test_plan":{"steps":["bin/old"]}}},
-				{"id":2,"state":"succeeded","artifacts":{"test_plan":{"steps":[{"step":"bin/rspec","notes":"Run the regression specs."}]}}}
-			]
-		}`))
+		w.Write([]byte(payload))
 	}))
 	defer server.Close()
 	writeJobActionTestCredentials(t, server.URL)
 
-	output := &bytes.Buffer{}
-	command := NewRootCommand()
-	command.SetOut(output)
-	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"job", "test-plan", "456"})
+	jobOutput := executeJobActionCommand(t, []string{"job", "test-plan", "456"})
+	topLevelOutput := executeJobActionCommand(t, []string{"test-plan", "456"})
 
-	if err := command.Execute(); err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+	if jobOutput != topLevelOutput {
+		t.Fatalf("outputs differ:\njob test-plan:\n%s\ntest-plan:\n%s", jobOutput, topLevelOutput)
 	}
-	if got := output.String(); !strings.Contains(got, "1. bin/rspec\n   Run the regression specs.") {
-		t.Fatalf("output = %q", got)
+
+	expected := `Test plan for JOB-456: Add user avatar upload
+
+1. Navigate to /settings/profile
+2. Click "Upload avatar" and select a PNG under 2 MB
+3. Verify the avatar appears in the nav bar immediately
+
+Notes: Avatar storage uses ActiveStorage.
+`
+	if jobOutput != expected {
+		t.Fatalf("output = %q", jobOutput)
+	}
+	if !reflect.DeepEqual(requestedPaths, []string{"/api/v1/app/jobs/456", "/api/v1/app/jobs/456"}) {
+		t.Fatalf("requested paths = %#v", requestedPaths)
 	}
 }
 
@@ -414,6 +434,9 @@ func TestJobOpenUsesConfiguredInstanceURL(t *testing.T) {
 
 func writeJobActionTestCredentials(t *testing.T, url string) {
 	t.Helper()
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	path := filepath.Join(home, ".syrus")
@@ -423,4 +446,20 @@ func writeJobActionTestCredentials(t *testing.T, url string) {
 	if err := os.WriteFile(filepath.Join(path, "credentials"), []byte("url="+url+"\ntoken=test-token\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func executeJobActionCommand(t *testing.T, args []string) string {
+	t.Helper()
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs(args)
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute(%v) returned error: %v", args, err)
+	}
+
+	return output.String()
 }

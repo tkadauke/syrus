@@ -172,8 +172,8 @@ open the connected Syrus instance in your browser, open Preferences, or
 quit the app.
 
 Most commands accept a normal user API token and scope themselves to
-what that user can see. Commands that read admin-only payloads, such as
-top-level `syrus test-plan`, require an admin token.
+what that user can see. Commands that operate on instance-wide
+administrative surfaces require an admin token.
 
 ## Repository Detection
 
@@ -370,11 +370,13 @@ branch is explicitly built on top of another.
 
 ## Test Plans
 
-The top-level test-plan shortcut accepts a numeric ID, a `JOB-<n>` slug,
-or a human-readable slug derived from the job title:
+Both `syrus test-plan` and `syrus job test-plan` read the same
+user-visible Job test plan. They accept a numeric ID, a `JOB-<n>` slug,
+or a human-readable slug derived from the Job title:
 
 ```bash
 syrus test-plan JOB-456
+syrus job test-plan 456
 syrus test-plan repair-aqueduct
 ```
 
@@ -386,8 +388,7 @@ syrus test-plan
 
 It infers the Job from branches like `syrus/issue-42-456`,
 `syrus/direct-456`, `syrus/scheduled-10-456`, and `syrus/local-456`.
-The command prints the newest completed workflow's `test_plan` artifact
-as a numbered checklist.
+The command prints the Job's test plan as a numbered checklist.
 
 After reviewing and testing locally, approve from the terminal:
 
@@ -555,8 +556,7 @@ syrus k8s overview --cluster 1
 with exactly one registered cluster it is inferred automatically. All
 resource commands except `nodes` and `overview` accept `--namespace` to
 restrict the listing; omitting it lists across every namespace, the same
-as `kubectl get <kind> -A`. These commands require an admin API token,
-same as `syrus test-plan`.
+as `kubectl get <kind> -A`. These commands require an admin API token.
 
 This command group is read-only. The plugin's cluster actions (deleting a
 pod, restarting a rollout, scaling a deployment, cordoning a node) are
