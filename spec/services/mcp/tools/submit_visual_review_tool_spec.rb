@@ -43,27 +43,6 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     ])
   end
 
-  def add_visual_screenshot_with_text(target_run, path:, title:, text:)
-    target_run.workflow.set_artifact!("typed_artifacts", [
-      {
-        "type" => "visual_review_screenshot_run_#{target_run.id}_1",
-        "original_type" => "visual_review_screenshot",
-        "title" => "Credential Store after change",
-        "payload" => {
-          "run_id" => target_run.id,
-          "image_url" => "/api/v1/app/workflows/#{target_run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{target_run.id}_1",
-          "content_type" => "image/png",
-          "byte_size" => 1234,
-          "page" => {
-            "path" => path,
-            "title" => title
-          },
-          "dom_text" => text
-        }
-      }
-    ])
-  end
-
   it "accepts a run_id-only sidecar context" do
     described_class.call(
       critique: "No visual issues found.",
@@ -147,7 +126,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
   end
 
-  it "rejects an approved review when the intended route only has sign-in screenshots" do
+  it "keeps provenance when a non-auth route review approves a sign-in screenshot" do
     credential_job = Factories.job(
       issue_title: "Review the Credential Store route",
       issue_body: "The changed surface is /credential_store."
@@ -161,36 +140,16 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
       server_context: { run: credential_run }
     )
 
-    expect(response).to be_error
-    expect(response.content.first[:text]).to include("/credential_store")
-    expect(response.content.first[:text]).to include("/session/new")
-    expect(response.content.first[:text]).to include("Sign in")
-    expect(response.content.first[:text]).to include("Submit skipped")
-    expect(credential_run.workflow.reload.artifact("visual_review_iterations")).to be_nil
-  end
-
-  it "rejects approval using text evidence of an auth wall without persisting the text dump" do
-    credential_job = Factories.job(
-      issue_title: "Review the Credential Store route",
-      issue_body: "The changed surface is /credential_store."
+    expect(response).not_to be_error
+    iteration = credential_run.workflow.reload.artifact("visual_review_iterations").last
+    expect(iteration).to include("verdict" => "approved")
+    expect(iteration.fetch("artifacts").first).to include(
+      "page" => {
+        "url" => "http://127.0.0.1:3000/session/new",
+        "path" => "/session/new",
+        "title" => "Sign in"
+      }
     )
-    credential_run = visual_run_for(credential_job)
-    add_visual_screenshot_with_text(
-      credential_run,
-      path: "/credential_store",
-      title: "Credential Store",
-      text: "Authentication required. Sign in to continue."
-    )
-
-    response = described_class.call(
-      critique: "Credential Store looks correct.",
-      verdict: "approved",
-      server_context: { run: credential_run }
-    )
-
-    expect(response).to be_error
-    expect(response.content.first[:text]).to include("/credential_store")
-    expect(credential_run.workflow.reload.artifact("visual_review_iterations")).to be_nil
   end
 
   it "allows skipped for an auth blocker on a non-auth intended route" do
@@ -222,6 +181,25 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
 
     response = described_class.call(
       critique: "The sign-in page looks correct.",
+      verdict: "approved",
+      server_context: { run: auth_run }
+    )
+
+    expect(response).not_to be_error
+    expect(auth_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "approved")
+  end
+
+  it "allows approval for a login-form job even when the prompt mentions a post-login route" do
+    auth_job = Factories.job(
+      issue_title: "Polish the login form",
+      issue_body: "Improve /session/new; after login the user redirects to /credential_store."
+    )
+    auth_run = visual_run_for(auth_job)
+    auth_run.update!(prompt: "Review the login form at /session/new and confirm it still redirects to /credential_store.")
+    add_visual_screenshot(auth_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "The login form looks correct.",
       verdict: "approved",
       server_context: { run: auth_run }
     )

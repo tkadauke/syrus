@@ -370,8 +370,9 @@ module Prompts
         applies, do not approve:
         - Call `submit_visual_review` with verdict "skipped" when the blocker
           is tooling/environment — no synced clone, missing seed data,
-          preview infrastructure that isn't wired up for this route — rather
-          than something the implementation itself should have provided.
+          auth/session state you cannot obtain, preview infrastructure that
+          isn't wired up for this route — rather than something the
+          implementation itself should have provided.
         - Call `submit_visual_review` with verdict "needs_work" when the
           missing route, missing data, or broken preview setup is itself an
           implementation or preview-seeding defect the implementing agent
@@ -380,6 +381,18 @@ module Prompts
         surface you could not exercise, and (b) the fallback or proxy page
         you considered and rejected. Do not silently substitute a different
         page's screenshots and approve as if you had verified the real one.
+
+        Auth/error walls are a common version of this failure. If you intend
+        to review a non-auth surface such as `/credential_store` and your
+        screenshots show `/session/new`, a sign-in page, a 404 page, or an
+        application error instead, those screenshots are evidence of the
+        blocker rather than evidence that the intended surface looks correct.
+        Submit "skipped" for external tooling/auth/seed blockers, or
+        "needs_work" when the redirect/error is an implementation or preview
+        defect. Legitimate auth/session-screen work is different: if the
+        changed surface is the sign-in, login, signup, or session page itself,
+        review and approve that auth surface normally, even if the Job also
+        mentions a post-login route or redirect.
       TEXT
     end
 

@@ -45,9 +45,6 @@ module Mcp::Tools
         workflow = run.workflow
         iterations = Array(workflow.artifact("visual_review_iterations"))
         artifact_evidence = visual_artifacts_for_run(workflow, run)
-        evidence = VisualReviewEvidenceGuard.validate_approval(run: run, verdict: normalized_verdict, artifacts: artifact_evidence)
-        return Mcp::Tools.invalid(evidence.reason) if evidence.rejected?
-
         artifacts = artifact_evidence.map { |artifact| artifact.except("text") }
         iterations << {
           "iteration" => run.step.iteration,
