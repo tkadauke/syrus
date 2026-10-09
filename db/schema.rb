@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_151940) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1497,6 +1497,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
     t.index ["job_id", "user_id"], name: "index_job_approvals_on_job_id_and_user_id", unique: true
     t.index ["job_id"], name: "index_job_approvals_on_job_id"
     t.index ["user_id"], name: "index_job_approvals_on_user_id"
+  end
+
+  create_table "job_classification_attempts", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.string "outcome", limit: 32
+    t.json "decision"
+    t.text "error"
+    t.text "raw_output", limit: 16777216
+    t.string "agent_provider", limit: 64
+    t.integer "spawned_process_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "finished_at"], name: "idx_job_classification_attempts_job_finished"
+    t.index ["job_id", "started_at", "id"], name: "idx_job_classification_attempts_job_started"
+    t.index ["job_id"], name: "index_job_classification_attempts_on_job_id"
+    t.index ["spawned_process_id"], name: "index_job_classification_attempts_on_spawned_process_id"
   end
 
   create_table "job_dependencies", force: :cascade do |t|
@@ -3118,6 +3136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.integer "job_id"
     t.index ["agent_id", "chat_session_id"], name: "idx_spawned_processes_agent_chat_backfill"
     t.index ["agent_id", "run_id"], name: "idx_spawned_processes_agent_run_backfill"
     t.index ["agent_id"], name: "index_spawned_processes_on_agent_id"
@@ -3127,6 +3146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
     t.index ["finished_at", "last_chunk_at"], name: "idx_spawned_processes_active"
     t.index ["finished_at"], name: "index_spawned_processes_on_finished_at"
     t.index ["hostname"], name: "index_spawned_processes_on_hostname"
+    t.index ["job_id"], name: "index_spawned_processes_on_job_id"
     t.index ["kill_requested_by_user_id"], name: "index_spawned_processes_on_kill_requested_by_user_id"
     t.index ["kind", "agent_id", "started_at", "id"], name: "idx_spawned_processes_agent_activity_recency"
     t.index ["kind", "workdir", "finished_at"], name: "idx_spawned_processes_kind_workdir_active"
