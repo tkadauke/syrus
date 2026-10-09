@@ -17,7 +17,7 @@ operations.
 | **3. Build or customize the local image** | Operators changing Syrus or adding OS packages | 20-40min first build | `bin/compose-up` builds from the checkout and applies `EXTRA_APT_PACKAGES` / `Dockerfile.local`. |
 | **4. Develop Syrus from source** | Syrus contributors | Toolchain-dependent | `install.sh --bare-metal`, `bin/setup`, and `bin/dev` for fast reloads. |
 | **5. Deploy to a cluster** | Teams running real infra | Infrastructure-dependent | Kubernetes/k3s hard mode. The public Helm/chart path is still not a complete artifact. |
-| **6. Add native Mac workers** | Teams with Xcode workloads | Host-dependent | [macOS workers](/docs/deployment/macos-workers) run outside Kubernetes, consume capability-matched queues, and update themselves by polling for releases. |
+| **6. Add native Mac workers** | Teams with Xcode workloads | Host-dependent | [macOS workers](/docs/deployment/macos-workers) run outside Kubernetes, consume capability-matched queues, and update themselves by polling for releases. Use the [iOS Compute Runbook](/docs/ios-compute-runbook) for Job planning and grader placement. |
 
 ## Decision tree
 
@@ -26,7 +26,7 @@ operations.
 - **Need system packages or source changes in the image?** Use the source/custom build path in [Docker Compose](/docs/deployment/docker-compose#build-or-customize-the-image).
 - **Working on Syrus itself?** Use the bare-metal source path in the project README.
 - **Production at scale?** Read [Kubernetes](/docs/deployment/kubernetes), including the current packaging status.
-- **Need Xcode or iOS simulators?** Add [macOS workers](/docs/deployment/macos-workers) as an external compute pool.
+- **Need Xcode or iOS simulators?** Add [macOS workers](/docs/deployment/macos-workers) as an external compute pool, then follow the [iOS Compute Runbook](/docs/ios-compute-runbook).
 
 ## Run Locally
 

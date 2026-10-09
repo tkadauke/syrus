@@ -30,6 +30,7 @@ const preferredOrder = [
   "features",
   "configuration",
   "monorepo-adoption",
+  "ios-compute-runbook",
   "plugins",
   "cli",
   "desktop",
