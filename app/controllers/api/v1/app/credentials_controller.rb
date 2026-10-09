@@ -184,11 +184,6 @@ module Api
         end
 
         def rotate_api_token
-          unless Current.user.admin?
-            render_error("forbidden", "API token is admin-only.", status: :forbidden)
-            return
-          end
-
           new_token = Current.user.generate_api_token!
           render json: credentials_payload(Current.user.reload).merge(
             message: "API token rotated. Copy it now; it won't be shown again.",
@@ -197,11 +192,6 @@ module Api
         end
 
         def revoke_api_token
-          unless Current.user.admin?
-            render_error("forbidden", "API token is admin-only.", status: :forbidden)
-            return
-          end
-
           Current.user.revoke_api_token!
           render json: credentials_payload(Current.user.reload).merge(message: "API token revoked.")
         end
@@ -312,7 +302,7 @@ module Api
             codex_auth_json: user.codex_auth_json.present?,
             gemini_api_key: user.gemini_api_key.present?,
             muse_api_key: user.muse_api_key.present?,
-            api_token: user.admin? ? user.api_token.present? : nil
+            api_token: user.api_token.present?
           }
         end
 

@@ -103,6 +103,40 @@ RSpec.describe "native macOS worker updater" do
     end
   end
 
+  it "uses the scoped macOS worker token before the legacy API token" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      env_file = File.join(dir, "worker.env")
+      request_file = File.join(dir, "request.txt")
+      File.write(env_file, <<~ENV)
+        SYRUS_APP_HOST=https://syrus.example.test/
+        SYRUS_DATA_ROOT=#{dir}
+        SYRUS_MACOS_WORKER_TOKEN=scoped-token
+        SYRUS_API_TOKEN=legacy-admin-token
+      ENV
+      bin_dir = stub_prepare_commands(dir)
+      write_executable(File.join(bin_dir, "curl"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\\n' "$*" > "#{request_file}"
+        printf '{"enabled":false,"desired":{}}'
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}" },
+        "bash",
+        script,
+        "--env-file",
+        env_file,
+        "--once"
+      )
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      request = File.read(request_file)
+      expect(request).to include("Authorization: Bearer scoped-token")
+      expect(request).not_to include("legacy-admin-token")
+    end
+  end
+
   it "downloads, verifies, activates, and prunes releases" do
     Dir.mktmpdir do |raw_dir|
       # macOS symlinks /var to /private/var, so mktmpdir hands back an

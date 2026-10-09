@@ -698,35 +698,43 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "rotates and revokes admin API tokens" do
-    sign_in_as(user)
-
-    post "/api/v1/app/credentials/rotate_api_token"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["new_api_token"]).to start_with("syrus_")
-    expect(user.reload.api_token).to start_with("syrus_")
-    expect(parse_body.dig("credential_status", "api_token")).to be true
-
-    delete "/api/v1/app/credentials/revoke_api_token"
-
-    expect(response).to have_http_status(:ok)
-    expect(user.reload.api_token).to be_nil
-    expect(parse_body.dig("credential_status", "api_token")).to be false
-  end
-
-  it "rejects API token actions for non-admins" do
+  it "rotates and revokes personal API tokens for non-admins" do
     admin = user
     non_admin = Factories.user
+    repository = Factories.repository(user: non_admin)
     expect(admin).to be_admin
     expect(non_admin).not_to be_admin
     sign_in_as(non_admin)
 
     post "/api/v1/app/credentials/rotate_api_token"
 
+    expect(response).to have_http_status(:ok)
+    token = parse_body["new_api_token"]
+    expect(token).to start_with("syrus_")
+    expect(non_admin.reload.api_token).to eq(token)
+    expect(parse_body.dig("credential_status", "api_token")).to be true
+
+    get "/api/v1/app/repositories", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("repositories").map { |repo| repo["id"] }).to include(repository.id)
+
+    delete "/api/v1/app/credentials/revoke_api_token"
+
+    expect(response).to have_http_status(:ok)
+    expect(non_admin.reload.api_token).to be_nil
+    expect(parse_body.dig("credential_status", "api_token")).to be false
+  end
+
+  it "keeps personal API tokens out of admin-only endpoints for non-admins" do
+    user
+    non_admin = Factories.user
+    token = non_admin.generate_api_token!
+
+    get "/api/v1/app/admin/users", headers: { "Authorization" => "Bearer #{token}" }
+
     expect(response).to have_http_status(:forbidden)
     expect(parse_body.dig("error", "code")).to eq("forbidden")
-    expect(non_admin.reload.api_token).to be_nil
   end
 
   it "returns locale in the credentials payload" do

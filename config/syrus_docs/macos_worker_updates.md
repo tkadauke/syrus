@@ -31,8 +31,12 @@ rollouts and rollbacks. Old release directories are pruned after activation
 while keeping the active release and the configured rollback window.
 
 Workers report update state to
-`POST /api/v1/app/admin/macos_worker_update/report` with an admin bearer token
-in `SYRUS_API_TOKEN`. The live `InstanceVersion` row and retained
+`POST /api/v1/app/admin/macos_worker_update/report` with a scoped macOS worker
+bearer token in `SYRUS_MACOS_WORKER_TOKEN`. Generate one with
+`bin/rails syrus:macos_worker_token`; set `DAYS=<n>` to choose a lifetime
+other than the default 30 days. The updater still accepts `SYRUS_API_TOKEN` as
+a legacy fallback, but workers should not carry a human admin's full API token.
+The live `InstanceVersion` row and retained
 `WorkerHostHealthSample` rows include `desired_version`,
 `macos_updater_status`, and `macos_updater_state`, allowing admin surfaces to
 show `current`, `updating`, `failed`, or `stale` workers.

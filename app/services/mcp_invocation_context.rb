@@ -23,7 +23,11 @@ class McpInvocationContext
   VERSION = 1
 
   REQUIRED_KEYS = %w[v surface worker_id iat exp].freeze
-  SURFACES = %w[run chat].freeze
+  MACOS_WORKER_UPDATE_PATHS = %w[
+    /api/v1/app/admin/macos_worker_update
+    /api/v1/app/admin/macos_worker_update/report
+  ].freeze
+  SURFACES = %w[run chat macos_worker].freeze
 
   class InvalidContext < StandardError; end
   class Malformed < InvalidContext; end
@@ -105,6 +109,18 @@ class McpInvocationContext
       )
     end
 
+    def issue_for_app_macos_worker(expires_in: 30.days)
+      issue(
+        surface: "macos_worker",
+        worker_id: APP_API_AUDIENCE,
+        expires_in: expires_in,
+        payload: {
+          "aud" => APP_API_AUDIENCE,
+          "allowed_paths" => MACOS_WORKER_UPDATE_PATHS
+        }
+      )
+    end
+
     # Verifies and reconstructs a Resolved context for `token`, scoped to the
     # daemon instance identified by `worker_id` (PersistentMcpDaemon#identity's
     # worker_id). Raises a specific InvalidContext subclass -- and logs the
@@ -175,7 +191,17 @@ class McpInvocationContext
       case payload["surface"]
       when "run"  then build_resolved_for_run(payload)
       when "chat" then build_resolved_for_chat(payload)
+      when "macos_worker" then build_resolved_for_macos_worker(payload)
       end
+    end
+
+    def build_resolved_for_macos_worker(payload)
+      validate_expiry!(payload)
+
+      Resolved.new(
+        tool_context: McpToolContext.for_macos_worker_update,
+        surface: :macos_worker
+      )
     end
 
     def build_resolved_for_run(payload)

@@ -121,8 +121,8 @@ credentials: `SYRUS_APP_HOST`; `SECRET_KEY_BASE`; either `RAILS_MASTER_KEY` or a
 `SYRUS_DATABASE_PASSWORD` unless this is a SQLite local-mode install; and S3 or
 MinIO attachment credentials (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
 `S3_BUCKET`, `S3_ENDPOINT`) unless `SYRUS_SQLITE` is set.
-Include `SYRUS_API_TOKEN` when the updater polls Syrus directly or reports
-activation state. If the installation uses private artifact storage, include
+Include `SYRUS_MACOS_WORKER_TOKEN` when the updater polls Syrus directly or
+reports activation state. If the installation uses private artifact storage, include
 the credentials and trust material needed to download and verify the worker
 release archive. GitHub and model credentials belong in the env file only when
 the deployment intentionally uses process-level credentials rather than
@@ -221,10 +221,10 @@ Workers or `read_queue` for a fresh Mac worker heartbeat, matching
 intentionally excluded from compatible capacity until the update completes.
 
 If the worker version is stale, inspect updater status on the worker-health
-surface, confirm `SYRUS_API_TOKEN` can read desired release metadata, verify
-the artifact URL and SHA-256, and compare the worker's heartbeat `git_sha` with
-the desired release. Mac workers should be rolled only after the k3s/web
-deployment has run migrations.
+surface, confirm `SYRUS_MACOS_WORKER_TOKEN` can read desired release metadata,
+verify the artifact URL and SHA-256, and compare the worker's heartbeat
+`git_sha` with the desired release. Mac workers should be rolled only after the
+k3s/web deployment has run migrations.
 
 If `bin/macos-worker-check --env-file /etc/syrus/worker.env` reports Xcode
 failures, fix Command Line Tools or `xcode-select`, install full Xcode, accept
