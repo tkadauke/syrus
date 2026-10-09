@@ -27,6 +27,11 @@ class RunJob < ApplicationJob
   # pinned host about twenty minutes to recover before Syrus pays the re-clone
   # cost and lets the Run land on another eligible worker.
   PINNED_HOST_ADMISSION_DEFERRAL_BUDGET = 40
+  LIFECYCLE_LOCK_RETRY_ERRORS = [
+    ActiveRecord::Deadlocked,
+    ActiveRecord::LockWaitTimeout
+  ].freeze
+  LIFECYCLE_LOCK_RETRY_ATTEMPTS = 3
 
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
@@ -432,9 +437,7 @@ class RunJob < ApplicationJob
       return
     end
 
-    succeed_run!(@run)
-    @step.succeed!
-    @step.save!
+    record_successful_step!
     log("step #{@step.kind} done (#{@workflow.slug})")
   end
 
@@ -494,9 +497,47 @@ class RunJob < ApplicationJob
   end
 
   def succeed_run!(run)
+    return if run.succeeded?
+
     run.agent_outcome = nil if run.agent_outcome == "worker_died"
     run.succeed!
     run.save!
+  end
+
+  def record_successful_step!
+    with_lifecycle_lock_retry("record success for Run ##{@run.id}") do
+      @run.reload
+      @step.reload
+      @workflow.reload
+
+      return if @workflow.terminal? || @step.terminal?
+      return if @run.terminal? && !@run.succeeded?
+
+      succeed_run!(@run)
+      @step.succeed! if @step.may_succeed?
+      @step.save!
+    end
+  end
+
+  def with_lifecycle_lock_retry(operation)
+    attempts = 0
+
+    begin
+      yield
+    rescue *LIFECYCLE_LOCK_RETRY_ERRORS => e
+      attempts += 1
+      raise if attempts >= LIFECYCLE_LOCK_RETRY_ATTEMPTS
+
+      Rails.logger.warn(
+        "[RunJob] #{operation} hit #{e.class}; " \
+        "retrying lifecycle write #{attempts}/#{LIFECYCLE_LOCK_RETRY_ATTEMPTS - 1}"
+      )
+      sleep(0.05 * attempts) unless Rails.env.test?
+      @run&.reload
+      @step&.reload
+      @workflow&.reload
+      retry
+    end
   end
 
   def acquire_run_execution!
