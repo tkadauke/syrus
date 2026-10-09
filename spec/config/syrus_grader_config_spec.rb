@@ -233,6 +233,20 @@ RSpec.describe "Syrus grader configuration" do
     ])
   end
 
+  it "keeps work-engine scenario assertions in the dedicated simulation grader" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "work-engine-simulations" }
+
+    expect(grader.run).to include("bin/simulator")
+    expect(grader.run).to include('RSPEC_TAG_ARGS="--tag ~ci_only --tag work_engine_simulation_assertions"')
+    expect(grader.run).to include("bin/rspec-worker spec/services/work_engine/simulation/scenario_runner_spec.rb")
+    expect(grader.when_files_changed).to include(
+      "app/services/work_engine/**",
+      "spec/services/work_engine/**",
+      "spec/fixtures/work_engine_simulations/**"
+    )
+  end
+
   it "declares every bundled plugin as an individual plugin project with a local grader" do
     graph = TargetGraph::Compiler.compile(Rails.root)
     plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort

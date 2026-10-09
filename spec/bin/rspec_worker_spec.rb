@@ -13,7 +13,7 @@ RSpec.describe "bin/rspec-worker" do
     File.chmod(0o755, path)
   end
 
-  it "always excludes :ci_only specs, even when CI is set" do
+  it "excludes specs owned by dedicated graders from the default worker pass" do
     Dir.mktmpdir do |dir|
       bin_dir = File.join(dir, "bin")
       FileUtils.mkdir_p(bin_dir)
@@ -25,12 +25,9 @@ RSpec.describe "bin/rspec-worker" do
         printf 'rspec args=%s\\n' "$*" >> calls.log
       BASH
 
-      # The typed RSpec CI variant's second phase is solely responsible for running
-      # :ci_only specs. GitHub Actions always sets CI=true, and
-      # spec_helper.rb treats that the same as RUN_CI_ONLY_SPECS=true —
-      # without an explicit CLI-level exclusion here, the parallel fast
-      # phase would run :ci_only specs a second time under real CI,
-      # overloading the runner (see bin/rspec-worker comment).
+      # The typed RSpec CI variant's second phase is solely responsible for
+      # running :ci_only specs. The work-engine simulation grader owns the
+      # scenario assertion suite. Keep both out of the default parallel pass.
       stdout, stderr, status = Open3.capture3(
         { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"), "CI" => "true" },
         "bash",
@@ -42,7 +39,7 @@ RSpec.describe "bin/rspec-worker" do
 
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
-        "rspec args=--tag ~ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-1.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-1.xml spec/models/job_spec.rb"
+        "rspec args=--tag ~ci_only --tag ~work_engine_simulation_assertions --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-1.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-1.xml spec/models/job_spec.rb"
       ])
     end
   end
