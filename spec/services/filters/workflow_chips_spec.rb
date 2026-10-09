@@ -59,7 +59,7 @@ RSpec.describe "Filters::Chips::Workflows" do
       schema = Filters::Schema.for(subject: :workflow, user: user)
       by_field = schema.index_by { |chip| chip["field"] }
 
-      expect(by_field["state"]["values"].map { |v| v["value"] }).to eq(%w[ queued running succeeded failed cancelled ])
+      expect(by_field["state"]["values"].map { |v| v["value"] }).to eq(%w[ queued running succeeded failed cancelled blocked ])
       expect(by_field["trigger_kind"]["values"].map { |v| v["value"] }).to include("initial", "pr_comment")
       expect(by_field["trigger_kind"]["values"].map { |v| v["value"] }).not_to include("resume")
       expect(by_field["agent_provider"]["values"].map { |v| v["value"] }).to eq(User.agent_providers)

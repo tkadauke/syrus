@@ -62,7 +62,7 @@ class Workflow < ApplicationRecord
   serialize :chain_template, coder: JSON
 
   scope :epic_wide, -> { where(trigger_kind: EPIC_WIDE_TRIGGER_KINDS) }
-  scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
+  scope :terminal, -> { where(state: %w[ succeeded failed cancelled blocked ]) }
   scope :ordered, -> { order(:created_at) }
 
   def slug
@@ -72,7 +72,7 @@ class Workflow < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled
+    state :running, :succeeded, :failed, :cancelled, :blocked
 
     event :start do
       transitions from: :queued, to: :running,
@@ -92,6 +92,11 @@ class Workflow < ApplicationRecord
     event :cancel do
       transitions from: [ :queued, :running ], to: :cancelled,
         after: -> { Workflows::LifecyclePropagation.cancelled!(self) }
+    end
+
+    event :block do
+      transitions from: [ :queued, :running ], to: :blocked,
+        after: -> { Workflows::LifecyclePropagation.blocked!(self) }
     end
 
     event :reopen do
@@ -423,7 +428,7 @@ class Workflow < ApplicationRecord
   end
 
   def terminal?
-    succeeded? || failed? || cancelled?
+    succeeded? || failed? || cancelled? || blocked?
   end
 
   def request_live_process_kill!

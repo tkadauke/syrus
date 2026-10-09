@@ -1024,7 +1024,7 @@ export type PreviewActionPayload = {
 
 export type DeployWorkflowRecord = {
   id: number
-  state: "queued" | "running" | "succeeded" | "failed" | "cancelled"
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "blocked"
   failure_reason: string | null
   created_at: string | null
   started_at: string | null
