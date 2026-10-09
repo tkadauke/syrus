@@ -192,6 +192,7 @@
   "attention_reason": {
     "fork_pr_closed": "Fork pull request closed",
     "fork_pr_changes_requested": "Changes requested",
+    "grader_loop_no_progress": "Repair loop stopped",
     "unread_pr_feedback": "Unread PR feedback",
     "upstream_pr_closed": "Pull request closed",
     "upstream_pr_changes_requested": "Changes requested"
