@@ -234,7 +234,8 @@
     "invalid": "Invalidum",
     "unmergeable": "Bellum",
     "mergeable": "Concordia",
-    "skipped": "Omissum"
+    "skipped": "Omissum",
+    "blocked": "Impedita"
   },
   "trigger_kind": {
     "initial": "Initiale",

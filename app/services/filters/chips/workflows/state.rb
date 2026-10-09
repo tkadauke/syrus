@@ -5,7 +5,7 @@ module Filters
         filter_name "state"
         label "State"
         column :state
-        values "queued", "running", "succeeded", "failed", "cancelled"
+        values "queued", "running", "succeeded", "failed", "cancelled", "blocked"
       end
     end
   end

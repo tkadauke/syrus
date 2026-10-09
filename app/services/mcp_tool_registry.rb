@@ -373,6 +373,7 @@ class McpToolRegistry
         # and cannot distinguish real main-branch regressions from transient
         # infrastructure failures, so granting these would produce false quorum
         # signals.
+        workflow(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),

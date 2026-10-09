@@ -234,7 +234,8 @@
     "invalid": "invalid",
     "unmergeable": "unmergeable",
     "mergeable": "mergeable",
-    "skipped": "skipped"
+    "skipped": "skipped",
+    "blocked": "blocked"
   },
   "trigger_kind": {
     "initial": "initial",

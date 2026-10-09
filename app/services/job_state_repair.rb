@@ -53,7 +53,7 @@ class JobStateRepair
     end
 
     def terminal_latest_workflow?
-      job.latest_workflow&.state&.in?(%w[succeeded failed cancelled])
+      job.latest_workflow&.state&.in?(%w[succeeded failed cancelled blocked])
     end
 
     def ready_pr?
