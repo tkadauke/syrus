@@ -206,7 +206,10 @@ Worker storage identity is fully supported on macOS. The first boot writes
 consumes the matching `resume-<worker-storage-key>` queue for sticky retries.
 
 Known telemetry gap: `WorkerHostHealthSampler` currently reads Linux `/proc`
-files for CPU, memory, load, and pressure metrics. On macOS those fields are
+files for CPU, memory, and load metrics. On Linux workers, pressure metrics
+prefer the worker's cgroup v2 `cpu.pressure`/`io.pressure` files and fall back
+to `/proc/pressure/*` only when the cgroup files are absent; the sample's
+`raw_metrics` records which source/path was used. On macOS those fields are
 reported as absent rather than synthesized. Data-root disk usage, worker
 capabilities, version, role, hostname, storage key, Solid Queue heartbeats, and
 health sample rows still record normally, so the worker is visible in admin
