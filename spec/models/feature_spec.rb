@@ -37,7 +37,7 @@ RSpec.describe Feature, type: :model do
       Feature.create!(slug: "memoized_feature", category: "Example", name: "Memoized", enabled: true)
       Current.feature_enabled_cache = {}
 
-      expect(Feature).to receive(:pluck).with(:slug, :enabled).once.and_call_original
+      expect(Feature).to receive(:pluck).with(:slug, :enabled, :experimental).once.and_call_original
 
       expect(Feature.enabled?("memoized_feature")).to be true
       expect(Feature.enabled?(:memoized_feature)).to be true
@@ -48,7 +48,7 @@ RSpec.describe Feature, type: :model do
       Feature.process_cache_ttl = 60.seconds
       Feature.create!(slug: "process_cached_feature", category: "Example", name: "Process cached", enabled: true)
 
-      expect(Feature).to receive(:pluck).with(:slug, :enabled).once.and_call_original
+      expect(Feature).to receive(:pluck).with(:slug, :enabled, :experimental).once.and_call_original
 
       Current.reset
       expect(Feature.enabled?("process_cached_feature")).to be true
@@ -67,6 +67,29 @@ RSpec.describe Feature, type: :model do
       Feature.clear_enabled_cache!("cleared_feature")
 
       expect(Feature.enabled?("cleared_feature")).to be true
+    end
+
+    it "treats enabled beta features as disabled until beta mode is enabled" do
+      feature = Feature.create!(slug: "beta_feature", category: "Labs", name: "Beta feature", enabled: true)
+      feature.update_column(:experimental, true)
+      Feature.clear_enabled_cache!
+
+      expect(Feature.enabled?("beta_feature")).to be false
+
+      AppSetting.current.update!(beta_mode_enabled: true)
+
+      expect(Feature.enabled?("beta_feature")).to be true
+    end
+
+    it "clears cached effective values when beta mode changes" do
+      AppSetting.current.update!(beta_mode_enabled: true)
+      Feature.create!(slug: "cached_beta_feature", category: "Labs", name: "Cached beta feature", enabled: true, experimental: true)
+
+      expect(Feature.enabled?("cached_beta_feature")).to be true
+
+      AppSetting.current.update!(beta_mode_enabled: false)
+
+      expect(Feature.enabled?("cached_beta_feature")).to be false
     end
   end
 

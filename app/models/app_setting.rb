@@ -45,7 +45,7 @@ class AppSetting < ApplicationRecord
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
-  after_commit :refresh_beta_mode_plugin_installations, if: :beta_mode_enabled_changed?
+  after_commit :refresh_beta_mode_capability_caches, if: :beta_mode_enabled_changed?
 
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
@@ -271,7 +271,8 @@ class AppSetting < ApplicationRecord
     has_attribute?(:beta_mode_enabled) && saved_change_to_beta_mode_enabled?
   end
 
-  def refresh_beta_mode_plugin_installations
+  def refresh_beta_mode_capability_caches
+    Feature.clear_enabled_cache! if defined?(Feature)
     return unless defined?(Syrus::PluginRegistry)
 
     Syrus::PluginRegistry.clear_plugin_record_cache!
