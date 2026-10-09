@@ -150,6 +150,17 @@ expose "Recheck" and
 "Resume anyway"; the latter stores a per-user/provider override that suppresses
 provider-availability pauses until newer provider evidence arrives.
 
+The admin Users surface lists provider availability per user and per configured
+agent provider, including the latest evidence and an explicit `not_configured`
+state when that user has no credential for a provider. A provider authentication
+error becomes an attention signal once it is at least six hours old and active
+work for that same user/provider is blocked on provider availability. Six hours
+is deliberately "hours, not minutes": short token-refresh or probe hiccups stay
+quiet, while a same-day credential outage no longer waits for a multi-day
+manual diagnosis. The admin Work Units surface repeats the owning user's
+provider state on units blocked for `provider_availability`, so the block cause
+is visible without joining evidence rows by hand.
+
 Provider routing rules now define workflow admission fallback chains. A
 user-scoped `ProviderRoutingRule` with `task_key: "default"` supplies an ordered
 candidate list for ordinary work, and more specific repository/task rules can

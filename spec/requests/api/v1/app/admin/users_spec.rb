@@ -8,6 +8,25 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     JSON.parse(response.body)
   end
 
+  def blocked_provider_work(user:, provider:)
+    repo = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repo)
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", state: "queued", agent_provider: provider)
+    intent = WorkIntent.create!(kind: "initial", state: "requested", repository: repo, scope_type: "job", scope_id: job.id, actor: user)
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      workflow: workflow,
+      kind: "initial",
+      state: "blocked",
+      blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON,
+      blocked_at: 7.hours.ago,
+      repository: repo,
+      scope_type: "job",
+      scope_id: job.id
+    )
+    WorkUnitMember.create!(work_unit: unit, job: job, role: "primary")
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/admin/users"
 
@@ -77,6 +96,107 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
       "path" => a_string_matching(%r{\A/admin/users\?smart_folder_id=})
     )
     expect(response.body).not_to include("ghp_secret")
+  end
+
+  it "reports per-user provider availability without conflating users" do
+    sign_in_as(admin)
+    healthy = Factories.user(email_address: "healthy@example.com", claude_oauth_token: "claude-ok")
+    broken = Factories.user(email_address: "broken@example.com", claude_oauth_token: "claude-broken")
+    ProviderAvailabilityEvidence.create!(
+      user: healthy,
+      provider: "claude",
+      status: "available",
+      source: "usage_probe",
+      observed_at: 10.minutes.ago,
+      details: { message: "ok" }
+    )
+    ProviderAvailabilityEvidence.create!(
+      user: broken,
+      provider: "claude",
+      status: "auth_error",
+      source: "usage_probe",
+      observed_at: 10.minutes.ago,
+      http_status: 401,
+      details: { message: "expired" }
+    )
+    App::ProviderAvailability.clear_cache!
+
+    get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "email", "op" => "contains", "value" => "example.com" } ]) }
+
+    expect(response).to have_http_status(:ok)
+    rows = parse_body.fetch("users").index_by { |user| user.fetch("email_address") }
+    expect(rows.dig("healthy@example.com", "provider_availability", "claude", "state")).to eq("available")
+    expect(rows.dig("broken@example.com", "provider_availability", "claude", "state")).to eq("auth_error")
+    expect(rows.dig("broken@example.com", "provider_availability", "claude", "evidence", "current")).to include(
+      "status" => "auth_error",
+      "http_status" => 401
+    )
+  end
+
+  it "raises attention for a stale provider auth error with blocked work" do
+    sign_in_as(admin)
+    user = Factories.user(email_address: "stale@example.com", claude_oauth_token: "claude-broken")
+    blocked_provider_work(user: user, provider: "claude")
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      provider: "claude",
+      status: "auth_error",
+      source: "usage_probe",
+      observed_at: Admin::ProviderCredentialAttention::STALE_AUTH_ERROR_THRESHOLD.ago - 1.minute,
+      http_status: 401,
+      details: { message: "expired" }
+    )
+    App::ProviderAvailability.clear_cache!
+
+    get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "email", "op" => "contains", "value" => "stale@example.com" } ]) }
+
+    row = parse_body.fetch("users").sole
+    expect(row).to include(
+      "needs_attention" => true,
+      "needs_attention_reason" => "stale_provider_credential"
+    )
+    expect(row.fetch("credential_attention")).to include(
+      "provider" => "claude",
+      "blocked_work_units_count" => 1
+    )
+  end
+
+  it "does not raise attention for a fresh provider auth error" do
+    sign_in_as(admin)
+    user = Factories.user(email_address: "fresh@example.com", claude_oauth_token: "claude-broken")
+    blocked_provider_work(user: user, provider: "claude")
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      provider: "claude",
+      status: "auth_error",
+      source: "usage_probe",
+      observed_at: 30.minutes.ago,
+      http_status: 401,
+      details: { message: "refreshing" }
+    )
+    App::ProviderAvailability.clear_cache!
+
+    get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "email", "op" => "contains", "value" => "fresh@example.com" } ]) }
+
+    row = parse_body.fetch("users").sole
+    expect(row).to include(
+      "needs_attention" => false,
+      "needs_attention_reason" => nil,
+      "credential_attention" => nil
+    )
+  end
+
+  it "reports an unconfigured provider distinctly" do
+    sign_in_as(admin)
+    Factories.user(email_address: "missing-provider@example.com", claude_oauth_token: nil)
+
+    get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "email", "op" => "contains", "value" => "missing-provider@example.com" } ]) }
+
+    row = parse_body.fetch("users").sole
+    expect(row.dig("provider_availability", "claude")).to include(
+      "state" => "not_configured",
+      "reason" => "Provider credentials are not configured."
+    )
   end
 
   it "filters and sorts by newly exposed admin user fields" do

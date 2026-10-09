@@ -55,6 +55,7 @@ function payload(overrides: Record<string, unknown> = {}) {
             source_repository: null,
             target_repository: null,
             workflow: { id: 20041, slug: "WF-141", trigger_kind: "ci_failure", state: "running", path: "/jobs/3578?tab=workflows#workflow-20041" },
+            provider_availability: null,
             members: [ { role: "primary", job: { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } } ]
           }
         ]
@@ -119,5 +120,46 @@ describe("AdminWorkUnits", () => {
     })
     const patchCall = fetchSpy.mock.calls.find(([input, init]) => String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH")
     expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ app_setting: { show_work_unit_debug: true } })
+  })
+
+  it("renders provider credential state on provider availability blocks", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
+      intents: [
+        {
+          ...payload().intents[0],
+          units: [
+            {
+              ...payload().intents[0].units[0],
+              state: "blocked",
+              blocked_reason: "provider_availability",
+              provider_availability: {
+                provider: "claude",
+                label: "Claude",
+                model: null,
+                state: "auth_error",
+                open: true,
+                usage_exhausted: false,
+                retry_after: null,
+                reason: "Provider authentication expired.",
+                message: "Claude credentials need reauthorization.",
+                evidence: {
+                  current: {
+                    status: "auth_error",
+                    source: "usage_probe",
+                    observed_at: "2026-08-23T16:30:00Z",
+                    http_status: 401
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    })))
+
+    renderRoute()
+
+    expect(await screen.findByText("blocked: provider_availability")).toBeInTheDocument()
+    expect(screen.getByText("Claude auth_error")).toBeInTheDocument()
   })
 })

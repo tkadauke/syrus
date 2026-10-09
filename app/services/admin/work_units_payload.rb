@@ -46,7 +46,7 @@ module Admin
       @relation ||= begin
         scope = WorkIntent
           .includes(:repository, :source_repository, :target_repository, :actor)
-          .preload(work_units: [ :repository, :source_repository, :target_repository, :workflow, { work_unit_members: { job: :repository } } ])
+          .preload(work_units: [ :repository, :source_repository, :target_repository, { workflow: :user }, { work_unit_members: { job: :repository } } ])
         scope = filter_definition.apply(scope, params)
         scope = scope.distinct if joined_filter?
         sorted_scope(scope)
@@ -141,8 +141,17 @@ module Admin
         source_repository: repository_json(unit.source_repository),
         target_repository: repository_json(unit.target_repository),
         workflow: unit.workflow ? workflow_json(unit.workflow, workflow_job) : nil,
+        provider_availability: provider_availability_json(unit),
         members: unit.work_unit_members.map { |member| member_json(member) }
       }
+    end
+
+    def provider_availability_json(unit)
+      workflow = unit.workflow
+      return nil unless unit.blocked_reason == WorkUnits::Gates::ProviderAvailability::REASON
+      return nil unless workflow&.user && workflow.agent_provider.present?
+
+      Admin::ProviderCredentialAttention.availability_for_user(workflow.user, workflow.agent_provider)
     end
 
     def member_json(member)

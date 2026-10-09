@@ -157,6 +157,8 @@ module Admin
       end
 
       def serialize_user_row(user)
+        provider_availability = provider_availability_payload(user)
+        credential_attention = credential_attention_payload(user, provider_availability)
         {
           id: user.id,
           email_address: user.email_address,
@@ -187,6 +189,10 @@ module Admin
           github_api_blocked_at: user.gh_api_blocked_at,
           github_api_blocked_reason: user.gh_api_blocked_reason,
           github_rate_limit: github_rate_limit_payload(user),
+          provider_availability: provider_availability,
+          needs_attention: credential_attention.present?,
+          needs_attention_reason: credential_attention&.fetch(:reason, nil),
+          credential_attention: credential_attention,
           created_at: user.created_at,
           updated_at: user.updated_at
         }
@@ -236,6 +242,19 @@ module Admin
           percent: user.gh_rate_limit_limit.to_i.positive? ?
                      (user.gh_rate_limit_remaining.to_f / user.gh_rate_limit_limit) : nil
         }
+      end
+
+      def provider_availability_payload(user)
+        User.agent_providers.index_with do |provider|
+          Admin::ProviderCredentialAttention.availability_for_user(user, provider)
+        end
+      end
+
+      def credential_attention_payload(user, provider_availability)
+        User.agent_providers.filter_map do |provider|
+          availability = provider_availability[provider]
+          Admin::ProviderCredentialAttention.attention_for_user(user, provider, availability: availability)
+        end.first
       end
     end
   end

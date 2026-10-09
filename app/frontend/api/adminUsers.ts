@@ -1,5 +1,6 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { AdminFilteredPayload } from "./adminSmartFolders"
+import type { ProviderAvailability } from "./providerAvailability"
 
 export type GithubRateLimit = {
   remaining: number
@@ -40,8 +41,22 @@ export type AdminUserRow = {
   github_api_blocked_at: string | null
   github_api_blocked_reason: string | null
   github_rate_limit: GithubRateLimit | null
+  provider_availability: Record<string, ProviderAvailability>
+  needs_attention: boolean
+  needs_attention_reason: string | null
+  credential_attention: ProviderCredentialAttention | null
   created_at: string
   updated_at: string
+}
+
+export type ProviderCredentialAttention = {
+  reason: string
+  message: string
+  provider: string
+  provider_label: string
+  observed_at: string | null
+  stale_after_seconds: number
+  blocked_work_units_count: number
 }
 
 export type RecentJob = {
