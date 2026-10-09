@@ -1,19 +1,9 @@
 project:
-  id: android-plugin
-  label: Android plugin
-  kind: library
-
-prepare: []
+  id: android
+  label: "android plugin"
+  kind: plugin
 
 grade:
-  - run: bin/rspec plugins/android/spec spec/plugins/plugin_manifest_metadata_spec.rb spec/lib/syrus/plugin/category_spec.rb
-    name: android-plugin
-    timeout_minutes: 10
-    when_files_changed:
-      - "plugins/android/**/*"
-      - "public/plugin-icons/android.svg"
-      - "Gemfile"
-      - "Gemfile.lock"
-      - "lib/syrus/plugin/category.rb"
-      - "spec/plugins/plugin_manifest_metadata_spec.rb"
-      - "spec/lib/syrus/plugin/category_spec.rb"
+  - type: rspec
+    deps:
+      - "//:plugin-api"
