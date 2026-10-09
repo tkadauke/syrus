@@ -16,6 +16,11 @@ RSpec.describe "WorkEngine repair plan completeness" do
     .flatten
     .uniq
     .freeze
+  AUTO_REPAIR_ISSUE_KINDS = File.read(Rails.root.join("app/services/work_engine/reconciler.rb"))
+    .scan(/issue\(\s*kind:\s*:([a-z_]+).*?safe_to_auto_repair:\s*([^,\n\)]+)/m)
+    .filter_map { |kind, value| kind unless value.strip == "false" }
+    .uniq
+    .freeze
 
   it "has automatic actions to check (guards against the scan silently matching nothing)" do
     expect(AUTOMATIC_ACTIONS.size).to be >= 40
@@ -34,5 +39,14 @@ RSpec.describe "WorkEngine repair plan completeness" do
     classes = WorkEngine::RepairExecutor::Policies::Base.descendants - [ WorkEngine::RepairExecutor::Policies::Default ]
 
     expect(classes.map(&:action).uniq.size).to eq(classes.size)
+  end
+
+  it "plans every auto-repairable Reconciler issue kind with a non-Default policy" do
+    missing = AUTO_REPAIR_ISSUE_KINDS.reject do |kind|
+      WorkEngine::RepairPlanner::Policies::Base.for(kind) != WorkEngine::RepairPlanner::Policies::Default
+    end
+
+    expect(missing).to be_empty,
+      "these auto-repairable Reconciler issue kinds fall through to the RepairPlanner::Policies::Default operator plan: #{missing.inspect}"
   end
 end

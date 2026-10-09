@@ -2607,10 +2607,15 @@ module WorkEngine
         # `classifier_uncertain` belongs here too. It used to be terminal by
         # omission -- nothing re-ran the classifier, nothing reaped it, nothing
         # surfaced it -- so a single transient provider error stranded the Job
-        # for good. The attempt cap keeps this from becoming a loop: after the
-        # retry, an uncertain Job is a person's problem, and the triage
-        # decision opened alongside it is where that happens.
-        job.triaging_reason.to_s == "classifier_pending" || job.classifier_retry_available?
+        # for good. The attempt cap keeps both uncertainty retries and repeated
+        # pending re-enqueues from becoming a loop: after the retry budget is
+        # spent, a triaged Job is a person's problem, and the triage decision
+        # opened alongside it is where that happens.
+        if job.triaging_reason.to_s == "classifier_pending"
+          job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
+        else
+          job.classifier_retry_available?
+        end
       end
       return [] if stalled.empty?
 
