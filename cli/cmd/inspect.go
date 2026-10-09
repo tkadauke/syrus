@@ -65,7 +65,7 @@ func newJobListCommand(search bool) *cobra.Command {
 			return runJobList(cmd, state, limit, args[0], jsonOut, repo)
 		}
 	}
-	cmd.Flags().StringVar(&state, "state", "open", "open, closed, or all")
+	cmd.Flags().StringVar(&state, "state", "open", jobStateFilterHelp)
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print jobs as JSON")
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
@@ -400,6 +400,9 @@ func NewWhoamiCommand() *cobra.Command {
 }
 
 func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string) error {
+	if err := validateJobStateFilter(state); err != nil {
+		return err
+	}
 	client, _, err := apiClient()
 	if err != nil {
 		return err
