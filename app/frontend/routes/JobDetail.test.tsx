@@ -756,6 +756,90 @@ describe("JobDetailView", () => {
     expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
   })
 
+  it("renders first-time branch divergence recovery choices on failed workflows", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "failed",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("PR branch changed before this workflow could push.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry from current PR branch" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Replace PR branch" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Discard stale output" })).toBeInTheDocument()
+  })
+
+  it("renders resolved branch divergences without armed recovery choices", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "failed",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              },
+              branch_divergence_recovery: {
+                action: "discarded",
+                at: "2026-09-07T10:00:00Z"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("Resolved by operator choice: Discard stale output.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry from current PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Replace PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Discard stale output" })).not.toBeInTheDocument()
+  })
+
+  it("does not render destructive branch-divergence recovery actions on running workflows", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "running",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("Recovery actions are available only after the workflow has failed.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Replace PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Discard stale output" })).not.toBeInTheDocument()
+  })
+
   it("shows emergency land audit details for emergency-landed jobs", () => {
     renderJobDetail(
       jobPayload({

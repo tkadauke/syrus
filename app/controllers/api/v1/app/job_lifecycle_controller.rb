@@ -128,6 +128,7 @@ module Api
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return
           end
+          mark_branch_divergence_retry_choice!(job)
 
           Metrics::ProductUsage.record(:job_retried)
           notice = agent_provider.present? ? lifecycle_t("retry_enqueued_with_provider", provider: agent_provider.titleize) : lifecycle_t("retry_enqueued")
@@ -388,6 +389,18 @@ module Api
         end
 
         private
+
+        def mark_branch_divergence_retry_choice!(job)
+          workflow_id = params[:branch_divergence_workflow_id].presence
+          return unless workflow_id
+
+          workflow = job.workflows.find_by(id: workflow_id)
+          return unless workflow&.artifact("branch_divergence").present?
+          return if workflow.artifact("branch_divergence_recovery").present?
+
+          result = BranchDivergenceRecovery.retry_from_current_pr_branch!(workflow: workflow, user: Current.user)
+          raise ArgumentError, result.error unless result.success?
+        end
 
         def find_job
           find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])

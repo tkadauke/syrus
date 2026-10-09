@@ -46,6 +46,28 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  it "does not carry branch-divergence artifacts into retry workflows" do
+    finish_current_run!
+
+    result = described_class.call(
+      job: job,
+      artifacts: {
+        "branch_divergence" => { "remote_sha" => "remote-sha", "local_sha" => "local-sha" },
+        "branch_divergence_recovery" => { "action" => "discarded" },
+        "branch_divergence_recovery_error" => { "message" => "stale" },
+        "branch_divergence_recovery_pending" => { "action" => "force_push" },
+        "auto_retry_attempt_id" => 123
+      }
+    )
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("auto_retry_attempt_id")).to eq(123)
+    expect(result.workflow.artifact("branch_divergence")).to be_nil
+    expect(result.workflow.artifact("branch_divergence_recovery")).to be_nil
+    expect(result.workflow.artifact("branch_divergence_recovery_error")).to be_nil
+    expect(result.workflow.artifact("branch_divergence_recovery_pending")).to be_nil
+  end
+
   it "resumes from a durable checkpoint when a downstream failed workflow has not been cleaned up yet" do
     failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
     failed_workflow = Workflow.create!(

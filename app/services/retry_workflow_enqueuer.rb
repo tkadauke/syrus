@@ -1,4 +1,11 @@
 class RetryWorkflowEnqueuer
+  BRANCH_DIVERGENCE_ARTIFACT_KEYS = %w[
+    branch_divergence
+    branch_divergence_recovery
+    branch_divergence_recovery_error
+    branch_divergence_recovery_pending
+  ].freeze
+
   # Maintenance workflows that a retry should re-run AS THEMSELVES rather than
   # escalating to the initial chain.
   #
@@ -66,7 +73,7 @@ class RetryWorkflowEnqueuer
   def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false)
     @job = job
     @agent_provider = agent_provider.to_s.presence
-    @artifacts = artifacts
+    @artifacts = retry_artifacts(artifacts)
     @provider_validation = ProviderValidation.for(provider_validation).new(job)
     @automatic = automatic
   end
@@ -111,6 +118,10 @@ class RetryWorkflowEnqueuer
   private
 
   attr_reader :job, :agent_provider, :artifacts, :provider_validation
+
+  def retry_artifacts(raw_artifacts)
+    raw_artifacts.to_h.except(*BRANCH_DIVERGENCE_ARTIFACT_KEYS).presence
+  end
 
   def agent_provider_allowed?
     return true if agent_provider.blank?
