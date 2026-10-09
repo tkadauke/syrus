@@ -323,6 +323,9 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
                               triaging_uncertainty_reason: "invalid JSON: expected an object")
       end
     end
+    let(:proposed) do
+      Factories.job_record(repository: repo, issue_number: nil, kind: "direct", state: "triaging", triaging_reason: "proposed_job")
+    end
 
     it "queues the job for work when accepted" do
       post app_job_path(uncertain, "accept_triage"), as: :json
@@ -330,6 +333,15 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(uncertain.reload).to be_queued
       expect(uncertain.triaging_uncertainty_reason).to be_nil
+    end
+
+    it "queues an investigation-proposed job when accepted without reclassifying it" do
+      post app_job_path(proposed, "accept_triage"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(proposed.reload).to be_queued
+      expect(proposed.triaging_reason).to eq("proposed_job")
+      expect(proposed.workflows).to be_present
     end
 
     # `cancelled`, not one of the successful reasons: rejecting an unclear
@@ -341,6 +353,14 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(uncertain.reload).to be_closed
       expect(uncertain.closure_reason).to eq("cancelled")
+    end
+
+    it "closes an investigation-proposed job as cancelled when rejected" do
+      post app_job_path(proposed, "reject_triage"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(proposed.reload).to be_closed
+      expect(proposed.closure_reason).to eq("cancelled")
     end
 
     it "refuses either decision for a job that is not awaiting triage" do
@@ -355,6 +375,13 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       payload = App::JobDetailPayload.new(job: uncertain, user: user).payload
 
       expect(payload[:actions][:can_move_to_backlog]).to be_falsey
+      expect(payload[:actions][:can_accept_triage]).to be(true)
+      expect(payload[:actions][:can_reject_triage]).to be(true)
+    end
+
+    it "offers Accept and Reject for investigation-proposed jobs" do
+      payload = App::JobDetailPayload.new(job: proposed, user: user).payload
+
       expect(payload[:actions][:can_accept_triage]).to be(true)
       expect(payload[:actions][:can_reject_triage]).to be(true)
     end
