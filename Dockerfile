@@ -9,7 +9,7 @@
 
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=3.4.10
-FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
+FROM docker.io/library/ruby:$RUBY_VERSION-slim-trixie AS base
 
 # Connect published images to the source repo. GHCR reads this label to link a
 # newly-published package to the repository, which (a) lets the release
@@ -342,6 +342,7 @@ USER root
 ARG POETRY_VERSION=2.4.1
 ARG UV_VERSION=0.12.3
 ARG MISE_GO_VERSION="1.26.5"
+ARG MULL_LLVM_VERSION=18
 ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902
 ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
 ARG ANDROID_PLATFORM_VERSION=android-36
@@ -364,11 +365,23 @@ ENV ANDROID_SDK_ROOT=/opt/android-sdk \
 # without sudo apt-get in `prepare:` (the worker runs as uid 1000 with
 # no sudo capability). Keep GitHub mutation tools like `gh` out of the
 # worker image; PR operations should go through Syrus service code.
+#
+# Mull is included here rather than split to a separate worker capability
+# image because the recurring mutation-testing task is still scheduled on the
+# normal Linux worker pool. Keep the Mull package and clang package on the
+# same LLVM major; mismatches fail when Mull loads the compiler plugin.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eu; \
+    . /etc/os-release; \
+    curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key | \
+      gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \
+      > /etc/apt/sources.list.d/mull-project-mull-stable.list; \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
-      build-essential clang clang-format clang-tidy pkg-config \
+      build-essential clang clang-${MULL_LLVM_VERSION} clang-format clang-tidy pkg-config \
+      mull-${MULL_LLVM_VERSION} \
       libffi-dev libssl-dev libyaml-dev \
       libxml2-dev libxslt-dev \
       zlib1g-dev libreadline-dev \
@@ -381,6 +394,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
+    && ln -sf "/usr/bin/mull-runner-${MULL_LLVM_VERSION}" /usr/local/bin/mull-runner \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Android SDK command-line baseline for Android plugin graders and emulator
@@ -444,7 +458,10 @@ RUN set -eu; \
 COPY <<'EOF' /usr/local/bin/syrus-sccache-compiler
 #!/bin/sh
 name="$(basename "$0")"
-real="/usr/bin/$name"
+case "$name" in
+  clang|clang++) real="/usr/bin/${name}-18" ;;
+  *) real="/usr/bin/$name" ;;
+esac
 err="$(mktemp)"
 
 if /usr/local/bin/sccache "$real" "$@" 2>"$err"; then
@@ -539,6 +556,7 @@ USER 1000:1000
 
 RUN go version
 RUN cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'
+RUN clang++-18 --version && clang++ --version | grep -q "version 18" && mull-runner-18 --version && mull-runner --version
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
