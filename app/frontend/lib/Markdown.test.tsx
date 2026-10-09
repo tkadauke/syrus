@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { Markdown, PlainText, renderLightMarkdown } from "./Markdown"
+import { allocateMarkdownTableColumns, Markdown, PlainText, renderLightMarkdown } from "./Markdown"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "./slugReferenceRegistry"
 
 function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
@@ -18,6 +18,21 @@ function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<Slu
     prefix: overrides.prefix,
     type: overrides.type
   }
+}
+
+function domRect(overrides: Partial<DOMRect> = {}): DOMRect {
+  return {
+    bottom: 0,
+    height: 0,
+    left: 0,
+    right: overrides.width ?? 0,
+    top: 0,
+    width: 0,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+    ...overrides
+  } as DOMRect
 }
 
 beforeEach(() => {
@@ -139,6 +154,58 @@ describe("Markdown", () => {
     expect(table).toHaveClass("chat-prose-table--balanced")
     expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["label", "prose"])
     expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 32.4%;", "--chat-table-column-width: 67.6%;"])
+  })
+
+  it("allocates measured table width to prose columns instead of letting short labels dominate", () => {
+    const layout = allocateMarkdownTableColumns([
+      { kind: "label", min: 68, preferred: 92 },
+      { kind: "prose", min: 128, preferred: 620 }
+    ], 360)
+
+    expect(layout.wide).toBe(false)
+    expect(layout.widths).toEqual([78, 282])
+  })
+
+  it("preserves horizontal scrolling only when measured minimum widths cannot fit", () => {
+    const layout = allocateMarkdownTableColumns([
+      { kind: "label", min: 160, preferred: 180 },
+      { kind: "prose", min: 260, preferred: 640 }
+    ], 360)
+
+    expect(layout).toEqual({ wide: true, widths: [160, 260] })
+  })
+
+  it("measures rendered markdown table columns and applies pixel widths through colgroup", async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
+
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this.classList.contains("chat-prose-table-wrap")) return domRect({ width: 360 })
+      if (this.tagName === "TH" || this.tagName === "TD") {
+        const text = this.textContent ?? ""
+        const measuringMinContent = this.style.width === "min-content"
+        const width = text.includes("Recommendation") || text.includes("Use the browser_use") ? (measuringMinContent ? 128 : 620) : measuringMinContent ? 72 : 92
+        return domRect({ width })
+      }
+      return originalGetBoundingClientRect.call(this)
+    }
+
+    try {
+      const markdown = [
+        "| Plugin | Recommendation |",
+        "| --- | --- |",
+        "| `browser_use` | Use the browser_use plugin when the task needs browser automation across an external site. |"
+      ].join("\n")
+      const { container } = render(<Markdown text={markdown} />)
+
+      await waitFor(() => expect(container.querySelector("table")).toHaveClass("chat-prose-table--measured"))
+      const columns = Array.from(container.querySelectorAll("col"))
+
+      expect(columns.map((column) => column.getAttribute("data-chat-table-column"))).toEqual(["label", "prose"])
+      expect(columns.map((column) => column.getAttribute("style"))).toEqual(["--chat-table-column-width: 78px;", "--chat-table-column-width: 282px;"])
+      expect(container.querySelector("table")).not.toHaveClass("chat-prose-table--wide")
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
+    }
   })
 
   it("marks tables with unbroken tokens as wide while keeping them wrapped for containment", () => {

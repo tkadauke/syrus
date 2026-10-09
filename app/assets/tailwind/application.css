@@ -390,6 +390,9 @@
 .chat-prose .chat-prose-table--balanced {
   table-layout: fixed;
 }
+.chat-prose .chat-prose-table--measured {
+  table-layout: fixed;
+}
 .chat-prose .chat-prose-table--wide {
   width: max-content;
   min-width: 100%;
@@ -417,6 +420,16 @@
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+}
+.chat-prose-table-measurer {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: max-content;
+  max-width: none;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style;
 }
 .chat-prose th { background: #f3f4f6; font-weight: 600; }
 
