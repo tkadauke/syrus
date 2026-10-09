@@ -1112,6 +1112,58 @@ RSpec.describe RunJob, :ci_only do
       )
     end
 
+    it "deletes stale resume queue rows when a pinned Run exhausts its host admission deferral budget" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      wf.update!(
+        worker_hostname: "worker-a",
+        worker_storage_key: "storage-a",
+        artifacts: {
+          "run_host_admission" => {
+            "reason" => "local_worker_pressure_critical",
+            "run_id" => run.id,
+            "deferral_count" => RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET - 1,
+            "first_deferred_at" => 20.minutes.ago.iso8601
+          }
+        }
+      )
+      stale_queue_job = SolidQueue::Job.create!(
+        class_name: "RunJob",
+        queue_name: "resume-storage-a",
+        priority: run.solid_queue_priority,
+        arguments: { "arguments" => [ run.id ] },
+        scheduled_at: 30.seconds.from_now,
+        created_at: 1.minute.ago,
+        updated_at: 1.minute.ago
+      )
+      SolidQueue::ScheduledExecution.find_or_create_by!(job: stale_queue_job) do |execution|
+        execution.priority = stale_queue_job.priority
+        execution.queue_name = stale_queue_job.queue_name
+        execution.scheduled_at = stale_queue_job.scheduled_at
+        execution.created_at = stale_queue_job.created_at
+      end
+      decision = RunHostAdmission::Decision.new(
+        action: "defer",
+        reason: "local_worker_pressure_critical",
+        delay: 30.seconds,
+        details: { "hostname" => "worker-a", "worker_storage_key" => "storage-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(SolidQueue::Job.where(id: stale_queue_job.id)).to be_empty
+      expect(SolidQueue::ScheduledExecution.where(job_id: stale_queue_job.id)).to be_empty
+      expect(wf.reload.worker_storage_key).to be_nil
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
     it "does not spend a pinned Run's host admission budget using a previous Run's deferrals" do
       job
       wf = job.workflows.last

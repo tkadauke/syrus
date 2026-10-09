@@ -21,6 +21,11 @@ class RunJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
+  # Count deferrals instead of wall-clock age because a slow or paused queue
+  # should not burn a placement pin while no worker is actively refusing it.
+  # RunHostAdmission retries every 30 seconds, so 40 refusals gives a healthy
+  # pinned host about twenty minutes to recover before Syrus pays the re-clone
+  # cost and lets the Run land on another eligible worker.
   PINNED_HOST_ADMISSION_DEFERRAL_BUDGET = 40
 
   # Test seam — let specs swap in a fake runner without exec'ing claude.
@@ -221,10 +226,11 @@ class RunJob < ApplicationJob
 
     admission_artifact = record_host_admission_deferral!(admission)
     if pinned_host_admission_budget_exhausted?(admission, admission_artifact)
+      pruned = SolidQueueRunJobPruner.delete_pending_for_run!(@run.id)
       clear_workflow_storage_affinity!
       Rails.logger.warn(
         "[RunJob] host admission #{admission.reason} exhausted pinned deferral budget on " \
-          "#{admission.details['hostname']} - rerouting Run ##{@run.id} to the base queue"
+          "#{admission.details['hostname']} - pruned #{pruned} pending queue rows and rerouting Run ##{@run.id} to the base queue"
       )
     end
     Rails.logger.info(
