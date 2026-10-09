@@ -530,6 +530,13 @@ module Syrus
         end
       end
 
+      def experimental_plugins_enabled?
+        return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
+        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("experimental_plugins_enabled")
+
+        AppSetting.current.experimental_plugins_enabled?
+      end
+
       private
 
       def drain_effects_for_callback_provider(provider)
@@ -597,13 +604,6 @@ module Syrus
         end
         records = plugin_records_by_name.slice(*plugins.map(&:name)) if missing.any?
         records
-      end
-
-      def experimental_plugins_enabled?
-        return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("experimental_plugins_enabled")
-
-        AppSetting.current.experimental_plugins_enabled?
       end
 
       def plugin_records_by_name

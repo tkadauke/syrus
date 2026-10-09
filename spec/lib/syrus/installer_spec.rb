@@ -46,6 +46,22 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     expect(log).to eq([ :install, :dispose, :install ])
   end
 
+  it "disposes experimental plugin effects when the instance opts out" do
+    AppSetting.current.update!(experimental_plugins_enabled: true)
+    Syrus::PluginRegistry.register(name: "experimental_effect_plugin", version: "1.0.0", experimental: true)
+
+    log = []
+    described_class.define("experimental effect", plugin: "experimental_effect_plugin") do |scope|
+      scope.effect("x") { log << :install; -> { log << :dispose } }
+    end
+    described_class.sync!
+
+    AppSetting.current.update!(experimental_plugins_enabled: false)
+    described_class.sync!
+
+    expect(log).to eq([ :install, :dispose ])
+  end
+
   it "replaces an installer registered under the same label rather than stacking it" do
     runs = []
     described_class.define("probe") { |_scope| runs << :first; nil }
