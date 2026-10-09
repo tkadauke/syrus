@@ -209,6 +209,9 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
         RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
       )
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+        RepoVisualReviewPlan::Result.new(enabled: false, rounds: 0, source: "test", note: "disabled")
+      )
     end
 
     it "always reacts to a needs_work verdict with a repair, even with the (single-round) budget exhausted" do

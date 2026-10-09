@@ -133,7 +133,7 @@ RSpec.describe RunJob, :ci_only do
   # ----- Initial workflow ----------------------------------------
 
   describe "Initial workflow (issue → PR)" do
-    it "runs implement → summarize → pr_open end-to-end, opens PR, and records commit metadata" do
+    it "runs implement → visual_review → summarize → pr_open end-to-end, opens PR, and records commit metadata" do
       expect(PollRebaseJob).to receive(:set).with(hash_including(:wait)).and_return(double(perform_later: true))
 
       job
@@ -146,6 +146,7 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.steps.pluck(:kind, :state)).to eq([
         [ "prepare",          "succeeded" ],
         [ "implement",        "succeeded" ],
+        [ "visual_review",    "succeeded" ],
         [ "coverage_analyze", "succeeded" ],
         [ "dependency_audit", "succeeded" ],
         [ "summarize",        "succeeded" ],
@@ -264,7 +265,7 @@ RSpec.describe RunJob, :ci_only do
 
   # ----- PrFeedback workflow -------------------------------------
 
-  describe "PrFeedback workflow (pr_comment → respond → grade → summarize_amend → try(push))" do
+  describe "PrFeedback workflow (pr_comment → respond → visual_review → grade → summarize_amend → try(push))" do
     let(:job) { implemented_job_with_branch }
 
     before do
@@ -288,6 +289,7 @@ RSpec.describe RunJob, :ci_only do
       expect(kinds_and_states).to eq([
         [ "prepare",              "succeeded" ],
         [ "respond",              "succeeded" ],
+        [ "visual_review",        "succeeded" ],
         [ "coverage_analyze",     "succeeded" ],
         [ "coverage_pr_comment",  "succeeded" ],
         [ "dependency_audit",           "succeeded" ],
@@ -855,6 +857,8 @@ RSpec.describe RunJob, :ci_only do
       RunJob.perform_now(initial_job.initial_run.id)
       implement_run = workflow.steps.find_by!(kind: "implement").runs.order(:id).last
       RunJob.perform_now(implement_run.id)
+      visual_review_run = workflow.steps.find_by!(kind: "visual_review").runs.order(:id).last
+      RunJob.perform_now(visual_review_run.id)
       fanout_run = workflow.steps.find_by!(kind: "grader_fanout").runs.order(:id).last
       RunJob.perform_now(fanout_run.id)
       grader_step = workflow.steps.find_by!(kind: "grader")
@@ -1368,6 +1372,19 @@ RSpec.describe RunJob, :ci_only do
     AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
   end
 
+  def live_worker_queue!(queue_name, hostname:)
+    ensure_solid_queue_test_tables!
+    SolidQueue::Process.create!(
+      hostname: hostname,
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => [ queue_name, "runs", "merges" ] },
+      name: "#{hostname}:1",
+      pid: 123,
+      created_at: Time.current
+    )
+  end
+
   def seed_remote_with_initial_commit(bare_path)
     Dir.mktmpdir("syrus-seed") do |seed|
       sh("git init -q -b main #{seed}")
@@ -1729,6 +1746,7 @@ RSpec.describe RunJob, :ci_only do
       )
       run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
       allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      live_worker_queue!("resume-storage-main", hostname: "worker-storage-main")
       run_job = RunJob.new
       allow(run_job).to receive(:queue_name).and_return("runs")
 
@@ -1809,7 +1827,7 @@ RSpec.describe RunJob, :ci_only do
       clear_enqueued_jobs
       expect {
         RunJob.perform_now(collect_run.id)
-      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("runs")
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("merges")
 
       expect(collect.reload).to be_queued
       expect(collect_run.reload).to be_queued
@@ -1853,6 +1871,7 @@ RSpec.describe RunJob, :ci_only do
       run_job.instance_variable_set(:@run, current_run)
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-grader")
       allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      live_worker_queue!("resume-storage-main", hostname: "worker-storage-main")
 
       clear_enqueued_jobs
       result = nil
