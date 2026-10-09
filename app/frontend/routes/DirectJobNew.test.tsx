@@ -37,6 +37,7 @@ function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFo
     selected_model: null,
     selected_effort_level: null,
     selected_epic_id: null,
+    selected_depends_on_job_ids: [],
     epic: null,
     configured_agent_providers: [],
     provider_routing_options: { agent_providers: [], effort_levels: [] },
@@ -115,7 +116,7 @@ describe("DirectJobNew epic linking", () => {
     expect(screen.queryByText(/added to/)).not.toBeInTheDocument()
   })
 
-  it("submits epic_id alongside the job when targeting an epic", async () => {
+  it("submits epic_id and default dependency alongside the job when targeting a non-empty epic", async () => {
     let submittedBody: FormData | null = null
     vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
       if (init?.method === "POST") {
@@ -130,6 +131,7 @@ describe("DirectJobNew epic linking", () => {
 
       return Promise.resolve(jsonResponse(formPayload({
         selected_epic_id: "7",
+        selected_depends_on_job_ids: [42],
         epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
       })))
     })
@@ -148,6 +150,7 @@ describe("DirectJobNew epic linking", () => {
 
     await waitFor(() => expect(submittedBody).not.toBeNull())
     expect(submittedBody!.get("epic_id")).toBe("7")
+    expect(submittedBody!.getAll("depends_on_job_ids[]")).toEqual(["42"])
   })
 })
 

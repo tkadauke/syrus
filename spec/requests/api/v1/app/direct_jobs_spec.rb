@@ -147,6 +147,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     )
     expect(body.dig("provider_routing_options", "effort_levels").map { |option| option["value"] }).to include("high")
     expect(body["selected_repository_id"]).to eq(repository.id.to_s)
+    expect(body["selected_depends_on_job_ids"]).to eq([])
     expect(body["create_more"]).to eq(true)
     expect(body["prompt_templates"]).to include(include("id" => "configure-syrus-prep", "prompt" => include("syrus")))
     expect(body["priorities"].map { |priority| priority["value"] }).to eq(%w[urgent high medium low])
@@ -163,6 +164,19 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     body = parse_body
     expect(body["selected_epic_id"]).to eq(epic.id.to_s)
     expect(body["epic"]).to include("id" => epic.id, "display_number" => epic.slug, "title" => epic.title)
+  end
+
+  it "includes the current epic tail as the default dependency for a non-empty target epic" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    first = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "First child")
+    second = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Second child")
+    JobDependency.create!(job: second, depends_on_job: first, source: "manual", created_by_user: user)
+
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: epic.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["selected_depends_on_job_ids"]).to eq([ second.id ])
   end
 
   it "omits the epic from the new-job form payload when epic_id belongs to a different repository" do

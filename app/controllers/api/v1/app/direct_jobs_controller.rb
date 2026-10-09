@@ -85,6 +85,7 @@ module Api
             selected_model: params[:model].to_s.presence,
             selected_effort_level: params[:effort_level].to_s.presence,
             selected_epic_id: epic&.id&.to_s,
+            selected_depends_on_job_ids: selected_depends_on_job_ids(epic),
             epic: epic ? epic_json(epic) : nil,
             create_more: create_more?,
             prompt_templates: PromptTemplate.all.map { |template| prompt_template_json(template) },
@@ -109,6 +110,25 @@ module Api
 
           scope = repository ? repository.epics : Current.user.epics
           scope.find_by(id: params[:epic_id])
+        end
+
+        def selected_depends_on_job_ids(epic)
+          return [] unless epic&.resolved_epic_dependency_policy == "linear"
+
+          tail = epic_tail_job(epic)
+          tail ? [ tail.id ] : []
+        end
+
+        def epic_tail_job(epic)
+          jobs = epic.jobs.includes(:dependencies).to_a
+          return nil if jobs.empty?
+
+          job_ids = jobs.map(&:id)
+          upstream_ids = JobDependency.where(job_id: job_ids, depends_on_job_id: job_ids).pluck(:depends_on_job_id)
+          tails = jobs.reject { |job| upstream_ids.include?(job.id) }
+          return tails.first if tails.one?
+
+          nil
         end
 
         def epic_json(epic)
