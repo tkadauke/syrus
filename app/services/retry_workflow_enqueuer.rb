@@ -66,7 +66,7 @@ class RetryWorkflowEnqueuer
   def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false)
     @job = job
     @agent_provider = agent_provider.to_s.presence
-    @artifacts = artifacts
+    @artifacts = retry_artifacts(artifacts)
     @provider_validation = ProviderValidation.for(provider_validation).new(job)
     @automatic = automatic
   end
@@ -111,6 +111,10 @@ class RetryWorkflowEnqueuer
   private
 
   attr_reader :job, :agent_provider, :artifacts, :provider_validation
+
+  def retry_artifacts(raw_artifacts)
+    WorkflowArtifactSanitizer.without_branch_divergence(raw_artifacts).presence
+  end
 
   def agent_provider_allowed?
     return true if agent_provider.blank?

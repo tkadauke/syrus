@@ -8,6 +8,9 @@ class BranchDivergenceRecovery
   def self.record_failure!(workflow:, user:, message:) = new(workflow: workflow, user: user).record_failure!(message: message)
   def self.discard!(...) = new(...).discard!
   def self.discard_superseded!(workflow:) = new(workflow: workflow, user: nil).discard_superseded!
+  def self.retry_from_current_pr_branch!(workflow:, user:, cancel_stale_retry_workflows: true)
+    new(workflow: workflow, user: user).retry_from_current_pr_branch!(cancel_stale_retry_workflows: cancel_stale_retry_workflows)
+  end
   def self.adopt_current_pr_head!(...) = new(...).adopt_current_pr_head!
 
   def initialize(workflow:, user:)
@@ -93,6 +96,15 @@ class BranchDivergenceRecovery
     return failure("Current PR head no longer matches the recorded remote SHA.") unless current_pr_head_matches_recorded_remote?
 
     record_recovery!("superseded_by_current_pr_branch")
+    restore_job_to_implemented_if_possible!
+    Result.new(error: nil)
+  end
+
+  def retry_from_current_pr_branch!(cancel_stale_retry_workflows: true)
+    return failure(already_recovered_message) if already_recovered?
+    return failure("No branch divergence was recorded for this workflow.") unless divergence
+
+    record_recovery!("superseded_by_current_pr_branch", {}, cancel_stale_retry_workflows)
     restore_job_to_implemented_if_possible!
     Result.new(error: nil)
   end
@@ -188,7 +200,7 @@ class BranchDivergenceRecovery
     @git ||= GitRunner.new
   end
 
-  def record_recovery!(action, extra = {})
+  def record_recovery!(action, extra = {}, cancel_stale_retry_workflows = true)
     payload = {
       "action" => action,
       "at" => Time.current.iso8601
@@ -201,7 +213,7 @@ class BranchDivergenceRecovery
       "branch_divergence_recovery_error" => nil
     )
     log!("branch divergence recovery: #{action}")
-    cancel_stale_retry_workflow_attempts!(action)
+    cancel_stale_retry_workflow_attempts!(action) if cancel_stale_retry_workflows
   end
 
   # This divergence just got resolved through one recovery path (force-push,
