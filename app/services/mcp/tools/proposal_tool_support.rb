@@ -36,6 +36,24 @@ module Mcp::Tools
         .gsub("\\'", "'")
     end
 
+    def explicit_planned_execution_capabilities?(planned_execution)
+      return false unless planned_execution.respond_to?(:to_h)
+
+      source = planned_execution.to_h.deep_stringify_keys
+      raw_capabilities =
+        if source.key?("capabilities")
+          source["capabilities"]
+        else
+          source["planned_execution_capabilities"]
+        end
+
+      return false if raw_capabilities.blank?
+      return !raw_capabilities.empty? if raw_capabilities.is_a?(TargetGraph::ExecutionCapabilities)
+      return raw_capabilities.to_h.values.any?(&:present?) if raw_capabilities.respond_to?(:to_h)
+
+      true
+    end
+
     def repository_for(chat_session, repo)
       token = repo.to_s.strip
       if token.blank?
