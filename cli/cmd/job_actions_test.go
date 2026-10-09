@@ -376,7 +376,7 @@ func TestJobCreateFailsFastOnInvalidEpicWithoutPrompting(t *testing.T) {
 		case "/api/v1/app/repositories":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
-		case "/api/v1/app/epics/404":
+		case "/api/v1/app/epics/EPIC-404":
 			http.Error(w, `{"error":{"message":"not found"}}`, http.StatusNotFound)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)

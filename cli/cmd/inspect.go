@@ -516,7 +516,7 @@ func runEpicCreate(cmd *cobra.Command, opts epicCreateOptions) error {
 		return errors.New("run from a GitHub checkout or pass --repo owner/name")
 	}
 
-	client, _, err := apiClient()
+	client, creds, err := apiClient()
 	if err != nil {
 		return err
 	}
