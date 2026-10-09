@@ -7,10 +7,14 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     AppSetting.connection.clear_query_cache
   end
 
-  it ".current creates the singleton row on first call" do
+  it ".current returns the singleton row" do
     reset_app_settings!
 
-    expect { AppSetting.current }.to change(AppSetting, :count).from(0).to(1)
+    setting = AppSetting.current
+
+    expect(setting).to be_persisted
+    expect(setting.singleton_key).to eq(AppSetting::SINGLETON_KEY)
+    expect(AppSetting.where(singleton_key: AppSetting::SINGLETON_KEY).count).to eq(1)
     reset_app_settings!
   end
 
