@@ -69,6 +69,7 @@
   "priority": "Priorität",
   "set_priority": "Priorität setzen",
   "approve": "Genehmigen",
+  "accept_triage": "Annehmen",
   "close_action": "Schließen",
   "move_to_in_progress": "In Bearbeitung verschieben",
   "close_confirm_one": "{{count}} ausgewählte Aufgabe schließen?",
