@@ -78,6 +78,7 @@ class RunQueueResolver
   def compatible_resume_queue(requirements)
     queue = run.resume_worker_queue
     return nil if queue.blank?
+    return queue if requirements == DEFAULT_RUN_CAPABILITIES
     return queue if live_capable_worker_for?(queue, requirements, allow_unknown_default: true)
 
     nil
@@ -111,8 +112,9 @@ class RunQueueResolver
 
     queue = [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")
     return queue if live_capable_worker_for?(queue, requirements)
+    return nil if requirements == DEFAULT_RUN_CAPABILITIES && live_capable_worker_for?(base_queue_name, requirements)
 
-    nil
+    queue
   end
 
   def capability_specific_requirements?(requirements)
