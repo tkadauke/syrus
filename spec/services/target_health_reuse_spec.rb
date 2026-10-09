@@ -42,7 +42,7 @@ RSpec.describe TargetHealthReuse do
     expect(mac_result.record).to be_nil
     expect(mac_result.reason).to include("environment/capability mismatch")
     expect(mac_result.reason).to include("cached os=linux")
-    expect(mac_result.reason).to include("current os=macos")
+    expect(mac_result.reason).to include("current os=linux macos-ruby")
   end
 
   it "explains dependency environment mismatches from builder target fingerprint metadata" do
