@@ -274,7 +274,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.where(kind: "grader").map { |grader_step| grader_step.details["name"] }).to contain_exactly("ios-tests", "backend-tests")
   end
 
-  it "warns when an equally constrained affected target is not covered by the primary placement" do
+  it "does not warn when macOS primary placement has Linux grader coverage for an equally constrained target" do
     workflow.update!(
       planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
@@ -296,17 +296,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     handler.call
 
-    warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/linux-package")
-    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
-      "//:grade/ios-tests",
-      "//:grade/linux-package"
-    )
-    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/linux-package" ])
-    expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/linux-package", "dimension" => "os", "missing" => [ "linux" ])
-    )
+    expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
   end
 
   it "carries a resolved grader display_name onto both the materialized Step and the target selection entries" do

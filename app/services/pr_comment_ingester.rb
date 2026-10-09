@@ -106,6 +106,7 @@ class PrCommentIngester
 
   def qualifies_for_workflow?(record)
     return false unless record.actionable?
+    return true if @pr_type == "fork_review" && record.external?
     return true if record.job_owner?
     return true if record.member? && @job.repository.feedback_policy_auto?
 
