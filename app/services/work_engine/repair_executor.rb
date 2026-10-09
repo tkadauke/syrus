@@ -572,14 +572,7 @@ module WorkEngine
         end
 
         def delete_stale_solid_queue_jobs!
-          ids = Array(plan.affected_ids["solid_queue_job_ids"]).map(&:to_i).select(&:positive?)
-          return if ids.empty?
-
-          SolidQueue::ReadyExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ReadyExecution)
-          SolidQueue::ScheduledExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ScheduledExecution)
-          SolidQueue::ClaimedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ClaimedExecution)
-          SolidQueue::FailedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::FailedExecution)
-          SolidQueue::Job.where(id: ids).delete_all
+          SolidQueueRunJobPruner.delete_job_ids!(plan.affected_ids["solid_queue_job_ids"])
         rescue NameError, ActiveRecord::StatementInvalid => e
           Rails.logger.warn("[WorkEngine::RepairExecutor] failed to delete stale SolidQueue jobs for dead resume queue: #{e.class}: #{e.message}")
         end

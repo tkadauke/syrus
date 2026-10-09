@@ -3180,8 +3180,7 @@ module WorkEngine
       return false unless workflow&.worker_storage_key.present?
 
       admission = workflow.artifact("run_host_admission").to_h
-      admission["reason"] == "local_worker_pressure_critical" &&
-        admission["run_id"].to_i == run.id &&
+      admission["run_id"].to_i == run.id &&
         admission["deferral_count"].to_i >= RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
     end
 
