@@ -79,6 +79,9 @@ class RunQueueResolver
     queue = run.resume_worker_queue
     return nil if queue.blank?
     return queue if live_capable_worker_for?(queue, requirements, allow_unknown_default: true)
+    # `resume_worker_queue` already checked storage-affinity liveness. Keep
+    # default work sticky when no richer capability heartbeat is available.
+    return queue if defaulted_requirements?(requirements) && !live_worker_payload_for_queue?(queue)
 
     nil
   end
@@ -173,6 +176,12 @@ class RunQueueResolver
       next true if allow_unknown_default && requirements == DEFAULT_RUN_CAPABILITIES && capabilities.blank?
 
       satisfies?(capabilities, requirements)
+    end
+  end
+
+  def live_worker_payload_for_queue?(queue)
+    live_worker_payloads.any? do |payload|
+      WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue)
     end
   end
 
