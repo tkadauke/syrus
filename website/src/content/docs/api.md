@@ -135,6 +135,32 @@ create` CLI command posts here). It accepts the same optional `title`,
 same repository, and `owner_user_id` must reference a user who is a member of
 that repository.
 
+## Invoke an Operator Action
+
+`POST /api/v1/admin/pending_actions/invoke` runs one registered
+`PendingActions` operation by `action_key`. This is the scriptable equivalent
+of confirming a chat pending action: there is no confirmation token or pending
+state, and the API call itself is the confirmation. The endpoint requires an
+admin API token and a non-blank `reason`; successful calls record an audit row
+with the acting user, action key, payload, reason, and result.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/pending_actions/invoke \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action_key": "reenqueue_work",
+    "reason": "Queued run was left behind after worker restart.",
+    "payload": { "job_id": 42, "run_id": 314 }
+  }'
+```
+
+If the operation's own payload validation rejects the request, the response is
+`422` with `error.code` `invalid_pending_action_payload`. If an operation raises
+`ArgumentError` for a user-facing condition, such as a missing Run or an
+ineligible state, the response is also `422` with `error.code`
+`pending_action_operation_failed`.
+
 ## Submit Job Feedback
 
 All job and epic endpoints accept a numeric ID, the `JOB-<n>` / `EPIC-<n>`
