@@ -333,6 +333,11 @@ function CredentialAttention({ user }: { user: AdminUserRow }) {
   )
 }
 
+const schedulingButtonClassName = [
+  "rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400",
+  "dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+].join(" ")
+
 function SchedulingButton({ user }: { user: AdminUserDetail }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
@@ -346,7 +351,7 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
 
   return (
     <button
-      className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:bg-gray-400"
+      className={schedulingButtonClassName}
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
       type="button"
