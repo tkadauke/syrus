@@ -21,7 +21,7 @@ function stuckItem(overrides: Record<string, unknown> = {}) {
     job_id: 7,
     job_state: "running",
     job_path: "/jobs/7",
-    force_fail_path: "/api/v1/app/admin/stuck/12/force_fail",
+    force_fail_path: "/api/v1/app/admin/jobs/7/force_fail",
     has_transcript: true,
     ...overrides
   }

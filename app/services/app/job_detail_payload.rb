@@ -1148,7 +1148,7 @@ module App
         app_owner_path: "/api/v1/app/jobs/#{@job.id}/owner",
         app_dependencies_path: "/api/v1/app/jobs/#{@job.id}/dependencies",
         app_dependency_options_path: "/api/v1/app/jobs/#{@job.id}/dependency_options",
-        app_dependency_override_path: "/api/v1/app/jobs/#{@job.id}/dependencies/override",
+        app_dependency_override_path: "/api/v1/app/admin/jobs/#{@job.id}/dependencies/override",
         app_epic_dependencies_path: "/api/v1/app/jobs/#{@job.id}/epic_dependencies",
         app_stack_base_path: "/api/v1/app/jobs/#{@job.id}/stack_base",
         app_mark_valid_path: "/api/v1/app/jobs/#{@job.id}/mark_valid",

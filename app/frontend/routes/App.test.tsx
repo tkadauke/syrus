@@ -6871,7 +6871,7 @@ describe("App", () => {
           job_id: 1,
           job_state: "running",
           job_path: "/jobs/1",
-          force_fail_path: "/api/v1/app/jobs/1/force_fail",
+          force_fail_path: "/api/v1/app/admin/jobs/1/force_fail",
           has_transcript: true
         }
       ],
@@ -6888,7 +6888,7 @@ describe("App", () => {
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
-      if (path === "/api/v1/app/jobs/1/force_fail" && init?.method === "POST") {
+      if (path === "/api/v1/app/admin/jobs/1/force_fail" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Job force-failed." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       return Promise.resolve(new Response(JSON.stringify(stuckPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -6915,7 +6915,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Force fail" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/force_fail",
+        "/api/v1/app/admin/jobs/1/force_fail",
         expect.objectContaining({
           method: "POST",
           credentials: "same-origin",
@@ -10700,7 +10700,7 @@ describe("App", () => {
       if (path === "/api/v1/app/jobs/42/dependencies/9" && init?.method === "DELETE") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Dependency removed." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/jobs/42/dependencies/override" && init?.method === "POST") {
+      if (path === "/api/v1/app/admin/jobs/42/dependencies/override" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({ message: "Dependency gate overridden." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/jobs/42/timeline") {
@@ -10830,7 +10830,7 @@ describe("App", () => {
     await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
     await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/dependencies/override", expect.objectContaining({ method: "POST" }))
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/jobs/42/dependencies/override", expect.objectContaining({ method: "POST" }))
     })
   }, 30000)
 
@@ -17301,7 +17301,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_claim_path: "/api/v1/app/jobs/42/claim",
       app_dependencies_path: "/api/v1/app/jobs/42/dependencies",
       app_epic_dependencies_path: "/api/v1/app/jobs/42/epic_dependencies",
-      app_dependency_override_path: "/api/v1/app/jobs/42/dependencies/override",
+      app_dependency_override_path: "/api/v1/app/admin/jobs/42/dependencies/override",
       app_stack_base_path: "/api/v1/app/jobs/42/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/42/mark_valid",
       app_attachments_path: "/api/v1/app/jobs/42/attachments",

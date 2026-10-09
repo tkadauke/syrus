@@ -204,22 +204,6 @@ module Api
           render_job(job.reload, message: lifecycle_t("landing_stopped"), changed: [ "state", "workflows", "runs" ])
         end
 
-        def force_fail
-          unless Current.user.admin?
-            render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
-            return
-          end
-
-          job = find_job
-          unless job.may_force_fail?
-            render_error("validation_failed", lifecycle_t("force_fail_unavailable", slug: job.slug, state: job.state), status: :unprocessable_content)
-            return
-          end
-
-          job.force_fail!
-          render_job(job.reload, message: lifecycle_t("force_failed"), changed: [ "state" ])
-        end
-
         def approve
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
