@@ -42,6 +42,10 @@ const POPULATED_PAYLOAD = {
     { sidecar_mode: "persistent", calls: 35, errors: 2, error_rate: 0.0571 },
     { sidecar_mode: "stdio", calls: 7, errors: 1, error_rate: 0.1429 }
   ],
+  authority_breakdown: [
+    { authority: "operator_host", calls: 5, errors: 0, error_rate: 0 },
+    { authority: "workspace", calls: 12, errors: 1, error_rate: 0.0833 }
+  ],
   unused_advertised_tools: ["admin_clear_github_cache"],
   custom_card_gaps: {
     ranked_gaps: [
@@ -130,6 +134,7 @@ const POPULATED_PAYLOAD = {
       error_class: "RuntimeError",
       error_message_summary: "boom",
       sidecar_mode: "persistent",
+      authority: "operator_host",
       job_id: 4774,
       job_path: "/jobs/4774",
       workflow_id: 27863,
@@ -210,6 +215,7 @@ describe("admin_mcp_tool_usage tool card", () => {
       provider_breakdown: [],
       server_breakdown: [],
       sidecar_mode_breakdown: [],
+      authority_breakdown: [],
       unused_advertised_tools: [],
       custom_card_gaps: {
         ranked_gaps: [],

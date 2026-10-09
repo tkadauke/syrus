@@ -6,7 +6,8 @@ Syrus records MCP tool invocations from workflow agents and chat agents in
 session identifiers, linked Job/Workflow/Run or ChatSession ids, user/repository
 ids when derivable, start/completion timestamps, status, error flag/class, a
 bounded error summary, input/result byte counts, and dispatch metadata
-(`sidecar_mode`, `daemon_worker_id` — see "Sidecar mode" below).
+(`sidecar_mode`, `daemon_worker_id`, `authority` — see "Sidecar mode" and
+"Execution authority" below).
 
 The usage recorder intentionally does not persist full tool inputs or results.
 Detailed transcript rendering remains backed by the existing run transcript and
@@ -33,9 +34,10 @@ The response includes top tools, unused currently advertised tools for the
 selected surface, error rates by tool, chat-vs-workflow usage breakdown
 (`surface_breakdown`), provider breakdown (`provider_breakdown`), MCP server
 breakdown (`server_breakdown`), stdio-vs-persistent usage breakdown
-(`sidecar_mode_breakdown`), custom-card coverage gaps (`custom_card_gaps`), and
-a bounded list of the most recent individual calls (`recent_calls`) for tracing
-a specific failure back to its origin.
+(`sidecar_mode_breakdown`), execution-authority breakdown
+(`authority_breakdown`), custom-card coverage gaps (`custom_card_gaps`), and a
+bounded list of the most recent individual calls (`recent_calls`) for tracing a
+specific failure back to its origin.
 Each `recent_calls` row carries the linked Job/Workflow/Run/chat ids plus a
 ready-to-use `job_path` / `workflow_path` / `run_path` / `chat_path` (nil when
 not applicable) so the admin UI (and any other consumer) can link straight to
@@ -89,9 +91,10 @@ code is present.
 The admin **MCP Tool Usage** page (`Admin::McpToolUsagePayload`,
 `app/frontend/routes/AdminMcpToolUsage.tsx`) renders the aggregate operational
 sections: call/error totals, the top-tools and highest-error-rate tables,
-unused advertised tools, the surface/provider/server/sidecar-mode breakdowns,
-and the recent calls table with links to the originating Job, Workflow, Run
-transcript, or chat. Its filters are rendered through the shared FilterBar:
+unused advertised tools, the surface/provider/server/sidecar-mode/authority
+breakdowns, and the recent calls table with links to the originating Job,
+Workflow, Run transcript, or chat. Its filters are rendered through the shared
+FilterBar:
 operators can choose the window preset, surface, tool name, and server name,
 and those chips map back to the API's flat `window_preset`/`since`, `surface`,
 `tool_name`, and `server_name` params. The flat-param adapter deliberately
@@ -102,13 +105,13 @@ AND form.
 The recent calls and custom-card gap ranking tables use the shared admin data
 table controls: sortable headers, dashboard-style sort indicators, a column
 selector, and drag reordering for optional columns. The top-tools,
-highest-error-rate, and surface/provider/server/sidecar-mode breakdown tables
-remain compact because they are fixed, four-column aggregate summaries (group
-key plus three numeric stats) rather than row-level operational lists an
-operator would naturally customize. The startup lifecycle table likewise stays
-compact because it is a fixed diagnostic phase-latency matrix. The page does
-not surface raw tool input/result, consistent with what the payload itself
-omits. The `admin_mcp_tool_usage` chat custom card renders the
+highest-error-rate, and surface/provider/server/sidecar-mode/authority
+breakdown tables remain compact because they are fixed, four-column aggregate
+summaries (group key plus three numeric stats) rather than row-level
+operational lists an operator would naturally customize. The startup lifecycle
+table likewise stays compact because it is a fixed diagnostic phase-latency
+matrix. The page does not surface raw tool input/result, consistent with what
+the payload itself omits. The `admin_mcp_tool_usage` chat custom card renders the
 `custom_card_gaps` buckets alongside those aggregate usage sections so
 operators can prioritize future card work from chat.
 
@@ -206,6 +209,25 @@ exactly one of them, never both, per invocation:
 `PersistentMcpDaemon#identity`'s `worker_id` — the same stable per-worker id
 used elsewhere for resume-queue routing — so usage from a specific worker's
 daemon instance can be isolated when comparing modes.
+
+## Execution authority (`authority`)
+
+`authority` records where the tool call actually executed. This is reporting
+only and does not authorize, deny, or reroute a call.
+
+- `workspace` — a workflow-step MCP call executed in the workflow workspace,
+  regardless of stdio or persistent transport.
+- `operator_host` — a Local Mode chat MCP call executed through the operator's
+  connected local daemon.
+- `nil` — no host/workspace authority was identified for the row. Ordinary chat
+  calls that are not Local Mode stay nil, including persistent chat calls with a
+  `daemon_worker_id`; the worker id identifies the daemon instance, not whether
+  the call reached an operator host.
+
+The admin usage payload exposes `authority_breakdown`, supports filtering by
+`authority`, and includes `authority` on each `recent_calls` row so operators
+can answer which calls ran against an operator host without querying the
+database directly.
 
 Tool exposure metadata is declared in `McpToolRegistry`. Use
 `McpToolRegistry.summaries(surface: ..., tier: ...)` when docs or usage payloads

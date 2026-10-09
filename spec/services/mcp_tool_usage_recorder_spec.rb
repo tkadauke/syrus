@@ -156,6 +156,30 @@ RSpec.describe McpToolUsageRecorder do
     expect(McpToolUsage.sole.sidecar_mode).to eq("stdio")
   end
 
+  it "records workflow transcript calls under workspace authority" do
+    run = Factories.job.initial_run
+
+    described_class.record_workflow_tool_call(run: run, tool_name: "syrus-mcp-sidecar.read_live_state", tool_use_id: "t1", tool_input: {})
+
+    expect(McpToolUsage.sole.authority).to eq("workspace")
+  end
+
+  it "records Local Mode chat transcript calls under operator-host authority" do
+    chat = ChatSession.create!(user: Factories.user, mode: "local")
+
+    described_class.record_chat_tool_call(chat_session: chat, tool_name: "write_file", tool_use_id: "t1", tool_input: {})
+
+    expect(McpToolUsage.sole.authority).to eq("operator_host")
+  end
+
+  it "does not record ordinary chat transcript calls as operator-host authority" do
+    chat = ChatSession.create!(user: Factories.user)
+
+    described_class.record_chat_tool_call(chat_session: chat, tool_name: "list_jobs", tool_use_id: "t1", tool_input: {})
+
+    expect(McpToolUsage.sole.authority).to be_nil
+  end
+
   describe ".record_dispatch" do
     let(:chat_user) { Factories.user }
     let(:chat) { ChatSession.create!(user: chat_user, repository: Factories.repository(user: chat_user)) }
@@ -175,6 +199,7 @@ RSpec.describe McpToolUsageRecorder do
         error: false,
         sidecar_mode: "persistent",
         daemon_worker_id: "w1",
+        authority: nil,
         chat_session_id: chat.id
       )
       expect(usage.input_bytes).to be > 0
@@ -219,6 +244,29 @@ RSpec.describe McpToolUsageRecorder do
       usage = McpToolUsage.sole
       expect(usage.chat_session_id).to be_nil
       expect(usage.status).to eq("failed")
+      expect(usage.authority).to be_nil
+    end
+
+    it "records workflow dispatches under workspace authority" do
+      run = Factories.job.initial_run
+
+      described_class.record_dispatch(
+        surface: "workflow", tool_name: "read_live_state", tool_input: {},
+        sidecar_mode: "persistent", daemon_identity: { worker_id: "w1" }, run: run
+      ) { MCP::Tool::Response.new([ { type: "text", text: "{}" } ]) }
+
+      expect(McpToolUsage.sole.authority).to eq("workspace")
+    end
+
+    it "records Local Mode chat dispatches under operator-host authority" do
+      local_chat = ChatSession.create!(user: chat_user, repository: Factories.repository(user: chat_user), mode: "local")
+
+      described_class.record_dispatch(
+        surface: "chat", tool_name: "write_file", tool_input: {},
+        sidecar_mode: "persistent", daemon_identity: { worker_id: "w1" }, chat_session: local_chat
+      ) { MCP::Tool::Response.new([ { type: "text", text: "{}" } ]) }
+
+      expect(McpToolUsage.sole.authority).to eq("operator_host")
     end
   end
 

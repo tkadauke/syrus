@@ -275,7 +275,7 @@ class McpToolUsageRecorder
   end
 
   def context_attributes(tool_use_id)
-    base = { sidecar_mode: @sidecar_mode, daemon_worker_id: daemon_worker_id }
+    base = { sidecar_mode: @sidecar_mode, daemon_worker_id: daemon_worker_id, authority: authority }
 
     if @run
       workflow = @run.workflow
@@ -307,6 +307,13 @@ class McpToolUsageRecorder
     return nil if @daemon_identity.blank?
 
     @daemon_identity[:worker_id] || @daemon_identity["worker_id"]
+  end
+
+  def authority
+    return "workspace" if @surface == "workflow"
+    return "operator_host" if @chat_session&.local?
+
+    nil
   end
 
   def byte_count(value)
