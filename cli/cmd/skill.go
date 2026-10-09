@@ -29,7 +29,7 @@ implementation. This machine has the ` + "`syrus`" + ` CLI installed and signed 
 ## Reviewing work
 
 - ` + "`syrus inbox`" + ` — implemented and failed jobs awaiting a human.
-- ` + "`syrus jobs [--state <state>] [--repo <owner/name>]`" + ` — list jobs.
+- ` + "`syrus jobs [--closed] [--repo <owner/name>]`" + ` — list jobs.
 - ` + "`syrus job show JOB-<id>`" + ` — one job's state, PR, workflow history.
 - ` + "`syrus job diff JOB-<id>`" + ` — the job's full diff (review without a checkout).
 - ` + "`syrus job log JOB-<id>`" + ` / ` + "`syrus job watch JOB-<id>`" + ` — run logs, once or live.
