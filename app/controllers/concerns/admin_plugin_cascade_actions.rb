@@ -19,11 +19,11 @@ module AdminPluginCascadeActions
     if blocked_experimental.any?
       render json: {
         error: {
-          code: "experimental_plugins_not_enabled",
-          message: "This plugin is available in this Syrus build, but this instance has not opted into experimental plugins."
+          code: "beta_mode_not_enabled",
+          message: "This plugin is available in this Syrus build, but this instance has not enabled beta mode."
         },
         blocked_experimental_plugins: blocked_experimental.map { |blocked| { name: blocked.name, display_name: blocked.display_name.presence || blocked.name.to_s.titleize } },
-        message: "This plugin is available in this Syrus build, but this instance has not opted into experimental plugins."
+        message: "This plugin is available in this Syrus build, but this instance has not enabled beta mode."
       }, status: :unprocessable_content
       return
     end
@@ -68,7 +68,7 @@ module AdminPluginCascadeActions
   end
 
   def blocked_experimental_plugins(manifests, names)
-    return [] if AppSetting.experimental_plugins_enabled?
+    return [] if AppSetting.beta_mode_enabled?
 
     by_name = manifests.index_by(&:name)
     names.filter_map { |name| by_name[name] }.select(&:experimental?)

@@ -21,6 +21,20 @@ module Api
             if feature.update(enabled: feature_params.fetch(:enabled))
               render json: { feature: feature_payload(feature) }
             else
+              if feature.errors.added?(:enabled, "requires beta mode for beta or experimental features")
+                render json: {
+                  error: {
+                    code: "beta_mode_not_enabled",
+                    message: "This feature is available in this Syrus build, but this instance has not enabled beta mode."
+                  },
+                  message: "This feature is available in this Syrus build, but this instance has not enabled beta mode.",
+                  blocked_experimental_features: [
+                    { slug: feature.slug, name: feature.name }
+                  ]
+                }, status: :unprocessable_content
+                return
+              end
+
               render_error("validation_failed", feature.errors.full_messages.to_sentence,
                            status: :unprocessable_content)
             end
@@ -30,6 +44,7 @@ module Api
 
           def features_payload
             {
+              beta_mode_enabled: AppSetting.beta_mode_enabled?,
               categories: declared_features
                 .group_by(&:category)
                 .map do |category, features|
@@ -53,8 +68,10 @@ module Api
                 name: declaration.fetch(:name),
                 description: declaration[:description],
                 default_enabled: declaration.fetch(:default_enabled),
-                enabled: declaration.fetch(:default_enabled)
+                enabled: declaration.fetch(:default_enabled),
+                experimental: declaration.fetch(:experimental, false)
               )
+              feature.experimental = declaration.fetch(:experimental, false) if feature.has_attribute?(:experimental)
               feature.name_i18n_key = declaration[:name_i18n_key]
               feature.description_i18n_key = declaration[:description_i18n_key]
               feature
@@ -76,6 +93,7 @@ module Api
               category: feature.category,
               name: feature.name,
               description: feature.description,
+              experimental: feature.experimental?,
               enabled: feature.enabled?,
               name_i18n_key: feature.name_i18n_key,
               description_i18n_key: feature.description_i18n_key

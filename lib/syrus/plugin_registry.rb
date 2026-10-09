@@ -530,12 +530,12 @@ module Syrus
         end
       end
 
-      def experimental_plugins_enabled?
+      def beta_mode_enabled?
         return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
         return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
-        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("experimental_plugins_enabled")
+        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
-        AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.experimental_plugins_enabled? || false
+        AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.beta_mode_enabled? || false
       rescue ActiveRecord::ActiveRecordError
         true
       end
@@ -557,7 +557,7 @@ module Syrus
 
       def upsert_plugin_record!(name:, default_enabled:, disableable:, experimental:, metadata:)
         record = PluginRecord.find_or_initialize_by(name: name)
-        record.enabled = default_enabled && (!experimental || experimental_plugins_enabled?) if record.new_record?
+        record.enabled = default_enabled && (!experimental || beta_mode_enabled?) if record.new_record?
         record.enabled = true if stable_promotion_enables_record?(record, default_enabled, experimental)
         record.default_enabled = default_enabled if record.has_attribute?(:default_enabled)
         record.disableable = disableable if record.has_attribute?(:disableable)
@@ -587,7 +587,7 @@ module Syrus
       end
 
       def plugin_enabled?(manifest, record)
-        return false if manifest.experimental? && !experimental_plugins_enabled?
+        return false if manifest.experimental? && !beta_mode_enabled?
         return manifest.default_enabled? unless record
         return true unless manifest.disableable?
 
