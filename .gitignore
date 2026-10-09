@@ -26,6 +26,9 @@ desktop/dist-electron/
 desktop/out/
 desktop/resources/
 desktop/node_modules/
+android/.gradle/
+android/**/build/
+android/local.properties
 .byebug_history
 
 # Local release artifacts

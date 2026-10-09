@@ -373,6 +373,21 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(ids).to contain_exactly(idle.id, finished.id)
   end
 
+  it "can include jobs with active workflows for compact operator clients" do
+    user.update!(api_token: "syrus_cli_token")
+    idle = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Ready", state: "implemented")
+    active = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Still running", state: "running")
+
+    attach_work_unit(Workflow.create!(job: active, trigger_kind: "manual", state: "running"))
+
+    get "/api/v1/app/jobs", params: { state: "all", include_active_work: "true", limit: 10 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    ids = parse_body.fetch("jobs").map { |payload| payload.fetch("id") }
+    expect(ids).to contain_exactly(idle.id, active.id)
+  end
+
   it "returns the latest run transcript for CLI clients" do
     user.update!(api_token: "syrus_cli_token")
     run = job.initial_run

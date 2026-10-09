@@ -8,9 +8,9 @@ module Api
 
         def index
           jobs = policy_scope(Job)
-                   .without_active_runtime_work
                    .includes(:epic, :repository, :deployment_stage_statuses)
                    .order(updated_at: :desc, id: :desc)
+          jobs = jobs.without_active_runtime_work unless include_active_work?
           jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
           page_jobs = jobs.limit(limit).to_a
@@ -338,6 +338,10 @@ module Api
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
           scope
+        end
+
+        def include_active_work?
+          ActiveModel::Type::Boolean.new.cast(params[:include_active_work])
         end
 
         def graph_smart_folder(subject_type)
