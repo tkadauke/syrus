@@ -1,18 +1,30 @@
 require "rails_helper"
 
-RSpec.describe AppSetting do
+RSpec.describe AppSetting, :reset_plugin_registry do
+  def reset_app_settings!
+    Thread.current[:syrus_app_setting_current] = nil
+    AppSetting.connection.execute("DELETE FROM app_settings")
+    AppSetting.connection.clear_query_cache
+  end
+
   it ".current creates the singleton row on first call" do
+    reset_app_settings!
+
     expect { AppSetting.current }.to change(AppSetting, :count).from(0).to(1)
+    reset_app_settings!
   end
 
   it ".current returns the existing row on subsequent calls" do
-    AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY)
+    existing = AppSetting.current
+
     expect { AppSetting.current }.not_to change(AppSetting, :count)
+    expect(AppSetting.current).to eq(existing)
   end
 
   it ".current converges on the singleton when another caller wins the create race" do
+    AppSetting.current.update!(polling_paused: true)
+
     allow(AppSetting).to receive(:find_or_create_by!).and_wrap_original do |method, *args, **kwargs, &block|
-      AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY, polling_paused: true)
       allow(AppSetting).to receive(:find_or_create_by!).and_call_original
       raise ActiveRecord::RecordNotUnique.new("index_app_settings_on_singleton_key")
     end
@@ -39,17 +51,20 @@ RSpec.describe AppSetting do
     expect {
       AppSetting.create!(singleton_key: AppSetting::SINGLETON_KEY)
     }.to raise_error(ActiveRecord::RecordNotUnique)
+    reset_app_settings!
   end
 
   describe "SYRUS_BOOT_POLLING_PAUSED seeding" do
-    it "seeds polling paused on the first create when the env is truthy" do
+    it "treats a truthy env value as paused for first-create seeding" do
       allow(ENV).to receive(:[]).and_call_original
       allow(ENV).to receive(:[]).with("SYRUS_BOOT_POLLING_PAUSED").and_return("1")
 
-      expect(AppSetting.current.polling_paused).to be true
+      expect(AppSetting.boot_polling_paused_default).to be true
     end
 
     it "leaves polling running on the first create by default" do
+      reset_app_settings!
+
       # Pin the env-absent precondition: the suite runs inside a backend
       # container whose compose env_file may export SYRUS_BOOT_POLLING_PAUSED=1
       # (a test-channel stack), which would otherwise seed this example paused.
@@ -60,6 +75,8 @@ RSpec.describe AppSetting do
     end
 
     it "treats an explicitly falsy env value as not paused" do
+      reset_app_settings!
+
       allow(ENV).to receive(:[]).and_call_original
       allow(ENV).to receive(:[]).with("SYRUS_BOOT_POLLING_PAUSED").and_return("no")
 
