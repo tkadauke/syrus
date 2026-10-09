@@ -167,9 +167,17 @@ class PollForkReviewPrJob < ApplicationJob
       comment_kind: "review", user: user, agent_provider: provider
     )
 
+    qualifying_records = issue_result.qualifying_records + review_result.qualifying_records
+    non_qualifying_records = issue_result.non_qualifying_records + review_result.non_qualifying_records
+
+    # Fork-review PRs are an explicit review gate for the Job. Unlike comments
+    # on arbitrary external PRs, actionable comments from outside repository
+    # members should trigger a follow-up workflow.
+    promoted_records = non_qualifying_records.select(&:actionable?)
+
     PrCommentIngester::Result.new(
-      qualifying_records: issue_result.qualifying_records + review_result.qualifying_records,
-      non_qualifying_records: issue_result.non_qualifying_records + review_result.non_qualifying_records
+      qualifying_records: qualifying_records + promoted_records,
+      non_qualifying_records: non_qualifying_records - promoted_records
     )
   end
 
