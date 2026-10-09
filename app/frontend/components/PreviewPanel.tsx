@@ -198,6 +198,7 @@ export function PreviewPanel({
       model: "",
       effortLevel: "",
       epicId: "",
+      dependsOnJobIds: [],
       title: t("preview_fix_job_title"),
       prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
       priority: "high",
