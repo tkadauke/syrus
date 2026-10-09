@@ -1,0 +1,41 @@
+project:
+  id: android_app
+  label: Android App
+  kind: application
+  capabilities:
+    os: linux
+
+prepare: []
+
+visual_review:
+  enabled: true
+  rounds: 1
+  when_files_changed:
+    - "app/src/main/**/*"
+    - "app/build.gradle.kts"
+  seed_notes: |
+    Start an Android Runtime Session with provider android_emulator, build with
+    :app:assembleDebug, install the debug APK, and launch package
+    dev.syrus.android. For local development against a Rails server on the host
+    machine, use instance URL http://10.0.2.2:3000 and a user API token from
+    the web app's Credentials page.
+
+grade:
+  - type: android-assemble
+    name: android-assemble
+    display_name: Android assemble
+    tasks: [":app:assembleDebug"]
+    timeout_minutes: 20
+
+  - type: android-unit-test
+    name: android-unit
+    display_name: Android unit tests
+    tasks: [":app:testDebugUnitTest"]
+    timeout_minutes: 20
+
+  - type: android-instrumented-test
+    name: android-connected
+    display_name: Android connected tests
+    tasks: [":app:connectedDebugAndroidTest"]
+    phases: [ci]
+    timeout_minutes: 45
