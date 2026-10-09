@@ -39,7 +39,9 @@ class IngestionClassifier
     result = invoke_classifier
     return mark_uncertain(result.error) unless result.success?
 
-    apply(result)
+    applied = apply(result)
+    return applied if applied.is_a?(Result)
+
     result
   rescue StandardError => e
     mark_uncertain("#{e.class}: #{e.message}")
@@ -114,9 +116,20 @@ class IngestionClassifier
         invalidate!(result)
       else
         apply_planned_execution!(result)
-        job.advance_after_triage! if job.may_advance_after_triage?
+        if job.may_advance_after_triage?
+          job.advance_after_triage!
+        else
+          mark_uncertain(advance_after_triage_refused_reason)
+        end
       end
     end
+  end
+
+  def advance_after_triage_refused_reason
+    "classifier result could not advance the Job after triage: " \
+      "blocked_by_epic_before_execution?=#{job.blocked_by_epic_before_execution?}, " \
+      "ready_for_execution?=#{job.ready_for_execution?}, " \
+      "validity=#{job.validity}, triaging_reason=#{job.triaging_reason}"
   end
 
   def apply_planned_execution!(result)
