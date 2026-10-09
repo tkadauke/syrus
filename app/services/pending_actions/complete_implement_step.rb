@@ -4,6 +4,7 @@ module PendingActions
   # handoff workflow so graders, summarize, and PR automation run.
   class CompleteImplementStep < Base
     action_key "complete_implement_step"
+    requires_chat_session!
 
     def execute
       job = action_user_job

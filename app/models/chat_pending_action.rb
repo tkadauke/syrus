@@ -1,4 +1,6 @@
 class ChatPendingAction < ApplicationRecord
+  include PendingActions::Invocation
+
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
   TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
