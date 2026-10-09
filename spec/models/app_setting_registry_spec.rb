@@ -40,6 +40,7 @@ RSpec.describe AppSettingRegistry do
       :rebase_failure_cooldown_minutes,
       :merge_train_max_size,
       :signups_open,
+      :experimental_plugins_enabled,
       :telegram_bot_handle,
       :telegram_bot_token,
       :discord_bot_token,
