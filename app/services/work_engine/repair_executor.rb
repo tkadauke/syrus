@@ -595,13 +595,8 @@ module WorkEngine
 
           reclassified = Job.where(id: job_ids).select do |job|
             next false unless job.state == "triaging"
-            next true if job.triaging_reason.to_s == "classifier_pending"
 
-            # An uncertain Job has to be put back in the classifier's queue
-            # first: IngestionClassifier and ClassifyIssueJob both refuse to
-            # run against any reason but `classifier_pending`.
-            job.retry_classification! if job.may_retry_classification?
-            job.reload.triaging_reason.to_s == "classifier_pending"
+            prepare_for_reclassification!(job)
           end
           return skipped("intake Jobs are no longer awaiting classification") if reclassified.empty?
 
@@ -609,6 +604,61 @@ module WorkEngine
           # classify that is genuinely still in flight.
           reclassified.each { |job| ClassifyIssueJob.perform_later(job.id) }
           success("re-enqueued classification for #{reclassified.size} Job(s)")
+        end
+
+        private
+
+        def prepare_for_reclassification!(job)
+          original_reason = job.triaging_reason.to_s
+          if original_reason == "classifier_pending"
+            return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
+
+            job.with_lock do
+              job.reload
+              return false unless job.triaging? && job.triaging_reason_classifier_pending?
+              return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
+
+              job.increment!(:classifier_attempts)
+              audit_classifier_repair!(job, from_reason: original_reason, to_reason: job.triaging_reason)
+            end
+            return true
+          end
+
+          # An uncertain Job has to be put back in the classifier's queue
+          # first: IngestionClassifier and ClassifyIssueJob both refuse to
+          # run against any reason but `classifier_pending`.
+          return false unless job.may_retry_classification?
+
+          job.with_lock do
+            job.reload
+            return false unless job.may_retry_classification?
+
+            before_reason = job.triaging_reason
+            with_transition_reason { job.retry_classification! }
+            audit_classifier_repair!(job.reload, from_reason: before_reason, to_reason: job.triaging_reason)
+          end
+          true
+        end
+
+        def audit_classifier_repair!(job, from_reason:, to_reason:)
+          StateTransition.create!(
+            subject: job,
+            from_state: job.state,
+            to_state: job.state,
+            event_name: "reclassify_stalled_intake",
+            source: "reconciler",
+            metadata: {
+              "reason_key" => plan.action,
+              "repair_action" => plan.action,
+              "repair_reason" => plan.reason,
+              "issue_kind" => plan.issue_kind,
+              "from_triaging_reason" => from_reason,
+              "triaging_reason" => to_reason,
+              "classifier_attempts" => job.classifier_attempts
+            }.compact
+          )
+        rescue StandardError => e
+          Rails.logger.warn("[WorkEngine::RepairExecutor] failed to audit stalled intake repair for #{job_label(job)}: #{e.class}: #{e.message}")
         end
       end
 

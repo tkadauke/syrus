@@ -1,0 +1,23 @@
+# A Job can be stranded before it has any Workflow or Run: the poller created
+# the Job and enqueued intake classification, but the queue work vanished before
+# ClassifyIssueJob ran. The reconciler should be able to repair that pre-runtime
+# stall instead of reporting an operator-only recovery.
+name: stalled intake reclassifies
+repository:
+  owner: simulation
+  name: stalled-intake-reclassifies
+jobs:
+  job:
+    title: Stalled intake reclassifies
+    state: triaging
+    triaging_reason: classifier_pending
+    created_at: "2000-01-01 00:00:00 UTC"
+outcomes:
+  default: success
+expect:
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - stalled_classifier_pending_job
+    - repair reclassify_stalled_intake -> applied
