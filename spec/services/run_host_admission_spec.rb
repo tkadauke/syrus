@@ -16,7 +16,7 @@ RSpec.describe RunHostAdmission do
   end
 
   it "defers compute runs on a worker with critical local pressure" do
-    worker_sample(cpu_pressure_some: 55.0, worker_storage_key: "storage-critical")
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0, worker_storage_key: "storage-critical")
 
     decision = described_class.call(run: run)
 
@@ -28,6 +28,18 @@ RSpec.describe RunHostAdmission do
       "step_kind" => "prepare"
     )
     expect(decision.details.fetch("sample_health")).to include("level" => "critical")
+  end
+
+  it "does not treat high CPU pressure some as critical without saturation evidence" do
+    worker_sample(cpu_used_percent: 6.1, load_1m: 1.8, cpu_pressure_some: 67.4, cpu_pressure_full: 0.0)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+    expect(decision.details.fetch("sample_health")).to include(
+      "level" => "warning",
+      "reasons" => [ "CPU pressure 67.4% >= 20%" ]
+    )
   end
 
   it "defers sticky resume work on a pressured host" do
@@ -52,7 +64,7 @@ RSpec.describe RunHostAdmission do
       trigger_kind: landing_workflow.trigger_kind,
       agent_provider: landing_workflow.agent_provider
     )
-    worker_sample(cpu_pressure_some: 55.0)
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
 
     decision = described_class.call(run: landing_run, queue_name: "merges")
 
@@ -130,7 +142,7 @@ RSpec.describe RunHostAdmission do
 
     expect(admission_decisions_total("admit")).to eq(admit_before + 1)
 
-    worker_sample(cpu_pressure_some: 55.0)
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
     described_class.call(run: run)
 
     expect(admission_decisions_total("defer")).to eq(defer_before + 1)
@@ -138,7 +150,7 @@ RSpec.describe RunHostAdmission do
 
   it "admits control-plane steps on a worker with critical local pressure" do
     enable_distributed_workflow_dag!
-    worker_sample(cpu_pressure_some: 55.0)
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
     landing_workflow = Workflows::MergeTrain.instantiate(job: job, agent_provider: "codex")
     landing_workflow.update!(worker_hostname: "worker-a")
     collect_step = landing_workflow.steps.find_by!(kind: "grader_collect")
@@ -491,7 +503,7 @@ RSpec.describe RunHostAdmission do
     # Measured pressure still stops everything, grader or not -- that is the
     # gate that replaced the predicted budget.
     it "defers a grader when the host itself is in trouble" do
-      worker_sample(cpu_pressure_some: 55.0)
+      worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
 
       decision = described_class.call(run: grader_run)
 
@@ -558,7 +570,7 @@ RSpec.describe RunHostAdmission do
     end
 
     it "still defers visual_diff work outright when the host is under critical pressure" do
-      worker_sample(cpu_pressure_some: 55.0)
+      worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
 
       decision = described_class.call(run: visual_diff_run)
 

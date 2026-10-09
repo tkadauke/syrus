@@ -78,6 +78,11 @@ The classifier currently emits these families:
 - `queued_run_without_queue_claim`
 - `queued_run_solid_queue_failed_execution`
 - `queued_run_stale_queue_claim`
+- `queued_run_host_admission_deferral_budget_exhausted` — detects a queued Run
+  pinned to workflow storage after repeated host-admission deferrals for
+  critical local worker pressure; the automatic repair deletes the stale
+  queue rows, clears workflow worker affinity, and re-enqueues the Run through
+  the general queue so another worker can re-prepare the workspace
 - `queued_grader_collect_cached_failure`
 - `runs_paused`
 - `running_run_without_live_worker_evidence`
@@ -427,6 +432,7 @@ do a bare check-then-act without a row lock, relying on the outer guard plus
 their own idempotent preconditions.
 
 Current automatic repairs include re-enqueueing queued Runs with no queue claim,
+or queued Runs whose pinned host-admission deferral budget has been exhausted,
 starting queued Workflows whose first Step has no Run when readiness gates pass,
 resuming queued successor Steps that missed the post-success handoff,
 clearing stale dependency start blocks whose dependency resolution is now
