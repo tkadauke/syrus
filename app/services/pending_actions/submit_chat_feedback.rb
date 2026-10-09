@@ -1,6 +1,7 @@
 module PendingActions
   class SubmitChatFeedback < Base
     action_key "submit_chat_feedback"
+    requires_chat_session!
 
     def execute
       job = action_job

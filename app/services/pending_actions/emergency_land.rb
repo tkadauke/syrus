@@ -4,6 +4,7 @@ module PendingActions
   # confirmation time before invoking EmergencyLand::Lander.
   class EmergencyLand < Base
     action_key "emergency_land"
+    requires_chat_session!
 
     PRESENTATION_SKIPS_NOTICE = "Skips Syrus graders, adversarial review, and visual review; merges the PR directly through GitHub after confirmation. GitHub branch protection still applies.".freeze
 
