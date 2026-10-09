@@ -92,23 +92,26 @@ in its critique why that proxy is faithful, not just convenient.
 When the intended surface is unreachable and no faithful proxy applies, the
 reviewer must not approve. It records `skipped` when the blocker is
 tooling/environment (no synced clone, missing seed data, preview
-infrastructure not wired up for that route), or `needs_work` when the missing
-route, missing data, or broken preview setup is itself an implementation or
-preview-seeding defect. Either way, the critique must name both the intended
+infrastructure not wired up for that route, auth/session state the reviewer
+cannot obtain), or `needs_work` when the missing route, missing data, redirect,
+or broken preview setup is itself an implementation or preview-seeding defect.
+Either way, the critique must name both the intended
 surface that couldn't be exercised and the fallback/proxy that was considered
 and rejected — so a review that couldn't reach the real surface is auditable
 rather than silently passing on the strength of an adjacent page's
 screenshots.
 
-`submit_visual_review` also enforces the most obvious version of this rule at
-submission time. If an `approved` verdict's screenshots for that run are only
-auth-wall or error-wall captures (for example a sign-in route/title) while the
-Job or review prompt names a different intended route, the tool rejects the
-submission with an operator-readable error naming both the intended surface
-and the captured fallback. The reviewer must resubmit `skipped` for
-tooling/auth/seed blockers, or `needs_work` when the missing surface is an
-implementation or preview-seeding defect. Reviews of auth/session pages
-themselves are still allowed to approve sign-in screenshots.
+Auth/error walls are called out in the reviewer prompt because they are easy
+to mistake for valid evidence when a browser lands somewhere other than the
+changed surface. If a non-auth target such as `/credential_store` redirects to
+`/session/new`, a sign-in page, a 404, or an application error, those
+screenshots are evidence of the blocker rather than evidence that the intended
+surface looks correct. The reviewer should submit `skipped` for external
+tooling/auth/seed blockers, or `needs_work` when the redirect/error is an
+implementation or preview defect. Legitimate auth/session-screen work remains
+reviewable: sign-in screenshots are valid evidence when the changed surface is
+the sign-in/login/signup/session screen itself, even if the Job mentions a
+post-login route or redirect.
 
 ## Verdicts
 
