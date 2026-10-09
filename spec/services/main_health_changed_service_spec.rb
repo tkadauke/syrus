@@ -394,6 +394,130 @@ RSpec.describe MainHealthChangedService, :ci_only do
         )
       end
 
+      it "refreshes an existing repair Job when grader data lands after CI-only attachments were built" do
+        sha = "abc123def999"
+        repository.update!(
+          last_health_checked_sha: sha,
+          last_ci_evaluated_sha: sha,
+          ci_health: "broken",
+          grader_health: "broken"
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: sha,
+          ci_health: "broken",
+          ci_failed_checks: [ { name: "e2e", conclusion: "failure" } ]
+        )
+
+        described_class.on_health_change!(repository)
+
+        fix_job = repository.jobs.where(kind: "direct").last
+        expect(fix_job.issue_body).not_to include("tmp/attachments/main-health-abc123def999-graders.md")
+        summary = fix_job.job_attachments.find { |attachment| attachment.filename == "main-health-abc123def999-summary.md" }
+        expect(summary.file.download).to include(
+          "main-health-abc123def999-graders.md: not written; no grader output was captured."
+        )
+        expect(fix_job.job_attachments.map(&:filename)).not_to include("main-health-abc123def999-graders.md")
+
+        grader_job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "main_grader",
+          issue_title: "main_grader:#{sha}",
+          issue_number: nil
+        )
+        grader_workflow = Workflows::MainGrader.instantiate(
+          job: grader_job,
+          artifacts: { "main_sha" => sha }
+        )
+        grader_workflow.set_artifact!("iterations", [
+          [
+            {
+              "name" => "rspec-ci",
+              "status" => "failed",
+              "required" => true,
+              "exit_code" => 1,
+              "output" => "27 examples failed"
+            }
+          ]
+        ])
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          workflow: grader_workflow,
+          sha: sha,
+          grader_health: "broken",
+          grader_failed_names: [ "rspec-ci" ]
+        )
+
+        described_class.ensure_repair_job!(repository.reload)
+
+        fix_job.reload
+        expect(fix_job.issue_body).to include("tmp/attachments/main-health-abc123def999-graders.md")
+        expect(fix_job.job_attachments.where(filename: "main-health-abc123def999-summary.md").count).to eq(1)
+        grader_logs = fix_job.job_attachments.find { |attachment| attachment.filename == "main-health-abc123def999-graders.md" }
+        expect(grader_logs.file.download).to include(
+          grader_workflow.slug,
+          "rspec-ci",
+          "27 examples failed"
+        )
+      end
+
+      it "refreshes stale repair context when the main-branch repair workflow starts" do
+        sha = "def456abc999"
+        repository.update!(
+          last_health_checked_sha: sha,
+          last_ci_evaluated_sha: sha,
+          ci_health: "broken",
+          grader_health: "broken"
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: sha,
+          ci_health: "broken",
+          ci_failed_checks: [ { name: "e2e", conclusion: "failure" } ]
+        )
+        described_class.on_health_change!(repository)
+        fix_job = repository.jobs.where(kind: "direct").last
+        expect(fix_job.job_attachments.map(&:filename)).not_to include("main-health-def456abc999-graders.md")
+
+        grader_job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "main_grader",
+          issue_title: "main_grader:#{sha}",
+          issue_number: nil
+        )
+        grader_workflow = Workflows::MainGrader.instantiate(
+          job: grader_job,
+          artifacts: { "main_sha" => sha }
+        )
+        grader_workflow.set_artifact!("iterations", [
+          [
+            {
+              "name" => "rspec-ci",
+              "status" => "failed",
+              "required" => true,
+              "exit_code" => 1,
+              "output" => "expected specs to pass"
+            }
+          ]
+        ])
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          workflow: grader_workflow,
+          sha: sha,
+          grader_health: "broken",
+          grader_failed_names: [ "rspec-ci" ]
+        )
+
+        Workflows::MainBranchRepair.instantiate(job: fix_job.reload)
+
+        fix_job.reload
+        expect(fix_job.issue_body).to include("tmp/attachments/main-health-def456abc999-graders.md")
+        grader_logs = fix_job.job_attachments.find { |attachment| attachment.filename == "main-health-def456abc999-graders.md" }
+        expect(grader_logs.file.download).to include("rspec-ci", "expected specs to pass")
+      end
+
       it "does not spawn a fix Job when auto-repair is disabled" do
         repository.update!(main_branch_repair_enabled: false)
 
