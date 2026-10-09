@@ -70,7 +70,7 @@ class Step < ApplicationRecord
   validate :placement_policy_requires_distributed_gate
 
   ACTIVE_STATES = %w[ queued running ].freeze
-  TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
+  TERMINAL_STATES = %w[ succeeded failed cancelled skipped blocked ].freeze
   RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY = "retry_until_barrier_superseded".freeze
 
   # Keys `Workflow#active_descendant_cancellation_details` merges into
@@ -118,7 +118,7 @@ class Step < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled, :skipped
+    state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at ||= Time.current }
@@ -138,6 +138,10 @@ class Step < ApplicationRecord
 
     event :skip do
       transitions from: [ :queued, :running ], to: :skipped, after: -> { self.finished_at = Time.current }
+    end
+
+    event :block do
+      transitions from: [ :queued, :running ], to: :blocked, after: -> { self.finished_at = Time.current }
     end
 
     # Reopen a failed Step so a new Run can be created on it. Used
@@ -200,6 +204,7 @@ class Step < ApplicationRecord
   after_update_commit :apply_auto_approval_rule!, if: :saved_change_to_succeeded_grade?
   after_update_commit :fail_workflow!, if: :saved_change_to_state_to_failed?
   after_update_commit :cancel_workflow_chain!, if: :saved_change_to_state_to_cancelled?
+  after_update_commit :block_workflow!, if: :saved_change_to_state_to_blocked?
 
   def saved_change_to_state_to_succeeded?
     saved_change_to_state? && state == "succeeded"
@@ -211,6 +216,10 @@ class Step < ApplicationRecord
 
   def saved_change_to_state_to_cancelled?
     saved_change_to_state? && state == "cancelled"
+  end
+
+  def saved_change_to_state_to_blocked?
+    saved_change_to_state? && state == "blocked"
   end
 
   def saved_change_to_succeeded_grade?
@@ -234,6 +243,10 @@ class Step < ApplicationRecord
 
   def cancel_workflow_chain!
     Steps::LifecyclePropagation.cancelled!(self)
+  end
+
+  def block_workflow!
+    Steps::LifecyclePropagation.blocked!(self)
   end
 
   # The most recently created Run on this Step — i.e. the latest

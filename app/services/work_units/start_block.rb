@@ -116,7 +116,7 @@ module WorkUnits
 
     def artifact_eligible?
       return false if workflow.work_unit&.blocked_reason.present?
-      return true if workflow.state.in?(%w[succeeded failed cancelled])
+      return true if workflow.state.in?(%w[succeeded failed cancelled blocked])
 
       return true if artifact_reason == StepDispatcher::LANDING_PAUSE_BLOCK_REASON &&
         StepDispatcher.landing_queue_paused?(workflow)
