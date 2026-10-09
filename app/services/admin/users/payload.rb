@@ -27,7 +27,8 @@ module Admin
         base_scope = User.all
         filtered = filter.apply(base_scope)
         total = filtered.count
-        users = apply_sort(filtered).offset(offset).limit(per_page)
+        users = apply_sort(filtered).offset(offset).limit(per_page).to_a
+        provider_context = provider_context_for(users)
         {
           filters: filter.active_filters,
           filter: filter.to_h,
@@ -37,12 +38,13 @@ module Admin
           sort: sort_payload,
           active_smart_folder_id: active_folder&.id,
           smart_folders: smart_folders(base_scope, active_folder),
-          users: users.map { |user| serialize_user_row(user) }
+          users: users.map { |user| serialize_user_row(user, provider_context: provider_context) }
         }
       end
 
       def show(id)
-        serialize_user_detail(User.find(id))
+        user = User.find(id)
+        serialize_user_detail(user, provider_context: provider_context_for([ user ]))
       end
 
       def pause_scheduling(id)
@@ -50,7 +52,7 @@ module Admin
         user = User.find(id)
         user.update!(scheduling_paused: true)
         AdminAction.log!(user: actor, action: :pause_user_scheduling, params: { target_user_id: user.id })
-        serialize_user_detail(user)
+        serialize_user_detail(user, provider_context: provider_context_for([ user ]))
       end
 
       def unpause_scheduling(id)
@@ -58,7 +60,7 @@ module Admin
         user = User.find(id)
         user.update!(scheduling_paused: false)
         AdminAction.log!(user: actor, action: :unpause_user_scheduling, params: { target_user_id: user.id })
-        serialize_user_detail(user)
+        serialize_user_detail(user, provider_context: provider_context_for([ user ]))
       end
 
       def update(id, attributes)
@@ -66,7 +68,7 @@ module Admin
         user = User.find(id)
         user.update!(attributes.to_h.symbolize_keys.slice(:role))
         AdminAction.log!(user: actor, action: :update_user_role, params: { target_user_id: user.id, role: user.role })
-        serialize_user_detail(user)
+        serialize_user_detail(user, provider_context: provider_context_for([ user ]))
       end
 
       private
@@ -156,7 +158,9 @@ module Admin
         }
       end
 
-      def serialize_user_row(user)
+      def serialize_user_row(user, provider_context:)
+        provider_availability = provider_availability_payload(user, provider_context)
+        credential_attention = provider_context.first_attention_for(user)
         {
           id: user.id,
           email_address: user.email_address,
@@ -187,13 +191,17 @@ module Admin
           github_api_blocked_at: user.gh_api_blocked_at,
           github_api_blocked_reason: user.gh_api_blocked_reason,
           github_rate_limit: github_rate_limit_payload(user),
+          provider_availability: provider_availability,
+          needs_attention: credential_attention.present?,
+          needs_attention_reason: credential_attention&.fetch(:reason, nil),
+          credential_attention: credential_attention,
           created_at: user.created_at,
           updated_at: user.updated_at
         }
       end
 
-      def serialize_user_detail(user)
-        serialize_user_row(user).merge(
+      def serialize_user_detail(user, provider_context:)
+        serialize_user_row(user, provider_context: provider_context).merge(
           recent_jobs: user.jobs.order(created_at: :desc).limit(10).map do |job|
             {
               id: job.id,
@@ -236,6 +244,16 @@ module Admin
           percent: user.gh_rate_limit_limit.to_i.positive? ?
                      (user.gh_rate_limit_remaining.to_f / user.gh_rate_limit_limit) : nil
         }
+      end
+
+      def provider_availability_payload(user, provider_context)
+        User.agent_providers.index_with do |provider|
+          provider_context.availability_for(user, provider)
+        end
+      end
+
+      def provider_context_for(users)
+        Admin::ProviderCredentialAttention.preload(users, providers: User.agent_providers)
       end
     end
   end

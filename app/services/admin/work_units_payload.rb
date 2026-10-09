@@ -17,8 +17,9 @@ module Admin
 
     def as_json(*)
       rows = relation.offset((page - 1) * per_page).limit(per_page).to_a
+      provider_context = provider_context_for(rows)
       {
-        intents: rows.map { |intent| intent_json(intent) },
+        intents: rows.map { |intent| intent_json(intent, provider_context: provider_context) },
         pagination: {
           page: page,
           per_page: per_page,
@@ -46,7 +47,7 @@ module Admin
       @relation ||= begin
         scope = WorkIntent
           .includes(:repository, :source_repository, :target_repository, :actor)
-          .preload(work_units: [ :repository, :source_repository, :target_repository, :workflow, { work_unit_members: { job: :repository } } ])
+          .preload(work_units: [ :repository, :source_repository, :target_repository, { workflow: :user }, { work_unit_members: { job: :repository } } ])
         scope = filter_definition.apply(scope, params)
         scope = scope.distinct if joined_filter?
         sorted_scope(scope)
@@ -87,7 +88,7 @@ module Admin
       scope.order(Arel.sql(ordered_columns.join(", ")))
     end
 
-    def intent_json(intent)
+    def intent_json(intent, provider_context:)
       units = intent.work_units.sort_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id ] }.reverse
       {
         id: intent.id,
@@ -113,11 +114,11 @@ module Admin
         target_repository: repository_json(intent.target_repository),
         actor: user_json(intent.actor),
         jobs: jobs_json(units),
-        units: units.map { |unit| unit_json(unit) }
+        units: units.map { |unit| unit_json(unit, provider_context: provider_context) }
       }
     end
 
-    def unit_json(unit)
+    def unit_json(unit, provider_context:)
       workflow_job = unit.workflow&.job_id
       {
         id: unit.id,
@@ -141,8 +142,24 @@ module Admin
         source_repository: repository_json(unit.source_repository),
         target_repository: repository_json(unit.target_repository),
         workflow: unit.workflow ? workflow_json(unit.workflow, workflow_job) : nil,
+        provider_availability: provider_availability_json(unit, provider_context: provider_context),
         members: unit.work_unit_members.map { |member| member_json(member) }
       }
+    end
+
+    def provider_availability_json(unit, provider_context:)
+      workflow = unit.workflow
+      return nil unless unit.blocked_reason == WorkUnits::Gates::ProviderAvailability::REASON
+      return nil unless workflow&.user && workflow.agent_provider.present?
+
+      provider_context.availability_for(workflow.user, workflow.agent_provider)
+    end
+
+    def provider_context_for(intents)
+      workflows = intents.flat_map(&:work_units).filter_map(&:workflow)
+      users = workflows.filter_map(&:user).uniq(&:id)
+      providers = workflows.filter_map(&:agent_provider).uniq
+      Admin::ProviderCredentialAttention.preload(users, providers: providers)
     end
 
     def member_json(member)
