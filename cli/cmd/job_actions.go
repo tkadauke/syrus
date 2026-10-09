@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -82,21 +81,7 @@ func newJobTestPlanCommand() *cobra.Command {
 		Short: "Show a job test plan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
-			if err != nil {
-				return err
-			}
-			job, err := client.GetAdminJob(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			plan, ok := latestTestPlan(job.Workflows)
-			if !ok {
-				fmt.Fprintln(cmd.OutOrStdout(), "No test plan yet — the job may still be implementing.")
-				return nil
-			}
-			renderTestPlan(cmd.OutOrStdout(), plan)
-			return nil
+			return runTestPlan(cmd.Context(), args[0], cmd.OutOrStdout())
 		},
 	}
 }
@@ -286,35 +271,6 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 	return nil
 }
 
-func latestTestPlan(workflows []api.AdminWorkflow) (any, bool) {
-	sort.SliceStable(workflows, func(i, j int) bool {
-		return workflows[i].ID > workflows[j].ID
-	})
-	for _, workflow := range workflows {
-		if workflow.State != "succeeded" && workflow.FinishedAt == "" {
-			continue
-		}
-		if plan, ok := workflow.Artifacts["test_plan"]; ok && plan != nil {
-			return plan, true
-		}
-	}
-	return nil, false
-}
-
-func renderTestPlan(out io.Writer, plan any) {
-	steps := testPlanSteps(plan)
-	if len(steps) == 0 {
-		fmt.Fprintln(out, "No test plan yet — the job may still be implementing.")
-		return
-	}
-	for i, step := range steps {
-		fmt.Fprintf(out, "%d. %s\n", i+1, step.Title)
-		if step.Notes != "" {
-			fmt.Fprintf(out, "   %s\n", step.Notes)
-		}
-	}
-}
-
 func jobSlug(id any) string { return cliplugin.JobSlug(id) }
 
 func epicSlug(number any) string {
@@ -325,54 +281,4 @@ func epicSlug(number any) string {
 // are shown with the JOB- prefix; slugs are shown as-is.
 func displayJobRef(ref string) string {
 	return displayRef(ref, "JOB-")
-}
-
-type testPlanStep struct {
-	Title string
-	Notes string
-}
-
-func testPlanSteps(plan any) []testPlanStep {
-	switch value := plan.(type) {
-	case []any:
-		return testPlanStepsFromArray(value)
-	case map[string]any:
-		for _, key := range []string{"steps", "items", "checks"} {
-			if raw, ok := value[key].([]any); ok {
-				return testPlanStepsFromArray(raw)
-			}
-		}
-	}
-	return nil
-}
-
-func testPlanStepsFromArray(items []any) []testPlanStep {
-	steps := make([]testPlanStep, 0, len(items))
-	for _, item := range items {
-		switch value := item.(type) {
-		case string:
-			steps = append(steps, testPlanStep{Title: value})
-		case map[string]any:
-			title := firstString(value, "step", "title", "command", "description", "name")
-			notes := firstString(value, "notes", "note", "details", "why")
-			if title == "" {
-				title = fmt.Sprint(value)
-			}
-			steps = append(steps, testPlanStep{Title: title, Notes: notes})
-		default:
-			steps = append(steps, testPlanStep{Title: fmt.Sprint(value)})
-		}
-	}
-	return steps
-}
-
-func firstString(values map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value, ok := values[key]; ok {
-			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
-				return text
-			}
-		}
-	}
-	return ""
 }
