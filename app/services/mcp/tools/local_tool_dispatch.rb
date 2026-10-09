@@ -12,9 +12,12 @@ module Mcp::Tools
       if outcome.nil?
         Mcp::Tools.tool_error(call.reload.error.presence || "Local daemon tool call failed.")
       elsif outcome.is_a?(Hash) && (outcome[:error].present? || outcome["error"].present?)
-        Mcp::Tools.tool_error((outcome[:error] || outcome["error"]).to_s)
+        Mcp::Tools.with_execution_authority(
+          Mcp::Tools.tool_error((outcome[:error] || outcome["error"]).to_s),
+          "operator_host"
+        )
       else
-        Mcp::Tools.success(outcome)
+        Mcp::Tools.with_execution_authority(Mcp::Tools.success(outcome), "operator_host")
       end
     end
   end

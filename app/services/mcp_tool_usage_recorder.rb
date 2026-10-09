@@ -65,6 +65,7 @@ class McpToolUsageRecorder
         tool_use_id: tool_use_id,
         content: dispatch_response_content(response),
         error: response_error,
+        authority: dispatch_response_authority(response),
         error_class: response_error ? error_class : nil,
         backtrace_excerpt: response_error ? backtrace_excerpt : nil
       )
@@ -101,6 +102,11 @@ class McpToolUsageRecorder
     response.respond_to?(:error?) ? response.error? : false
   end
   private_class_method :dispatch_response_error?
+
+  def self.dispatch_response_authority(response)
+    response.respond_to?(:execution_authority) ? response.execution_authority : nil
+  end
+  private_class_method :dispatch_response_authority
 
   def self.normalize(raw_tool_name)
     raw = raw_tool_name.to_s
@@ -231,7 +237,7 @@ class McpToolUsageRecorder
     nil
   end
 
-  def record_result(tool_name:, tool_use_id:, content:, error:, error_class: nil, backtrace_excerpt: nil)
+  def record_result(tool_name:, tool_use_id:, content:, error:, authority: nil, error_class: nil, backtrace_excerpt: nil)
     usage = find_usage(tool_use_id)
     normalized = self.class.normalize(tool_name || usage&.raw_tool_name)
     usage ||= McpToolUsage.new(context_attributes(tool_use_id).merge(
@@ -248,7 +254,8 @@ class McpToolUsageRecorder
       backtrace_excerpt: error ? backtrace_excerpt : nil,
       completed_at: Time.current,
       result_bytes: byte_count(content),
-      error_message_summary: error ? summarize_error(content) : nil
+      error_message_summary: error ? summarize_error(content) : nil,
+      authority: authority || usage.authority
     )
     usage.save!
     usage
@@ -275,7 +282,7 @@ class McpToolUsageRecorder
   end
 
   def context_attributes(tool_use_id)
-    base = { sidecar_mode: @sidecar_mode, daemon_worker_id: daemon_worker_id }
+    base = { sidecar_mode: @sidecar_mode, daemon_worker_id: daemon_worker_id, authority: authority }
 
     if @run
       workflow = @run.workflow
@@ -307,6 +314,12 @@ class McpToolUsageRecorder
     return nil if @daemon_identity.blank?
 
     @daemon_identity[:worker_id] || @daemon_identity["worker_id"]
+  end
+
+  def authority
+    return "workspace" if @surface == "workflow"
+
+    nil
   end
 
   def byte_count(value)

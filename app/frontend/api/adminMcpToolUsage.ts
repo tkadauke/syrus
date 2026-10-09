@@ -18,6 +18,7 @@ export type McpToolUsageBreakdownRow = {
   provider?: string | null
   server_name?: string | null
   sidecar_mode?: string | null
+  authority?: string | null
 }
 
 export type McpToolUsageRecentCall = {
@@ -32,6 +33,7 @@ export type McpToolUsageRecentCall = {
   error_class: string | null
   error_message_summary: string | null
   sidecar_mode: string | null
+  authority: string | null
   job_id: number | null
   job_path: string | null
   workflow_id: number | null
@@ -100,6 +102,7 @@ export type McpToolUsagePayload = {
     server_name: string | null
     provider?: string | null
     sidecar_mode?: string | null
+    authority?: string | null
     status?: string | null
     error?: string | null
     repository_id?: number | null
@@ -116,6 +119,7 @@ export type McpToolUsagePayload = {
   provider_breakdown: McpToolUsageBreakdownRow[]
   server_breakdown: McpToolUsageBreakdownRow[]
   sidecar_mode_breakdown: McpToolUsageBreakdownRow[]
+  authority_breakdown: McpToolUsageBreakdownRow[]
   unused_advertised_tools: string[]
   custom_card_gaps: McpToolCardGaps
   recent_calls: McpToolUsageRecentCall[]

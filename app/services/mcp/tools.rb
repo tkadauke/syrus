@@ -75,6 +75,11 @@ module Mcp
         MCP::Tool::Response.new([ { type: "text", text: reason } ], error: true)
       end
 
+      def with_execution_authority(response, authority)
+        response.define_singleton_method(:execution_authority) { authority }
+        response
+      end
+
       def utf8(text)
         string = text.to_s
         if string.encoding == Encoding::ASCII_8BIT
