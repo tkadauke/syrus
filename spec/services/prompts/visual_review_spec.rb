@@ -202,6 +202,7 @@ RSpec.describe Prompts::VisualReview do
   it "tells the reviewer to record skipped for a tooling/seed-data blocker on the intended surface" do
     expect(prompt).to include('verdict "skipped" when the blocker')
     expect(prompt).to include("no synced clone, missing seed data")
+    expect(prompt).to include("auth/session state you cannot obtain")
   end
 
   it "tells the reviewer to record needs_work when the missing route/data/preview setup is itself a defect" do
@@ -213,6 +214,21 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("must explicitly name (a) the intended")
     expect(prompt).to include("surface you could not exercise, and (b) the fallback or proxy page")
     expect(prompt).to include("Do not silently substitute a different")
+  end
+
+  it "tells the reviewer not to approve unrelated auth or error walls for a non-auth surface" do
+    expect(prompt).to include("Auth/error walls are a common version of this failure")
+    expect(prompt).to include("If you intend")
+    expect(prompt).to include("`/credential_store`")
+    expect(prompt).to include("screenshots show `/session/new`")
+    expect(prompt).to include("Submit \"skipped\" for external tooling/auth/seed blockers")
+    expect(prompt).to include("\"needs_work\" when the redirect/error is an implementation or preview")
+  end
+
+  it "allows legitimate auth surface work even when adjacent post-login routes are mentioned" do
+    expect(prompt).to include("Legitimate auth/session-screen work is different")
+    expect(prompt).to include("review and approve that auth surface normally")
+    expect(prompt).to include("mentions a post-login route or redirect")
   end
 
   it "does not include a test-plan hint section by default" do
