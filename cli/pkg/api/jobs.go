@@ -64,26 +64,6 @@ type JobDetail struct {
 	Workflows []WorkflowBrief `json:"workflows"`
 }
 
-type AdminJobDetail struct {
-	ID         int64           `json:"id"`
-	IssueTitle string          `json:"issue_title"`
-	BranchName string          `json:"branch_name"`
-	Repository AdminRepository `json:"repository"`
-	Workflows  []AdminWorkflow `json:"workflows"`
-}
-
-type AdminRepository struct {
-	Slug string `json:"slug"`
-}
-
-type AdminWorkflow struct {
-	ID         int64          `json:"id"`
-	State      string         `json:"state"`
-	FinishedAt string         `json:"finished_at"`
-	CreatedAt  string         `json:"created_at"`
-	Artifacts  map[string]any `json:"artifacts"`
-}
-
 type JobSummary struct {
 	RunID      int64  `json:"run_id"`
 	Text       string `json:"text"`
@@ -152,12 +132,6 @@ func (c *Client) GetJob(ctx context.Context, id string) (JobResponse, error) {
 	return JobResponse(out), err
 }
 
-func (c *Client) GetAppJob(ctx context.Context, id string) ([]byte, error) {
-	var out json.RawMessage
-	err := c.do(ctx, http.MethodGet, "/api/v1/app/jobs/"+url.PathEscape(id), nil, &out)
-	return []byte(out), err
-}
-
 func (c *Client) GetJobDetail(ctx context.Context, id string) (JobDetail, error) {
 	var out JobDetail
 	err := c.do(ctx, http.MethodGet, "/api/v1/app/jobs/"+url.PathEscape(id), nil, &out)
@@ -194,12 +168,6 @@ func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (J
 
 func (c *Client) RunJobAction(ctx context.Context, id string, action string) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), nil, nil)
-}
-
-func (c *Client) GetAdminJob(ctx context.Context, id string) (AdminJobDetail, error) {
-	var out AdminJobDetail
-	err := c.do(ctx, http.MethodGet, "/api/v1/admin/jobs/"+url.PathEscape(id), nil, &out)
-	return out, err
 }
 
 func (c *Client) ApproveJob(ctx context.Context, id string) error {
