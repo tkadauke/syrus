@@ -1624,11 +1624,11 @@ export function UnifiedDiffTable({
   const mobileUnifiedWrap = isMobileViewport && lineWrapping === "wrap"
   const collapseUnifiedGutters = isMobileViewport && showLineNumbers
   const hideSeparateOldLineGutter = hideOldLineGutter || collapseUnifiedGutters
-  const gutterColSpan = showLineNumbers ? (hideSeparateOldLineGutter ? 1 : 2) : 1
+  const gutterColSpan = hideSeparateOldLineGutter ? 1 : 2
   const codeCellClass = diffCodeCellClass(reviewSettings, lineWrapping, splitView, mobileUnifiedWrap)
   const showReviewNotes = hasReviewAnnotations(reviewAnnotations, reviewAnnotationRanges)
   const showMetricGutter = diffLineMetricProviders.length > 0
-  const fullWidthInlineRows = isMobileViewport
+  const splitInlineRows = splitView
 
   let hunkIndex = -1
 
@@ -1642,7 +1642,7 @@ export function UnifiedDiffTable({
     if (threads.length === 0) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
+      <div className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
         {threads.map((thread) => (
           <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1707,7 +1707,7 @@ export function UnifiedDiffTable({
 
     return (
       <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-        <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
+        {showLineNumbers ? <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} /> : null}
         <td className={`text-amber-700 dark:text-amber-300 ${diffDensityClasses(reviewSettings).marker}`}>*</td>
         <td
           className={`${diffInlineReviewCellClass(reviewSettings)} text-xs text-amber-950 dark:text-amber-100`}
@@ -1723,7 +1723,7 @@ export function UnifiedDiffTable({
     if (!isComposingHere) return null
 
     const panel = (
-      <div className={`${DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS} bg-brand/5`}>
+      <div className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} bg-brand/5`}>
         <div className="space-y-2">
           <textarea
             aria-label={t("diff_review_composer.comment")}
@@ -1763,7 +1763,7 @@ export function UnifiedDiffTable({
 
     return (
       <tr className="font-sans" data-testid="diff-review-composer">
-        <td className="border-r border-brand/20" colSpan={gutterColSpan} />
+        {showLineNumbers ? <td className="border-r border-brand/20" colSpan={gutterColSpan} /> : null}
         <td className={`text-brand ${diffDensityClasses(reviewSettings).marker}`}>*</td>
         <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
           {panel}
@@ -1803,7 +1803,7 @@ export function UnifiedDiffTable({
 
     return (
       <tr className={`font-sans ${rowToneClass}`} data-testid="diff-review-annotation">
-        <td className={reviewAnnotationGutterClass(reviewNotes)} colSpan={gutterColSpan} />
+        {showLineNumbers ? <td className={reviewAnnotationGutterClass(reviewNotes)} colSpan={gutterColSpan} /> : null}
         <td className={`${reviewAnnotationMarkerTextClass(reviewNotes)} ${diffDensityClasses(reviewSettings).marker}`}>*</td>
         <td className={diffInlineReviewCellClass(reviewSettings)} colSpan={2 + (showReviewNotes ? 1 : 0) + (showMetricGutter ? 1 : 0)}>
           {panel}
@@ -1979,8 +1979,8 @@ export function UnifiedDiffTable({
                   {showMetricGutter ? <MetricGutterCell metrics={lineMetrics} reviewSettings={reviewSettings} /> : null}
                 </tr>
                 {renderReviewAnnotationRow(inlineReviewNotes, false)}
-                {renderThreadRow(threads, fullWidthInlineRows)}
-                {renderComposerRow(isComposingHere, fullWidthInlineRows)}
+                {renderThreadRow(threads, splitInlineRows)}
+                {renderComposerRow(isComposingHere, splitInlineRows)}
               </Fragment>
             )
           })}

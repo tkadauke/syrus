@@ -696,6 +696,110 @@ describe("ReviewableDiff", () => {
     }
   })
 
+  it("keeps mobile review comments and composers aligned to the code column after the gutter", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(
+        <ReviewableDiff
+          comments={{
+            "app/models/job.rb": {
+              "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+            }
+          }}
+          composingBody="Add a note here."
+          composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+", hunkId: 0 }, side: "new" }}
+          files={files}
+          mode="single-file"
+          selectedPath="app/models/job.rb"
+        />
+      )
+
+      const threadRow = screen.getByTestId("diff-review-thread")
+      const threadCells = Array.from(threadRow.querySelectorAll("td"))
+      const threadPanel = within(threadRow).getByText("Please cover this branch.").closest("td")?.firstElementChild
+
+      expect(threadCells).toHaveLength(3)
+      expect(threadCells[1]).toHaveTextContent("*")
+      expect(threadPanel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(threadPanel).not.toHaveClass("sticky", "left-0")
+
+      const composerRow = screen.getByTestId("diff-review-composer")
+      const composerCells = Array.from(composerRow.querySelectorAll("td"))
+      const composerPanel = within(composerRow).getByLabelText("Comment").closest("td")?.firstElementChild
+
+      expect(composerCells).toHaveLength(3)
+      expect(composerCells[1]).toHaveTextContent("*")
+      expect(composerPanel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(composerPanel).not.toHaveClass("sticky", "left-0")
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps mobile inline review rows aligned when line numbers are hidden", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      render(
+        <ReviewableDiff
+          comments={{
+            "app/models/job.rb": {
+              "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+            }
+          }}
+          composingBody="Add a note here."
+          composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+", hunkId: 0 }, side: "new" }}
+          files={files}
+          mode="single-file"
+          reviewAnnotationRanges={{
+            "app/models/job.rb": [
+              {
+                id: "note-1",
+                side: "new",
+                start_line: 1,
+                end_line: 1,
+                title: "Inspect changed range",
+                body: "This explanation should appear inside the diff body.",
+                marker_component: "missing/marker",
+                inline_component: "missing/panel"
+              }
+            ]
+          }}
+          reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, line_numbers: false }}
+          selectedPath="app/models/job.rb"
+        />
+      )
+
+      const annotationCells = Array.from(screen.getByTestId("diff-review-annotation").querySelectorAll("td"))
+      expect(annotationCells).toHaveLength(2)
+      expect(annotationCells[0]).toHaveTextContent("*")
+      expect(annotationCells[1]).toContainElement(screen.getByText("Inspect changed range"))
+
+      const threadCells = Array.from(screen.getByTestId("diff-review-thread").querySelectorAll("td"))
+      expect(threadCells).toHaveLength(2)
+      expect(threadCells[0]).toHaveTextContent("*")
+      expect(threadCells[1]).toContainElement(screen.getByText("Please cover this branch."))
+
+      const composerCells = Array.from(screen.getByTestId("diff-review-composer").querySelectorAll("td"))
+      expect(composerCells).toHaveLength(2)
+      expect(composerCells[0]).toHaveTextContent("*")
+      expect(composerCells[1]).toContainElement(screen.getByLabelText("Comment"))
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
   it("keeps the diff metric gutter hidden when no metric is registered", () => {
     render(<ReviewableDiff files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
@@ -964,11 +1068,14 @@ describe("ReviewableDiff", () => {
 
       const composer = screen.getByTestId("diff-review-composer")
       const panel = within(composer).getByLabelText("Comment").closest("td")?.firstElementChild
-      expect(composer.querySelectorAll("td")).toHaveLength(1)
-      expect(panel).toHaveClass("sticky", "left-0", "w-[min(44rem,calc(100vw-3rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      const cells = composer.querySelectorAll("td")
+      expect(cells).toHaveLength(3)
+      expect(cells[1]).toHaveTextContent("*")
+      expect(panel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
+      expect(panel).not.toHaveClass("sticky", "left-0")
       expect(panel).not.toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]", "max-md:w-auto", "max-md:max-w-none")
       expect(within(composer).getByLabelText("Comment")).not.toHaveClass("max-md:flex-1")
-      expect(composer.querySelectorAll("td")[0]).not.toHaveClass("max-md:hidden")
+      expect(cells[0]).not.toHaveClass("max-md:hidden")
 
       fireEvent.click(within(composer).getByRole("button", { name: "Cancel" }))
       expect(onCancelComposing).toHaveBeenCalled()
