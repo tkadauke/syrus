@@ -24,6 +24,16 @@ to drive React UI state belong under `/api/v1/app/admin/*`. If the same
 capability needs both consumers, expose it deliberately on both prefixes and
 keep the payload/auth contract for each consumer explicit.
 
+`POST /api/v1/admin/pending_actions/invoke` is the generic operator
+automation bridge for `PendingActions` operations. The request names an
+`action_key`, a JSON `payload`, and a required `reason`; the API call itself is
+the confirmation, so the operation runs synchronously after validation and
+records an `AdminAction` audit row with the acting user, payload, reason, and
+result. Validation failures and operation-raised `ArgumentError`s return
+client errors, not server errors. Actions that intrinsically require a chat
+session or persisted `ChatPendingAction` record are rejected before execution
+instead of being reported as successfully invoked.
+
 Plugin-declared admin API routes follow the same rule. A plugin route intended
 for operator automation should declare the `/api/v1/admin/*` prefix; a plugin
 route intended only for the in-app admin UI should declare the
