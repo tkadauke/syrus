@@ -8,6 +8,7 @@ module Api
               .where(user: Current.user, repository_id: Repository.accessible_repository_ids_for(Current.user))
               .find(params[:id])
             subscription.update!(enabled: ActiveModel::Type::Boolean.new.cast(subscription_params.fetch(:enabled)))
+            ::OperatorBriefing::OptOutCleanup.cancel_for_subscription!(subscription) unless subscription.enabled?
 
             render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
           end

@@ -8,14 +8,16 @@ RSpec.describe OperatorBriefing::Payload do
     PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
   end
 
-  it "seeds enabled subscriptions for visible repositories" do
+  it "seeds disabled subscriptions for visible repositories" do
     payload = described_class.new(user: user).as_json
 
     expect(payload[:subscriptions].map { |row| row[:repository][:slug] }).to include(repository.slug)
-    expect(payload[:repositories].map { |row| row[:repository][:slug] }).to include(repository.slug)
+    expect(payload[:subscriptions].find { |row| row[:repository][:slug] == repository.slug }[:enabled]).to eq(false)
+    expect(payload[:repositories].map { |row| row[:repository][:slug] }).not_to include(repository.slug)
   end
 
   it "serializes the live briefing and archived history" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
     live_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
     live = OperatorBriefing::Briefing.create!(job: live_job, owner_user: user, repository: repository, window_start: 1.day.ago, window_end: Time.current)
     live.revisions.create!(
@@ -53,7 +55,7 @@ RSpec.describe OperatorBriefing::Payload do
   it "computes repository activity status without per-repository generators" do
     quiet_repository = Factories.repository(user: user, owner: "acme", name: "quiet")
     active_repository = Factories.repository(user: user, owner: "acme", name: "active")
-    OperatorBriefing::BriefingSubscription.seed_for_user!(user)
+    OperatorBriefing::BriefingSubscription.seed_for_user!(user, enabled: true)
 
     [ quiet_repository, active_repository ].each do |repo|
       archived_job = Job.create!(user: user, owner_user: user, repository: repo, kind: "briefing_generate", priority: "low")
@@ -72,6 +74,7 @@ RSpec.describe OperatorBriefing::Payload do
   end
 
   it "resolves artifact content blocks against existing workflow typed artifacts" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
     live_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
     source_workflow = Workflow.create!(job: live_job, user: user, trigger_kind: "initial", agent_provider: user.agent_provider)
     source_workflow.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: { "tables" => [] }, renderer_type: "erd_diagram")
