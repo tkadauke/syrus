@@ -16,6 +16,7 @@ module Api
         skip_forgery_protection if: :authenticated_bearer_token_request?
         around_action :audit_internal_cli_invocation
         before_action :enforce_invocation_context_scope
+        before_action :authorize_machine_invocation_context
         before_action :authorize_internal_cli_invocation
 
         rescue_from ActiveRecord::RecordNotFound do |e|
@@ -148,7 +149,7 @@ module Api
 
           context = current_invocation_context
           @current_internal_cli_invocation =
-            context ? AppApi::InternalCliInvocation.new(self, context: context) : nil
+            context && (context.run? || context.chat?) ? AppApi::InternalCliInvocation.new(self, context: context) : nil
         end
 
         def current_invocation_context
@@ -163,6 +164,19 @@ module Api
           invocation_param_id(:run_id).then { |id| return true if id && context.allowed_run_ids && !context.allowed_run_ids.include?(id) }
           invocation_param_id(:chat_id).then { |id| return true if id && context.allowed_chat_session_ids && !context.allowed_chat_session_ids.include?(id) }
           return true if context.chat? && params[:id].present? && controller_path.end_with?("/chats") && invocation_param_id(:id) != context.chat_session.id
+          false
+        end
+
+        def authorize_machine_invocation_context
+          context = current_invocation_context
+          return true unless context&.macos_worker?
+          return true if McpInvocationContext::MACOS_WORKER_UPDATE_PATHS.include?(request.path)
+
+          render_error(
+            "forbidden",
+            "This Syrus machine credential is scoped to macOS worker update endpoints.",
+            status: :forbidden
+          )
           false
         end
 

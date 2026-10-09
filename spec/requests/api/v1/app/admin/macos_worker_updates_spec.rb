@@ -14,6 +14,59 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
     expect(response).to have_http_status(:forbidden)
   end
 
+  it "accepts scoped macOS worker credentials for desired release metadata" do
+    token = McpInvocationContext.issue_for_app_macos_worker
+    allow(OperationalLogging).to receive(:ingest)
+    AppSetting.current.update!(
+      macos_worker_desired_release: {
+        "version" => "1.2.3",
+        "git_sha" => "abc123",
+        "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
+        "artifact_sha256" => "f" * 64
+      }
+    )
+
+    get "/api/v1/app/admin/macos_worker_update",
+        params: { worker_storage_key: "storage-a", hostname: "mac-mini-a" },
+        headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("component" => "macos-worker")
+    expect(OperationalLogging).to have_received(:ingest).with(
+      hash_including(
+        source: "macos_worker_update",
+        message: "macOS worker update credential allowed",
+        context: hash_including(
+          method: "GET",
+          path: "/api/v1/app/admin/macos_worker_update",
+          status: 200,
+          hostname: "mac-mini-a",
+          worker_storage_key: "storage-a"
+        )
+      )
+    )
+  end
+
+  it "accepts scoped macOS worker credentials for updater reports" do
+    token = McpInvocationContext.issue_for_app_macos_worker
+
+    post "/api/v1/app/admin/macos_worker_update/report",
+         params: { status: { hostname: "mac-mini-a", state: "current", current_version: "abc123" } },
+         headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(InstanceVersion.find_by!(hostname: "mac-mini-a", role: "worker").macos_updater_state).to eq("current")
+  end
+
+  it "rejects scoped macOS worker credentials outside the update endpoints" do
+    token = McpInvocationContext.issue_for_app_macos_worker
+
+    get "/api/v1/app/repositories", headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
   it "returns configured desired macOS worker release metadata without enabling unselected workers" do
     sign_in_as(admin)
     AppSetting.current.update!(

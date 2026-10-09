@@ -56,6 +56,14 @@ class McpToolContext
     )
   end
 
+  def self.for_macos_worker_update
+    new(
+      surface: :macos_worker,
+      role: "macos_worker_update",
+      user: nil
+    )
+  end
+
   # Build from a raw MCP server_context hash. Supports both run-sidecar
   # shape ({ run_id: }) and chat-sidecar shape ({ chat_session: }).
   def self.from_server_context(server_context)
@@ -76,6 +84,10 @@ class McpToolContext
 
   def chat?
     surface == :chat
+  end
+
+  def macos_worker?
+    surface == :macos_worker
   end
 
   private_class_method def self.role_for_run(run)
