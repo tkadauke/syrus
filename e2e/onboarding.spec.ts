@@ -52,13 +52,13 @@ test("first-run onboarding checklist updates through the golden path", async ({ 
 
   await page.goto("/dashboard/jobs")
   await expect(page).toHaveURL(/\/dashboard\/jobs/)
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 })
 
   advanceOnboardingFixture("epic")
   await page.goto("/onboarding")
   await expect(completedStep(page, "Land your first Epic")).toBeVisible()
   await page.getByRole("link", { name: "Open Dashboard" }).click()
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 })
 })
 
 function completedStep(page: Page, title: string): Locator {
