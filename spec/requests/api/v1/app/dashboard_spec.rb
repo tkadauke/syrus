@@ -961,6 +961,109 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(entry.fetch("blocker_jobs").sole).not_to include("epic_id", "epic_title")
     end
 
+    it "reports a blocked job bundle as waiting behind the active Epic merge train" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
+      active_member = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 21,
+        issue_title: "Land forum paving",
+        state: "landing",
+        pr_number: 21,
+        approved_at: 2.hours.ago
+      )
+      active_train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch, state: "landing")
+      MergeTrainMember.create!(merge_train: active_train, job: active_member, position: 0)
+      active_workflow = WorkUnits::Launcher.instantiate(
+        kind: "merge_train",
+        job: active_member,
+        artifacts: { "merge_train_id" => active_train.id }
+      )
+      active_unit = active_workflow.work_unit
+      active_unit.update!(state: "running")
+
+      bundled_jobs = 2.times.map do |index|
+        Factories.job_record(
+          repository: repo,
+          owner_user: user,
+          issue_number: 30 + index,
+          issue_title: "Bundle member #{index + 1}",
+          state: "landing",
+          pr_number: 30 + index,
+          approved_at: 1.hour.ago + index.minutes
+        )
+      end
+      bundle_train = MergeTrain.create!(repository: repo, base_branch: repo.default_branch, priority: "medium", state: "building")
+      bundled_jobs.each_with_index { |job, index| MergeTrainMember.create!(merge_train: bundle_train, job: job, position: index) }
+      bundle_workflow = Workflow.create!(
+        job: bundled_jobs.last,
+        trigger_kind: "merge_train",
+        state: "queued",
+        artifacts: { "merge_train_id" => bundle_train.id }
+      )
+      bundle_intent = WorkIntent.create!(
+        kind: "job_bundle",
+        state: "requested",
+        repository: repo,
+        scope_type: "repository",
+        scope_id: repo.id,
+        actor: user,
+        source_type: "spec",
+        payload_artifacts: { "merge_train_id" => bundle_train.id }
+      )
+      bundle_unit = WorkUnit.create!(
+        work_intent: bundle_intent,
+        kind: "job_bundle",
+        state: "blocked",
+        repository: repo,
+        scope_type: "repository",
+        scope_id: repo.id,
+        workflow: bundle_workflow,
+        blocked_reason: "active_work_lock",
+        blocked_details: {
+          "lock_key" => "landing:repository:#{repo.id}",
+          "work_unit_id" => active_unit.id,
+          "workflow_id" => active_workflow.id
+        }
+      )
+      bundled_jobs.each_with_index { |job, index| bundle_unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member") }
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ active_member.id, *bundled_jobs.map(&:id) ]))
+
+      user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      by_id = body.fetch("items").index_by { |item| item.fetch("id") }
+      expect(by_id.fetch(active_member.id)).to include(
+        "state" => "landing",
+        "landing_queue_wait_reason" => { "key" => "waiting_active_epic_merge_train" },
+        "landing_queue_blocked_reason" => nil
+      )
+      bundled_jobs.each do |job|
+        expect(by_id.fetch(job.id)).to include(
+          "state" => "landing",
+          "landing_queue_wait_reason" => { "key" => "waiting_active_merge_train" },
+          "landing_queue_blocked_reason" => nil,
+          "landing_queue_entry_key" => "job_bundle:#{bundle_train.id}"
+        )
+      end
+      expect(body.fetch("landing_queue").fetch("entries").map { |entry| entry.fetch("key") }).to include(
+        "epic:#{epic.id}",
+        "job_bundle:#{bundle_train.id}"
+      )
+    end
+
     it "groups Epic jobs together when assigning landing queue positions" do
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress")

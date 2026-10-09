@@ -186,6 +186,59 @@ describe("landing queue status column", () => {
     expect(status?.className).not.toContain("bg-danger-surface")
   })
 
+  it("labels active Epic train member rows as waiting inside the active train", () => {
+    renderTable([
+      jobItem({
+        id: 1,
+        state: "landing",
+        summary_state: "landing",
+        landing_queue_wait_reason: { key: "waiting_active_epic_merge_train" },
+        landing_queue_entry_key: "epic:1"
+      })
+    ])
+
+    const status = screen.getByText("Waiting in active Epic merge-train").closest("[data-status-pill]")
+    expect(status?.className).toContain("bg-neutral-surface")
+    expect(status?.className).not.toContain("bg-danger-surface")
+  })
+
+  it("labels blocked job bundles as waiting behind the active merge train on desktop", () => {
+    renderTable([
+      jobItem({
+        id: 2,
+        state: "landing",
+        summary_state: "landing",
+        landing_queue_wait_reason: { key: "waiting_active_merge_train" },
+        landing_queue_entry_key: "job_bundle:12"
+      })
+    ])
+
+    const status = screen.getByText("Job bundle waiting for active merge train").closest("[data-status-pill]")
+    expect(status?.className).toContain("bg-neutral-surface")
+    expect(status?.className).not.toContain("bg-danger-surface")
+  })
+
+  it("labels blocked job bundles as waiting behind the active merge train on mobile", () => {
+    mockDesktopMediaQuery(false)
+
+    renderTable([
+      jobItem({
+        id: 2,
+        state: "landing",
+        summary_state: "landing",
+        landing_queue_wait_reason: { key: "waiting_active_merge_train" },
+        landing_queue_entry_key: "job_bundle:12"
+      })
+    ])
+
+    const article = screen.getByRole("article", { name: "Job 2" })
+    expect(article).toHaveTextContent("landing")
+    expect(article).toHaveTextContent("Job bundle waiting for active merge train")
+    const status = screen.getByText("Job bundle waiting for active merge train").closest("[data-status-pill]")
+    expect(status?.className).toContain("bg-neutral-surface")
+    expect(status?.className).not.toContain("bg-danger-surface")
+  })
+
   it("renders slug params in landing queue waits as copyable buttons", async () => {
     renderTable([
       jobItem({

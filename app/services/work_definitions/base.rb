@@ -135,6 +135,12 @@ module WorkDefinitions
     def requires_epic_readiness? = false
     def generic_intent_start_allowed? = !landing_lock?
     def materialize_behind_active_lock? = false
+    def active_work_lock_wait_reason(owner_definition:)
+      owner_definition&.active_work_lock_wait_reason_for_blocked_definition(self) ||
+        { key: "blocked_by_active_landing_unit" }
+    end
+    def active_work_lock_wait_reason_for_blocked_definition(_blocked_definition) = { key: "blocked_by_active_landing_unit" }
+    def active_work_lock_wait_reason_when_blocked_by_merge_train = { key: "blocked_by_active_landing_unit" }
     def lock_conflicts_enforced?
       return true if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
       return true if first_class? && scope == "job"
