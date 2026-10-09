@@ -471,6 +471,7 @@ module WorkEngine
           updates[:base_sha] = config["base_sha"] if config["base_sha"].present?
           run.update_columns(updates)
           run.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
+          run.update_columns(updated_at: parse_optional_time(config["updated_at"])) if config["updated_at"].present?
           create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic

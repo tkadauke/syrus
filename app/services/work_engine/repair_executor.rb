@@ -537,7 +537,7 @@ module WorkEngine
             # same storage key back onto the workflow while repair is running.
             # Dropping affinity then sends the replacement to the general queue
             # (the workspace is re-prepared, as it is for a dead queue).
-            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job queued_run_host_admission_deferral_budget_exhausted])
+            if plan.issue_kind.in?(%w[queued_run_on_dead_resume_queue queued_run_with_wedged_queue_claim queued_run_with_orphaned_queue_job queued_run_host_admission_deferral_budget_exhausted queued_run_in_healthy_reenqueue_loop])
               delete_stale_solid_queue_jobs!
               clear_dead_resume_affinity!(run)
             end

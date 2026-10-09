@@ -532,6 +532,58 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "classifies a queued Run stuck in a healthy re-enqueue loop and clears placement affinity before retrying" do
+    ensure_solid_queue_test_tables!
+    frozen_at = 3.hours.ago
+    run.update_columns(state: "queued", created_at: frozen_at, updated_at: frozen_at, started_at: nil)
+    workflow.update_columns(
+      state: "running",
+      started_at: frozen_at,
+      updated_at: 30.seconds.ago,
+      worker_hostname: "worker-loop",
+      worker_storage_key: "storage-loop"
+    )
+    queue_job = solid_queue_run_job(run, run_at: 15.seconds.from_now, queue_name: "runs", created_at: 30.seconds.ago)
+
+    result = reconcile_and_execute(run_id: run.id)
+    issue = kind(result, :queued_run_in_healthy_reenqueue_loop)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reenqueue_run"
+    )
+    expect(issue.affected_ids[:solid_queue_job_ids]).to eq([ queue_job.id ])
+    expect(issue.evidence["solid_queue_state"]).to eq("healthy_reenqueue_loop")
+    expect(plan(result, :reenqueue_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      execution_steps: [ "Workflow#clear_worker_affinity", "Run#reenqueue!" ]
+    )
+    expect(workflow.reload.worker_storage_key).to be_nil
+    expect(workflow.worker_hostname).to be_nil
+  end
+
+  it "leaves a recently queued Run waiting for capacity out of the healthy re-enqueue loop detector" do
+    ensure_solid_queue_test_tables!
+    frozen_at = 10.minutes.ago
+    run.update_columns(state: "queued", created_at: frozen_at, updated_at: frozen_at, started_at: nil)
+    workflow.update_columns(
+      state: "running",
+      started_at: frozen_at,
+      updated_at: 30.seconds.ago,
+      worker_hostname: "worker-busy",
+      worker_storage_key: "storage-busy"
+    )
+    solid_queue_run_job(run, run_at: 15.seconds.from_now, queue_name: "runs", created_at: 30.seconds.ago)
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :queued_run_in_healthy_reenqueue_loop)).to be_nil
+    expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
+  end
+
   it "ignores exhausted host admission deferral evidence from a different Run" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
