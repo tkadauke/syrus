@@ -23,6 +23,10 @@ describe("tabFromLocation", () => {
     expect(tabFromLocation("/jobs/1", "?tab=coverage")).toBe("summary")
   })
 
+  it("falls back to summary for the removed standalone artifacts tab", () => {
+    expect(tabFromLocation("/jobs/1", "?tab=artifacts")).toBe("summary")
+  })
+
   it("accepts a plugin-contributed tab key that isn't in the core tab list", () => {
     expect(tabFromLocation("/jobs/1", "?tab=coverage", ["coverage"])).toBe("coverage")
   })

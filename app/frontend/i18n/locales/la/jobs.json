@@ -99,7 +99,6 @@
   "tab_workflows": "Cursus ({{count}})",
   "tab_conversation": "Colloquium Agentis",
   "tab_attachments": "Adiuncta ({{count}})",
-  "tab_artifacts": "Artificia ({{count}})",
   "tab_source": "Fons",
   "conversation_loading": "Colloquium agentis oneratur…",
   "conversation_load_error": "Colloquium agentis onerari non potuit.",
