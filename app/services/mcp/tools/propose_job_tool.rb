@@ -211,6 +211,8 @@ module Mcp::Tools
       # host no worker advertises, so the Job could never start. Returning a
       # String signals an invalid request to #call.
       def planned_execution_attributes(planned_execution)
+        return REQUIRED_PLACEMENT_MESSAGE unless explicit_planned_execution_capabilities?(planned_execution)
+
         explicit = PlannedExecutionParams.from_params({ "planned_execution" => planned_execution }.compact)
         return explicit if explicit.present?
 
