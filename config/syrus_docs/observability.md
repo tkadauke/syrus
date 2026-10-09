@@ -282,13 +282,16 @@ workflow/grader spawns are unaffected).
 
 Each of these phases opts into `capture_host_pressure: true`, so a slow
 stage's `metadata` additionally carries `io_pressure_some`/`io_pressure_full`
-(from `/proc/pressure/io`, "some"/"full" `avg10`) and
+(the "some"/"full" `avg10` values from the worker's cgroup v2 `io.pressure`
+file, falling back to `/proc/pressure/io` when the cgroup file is absent),
+`io_pressure_source`, and
 `data_root_used_percent`/`data_root_filesystem`/`data_root_mounted_on` (from
 `WorkerHostHealthSampler.io_pressure_snapshot`, a lightweight on-demand
 snapshot -- it skips the periodic sampler's blocking CPU-delta read and
 doesn't persist a `WorkerHostHealthSample` row). That snapshot is only taken
 when the phase actually crossed the threshold, so a normal-speed turn never
-pays for a `/proc` read. Deliberately excluded from `chat_startup.*`:
+pays for a pressure or data-root read. Deliberately excluded from
+`chat_startup.*`:
 first-agent-event/MCP-startup/usage-probe markers, which measure waiting on
 the provider or a network call rather than local storage -- folding those in
 would blur the provider-vs-storage-latency distinction this instrumentation
