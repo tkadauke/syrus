@@ -38,6 +38,7 @@ RSpec.describe WorkUnit do
       resource_safety
       ci_repair_safety
       active_work_lock
+      agent_cannot_proceed
       auto_retry_backoff
       no_capable_worker
       visual_diff_obsolete
@@ -83,6 +84,7 @@ RSpec.describe WorkUnit do
       "resource_safety",
       "ci_repair_safety",
       "active_work_lock",
+      "agent_cannot_proceed",
       "auto_retry_backoff",
       "no_capable_worker",
       "visual_diff_obsolete",
