@@ -1,11 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import { deleteJobCommand, patchJobCommand, postJobCommand, type JobDetailPayload } from "../../api/jobs"
+import { deleteJobCommand, patchJobCommand, postJobCommand, type JobCommandPayload, type JobDetailPayload } from "../../api/jobs"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { scheduleJobDetailInvalidation } from "../../lib/appEvents"
 import { useConfirm } from "../../hooks/useConfirm"
 import type { JobDetailQueryKey, JobWorkflowsQueryKey } from "./queryKeys"
+import type { NoticeToastTone } from "../../components/NoticeToast"
+import { errorMessage } from "../../lib/errorMessage"
+import { useT } from "../../hooks/useT"
 
 // Shared Job-command spine extracted from JobDetail.tsx: the mutation hook that
 // POST/PATCH/DELETEs a Job command and invalidates the relevant queries, the
@@ -18,19 +21,23 @@ export type CommandInput =
   | { method: "patch"; path: string; body?: unknown; confirm?: string }
   | { method: "delete"; path: string; confirm?: string }
 
-export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workflowsQueryKey: JobWorkflowsQueryKey | undefined, onNotice: (message: string | null) => void) {
+type CancelledCommand = { cancelled: true }
+
+export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workflowsQueryKey: JobWorkflowsQueryKey | undefined, onNotice: (message: string | null, tone?: NoticeToastTone) => void) {
+  const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { confirm, dialog } = useConfirm()
 
   const mutation = useMutation({
-    mutationFn: async (input: CommandInput) => {
-      if (input.confirm && !(await confirm({ message: input.confirm, destructive: true }))) return { message: null }
+    mutationFn: async (input: CommandInput): Promise<JobCommandPayload | CancelledCommand> => {
+      if (input.confirm && !(await confirm({ message: input.confirm, destructive: true }))) return { cancelled: true }
       if (input.method === "delete") return deleteJobCommand(input.path)
       if (input.method === "patch") return patchJobCommand(input.path, input.body)
       return postJobCommand(input.path, input.body)
     },
     onSuccess: (payload) => {
+      if ("cancelled" in payload) return
       if (payload.redirect_to) navigate(payload.redirect_to)
       onNotice(payload.message || null)
       // Apply the state/actions the command response already carries
@@ -52,6 +59,9 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
       void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+    },
+    onError: (error) => {
+      onNotice(errorMessage(error, t("command_error")), "error")
     }
   })
 

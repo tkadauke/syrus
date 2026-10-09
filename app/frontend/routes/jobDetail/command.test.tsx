@@ -62,13 +62,15 @@ describe("useJobCommand confirm flow", () => {
 
   it("does not fire the request when the operator cancels", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retried." }))
-    renderProbe()
+    const onNotice = vi.fn()
+    renderProbe(onNotice)
 
     act(() => screen.getByRole("button", { name: "retry" }).click())
     await waitFor(() => screen.getByRole("button", { name: "Cancel" }))
     await act(async () => screen.getByRole("button", { name: "Cancel" }).click())
 
     expect(fetchSpy).not.toHaveBeenCalled()
+    expect(onNotice).not.toHaveBeenCalled()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
@@ -99,6 +101,48 @@ describe("useJobCommand confirm flow", () => {
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+})
+
+describe("useJobCommand notices", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("surfaces the server error message when a command fails", async () => {
+    const onNotice = vi.fn()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      error: { code: "validation_failed", message: "Unapprove before replacing the PR branch." }
+    }, 422))
+    renderProbe(onNotice)
+
+    act(() => screen.getByRole("button", { name: "retry" }).click())
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Unapprove before replacing the PR branch.", "error"))
+  })
+
+  it("surfaces a fallback message when a command fails without a server response", async () => {
+    const onNotice = vi.fn()
+    vi.spyOn(window, "fetch").mockRejectedValue(new Error("network down"))
+    renderProbe(onNotice)
+
+    act(() => screen.getByRole("button", { name: "retry" }).click())
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Job command failed.", "error"))
+  })
+
+  it("still surfaces successful command notices unchanged", async () => {
+    const onNotice = vi.fn()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retried." }))
+    renderProbe(onNotice)
+
+    act(() => screen.getByRole("button", { name: "retry" }).click())
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Retried."))
   })
 })
 
