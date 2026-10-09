@@ -500,7 +500,7 @@ class PollRepositoryJob < ApplicationJob
     return unless job.triaging? && job.triaging_reason_classifier_pending?
     return unless job.user.agent_provider_configured?(job.workflow_agent_provider)
 
-    ClassifyIssueJob.perform_later(job.id)
+    ClassifyIssueJob.enqueue_for_job!(job)
   end
 
   def latest_job_for_issue(repository, issue_number)

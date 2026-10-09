@@ -645,7 +645,7 @@ module Api
 
         def continue_released_job_triage(job)
           if job.issue? && job.triaging_reason_classifier_pending? && job.user.agent_provider_configured?(job.workflow_agent_provider)
-            ClassifyIssueJob.perform_later(job.id)
+            ClassifyIssueJob.enqueue_for_job!(job)
           elsif job.may_advance_after_triage?
             job.advance_after_triage!
           end
