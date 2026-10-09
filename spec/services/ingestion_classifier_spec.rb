@@ -128,11 +128,12 @@ RSpec.describe IngestionClassifier do
       issue_body: "Build a novel operator report."
     )
 
-    classify(job, {
+    result = classify(job, {
       "epic_id" => nil,
       "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
     })
 
+    expect(result).to be_success
     expect(job.reload.state).to eq("queued")
     expect(job.validity).to eq("valid")
     expect(job.runs.count).to eq(1)
@@ -162,6 +163,38 @@ RSpec.describe IngestionClassifier do
     )
     expect(attempt.decision).to include("epic_id" => nil)
     expect(attempt.raw_output).to include("epic_id")
+  end
+
+  it "marks the job uncertain when a valid classifier result cannot advance triage" do
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 140,
+      issue_title: "Add a new report",
+      issue_body: "Build a novel operator report."
+    )
+    allow(job).to receive(:may_advance_after_triage?).and_return(false)
+    allow(job).to receive(:ready_for_execution?).and_return(false)
+
+    result = classify(job, {
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    })
+
+    expect(result).not_to be_success
+    expect(result.error).to include("could not advance")
+    expect(job.reload).to be_triaging
+    expect(job.triaging_reason).to eq("classifier_uncertain")
+    expect(job.triaging_uncertainty_reason).to include("ready_for_execution?=false")
+    expect(job.runs).to be_empty
+    attempt = job.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "uncertain"
+    )
+    expect(attempt.decision).to include("epic_id" => nil)
+    expect(attempt.error).to include("could not advance")
   end
 
   it "persists a classifier-selected planned execution requirement before queueing" do
