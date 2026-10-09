@@ -165,6 +165,9 @@ and reason, Syrus records `blocked_by_main`, skips that iteration's pending
 grader check steps, and continues to `summarize_amend`/`push`. That preserves
 any legitimate fixes committed by earlier iterations instead of burning the
 full retry budget against a self-diagnosed pre-existing main failure.
+Other no-diff `analyze_and_fix` iterations fail with
+`agent_outcome: "no_changes_produced"` even when an earlier iteration already
+left a branch diff, because the repair step itself made no progress.
 
 `PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
 spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's

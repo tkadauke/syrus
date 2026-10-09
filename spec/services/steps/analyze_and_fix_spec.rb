@@ -137,11 +137,23 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
     expect(run.agent_diff).to include("diff --git")
   end
 
+  it "fails a no-op repair iteration even when the branch already has a prior diff" do
+    allow(handler).to receive(:run_agent) { run.update!(agent_outcome: "success") }
+    allow(handler).to receive(:diff_against_default).and_return("diff --git a/fix.rb b/fix.rb\n+ok")
+    allow(handler).to receive(:diff_against_sha).and_return("")
+
+    expect { handler.call }.to raise_error(Steps::Base::NoChangesProduced, "agent produced no changes")
+
+    expect(run.reload.agent_outcome).to eq("no_changes_produced")
+  end
+
   it "still raises NoChangesProduced when the whole branch has no diff and no repeated diagnosis" do
+    allow(handler).to receive(:run_agent) { run.update!(agent_outcome: "success") }
     allow(handler).to receive(:diff_against_default).and_return("")
     allow(handler).to receive(:diff_against_sha).and_return("")
 
     expect { handler.call }.to raise_error(Steps::Base::NoChangesProduced, "agent produced no changes")
+    expect(run.reload.agent_outcome).to eq("no_changes_produced")
   end
 
   context "prompt injector plugins" do
