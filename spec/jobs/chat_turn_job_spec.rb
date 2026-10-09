@@ -1532,7 +1532,7 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received.dig(:mcp_servers, "syrus-chat-sidecar", :env, "SYRUS_MCP_PROXY_URL")).to match(%r{\Ahttp://127\.0\.0\.1:\d+/mcp\z})
     expect(received.dig(:mcp_servers, "syrus-chat-sidecar", :env, "SYRUS_MCP_PROXY_INVOCATION_CONTEXT")).to be_present
     messages = codex_chat.messages.order(:created_at).to_a
-    expect(messages.map(&:role)).to eq([ "user", "assistant", "tool_use", "tool_result", "tool_use" ])
+    expect(messages.map(&:role)).to eq([ "user", "assistant", "tool_use", "tool_result", "tool_use", "tool_result" ])
     expect(messages.third).to have_attributes(
       tool_name: "mcp__syrus-chat-sidecar__repo_info",
       content: {
@@ -1558,6 +1558,17 @@ RSpec.describe ChatTurnJob, :ci_only do
         "id" => "cmd_1",
         "name" => "Command",
         "input" => { "command" => "bin/rails test", "status" => "started" }
+      }
+    )
+    expect(messages[5]).to have_attributes(
+      tool_name: "Command",
+      content: {
+        "type" => "tool_result",
+        "tool_use_id" => "cmd_1",
+        "content" => [ { "type" => "text", "text" => "Agent turn ended before this tool returned." } ],
+        "is_error" => true,
+        "cleanup_reason" => "turn_ended",
+        "benign_cleanup" => true
       }
     )
     expect(codex_chat.reload.provider_session).to have_attributes(
