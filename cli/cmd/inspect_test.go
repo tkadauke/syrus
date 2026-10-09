@@ -50,7 +50,7 @@ func TestEpicCreatePostsToCurrentRepository(t *testing.T) {
 			if payload.Epic.Description != "Install tasteful columns.\nThen hold court." {
 				t.Fatalf("description = %q", payload.Epic.Description)
 			}
-			w.Write([]byte(`{"redirect_to":"/epics/12","epic":{"id":12,"title":"Raise the forum"}}`))
+			w.Write([]byte(`{"redirect_to":"/epics/EPIC-14","epic":{"id":12,"number":14,"title":"Raise the forum"}}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -75,7 +75,7 @@ func TestEpicCreatePostsToCurrentRepository(t *testing.T) {
 	if got := output.String(); !strings.Contains(got, "Create epic in acme/widgets? [y/N] ") {
 		t.Fatalf("output missing confirmation prompt: %q", got)
 	}
-	if got := output.String(); !strings.Contains(got, "Epic #12\n"+server.URL+"/epics/12") {
+	if got := output.String(); !strings.Contains(got, "EPIC-14\n"+server.URL+"/epics/EPIC-14") {
 		t.Fatalf("output = %q", got)
 	}
 }
@@ -488,6 +488,29 @@ func TestEpicShowPrintsJSON(t *testing.T) {
 	}
 }
 
+func TestEpicShowForwardsDisplayRefToResolveByNumber(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/api/v1/app/epics/EPIC-7" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Write([]byte(`{"epic":{"id":3,"number":7,"title":"Ship it","state":"open","repository_slug":"acme/widgets"},"jobs":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+
+	output := &bytes.Buffer{}
+	command := NewEpicCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"show", "EPIC-7"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(output.String(), "EPIC-7 · Ship it") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestEpicListPrintsJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -519,6 +542,33 @@ func TestEpicListPrintsJSON(t *testing.T) {
 	}
 	if decoded.Count != 2 || len(decoded.Epics) != 2 {
 		t.Fatalf("decoded = %+v", decoded)
+	}
+}
+
+func TestEpicListPrintsDisplayRefs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/api/v1/app/epics" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Write([]byte(`{"count":2,"epics":[{"id":1,"number":11,"title":"Alpha","state":"open"},{"id":2,"number":12,"title":"Beta","state":"done"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	output := &bytes.Buffer{}
+	command := NewEpicCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(output.String(), "EPIC-11") || !strings.Contains(output.String(), "EPIC-12") {
+		t.Fatalf("output = %q", output.String())
+	}
+	if strings.Contains(output.String(), "\n1 ") || strings.Contains(output.String(), "\n2 ") {
+		t.Fatalf("output should not print primary keys as refs: %q", output.String())
 	}
 }
 

@@ -392,6 +392,13 @@ func epicSlug(number any) string {
 	return fmt.Sprintf("EPIC-%v", number)
 }
 
+func epicRef(epic api.EpicItem) string {
+	if epic.Number != 0 {
+		return epicSlug(epic.Number)
+	}
+	return epicSlug(epic.ID)
+}
+
 // displayJobRef formats a job identifier for user-facing output. Numeric IDs
 // are shown with the JOB- prefix; slugs are shown as-is.
 func displayJobRef(ref string) string {

@@ -331,14 +331,14 @@ diff annotations in the UI.
 
 `hooks.post_checkout` commands are optional shell strings. They run only
 in the local operator checkout after `syrus checkout JOB-<id>` or
-`syrus checkout EPIC-<id>` successfully switches branches. The CLI runs
+`syrus checkout EPIC-<number>` successfully switches branches. The CLI runs
 each hook in order from the directory that declares it, uses `sh -c`,
 streams output to the terminal, and fails fast on the first non-zero exit. Pass
 `--no-hooks` to bypass hooks for one checkout:
 
 ```bash
 syrus checkout --no-hooks JOB-<id>
-syrus checkout --no-hooks EPIC-<id>
+syrus checkout --no-hooks EPIC-<number>
 ```
 
 When a post-checkout hook fails, the CLI prints the failed command and

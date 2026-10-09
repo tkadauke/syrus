@@ -127,9 +127,9 @@ func TestJobCreateWithEpicFlagResolvesEpicID(t *testing.T) {
 		case "/api/v1/app/repositories":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
-		case "/api/v1/app/epics/42":
+		case "/api/v1/app/epics/EPIC-42":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"epic":{"id":99,"title":"Aqueduct overhaul"}}`))
+			w.Write([]byte(`{"epic":{"id":99,"number":42,"title":"Aqueduct overhaul"}}`))
 		case "/api/v1/app/jobs":
 			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
