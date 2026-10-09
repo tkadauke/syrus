@@ -22,7 +22,7 @@ module Mcp::Tools
     class << self
       def call(command:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        Mcp::Tools::LocalToolDispatch.call("run_command", { command: command }, chat_session: chat_session)
+        Mcp::Tools::LocalToolDispatch.call("run_command", { command: command }, chat_session: chat_session, server_context: server_context)
       end
     end
   end

@@ -266,14 +266,17 @@ it opens an exec bridge onto the operator's own machine, so it's an explicit
 opt-in rather than a Labs-default-on toggle. It lets a chat agent
 read and write files, run commands, and inspect git state directly on an
 operator's own machine over a reverse WebSocket tunnel, instead of a
-server-side clone. Switch a chat to Local mode from the chat mode selector,
-then run the paired `syrus local --chat <chat_session_id> --token
-<auth_token>` command shown in the chat's Local Mode banner from the target
-repository checkout. Once paired, the daemon can read/write files, run
-commands, and inspect git status/diff against that checkout on the operator's
-own machine; a session that drops past its heartbeat timeout needs a fresh
-pairing command from the chat UI to reconnect. An admin can turn it on
-instance-wide from Admin → Features.
+server-side clone. Read-only tools run immediately; file writes and shell
+commands require an operator-confirmed pending action before Syrus sends them
+to the local daemon. Confirming a write or command approves that exact payload
+for the same chat session, but not for other chats. Switch a chat to Local
+mode from the chat mode selector, then run the paired
+`syrus local --chat <chat_session_id> --token <auth_token>` command shown in
+the chat's Local Mode banner from the target repository checkout. Once paired,
+the daemon can read/write files, run commands, and inspect git status/diff
+against that checkout on the operator's own machine; a session that drops past
+its heartbeat timeout needs a fresh pairing command from the chat UI to
+reconnect. An admin can turn it on instance-wide from Admin → Features.
 
 ## Visual Review
 
