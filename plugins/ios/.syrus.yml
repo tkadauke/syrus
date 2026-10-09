@@ -1,0 +1,9 @@
+project:
+  id: ios
+  label: "ios plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
