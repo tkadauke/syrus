@@ -65,7 +65,7 @@ func TestJobCreatePostsDirectJob(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-456 created. Track with: syrus job watch 456") {
+	if !strings.HasSuffix(output.String(), "JOB-456\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -116,7 +116,7 @@ func TestJobCreateWithPriorityAgentAndOwnerFlags(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-457 created. Track with: syrus job watch 457") {
+	if !strings.HasSuffix(output.String(), "JOB-457\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -158,7 +158,7 @@ func TestJobCreateWithEpicFlagResolvesEpicID(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-458 created. Track with: syrus job watch 458") {
+	if !strings.HasSuffix(output.String(), "JOB-458\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -263,6 +263,46 @@ func TestJobCreateBodyFilePreservesBlankLines(t *testing.T) {
 	}
 }
 
+func TestJobCreateFileDashReadsBodyFromStdin(t *testing.T) {
+	body := "First paragraph.\n\nSecond paragraph.\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/jobs":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["prompt"] != "First paragraph.\n\nSecond paragraph." {
+				t.Fatalf("prompt = %#v", payload["prompt"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"job":{"id":461,"title":"Tune the aqueduct"},"repository":{"slug":"acme/widgets"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(body))
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{
+		"job", "create", "--repo", "acme/widgets", "--yes",
+		"--title", "Tune the aqueduct",
+		"--file", "-",
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+}
+
 func TestJobCreateRejectsInvalidPriority(t *testing.T) {
 	writeJobActionTestCredentials(t, "http://example.invalid")
 
@@ -323,6 +363,37 @@ func TestJobCreateFailsFastOnInvalidRepoWithoutPrompting(t *testing.T) {
 
 	err := command.Execute()
 	if err == nil || err.Error() != "repository acme/bogus is not configured for this Syrus account" {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(output.String(), "Title:") {
+		t.Fatalf("expected no prompt output, got %q", output.String())
+	}
+}
+
+func TestJobCreateFailsFastOnInvalidEpicWithoutPrompting(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/epics/404":
+			http.Error(w, `{"error":{"message":"not found"}}`, http.StatusNotFound)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/widgets", "--yes", "--epic", "EPIC-404"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "could not resolve epic EPIC-404") {
 		t.Fatalf("error = %v", err)
 	}
 	if strings.Contains(output.String(), "Title:") {

@@ -298,18 +298,19 @@ human-readable slugs derived from the job title (e.g.
 
 `job create` prompts for a title and multi-line description, defaults to
 the current checkout repository, and accepts `--repo owner/name` and
-`--yes`. For non-interactive callers, pass `--title` plus either `--body`
-or `--body-file`; body files preserve blank lines. Optional flags set fields
+`--yes`. For non-interactive callers, pass `--title` plus `--prompt`,
+`--body`, `--body-file`, or `--file -`; body files preserve blank lines. On
+success it prints the created `JOB-<number>` ref. Optional flags set fields
 the API already accepts but that the interactive prompt does not ask for:
 `--priority` (`urgent`, `high`, `medium`, or `low`; omitted defaults to
 `medium` server-side), `--agent` (an agent provider slug from an enabled
 provider plugin, e.g. `claude`, `codex`, `agy`, or `muse`), `--epic` (an
-Epic to attach the job to, as `EPIC-<id>` or a slug — resolved to its
-numeric ID before the job is created), `--depends-on` (repeatable; accepts
-`JOB-<id>` for existing Jobs or a proposal slug), and `--owner` (the numeric
-user ID of a repository member to assign as owner). These are optional and
-omitted entirely from the request when not passed, rather than sent as blank
-values.
+Epic to attach the job to, as `EPIC-<id>` or a slug — resolved before any
+interactive prompt), `--depends-on` (repeatable; accepts `JOB-<id>` for
+existing Jobs or a proposal slug and is sent with the create request), and
+`--owner` (the numeric user ID of a repository member to assign as owner).
+These are optional and omitted entirely from the request when not passed,
+rather than sent as blank values.
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
@@ -487,12 +488,17 @@ syrus epic list --repo tkadauke/myapp
 syrus epic search "launch"
 syrus epic show 12
 syrus epic create
+syrus epic create --repo tkadauke/myapp --title "Launch checklist" --file ./epic.md --start --yes
 syrus epic open 12
 ```
 
-`epic create` must run inside a GitHub checkout. It prompts for a title
-and multi-line description, confirms the repository, creates the Epic,
-and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
+`epic create` detects the repository from the current GitHub checkout, or
+accepts `--repo owner/name`. It prompts for a title and multi-line
+description when `--title` and body flags are absent; scripts can pass
+`--title` with `--prompt`, `--body`, `--body-file`, or `--file -` to read the
+description from stdin. Use `--start` to start the Epic immediately and
+`--yes` to skip the confirmation prompt. On success it prints the created
+`EPIC-<number>` ref.
 
 `epic list`/`epic search` and `epic show` also accept `--json` for the
 same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic
