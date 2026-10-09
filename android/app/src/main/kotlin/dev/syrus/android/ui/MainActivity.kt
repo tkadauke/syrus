@@ -144,7 +144,8 @@ class MainActivity : Activity() {
         state.jobs.forEach { job ->
             jobList.addView(
                 TextView(this).apply {
-                    text = "#${job.id}  ${job.state}\n${job.title}\n${job.repositorySlug}"
+                    val progressLine = job.currentStep.takeIf { it.isNotBlank() } ?: job.state
+                    text = "#${job.id}  ${job.summaryState}\n${job.title}\n${job.repositorySlug}\n$progressLine"
                     textSize = 15f
                     setPadding(0, 18, 0, 18)
                 },

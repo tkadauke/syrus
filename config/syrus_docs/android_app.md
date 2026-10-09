@@ -10,8 +10,9 @@ desktop app.
 - Authentication: the app uses the existing app API bearer token convention,
   `Authorization: Bearer <api_token>`, matching the CLI and app API docs.
 - Initial API surface: `GET /api/v1/app/bootstrap` identifies the signed-in
-  user, and `GET /api/v1/app/jobs?limit=<n>` loads a compact recent Job list.
-  The MVP does not add Android-only backend endpoints.
+  user, and `GET /api/v1/app/jobs?limit=<n>&state=all&include_active_work=true`
+  loads a compact recent Job list including Jobs with active runtime work. The
+  MVP does not add Android-only backend endpoints.
 - Local emulator development uses `http://10.0.2.2:3000` to reach a Rails
   server running on the host. Cleartext HTTP is allowed only for emulator
   loopback hostnames in the Android network security config.
