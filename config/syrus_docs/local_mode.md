@@ -69,6 +69,15 @@ The daemon executes `read_file`, `write_file`, `list_files`, `run_command`,
 root (`cli/cmd/local.go`). Paths are resolved and rejected if they escape the
 repository root.
 
+Reads are immediate: `read_file`, `list_files`, `git_diff`, `git_diff_staged`,
+and `git_status` go straight to the paired daemon. Writes and command
+execution are gated in chat: `write_file` and `run_command` create a pending
+action and do not reach the local daemon until the operator confirms it.
+Confirming the action also approves that exact tool payload for the same chat
+session, so repeating the same test command does not require another click.
+The approval is not shared with other chats, and rejecting the pending action
+does not grant approval.
+
 ## Limitations
 
 - One daemon session per chat.

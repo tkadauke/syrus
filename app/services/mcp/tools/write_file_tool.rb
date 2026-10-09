@@ -21,7 +21,7 @@ module Mcp::Tools
     class << self
       def call(path:, content:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        Mcp::Tools::LocalToolDispatch.call("write_file", { path: path, content: content }, chat_session: chat_session)
+        Mcp::Tools::LocalToolDispatch.call("write_file", { path: path, content: content }, chat_session: chat_session, server_context: server_context)
       end
     end
   end
