@@ -447,9 +447,16 @@ opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
 backend and reconnects automatically (with backoff) if the connection
 drops; press Ctrl+C to disconnect cleanly.
 
-While connected, the command prints concise activity for each tool call the
-chat agent runs locally, including start lines and short completion summaries
-without dumping full file contents, diffs, or command output:
+While connected, read-only tool calls run immediately. File writes and shell
+commands first appear in chat as pending actions; Syrus does not send them to
+the local daemon until you confirm. Confirming a write or command approves
+that exact payload for the same chat session, so repeating the same test
+command can run without another confirmation, but the approval does not apply
+to other chats.
+
+The command prints concise activity for each tool call the chat agent runs
+locally, including start lines and short completion summaries without dumping
+full file contents, diffs, or command output:
 
 ```text
 Connected to Syrus chat session #123 (acme/widget on feature-branch)
@@ -474,8 +481,8 @@ The command must run inside a git repository (or point `--dir` at one); it
 derives the repository slug from the `origin` remote and reports the
 current branch when it connects. Local Mode intentionally bypasses graders,
 the landing queue, and other Syrus automation, so treat the pairing token
-as sensitive — it grants file and command access to this machine for the
-lifetime of the paired chat session.
+as sensitive — it grants read access immediately and confirmed file/command
+access to this machine for the lifetime of the paired chat session.
 
 ## Epics
 

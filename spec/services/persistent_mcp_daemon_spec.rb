@@ -201,6 +201,7 @@ RSpec.describe PersistentMcpDaemon do
           status: "completed",
           sidecar_mode: "persistent",
           daemon_worker_id: worker_id,
+          authority: "workspace",
           run_id: run.id,
           provider: "claude"
         )
@@ -413,8 +414,92 @@ RSpec.describe PersistentMcpDaemon do
             error: false,
             sidecar_mode: "persistent",
             daemon_worker_id: worker_id,
+            authority: nil,
             chat_session_id: chat.id
           )
+        end
+
+        it "does not mark server-side Local Mode tools as operator-host authority" do
+          Feature.find_or_create_by!(slug: "local_mode") { |feature| feature.category = "Labs"; feature.name = "Local Mode" }
+                 .update!(enabled: true)
+          Feature.clear_enabled_cache!("local_mode")
+          local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+          token = McpInvocationContext.issue_for_chat(local_chat, worker_id: worker_id, tier: "essential")
+
+          expect {
+            call_tool(
+              "create_coding_job",
+              token: token,
+              arguments: { title: "Local instrumentation", body: "Exercise Local Mode authority recording." }
+            )
+          }.to change(McpToolUsage, :count).by(1)
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "create_coding_job",
+            status: "completed",
+            sidecar_mode: "persistent",
+            daemon_worker_id: worker_id,
+            authority: nil,
+            chat_session_id: local_chat.id
+          )
+        end
+
+        it "does not mark disconnected Local Mode local tools as operator-host authority" do
+          Feature.find_or_create_by!(slug: "local_mode") { |feature| feature.category = "Labs"; feature.name = "Local Mode" }
+                 .update!(enabled: true)
+          Feature.clear_enabled_cache!("local_mode")
+          local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+          token = McpInvocationContext.issue_for_chat(local_chat, worker_id: worker_id, tier: "essential")
+
+          expect { call_tool("git_status", token: token) }.to change(McpToolUsage, :count).by(1)
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "git_status",
+            status: "failed",
+            sidecar_mode: "persistent",
+            daemon_worker_id: worker_id,
+            authority: nil,
+            chat_session_id: local_chat.id
+          )
+        end
+
+        it "records completed Local Mode local tools under operator-host authority" do
+          Feature.find_or_create_by!(slug: "local_mode") { |feature| feature.category = "Labs"; feature.name = "Local Mode" }
+                 .update!(enabled: true)
+          Feature.clear_enabled_cache!("local_mode")
+          local_chat = ChatSession.create!(user: user, repository: repository, mode: "local")
+          local_chat.create_local_daemon_session!(user: user).mark_connected!(repo: repository.slug, branch: "main")
+          token = McpInvocationContext.issue_for_chat(local_chat, worker_id: worker_id, tier: "essential")
+          responder = Thread.new do
+            call = nil
+            100.times do
+              call = LocalToolCall.find_by(chat_session: local_chat, tool_name: "git_status")
+              break if call
+
+              sleep 0.01
+            end
+            call&.complete!(result: { status: "On branch main\nnothing to commit" })
+          end
+
+          expect { call_tool("git_status", token: token) }.to change(McpToolUsage, :count).by(1)
+          responder.join
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "git_status",
+            status: "completed",
+            sidecar_mode: "persistent",
+            daemon_worker_id: worker_id,
+            authority: "operator_host",
+            chat_session_id: local_chat.id
+          )
+        ensure
+          responder&.kill if responder&.alive?
         end
 
         it "records a failed usage row for a not_authorized dispatch" do

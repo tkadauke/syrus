@@ -29,6 +29,7 @@ type RecentCall = {
   surface: string | null
   provider: string | null
   sidecarMode: string | null
+  authority: string | null
   status: string
   error: boolean
   errorSummary: string | null
@@ -47,6 +48,7 @@ type UsageCard = {
   providerBreakdown: BreakdownRow[]
   serverBreakdown: BreakdownRow[]
   sidecarModeBreakdown: BreakdownRow[]
+  authorityBreakdown: BreakdownRow[]
   unusedAdvertisedTools: string[]
   customCardGaps: {
     rankedGaps: CardGapRow[]
@@ -156,6 +158,7 @@ function parseRecentCall(value: unknown, index: number): RecentCall | null {
     surface: displayValue(value.surface),
     provider: displayValue(value.provider),
     sidecarMode: displayValue(value.sidecar_mode),
+    authority: displayValue(value.authority),
     status,
     error: value.error === true,
     errorSummary: [displayValue(value.error_class), displayValue(value.error_message_summary)].filter(Boolean).join(": ") || null,
@@ -205,6 +208,7 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
     providerBreakdown: Array.isArray(parsed.provider_breakdown) ? parsed.provider_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "provider", index); return parsedRow ? [parsedRow] : [] }) : [],
     serverBreakdown: Array.isArray(parsed.server_breakdown) ? parsed.server_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "server_name", index); return parsedRow ? [parsedRow] : [] }) : [],
     sidecarModeBreakdown: Array.isArray(parsed.sidecar_mode_breakdown) ? parsed.sidecar_mode_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "sidecar_mode", index); return parsedRow ? [parsedRow] : [] }) : [],
+    authorityBreakdown: Array.isArray(parsed.authority_breakdown) ? parsed.authority_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "authority", index); return parsedRow ? [parsedRow] : [] }) : [],
     unusedAdvertisedTools: Array.isArray(parsed.unused_advertised_tools) ? parsed.unused_advertised_tools.flatMap((tool) => { const name = displayValue(tool); return name ? [name] : [] }) : [],
     customCardGaps: parseCustomCardGaps(parsed.custom_card_gaps),
     recentCalls: Array.isArray(parsed.recent_calls) ? parsed.recent_calls.flatMap((row, index) => { const parsedRow = parseRecentCall(row, index); return parsedRow ? [parsedRow] : [] }) : []
@@ -369,7 +373,7 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
             <Td mono>{call.occurredAt || "-"}</Td>
             <Td maxWidth title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode].filter(Boolean).join(" / ")}</div>
+              <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.authority].filter(Boolean).join(" / ")}</div>
             </Td>
             <Td maxWidth title={call.errorSummary || undefined}>
               <StatePill state={call.status} tone={call.error ? "failure" : "success"} />
@@ -427,6 +431,7 @@ function renderExpanded(context: ToolCardContext) {
         <BreakdownRows label="Provider" rows={card.providerBreakdown} />
         <BreakdownRows label="Server" rows={card.serverBreakdown} />
         <BreakdownRows label="Sidecar mode" rows={card.sidecarModeBreakdown} />
+        <BreakdownRows label="Authority" rows={card.authorityBreakdown} />
       </div>
       {card.unusedAdvertisedTools.length > 0 ? (
         <div>
