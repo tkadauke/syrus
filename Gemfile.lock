@@ -133,6 +133,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/ios
+  specs:
+    ios (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/java
   specs:
     java (0.1.0)
@@ -909,6 +915,7 @@ DEPENDENCIES
   global_search!
   go!
   image_processing (~> 2.2)
+  ios!
   java!
   javascript!
   jbuilder
@@ -1080,6 +1087,7 @@ CHECKSUMS
   i18n (1.15.2) sha256=00f9eb62412fe593b2a65a97daa75300d37abb8f7202ec748e94b6d46a9dd1b5
   image_processing (2.2.0) sha256=e0cb9892a4395ac2b7bb2fac5c6f5bc63361f2f18ed08773e21fce5b111c6974
   io-console (0.9.4) sha256=a403304f32928ee85e56d457b4612ca43f2703b561a3258844992bd24085fbb1
+  ios (0.1.0)
   irb (1.18.0) sha256=de9454a0703a54704b9811a5ef31a60c86949fbf4013fcf244fabc7c775248e3
   java (0.1.0)
   javascript (0.1.0)

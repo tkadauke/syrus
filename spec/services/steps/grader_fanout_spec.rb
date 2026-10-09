@@ -174,6 +174,10 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         - name: ios-tests
           run: xcodebuild test
           when_files_changed: ["ios/**/*"]
+          metadata:
+            artifact_outputs:
+              - artifact: build/syrus/MobileApp.xcresult
+                format: xcresult
           capabilities:
             os: macos
         - name: backend-tests
@@ -202,6 +206,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     materialized = workflow.steps.where(kind: "grader").index_by { |grader_step| grader_step.details["name"] }
     expect(materialized.fetch("ios-tests").details).to include(
+      "artifact_outputs" => [ { "artifact" => "build/syrus/MobileApp.xcresult", "format" => "xcresult" } ],
       "capabilities" => { "os" => [ "macos" ] },
       "required_capabilities" => { "os" => [ "macos" ] }
     )

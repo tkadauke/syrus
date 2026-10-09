@@ -225,6 +225,17 @@ targets:
       - "MobileApp.xcworkspace/**"
 
 grade:
+  # With the iOS plugin enabled, the common command can be declared as:
+  # prepare:
+  #   - swift package resolve
+  #
+  # - type: xcodebuild
+  #   workspace: MobileApp.xcworkspace
+  #   scheme: MobileApp
+  #   destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+  #   derived_data_path: .syrus/DerivedData/mobile
+  #   result_bundle_path: build/syrus/MobileApp.xcresult
+  #   junit_output: build/syrus/junit/mobile.xml
   # Graph declaration for this project. Keep the executable xcodebuild wrapper
   # in root validation until nested grader execution lands.
   - name: swift-tests
