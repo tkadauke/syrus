@@ -2,6 +2,7 @@ module SyrusDev
   extend Syrus::PluginApi
 
   syrus_plugin "syrus_dev" do
+    experimental true
     display_name "Syrus Dev"
     description "Syrus development diagnostics and internal tooling."
     long_description "Syrus Dev contains tooling that is useful when developing Syrus itself: performance diagnostics, operational logs, admin observability pages, and workflow MCP helpers that expose Syrus runtime data to Syrus-development jobs.\n\nKeep this plugin disabled on ordinary installations unless operators explicitly want Syrus-internal diagnostics. It is not a general admin plugin; it exists to make Syrus better at building and debugging Syrus."

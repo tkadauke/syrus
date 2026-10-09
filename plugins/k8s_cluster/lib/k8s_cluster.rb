@@ -2,6 +2,7 @@ module K8sCluster
   extend Syrus::PluginApi
 
   syrus_plugin "k8s_cluster" do
+    experimental true
     display_name "Kubernetes Cluster Viewer"
     description "Register Kubernetes/k3s clusters and browse them read-only from an admin sidebar page."
     long_description "K8s Cluster Viewer lets admins register external Kubernetes or k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Read-only cluster inspection is also available to the Syrus agent as MCP tools, gated per-cluster via agentic_access_enabled."

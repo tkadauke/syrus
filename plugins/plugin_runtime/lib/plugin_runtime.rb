@@ -5,6 +5,7 @@ module PluginRuntime
   extend Syrus::PluginApi
 
   syrus_plugin "plugin_runtime" do
+    experimental true
     display_name "Plugin Runtime"
     description "Runs the containers that container-backed plugins need."
     long_description "Some plugins are more than Ruby: they need a long-running service of their own, such as a git mirror. Plugin Runtime runs those services and tells their plugins where to reach them.\n\nOn a Docker Compose install it asks the runtime manager container to pull and start each enabled plugin's service, with no restart, and removes it again when the plugin is disabled. On Kubernetes you deploy those services yourself and give Syrus their addresses; the plugins find them the same way either way."
