@@ -26,8 +26,8 @@ module Steps
           "[analyze_and_fix] repeated non-actionable main-branch diagnosis; " \
           "ending CI repair loop as #{diagnosis.fetch('outcome')}"
         )
-      elsif diff.blank?
-        raise NoChangesProduced, "agent produced no changes"
+      elsif step_diff.blank?
+        raise_no_changes_produced!
       end
 
       run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)

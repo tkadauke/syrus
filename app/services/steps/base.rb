@@ -671,10 +671,12 @@ module Steps
       return if no_changes_confirmed_not_broken?
 
       if AgenticWaitingNoDiffDetector.detect?(run)
+        run.update!(agent_outcome: "agent_gave_up_waiting")
         raise AgentGaveUpWaiting,
               "agent ended with no repository diff after expecting a background command or ScheduleWakeup to continue this Step Run"
       end
 
+      run.update!(agent_outcome: "no_changes_produced")
       raise NoChangesProduced, "agent produced no changes"
     end
 
