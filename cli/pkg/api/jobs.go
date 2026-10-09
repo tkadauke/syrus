@@ -92,40 +92,47 @@ type JobDiff struct {
 }
 
 type DiffReviewComments struct {
-	JobID               int64                       `json:"job_id"`
-	DiffReviewVersionID *int64                      `json:"diff_review_version_id"`
-	LatestVersionID     *int64                      `json:"latest_version_id"`
-	Comments            []DiffReviewComment         `json:"comments"`
-	ByPath              map[string]map[string][]any `json:"by_path,omitempty"`
+	JobID               int64                                     `json:"job_id"`
+	DiffReviewVersionID *int64                                    `json:"diff_review_version_id"`
+	LatestVersionID     *int64                                    `json:"latest_version_id"`
+	Comments            []DiffReviewComment                       `json:"comments"`
+	ByPath              map[string]map[string][]DiffReviewComment `json:"by_path,omitempty"`
 }
 
 type DiffReviewComment struct {
-	ID                  int64          `json:"id"`
-	JobID               int64          `json:"job_id"`
-	DiffReviewVersionID int64          `json:"diff_review_version_id"`
-	ParentID            *int64         `json:"parent_id"`
-	UserID              int64          `json:"user_id"`
-	User                map[string]any `json:"user,omitempty"`
-	WorkflowID          *int64         `json:"workflow_id"`
-	RunID               *int64         `json:"run_id"`
-	Surface             string         `json:"surface"`
-	BaseRef             string         `json:"base_ref"`
-	HeadRef             string         `json:"head_ref"`
-	AnchorKind          string         `json:"anchor_kind"`
-	Path                string         `json:"path"`
-	Side                string         `json:"side"`
-	OldLine             *int64         `json:"old_line"`
-	NewLine             *int64         `json:"new_line"`
-	AnchorKey           string         `json:"anchor_key"`
-	DiffHunk            string         `json:"diff_hunk"`
-	Context             map[string]any `json:"context"`
-	Body                string         `json:"body"`
-	State               string         `json:"state"`
-	CreatedAt           string         `json:"created_at"`
-	UpdatedAt           string         `json:"updated_at"`
-	SubmittedAt         string         `json:"submitted_at"`
-	ResolvedAt          string         `json:"resolved_at"`
-	SupersededAt        string         `json:"superseded_at"`
+	ID                  int64           `json:"id"`
+	JobID               int64           `json:"job_id"`
+	DiffReviewVersionID int64           `json:"diff_review_version_id"`
+	ParentID            *int64          `json:"parent_id"`
+	UserID              int64           `json:"user_id"`
+	User                *DiffReviewUser `json:"user,omitempty"`
+	WorkflowID          *int64          `json:"workflow_id"`
+	RunID               *int64          `json:"run_id"`
+	Surface             string          `json:"surface"`
+	BaseRef             string          `json:"base_ref"`
+	HeadRef             string          `json:"head_ref"`
+	AnchorKind          string          `json:"anchor_kind"`
+	Path                string          `json:"path"`
+	Side                string          `json:"side"`
+	OldLine             *int64          `json:"old_line"`
+	NewLine             *int64          `json:"new_line"`
+	AnchorKey           string          `json:"anchor_key"`
+	DiffHunk            string          `json:"diff_hunk"`
+	Context             json.RawMessage `json:"context,omitempty"`
+	Body                string          `json:"body"`
+	State               string          `json:"state"`
+	CreatedAt           string          `json:"created_at"`
+	UpdatedAt           string          `json:"updated_at"`
+	SubmittedAt         string          `json:"submitted_at"`
+	ResolvedAt          string          `json:"resolved_at"`
+	SupersededAt        string          `json:"superseded_at"`
+}
+
+type DiffReviewUser struct {
+	ID           int64  `json:"id"`
+	DisplayName  string `json:"display_name"`
+	EmailAddress string `json:"email_address"`
+	AvatarURL    string `json:"avatar_url"`
 }
 
 type CreateDiffReviewCommentRequest struct {
@@ -133,21 +140,21 @@ type CreateDiffReviewCommentRequest struct {
 }
 
 type DiffReviewCommentInput struct {
-	Surface             string         `json:"surface,omitempty"`
-	DiffReviewVersionID int64          `json:"diff_review_version_id,omitempty"`
-	BaseRef             string         `json:"base_ref,omitempty"`
-	HeadRef             string         `json:"head_ref,omitempty"`
-	AnchorKind          string         `json:"anchor_kind,omitempty"`
-	Path                string         `json:"path,omitempty"`
-	Side                string         `json:"side,omitempty"`
-	OldLine             int64          `json:"old_line,omitempty"`
-	NewLine             int64          `json:"new_line,omitempty"`
-	DiffHunk            string         `json:"diff_hunk,omitempty"`
-	Body                string         `json:"body,omitempty"`
-	State               string         `json:"state,omitempty"`
-	WorkflowID          int64          `json:"workflow_id,omitempty"`
-	RunID               int64          `json:"run_id,omitempty"`
-	Context             map[string]any `json:"context,omitempty"`
+	Surface             string          `json:"surface,omitempty"`
+	DiffReviewVersionID int64           `json:"diff_review_version_id,omitempty"`
+	BaseRef             string          `json:"base_ref,omitempty"`
+	HeadRef             string          `json:"head_ref,omitempty"`
+	AnchorKind          string          `json:"anchor_kind,omitempty"`
+	Path                string          `json:"path,omitempty"`
+	Side                string          `json:"side,omitempty"`
+	OldLine             int64           `json:"old_line,omitempty"`
+	NewLine             int64           `json:"new_line,omitempty"`
+	DiffHunk            string          `json:"diff_hunk,omitempty"`
+	Body                string          `json:"body,omitempty"`
+	State               string          `json:"state,omitempty"`
+	WorkflowID          int64           `json:"workflow_id,omitempty"`
+	RunID               int64           `json:"run_id,omitempty"`
+	Context             json.RawMessage `json:"context,omitempty"`
 }
 
 type SubmitDiffReviewCommentsRequest struct {
