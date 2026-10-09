@@ -389,6 +389,18 @@ module WorkEngine
         end
       end
 
+      class QueuedRunInHealthyReenqueueLoop < Base
+        def plan
+          automatic_plan(
+            "reenqueue_run",
+            primary_run,
+            "The Run is repeatedly receiving healthy queue jobs without leaving queued, so the narrowest repair is to drop stale affinity and enqueue it again.",
+            execution_steps: [ "Workflow#clear_worker_affinity", "Run#reenqueue!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], healthy_reenqueue_loop: true }
+          )
+        end
+      end
+
       class QueuedRunOnDeadResumeQueue < Base
         def plan
           automatic_plan(

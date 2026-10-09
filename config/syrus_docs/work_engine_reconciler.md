@@ -83,6 +83,11 @@ The classifier currently emits these families:
   critical local worker pressure; the automatic repair deletes the stale
   queue rows, clears workflow worker affinity, and re-enqueues the Run through
   the general queue so another worker can re-prepare the workspace
+- `queued_run_in_healthy_reenqueue_loop` — detects a queued Run whose own
+  timestamp is old and unchanged while its Workflow keeps being restamped and
+  a fresh, otherwise-healthy RunJob is present; the automatic repair deletes
+  the current queue row, clears workflow worker affinity, and re-enqueues the
+  Run through the general queue rather than repeating the same pinned placement
 - `queued_grader_collect_cached_failure`
 - `runs_paused`
 - `running_run_without_live_worker_evidence`
@@ -150,6 +155,11 @@ Planner examples:
   the persisted Run remains the source of truth.
 - A stale queued Run with an existing queue claim returns
   `diagnose_queue_starvation`; it does not duplicate work.
+- A queued Run in a healthy re-enqueue loop returns `reenqueue_run`, but the
+  executor first clears workflow worker affinity and deletes the current queue
+  row. The repair is intentionally different from "enqueue it again on the
+  same placement": the signal is that the queue is already doing that without
+  the Run ever starting.
 - A queued Run is never planned for `reenqueue_run` while its Workflow has a
   pending (unperformed, unskipped) `AutoRetryAttempt` — that attempt already
   owns recovery for the Workflow, so racing it with a second repair path is

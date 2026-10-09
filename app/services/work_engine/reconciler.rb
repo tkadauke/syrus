@@ -6,6 +6,7 @@ module WorkEngine
     DETACHED_WORKER_EVIDENCE_GRACE = 3.minutes
     NON_AGENTIC_NO_PROCESS_GRACE = 3.minutes
     QUEUE_STARVATION_AFTER = 10.minutes
+    HEALTHY_REENQUEUE_LOOP_AFTER = 1.hour
     # A claim this old cannot still be starting. Deliberately generous -- a real
     # agent run legitimately takes many minutes, and a few of them hours -- and
     # deliberately independent of the worker's heartbeat, which is the gap this
@@ -610,6 +611,24 @@ module WorkEngine
             ),
             explanation: "Run ##{run.id} has repeatedly been admitted and deferred by host admission while pinned " \
                          "to workflow storage, so it is no longer making queue progress."
+          )
+        elsif healthy_reenqueue_loop?(run, sqs)
+          issue(
+            kind: :queued_run_in_healthy_reenqueue_loop,
+            severity: :error,
+            affected_ids: ids_for(run).merge(solid_queue_job_ids: sqs.map { |sq| sq[:id] }),
+            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+            recommended_repair_action: "reenqueue_run",
+            evidence: run_evidence(run).merge(
+              solid_queue: sqs,
+              solid_queue_state: "healthy_reenqueue_loop",
+              run_updated_age_seconds: seconds_since(run.updated_at),
+              workflow_updated_age_seconds: seconds_since(workflow.updated_at),
+              workflow_worker_hostname: workflow.worker_hostname,
+              workflow_worker_storage_key: workflow.worker_storage_key
+            ),
+            explanation: "Run ##{run.id} is still queued after #{(seconds_since(run.updated_at).to_i / 60.0).round} minutes, " \
+                         "but its Workflow keeps being restamped while a healthy RunJob is recreated; clear stale placement affinity before retrying."
           )
         elsif (sq = sqs.find { |candidate| wedged_queue_claim?(candidate) })
           issue(
@@ -2980,7 +2999,7 @@ module WorkEngine
           scope = SolidQueue::Job
             .where(class_name: "RunJob")
             .where(finished_at: nil)
-            .select(:id, :arguments, :queue_name, :priority, :finished_at)
+            .select(:id, :arguments, :queue_name, :priority, :created_at, :updated_at, :finished_at)
           if (root_run_created_at_floor = oldest_root_run_created_at(root_ids)&.advance(hours: -1))
             scope = scope.where(created_at: root_run_created_at_floor..)
           end
@@ -3029,6 +3048,8 @@ module WorkEngine
               root_run_id: root_run_id,
               queue_name: job.queue_name,
               priority: job.priority,
+              created_at: job.created_at,
+              updated_at: job.updated_at,
               finished_at: job.finished_at,
               ready: ready_job_ids.include?(job.id),
               claimed: claim.present?,
@@ -3162,6 +3183,17 @@ module WorkEngine
       admission["reason"] == "local_worker_pressure_critical" &&
         admission["run_id"].to_i == run.id &&
         admission["deferral_count"].to_i >= RunJob::PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
+    end
+
+    def healthy_reenqueue_loop?(run, sqs)
+      workflow = run.workflow
+      return false unless workflow&.worker_storage_key.present?
+      return false unless older_than?(run.updated_at, HEALTHY_REENQUEUE_LOOP_AFTER)
+      return false unless workflow.updated_at.present? && run.updated_at.present?
+      return false unless workflow.updated_at > run.updated_at + QUEUE_STARVATION_AFTER
+      return false unless sqs.any? { |sq| queue_job_can_progress?(sq) }
+
+      true
     end
 
     # Held far too long to be making progress, whatever the heartbeat says.

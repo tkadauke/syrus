@@ -183,6 +183,15 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(job).to be_implemented
   end
 
+  it "repairs a queued Run stuck in a healthy re-enqueue loop by clearing affinity" do
+    result = run_scenario("healthy_reenqueue_loop_clears_affinity")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("queued_run_in_healthy_reenqueue_loop")
+    workflow = Job.find(result.job_ids.first).workflows.find_by!(trigger_kind: "initial")
+    expect(workflow.worker_storage_key).not_to eq("storage-loop")
+  end
+
   it "retries non-agentic runs with live queue claims but no live child process before the agent stale threshold" do
     result = run_scenario("non_agentic_claim_without_process_retries")
 
