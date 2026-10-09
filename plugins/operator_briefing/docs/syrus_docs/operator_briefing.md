@@ -5,8 +5,9 @@ When enabled, it adds a top-level `/briefing` sidebar page and a
 per-repository `briefing_generate` infrastructure Job kind.
 
 The `/briefing` page is scoped to the signed-in operator. It seeds a
-`BriefingSubscription` row, enabled by default, for every repository visible to
-that operator through repository or team membership. The page renders one
+disabled `BriefingSubscription` row for every repository visible to that
+operator through repository or team membership so the Settings modal can show
+toggles without opting the operator into scheduled work. The page renders one
 underline-tab per enabled repository. Subscription and source preferences live
 behind the Settings modal, and archived briefings live at `/briefing/history`.
 Each Briefing has its own `BRIEFING-<id>` slug so chats, history cards, and
@@ -23,9 +24,11 @@ archived briefings are closed Jobs. Creating a new briefing for the same
 operator and repository closes any previous live briefing with
 `briefing_superseded`, freezing its latest revision into history.
 
-Scheduled generation is activity-gated. A scheduled pass only creates a new
-briefing when Jobs or Workflows exist for the repository after that repository's
-last closed briefing. Manual regeneration bypasses this activity gate.
+Scheduled generation is opt-in and activity-gated. A scheduled pass only
+considers operators with at least one enabled repository subscription, then only
+creates a new briefing when Jobs or Workflows exist for the repository after
+that repository's last closed briefing. Manual regeneration bypasses this
+activity gate but does not enable future scheduled generation by itself.
 `BriefingSettings` stores each
 operator's cron-like cadence, budget-gating flag, and optional agent provider
 override. Budget-gating is best-effort for now: Syrus tracks spend, but it does

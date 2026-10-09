@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_152613) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2272,7 +2272,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
 
   create_table "operator_briefing_subscriptions", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.boolean "enabled", default: true, null: false
+    t.boolean "enabled", default: false, null: false
     t.integer "repository_id", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
