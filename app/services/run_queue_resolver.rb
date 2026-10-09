@@ -109,7 +109,10 @@ class RunQueueResolver
     arch = default_queue_arch_for(os)
     return nil if arch.blank? || arch == TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD
 
-    [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")
+    queue = [ base_queue_name, queue_token(os), queue_arch_token(arch) ].join("-")
+    return queue if live_capable_worker_for?(queue, requirements)
+
+    nil
   end
 
   def capability_specific_requirements?(requirements)

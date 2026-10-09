@@ -26,6 +26,9 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
   before do
     allow(Steps).to receive(:handler_for).and_return(noop_handler_class)
+    visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "test", note: "disabled")
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
+    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
     allow(RunHostAdmission).to receive(:call) do |run:, **|
       RunHostAdmission::Decision.new(
         action: "admit",

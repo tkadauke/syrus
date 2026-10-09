@@ -186,6 +186,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
       version: "test",
       observed_at: Time.current,
       cpu_pressure_some: 55.0,
+      cpu_pressure_full: 6.0,
       raw_metrics: {}
     )
     run.update!(state: "running", agent_outcome: "worker_died", started_at: 1.minute.ago)

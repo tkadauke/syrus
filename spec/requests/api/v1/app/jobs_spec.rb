@@ -852,7 +852,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
+    expect(body.keys).to contain_exactly("job_id", "current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
+    expect(body["job_id"]).to eq(job.id)
     workflows = body["workflows"] + body["work_units"].filter_map { |unit| unit["workflow"] }
     first_run = workflows.flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run).to include(

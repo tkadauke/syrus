@@ -4530,7 +4530,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       check_after: nil
     )
     expect(issue.evidence.fetch("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
-    expect(plan(result, :wait_for_main_health)).to have_attributes(auto_executable: false, target_id: workflow.id)
+    expect(plan(result, :wait_for_main_health)).to have_attributes(auto_executable: false, target_id: workflow.work_unit.id)
     expect(plan(result, :start_workflow)).to be_nil
   end
 

@@ -50,7 +50,7 @@ RSpec.describe PollForkReviewPrJob, :ci_only do
   end
 
   def finish_work_units_for(job)
-    WorkUnit.where(workflow_id: job.workflows.select(:id)).find_each { |unit| unit.mark_terminal!("succeeded") }
+    WorkUnits::Ownership.active_units_for_job(job).each { |unit| unit.mark_terminal!("succeeded") }
   end
 
   it "does nothing when the job has no fork_review_pr_number" do

@@ -950,7 +950,6 @@ class ChatTurnJob < ApplicationJob
     return unless @chat.turn_in_flight?
 
     close_dangling_tool_calls!
-    create_message!("system", text: "Agent turn completed.")
   end
 
   def create_message!(role, content)

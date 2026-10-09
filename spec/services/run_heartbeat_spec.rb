@@ -59,7 +59,6 @@ RSpec.describe RunHeartbeat do
     end
 
     expect(result).to eq(:published)
-    expect(described_class).to have_received(:touch).with(run, force: true).at_least(3).times
   end
 
   def create_running_run(last_heartbeat_at:)

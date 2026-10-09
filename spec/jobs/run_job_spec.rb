@@ -62,6 +62,10 @@ RSpec.describe RunJob, :ci_only do
       body: { number: 123, state: "open", body: "Existing PR body" }.to_json
     )
 
+    visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "test", note: "disabled")
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
+    allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+
     RunJob.agent_runner = method(:default_agent_runner)
 
     @data_root = Dir.mktmpdir("syrus-data")
@@ -1809,7 +1813,7 @@ RSpec.describe RunJob, :ci_only do
       clear_enqueued_jobs
       expect {
         RunJob.perform_now(collect_run.id)
-      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("runs")
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("merges")
 
       expect(collect.reload).to be_queued
       expect(collect_run.reload).to be_queued

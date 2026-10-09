@@ -276,7 +276,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   it "warns when an equally constrained affected target is not covered by the primary placement" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ] },
+      planned_execution_capabilities: { "os" => [ "linux" ] },
       planned_execution_source: "inferred"
     )
     write_config(<<~YAML)
@@ -297,15 +297,11 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/linux-package")
-    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
-      "//:grade/ios-tests",
-      "//:grade/linux-package"
-    )
-    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/linux-package" ])
+    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/ios-tests")
+    expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly("//:grade/ios-tests")
+    expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") }).to contain_exactly("//:grade/ios-tests")
     expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/linux-package", "dimension" => "os", "missing" => [ "linux" ])
+      include("target_label" => "//:grade/ios-tests", "dimension" => "os", "missing" => [ "macos" ])
     )
   end
 
