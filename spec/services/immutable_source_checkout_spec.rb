@@ -312,6 +312,36 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "refreshes target fingerprints on the worker that executes the immutable grader" do
+    stale_fingerprints = {
+      "input_fingerprint" => "stale-input",
+      "command_fingerprint" => "stale-command",
+      "environment_fingerprint" => "stale-environment",
+      "metadata" => { "worker_environment" => worker_environment("macos") }
+    }
+    step.update!(details: step.details.merge(
+      "target_label" => "//:grade/backend",
+      "target_fingerprints" => stale_fingerprints
+    ))
+    update_remote_config(<<~YAML)
+      prepare:
+        - mkdir -p "$BUNDLE_PATH" && printf 'ready\\n' > "$BUNDLE_PATH/prepared.txt"
+      grade:
+        - name: backend
+          run: bin/test
+          capabilities:
+            os: linux
+    YAML
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return(worker_environment("linux"))
+
+    described_class.new(step).setup
+
+    refreshed = step.reload.details.fetch("target_fingerprints")
+    expect(refreshed).not_to eq(stale_fingerprints)
+    expect(refreshed.dig("metadata", "worker_environment", "capabilities")).to eq("os" => [ "linux" ])
+    expect(refreshed.fetch("environment_fingerprint")).to match(/\A[0-9a-f]{64}\z/)
+  end
+
   it "skips prepared archive upload when the archive exceeds the size cap" do
     stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)
@@ -437,6 +467,22 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       sh("git clone -q --bare #{seed} #{bare_path}")
       sh("git --git-dir=#{bare_path} update-ref refs/syrus/source-snapshots/runs/123 refs/heads/feature")
     end
+  end
+
+  def update_remote_config(contents)
+    Dir.mktmpdir("syrus-immutable-source-update") do |seed|
+      sh("git clone -q #{bare_remote_dir} #{seed}")
+      File.write(File.join(seed, ".syrus.yml"), contents)
+      sh("git -C #{seed} add .syrus.yml")
+      sh("git -C #{seed} commit -q -m 'update config' --author='Seed <s@e>'")
+      sh("git -C #{seed} push -q origin HEAD:main")
+    end
+    @main_sha = nil
+    @main_tree_sha = nil
+    snapshot.update!(
+      source_sha: main_sha,
+      tree_sha: main_tree_sha
+    )
   end
 
   def sh(cmd)
