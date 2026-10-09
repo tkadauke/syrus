@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../config/environment"
+
+Rails.application.eager_load!
+Syrus::SurfaceCatalogs.write_all!
+
+puts "Wrote surface catalogs:"
+Syrus::SurfaceCatalogs::CATALOGS.each_value { |path| puts "  #{path}" }

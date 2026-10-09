@@ -175,6 +175,9 @@ Most commands accept a normal user API token and scope themselves to
 what that user can see. Commands that operate on instance-wide
 administrative surfaces require an admin token.
 
+The generated [CLI command catalog](/docs/generated/cli-catalog) lists every
+registered command, its flags, and whether that command supports `--json`.
+
 ## Repository Detection
 
 When a command runs inside a GitHub checkout, Syrus reads the `origin`

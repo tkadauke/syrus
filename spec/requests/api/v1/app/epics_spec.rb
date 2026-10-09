@@ -1181,6 +1181,23 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("epic", "display_number")).to eq(epic.slug)
   end
 
+  it "creates an epic using a repository slug" do
+    sign_in_as(user)
+
+    post "/api/v1/app/epics", params: {
+      epic: {
+        title: "Raise the slugged forum",
+        repository: repository.slug
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(user.epics.order(:id).last).to have_attributes(
+      title: "Raise the slugged forum",
+      repository_id: repository.id
+    )
+  end
+
   it "rejects creating an epic on a repository the user cannot access" do
     sign_in_as(user)
     private_repository = Factories.repository(user: Factories.user, owner: "other", name: "private")
