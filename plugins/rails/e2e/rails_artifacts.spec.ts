@@ -15,6 +15,13 @@ test("signed-in user views the ERD and migration diff renderers on a Job's Revie
   await page.getByRole("button", { name: "Review", exact: true }).click()
   await page.getByRole("button", { name: "Show", exact: true }).click()
 
+  const artifactSelector = page.getByLabel("Artifact")
+  await expect(artifactSelector).toBeVisible()
+
+  const schemaOptionValue = await page.getByRole("option", { name: /Schema ERD/ }).getAttribute("value")
+  expect(schemaOptionValue).not.toBeNull()
+  await artifactSelector.selectOption(schemaOptionValue!)
+
   // rails_schema_erd, rendered by SyrusRails::SchemaErdRenderer as one box
   // per table with its columns, foreign keys, and indexes.
   await expect(page.getByText("Schema ERD", { exact: true })).toBeVisible()
@@ -23,6 +30,10 @@ test("signed-in user views the ERD and migration diff renderers on a Job's Revie
   await expect(page.getByText("accounts", { exact: true }).first()).toBeVisible()
   await expect(page.getByText("accounts.id")).toBeVisible()
   await expect(page.getByText("unique idx: email")).toBeVisible()
+
+  const migrationOptionValue = await page.getByRole("option", { name: /Migration: AddNeedsAttentionCountToUsers/ }).getAttribute("value")
+  expect(migrationOptionValue).not.toBeNull()
+  await artifactSelector.selectOption(migrationOptionValue!)
 
   // rails_migration_diff, rendered by SyrusRails::MigrationDiffRenderer as a
   // before/after column table plus a change summary list.
