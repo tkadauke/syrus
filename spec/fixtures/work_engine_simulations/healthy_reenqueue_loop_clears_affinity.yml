@@ -1,0 +1,53 @@
+name: healthy reenqueue loop clears affinity
+repository:
+  owner: simulation
+  name: healthy-reenqueue-loop-clears-affinity
+jobs:
+  job:
+    title: Healthy reenqueue loop clears affinity
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-loop
+      worker_storage_key: storage-loop
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          run:
+            state: queued
+            created_at: "2000-01-01 00:00:00 UTC"
+            updated_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+events:
+  - name: cycle healthy RunJob without starting Run
+    when:
+      run:
+        job: job
+        step: implement
+        state: queued
+    do:
+      cycle_queued_run_job:
+        job: job
+        step: implement
+        queue_name: resume-storage-loop
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - cycled RunJob
+    - queued_run_in_healthy_reenqueue_loop
+    - implement -> success

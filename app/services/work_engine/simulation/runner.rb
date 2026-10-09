@@ -292,6 +292,7 @@ module WorkEngine
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
+          when "cycle_queued_run_job" then cycle_queued_run_job!(value)
           when "wake" then wake_jobs_event!(tick, value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -574,6 +575,40 @@ module WorkEngine
           SolidQueue::Process.where(hostname: hostname).update_all(last_heartbeat_at: stale_at)
         end
         events << "lost worker #{hostname}"
+      end
+
+      def cycle_queued_run_job!(value)
+        attrs = value.to_h
+        run = queued_run_for_event!(attrs)
+        workflow = run.workflow
+        now = Time.current
+        queue_name = attrs["queue_name"].presence || run.resume_worker_queue || "runs"
+        scheduled_at = attrs["scheduled_at"].present? ? Time.zone.parse(attrs.fetch("scheduled_at")) : now + 30.seconds
+
+        if queue_name.to_s.start_with?("resume-")
+          ensure_worker_live!(
+            attrs["hostname"].presence || workflow&.worker_hostname.presence || "simulation-worker",
+            attrs["worker_storage_key"].presence || workflow&.worker_storage_key.presence || queue_name.to_s.delete_prefix("resume-")
+          )
+        end
+        delete_solid_queue_jobs_for_run!(run)
+        queue_job = SolidQueue::Job.create!(
+          class_name: "RunJob",
+          queue_name: queue_name,
+          priority: attrs.fetch("priority", 10),
+          arguments: { "arguments" => [ run.id ] },
+          scheduled_at: scheduled_at,
+          created_at: now,
+          updated_at: now
+        )
+        SolidQueue::ScheduledExecution.find_or_create_by!(job: queue_job) do |execution|
+          execution.priority = queue_job.priority
+          execution.queue_name = queue_job.queue_name
+          execution.scheduled_at = scheduled_at
+          execution.created_at = now
+        end
+        workflow.update_columns(updated_at: now) if workflow
+        events << "cycled RunJob for #{run.slug} on #{queue_name}"
       end
 
       def simulation_repository
@@ -1332,9 +1367,31 @@ module WorkEngine
         return false if solid_queue_failed?(job)
         return false if dead_resume_queue?(job.queue_name)
         return true if solid_queue_ready?(job)
-        return true if solid_queue_scheduled?(job)
+        return true if solid_queue_scheduled?(job) && job.scheduled_at.present? && job.scheduled_at <= Time.current
 
         false
+      end
+
+      def queued_run_for_event!(attrs)
+        scope = Run.joins(:step).where(job_id: attrs.fetch("job"), state: "queued")
+        scope = scope.where(steps: { kind: attrs["step"] || attrs["kind"] }) if attrs["step"].present? || attrs["kind"].present?
+        if attrs["name"].present?
+          scope.includes(:step).detect { |run| run.step&.details.to_h["name"].to_s == attrs["name"].to_s } ||
+            raise(ActiveRecord::RecordNotFound, "queued simulation Run named #{attrs["name"].inspect} not found")
+        else
+          scope.order(:id).first!
+        end
+      end
+
+      def delete_solid_queue_jobs_for_run!(run)
+        ids = explicit_solid_queue_jobs_for_run(run).map(&:id)
+        return if ids.empty?
+
+        SolidQueue::ReadyExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ReadyExecution)
+        SolidQueue::ScheduledExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ScheduledExecution)
+        SolidQueue::ClaimedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ClaimedExecution)
+        SolidQueue::FailedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::FailedExecution)
+        SolidQueue::Job.where(id: ids).delete_all
       end
 
       def solid_queue_job_run_id(job)
