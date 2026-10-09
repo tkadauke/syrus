@@ -66,29 +66,7 @@ module WorkEngine
       end
 
       def run_scenario(path)
-        result = nil
-        Syrus::PluginRegistry.with_plugin_record_cache_ttl(5.minutes) do
-          AppSetting.with_current_cache do
-            # joinable: false is what makes `after_commit` work here, and it is
-            # the same trick Rails' own transactional tests use. A joinable
-            # wrapper swallows the engine's commits: every inner `save` joins it
-            # instead of opening its own transaction, so `after_commit`
-            # callbacks are deferred to the outer commit -- which never comes,
-            # because the scenario ends in a rollback. The simulator was
-            # therefore blind to the entire commit-callback layer, which is
-            # where much of the work engine's propagation lives (dependent-job
-            # starts, epic rollups, domain events).
-            #
-            # Marked non-joinable, inner saves open savepoint transactions that
-            # commit for real and run their callbacks immediately, while the
-            # outer rollback still discards every row the scenario wrote.
-            ActiveRecord::Base.transaction(joinable: false) do
-              result = WorkEngine::Simulation::ScenarioRunner.call(path: path, max_ticks: max_ticks)
-              raise ActiveRecord::Rollback
-            end
-          end
-        end
-        result
+        WorkEngine::Simulation::ScenarioExecution.call(path: path, max_ticks: max_ticks)
       rescue => e
         error_result(path, e)
       end

@@ -1,6 +1,12 @@
 require "rails_helper"
 
 RSpec.describe WorkEngine::Simulation::ScenarioRunner do
+  self.use_transactional_tests = false
+
+  around do |example|
+    WorkEngine::Simulation::ScenarioExecution.wrap { example.run }
+  end
+
   before do
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
@@ -22,12 +28,20 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
   end
 
   it "waits for job dependencies before starting dependent work" do
+    dependency_propagators = []
+    allow_any_instance_of(Job).to receive(:start_dependent_jobs_after_implementation).and_wrap_original do |original, *args|
+      job = original.receiver
+      dependency_propagators << job.id
+      original.call(*args)
+    end
+
     result = run_scenario("job_dependency_success")
 
     expect(result).to be_success
     parent, child = Job.where(id: result.job_ids).order(:id).to_a
     expect(parent).to be_implemented
     expect(child).to be_implemented
+    expect(dependency_propagators).to include(parent.id)
     expect(result.events.grep(/#{child.slug}.*active lock/)).to be_empty
   end
 
