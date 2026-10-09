@@ -6,6 +6,7 @@ module OperatorBriefing
   SEVERITIES = %w[informational fyi decision_required attention_debt].freeze
 
   syrus_plugin "operator_briefing" do
+    experimental true
     display_name "Operator Briefing"
     description "Per-repository operator briefings and blocked-on-you signals."
     long_description "Operator Briefing generates per-repository briefings for each operator. The generation agent reads repository diffs, workflow history, artifacts, and linked design docs directly, then writes structured briefing blocks for the operator."

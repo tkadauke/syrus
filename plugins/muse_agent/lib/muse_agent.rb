@@ -4,6 +4,7 @@ module SyrusMuseAgent
   extend Syrus::PluginApi
 
   syrus_plugin "muse_agent" do
+    experimental true
     display_name "Muse Agent"
     description "Runs workflow and chat turns through Muse Code."
     long_description "Muse Agent connects Syrus workflows and chats to Muse Code. Enable it from Admin -> Plugins after the worker/backend image includes the muse CLI and operators have saved per-user Muse API keys. The plugin verifies the Muse CLI separately from API credentials, launches agent runs with isolated Muse settings, configures Syrus MCP sidecar tools, captures resumable transcripts, and can be disabled live if upstream provider behavior changes."

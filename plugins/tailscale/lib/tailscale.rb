@@ -2,6 +2,7 @@ module Tailscale
   extend Syrus::PluginApi
 
   syrus_plugin "tailscale" do
+    experimental true
     display_name "Tailscale"
     description "Exposes Syrus on your Tailscale network for access from laptops and mobile."
     long_description "Tailscale registers a Syrus instance as a Tailscale node so operators can reach it over a private tailnet. It manages lifecycle callbacks, status reporting, and the admin page needed to inspect connectivity.\n\nEnable it when an installation should be reachable without exposing Syrus directly on the public internet. It is disabled by default because it requires a Tailscale auth key and network policy decisions outside Syrus."

@@ -93,6 +93,10 @@ class AppSetting < ApplicationRecord
     current.show_work_unit_debug
   end
 
+  def self.experimental_plugins_enabled?
+    current.experimental_plugins_enabled
+  end
+
   def self.macos_worker_desired_release
     current.macos_worker_desired_release.presence || {}
   end

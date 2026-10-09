@@ -80,6 +80,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       "enabled" => true,
       "default_enabled" => true,
       "disableable" => true,
+      "experimental" => false,
       "description" => "Adds visible things.",
       "homepage" => "https://example.test/plugin",
       "author" => "Ada",
@@ -222,6 +223,19 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "disabled-plugin" ])
   end
 
+  it "filters plugins by experimental status chip" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true)
+
+    tree = { "and" => [ { "field" => "experimental", "op" => "is", "value" => "experimental" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "experimental-plugin" ])
+  end
+
   it "filters plugins by author chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
@@ -288,9 +302,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
     expect(response).to have_http_status(:ok)
     fields = parse_body.dig("controls", "filter_schema").map { |chip| chip["field"] }
-    expect(fields).to contain_exactly("enabled", "author", "extension_point", "category", "search")
+    expect(fields).to contain_exactly("enabled", "experimental", "author", "extension_point", "category", "search")
     enabled_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "enabled" }
     expect(enabled_chip["values"]).to include("value" => "enabled", "label" => "Enabled")
+    experimental_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "experimental" }
+    expect(experimental_chip["values"]).to include("value" => "experimental", "label" => "Experimental")
     extension_point_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "extension_point" }
     expect(extension_point_chip["values"]).to include("value" => "input_source", "label" => "Input source")
     category_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "category" }
@@ -384,6 +400,51 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(response).to have_http_status(:ok)
     expect(PluginRecord.find_by!(name: "ruby-plugin").enabled).to be(true)
     expect(PluginRecord.find_by!(name: "rails-plugin").enabled).to be(true)
+  end
+
+  it "blocks enabling an experimental plugin until the instance opts in" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+
+    post "/api/v1/app/admin/plugins/experimental-plugin/enable"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body).to include(
+      "message" => "This plugin is available in this Syrus build, but this instance has not opted into experimental plugins."
+    )
+    expect(parse_body.fetch("blocked_experimental_plugins")).to eq([
+      { "name" => "experimental-plugin", "display_name" => "Experimental Plugin" }
+    ])
+    expect(PluginRecord.find_by!(name: "experimental-plugin").enabled).to be(false)
+  end
+
+  it "blocks the whole enable action when a dependency cascade would enable an experimental plugin" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "experimental-dependency" ])
+
+    post "/api/v1/app/admin/plugins/stable-plugin/enable"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.fetch("blocked_experimental_plugins")).to eq([
+      { "name" => "experimental-dependency", "display_name" => "Experimental Dependency" }
+    ])
+    expect(PluginRecord.find_by!(name: "stable-plugin").enabled).to be(false)
+    expect(PluginRecord.find_by!(name: "experimental-dependency").enabled).to be(false)
+  end
+
+  it "enables an experimental plugin after the instance opts in" do
+    sign_in_as(admin)
+    AppSetting.current.update!(experimental_plugins_enabled: true)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
+
+    post "/api/v1/app/admin/plugins/experimental-plugin/enable"
+
+    expect(response).to have_http_status(:ok)
+    expect(PluginRecord.find_by!(name: "experimental-plugin").enabled).to be(true)
   end
 
   it "warns instead of disabling when other enabled plugins depend on the target" do

@@ -3,6 +3,7 @@ module Terminal
   extend Syrus::PluginApi
 
   syrus_plugin "terminal" do
+    experimental true
     display_name "Terminal"
     category     "tooling"
     author       "Thomas Kadauke"
