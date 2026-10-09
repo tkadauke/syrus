@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkEngine::Simulation::ScenarioRunner do
+RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_assertions do
   before do
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
