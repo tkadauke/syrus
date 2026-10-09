@@ -22,6 +22,8 @@ RSpec.describe "iOS capability documentation" do
     expect(body).to include("-derivedDataPath")
     expect(body).to include("-resultBundlePath")
     expect(body).to include("CODE_SIGNING_ALLOWED=NO")
+    expect(body).to include("type: xcodebuild")
+    expect(body).to include("type: swiftpm")
     expect(body).to include("JUnit")
     expect(body).to include("\"planned_execution\"")
     expect(body).to include("Xcode license")
@@ -35,6 +37,7 @@ RSpec.describe "iOS capability documentation" do
 
       expect(body).to include("os: macos"), "#{path} should show macOS placement"
       expect(body).to include("xcodebuild"), "#{path} should mention Xcode execution"
+      expect(body).to include("type: xcodebuild"), "#{path} should mention the typed Xcode grader"
       expect(body).to include("DerivedData"), "#{path} should mention build isolation"
       expect(body).to match(/result bundle|resultBundlePath/), "#{path} should mention result bundle output"
       expect(body).to include("JUnit"), "#{path} should mention test output paths"

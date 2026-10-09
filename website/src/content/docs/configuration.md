@@ -111,6 +111,29 @@ plus `arch: arm64`, `toolchain: xcode`, and `runtime: ios_simulator`, then put
 `xcodebuild` details in the target or grader command: explicit workspace or
 project, scheme, simulator destination, isolated DerivedData, result bundle and
 optional JUnit paths, plus no-signing settings for simulator tests.
+With the iOS plugin enabled, common patterns can use typed graders instead of
+hand-written shell:
+
+```yaml
+prepare:
+  - swift package resolve
+
+grade:
+  - type: xcodebuild
+    workspace: apps/ios/MobileApp.xcworkspace
+    scheme: MobileApp
+    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+    derived_data_path: .syrus/DerivedData/ios
+    result_bundle_path: build/syrus/ios/MobileApp.xcresult
+    junit_output: build/syrus/junit/ios-tests.xml
+    timeout_minutes: 45
+
+  - type: swiftpm
+    package_path: apps/ios/Packages/Shared
+    build_path: .syrus/DerivedData/swiftpm-shared
+    timeout_minutes: 20
+```
+
 When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
 needs Xcode feedback, set primary planned execution to
 `{"capabilities":{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}}`;
