@@ -272,6 +272,25 @@ Common keys:
 
 With `--watch`, an empty inbox stays open and refreshes every 30 seconds.
 
+## Diff Review
+
+`syrus review` is the scriptable home for diff review comments. It lives as
+one top-level command group, instead of under `syrus job`, so review does not
+grow a second duplicate command path alongside the existing approval,
+checkout, and test-plan aliases.
+
+```bash
+syrus review list JOB-123 --json
+syrus review add JOB-123 --path app/models/widget.rb --line 42 --body "Please add a regression spec."
+syrus review submit JOB-123 --comment-id 987
+syrus review resolve JOB-123 987
+syrus review reply JOB-123 987 --body "Fixed in the latest push."
+```
+
+`list` accepts `--json`, `--version`, `--all-versions`, `--state`, `--path`,
+and `--surface`. Mutating commands are flag-driven and work without a TTY.
+Job references accept `JOB-123`, `job-123`, bare numeric IDs, and slugs.
+
 ## Jobs
 
 Use `syrus job` commands for direct Job work:
