@@ -14,6 +14,7 @@ class Feature < ApplicationRecord
   validates :slug, presence: true, uniqueness: true
   validates :category, presence: true
   validates :name, presence: true
+  validate :beta_mode_enabled_when_enabling_experimental
 
   attr_accessor :name_i18n_key, :description_i18n_key
 
@@ -128,6 +129,15 @@ class Feature < ApplicationRecord
   end
 
   private
+
+  def beta_mode_enabled_when_enabling_experimental
+    return unless enabled?
+    return unless will_save_change_to_enabled?
+    return unless experimental?
+    return if AppSetting.beta_mode_enabled?
+
+    errors.add(:enabled, "requires beta mode for beta or experimental features")
+  end
 
   def clear_request_enabled_cache
     self.class.clear_enabled_cache!(slug)

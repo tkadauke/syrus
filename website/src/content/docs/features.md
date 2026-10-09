@@ -1070,7 +1070,11 @@ or Run, with built-in Running, Stale, and Recently failed folders.
 Admins can also toggle boolean feature flags from `/admin/features` when
 the instance declares features in `config/features.yml`. The page groups
 declared flags by category, shows the slug and description for each flag,
-and hides the admin navigation item entirely when no flags are declared.
+and hides the admin navigation item entirely when no flags are declared. Flags
+marked beta or experimental remain visible and searchable, but an admin must
+enable instance beta mode before turning them on. Beta mode does not enable any
+feature by itself; it only permits explicit opt-in to beta or experimental
+capabilities.
 
 The `performance_logging` operations flag records structured slow-request,
 slow-SQL, slow application-phase, and selected browser route-load events for production debugging. Slow

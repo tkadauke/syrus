@@ -117,11 +117,11 @@ module Syrus
       # Same-process enable/disable bumps the generation directly; a disable in
       # another process bumps it when the plugin-record cache expires and the
       # enabled set turns out to have changed (see
-      # PluginRegistry#plugin_records_by_name). The experimental opt-in is part
+      # PluginRegistry#plugin_records_by_name). Beta mode is part
       # of the dependency set too: flipping it changes which registered plugins
       # are active even when no PluginRecord row moves.
       def fingerprint
-        [ Syrus::PluginRegistry.generation, Syrus::PluginRegistry.experimental_plugins_enabled? ]
+        [ Syrus::PluginRegistry.generation, Syrus::PluginRegistry.beta_mode_enabled? ]
       end
 
       # nil means "cannot tell yet" (no plugin_records table during early boot

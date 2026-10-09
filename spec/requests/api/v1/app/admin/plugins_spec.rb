@@ -411,7 +411,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body).to include(
-      "message" => "This plugin is available in this Syrus build, but this instance has not opted into experimental plugins."
+      "message" => "This plugin is available in this Syrus build, but this instance has not enabled beta mode."
     )
     expect(parse_body.fetch("blocked_experimental_plugins")).to eq([
       { "name" => "experimental-plugin", "display_name" => "Experimental Plugin" }
@@ -437,7 +437,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
   it "enables an experimental plugin after the instance opts in" do
     sign_in_as(admin)
-    AppSetting.current.update!(experimental_plugins_enabled: true)
+    AppSetting.current.update!(beta_mode_enabled: true)
     Syrus::PluginRegistry.reset!
     Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 

@@ -27,7 +27,7 @@ module Admin
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
-          experimental_plugins_enabled: AppSetting.experimental_plugins_enabled?,
+          beta_mode_enabled: AppSetting.beta_mode_enabled?,
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
         }
         payload.merge!(filter: filter.to_h, controls: controls_json) if @params
@@ -45,7 +45,7 @@ module Admin
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
 
         {
-          experimental_plugins_enabled: AppSetting.experimental_plugins_enabled?,
+          beta_mode_enabled: AppSetting.beta_mode_enabled?,
           plugin: plugin_payload(manifest, records[manifest.name], dependency_graph, detail: true)
         }
       end

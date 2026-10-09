@@ -51,6 +51,7 @@ describe("AdminFeatures", () => {
                 category: "Navigation",
                 name: "New dashboard",
                 description: "Use the redesigned dashboard.",
+                experimental: false,
                 enabled: true
               }
             ]
@@ -109,6 +110,41 @@ describe("AdminFeatures", () => {
     expect(await screen.findByRole("switch", { name: "Disabled" })).toHaveAttribute("aria-checked", "false")
   })
 
+  it("badges beta features and offers a direct beta-mode action while blocked", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/admin/settings") && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ settings: {}, message: "Settings updated." }))
+      }
+
+      return Promise.resolve(jsonResponse(featuresPayload({
+        beta_mode_enabled: false,
+        categories: [
+          {
+            category: "Labs",
+            features: [
+              {
+                slug: "new_runtime",
+                category: "Labs",
+                name: "New runtime",
+                description: "Runs beta workloads.",
+                experimental: true,
+                enabled: false
+              }
+            ]
+          }
+        ]
+      })))
+    })
+
+    renderRoute(<AdminFeatures />)
+
+    expect(await screen.findByText("Beta/Experimental")).toBeInTheDocument()
+    expect(screen.getByText("This feature is available in this Syrus build, but this instance has not enabled beta mode.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Enable beta mode" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({ method: "PATCH" })))
+  })
+
   it("shows an empty state and omits the nav item when no features are declared", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats") return Promise.resolve(jsonResponse({ chats: [] }))
@@ -138,8 +174,9 @@ function renderRoute(children: ReactNode, path = "/app-shell/admin/features") {
   )
 }
 
-function featuresPayload(overrides: Partial<{ categories: Array<{ category: string; features: Array<Record<string, unknown>> }> }> = {}) {
+function featuresPayload(overrides: Partial<{ beta_mode_enabled: boolean; categories: Array<{ category: string; features: Array<Record<string, unknown>> }> }> = {}) {
   return {
+    beta_mode_enabled: true,
     categories: [
       {
         category: "Navigation",
@@ -149,6 +186,7 @@ function featuresPayload(overrides: Partial<{ categories: Array<{ category: stri
             category: "Navigation",
             name: "New dashboard",
             description: "Use the redesigned dashboard.",
+            experimental: false,
             enabled: false
           }
         ]
@@ -161,6 +199,7 @@ function featuresPayload(overrides: Partial<{ categories: Array<{ category: stri
             category: "Operations",
             name: "Fast queue",
             description: null,
+            experimental: false,
             enabled: true
           }
         ]

@@ -758,7 +758,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "treats experimental plugins as enabled after the instance opts in" do
-      AppSetting.current.update!(experimental_plugins_enabled: true)
+      AppSetting.current.update!(beta_mode_enabled: true)
 
       described_class.register(name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true)
 

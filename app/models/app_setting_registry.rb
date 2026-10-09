@@ -160,13 +160,13 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
-      key: :experimental_plugins_enabled,
+      key: :beta_mode_enabled,
       type: :boolean,
       default: false,
       min: nil,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "Opts this self-hosted instance into enabling bundled experimental plugins and their test-environment capabilities.",
+      operational_meaning: "Opts this self-hosted instance into beta mode so admins may explicitly enable beta or experimental capabilities.",
       zero_means: nil,
       admin_editable: true,
       secret: false

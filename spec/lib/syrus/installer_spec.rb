@@ -47,7 +47,7 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
   end
 
   it "disposes experimental plugin effects when the instance opts out" do
-    AppSetting.current.update!(experimental_plugins_enabled: true)
+    AppSetting.current.update!(beta_mode_enabled: true)
     Syrus::PluginRegistry.register(name: "experimental_effect_plugin", version: "1.0.0", experimental: true)
 
     log = []
@@ -56,7 +56,7 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     end
     described_class.sync!
 
-    AppSetting.current.update!(experimental_plugins_enabled: false)
+    AppSetting.current.update!(beta_mode_enabled: false)
     described_class.sync!
 
     expect(log).to eq([ :install, :dispose ])
