@@ -104,6 +104,8 @@ describe("CredentialStoreAdmin", () => {
     const body = requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials/1", "PATCH")
     expect(body).not.toHaveProperty("payload")
     expect(body.safe_metadata).toEqual({ host: "git.example.com" })
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByLabelText("Safe metadata"))
     expect(await screen.findByText(/git.example.com/)).toBeInTheDocument()
   })
 
