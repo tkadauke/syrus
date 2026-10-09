@@ -3339,6 +3339,37 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText("current_browser")).toBeInTheDocument()
   })
 
+  it("makes auth-wall provenance visible even when the artifact title names the target surface", () => {
+    renderArtifactsTab([
+      {
+        type: "visual_review_screenshot",
+        title: "Credential store desktop",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {
+          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+          source: "current_browser",
+          page: {
+            url: "http://127.0.0.1:3000/session/new",
+            path: "/session/new",
+            title: "Sign in"
+          },
+          viewport: {
+            width: 1440,
+            height: 900,
+            device_scale_factor: 1
+          }
+        }
+      }
+    ])
+
+    expect(screen.getByRole("img", { name: "Credential store desktop" })).toBeInTheDocument()
+    expect(screen.getByText("Path")).toBeInTheDocument()
+    expect(screen.getByText("/session/new")).toBeInTheDocument()
+    expect(screen.getByText("Page title")).toBeInTheDocument()
+    expect(screen.getByText("Sign in")).toBeInTheDocument()
+  })
+
   it("renders before_after_visual_diff: linked before and after screenshots", () => {
     renderArtifactsTab([
       {
