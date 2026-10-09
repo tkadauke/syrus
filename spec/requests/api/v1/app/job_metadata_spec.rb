@@ -142,7 +142,7 @@ RSpec.describe "App API job metadata commands", type: :request do
     )
 
     expect {
-      post "/api/v1/app/jobs/#{target.id}/dependencies/override", as: :json
+      post "/api/v1/app/admin/jobs/#{target.id}/dependencies/override", as: :json
     }.to have_enqueued_job(RunJob)
 
     expect(response).to have_http_status(:ok)
@@ -155,10 +155,18 @@ RSpec.describe "App API job metadata commands", type: :request do
   it "blocks dependency override for non-admin users" do
     user.update!(global_role: "user")
 
-    post app_job_path("/dependencies/override"), as: :json
+    post "/api/v1/app/admin/jobs/#{job.id}/dependencies/override", as: :json
 
     expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "message")).to eq("Only admins can override dependencies.")
+    expect(parse_body.dig("error", "message")).to eq("Admin access required.")
+  end
+
+  it "does not route dependency override through the non-admin app namespace" do
+    user.update!(global_role: "admin")
+
+    post app_job_path("/dependencies/override"), as: :json
+
+    expect(response).to have_http_status(:not_found)
   end
 
   it "updates stack base" do

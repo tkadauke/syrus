@@ -25,6 +25,8 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/queue/:tab api/v1/app/admin/queue#show
     POST /api/v1/app/admin/queue/reap_stale_runs api/v1/app/admin/queue#reap_stale_runs
     GET /api/v1/app/admin/stuck api/v1/app/admin/stuck#index
+    POST /api/v1/app/admin/jobs/:job_id/dependencies/override api/v1/app/admin/job_metadata#override_dependencies
+    POST /api/v1/app/admin/jobs/:job_id/force_fail api/v1/app/admin/job_lifecycle#force_fail
     GET /api/v1/app/admin/activity api/v1/app/admin/workflow_activity#index
     GET /api/v1/app/admin/work_units api/v1/app/admin/work_units#index
     POST /api/v1/app/admin/maintenance_tasks/discover api/v1/app/admin/maintenance_tasks#discover
@@ -168,6 +170,7 @@ RSpec.describe "admin API prefix ownership" do
     k8s_cluster POST /api/v1/app/admin/kubernetes_clusters api/v1/app/admin/kubernetes_clusters#create
     k8s_cluster POST /api/v1/app/admin/kubernetes_clusters/:id/test api/v1/app/admin/kubernetes_clusters#test_connection
     k8s_cluster POST /api/v1/app/admin/kubernetes_clusters/test api/v1/app/admin/kubernetes_clusters#test_connection
+    metrics_dashboard GET /api/v1/app/admin/metrics_dashboard api/v1/app/admin/metrics_dashboard#show
     mysql_db_browser DELETE /api/v1/app/admin/mysql_connections/:id api/v1/app/admin/mysql_connections#destroy
     mysql_db_browser GET /api/v1/app/admin/mysql_connections api/v1/app/admin/mysql_connections#index
     mysql_db_browser GET /api/v1/app/admin/mysql_connections/:id/schema api/v1/app/admin/mysql_schema#databases
@@ -195,6 +198,11 @@ RSpec.describe "admin API prefix ownership" do
     worker_timeline GET /api/v1/app/admin/worker_timeline/live api/v1/app/admin/worker_timeline#live
     worker_timeline GET /api/v1/app/admin/worker_timeline/macro api/v1/app/admin/worker_timeline#macro
     worker_timeline GET /api/v1/app/admin/worker_timeline/workflow api/v1/app/admin/worker_timeline#workflow
+  ROUTES
+
+  REVIEWED_INLINE_ADMIN_CHECKS_IN_USER_APP_API = <<~ROUTES.lines.map(&:strip).reject(&:blank?).freeze
+    GET /api/v1/app/jobs/:id/timeline api/v1/app/jobs#timeline
+    GET /api/v1/app/maintenance_tasks/sidebar api/v1/app/maintenance_tasks#sidebar
   ROUTES
 
   REVIEWED_PLUGIN_OPERATOR_ADMIN_ROUTES = <<~ROUTES.lines.map(&:strip).reject(&:blank?).freeze
@@ -257,6 +265,63 @@ RSpec.describe "admin API prefix ownership" do
     end.sort
   end
 
+  def app_user_api_routes
+    core = Rails.application.routes.routes.filter_map do |route|
+      path = route.path.spec.to_s.sub("(.:format)", "")
+      next unless path.start_with?("/api/v1/app/")
+      next if path.start_with?("/api/v1/app/admin/")
+      next if path.include?("*plugin_route")
+
+      [ route.verb.to_s, path, "#{route.defaults[:controller]}##{route.defaults[:action]}" ].join(" ")
+    end
+
+    plugin = Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+      metadata = manifest.metadata.with_indifferent_access
+      Array(metadata[:routes]).filter_map do |raw_route|
+        route = raw_route.to_h.with_indifferent_access
+        path = route[:path].to_s
+        next unless path.start_with?("/api/v1/app/")
+        next if path.start_with?("/api/v1/app/admin/")
+
+        [
+          (route[:verb].presence || "GET").to_s.upcase,
+          path,
+          route[:controller].to_s
+        ].join(" ")
+      end
+    end
+
+    core + plugin
+  end
+
+  def inline_admin_check_routes
+    app_user_api_routes.select do |route|
+      _verb, _path, endpoint = route.split(" ", 3)
+      controller_name, action = endpoint.split("#", 2)
+      inline_admin_refusal?(action_source(controller_name, action))
+    end.sort
+  end
+
+  def inline_admin_refusal?(source)
+    source.match?(/unless\s+Current\.user(?:&\.)?admin\?.*?render_error/m) ||
+      source.match?(/return\s+render\b.*unless\s+Current\.user(?:&\.)?admin\?/)
+  end
+
+  def action_source(controller_name, action)
+    controller_class = "#{controller_name}_controller".camelize.constantize
+    source_path, line_number = controller_class.instance_method(action).source_location
+    lines = File.readlines(source_path)
+    start = line_number - 1
+    indent = lines.fetch(start)[/^\s*/]
+    finish = ((start + 1)...lines.length).find do |index|
+      lines[index].match?(/^#{Regexp.escape(indent)}(?:def|private|protected)\b/)
+    end || lines.length
+
+    lines[start...finish].join
+  rescue NameError
+    ""
+  end
+
   it "keeps app-admin routes on the reviewed UI-serving list" do
     current = admin_api_routes.select { |route| route.include?(" /api/v1/app/admin/") }
 
@@ -298,6 +363,15 @@ RSpec.describe "admin API prefix ownership" do
       surface. If this route is a page-shaped admin UI endpoint, declare it
       under /api/v1/app/admin instead. Otherwise update the reviewed list and
       config/syrus_docs/admin_api_prefixes.md.
+    MSG
+  end
+
+  it "keeps inline admin checks out of the user app API" do
+    expect(inline_admin_check_routes).to match_array(REVIEWED_INLINE_ADMIN_CHECKS_IN_USER_APP_API), <<~MSG
+      /api/v1/app is the user-facing API. Admin-only actions should live under
+      /api/v1/app/admin for the React app or /api/v1/admin for token-only
+      operator automation. Keep only deliberately reviewed legacy exceptions
+      here.
     MSG
   end
 

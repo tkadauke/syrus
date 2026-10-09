@@ -45,5 +45,5 @@ export type MetricsDashboardPayload = {
 }
 
 export function fetchMetricsDashboard(window: string) {
-  return getJson<MetricsDashboardPayload>(`/api/v1/app/metrics_dashboard?window=${encodeURIComponent(window)}`)
+  return getJson<MetricsDashboardPayload>(`/api/v1/app/admin/metrics_dashboard?window=${encodeURIComponent(window)}`)
 }

@@ -44,7 +44,7 @@ module Admin
       return unless job&.state.in?(%w[running queued implemented approved landing])
       return unless job.may_force_fail?
 
-      "/api/v1/app/jobs/#{job.id}/force_fail"
+      "/api/v1/app/admin/jobs/#{job.id}/force_fail"
     end
   end
 end
