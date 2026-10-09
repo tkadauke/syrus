@@ -307,6 +307,120 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(job.pending_epic_reference).to eq({})
     end
 
+    it "ingests GitHub-declared Epic children as one explicit dependency chain" do
+      declaration = issue(number: 100, body: "Epic: Widget hardening")
+      root = issue(number: 101, body: "Epic: #100")
+      dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ declaration, root, dependent ])
+
+      described_class.perform_now(repository.id)
+
+      epic = Epic.find_by!(github_issue_url: "https://github.com/acme/widgets/issues/100")
+      root_job = Job.find_by!(repository: repository, issue_number: 101)
+      dependent_job = Job.find_by!(repository: repository, issue_number: 102)
+      expect(epic.jobs).to contain_exactly(root_job, dependent_job)
+      expect(dependent_job.depends_on_jobs).to contain_exactly(root_job)
+      expect(repository.reload.poll_issue_errors).to eq([])
+    end
+
+    it "resolves an out-of-order GitHub child dependency into the same Epic chain" do
+      declaration = issue(number: 100, body: "Epic: Widget hardening")
+      dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
+      root = issue(number: 101, body: "Epic: #100")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ declaration, dependent, root ])
+
+      described_class.perform_now(repository.id)
+
+      root_job = Job.find_by!(repository: repository, issue_number: 101)
+      dependent_job = Job.find_by!(repository: repository, issue_number: 102)
+      expect(dependent_job.dependencies.sole).to have_attributes(
+        depends_on_job: root_job,
+        source: "parsed"
+      )
+      expect(repository.reload.poll_issue_errors).to eq([])
+    end
+
+    it "quarantines the out-of-order child whose pending dependency would branch the chain" do
+      declaration = issue(number: 100, body: "Epic: Widget hardening")
+      first_dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
+      branching_dependent = issue(number: 103, body: "Epic: #100\n\nDepends-on: #101")
+      root = issue(number: 101, body: "Epic: #100")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        state == "closed" ? [] : [ declaration, first_dependent, branching_dependent, root ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      root_job = Job.find_by!(repository: repository, issue_number: 101)
+      first_child = Job.find_by!(repository: repository, issue_number: 102)
+      expect(first_child.depends_on_jobs).to contain_exactly(root_job)
+      expect(Job.exists?(repository: repository, issue_number: 103)).to be(false)
+      expect(repository.reload.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 103,
+          "error_class" => "ActiveRecord::RecordInvalid",
+          "error_message" => include("Epic dependencies must form a single chain")
+        )
+      )
+    end
+
+    it "quarantines a disconnected GitHub child instead of starting a parallel Epic branch" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/41",
+        state: "in_progress"
+      )
+      first = issue(number: 42, body: "Epic: #41")
+      second = issue(number: 43, body: "Epic: #41")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        state == "closed" ? [] : [ first, second ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      first_job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(first_job.epic).to eq(epic)
+      expect(first_job.runs).not_to be_empty
+      expect(Job.exists?(repository: repository, issue_number: 43)).to be(false)
+      expect(repository.reload.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 43,
+          "error_class" => "ActiveRecord::RecordInvalid",
+          "error_message" => include("Add a Depends-on: line")
+        )
+      )
+    end
+
+    it "quarantines a GitHub child whose same-Epic dependency would branch the chain" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/41",
+        state: "in_progress"
+      )
+      root = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42, state: "queued")
+      existing_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "queued")
+      JobDependency.create!(job: existing_child, depends_on_job: root, source: "manual")
+      branching_child = issue(number: 44, body: "Epic: #41\n\nDepends-on: #42")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
+        state == "closed" ? [] : [ branching_child ]
+      end
+
+      described_class.perform_now(repository.id)
+
+      expect(Job.exists?(repository: repository, issue_number: 44)).to be(false)
+      expect(repository.reload.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => 44,
+          "error_class" => "ActiveRecord::RecordInvalid",
+          "error_message" => include("Epic dependencies must form a single chain")
+        )
+      )
+    end
+
     it "keeps a child issue in triaging with pending_epic_ref until the Epic is ingested" do
       child = issue(number: 42, body: "Epic: #41")
       declaration = issue(number: 41, body: "Epic: Attachments rollout")
