@@ -26,7 +26,7 @@ RSpec.describe "website content coverage" do
       "lib/site.ts" => [
         "Run coding agents on your repos.",
         "Proposes epics & tickets",
-        "Multiply your output",
+        "Run repeatable agent workflows",
         "Approve it — it lands itself",
         "Issue or ticket",
         "Scheduled task"
