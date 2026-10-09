@@ -425,6 +425,89 @@ func TestJobActionPostsEndpoint(t *testing.T) {
 	}
 }
 
+func TestJobActionCommandsPostExpectedEndpoints(t *testing.T) {
+	cases := []struct {
+		args []string
+		path string
+		body string
+	}{
+		{[]string{"job", "start", "456"}, "/api/v1/app/jobs/456/start", ""},
+		{[]string{"job", "pause", "456"}, "/api/v1/app/jobs/456/pause", ""},
+		{[]string{"job", "unpause", "456"}, "/api/v1/app/jobs/456/unpause", ""},
+		{[]string{"job", "unapprove", "456"}, "/api/v1/app/jobs/456/unapprove", ""},
+		{[]string{"job", "stop-landing", "456"}, "/api/v1/app/jobs/456/stop_landing", ""},
+		{[]string{"job", "move-to-backlog", "456"}, "/api/v1/app/jobs/456/move_to_backlog", ""},
+		{[]string{"job", "release-from-backlog", "456"}, "/api/v1/app/jobs/456/release_from_backlog", ""},
+		{[]string{"job", "accept-triage", "456"}, "/api/v1/app/jobs/456/accept_triage", ""},
+		{[]string{"job", "reject-triage", "456"}, "/api/v1/app/jobs/456/reject_triage", ""},
+		{[]string{"job", "reopen", "456"}, "/api/v1/app/jobs/456/reopen", ""},
+		{[]string{"job", "close-investigation", "456"}, "/api/v1/app/jobs/456/close_investigation", ""},
+		{[]string{"job", "check-mergeability", "456"}, "/api/v1/app/jobs/456/check_mergeability", ""},
+		{[]string{"job", "recheck-pr-checks", "456"}, "/api/v1/app/jobs/456/recheck_pr_checks", ""},
+		{[]string{"job", "resume", "456", "--source-run", "9"}, "/api/v1/app/jobs/456/resume", `"source_run_id":"9"`},
+		{[]string{"job", "retry-step", "456", "--workflow", "12"}, "/api/v1/app/jobs/456/workflows/12/retry_step", ""},
+		{[]string{"job", "push-commits", "456", "--workflow", "12"}, "/api/v1/app/jobs/456/workflows/12/push_commits", ""},
+		{[]string{"job", "stop-run", "456", "--run", "34"}, "/api/v1/app/jobs/456/runs/34/stop", ""},
+		{[]string{"job", "diagnose", "456", "--run", "34"}, "/api/v1/app/jobs/456/runs/34/diagnose", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.args[1:], "_"), func(t *testing.T) {
+			var body string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != tc.path {
+					t.Fatalf("unexpected request %s %s, want POST %s", r.Method, r.URL.Path, tc.path)
+				}
+				raw, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body = string(raw)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			writeJobActionTestCredentials(t, server.URL)
+
+			output := &bytes.Buffer{}
+			command := NewRootCommand()
+			command.SetOut(output)
+			command.SetErr(&bytes.Buffer{})
+			command.SetArgs(tc.args)
+
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute returned error: %v", err)
+			}
+			if tc.body != "" && !strings.Contains(body, tc.body) {
+				t.Fatalf("body = %q, want to contain %q", body, tc.body)
+			}
+		})
+	}
+}
+
+func TestGeneratedJobActionHelpTextIsNotResultMessage(t *testing.T) {
+	command := NewJobCommand()
+	resultMessages := map[string]string{
+		"approve": "Approved",
+		"cancel":  "Cancellation requested",
+		"retry":   "Retry enqueued",
+		"rebase":  "Rebase enqueued",
+		"pause":   "Paused",
+		"unpause": "Unpaused",
+	}
+	for name, resultMessage := range resultMessages {
+		child, _, err := command.Find([]string{name})
+		if err != nil {
+			t.Fatalf("Find(%s) returned error: %v", name, err)
+		}
+		if child == nil {
+			t.Fatalf("command %s not found", name)
+		}
+		if child.Short == resultMessage {
+			t.Fatalf("%s Short reuses result message %q", name, child.Short)
+		}
+	}
+}
+
 func TestJobTestPlanUsesAppPayloadLikeTopLevelCommand(t *testing.T) {
 	payload := `{
 		"job": {

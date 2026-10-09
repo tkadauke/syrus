@@ -28,7 +28,7 @@ type inboxAPI interface {
 	GetJobTranscript(context.Context, string) (api.JobTranscript, error)
 	GetJobDiff(context.Context, string) (api.JobDiff, error)
 	ApproveJob(context.Context, string) error
-	RetryJob(context.Context, string) error
+	RunJobAction(context.Context, string, string) error
 }
 
 type inboxOptions struct {
@@ -308,7 +308,7 @@ func (m inboxModel) confirmAction() (tea.Model, tea.Cmd) {
 		if kind == "approve" {
 			err = m.client.ApproveJob(context.Background(), id)
 		} else {
-			err = m.client.RetryJob(context.Background(), id)
+			err = m.client.RunJobAction(context.Background(), id, "run_again")
 		}
 		return inboxActionMsg{jobID: jobID, kind: kind, handled: true, read: true, err: err}
 	}
