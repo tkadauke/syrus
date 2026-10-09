@@ -202,6 +202,7 @@ export function PreviewPanel({
       prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
       priority: "high",
       createMore: false,
+      dependsOnJobIds: [],
       files: [],
       googleDocUrl: ""
     }),

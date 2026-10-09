@@ -15944,6 +15944,7 @@ function directJobFormPayload() {
     selected_model: null,
     selected_effort_level: null,
     selected_epic_id: null,
+    selected_depends_on_job_ids: [],
     epic: null,
     create_more: true,
     prompt_templates: [

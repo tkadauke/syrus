@@ -33,6 +33,7 @@ type DirectJobFormState = {
   prompt: string
   priority: string
   createMore: boolean
+  dependsOnJobIds: number[]
   googleDocUrl: string
 }
 
@@ -98,6 +99,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         prompt: "",
         priority: "medium",
         createMore: true,
+        dependsOnJobIds: current.dependsOnJobIds,
         googleDocUrl: ""
       }))
     }
@@ -368,6 +370,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     prompt: "",
     priority: "medium",
     createMore: payload.create_more,
+    dependsOnJobIds: payload.selected_depends_on_job_ids || [],
     googleDocUrl: ""
   }
 }

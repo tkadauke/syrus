@@ -124,7 +124,10 @@ describe("EpicDetail", () => {
 
   it("organizes peer Epic workspaces behind shared underline tabs", () => {
     const payload = detailPayload({ description: "Coordinate the rollout across the child jobs." })
-    payload.jobs = [job("open")]
+    payload.jobs = [
+      job("open", { id: 41 }),
+      job("open", { id: 42, depends_on_job_ids: [41] })
+    ]
     payload.graph = {
       empty: false,
       node_count: 2,
@@ -153,15 +156,16 @@ describe("EpicDetail", () => {
 
     const tabs = screen.getByRole("navigation", { name: "Epic sections" })
     expect(within(tabs).getByRole("button", { name: "Overview" })).toHaveClass("border-brand")
-    expect(within(tabs).getByRole("button", { name: "Jobs (1)" })).toBeInTheDocument()
+    expect(within(tabs).getByRole("button", { name: "Jobs (2)" })).toBeInTheDocument()
     expect(within(tabs).getByRole("button", { name: "Dependencies" })).toBeInTheDocument()
     expect(within(tabs).getByRole("button", { name: "History" })).toBeInTheDocument()
     expect(screen.getByText("Coordinate the rollout across the child jobs.")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Jobs" })).not.toBeInTheDocument()
 
-    fireEvent.click(within(tabs).getByRole("button", { name: "Jobs (1)" }))
-    expect(within(tabs).getByRole("button", { name: "Jobs (1)" })).toHaveClass("border-brand")
+    fireEvent.click(within(tabs).getByRole("button", { name: "Jobs (2)" }))
+    expect(within(tabs).getByRole("button", { name: "Jobs (2)" })).toHaveClass("border-brand")
     expect(screen.getByRole("heading", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "+ Add Job" })).toHaveAttribute("href", "/jobs/new?repository_id=1&epic_id=3&depends_on_job_ids%5B%5D=42")
     expect(screen.queryByRole("heading", { name: "Details" })).not.toBeInTheDocument()
 
     fireEvent.click(within(tabs).getByRole("button", { name: "Dependencies" }))

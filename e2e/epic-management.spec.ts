@@ -53,17 +53,18 @@ test("enforces the linear-chain dependency policy when chaining child Jobs (no f
   await addDependency(page, jobBId, jobATitle)
   await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
 
-  // C -> A would fork the chain: A would have two downstream Jobs (fan-out).
+  // C is created through the Epic's Add Job link, so it is already chained
+  // onto the current tail (B). Adding C -> A as a second dependency would fan
+  // in, and the original C -> B dependency should remain.
   await addDependency(page, jobCId, jobATitle)
   await expect(page.getByText(/must form a single chain/)).toBeVisible()
-  await expect(page.getByText("No dependencies.")).toBeVisible()
+  await expect(page.getByRole("button", { name: `Copy JOB-${jobBId} to clipboard` }).first()).toBeVisible()
 
-  // B -> C would merge two upstream Jobs into B, which already depends on A
-  // (fan-in).
+  // B -> C would create a cycle in the existing A -> B -> C chain.
   await addDependency(page, jobBId, jobCTitle)
   await expect(page.getByText(/must form a single chain/)).toBeVisible()
   await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
-  await expect(page.getByRole("button", { name: `Copy JOB-${jobCId} to clipboard` })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: `Copy JOB-${jobCId} to clipboard` }).first()).toBeVisible()
 })
 
 test("edits an Epic's metadata", async ({ page }) => {

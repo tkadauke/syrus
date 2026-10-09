@@ -237,7 +237,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <JobsSection
             epicRepositorySlug={payload.epic.repository.slug}
             jobs={payload.jobs}
-            newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
+            newJobPath={newEpicJobPath(payload)}
             prefix={prefix}
           />
         </div>
@@ -263,6 +263,25 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       {activeTab === "history" ? <HistorySection versions={payload.versions || []} /> : null}
     </>
   )
+}
+
+function newEpicJobPath(payload: EpicDetailPayload) {
+  const params = new URLSearchParams({
+    repository_id: String(payload.epic.repository.id),
+    epic_id: String(payload.epic.id)
+  })
+  const tailJob = epicJobTail(payload.jobs)
+  if (tailJob) params.append("depends_on_job_ids[]", String(tailJob.id))
+  return `/jobs/new?${params.toString()}`
+}
+
+function epicJobTail(jobs: EpicDetailJob[]) {
+  const jobIds = new Set(jobs.map((job) => job.id))
+  const dependedOnIds = new Set(
+    jobs.flatMap((job) => job.depends_on_job_ids || []).filter((id) => jobIds.has(id))
+  )
+  const tails = jobs.filter((job) => !dependedOnIds.has(job.id))
+  return tails.length === 1 ? tails[0] : jobs[jobs.length - 1]
 }
 
 function EpicTabNav({ active, jobsCount, onSelect }: { active: EpicDetailTab; jobsCount: number; onSelect: (tab: EpicDetailTab) => void }) {

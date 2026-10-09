@@ -156,12 +156,14 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
   it "includes the target epic in the new-job form payload when epic_id is provided" do
     sign_in_as(user)
     epic = Factories.epic(repository: repository, user: user)
+    existing = Factories.job_record(user: user, repository: repository, epic: epic)
 
-    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: epic.id }
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: epic.id, depends_on_job_ids: [ existing.id ] }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["selected_epic_id"]).to eq(epic.id.to_s)
+    expect(body["selected_depends_on_job_ids"]).to eq([ existing.id ])
     expect(body["epic"]).to include("id" => epic.id, "display_number" => epic.slug, "title" => epic.title)
   end
 

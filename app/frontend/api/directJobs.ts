@@ -46,6 +46,7 @@ export type DirectJobFormPayload = {
   selected_model: string | null
   selected_effort_level: string | null
   selected_epic_id: string | null
+  selected_depends_on_job_ids: number[]
   epic: DirectJobEpic | null
   create_more: boolean
   prompt_templates: DirectJobPromptTemplate[]
@@ -65,6 +66,7 @@ export type CreateDirectJobInput = {
   prompt: string
   priority: string
   createMore: boolean
+  dependsOnJobIds: number[]
   files: File[]
   googleDocUrl: string
 }
@@ -102,6 +104,9 @@ export function createDirectJob(values: CreateDirectJobInput) {
   if (values.createMore) {
     formData.append("create_more", "1")
   }
+  values.dependsOnJobIds.forEach((id) => {
+    formData.append("depends_on_job_ids[]", String(id))
+  })
   values.files.forEach((file) => {
     formData.append("job_attachment[files][]", file)
   })

@@ -85,6 +85,7 @@ module Api
             selected_model: params[:model].to_s.presence,
             selected_effort_level: params[:effort_level].to_s.presence,
             selected_epic_id: epic&.id&.to_s,
+            selected_depends_on_job_ids: selected_depends_on_job_ids,
             epic: epic ? epic_json(epic) : nil,
             create_more: create_more?,
             prompt_templates: PromptTemplate.all.map { |template| prompt_template_json(template) },
@@ -109,6 +110,10 @@ module Api
 
           scope = repository ? repository.epics : Current.user.epics
           scope.find_by(id: params[:epic_id])
+        end
+
+        def selected_depends_on_job_ids
+          Array(params[:depends_on_job_ids]).filter_map { |id| Integer(id, exception: false) }
         end
 
         def epic_json(epic)

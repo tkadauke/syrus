@@ -37,6 +37,7 @@ function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFo
     selected_model: null,
     selected_effort_level: null,
     selected_epic_id: null,
+    selected_depends_on_job_ids: [],
     epic: null,
     configured_agent_providers: [],
     provider_routing_options: { agent_providers: [], effort_levels: [] },
@@ -148,6 +149,42 @@ describe("DirectJobNew epic linking", () => {
 
     await waitFor(() => expect(submittedBody).not.toBeNull())
     expect(submittedBody!.get("epic_id")).toBe("7")
+  })
+
+  it("preserves selected job dependencies when creating an epic child job", async () => {
+    let submittedBody: FormData | null = null
+    vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
+      if (init?.method === "POST") {
+        submittedBody = init.body as FormData
+        return Promise.resolve(jsonResponse({
+          message: "Direct job created.",
+          create_more: false,
+          redirect_to: "/jobs/99",
+          job: { id: 99, title: "Ship the next piece", state: "queued", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", default_agent_provider: "claude", default_agent_provider_label: "Claude" }, job_path: "/jobs/99" }
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(formPayload({
+        selected_epic_id: "7",
+        selected_depends_on_job_ids: [42],
+        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+      })))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <DirectJobNewRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Prompt" }), { target: { value: "Add the next piece." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create job" }))
+
+    await waitFor(() => expect(submittedBody).not.toBeNull())
+    expect(submittedBody!.getAll("depends_on_job_ids[]")).toEqual(["42"])
   })
 })
 
