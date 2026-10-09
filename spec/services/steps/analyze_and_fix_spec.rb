@@ -30,6 +30,13 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
   end
 
   before do
+    stub_handler_dependencies(handler)
+
+    issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
+    allow_any_instance_of(GithubClient).to receive(:fetch_issue).and_return(issue)
+  end
+
+  def stub_handler_dependencies(handler)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(handler).to receive(:run_agent)
@@ -38,9 +45,6 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
     allow(handler).to receive(:diff_against_sha).and_return("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("def456")
-
-    issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
-    allow_any_instance_of(GithubClient).to receive(:fetch_issue).and_return(issue)
   end
 
   it "builds and persists the CI failure prompt" do
@@ -65,6 +69,49 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
 
     expect(run.reload.prompt).to include("#{epic.slug}: Syrus CLI and test planning")
     expect(run.prompt).to include("Do not implement the entire Epic")
+  end
+
+  it "includes prior grader output and no-diff repair history in the next repair prompt" do
+    handler.call
+    first_prompt = run.reload.prompt
+    run.update!(
+      agent_outcome: "success",
+      step_agent_diff: "",
+      agent_diff: "diff --git a/app/models/user.rb b/app/models/user.rb\n+existing branch diff"
+    )
+
+    workflow.set_artifact!("iterations", [
+      [
+        {
+          "name" => "rspec-ci",
+          "required" => true,
+          "status" => "failed",
+          "command" => "bin/rspec-ci",
+          "exit_code" => 1,
+          "output" => "4197 examples, 27 failures\nFailed examples:\nrspec ./spec/models/user_spec.rb:12"
+        }
+      ]
+    ])
+    second_step = Step.create!(
+      workflow: workflow,
+      kind: "analyze_and_fix",
+      position: 100,
+      iteration: 2,
+      loop_id: step.loop_id
+    )
+    second_run = second_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, iteration: 2)
+    second_handler = described_class.new(second_run)
+    stub_handler_dependencies(second_handler)
+
+    second_handler.call
+    second_prompt = second_run.reload.prompt
+
+    expect(second_prompt).not_to eq(first_prompt)
+    expect(second_prompt).to include("loop-blocking required grader(s): rspec-ci")
+    expect(second_prompt).to include("4197 examples, 27 failures")
+    expect(second_prompt).to include("rspec ./spec/models/user_spec.rb:12")
+    expect(second_prompt).to include("Iteration 1: success; produced no repository diff.")
+    expect(second_prompt).not_to include("existing branch diff")
   end
 
   it "skips prompt rebuild when run.prompt is already set" do

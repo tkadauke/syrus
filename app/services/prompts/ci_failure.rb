@@ -12,8 +12,9 @@ module Prompts
     MAX_CHECKS = 5
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
+    MAX_REPAIR_DIFF_BYTES = 2_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [])
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [], grader_iterations: [], repair_attempts: [])
       @issue        = issue
       @pr_number    = pr_number
       @repo_slug    = repo_slug
@@ -24,6 +25,8 @@ module Prompts
       @epic = epic
       @job = job
       @injected_context = Array(injected_context).compact
+      @grader_iterations = Array(grader_iterations)
+      @repair_attempts = Array(repair_attempts)
     end
 
     def to_s
@@ -40,16 +43,21 @@ module Prompts
 
         #{epic_context}
 
-        # Failing checks (#{@failed_checks.size} total, showing up to #{MAX_CHECKS})
+        # Failing checks (#{failing_checks_summary})
         #{render_checks}
+
+        #{grader_feedback_section}
+
+        #{repair_attempts_section}
 
         #{operator_instructions}
 
         # How to act
 
-        - Read each failing check's structured error context above. It
-          is extracted from the failing CI log when available, with the
-          full log URL included for deeper investigation.
+        - Read each failing check's structured error context and each
+          blocking grader result above. GitHub check context is extracted
+          from the failing CI log when available; grader excerpts are the
+          workflow gate that decides whether this repair loop continues.
         - Reproduce the failure locally where possible (run the test,
           run the linter, run the build). The repo is checked out at
           the failing commit.
@@ -85,7 +93,8 @@ module Prompts
     end
 
     def render_checks
-      @failed_checks.first(MAX_CHECKS).map { |c| render_check(c) }.join("\n\n")
+      rendered = @failed_checks.first(MAX_CHECKS).map { |c| render_check(c) }.join("\n\n")
+      rendered.presence || "No failing GitHub checks were recorded for this repair trigger."
     end
 
     def operator_instructions
@@ -117,6 +126,78 @@ module Prompts
         #{JSON.pretty_generate(context)}
         ```
       BLOCK
+    end
+
+    def failing_checks_summary
+      parts = [
+        "#{@failed_checks.size} GitHub check(s), showing up to #{MAX_CHECKS}"
+      ]
+      blocking = blocking_grader_names
+      parts << "#{blocking.size} loop-blocking required grader(s): #{blocking.join(', ')}" if blocking.any?
+      parts.join("; ")
+    end
+
+    def grader_feedback_section
+      return nil if @grader_iterations.empty?
+
+      Prompts::GradeFailureFeedback.new(
+        iterations: @grader_iterations,
+        intro: <<~INTRO.strip,
+          The repair loop's own graders are the gate for the next round. These
+          are the recorded grader results so far; prioritize failed required
+          graders even when they differ from the GitHub check list above.
+        INTRO
+        include_git_safety: false
+      ).to_s
+    end
+
+    def repair_attempts_section
+      return nil if @repair_attempts.empty?
+
+      <<~BLOCK.strip
+        # Previous repair attempts
+        #{@repair_attempts.map { |attempt| render_repair_attempt(attempt) }.join("\n")}
+      BLOCK
+    end
+
+    def render_repair_attempt(attempt)
+      attempt = attempt.to_h if attempt.respond_to?(:to_h)
+      attempt = {} unless attempt.is_a?(Hash)
+      iteration = attempt["iteration"] || attempt[:iteration] || "unknown"
+      status = attempt["status"] || attempt[:status] || "unknown"
+      diff = (attempt["diff"] || attempt[:diff]).to_s
+
+      line = "- Iteration #{iteration}: #{status}"
+      if diff.strip.empty?
+        "#{line}; produced no repository diff."
+      else
+        "#{line}; produced this diff excerpt:\n#{indent(truncate_repair_diff(diff), by: 2)}"
+      end
+    end
+
+    def blocking_grader_names
+      @grader_iterations.flat_map do |entries|
+        Array(entries).filter_map do |entry|
+          entry = entry.to_h if entry.respond_to?(:to_h)
+          entry = {} unless entry.is_a?(Hash)
+          required = entry.key?("required") ? entry["required"] : entry[:required]
+          status = (entry["status"] || entry[:status]).to_s
+          next unless required && status == "failed"
+
+          entry["name"] || entry[:name]
+        end
+      end.compact.uniq
+    end
+
+    def truncate_repair_diff(diff)
+      return diff if diff.bytesize <= MAX_REPAIR_DIFF_BYTES
+
+      "#{diff.safe_byteslice(0, MAX_REPAIR_DIFF_BYTES)}\n...[truncated]"
+    end
+
+    def indent(text, by:)
+      pad = " " * by
+      text.to_s.lines.map { |line| pad + line }.join.chomp
     end
 
     def target_context_block(check)
