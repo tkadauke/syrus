@@ -87,7 +87,7 @@ module Admin
       active = workflows.select { |workflow| workflow.state.in?(%w[queued running]) }
       queued = workflows.select(&:queued?)
       failed = workflows.select(&:failed?)
-      terminal = workflows.select { |workflow| workflow.state.in?(%w[succeeded failed cancelled]) }
+      terminal = workflows.select { |workflow| workflow.state.in?(%w[succeeded failed cancelled blocked]) }
       latest = job.latest_workflow
 
       {

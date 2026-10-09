@@ -62,9 +62,13 @@ particular, NEVER run any of these mid-run:
 If a tool gives you trouble (a setup task fails because dependencies
 aren't installed, a linter blows up, etc.), surface that in the
 run's requested reporting channel instead of working around it via
-destructive git ops. Syrus would rather record "I couldn't do X
-because Y" and let the operator decide than have your branch
-silently land on an orphan and lose the work.
+destructive git ops. If you have verified a concrete blocker means
+the work cannot proceed in this workflow environment (for example a
+required binary is missing from the worker image, or the task asks for
+a capability this workflow step does not have), call
+`report_cannot_proceed(reason:, details:)` and then stop work. Syrus
+will mark the Run, Step, and Workflow blocked instead of failed, record
+the reason on the Job, and surface it for operator attention.
 
 Sane git ops are fine — `git status`, `git log`, `git diff`,
 `git add`, `git commit`, `git restore`, `git stash` (if you pop

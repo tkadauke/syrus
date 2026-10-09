@@ -117,6 +117,18 @@ continue through an explicit checkpoint/handoff on a capable worker, split the
 work by platform, or dismiss the warning only when platform-specific graders
 fully validate the change.
 
+## Agent cannot proceed
+
+Agentic implementation and repair steps record a `kind:
+"agent_cannot_proceed"` warning through `report_cannot_proceed` when they have
+verified that the requested work is blocked by the workflow environment or by
+missing workflow capabilities. The warning evidence includes the reason,
+details, Run id, Step id, and report timestamp. Unlike advisory grader
+warnings, this one is paired with a terminal `blocked` Run/Step/Workflow state
+and a Job `needs_attention_reason` of `agent_cannot_proceed`, so the operator
+can read the blocker without opening the transcript and decide whether to file
+a follow-up Job from the warning.
+
 ## Skipped target CI failures
 
 `PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when

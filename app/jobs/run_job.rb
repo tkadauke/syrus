@@ -412,7 +412,12 @@ class RunJob < ApplicationJob
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
 
     @handler = Steps.handler_for(@step.kind).new(@run)
-    @handler.call
+    begin
+      @handler.call
+    rescue Steps::Base::CannotProceed => e
+      block_after_cannot_proceed!(e.reason)
+      return
+    end
 
     # A reaper, operator stop, or another state propagator can make
     # this Run/Step/Workflow terminal while the handler is still
@@ -585,6 +590,39 @@ class RunJob < ApplicationJob
       log("run reconciled after terminal success race: #{reconciliation.reason}", kind: "system")
     elsif reconciliation.reason.present?
       log("terminal success race could not be reconciled: #{reconciliation.reason}", kind: "system")
+    end
+  end
+
+  def block_after_cannot_proceed!(reason)
+    log("BLOCKED: #{reason}", kind: "system")
+
+    @run.reload
+    @step.reload
+    @workflow.reload
+
+    if @run.may_block?
+      @run.block!
+      @run.save!
+    end
+
+    if @step.may_block?
+      @step.details = @step.details.to_h.merge(
+        "blocked_reason" => "agent_cannot_proceed",
+        "cannot_proceed_reason" => reason
+      )
+      @step.block!
+      @step.save!
+    end
+
+    if @workflow.may_block?
+      @workflow.artifacts = (@workflow.artifacts || {}).merge(
+        "cannot_proceed" => @workflow.artifact("cannot_proceed").to_h.merge(
+          "reason" => reason,
+          "blocked_at" => Time.current.iso8601
+        )
+      )
+      @workflow.block!
+      @workflow.save!
     end
   end
 

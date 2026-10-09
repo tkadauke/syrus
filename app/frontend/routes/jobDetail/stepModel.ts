@@ -25,7 +25,7 @@ export type PrepareFailure = {
 
 export type GradeSummary = {
   name: string
-  status: "passed" | "warning" | "failed" | "error" | "running" | "queued" | "cancelled" | "skipped" | "unknown"
+  status: "passed" | "warning" | "failed" | "error" | "running" | "queued" | "cancelled" | "skipped" | "blocked" | "unknown"
   required: boolean | null
   exitCode: number | null
   duration: number | null
@@ -231,13 +231,14 @@ export function gradeSummaries(item: GradeStepItem): GradeSummary[] {
 export function gradeSummaryStatus(step: JobStep, details: Record<string, unknown>): GradeSummary["status"] {
   if (effectiveStepStatus(step) === "warning") return "warning"
   const status = stringValue(details.status)
-  if (status === "passed" || status === "failed" || status === "error" || status === "cancelled" || status === "skipped") return status
+  if (status === "passed" || status === "failed" || status === "error" || status === "cancelled" || status === "skipped" || status === "blocked") return status
   if (step.state === "succeeded") return "passed"
   if (step.state === "failed") return numberValue(details.exit_code) === null ? "error" : "failed"
   if (step.state === "running") return "running"
   if (step.state === "queued") return "queued"
   if (step.state === "cancelled") return "cancelled"
   if (step.state === "skipped") return "skipped"
+  if (step.state === "blocked") return "blocked"
   return "unknown"
 }
 
@@ -337,7 +338,7 @@ export function stepAgentic(step: JobStep) {
 // turn count, and cost are debug trivia rather than the story.
 export function isDiagnosticRelevantRun(run: JobRun) {
   if (isActiveState(run.state)) return true
-  if (run.state === "failed" || run.state === "cancelled") return true
+  if (run.state === "failed" || run.state === "cancelled" || run.state === "blocked") return true
   if (run.failure_classification) return true
   if (run.run_diagnostic?.present) return true
   const health = run.health_snapshots.at(-1)?.health_status

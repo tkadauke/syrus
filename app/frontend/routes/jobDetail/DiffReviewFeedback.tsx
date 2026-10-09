@@ -1064,7 +1064,7 @@ function reviewAnnotationToneClass(tone: string | null | undefined) {
   return "border-border bg-surface-raised text-text-primary"
 }
 
-const terminalWorkflowStates = new Set(["succeeded", "failed", "cancelled"])
+const terminalWorkflowStates = new Set(["succeeded", "failed", "cancelled", "blocked"])
 const retryableWorkflowStates = new Set(["failed", "cancelled"])
 
 function isSubmittableDiffComment(comment: DiffReviewComment) {

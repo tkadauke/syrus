@@ -4,6 +4,7 @@ module Steps
     def self.succeeded_grade!(step) = new(step).succeeded_grade!
     def self.failed!(step) = new(step).failed!
     def self.cancelled!(step) = new(step).cancelled!
+    def self.blocked!(step) = new(step).blocked!
 
     def initialize(step)
       @step = step
@@ -40,6 +41,13 @@ module Steps
       cancel_workflow_if_idle!
     end
 
+    def blocked!
+      return unless step.reload.blocked?
+
+      Step.suppress_cancel_cascade { cancel_downstream_queued_steps! }
+      block_workflow_if_idle!
+    end
+
     private
 
     attr_reader :step
@@ -61,6 +69,15 @@ module Steps
       return if workflow.active_descendants?
 
       workflow.cancel!
+      workflow.save!
+    end
+
+    def block_workflow_if_idle!
+      workflow = step.workflow
+      return unless workflow.may_block?
+      return if workflow.active_descendants?
+
+      workflow.block!
       workflow.save!
     end
   end
