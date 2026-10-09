@@ -2,9 +2,11 @@ require "rails_helper"
 
 RSpec.describe "iOS capability documentation" do
   OPERATOR_DOC = Rails.root.join("config/syrus_docs/syrus_yml.md")
+  RUNBOOK_DOC = Rails.root.join("config/syrus_docs/ios_compute_runbook.md")
   PUBLIC_DOCS = [
     Rails.root.join("website/src/content/docs/configuration.md"),
-    Rails.root.join("website/src/content/docs/monorepo-adoption.md")
+    Rails.root.join("website/src/content/docs/monorepo-adoption.md"),
+    Rails.root.join("website/src/content/docs/ios-compute-runbook.md")
   ].freeze
 
   it "documents the supported scheduler contract and practical Xcode inputs" do
@@ -29,6 +31,26 @@ RSpec.describe "iOS capability documentation" do
     expect(body).to include("Xcode license")
     expect(body).to include("simulator runtime")
     expect(body).to include("Keychain")
+  end
+
+  it "documents the iOS compute readiness runbook" do
+    body = RUNBOOK_DOC.read
+
+    expect(body).to include("iOS compilation")
+    expect(body).to include("Coding Mode iOS/editor integration is not part of this release")
+    expect(body).to include("planned primary execution")
+    expect(body).to include("\"capabilities\"")
+    expect(body).to include("implementation_capability_escalation")
+    expect(body).to include("runs-macos-arm64")
+    expect(body).to include("no_capable_worker")
+    expect(body).to include("start_blocked_details")
+    expect(body).to include("read_worker_health")
+    expect(body).to include("read_queue")
+    expect(body).to include("bin/macos-worker-check")
+    expect(body).to include("launchd")
+    expect(body).to include("Linux")
+    expect(body).to include("Xcode")
+    expect(body).to include("iOS simulator")
   end
 
   it "keeps public docs aligned with the iOS capability contract" do
