@@ -1,5 +1,5 @@
 import type { PublicKeyCredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON } from "@github/webauthn-json"
-import { getJson, patchJson, postJson } from "./client"
+import { deleteJson, getJson, patchJson, postJson } from "./client"
 
 export type SignupPayload = {
   allowed: boolean
@@ -44,6 +44,10 @@ export function fetchPublicAuthStatus(search = "") {
 
 export function signIn(values: { email_address: string; password: string }) {
   return postJson<AuthRedirectPayload>("/api/v1/app/auth/session", values)
+}
+
+export function signOut() {
+  return deleteJson<AuthRedirectPayload>("/api/v1/app/auth/session")
 }
 
 export function signUp(values: {
