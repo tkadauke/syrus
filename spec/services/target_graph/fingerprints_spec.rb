@@ -185,6 +185,20 @@ RSpec.describe TargetGraph::Fingerprints do
     expect(fingerprints.metadata.dig("worker_environment", "capabilities")).to eq("os" => [ "linux" ])
   end
 
+  it "uses default Linux execution capabilities for unannotated grader targets" do
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: backend
+          run: bin/test
+    YAML
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata)
+      .and_return(worker_environment("macos"))
+
+    fingerprints = fingerprints_for("//:grade/backend")
+
+    expect(fingerprints.metadata.dig("worker_environment", "capabilities")).to eq("os" => [ "linux" ])
+  end
+
   def fingerprints_for(label)
     described_class.for_target(
       workspace_path: @dir,

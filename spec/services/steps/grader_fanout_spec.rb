@@ -355,8 +355,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         - name: backend-tests
           run: bin/fake-backend-test
           when_files_changed: ["app/**/*"]
-          capabilities:
-            os: linux
     YAML
     stub_changed_files("ios/App/View.swift", "app/models/user.rb")
     allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return(worker_environment("macos"))
@@ -400,7 +398,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(ios).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(backend).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(ios.details).to include("required_capabilities" => requirements)
-    expect(backend.details).to include("required_capabilities" => { "os" => [ "linux" ] })
+    expect(backend.details).to include("required_capabilities" => {})
     expect(ios.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq(requirements)
     expect(backend.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq("os" => [ "linux" ])
 
