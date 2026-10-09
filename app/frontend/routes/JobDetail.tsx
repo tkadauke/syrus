@@ -47,7 +47,6 @@ import {
   type JobWorkflow,
   type PendingFeedbackComment
 } from "../api/jobs"
-import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
 import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
@@ -87,7 +86,6 @@ import {
   tabFromLocation
 } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
-import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { AgentConversationTab } from "./jobDetail/AgentConversation"
 import { TimelineTab } from "./jobDetail/Timeline"
@@ -443,7 +441,6 @@ export function JobDetailView({
       <Page.Nav>
         <TabNav
           active={activeTab}
-          artifactsCount={(payload.typed_artifacts ?? []).length}
           attachmentsCount={(payload.attachments ?? []).length}
           investigation={payload.job.investigation}
           workflowsCount={payload.job.workflows_count}
@@ -469,7 +466,6 @@ export function JobDetailView({
       ) : null}
       {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
-      {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? (
         <SourceTab
           canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)}
@@ -746,7 +742,6 @@ function TabNav({
   active,
   workflowsCount,
   attachmentsCount,
-  artifactsCount,
   investigation = false,
   pluginTabs,
   onSelect
@@ -754,7 +749,6 @@ function TabNav({
   active: JobTab
   workflowsCount: number
   attachmentsCount: number
-  artifactsCount: number
   investigation?: boolean
   pluginTabs?: UiSlotPanel[]
   onSelect: (tab: JobTab) => void
@@ -773,7 +767,6 @@ function TabNav({
     { id: "timeline", label: t("tab_timeline") },
     { id: "target_graph", label: "Target Graph" },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
-    { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },
     { id: "source", label: t("tab_source") }
   ]
 
@@ -813,10 +806,6 @@ function SummaryTab({
 }) {
   const { t } = useT("jobs")
   const coverageInfo = payload.coverage
-  // Defaulted like the other two read sites: the payload type declares this
-  // required, but a payload without it crashes the whole Summary tab through
-  // the route error boundary rather than just hiding one panel.
-  const typedArtifacts = payload.typed_artifacts ?? []
   const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
@@ -830,8 +819,6 @@ function SummaryTab({
           <CollapsibleMarkdownSection emptyText={t("no_summary")} text={payload.summary?.text ?? null} title={t("section_agent_summary")} />
 
           <TestPlanPanel testPlan={payload.test_plan} />
-
-          {typedArtifacts.length > 0 ? <TypedArtifactPanel artifacts={typedArtifacts} /> : null}
 
           {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
@@ -2335,27 +2322,6 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
         </div>
       ) : null}
     </div>
-  )
-}
-
-export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
-  const { t } = useT("jobs")
-
-  if (artifacts.length === 0) {
-    return <PanelMessage>{t("section_no_artifacts")}</PanelMessage>
-  }
-
-  return (
-    <section className="min-w-0 space-y-4">
-      {artifacts.map((artifact) => (
-        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
-          <SectionHeading className="break-words">{artifact.title}</SectionHeading>
-          <div className="mt-3 overflow-x-auto">
-            <ArtifactBody artifact={artifact} />
-          </div>
-        </div>
-      ))}
-    </section>
   )
 }
 

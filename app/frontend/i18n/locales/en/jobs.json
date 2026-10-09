@@ -102,7 +102,6 @@
   "tab_workflows": "Workflows ({{count}})",
   "tab_conversation": "Agent Conversation",
   "tab_attachments": "Attachments ({{count}})",
-  "tab_artifacts": "Artifacts ({{count}})",
   "tab_source": "Source",
   "conversation_loading": "Loading agent conversation…",
   "conversation_load_error": "Unable to load the agent conversation.",

@@ -101,7 +101,6 @@
   "tab_workflows": "Arbeitsabläufe ({{count}})",
   "tab_conversation": "Agentengespräch",
   "tab_attachments": "Anhänge ({{count}})",
-  "tab_artifacts": "Artefakte ({{count}})",
   "tab_source": "Quelle",
   "conversation_loading": "Agentengespräch wird geladen…",
   "conversation_load_error": "Das Agentengespräch konnte nicht geladen werden.",
