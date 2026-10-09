@@ -9,6 +9,10 @@ Native macOS workers run outside Kubernetes and consume only capability-matched
 compute queues. They are for Xcode and iOS simulator work; they are not chat,
 search, or control-plane workers.
 
+For the end-to-end operator workflow of planning iOS Jobs, selecting primary
+execution capabilities, routing target graders, and diagnosing missing-capacity
+blockers, see the [iOS Compute Runbook](/docs/ios-compute-runbook).
+
 ## Supported Deployment Shape
 
 Use Mac workers as an external compute pool next to a Linux Syrus deployment.
