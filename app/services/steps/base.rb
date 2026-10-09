@@ -67,6 +67,14 @@ module Steps
     end
 
     class NoChangesProduced < StepFailed; end
+    class CannotProceed < StandardError
+      attr_reader :reason
+
+      def initialize(reason)
+        @reason = reason.to_s
+        super(@reason.presence || "agent reported it cannot proceed")
+      end
+    end
     class AgentGaveUpWaiting < StepFailed
       problem_code :agent_gave_up_waiting
     end
@@ -375,6 +383,7 @@ module Steps
       raise AgentTimedOut, "agent timed out"                         if result.timed_out
       raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
+      raise CannotProceed, cannot_proceed_reason if cannot_proceed_reported?
       if enforce_required_mcp_tools && missing_required_tools.present?
         raise StepFailed,
               "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}"
@@ -619,7 +628,6 @@ module Steps
         capture_committed_agent_timeout_result!(base_sha: base_sha, exception: e)
         return
       end
-
       commit_agent_changes(commit_message)
       assert_branch_history_intact!
 
@@ -678,6 +686,14 @@ module Steps
 
       run.update!(agent_outcome: "no_changes_produced")
       raise NoChangesProduced, "agent produced no changes"
+    end
+
+    def cannot_proceed_reported?
+      workflow.reload.artifact("cannot_proceed").to_h["run_id"].to_i == run.id
+    end
+
+    def cannot_proceed_reason
+      workflow.artifact("cannot_proceed").to_h["reason"].presence || "agent reported it cannot proceed"
     end
 
     # Most agentic steps treat "no diff" as a real failure (or, for a skill's

@@ -85,6 +85,34 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_implement.reload).to be_succeeded
   end
 
+  it "marks a cannot-proceed report blocked without failing or enqueueing a retry" do
+    blocking_handler = Class.new(Steps::Base) do
+      def call
+        workflow.set_artifact!("cannot_proceed", {
+          "reason" => "mull-runner is not installed on the worker",
+          "run_id" => run.id,
+          "step_id" => step.id
+        })
+        raise Steps::Base::CannotProceed, "mull-runner is not installed on the worker"
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(blocking_handler)
+    run = StepDispatcher.start_workflow(workflow)
+
+    expect {
+      described_class.perform_now(run.id)
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(run.reload).to be_blocked
+    expect(s_implement.reload).to be_blocked
+    expect(workflow.reload).to be_blocked
+    expect(workflow.failure_count).to eq(0)
+    expect(workflow.auto_retry_attempts).to be_empty
+    expect(job.reload).to be_running
+    expect(job.needs_attention_reason).to eq("agent_cannot_proceed")
+    expect(s_summarize.reload).to be_cancelled
+  end
+
   it "captures and clears the Solid Queue role on workflow activity events" do
     run = StepDispatcher.start_workflow(workflow)
 

@@ -48,6 +48,7 @@ const STATE_LATIN: Record<string, string> = {
   warning:     "Monitum — A warning",
   cancelled:   "Intermissum est — It has been interrupted",
   skipped:     "Praetermissum est — It has been skipped",
+  blocked:     "Impedimentum — An obstacle",
   invalid:     "Invalidum — Invalid",
   // Merge state
   unmergeable: "Bellum Civile — Civil war between branches",
@@ -60,7 +61,7 @@ export function StatusPill({ state, wrap = false }: { state: string; wrap?: bool
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
     normalized.includes("success") || normalized.includes("succeed") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
       normalized.includes("running") || normalized.includes("queued") ? "blue" :
-        normalized.includes("backlog") || normalized.includes("paused") || normalized.includes("warning") ? "amber" : "gray"
+        normalized.includes("backlog") || normalized.includes("paused") || normalized.includes("warning") || normalized.includes("blocked") ? "amber" : "gray"
 
   // Translated label with a humanized fallback for states not in the locale.
   const label = t(`status.${normalized}`, { defaultValue: state.replaceAll("_", " ") })

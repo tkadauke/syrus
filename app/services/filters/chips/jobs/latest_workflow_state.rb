@@ -11,7 +11,7 @@ module Filters
         label "Latest workflow state"
         bucket :enum
         operators :is, :is_not, :is_one_of, :is_none_of
-        values "queued", "running", "succeeded", "failed", "cancelled"
+        values "queued", "running", "succeeded", "failed", "cancelled", "blocked"
 
         def apply
           case op
