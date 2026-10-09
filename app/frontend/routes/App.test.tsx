@@ -3492,6 +3492,17 @@ describe("App", () => {
                       approve: true,
                       close: true
                     }
+                  }),
+                  dashboardJobItem({
+                    id: 46,
+                    title: "Uncertain aqueduct",
+                    state: "triaging",
+                    triaging_reason: "classifier_uncertain",
+                    issue_number: 46,
+                    bulk_actions: {
+                      accept_triage: true,
+                      close: true
+                    }
                   })
                 ]
               })
@@ -3536,6 +3547,16 @@ describe("App", () => {
     fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
     expect(await screen.findByText("2 selected")).toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Reviewable aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Uncertain aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Accept" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   }, 30000)
 
   it("uses conservative bulk job action fallback when row payloads omit bulk_actions", async () => {
