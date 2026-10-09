@@ -30,6 +30,14 @@ checkout, Job, Epic, repository, and schedule commands. See
 [Syrus CLI](/docs/cli) for installation, login, command reference, and
 terminal workflows.
 
+## Browser Sessions
+
+Browser clients can end the current signed-cookie session with
+`DELETE /api/v1/app/auth/session`. The endpoint returns a JSON redirect path
+for the sign-in screen and clears the browser session cookie. Bearer tokens are
+not browser sessions, so bearer-token requests receive
+`token_session_not_destroyable` instead of silently succeeding.
+
 ## Terminal Sessions
 
 When the `terminal` plugin is enabled, user-scoped app API clients

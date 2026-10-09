@@ -36,6 +36,7 @@ Rails.application.routes.draw do
         get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
+        delete "auth/session", to: "auth#destroy_session"
         post "auth/users", to: "auth#create_user"
         post "auth/passwords", to: "auth#create_password"
         patch "auth/passwords/:token", to: "auth#update_password"
