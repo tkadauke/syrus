@@ -60,6 +60,7 @@ class ChatPendingAction < ApplicationRecord
     repair_provider_circuit_evidence
     clear_provider_circuit
     wake_provider_admission
+    local_tool_call
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   # Actions whose payload["job_id"] should resolve to a target Job resource
