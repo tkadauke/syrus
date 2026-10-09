@@ -26,6 +26,10 @@ class MainHealthChangedService
     new(repository).ensure_repair_job!(force: force)
   end
 
+  def self.refresh_repair_context!(job)
+    new(job.repository).refresh_repair_context!(job)
+  end
+
   def self.repair_landed!(repository, job:)
     new(repository).repair_landed!(job: job)
   end
@@ -83,6 +87,7 @@ class MainHealthChangedService
     return unless @repository.main_branch_repair_enabled?
     return unless @repository.main_health_broken?
     if (job = blocking_fix_job)
+      refresh_repair_context!(job)
       warn_if_blocking_repair_stuck!(job)
       return
     end
