@@ -45,7 +45,7 @@ class AppSetting < ApplicationRecord
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
-  after_commit :refresh_experimental_plugin_installations, if: :experimental_plugins_enabled_changed?
+  after_commit :refresh_beta_mode_plugin_installations, if: :beta_mode_enabled_changed?
 
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
@@ -116,8 +116,8 @@ class AppSetting < ApplicationRecord
     current.show_work_unit_debug
   end
 
-  def self.experimental_plugins_enabled?
-    current.experimental_plugins_enabled
+  def self.beta_mode_enabled?
+    current.beta_mode_enabled
   end
 
   def self.macos_worker_desired_release
@@ -267,11 +267,11 @@ class AppSetting < ApplicationRecord
 
   private
 
-  def experimental_plugins_enabled_changed?
-    has_attribute?(:experimental_plugins_enabled) && saved_change_to_experimental_plugins_enabled?
+  def beta_mode_enabled_changed?
+    has_attribute?(:beta_mode_enabled) && saved_change_to_beta_mode_enabled?
   end
 
-  def refresh_experimental_plugin_installations
+  def refresh_beta_mode_plugin_installations
     return unless defined?(Syrus::PluginRegistry)
 
     Syrus::PluginRegistry.clear_plugin_record_cache!

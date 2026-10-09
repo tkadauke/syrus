@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SectionHeading } from "../components/Heading"
 import { Toggle } from "../components/Toggle"
 import type { ReactNode } from "react"
+import { Button } from "../components/Button"
 import {
+  enableBetaModeForInstance,
   fetchAdminFeatures,
   updateAdminFeature,
   type AdminFeature,
@@ -62,7 +64,7 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
           <section aria-label={categoryLabel} className="space-y-3" key={category.category}>
             <SectionHeading>{categoryLabel}</SectionHeading>
             <div className="grid gap-3 md:grid-cols-2">
-              {category.features.map((feature) => <FeatureCard feature={feature} key={feature.slug} />)}
+              {category.features.map((feature) => <FeatureCard betaModeEnabled={payload.beta_mode_enabled === true} feature={feature} key={feature.slug} />)}
             </div>
           </section>
         )
@@ -71,9 +73,15 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
   )
 }
 
-function FeatureCard({ feature }: { feature: AdminFeature }) {
+function FeatureCard({ feature, betaModeEnabled }: { feature: AdminFeature; betaModeEnabled: boolean }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
+  const optIn = useMutation({
+    mutationFn: enableBetaModeForInstance,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
   const toggleFeature = useMutation({
     mutationFn: (enabled: boolean) => updateAdminFeature(feature.slug, enabled),
     onMutate: async (enabled) => {
@@ -97,26 +105,47 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
   const featureDescription = feature.description_i18n_key
     ? t(feature.description_i18n_key, { defaultValue: feature.description ?? "" })
     : feature.description
+  const betaEnableBlocked = feature.experimental && !feature.enabled && !betaModeEnabled
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <SectionHeading as="h3">{featureName}</SectionHeading>
+          <div className="flex flex-wrap items-center gap-2">
+            <SectionHeading as="h3">{featureName}</SectionHeading>
+            {feature.experimental ? <StatusBadge label={t("features.experimental")} /> : null}
+          </div>
           <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{feature.slug}</p>
         </div>
-        <Toggle
-          checked={feature.enabled}
-          className="shrink-0"
-          disabled={toggleFeature.isPending}
-          label={feature.enabled ? t("features.enabled") : t("features.disabled")}
-          onChange={(checked) => toggleFeature.mutate(checked)}
-        />
+        {betaEnableBlocked ? (
+          <Button
+            className="shrink-0"
+            disabled={optIn.isPending}
+            onClick={() => optIn.mutate()}
+            variant="secondary"
+          >
+            {optIn.isPending ? t("features.saving") : t("features.enable_beta_mode")}
+          </Button>
+        ) : (
+          <Toggle
+            checked={feature.enabled}
+            className="shrink-0"
+            disabled={toggleFeature.isPending}
+            label={feature.enabled ? t("features.enabled") : t("features.disabled")}
+            onChange={(checked) => toggleFeature.mutate(checked)}
+          />
+        )}
       </div>
       {featureDescription ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{featureDescription}</p> : null}
+      {betaEnableBlocked ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{t("features.beta_mode_opt_in_body")}</p> : null}
+      {optIn.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(optIn.error, t("features.error_update"))}</p> : null}
       {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, t("features.error_update"))}</p> : null}
     </article>
   )
+}
+
+function StatusBadge({ label }: { label: string }) {
+  return <span className="rounded px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">{label}</span>
 }
 
 function updateCachedFeature(payload: AdminFeaturesPayload | undefined, slug: string, enabled: boolean) {

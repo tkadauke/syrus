@@ -103,7 +103,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     post "/api/v1/admin/plugins/api-stable-plugin/enable", headers: auth
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "code")).to eq("experimental_plugins_not_enabled")
+    expect(parse_body.dig("error", "code")).to eq("beta_mode_not_enabled")
     expect(parse_body.fetch("blocked_experimental_plugins")).to eq([
       { "name" => "api-experimental-dependency", "display_name" => "Api Experimental Dependency" }
     ])

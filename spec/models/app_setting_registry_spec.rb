@@ -41,7 +41,7 @@ RSpec.describe AppSettingRegistry do
       :merge_train_failure_policy,
       :merge_train_max_size,
       :signups_open,
-      :experimental_plugins_enabled,
+      :beta_mode_enabled,
       :telegram_bot_handle,
       :telegram_bot_token,
       :discord_bot_token,

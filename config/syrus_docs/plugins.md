@@ -70,12 +70,14 @@ canonical detail page (`/admin/plugins/:name`) — both share the same
 enable/disable control, disable-blocked tooltip, and cascade-confirmation UI.
 Experimental bundled plugins are visible in the same inventory and carry an
 `Experimental` badge. They are available in the Syrus build, but a self-hosted
-instance must explicitly opt into experimental plugins before any experimental
-plugin can be enabled. If a disabled experimental plugin is blocked by that
-instance setting, the Admin Plugins control shows an **Enable test environment**
-action instead of the normal enable action. The shared server-side enable path
-enforces the same rule for API callers and blocks the whole request when a
-dependency cascade would enable an experimental plugin.
+instance must enable beta mode before any experimental plugin can be enabled.
+If a disabled experimental plugin is blocked by that instance setting, the
+Admin Plugins control shows an **Enable beta mode** action instead of the
+normal enable action. Beta mode does not enable any plugin by itself; it only
+allows admins to explicitly enable beta or experimental capabilities. The
+shared server-side enable path enforces the same rule for API callers and
+blocks the whole request when a dependency cascade would enable an experimental
+plugin.
 From the index, successful enablement navigates to the detail page so the
 operator lands on the surfaces, docs, and metadata for the plugin they just
 turned on; disabling reloads in place. From the detail page, both enabling and

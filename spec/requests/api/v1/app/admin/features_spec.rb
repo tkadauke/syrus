@@ -42,6 +42,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     get "/api/v1/app/admin/features"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["beta_mode_enabled"]).to be(false)
     expect(parse_body["categories"]).to eq([
       {
         "category" => "Navigation",
@@ -51,6 +52,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
             "category" => "Navigation",
             "name" => "New dashboard",
             "description" => "Use the redesigned dashboard.",
+            "experimental" => false,
             "enabled" => false,
             "name_i18n_key" => "features.slugs.new_dashboard.name",
             "description_i18n_key" => "features.slugs.new_dashboard.description"
@@ -65,6 +67,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
             "category" => "Operations",
             "name" => "Fast queue",
             "description" => nil,
+            "experimental" => false,
             "enabled" => true,
             "name_i18n_key" => "features.slugs.fast_queue.name",
             "description_i18n_key" => nil
@@ -127,6 +130,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
         "name" => "Persistent MCP sidecar",
         "description" => "Enables a worker-local persistent MCP sidecar daemon.",
         "enabled" => true,
+        "experimental" => false,
         "name_i18n_key" => "features.slugs.persistent_mcp_sidecar.name",
         "description_i18n_key" => "features.slugs.persistent_mcp_sidecar.description"
       )
@@ -147,6 +151,38 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     expect(parse_body["feature"]).to include("slug" => "persistent_mcp_sidecar", "enabled" => false)
   end
 
+  it "blocks enabling beta features until beta mode is enabled" do
+    sign_in_as(admin)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return([
+      { slug: "new_runtime", category: "Labs", name: "New runtime", description: "Runs beta workloads.", default_enabled: false, experimental: true }
+    ])
+    Feature.create!(slug: "new_runtime", category: "Labs", name: "New runtime", description: "Runs beta workloads.", enabled: false, experimental: true)
+
+    patch "/api/v1/app/admin/features/new_runtime", params: { feature: { enabled: true } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("beta_mode_not_enabled")
+    expect(parse_body.fetch("blocked_experimental_features")).to eq([
+      { "slug" => "new_runtime", "name" => "New runtime" }
+    ])
+    expect(Feature.find_by!(slug: "new_runtime")).not_to be_enabled
+  end
+
+  it "allows enabling beta features after beta mode is enabled" do
+    sign_in_as(admin)
+    AppSetting.current.update!(beta_mode_enabled: true)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return([
+      { slug: "new_runtime", category: "Labs", name: "New runtime", description: "Runs beta workloads.", default_enabled: false, experimental: true }
+    ])
+    Feature.create!(slug: "new_runtime", category: "Labs", name: "New runtime", description: "Runs beta workloads.", enabled: false, experimental: true)
+
+    patch "/api/v1/app/admin/features/new_runtime", params: { feature: { enabled: true } }
+
+    expect(response).to have_http_status(:ok)
+    expect(Feature.find_by!(slug: "new_runtime")).to be_enabled
+    expect(parse_body["feature"]).to include("slug" => "new_runtime", "enabled" => true, "experimental" => true)
+  end
+
   it "updates a declared feature" do
     sign_in_as(admin)
 
@@ -154,7 +190,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(Feature.find_by!(slug: "new_dashboard")).to be_enabled
-    expect(parse_body["feature"]).to include("slug" => "new_dashboard", "enabled" => true, "name_i18n_key" => "features.slugs.new_dashboard.name")
+    expect(parse_body["feature"]).to include("slug" => "new_dashboard", "enabled" => true, "experimental" => false, "name_i18n_key" => "features.slugs.new_dashboard.name")
   end
 
   it "deduplicates features with the same slug declared multiple times" do
