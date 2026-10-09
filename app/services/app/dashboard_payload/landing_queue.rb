@@ -55,6 +55,8 @@ module App
       def landing_queue_blocked_reason_for(job)
         return unless landing_queue_visible?
 
+        return nil if active_landing_lock_wait_reason_for(job)
+
         reason = job.landing_queue_blocked_reason.presence
         return nil if normal_landing_queue_wait_reason?(reason)
 
@@ -66,6 +68,8 @@ module App
 
         reason = job.landing_queue_blocked_reason.presence
         return reason if normal_landing_queue_wait_reason?(reason)
+        lock_wait_reason = active_landing_lock_wait_reason_for(job)
+        return lock_wait_reason if lock_wait_reason
         return nil if merge_train_start_blocked_reason_for(job)
 
         merge_train_wait_reason_for(job)
@@ -116,7 +120,13 @@ module App
         end
       end
 
-      NORMAL_LANDING_QUEUE_WAIT_REASON_KEYS = %w[ waiting_epic_merge_train waiting_epicless_bundle ].freeze
+      NORMAL_LANDING_QUEUE_WAIT_REASON_KEYS = %w[
+        waiting_active_epic_merge_train
+        waiting_active_merge_train
+        waiting_epic_merge_train
+        waiting_epicless_bundle
+        blocked_by_active_landing_unit
+      ].freeze
 
       def normal_landing_queue_wait_reason?(reason)
         return false unless reason.respond_to?(:to_h)
@@ -134,10 +144,57 @@ module App
         return unless AppSetting.merge_train_enabled?
         return unless job.epic_id.present?
 
-        return "Merge train already active" if merge_train_active_for?(job)
+        return { key: "waiting_active_epic_merge_train" } if merge_train_active_for?(job)
 
         dispatcher_blocker = merge_train_dispatcher_blocker_for(job)
         "Merge train queued: #{dispatcher_blocker}" if dispatcher_blocker.present?
+      end
+
+      def active_landing_lock_wait_reason_for(job)
+        active_landing_lock_wait_reasons_by_job_id[job.id]
+      end
+
+      def active_landing_lock_wait_reasons_by_job_id
+        @active_landing_lock_wait_reasons_by_job_id ||= begin
+          job_ids = current_landing_queue_jobs.map(&:id)
+          if job_ids.empty?
+            {}
+          else
+            active_landing_lock_wait_reasons_for(job_ids)
+          end
+        end
+      end
+
+      def active_landing_lock_wait_reasons_for(job_ids)
+        memberships = WorkUnitMember
+          .joins(:work_unit)
+          .where(job_id: job_ids, work_units: { state: "blocked", blocked_reason: WorkUnits::Gates::ActiveWorkLock::REASON, kind: WorkDefinitions.landing_lock_kinds })
+          .includes(:work_unit)
+          .order(Arel.sql("work_units.id"))
+          .to_a
+        return {} if memberships.empty?
+
+        owner_kinds = active_work_lock_owner_kinds(memberships.map(&:work_unit).uniq)
+        memberships.each_with_object({}) do |membership, reasons|
+          unit = membership.work_unit
+          reasons[membership.job_id] ||= if unit.kind == WorkDefinitions.for("job_bundle").kind && owner_kinds[unit.id] == WorkDefinitions.for("merge_train").kind
+            { key: "waiting_active_merge_train" }
+          else
+            { key: "blocked_by_active_landing_unit" }
+          end
+        end
+      end
+
+      def active_work_lock_owner_kinds(units)
+        owner_unit_ids = units.filter_map { |unit| unit.blocked_details.to_h["work_unit_id"].presence&.to_i }.uniq
+        owner_workflow_ids = units.filter_map { |unit| unit.blocked_details.to_h["workflow_id"].presence&.to_i }.uniq
+        kinds_by_owner_unit_id = owner_unit_ids.empty? ? {} : WorkUnit.where(id: owner_unit_ids).pluck(:id, :kind).to_h
+        kinds_by_owner_workflow_id = owner_workflow_ids.empty? ? {} : WorkUnit.where(workflow_id: owner_workflow_ids).pluck(:workflow_id, :kind).to_h
+
+        units.each_with_object({}) do |unit, map|
+          details = unit.blocked_details.to_h
+          map[unit.id] = kinds_by_owner_unit_id[details["work_unit_id"].to_i] || kinds_by_owner_workflow_id[details["workflow_id"].to_i]
+        end
       end
 
       def landing_state_drift_reason_for(job)
