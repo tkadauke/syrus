@@ -29,6 +29,7 @@ type DirectJobFormState = {
   model: string
   effortLevel: string
   epicId: string
+  dependsOnJobIds: string[]
   title: string
   prompt: string
   priority: string
@@ -364,6 +365,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     model: payload.selected_model || "",
     effortLevel: payload.selected_effort_level || "",
     epicId: payload.selected_epic_id || "",
+    dependsOnJobIds: payload.selected_depends_on_job_ids || [],
     title: "",
     prompt: "",
     priority: "medium",

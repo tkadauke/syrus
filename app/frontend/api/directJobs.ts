@@ -46,6 +46,7 @@ export type DirectJobFormPayload = {
   selected_model: string | null
   selected_effort_level: string | null
   selected_epic_id: string | null
+  selected_depends_on_job_ids?: string[]
   epic: DirectJobEpic | null
   create_more: boolean
   prompt_templates: DirectJobPromptTemplate[]
@@ -61,6 +62,7 @@ export type CreateDirectJobInput = {
   model: string
   effortLevel: string
   epicId: string
+  dependsOnJobIds?: string[]
   title: string
   prompt: string
   priority: string
@@ -96,6 +98,10 @@ export function createDirectJob(values: CreateDirectJobInput) {
   if (values.epicId) {
     formData.append("epic_id", values.epicId)
   }
+  const dependsOnJobIds = values.dependsOnJobIds || []
+  dependsOnJobIds.forEach((id) => {
+    formData.append("depends_on_job_ids[]", id)
+  })
   formData.append("title", values.title)
   formData.append("prompt", values.prompt)
   formData.append("priority", values.priority)

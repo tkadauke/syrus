@@ -165,6 +165,18 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(body["epic"]).to include("id" => epic.id, "display_number" => epic.slug, "title" => epic.title)
   end
 
+  it "preserves selected job dependencies in the new-job form payload" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+    tail = Factories.job_record(user: user, repository: repository, epic: epic)
+    foreign_job = Factories.job_record(user: Factories.user, repository: Factories.repository(user: Factories.user))
+
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: epic.id, depends_on_job_ids: [ tail.id, foreign_job.id, "bogus" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["selected_depends_on_job_ids"]).to eq([ tail.id.to_s ])
+  end
+
   it "omits the epic from the new-job form payload when epic_id belongs to a different repository" do
     sign_in_as(user)
     other_repo = Factories.repository(user: user)

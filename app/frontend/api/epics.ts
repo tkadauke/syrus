@@ -183,6 +183,7 @@ export type EpicDetailJob = {
   owner_user: EpicOwnerUser | null
   repository_slug: string
   goal_provenance?: GoalProvenance | null
+  depends_on_job_ids?: number[]
   deployment_stages?: JobDeploymentStage[]
 }
 
@@ -308,4 +309,3 @@ export function fetchPickerEpics(params: { repo?: string; limit?: number } = {})
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }
-

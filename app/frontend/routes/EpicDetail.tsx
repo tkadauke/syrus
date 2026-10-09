@@ -237,7 +237,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <JobsSection
             epicRepositorySlug={payload.epic.repository.slug}
             jobs={payload.jobs}
-            newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
+            newJobPath={newEpicJobPath(payload.epic.repository.id, payload.epic.id, payload.jobs)}
             prefix={prefix}
           />
         </div>
@@ -577,6 +577,17 @@ function HistorySection({ versions }: { versions: EpicVersionRecord[] }) {
       </div>
     </details>
   )
+}
+
+function newEpicJobPath(repositoryId: number, epicId: number, jobs: EpicDetailJob[]) {
+  const params = new URLSearchParams({
+    repository_id: String(repositoryId),
+    epic_id: String(epicId)
+  })
+  const tailJob = jobs.at(-1)
+  if (tailJob) params.append("depends_on_job_ids[]", String(tailJob.id))
+
+  return `/jobs/new?${params.toString()}`
 }
 
 function DiffValue({ label, multiline = false, value }: { label: string; multiline?: boolean; value: string | null }) {

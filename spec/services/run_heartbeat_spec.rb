@@ -1,4 +1,5 @@
 require "rails_helper"
+require "timeout"
 
 RSpec.describe RunHeartbeat do
   it "touches a running run with no heartbeat" do
@@ -46,10 +47,14 @@ RSpec.describe RunHeartbeat do
 
   it "keeps heartbeating while a blocking operation is in progress" do
     run = create_running_run(last_heartbeat_at: nil)
-    allow(described_class).to receive(:touch).and_call_original
+    heartbeat_touches = Queue.new
+    allow(described_class).to receive(:touch).and_wrap_original do |method, *args, **kwargs|
+      heartbeat_touches << true if args.first == run && kwargs[:force]
+      method.call(*args, **kwargs)
+    end
 
-    result = described_class.during(run, interval: 0.01.seconds) do
-      sleep 0.035
+    result = described_class.during(run, interval: 0.005.seconds) do
+      3.times { Timeout.timeout(1) { heartbeat_touches.pop } }
       :published
     end
 
