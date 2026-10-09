@@ -2,8 +2,8 @@
 // of the PR-shaped SummaryTab -- there is no PR, no agent_pr_title/body, and
 // no submit_summary/test_plan step in Workflows::Investigation's chain, so
 // the submit_report deliverable (narrative + findings + referenced
-// artifacts) is the Job's whole output. Reuses ArtifactBody, the same
-// typed_artifacts renderer the Artifacts tab uses, for referenced evidence.
+// artifacts) is the Job's whole output. Reuses ArtifactBody so referenced
+// evidence renders through the shared typed_artifacts renderer.
 import { useT } from "../../hooks/useT"
 import { Markdown } from "../../lib/Markdown"
 import { SectionHeading } from "../../components/Heading"

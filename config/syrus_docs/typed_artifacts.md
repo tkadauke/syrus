@@ -85,7 +85,7 @@ Available to chat agents (planning, coding, and local-mode sessions). Same param
 
 Typed artifacts submitted in a chat session appear in `GET /api/v1/app/chats/:id/media` as a `typed_artifacts` array, alongside the existing `snapshots` (whiteboard) and `chat_images` keys. Each entry is enriched with `renderer_type` the same way the job detail payload is, via the shared `TypedArtifactRenderer.enrich` service — a plugin only needs to register its `:artifact_renderer` once to render on both surfaces.
 
-The chat workspace's **Media** panel (`app/frontend/routes/chat/WorkspacePanels.tsx`) lists these under an "Artifacts" section alongside whiteboard snapshots and image attachments, showing each artifact's title, type, and submission time. Clicking "View" renders the artifact inline using the same `TypedArtifactPanel` component (`app/frontend/components/artifacts/TypedArtifactPanel.tsx`) the job detail Artifacts tab uses, so a new `:artifact_renderer` plugin renders identically on both surfaces without any chat-specific UI work. The shared `TypedArtifact`/`SchemaErdPayload`/`MigrationDiffPayload` types live in `app/frontend/api/artifacts.ts`, imported by both the Job and chat API clients.
+The chat workspace's **Media** panel (`app/frontend/routes/chat/WorkspacePanels.tsx`) lists these under an "Artifacts" section alongside whiteboard snapshots and image attachments, showing each artifact's title, type, and submission time. Clicking "View" renders the artifact inline using the same shared typed-artifact renderer components used by Job Review and Report surfaces, so a new `:artifact_renderer` plugin renders consistently without any chat-specific UI work. The shared `TypedArtifact`/`SchemaErdPayload`/`MigrationDiffPayload` types live in `app/frontend/api/artifacts.ts`, imported by both the Job and chat API clients.
 
 ## Adding a new artifact type
 
@@ -113,9 +113,9 @@ Syrus::PluginRegistry.register(
 
 Artifacts whose type is not registered by any plugin pass through without a `renderer_type` and fall back to a JSON code block in the UI.
 
-## Artifacts panel in job detail
+## Job detail artifact rendering
 
-The job detail page shows an **Artifacts** tab listing all typed artifacts for the job. Each artifact is rendered based on its `renderer_type`:
+The job detail page renders typed artifacts in contextual surfaces rather than a standalone tab. The **Review** tab shows review-supporting artifacts in its "Review artifacts" panel, and investigation **Report** views render explicitly referenced artifacts inline with the submitted report. Each artifact is rendered based on its `renderer_type`:
 
 | `renderer_type` | Display |
 |---|---|
@@ -126,7 +126,7 @@ The job detail page shows an **Artifacts** tab listing all typed artifacts for t
 | `image_diff` | Single `<img>`, linked to the full-size image (after-only; no before/after comparison yet) |
 | `null` (no registered renderer) | Raw JSON display |
 
-Every typed artifact entry from every artifact-bearing workflow on the job is returned — same-type entries from different workflows (e.g. successive visual/adversarial review rounds, or a schema ERD resubmitted on a later `pr_comment` workflow) are **not** collapsed to the most recent one; each is tagged with the provenance fields described above so the UI can group, label, and (on the Review tab) filter them by diff review version instead of silently dropping older rounds. The tab count reflects the total number of entries, not unique types.
+Every typed artifact entry from every artifact-bearing workflow on the job is returned — same-type entries from different workflows (e.g. successive visual/adversarial review rounds, or a schema ERD resubmitted on a later `pr_comment` workflow) are **not** collapsed to the most recent one; each is tagged with the provenance fields described above so the UI can group, label, and filter them by diff review version instead of silently dropping older rounds.
 
 On the Job detail **Review** tab, the "Review artifacts" panel additionally filters this list against the selected diff review version/range: an artifact whose `diff_review_version_id` or `head_sha` matches the selection is shown; one tied to a different version is hidden; one with no provenance at all is always shown, labeled "Unversioned" rather than silently hidden or misattributed to whatever version happens to be selected. Matching is exact only (`diff_review_version_id` first, then `head_sha`) — no ancestry/range-containment inference.
 

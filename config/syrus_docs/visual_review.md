@@ -268,7 +268,7 @@ pointing at a screenshot file inside the workflow workspace (preferred for
 the file path returned by `browser_screenshot`) or `image_base64` when image
 bytes are already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists
 the image as an ActiveStorage blob on the current Workflow, and records a
-`typed_artifacts` entry that the job detail UI's Artifacts tab renders
+`typed_artifacts` entry that Job detail review/report surfaces can render
 through the `:image_diff` renderer so operators can see what the reviewer
 actually tested.
 
