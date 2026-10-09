@@ -54,6 +54,61 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
     )
   end
 
+  it "attributes provider availability blocks to the owning user's credential state" do
+    sign_in_as(admin)
+    user.update!(claude_oauth_token: "expired-claude")
+    fixture = work_unit_fixture(user: user, repository: repo, issue_number: 16, kind: "initial")
+    fixture.fetch(:unit).block!(reason: WorkUnits::Gates::ProviderAvailability::REASON)
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      provider: "claude",
+      status: "auth_error",
+      source: "usage_probe",
+      observed_at: 7.hours.ago,
+      http_status: 401,
+      details: { message: "expired" }
+    )
+    App::ProviderAvailability.clear_cache!
+
+    get "/api/v1/app/admin/work_units"
+
+    serialized = parse_body.fetch("intents").find { |intent| intent["id"] == fixture.fetch(:intent).id }
+    unit = serialized.fetch("units").find { |row| row["id"] == fixture.fetch(:unit).id }
+    expect(unit.fetch("provider_availability")).to include(
+      "provider" => "claude",
+      "state" => "auth_error"
+    )
+    expect(unit.dig("provider_availability", "evidence", "current")).to include("http_status" => 401)
+  end
+
+  it "batches provider availability lookups for blocked units on the page" do
+    sign_in_as(admin)
+    3.times do |index|
+      owner = Factories.user(email_address: "blocked-#{index}@example.com", claude_oauth_token: "expired-#{index}")
+      repository = Factories.repository(user: owner, owner: "acme", name: "blocked-#{index}")
+      fixture = work_unit_fixture(user: owner, repository: repository, issue_number: 30 + index, kind: "initial")
+      fixture.fetch(:unit).block!(reason: WorkUnits::Gates::ProviderAvailability::REASON)
+      ProviderAvailabilityEvidence.create!(
+        user: owner,
+        provider: "claude",
+        status: "auth_error",
+        source: "usage_probe",
+        observed_at: 7.hours.ago,
+        http_status: 401,
+        details: { message: "expired" }
+      )
+    end
+    App::ProviderAvailability.clear_cache!
+
+    metrics = capture_performance_budget do
+      get "/api/v1/app/admin/work_units", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "unit_state", "op" => "is", "value" => "blocked" } ]) }
+    end
+
+    expect(response).to have_http_status(:ok)
+    evidence_queries = metrics.fetch(:queries).grep(/FROM "provider_availability_evidences"/)
+    expect(evidence_queries.grep(/"provider_availability_evidences"."user_id" =/)).to be_empty
+  end
+
   it "filters by job membership" do
     sign_in_as(admin)
     matching = work_unit_fixture(user: user, repository: repo, issue_number: 12, kind: "initial")
@@ -110,7 +165,7 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
 
   def work_unit_fixture(user:, repository:, issue_number:, kind:)
     job = Factories.job_record(user: user, repository: repository, issue_number: issue_number, issue_title: "Do #{kind}")
-    workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running", agent_provider: "claude")
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: kind, state: "running", agent_provider: "claude")
     intent = WorkIntent.create!(kind: kind, state: "requested", repository: repository, scope_type: "job", scope_id: job.id, actor: user)
     unit = WorkUnit.create!(work_intent: intent, workflow: workflow, kind: kind, state: "running", repository: repository, scope_type: "job", scope_id: job.id, started_at: Time.current)
     WorkUnitMember.create!(work_unit: unit, job: job, role: "primary")

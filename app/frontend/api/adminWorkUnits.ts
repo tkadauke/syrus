@@ -1,5 +1,6 @@
 import { getJson } from "./client"
 import type { AdminEventFilterPayload } from "../components/AdminEventLogPanel"
+import type { ProviderAvailability } from "./providerAvailability"
 
 export type AdminWorkUnitsPayload = AdminEventFilterPayload & {
   intents: WorkIntentSummary[]
@@ -71,6 +72,7 @@ export type WorkUnitSummary = {
   source_repository: LinkedRepository | null
   target_repository: LinkedRepository | null
   workflow: LinkedWorkflow | null
+  provider_availability: ProviderAvailability
   members: Array<{ role: string; job: LinkedJob | null }>
 }
 
