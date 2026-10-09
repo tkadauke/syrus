@@ -2,6 +2,7 @@ module VideoWalkthroughs
   extend Syrus::PluginApi
 
   syrus_plugin "video_walkthroughs" do
+    experimental true
     display_name "Walkthrough Videos"
     description "Record or drag a narrated screen recording into a chat; Gemini analyzes it " \
       "and the chat agent works it toward an Epic."

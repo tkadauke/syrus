@@ -242,6 +242,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
     t.json "macos_worker_desired_release"
+    t.boolean "experimental_plugins_enabled", default: false, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -2472,6 +2473,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.datetime "last_ticked_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false
+    t.boolean "experimental", default: false, null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 

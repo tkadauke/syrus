@@ -358,6 +358,7 @@
     "no_features_body": "Moderamina proprietatum hic appareant postquam config/features.yml saltem unam proprietatem declarat.",
     "enabled": "Activatum",
     "disabled": "Desactivatum",
+    "experimental": "Experimentale",
     "categories": {
       "labs": "Labora",
       "ui_experiments": "Experimenta Interfaciei",
@@ -518,6 +519,8 @@
     },
     "required": "Necessarium",
     "enable": "Activa",
+    "enable_test_environment": "Ambitum probationis activa",
+    "experimental_opt_in_body": "Hoc plugin in hoc aedificio Syrus praesto est, sed haec instantia plugina experimentalia nondum elegit.",
     "disable": "Deactiva",
     "saving": "Servatur...",
     "error_toggle": "Plugin renovari non potuit.",

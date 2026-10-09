@@ -4,6 +4,7 @@ module SyrusAgyAgent
   extend Syrus::PluginApi
 
   syrus_plugin "agy_agent" do
+    experimental true
     display_name "Antigravity Agent"
     description "Runs workflow and chat turns through Antigravity."
     long_description "Antigravity Agent connects Syrus workflows and chats to the agy CLI/provider adapter. It provides the provider core for Antigravity-backed implementation, review, repair, and interactive chat turns while keeping the invocation environment isolated from the worker account."
