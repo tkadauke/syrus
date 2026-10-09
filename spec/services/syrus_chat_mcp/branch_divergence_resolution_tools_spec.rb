@@ -130,5 +130,10 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
     expect(new_workflow.artifact("manual_agentic_run_base")).to eq("current_pr_branch")
     expect(new_workflow.artifact("manual_agentic_run_instructions")).to eq("Reconcile only the migration change.")
     expect(new_workflow.artifact("manual_agentic_run_push")).to be(true)
+    expect(workflow.reload.artifact("branch_divergence_recovery")).to include(
+      "action" => "superseded_by_current_pr_branch",
+      "user_id" => admin.id
+    )
+    expect(new_workflow.artifact("branch_divergence")).to be_nil
   end
 end
