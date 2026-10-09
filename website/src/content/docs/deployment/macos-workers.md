@@ -68,7 +68,8 @@ identity a worker pod needs:
 - `RAILS_MASTER_KEY` or all three `ACTIVE_RECORD_ENCRYPTION_*` keys.
 - Database host/name/user/password values.
 - Storage credentials and endpoints when object storage is enabled.
-- `SYRUS_API_TOKEN` for update polling and status reports.
+- `SYRUS_MACOS_WORKER_TOKEN` for update polling and status reports. Generate it
+  with `bin/rails syrus:macos_worker_token`.
 - GitHub/model credentials only if your deployment uses process-level
   credentials instead of per-user encrypted credentials.
 - Any artifact verification trust needed to fetch private release archives.
@@ -163,7 +164,7 @@ drain/update state still report normally.
 | Symptom | What to check |
 | --- | --- |
 | No capable worker online | Confirm a fresh heartbeat, `SYRUS_WORKER_CAPABILITIES`, `runs-macos-arm64` queue consumption, and whether all Macs are draining/updating. |
-| Stale Mac worker version | Check updater status, `SYRUS_API_TOKEN`, desired release metadata, artifact URL access, and checksum verification failures. |
+| Stale Mac worker version | Check updater status, `SYRUS_MACOS_WORKER_TOKEN`, desired release metadata, artifact URL access, and checksum verification failures. |
 | Xcode not installed or licensed | Run `bin/macos-worker-check`, fix `xcode-select`, install Command Line Tools/full Xcode, and accept the Xcode license as needed. |
 | Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics rather than as an execution capability. |
 | Keychain or signing failures | Verify the launchd user can access the signing keychain, certificates, provisioning profiles, and any private signing/notarization services. |

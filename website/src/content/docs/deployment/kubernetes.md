@@ -153,7 +153,8 @@ write Run state. The root-owned `/etc/syrus/worker.env` should include:
 - Storage credentials and endpoint values when S3 or MinIO is enabled.
 - GitHub and model credentials only when the deployment relies on process-level
   credentials rather than per-user encrypted credentials.
-- `SYRUS_API_TOKEN` for updater status reports and desired-release polling.
+- `SYRUS_MACOS_WORKER_TOKEN` for updater status reports and desired-release
+  polling.
 - Artifact verification material, including the release checksum metadata and
   any trust anchors needed to fetch it from private storage.
 
@@ -298,8 +299,8 @@ check when a Mac-capability Workflow is waiting.
   `runs-macos-arm64` or the expected resume queue. Check whether every Mac is
   draining or updating.
 - **Stale Mac worker version**: check updater status in worker health, confirm
-  `SYRUS_API_TOKEN` can read the desired release, verify artifact URL access,
-  and compare the worker's reported `git_sha` with the desired release.
+  `SYRUS_MACOS_WORKER_TOKEN` can read the desired release, verify artifact URL
+  access, and compare the worker's reported `git_sha` with the desired release.
 - **Xcode not installed or not licensed**: run `bin/macos-worker-check
   --env-file /etc/syrus/worker.env` on the host, then fix `xcode-select`,
   accept the Xcode license, and install required Command Line Tools.

@@ -1127,7 +1127,7 @@
     "paste_auth_json": "Paste auth.json manually",
     "auth_json_help": "Save after pasting a local Codex auth.json value.",
     "api_token_heading": "API token",
-    "api_token_desc": "Admin token for `/api/v1/admin/*` automation. Plaintext is shown once after rotation.",
+    "api_token_desc": "Personal token for CLI, desktop, and user API automation. Plaintext is shown once after rotation.",
     "new_token": "New token",
     "token_is_set": "A token is set.",
     "no_token": "No token issued yet.",

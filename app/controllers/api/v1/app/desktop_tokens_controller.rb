@@ -2,17 +2,12 @@ module Api
   module V1
     module App
       # The desktop app auto-provisions its menu-bar Bearer token from the
-      # signed-in web session so operators never paste a token by hand.
+      # signed-in web session so users never paste a token by hand.
       # Returns the existing token when one is set: `api_token` is
       # deterministic-encrypted (recoverable), and rotating here would break
       # the CLI and every other device sharing ~/.syrus/credentials.
       class DesktopTokensController < BaseController
         def create
-          unless Current.user.admin?
-            render_error("forbidden", "API token is admin-only.", status: :forbidden)
-            return
-          end
-
           if Current.user.api_token.present?
             render json: { api_token: Current.user.api_token, created: false }
           else
