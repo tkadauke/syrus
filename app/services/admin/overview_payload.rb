@@ -33,6 +33,7 @@ module Admin
           agent_session_capture_rate: PerformanceLogging.phase("admin_overview.capture_rate") { capture_rate_payload },
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
           active_storage: PerformanceLogging.phase("admin_overview.active_storage") { active_storage_payload },
+          stalled_classifier_jobs: PerformanceLogging.phase("admin_overview.stalled_classifier_jobs") { stalled_classifier_jobs_payload },
           worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
           worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) }
         }
@@ -148,6 +149,22 @@ module Admin
         service: nil,
         error_class: e.class.name,
         message: e.message.to_s
+      }
+    end
+
+    def stalled_classifier_jobs_payload
+      scope = Job.where(state: "triaging")
+                 .where("created_at < ?", WorkEngine::Reconciler::CLASSIFIER_PENDING_STUCK_AFTER.ago)
+      pending = scope.where(triaging_reason: "classifier_pending")
+      retryable_uncertain = scope.where(triaging_reason: "classifier_uncertain")
+                                .where("classifier_attempts < ?", Job::MAX_CLASSIFIER_ATTEMPTS)
+      jobs = pending.or(retryable_uncertain)
+      latest = jobs.order(created_at: :asc).first
+      {
+        total: jobs.count,
+        oldest_job_id: latest&.id,
+        oldest_job_slug: latest&.slug,
+        oldest_job_path: latest ? "/jobs/#{latest.slug}" : nil
       }
     end
 

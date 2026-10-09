@@ -6,6 +6,16 @@ request: attach it to an Epic, mark it a duplicate or already implemented, or
 leave it as ordinary valid work. The Job leaves `triaging` as soon as that
 question is answered.
 
+Each classifier invocation creates a `JobClassificationAttempt` row. The
+attempt records when classification started and finished, whether it classified
+the Job, returned an uncertain result, or errored, the decision or error text,
+the raw agent output, and the related `SpawnedProcess` when an agent subprocess
+was launched. The Job page shows this attempt history while preserving the
+existing triage state, so operators can distinguish a Job with an in-flight
+classifier from one with no active classifier evidence. The process row also
+carries the Job attribution, which makes classification agent processes visible
+from the admin processes surface.
+
 `Job#triaging_reason` says what it is waiting for:
 
 | Reason | Waiting on | Exit |

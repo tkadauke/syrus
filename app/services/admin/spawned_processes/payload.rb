@@ -36,7 +36,7 @@ module Admin
           filtered = filter.apply(base_scope)
           total = PerformanceLogging.phase("admin_processes.total") { filtered.count }
           scope = apply_sort(filtered)
-                    .includes(:agent, workflow: [ :job, :user ], chat_session: :user)
+                    .includes(:agent, :job, workflow: [ :job, :user ], chat_session: :user)
                     .offset(offset)
                     .limit(@per_page)
 
@@ -229,6 +229,7 @@ module Admin
           wall_timeout_s: process.wall_timeout_s,
           silent_timeout_s: process.silent_timeout_s,
           run_id: process.run_id,
+          job_id: process.job_id,
           workflow_id: process.workflow_id,
           chat_session_id: process.chat_session_id,
           workflow_slug: process.workflow&.slug,
@@ -270,6 +271,14 @@ module Admin
           return agent_payload
         end
 
+        if process.job
+          return {
+            type: "job",
+            label: "#{App::Presentation.job_slug(process.job)} · #{process.job.title}",
+            path: "/jobs/#{App::Presentation.job_slug(process.job)}"
+          }
+        end
+
         preview_owner_payload(process)
       end
 
@@ -279,6 +288,8 @@ module Admin
         if (agent_user = agent_owner_user(process))
           return agent_user
         end
+
+        return process.job.user if process.job
 
         preview_owner_user(process)
       end
