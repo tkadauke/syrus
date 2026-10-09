@@ -42,6 +42,14 @@ describe("NoticeToast", () => {
     expect(screen.getByRole("status").firstElementChild).toHaveClass("motion-safe:animate-notice-in")
   })
 
+  it("can render an error notice", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast message="Command failed." onDismiss={onDismiss} tone="error" />)
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Command failed.")
+    expect(screen.getByRole("alert").firstElementChild).toHaveClass("border-red-300")
+  })
+
   it("still supports manual dismissal", () => {
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)

@@ -13,7 +13,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
-import { NoticeToast } from "../components/NoticeToast"
+import { NoticeToast, type NoticeToastTone } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
 import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
 import { Markdown } from "../lib/Markdown"
@@ -225,10 +225,11 @@ export function JobDetailView({
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [notice, setNotice] = useState<{ message: string; tone: NoticeToastTone } | null>(() => payload.message ? { message: payload.message, tone: "notice" } : null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
-  const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
+  const showNotice = (message: string | null, tone: NoticeToastTone = "notice") => setNotice(message ? { message, tone } : null)
+  const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, showNotice)
   const bugReportTrigger = useBugReportTrigger()
   const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
@@ -260,7 +261,7 @@ export function JobDetailView({
     mutationFn: (body: string) => submitJobFeedback(payload.job.id, body),
     onSuccess: () => {
       setFeedbackPanelOpen(false)
-      setNotice(t("feedback_submitted"))
+      showNotice(t("feedback_submitted"))
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
     }
@@ -270,7 +271,7 @@ export function JobDetailView({
     mutationFn: (body: string) => openJobInCodingMode(payload.paths.app_open_in_coding_mode_path, body),
     onSuccess: (result) => {
       setFeedbackPanelOpen(false)
-      setNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
+      showNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
       if (result.redirect_to) navigate(result.redirect_to)
       scheduleJobDetailInvalidation(queryClient, queryKey)
     }
@@ -305,7 +306,7 @@ export function JobDetailView({
   ]
 
   useEffect(() => {
-    setNotice(payload.message || null)
+    setNotice(payload.message ? { message: payload.message, tone: "notice" } : null)
   }, [payload.job.id, payload.message])
 
   useEffect(() => {
@@ -401,7 +402,7 @@ export function JobDetailView({
         </div>
       </Page.Header>
 
-      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {mainHealthBannerVisible(payload) ? (
@@ -469,7 +470,7 @@ export function JobDetailView({
         <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} />
       ) : null}
       {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
-      {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
+      {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={showNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? (
         <SourceTab
