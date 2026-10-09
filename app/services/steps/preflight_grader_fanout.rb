@@ -168,6 +168,7 @@ module Steps
         "grader_mode" => grader.metadata["grader_mode"],
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],
+        "artifact_outputs" => grader.metadata["artifact_outputs"],
         "filter_capabilities" => grader.metadata["filter_capabilities"],
         "capabilities" => target_capabilities_for(grader),
         "required_capabilities" => target_capabilities_for(grader),

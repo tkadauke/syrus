@@ -94,14 +94,15 @@ the rest of the tree.
 
 ### capabilities
 
-`capabilities:` describes the host OS needed to execute implementation work or
-an executable target. It is separate from workspace
-placement policy: capabilities choose an eligible worker/backend; placement
-policy describes how source is materialized.
+`capabilities:` describes the worker traits needed to execute implementation
+work or an executable target. It is separate from workspace placement policy:
+capabilities choose an eligible worker/backend; placement policy describes how
+source is materialized.
 
-The only supported dimension is `os`, and the only supported values are
-`linux` and `macos`. The value accepts either one string or an array. Syrus
-intentionally rejects architecture, toolchain, runtime, feature, Windows, and
+Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. `os` accepts
+`linux` or `macos` and must name exactly one host OS when present. The other
+dimensions accept normalized token strings or arrays, such as `arm64`, `xcode`,
+and `ios_simulator`. Syrus intentionally rejects feature, Windows, and
 free-form capability dimensions so hallucinated placement constraints cannot
 strand work behind impossible worker-admission gates.
 
@@ -134,10 +135,214 @@ grade:
 ```
 
 Invalid capability maps fail parsing with the owning field path, such as
-`project.capabilities.os` or `grade.steps[0].capabilities.toolchains`.
+`project.capabilities.os` or `grade.steps[0].capabilities.feature`.
 Imported build-system graph providers may also supply capabilities; `.syrus.yml`
 overlays can add them to imported targets without redefining the imported
 graph structure.
+
+### iOS projects and Xcode targets
+
+iOS work is modeled as a macOS/arm64 project plus executable targets that
+require Xcode and an iOS simulator runtime. Use `os: macos`, `arch: arm64`,
+`toolchain: xcode`, and `runtime: ios_simulator` for placement, then express
+scheme, workspace/project, destination, signing, and output details in the
+target command, target name, wrapper script, and worker readiness checks.
+
+A monorepo should put an iOS `.syrus.yml` next to the app project:
+
+```yaml
+# apps/ios/.syrus.yml
+project:
+  id: ios
+  label: iOS App
+  kind: ios_app
+  capabilities:
+    os: macos
+    arch: arm64
+    toolchain: xcode
+    runtime: ios_simulator
+
+targets:
+  - name: app-sources
+    kind: application
+    sources:
+      - "App/**/*.swift"
+      - "Packages/**/*.swift"
+      - "MobileApp.xcodeproj/**"
+      - "MobileApp.xcworkspace/**"
+
+  # With the bundled iOS plugin enabled, the common command can be declared as:
+  # - type: xcodebuild
+  #   workspace: MobileApp.xcworkspace
+  #   scheme: MobileApp
+  #   destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+  #   derived_data_path: .syrus/DerivedData/mobile
+  #   result_bundle_path: build/syrus/MobileApp.xcresult
+  #   junit_output: build/syrus/junit/mobile.xml
+  - name: test
+    kind: grader
+    run: >
+      xcodebuild test
+      -workspace MobileApp.xcworkspace
+      -scheme MobileApp
+      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+      -derivedDataPath "$PWD/.syrus/DerivedData"
+      -resultBundlePath "$PWD/build/syrus/MobileApp.xcresult"
+      CODE_SIGNING_ALLOWED=NO
+      CODE_SIGNING_REQUIRED=NO
+    deps: [":app-sources"]
+    phases: [review, landing, ci]
+    timeout_minutes: 45
+    capabilities:
+      os: macos
+      arch: arm64
+      toolchain: xcode
+      runtime: ios_simulator
+```
+
+If the repository still relies on root workflow validation, keep the executable
+root grader and use the nested file as project/target metadata until nested
+grader execution is enabled for that workflow path:
+
+```yaml
+# /.syrus.yml
+grade:
+  - name: ios-tests
+    run: >
+      xcodebuild test
+      -workspace apps/ios/MobileApp.xcworkspace
+      -scheme MobileApp
+      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+      -derivedDataPath "$PWD/.syrus/DerivedData/ios"
+      -resultBundlePath "$PWD/build/syrus/ios/MobileApp.xcresult"
+      CODE_SIGNING_ALLOWED=NO
+      CODE_SIGNING_REQUIRED=NO
+    when_files_changed:
+      - "apps/ios/**"
+      - "packages/api-client/**"
+    phases: [landing, ci]
+    timeout_minutes: 45
+    capabilities:
+      os: macos
+      arch: arm64
+      toolchain: xcode
+      runtime: ios_simulator
+```
+
+With the bundled iOS plugin enabled, prefer typed graders for common commands
+so artifact paths, timeouts, and capability metadata stay consistent:
+
+```yaml
+grade:
+  - type: xcodebuild
+    workspace: apps/ios/MobileApp.xcworkspace
+    scheme: MobileApp
+    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+    derived_data_path: .syrus/DerivedData/ios
+    result_bundle_path: build/syrus/ios/MobileApp.xcresult
+    junit_output: build/syrus/junit/ios-tests.xml
+    when_files_changed:
+      - "apps/ios/**"
+    phases: [landing, ci]
+    timeout_minutes: 45
+
+  - type: swiftpm
+    package_path: apps/ios/Packages/Shared
+    build_path: .syrus/DerivedData/swiftpm-shared
+    when_files_changed:
+      - "apps/ios/Packages/Shared/**"
+    timeout_minutes: 20
+```
+
+For a repository-root Swift package, auto-detected prepare can run
+`swift package resolve`; otherwise add the same command explicitly in the
+owning root or nested `prepare:` block. Xcode package resolution should stay
+explicit because `xcodebuild -resolvePackageDependencies` needs the same
+workspace/project and scheme choices as the grader.
+
+Use `-workspace` when the app has a workspace, especially with CocoaPods or
+Swift packages that generate one. Use `-project` only for project-only apps.
+Always name the `-scheme` explicitly and choose a simulator `-destination`
+available on the Mac worker pool. Keep `OS=latest` only when the fleet is
+intentionally kept current; otherwise pin the runtime version operators have
+installed.
+
+Keep Xcode build products isolated from the source tree and from other Runs.
+Set `-derivedDataPath` under the workspace, usually below `.syrus/DerivedData`,
+and write machine-readable outputs under a stable build artifact directory such
+as `build/syrus/`. `-resultBundlePath` produces the `.xcresult` bundle that can
+be archived or inspected. If the repository uses a formatter that emits JUnit
+XML, write it to a stable path such as `build/syrus/junit/ios-tests.xml` and
+declare that path on the grader's JUnit settings when the workflow consumes
+JUnit artifacts.
+
+For ordinary simulator tests, make no-signing intent explicit with
+`CODE_SIGNING_ALLOWED=NO` and `CODE_SIGNING_REQUIRED=NO`. Signing, notarization,
+Keychain unlock, provisioning profiles, and private Apple credentials are host
+and repository policy concerns; do not put secrets in `.syrus.yml`. If a target
+really needs signing, document the required Keychain/profile access in the
+worker runbook and make sure the launchd worker user can access it.
+
+For an iOS-only implementation Job, make the primary placement explicit when
+filing a chat/API proposal:
+
+```json
+{
+  "planned_execution": {
+    "project_label": "iOS App",
+    "target_label": "//apps/ios:test",
+    "capabilities": {
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "toolchain": ["xcode"],
+      "runtime": ["ios_simulator"]
+    }
+  }
+}
+```
+
+Use the same primary placement for mixed iOS/backend implementation Jobs when
+the agent must edit and test the iOS app in the same attempt, while backend
+graders keep their own Linux target requirements:
+
+```json
+{
+  "planned_execution": {
+    "project_label": "iOS App",
+    "capabilities": {
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "toolchain": ["xcode"],
+      "runtime": ["ios_simulator"]
+    },
+    "source": "operator"
+  }
+}
+```
+
+```yaml
+# apps/api/.syrus.yml
+project:
+  id: api
+  label: Backend API
+
+grade:
+  - name: api-tests
+    run: bin/rspec
+    when_files_changed:
+      - "app/**"
+      - "spec/**"
+    capabilities:
+      os: linux
+```
+
+Common iOS pitfalls are operational rather than schema problems. If a macOS
+Run is blocked with no capable worker, check that a fresh worker advertises
+`os:macos` and consumes the macOS compute queues. If `xcodebuild` fails before
+compilation, run the macOS worker check, verify full Xcode is selected,
+accept the Xcode license, and install the simulator runtime named by the
+destination. If signing or Keychain access fails, debug as the launchd worker
+user rather than an interactive admin user.
 
 ### scripts
 
@@ -363,7 +568,7 @@ most once per workflow workspace.
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
-| `capabilities` | no | — | Execution requirements for this grader target: only `os: linux` or `os: macos` |
+| `capabilities` | no | — | Execution requirements for this grader target: `os`, `arch`, `toolchain`, and `runtime` |
 
 There are two grader declaration families:
 

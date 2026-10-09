@@ -84,6 +84,9 @@ RSpec.configure do |config|
   end
 
   config.after do
+    RunJob.agent_runner = nil
+    ChatTurnJob.agent_runner = nil
+    ChatTitleJob.agent_runner = nil
     App::ProviderAvailability.clear_cache!
     Current.reset
   end

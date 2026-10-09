@@ -9,6 +9,10 @@ Native macOS workers run outside Kubernetes and consume only capability-matched
 compute queues. They are for Xcode and iOS simulator work; they are not chat,
 search, or control-plane workers.
 
+For the end-to-end operator workflow of planning iOS Jobs, selecting primary
+execution capabilities, routing target graders, and diagnosing missing-capacity
+blockers, see the [iOS Compute Runbook](/docs/ios-compute-runbook).
+
 ## Supported Deployment Shape
 
 Use Mac workers as an external compute pool next to a Linux Syrus deployment.
@@ -35,7 +39,7 @@ RAILS_ENV=production
 SYRUS_APP_HOST=https://syrus.example.internal
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 GIT_SHA=<release sha>
 ```
 
@@ -98,7 +102,11 @@ Before loading or reloading the worker, run:
 
 The check validates Ruby/Bundler, Node/npm, Git, Xcode Command Line Tools, full
 Xcode selection, iOS simulator runtimes, required env, and production
-credentials without starting Solid Queue.
+credentials without starting Solid Queue. The continuous worker readiness
+probes use the same read-only posture: Syrus records version and listing facts
+from `sw_vers`, `xcode-select`, `xcodebuild -version`, `xcrun --find
+xcodebuild`, and `xcrun simctl list`, but does not mutate keychains, signing
+state, simulator contents, or selected devices.
 
 ## Pull-Based Updates
 
@@ -150,10 +158,15 @@ Admin worker health and queue views show the details you need to operate the
 pool:
 
 - Hostname, worker role, reported `git_sha`, and updater status.
-- Normalized capabilities and capability probe diagnostics.
+- Normalized capabilities and capability probe diagnostics, including macOS
+  version, architecture, selected developer directory, Xcode version/build,
+  command-line-tool usability, available iOS simulator runtimes, and a bounded
+  sample of available simulator devices.
 - Consumed queues, including `runs-macos-arm64` and resume queues.
 - Drain/update state and desired release metadata.
-- `no_capable_worker` admission details when a Workflow cannot start.
+- `no_capable_worker` admission details when a Workflow cannot start, including
+  the live worker queue/capability snapshots used to diagnose an iOS capacity
+  shortage.
 
 Mac host CPU/memory pressure charts may be sparse because some low-level health
 metrics are Linux-specific. Capability, version, disk, queue, heartbeat, and
@@ -166,7 +179,7 @@ drain/update state still report normally.
 | No capable worker online | Confirm a fresh heartbeat, `SYRUS_WORKER_CAPABILITIES`, `runs-macos-arm64` queue consumption, and whether all Macs are draining/updating. |
 | Stale Mac worker version | Check updater status, `SYRUS_MACOS_WORKER_TOKEN`, desired release metadata, artifact URL access, and checksum verification failures. |
 | Xcode not installed or licensed | Run `bin/macos-worker-check`, fix `xcode-select`, install Command Line Tools/full Xcode, and accept the Xcode license as needed. |
-| Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics rather than as an execution capability. |
+| Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics and advertised as `runtime:ios_simulator` when available. |
 | Keychain or signing failures | Verify the launchd user can access the signing keychain, certificates, provisioning profiles, and any private signing/notarization services. |
 | Package installs fail only on Macs | Check outbound registry access, host-local dependency caches, Xcode/SDK compatibility, and target-repo private registry credentials. |
 

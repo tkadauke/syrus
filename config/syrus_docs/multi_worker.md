@@ -36,31 +36,40 @@ queues across two worker configs and select one per pod with the
 ## Worker capability advertisement
 
 Workers advertise normalized execution capabilities on their heartbeat and
-worker-health samples. Syrus advertises only the supported `os` capability and
-keeps host architecture, Docker, Xcode, and simulator checks as diagnostics.
-Operators can override the OS placement class with
-`SYRUS_WORKER_CAPABILITIES`, using comma or space separated
-`dimension:value` pairs:
+worker-health samples. Syrus supports `os`, `arch`, `toolchain`, and `runtime`
+capabilities. Operators can override or add advertised capabilities with
+`SYRUS_WORKER_CAPABILITIES`, using comma or space separated `dimension:value`
+pairs:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:macos
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 ```
 
-Only `os:linux` and `os:macos` are admitted. Other dimensions and unsupported
-OS values are ignored for worker advertisements, so a native macOS worker
-should set `os:macos` and let diagnostics report the installed toolchain state.
-Linux k3s and Docker Compose workers can usually rely on detected `os:linux`.
+Only `os:linux` and `os:macos` are admitted for the OS dimension. `arch`,
+`toolchain`, and `runtime` accept normalized tokens such as `arm64`, `xcode`,
+and `ios_simulator`. Unknown dimensions and unsupported OS values are ignored
+for worker advertisements. Native macOS workers can rely on host probes for
+Xcode and simulator runtime advertisements when the tools are installed, or set
+them explicitly in the env file when operators want a fixed declaration. The
+macOS probes are read-only: they run version and listing commands such as
+`sw_vers`, `xcode-select`, `xcodebuild -version`, `xcrun --find xcodebuild`,
+and `xcrun simctl list`. They do not mutate keychains, signing state,
+simulator contents, or selected devices. Linux k3s and Docker Compose workers
+can usually rely on detected `os:linux` and host architecture.
 
 Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
 and `read_queue` all include the normalized capability map and probe
-diagnostics. Historical health samples keep the capability snapshot that was
-true when the sample was recorded.
+diagnostics. For iOS-capable Mac workers those diagnostics include macOS host
+version and architecture facts, selected developer directory, Xcode version and
+build version, command-line-tool usability, available iOS simulator runtimes,
+and a bounded sample of available simulator devices. Historical health samples
+keep the capability snapshot that was true when the sample was recorded.
 
 External worker pools can set `SYRUS_WORKER_POOL_NAME` to a stable
 operator-facing name such as `macos-xcode`. Syrus records that value in worker
 capability diagnostics on `InstanceVersion` and `WorkerHostHealthSample` rows;
 it is descriptive metadata, not a scheduler input. Placement still comes from
-`SYRUS_WORKER_CAPABILITIES` plus the Solid Queue config the process runs.
+advertised capabilities plus the Solid Queue config the process runs.
 
 ## Native macOS compute workers
 
@@ -109,7 +118,7 @@ SOLID_QUEUE_SKIP_RECURRING=1
 SYRUS_DATA_ROOT=/var/lib/syrus
 SYRUS_APP_HOST=syrus.example.internal
 SYRUS_WORKER_POOL_NAME=macos-xcode
-SYRUS_WORKER_CAPABILITIES=os:macos
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 GIT_SHA=<release sha>
 ```
 
@@ -229,8 +238,8 @@ k3s/web deployment has run migrations.
 If `bin/macos-worker-check --env-file /etc/syrus/worker.env` reports Xcode
 failures, fix Command Line Tools or `xcode-select`, install full Xcode, accept
 the Xcode license, and install the required simulator runtimes. Missing
-simulators are reported by the worker check and capability diagnostics rather
-than as execution capability labels.
+simulators are reported by the worker check and capability diagnostics; workers
+advertise `runtime:ios_simulator` only when the simulator probe succeeds.
 
 For Keychain and signing failures, validate the launchd user rather than an
 interactive admin shell: the worker user must be able to unlock or access the
@@ -247,8 +256,11 @@ capability-specific queue derived from the workflow template's base queue:
 - `runs-linux-amd64`, `runs-macos-arm64`
 - `merges-linux-amd64`, `merges-macos-arm64`
 
-Queue suffixes use Syrus defaults for the supported OS values: Linux uses the
-`linux-amd64` lane and macOS uses the `macos-arm64` lane.
+Queue suffixes use the requested or advertised architecture when present,
+falling back to Syrus defaults for the supported OS values: Linux uses the
+`linux-amd64` lane and macOS uses the `macos-arm64` lane. Toolchain and runtime
+requirements do not create extra queue-name segments; they are checked against
+live worker capability metadata before admission and enqueue.
 
 `config/queue.yml` and `config/queue.compute.yml` render their compute queues
 from the worker's advertised capabilities. A default Linux worker consumes
@@ -271,9 +283,12 @@ when explicit Linux requirements are present. If no fresh worker both consumes
 the selected queue and advertises compatible capabilities, the Workflow stays queued with
 `start_blocked_reason: no_capable_worker`; `start_blocked_details` and
 `run_queue_admission_decision` record the selected queue, requirements, and
-phase step so operators can see why it is waiting. Syrus schedules a normal
-phase-admission recheck instead of creating a Run that would sit on an
-unconsumed or incompatible queue.
+phase step so operators can see why it is waiting. Those details also include a
+compact snapshot of live worker queues, capabilities, probe diagnostics, and
+drain state, so an iOS shortage can distinguish "no Mac worker online" from
+"Mac worker online but missing an iOS simulator runtime" or "Mac worker is
+draining." Syrus schedules a normal phase-admission recheck instead of
+creating a Run that would sit on an unconsumed or incompatible queue.
 
 `Run#enqueue_run_job` repeats that check at enqueue time as a backstop. When it
 does enqueue, the Workflow appends a `run_queue_decisions` artifact recording

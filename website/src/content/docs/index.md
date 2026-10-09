@@ -54,6 +54,9 @@ recipes needed to run Syrus without reading the Rails source.
 - [Monorepo Adoption](/docs/monorepo-adoption): staged `.syrus.yml`
   adoption for root-only repositories, nested project config, explicit
   targets, and imported build graphs.
+- [iOS Compute Runbook](/docs/ios-compute-runbook): plan iOS Jobs, route
+  Xcode and simulator graders to Mac workers, inspect capability blockers,
+  and operate the Mac pool beside Linux workers.
 - [Plugins](/docs/plugins): installed vs enabled plugins, UI contributions,
   MCP tools, plugin data, dependencies, and authoring guidelines.
 - [Syrus CLI](/docs/cli): terminal chat, inbox review, checkout,
@@ -85,3 +88,6 @@ breaking workspace-affinity retries.
   scheduled tasks, custom workflows, direct Jobs, and stopping work.
 - [Troubleshooting](/docs/troubleshooting): failure modes and concrete
   debug paths.
+- [macOS Workers](/docs/deployment/macos-workers): external Mac worker
+  installation, launchd lifecycle, pull updates, and health diagnostics for
+  Xcode/iOS workloads.

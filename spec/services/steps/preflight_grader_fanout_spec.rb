@@ -84,6 +84,10 @@ RSpec.describe Steps::PreflightGraderFanout do
       grade:
         - name: ios-tests
           run: xcodebuild test
+          metadata:
+            artifact_outputs:
+              - artifact: build/syrus/MobileApp.xcresult
+                format: xcresult
           capabilities:
             os: macos
         - name: backend-tests
@@ -96,6 +100,7 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     grader_steps = workflow.steps.where(kind: "preflight_grader").index_by { |grader_step| grader_step.details["name"] }
     expect(grader_steps.fetch("ios-tests").details).to include(
+      "artifact_outputs" => [ { "artifact" => "build/syrus/MobileApp.xcresult", "format" => "xcresult" } ],
       "capabilities" => { "os" => [ "macos" ] },
       "required_capabilities" => { "os" => [ "macos" ] }
     )

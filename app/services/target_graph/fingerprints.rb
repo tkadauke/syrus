@@ -41,6 +41,7 @@ class TargetGraph
       uv.lock
       requirements.txt
     ].freeze
+    DEFAULT_GRADER_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
     def self.for_target(workspace_path:, graph:, label:)
       new(workspace_path: workspace_path, graph: graph).for_target(label)
@@ -69,7 +70,7 @@ class TargetGraph
           "config_file_count" => config_file_entries(relevant_targets).size,
           "dependency_labels" => dependencies.map { |dependency| dependency.label.to_s },
           "prepare_target_labels" => prepare_targets.map { |dependency| dependency.label.to_s },
-          "worker_environment" => worker_environment_metadata
+          "worker_environment" => worker_environment_metadata_for(target)
         }
       )
     end
@@ -100,7 +101,7 @@ class TargetGraph
         "ruby" => RUBY_VERSION,
         "ruby_platform" => RUBY_PLATFORM,
         "bundler_version" => bundler_version,
-        "worker_environment" => worker_environment_metadata,
+        "worker_environment" => worker_environment_metadata_for(target),
         "env" => {
           "BUNDLE_WITHOUT" => ENV["BUNDLE_WITHOUT"].to_s,
           "RAILS_ENV" => ENV["RAILS_ENV"].to_s,
@@ -130,6 +131,21 @@ class TargetGraph
 
     def worker_environment_metadata
       @worker_environment_metadata ||= WorkerCapabilities.environment_fingerprint_metadata
+    end
+
+    def worker_environment_metadata_for(target)
+      capabilities = effective_execution_capabilities_for(target)
+      return worker_environment_metadata if capabilities.blank?
+
+      worker_environment_metadata.deep_merge("capabilities" => capabilities)
+    end
+
+    def effective_execution_capabilities_for(target)
+      capabilities = target.capabilities&.to_h.to_h
+      return capabilities if capabilities.present?
+      return DEFAULT_GRADER_CAPABILITIES if target.kind == "grader"
+
+      {}
     end
 
     def source_file_entries(relevant_targets)

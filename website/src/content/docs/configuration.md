@@ -81,7 +81,7 @@ Schema:
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
-| `project.capabilities` / target `capabilities` | Mapping | Execution host OS constraints: only `os: linux` or `os: macos` |
+| `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |
 | `review_notes.low_signal` | Array of strings | Low-signal guidance for the Review Notes pass |
@@ -102,7 +102,43 @@ set an explicit planned execution requirement, and the chat proposal tools
 require one. Capabilities are declared, never guessed from the request text: a
 Job created without them runs on the repository's `.syrus.yml` project
 capabilities when it declares any, and the ordinary Linux default otherwise.
-Only the `os` dimension is supported, with values `linux` and `macos`.
+Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. `os` accepts
+`linux` or `macos`; the other dimensions accept normalized tokens such as
+`arm64`, `xcode`, and `ios_simulator`.
+
+For iOS repositories, model the app as a project with `capabilities.os: macos`
+plus `arch: arm64`, `toolchain: xcode`, and `runtime: ios_simulator`, then put
+`xcodebuild` details in the target or grader command: explicit workspace or
+project, scheme, simulator destination, isolated DerivedData, result bundle and
+optional JUnit paths, plus no-signing settings for simulator tests.
+With the iOS plugin enabled, common patterns can use typed graders instead of
+hand-written shell:
+
+```yaml
+prepare:
+  - swift package resolve
+
+grade:
+  - type: xcodebuild
+    workspace: apps/ios/MobileApp.xcworkspace
+    scheme: MobileApp
+    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
+    derived_data_path: .syrus/DerivedData/ios
+    result_bundle_path: build/syrus/ios/MobileApp.xcresult
+    junit_output: build/syrus/junit/ios-tests.xml
+    timeout_minutes: 45
+
+  - type: swiftpm
+    package_path: apps/ios/Packages/Shared
+    build_path: .syrus/DerivedData/swiftpm-shared
+    timeout_minutes: 20
+```
+
+When proposing an iOS-only Job or mixed iOS/backend Job whose implementation
+needs Xcode feedback, set primary planned execution to
+`{"capabilities":{"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}}`;
+backend graders can still declare `capabilities.os: linux` and run on Linux
+workers later.
 
 Because nothing is inferred from a Job's wording, mentioning a platform in a
 title or description does not move the work — including saying that a platform
@@ -111,23 +147,23 @@ as an Xcode build or an iOS simulator; a Job planned for a host no worker
 advertises cannot start at all.
 
 Workers advertise their available host capabilities separately from repository
-requirements. Each worker heartbeat includes only the supported `os`
-capability, plus diagnostics about host architecture and optional probes for
-Docker, Xcode, and iOS simulator runtimes. Android work runs on Linux workers,
-not an `os:android` placement class. The published worker image includes the
-Android SDK command-line baseline used by the Android plugin, while Java/JDK and
-Gradle behavior stay with the JVM plugins and repository wrappers. Set
-`SYRUS_WORKER_CAPABILITIES` on a worker only to make its OS placement class
-explicit:
+requirements. Each worker heartbeat includes normalized capabilities plus
+diagnostics about host architecture and optional probes for Docker, Xcode, and
+iOS simulator runtimes. Android work runs on Linux workers, not an `os:android`
+placement class. The published worker image includes the Android SDK
+command-line baseline used by the Android plugin, while Java/JDK and Gradle
+behavior stay with the JVM plugins and repository wrappers. Set
+`SYRUS_WORKER_CAPABILITIES` on a worker to make its placement class explicit:
 
 ```dotenv
-SYRUS_WORKER_CAPABILITIES=os:macos
+SYRUS_WORKER_CAPABILITIES=os:macos,arch:arm64,toolchain:xcode,runtime:ios_simulator
 ```
 
 Use comma or space separated `dimension:value` pairs if needed, but only
-`os:linux` and `os:macos` are admitted. Other dimensions and unsupported OS
-values are ignored for worker advertisements. Linux k3s and Docker Compose
-workers normally get `os:linux` without configuration.
+`os:linux` and `os:macos` are admitted for OS placement. Unknown dimensions and
+unsupported OS values are ignored for worker advertisements. Linux k3s and
+Docker Compose workers normally get `os:linux` and host architecture without
+configuration.
 
 Android emulator-backed graders and Runtime Sessions need more than the SDK.
 The Linux host must expose CPU virtualization and KVM, and the worker container
@@ -622,7 +658,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
 | `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
-| `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement; only `os:linux` and `os:macos` are supported |
+| `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement for `os`, `arch`, `toolchain`, and `runtime` |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
 | `SYRUS_BUG_REPORT_OWNER` | Yes | GitHub owner or organization for in-app bug reports; Syrus uses the configured `syrus` repository under that owner |
 | `SYRUS_MAILER_FROM` | No | From address for password reset and invitation email; defaults to `Syrus <noreply@$SYRUS_APP_HOST>` |

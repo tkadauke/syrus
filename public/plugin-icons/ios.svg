@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="iOS plugin">
+  <rect width="64" height="64" rx="14" fill="#111827"/>
+  <rect x="18" y="8" width="28" height="48" rx="6" fill="#f8fafc"/>
+  <rect x="21" y="12" width="22" height="37" rx="2" fill="#0f172a"/>
+  <circle cx="32" cy="52" r="2" fill="#94a3b8"/>
+  <path d="M27 28h10M27 34h10" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+</svg>
