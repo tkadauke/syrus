@@ -122,9 +122,9 @@ true (`App::JobDetailPayload#report_json`, gated the same way). The Report
 tab renders the submitted `investigation_report` narrative (markdown) and
 findings, plus any referenced artifacts/screenshots resolved against
 `Workflow#artifacts["typed_artifacts"]` and rendered with the same
-`ArtifactBody` renderer the Artifacts tab uses. The PR-only Review tab is
-hidden entirely for investigation Jobs; other tabs (Workflows, Agent
-Conversation, Timeline, Artifacts, Source, etc.) are unaffected. Because an
+shared `ArtifactBody` renderer used by other typed-artifact surfaces. The
+PR-only Review tab is hidden entirely for investigation Jobs; other tabs
+(Workflows, Agent Conversation, Timeline, Source, etc.) are unaffected. Because an
 investigation Job's `:implemented` state is shared with the normal
 approve-and-land pipeline, `App::JobDetailPayload#actions_json` also excludes
 `investigation?` Jobs from `can_approve`/`reviewable_job` and exposes
