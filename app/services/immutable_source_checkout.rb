@@ -55,6 +55,7 @@ class ImmutableSourceCheckout
       rematerialize_restored_checkout!(snapshot) if restored_from_prepare_cache || restored_from_archive
       prepare_with_cache!(snapshot, prepare_cache)
     end
+    refresh_target_fingerprints!
     record_checkout_details!(snapshot)
     record_run_source_snapshot!(snapshot)
   end
@@ -629,6 +630,24 @@ class ImmutableSourceCheckout
       head_sha: snapshot.source_sha,
       updated_at: Time.current
     )
+  end
+
+  def refresh_target_fingerprints!
+    target_label = @step.details.to_h["target_label"].presence || @step.details.to_h["projected_target_label"].presence
+    return if target_label.blank?
+
+    graph = TargetGraph::Compiler.compile(path)
+    fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: path,
+      graph: graph,
+      label: TargetGraph::Label.parse(target_label)
+    )
+    @step.update!(details: @step.details.to_h.merge(
+      "target_fingerprints" => fingerprints.to_h,
+      "projected_target_fingerprint" => fingerprints.command_fingerprint
+    ))
+  rescue TargetGraph::Error, TargetGraph::Label::ParseError => e
+    raise_infrastructure!("target fingerprint refresh failed for #{target_label}: #{e.message}")
   end
 
   class PrepareCache

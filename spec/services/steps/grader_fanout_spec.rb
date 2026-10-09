@@ -127,6 +127,56 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  def enable_distributed_workflow_dag!
+    Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+      feature.category = "Operations"
+      feature.name = "Distributed workflow DAG"
+    end.update!(enabled: true)
+    Feature.clear_enabled_cache!
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+  end
+
+  def live_capable_worker_queue!(queue_name, capabilities:, hostname:)
+    ensure_solid_queue_test_tables!
+    SolidQueue::Process.create!(
+      hostname: hostname,
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => [ queue_name ], "capabilities" => capabilities },
+      name: "#{hostname}:1",
+      pid: rand(10_000),
+      created_at: Time.current
+    )
+  end
+
+  def create_mismatched_target_health_record!(label, fingerprints:, cached_environment:)
+    parsed = TargetGraph::Label.parse(label)
+    TargetHealthRecord.create!(
+      repository: job.repository,
+      target_label: label,
+      project_id: parsed.package.presence || TargetGraph::ROOT_PROJECT_ID,
+      commit_sha: "cached123",
+      input_fingerprint: fingerprints.input_fingerprint,
+      command_fingerprint: fingerprints.command_fingerprint,
+      environment_fingerprint: Digest::SHA256.hexdigest(JSON.generate(cached_environment)),
+      status: "passed",
+      checked_at: 1.hour.ago,
+      metadata: {
+        "target_fingerprint_metadata" => fingerprints.metadata.deep_merge(
+          "worker_environment" => cached_environment
+        )
+      }
+    )
+  end
+
+  def worker_environment(os)
+    {
+      "capabilities" => { "os" => [ os ] },
+      "runtime" => { "ruby_platform" => "#{os}-ruby" },
+      "tool_versions" => { "ruby" => "ruby 3.4.10" }
+    }
+  end
+
   # --- when_files_changed skip (PR #41) ---------------------------------
 
   it "materializes graders without when_files_changed regardless of changed files" do
@@ -279,9 +329,119 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.where(kind: "grader").map { |grader_step| grader_step.details["name"] }).to contain_exactly("ios-tests", "backend-tests")
   end
 
+  it "routes a mixed iOS/backend workflow through macOS primary work and target-specific grader workers" do
+    enable_distributed_workflow_dag!
+    requirements = {
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    }
+    workflow.update!(
+      planned_execution_capabilities: requirements,
+      planned_execution_source: "explicit",
+      worker_storage_key: "storage-mac"
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: ios-tests
+          run: bin/fake-ios-test
+          when_files_changed: ["ios/**/*"]
+          capabilities:
+            os: macos
+            arch: arm64
+            toolchain: xcode
+            runtime: ios_simulator
+        - name: backend-tests
+          run: bin/fake-backend-test
+          when_files_changed: ["app/**/*"]
+          capabilities:
+            os: linux
+    YAML
+    stub_changed_files("ios/App/View.swift", "app/models/user.rb")
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return(worker_environment("macos"))
+
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    backend_fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: @ws_path,
+      graph: graph,
+      label: TargetGraph::Label.parse("//:grade/backend-tests")
+    )
+    create_mismatched_target_health_record!(
+      "//:grade/backend-tests",
+      fingerprints: backend_fingerprints,
+      cached_environment: worker_environment("macos")
+    )
+
+    live_capable_worker_queue!("runs-macos-arm64", capabilities: requirements, hostname: "mac-worker")
+    live_capable_worker_queue!("runs", capabilities: { "os" => [ "linux" ] }, hostname: "linux-worker")
+
+    implement_step = Step.create!(
+      workflow: workflow,
+      kind: "implement",
+      position: 50,
+      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    )
+    implement_run = implement_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+    expect(RunQueueResolver.resolve(run: implement_run)).to have_attributes(
+      queue_name: "runs-macos-arm64",
+      requirements: requirements
+    )
+
+    handler.call
+
+    graders = workflow.steps.where(kind: "grader").order(:position).index_by { |grader| grader.details.fetch("name") }
+    ios = graders.fetch("ios-tests")
+    backend = graders.fetch("backend-tests")
+    expect(workflow.workflow_warnings.where(kind: "implementation_capability_escalation")).to be_empty
+    expect(collect.reload.depends_on_step_ids).to contain_exactly(ios.id, backend.id)
+    expect(collect.dependencies_settled?).to be(false)
+
+    expect(ios).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+    expect(backend).to have_attributes(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+    expect(ios.details).to include("required_capabilities" => requirements)
+    expect(backend.details).to include("required_capabilities" => { "os" => [ "linux" ] })
+    expect(ios.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq(requirements)
+    expect(backend.details.dig("target_fingerprints", "metadata", "worker_environment", "capabilities")).to eq("os" => [ "linux" ])
+
+    expect(RunQueueResolver.resolve(run: ios.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider))).to have_attributes(
+      queue_name: "runs-macos-arm64",
+      requirements: requirements
+    )
+    expect(RunQueueResolver.resolve(run: backend.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider))).to have_attributes(
+      queue_name: "runs",
+      requirements: { "os" => [ "linux" ] }
+    )
+
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "backend-tests",
+        "target_label" => "//:grade/backend-tests",
+        "reason" => include("environment/capability mismatch")
+      )
+    )
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+
+    ios.update_columns(state: "succeeded", started_at: 10.seconds.ago, finished_at: 3.seconds.ago)
+    expect(collect.reload.dependencies_settled?).to be(false)
+    backend.update_columns(state: "succeeded", started_at: 9.seconds.ago, finished_at: 2.seconds.ago)
+    expect(collect.reload.dependencies_settled?).to be(true)
+
+    collect_run = collect.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: collect.iteration)
+    collect_handler = Steps::GraderCollect.new(collect_run)
+    allow(collect_handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: @ws_path, base_ref: "origin/main"))
+    allow(@git).to receive(:run).with("rev-parse", "origin/main", chdir: @ws_path.to_s).and_return("base123\n")
+
+    expect { collect_handler.call }.not_to raise_error
+    expect(workflow.reload.artifact("iterations").first).to include(
+      include("name" => "ios-tests", "status" => "passed"),
+      include("name" => "backend-tests", "status" => "passed")
+    )
+  end
+
   it "warns when an equally constrained affected target is not covered by the primary placement" do
     workflow.update!(
-      planned_execution_capabilities: { "os" => [ "macos" ] },
+      planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
       planned_execution_source: "inferred"
     )
     write_config(<<~YAML)
@@ -291,26 +451,28 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           when_files_changed: ["ios/**/*"]
           capabilities:
             os: macos
-        - name: linux-package
-          run: bin/linux-package
-          when_files_changed: ["linux/**/*"]
+            arch: arm64
+        - name: macos-x64-package
+          run: bin/macos-x64-package
+          when_files_changed: ["macos-x64/**"]
           capabilities:
-            os: linux
+            os: macos
+            arch: x86_64
     YAML
-    stub_changed_files("ios/App/View.swift", "linux/package.sh")
+    stub_changed_files("ios/App/View.swift", "macos-x64/package.sh")
 
     handler.call
 
     warning = workflow.workflow_warnings.find_by!(kind: "implementation_capability_escalation")
-    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/linux-package")
+    expect(warning.evidence.dig("most_constrained_target", "target_label")).to eq("//:grade/macos-x64-package")
     expect(warning.evidence.fetch("most_constrained_targets").map { |target| target.fetch("target_label") }).to contain_exactly(
       "//:grade/ios-tests",
-      "//:grade/linux-package"
+      "//:grade/macos-x64-package"
     )
     expect(warning.evidence.fetch("mismatched_targets").map { |target| target.fetch("target_label") })
-      .to eq([ "//:grade/linux-package" ])
+      .to eq([ "//:grade/macos-x64-package" ])
     expect(warning.evidence.fetch("mismatches")).to include(
-      include("target_label" => "//:grade/linux-package", "dimension" => "os", "missing" => [ "linux" ])
+      include("target_label" => "//:grade/macos-x64-package", "dimension" => "arch", "missing" => [ "x86_64" ])
     )
   end
 
