@@ -263,6 +263,36 @@ RSpec.describe TestInsights::Ingester do
     expect(OperationalLogging).to have_received(:ingest).with(hash_including(level: "error", source: "test_insights_ingester")).at_least(:once)
   end
 
+  it "retries a transient database deadlock around the whole ingest" do
+    calls = 0
+    allow(ingester).to receive(:sleep)
+    allow(TestInsights::TestRun).to receive(:transaction).and_wrap_original do |original, *args, **kwargs, &block|
+      calls += 1
+      raise ActiveRecord::Deadlocked, "deadlock" if calls == 1
+
+      original.call(*args, **kwargs, &block)
+    end
+
+    expect { ingester.ingest! }
+      .to change(TestInsights::TestRun, :count).by(1)
+      .and change(TestInsights::TestCase, :count).by(3)
+
+    expect(calls).to eq(2)
+    expect(ingester).to have_received(:sleep).with(described_class::RETRY_BACKOFF_SECONDS)
+  end
+
+  it "does not treat transient insert deadlocks as bad test rows" do
+    allow(TestInsights::TestCase).to receive(:insert_all!).and_raise(ActiveRecord::Deadlocked, "deadlock")
+    allow(ingester).to receive(:sleep)
+    allow(OperationalLogging).to receive(:ingest)
+
+    expect { ingester.ingest! }
+      .to raise_error(ActiveRecord::Deadlocked)
+
+    expect(OperationalLogging).not_to have_received(:ingest).with(hash_including(source: "test_insights_ingester"))
+    expect(TestInsights::TestRun.where(run: run, grader_name: "rspec")).to be_empty
+  end
+
   it "allows different grader names for the same run" do
     ingester.ingest!
 
