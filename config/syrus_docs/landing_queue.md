@@ -329,7 +329,14 @@ summed individual durations, and whether required graders failed. Fanout-specifi
 cap and efficiency metrics are intentionally absent until parallel landing
 grader fanout is designed and enabled separately.
 
-If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and graders re-run. This loop repeats up to `grade_max_iterations` times.
+If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and
+graders re-run. This loop repeats up to `grade_max_iterations` times unless the
+failed grader identity set stops shrinking. An unchanged set, or a round that
+fixes some failures while introducing new ones, stops the loop early with
+`needs_attention_reason: grader_loop_no_progress`. The Workflow records
+`grader_loop_progress` and `grader_loop_stop` artifacts with the per-round
+grader results, failing set, and repair diff summary so an operator can split
+targeted follow-up work without rerunning the same broad repair.
 
 ### Speculative landing validation
 
