@@ -253,18 +253,18 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
   )
 }
 
-// A Job the classifier could not place is not broken and nothing is retrying
-// it: it is waiting on a person. Saying so -- and saying why the classifier
-// gave up -- is what turns "stuck in triaging" into a decision someone can
-// actually make.
+// Some triage states are not broken and nothing is retrying them: they are
+// waiting on a person. Saying so is what turns "stuck in triaging" into a
+// decision someone can actually make.
 export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) {
   const { t } = useT("jobs")
-  if (job.triaging_reason !== "classifier_uncertain") return null
+  if (job.triaging_reason !== "classifier_uncertain" && job.triaging_reason !== "proposed_job") return null
+  const proposed = job.triaging_reason === "proposed_job"
 
   return (
-    <Notice title={t("triage_uncertain_title")} tone="warning">
-      <Text as="p" tone="warning">{t("triage_uncertain_body")}</Text>
-      {job.triaging_uncertainty_reason ? (
+    <Notice title={t(proposed ? "triage_proposed_title" : "triage_uncertain_title")} tone="warning">
+      <Text as="p" tone="warning">{t(proposed ? "triage_proposed_body" : "triage_uncertain_body")}</Text>
+      {!proposed && job.triaging_uncertainty_reason ? (
         <Text className="mt-2 text-xs" tone="warning" variant="mono">{job.triaging_uncertainty_reason}</Text>
       ) : null}
     </Notice>

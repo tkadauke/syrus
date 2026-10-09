@@ -43,7 +43,7 @@ class Job < ApplicationRecord
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
-  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
+  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain proposed_job ].freeze
   APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so urgent (-10) runs before high (0), medium (10),
@@ -882,9 +882,10 @@ class Job < ApplicationRecord
   # opinion (or lack of one) stops mattering at that point, so the uncertainty
   # is cleared rather than carried into execution.
   def accept_triage!
-    return false unless triaging? && triaging_reason_classifier_uncertain?
+    return false unless awaiting_triage_decision?
 
-    update!(triaging_reason: "classifier_pending", triaging_uncertainty_reason: nil)
+    next_reason = triaging_reason_proposed_job? ? "proposed_job" : "classifier_pending"
+    update!(triaging_reason: next_reason, triaging_uncertainty_reason: nil)
     advance_after_triage! if may_advance_after_triage?
     true
   end
@@ -894,10 +895,14 @@ class Job < ApplicationRecord
   # as a success would corrupt the same attribution that closure reasons exist
   # to keep honest.
   def reject_triage!
-    return false unless triaging? && triaging_reason_classifier_uncertain?
+    return false unless awaiting_triage_decision?
 
     cancel_active_runs_and_close!("cancelled")
     true
+  end
+
+  def awaiting_triage_decision?
+    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_proposed_job?)
   end
 
   def ready_for_execution?

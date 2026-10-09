@@ -2,7 +2,7 @@ module Filters
   module Chips
     module Jobs
       # Job#investigation is a plain boolean column (set at creation time by
-      # InvestigationJobs::Creator; see Job#investigation_launch?). This chip
+      # chat proposals, issue labels, scheduled tasks, or plugins). This chip
       # lets operators filter the Jobs list directly for investigation Jobs,
       # following the same boolean-chip pattern as PinnedByMe/HasUnreadFeedback.
       class Investigation < Base

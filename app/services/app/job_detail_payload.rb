@@ -1075,11 +1075,12 @@ module App
         @job.landing_blocker_override_used_at.blank?
     end
 
-    # Only `classifier_uncertain` puts the decision in a person's hands.
-    # `classifier_pending` is still in flight and `pending_epic_ref` resolves
-    # itself when the Epic shows up, so neither wants an Accept/Reject prompt.
+    # Only uncertain classifier output and investigation-proposed Jobs put the
+    # decision in a person's hands. `classifier_pending` is still in flight and
+    # `pending_epic_ref` resolves itself when the Epic shows up, so neither
+    # wants an Accept/Reject prompt.
     def awaiting_triage_decision?
-      @job.triaging? && @job.triaging_reason_classifier_uncertain?
+      @job.awaiting_triage_decision?
     end
 
     def coding_mode_takeover_blocked_reason(writable:)
