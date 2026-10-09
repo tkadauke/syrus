@@ -64,6 +64,27 @@ The Kotlin plugin detects Kotlin/JVM projects and Gradle Kotlin DSL files, then
 reuses the same Gradle/JUnit machinery instead of defining a separate Kotlin
 grader type.
 
+Android projects can use the Android plugin's Gradle-backed typed graders:
+
+```yaml
+grade:
+  - type: android-assemble
+    tasks: [assembleDebug]
+  - type: android-unit-test
+    tasks: [testDebugUnitTest]
+  - type: android-managed-device
+    tasks: [allDevicesCheck]
+    phases: [landing, ci]
+    timeout_minutes: 60
+```
+
+Available Android types are `android-assemble`, `android-unit-test`,
+`android-instrumented-test`, and `android-managed-device`. They prefer
+`./gradlew`, declare Linux execution capabilities, aggregate Android/JUnit XML
+reports when present, and record APK/AAB, Android test result, managed-device,
+and report/log paths in grader metadata. Use explicit `tasks:` for repository
+variants and Gradle Managed Device names.
+
 For mixed-language monorepos, put the typed grader in the JVM project's nested
 `.syrus.yml` and scope it to that project:
 

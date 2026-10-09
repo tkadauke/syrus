@@ -7,14 +7,12 @@ module Mcp::Tools
     tool_name "runtime_capture_artifact"
 
     description <<~DESC
-      Capture evidence from a Runtime Session (DOC-17) -- for the browser
-      provider, a screenshot filed through the same context-aware
-      browser_screenshot tool implementation and ArtifactSink resolution
-      visual review uses (a chat media Document in Coding Mode). Delegates
-      to the provider's snapshot capability; `artifact_type` is an optional
-      hint some providers may use to pick which kind of evidence to capture.
-      Defaults to the chat's primary active session when `session_id` is
-      omitted.
+      Capture evidence from a Runtime Session (DOC-17), delegating to the
+      provider's snapshot capability and returning the same provider-neutral
+      image/artifact metadata as `runtime_snapshot`. `artifact_type` is an
+      optional hint some providers may use to pick which kind of evidence to
+      capture. Defaults to the chat's primary active session when `session_id`
+      is omitted.
     DESC
 
     input_schema(

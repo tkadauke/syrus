@@ -14,6 +14,7 @@ const KNOWN_PLUGIN_ICONS: Record<string, string> = {
   javascript: "/plugin-icons/javascript.svg",
   java: "/plugin-icons/java.svg",
   kotlin: "/plugin-icons/kotlin.svg",
+  android: "/plugin-icons/android.svg",
   python: "/plugin-icons/python.svg",
   django: "/plugin-icons/django.svg",
   go: "/plugin-icons/go.svg",

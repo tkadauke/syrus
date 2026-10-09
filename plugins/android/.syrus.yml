@@ -1,0 +1,9 @@
+project:
+  id: android
+  label: "android plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

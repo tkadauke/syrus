@@ -1,6 +1,19 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import { Badge, CardShell, Disclosure, FilterableList, LargeTextPreview, PreviewTextBlock, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
+import {
+  Badge,
+  CardShell,
+  Disclosure,
+  FilterableList,
+  LargeTextPreview,
+  PreviewTextBlock,
+  displayValue,
+  EmptyState,
+  Row,
+  SectionLabel,
+  StatePill
+} from "./toolCardUi"
 
 type RuntimeLease = {
   id: string
@@ -46,11 +59,14 @@ type RuntimeSnapshot = {
   imageUrl: string | null
   imageDataUrl: string | null
   mimeType: string | null
+  kind: string | null
+  documentId: string | null
   pageUrl: string | null
   title: string | null
   viewport: string | null
   target: string | null
   createdAt: string | null
+  warning: string | null
   error: string | null
   raw: unknown
 }
@@ -71,8 +87,27 @@ type RuntimeArtifact = {
 type RuntimeCard =
   | { kind: "sessions"; sessions: RuntimeSession[]; raw: unknown }
   | { kind: "status"; session: RuntimeSession; raw: unknown }
-  | { kind: "lifecycle"; action: RuntimeLifecycleAction; session: RuntimeSession | null; status: string | null; url: string | null; target: string | null; command: string | null; error: string | null; raw: unknown }
-  | { kind: "inspect"; health: string | null; framework: string | null; ports: string | null; processState: string | null; warnings: string[]; details: string | null; raw: unknown }
+  | {
+      kind: "lifecycle"
+      action: RuntimeLifecycleAction
+      session: RuntimeSession | null
+      status: string | null
+      url: string | null
+      target: string | null
+      command: string | null
+      error: string | null
+      raw: unknown
+    }
+  | {
+      kind: "inspect"
+      health: string | null
+      framework: string | null
+      ports: string | null
+      processState: string | null
+      warnings: string[]
+      details: string | null
+      raw: unknown
+    }
   | { kind: "logs"; entries: string[]; cursor: string | null; nextCursor: string | null; raw: unknown }
   | { kind: "input"; event: RuntimeInputEvent; rawEvent: unknown; raw: unknown }
   | { kind: "snapshot"; snapshot: RuntimeSnapshot }
@@ -107,21 +142,23 @@ function contentText(value: unknown): string | null {
   if (typeof value === "string") return value
   if (!Array.isArray(value)) return null
 
-  const text = value.flatMap((item) => {
-    if (typeof item === "string") return [item]
-    if (isPlainObject(item)) {
-      const itemText = displayValue(item.text) ?? displayValue(item.content)
-      return itemText ? [itemText] : []
-    }
-    return []
-  }).join("\n")
+  const text = value
+    .flatMap((item) => {
+      if (typeof item === "string") return [item]
+      if (isPlainObject(item)) {
+        const itemText = displayValue(item.text) ?? displayValue(item.content)
+        return itemText ? [itemText] : []
+      }
+      return []
+    })
+    .join("\n")
 
   return text.trim() ? text : null
 }
 
 function contentItem(type: string, value: unknown): Record<string, unknown> | null {
   if (!Array.isArray(value)) return null
-  return value.find((item) => isPlainObject(item) && item.type === type) as Record<string, unknown> | undefined ?? null
+  return (value.find((item) => isPlainObject(item) && item.type === type) as Record<string, unknown> | undefined) ?? null
 }
 
 function stringList(value: unknown): string[] {
@@ -211,12 +248,12 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
   const metadata = parseObject(parsed.metadata)
   const options = parseObject(context.input?.options)
   const content = contentText(parsed.content)
-  const error = parsed.error === true
-    ? firstDisplayValue(parsed.message, parsed.error_message, content)
-    : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
-  const explicitTarget = action === "launch" && !error
-    ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content)
-    : null
+  const error =
+    parsed.error === true
+      ? firstDisplayValue(parsed.message, parsed.error_message, content)
+      : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
+  const explicitTarget =
+    action === "launch" && !error ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content) : null
 
   return {
     kind: "lifecycle",
@@ -237,14 +274,20 @@ function parseInspectCard(context: ToolCardContext): RuntimeCard | null {
   const process = parseObject(parsed.process)
   const metadata = parseObject(parsed.metadata)
   const health = firstDisplayValue(parsed.health, parsed.app_health, parsed.status, parsed.state)
-  const details = firstDisplayValue(parsed.summary, parsed.message, contentText(parsed.content), parsed.scrollback)
+  const details = firstDisplayValue(parsed.summary, parsed.message, contentText(parsed.content), parsed.xml, parsed.tree, parsed.scrollback)
 
   return {
     kind: "inspect",
     health,
     framework: firstDisplayValue(parsed.framework, parsed.detected_framework, parsed.framework_name, metadata.framework),
     ports: portList(parsed.ports) ?? portList(parsed.port) ?? portList(metadata.ports) ?? portList(metadata.port),
-    processState: firstDisplayValue(parsed.process_state, process.state, process.status, parsed.pid ? `pid ${displayValue(parsed.pid)}` : null, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
+    processState: firstDisplayValue(
+      parsed.process_state,
+      process.state,
+      process.status,
+      parsed.pid ? `pid ${displayValue(parsed.pid)}` : null,
+      metadata.pid ? `pid ${displayValue(metadata.pid)}` : null
+    ),
     warnings: stringList(parsed.warnings).concat(stringList(parsed.warning)),
     details,
     raw: parsed
@@ -279,7 +322,7 @@ function parseInputCard(context: ToolCardContext): RuntimeCard | null {
       target: firstDisplayValue(event.target, event.element, event.selector, parsed.target, parsed.element),
       valueSummary: valuePreview(event.value ?? event.text ?? event.data ?? event.input ?? event.keys),
       key: firstDisplayValue(event.key, event.code),
-      delivered: typeof parsed.delivered === "boolean" ? parsed.delivered : (error ? false : null),
+      delivered: typeof parsed.delivered === "boolean" ? parsed.delivered : error ? false : null,
       error,
       message
     },
@@ -317,19 +360,38 @@ function parseSnapshotCard(context: ToolCardContext): RuntimeCard | null {
   const metadata = parseObject(parsed.metadata)
   const options = parseObject(context.input?.options)
   const image = imageDataUrl(parsed.content)
-  const error = parsed.error === true ? firstDisplayValue(parsed.message, contentText(parsed.content), parsed.error_message) : firstDisplayValue(parsed.error, parsed.error_message)
+  const error =
+    parsed.error === true
+      ? firstDisplayValue(parsed.message, contentText(parsed.content), parsed.error_message)
+      : firstDisplayValue(parsed.error, parsed.error_message)
 
   return {
     kind: "snapshot",
     snapshot: {
-      imageUrl: firstDisplayValue(parsed.image_url, parsed.preview_url, parsed.thumbnail_url, parsed.file_path, metadata.image_url, metadata.preview_url),
+      imageUrl: firstDisplayValue(
+        parsed.image_url,
+        parsed.preview_url,
+        parsed.thumbnail_url,
+        parsed.file_path,
+        parsed.latest_frame_url,
+        metadata.image_url,
+        metadata.preview_url
+      ),
       imageDataUrl: image.dataUrl,
-      mimeType: firstDisplayValue(parsed.mime_type, parsed.mimeType, metadata.mime_type, image.mimeType),
+      mimeType: firstDisplayValue(parsed.mime_type, parsed.mimeType, parsed.content_type, metadata.mime_type, image.mimeType),
+      kind: firstDisplayValue(parsed.kind, metadata.kind),
+      documentId: firstDisplayValue(parsed.document_id, parsed.artifact_id, metadata.document_id),
       pageUrl: firstDisplayValue(parsed.page_url, parsed.url, metadata.page_url, metadata.url),
-      title: firstDisplayValue(parsed.title, parsed.page_title, metadata.title),
-      viewport: viewportLabel(parsed.viewport, metadata.viewport, parsed.viewport_width && parsed.viewport_height ? { width: parsed.viewport_width, height: parsed.viewport_height } : null),
-      target: firstDisplayValue(options.target, options.element, parsed.target, parsed.element),
-      createdAt: firstDisplayValue(parsed.created_at, parsed.captured_at, metadata.created_at),
+      title: firstDisplayValue(parsed.title, parsed.page_title, metadata.title, parsed.kind),
+      viewport: viewportLabel(
+        parsed.viewport,
+        metadata.viewport,
+        parsed.viewport_width && parsed.viewport_height ? { width: parsed.viewport_width, height: parsed.viewport_height } : null,
+        metadata.frame_width && metadata.frame_height ? { width: metadata.frame_width, height: metadata.frame_height } : null
+      ),
+      target: firstDisplayValue(options.target, options.element, parsed.target, parsed.element, parsed.kind),
+      createdAt: firstDisplayValue(parsed.created_at, parsed.captured_at, parsed.latest_frame_at, metadata.created_at),
+      warning: firstDisplayValue(parsed.warning, metadata.warning),
       error,
       raw: parsed
     }
@@ -341,12 +403,22 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
   if (!isPlainObject(parsed)) return null
   const artifact = parseObject(parsed.artifact ?? parsed.media ?? parsed)
   const image = imageDataUrl(parsed.content)
-  const error = parsed.error === true ? firstDisplayValue(parsed.message, contentText(parsed.content), parsed.error_message) : firstDisplayValue(parsed.error, parsed.error_message)
-  const id = firstDisplayValue(artifact.id, artifact.artifact_id, parsed.artifact_id)
-  const name = firstDisplayValue(artifact.name, artifact.filename, artifact.title)
+  const error =
+    parsed.error === true
+      ? firstDisplayValue(parsed.message, contentText(parsed.content), parsed.error_message)
+      : firstDisplayValue(parsed.error, parsed.error_message)
+  const id = firstDisplayValue(artifact.id, artifact.artifact_id, artifact.document_id, parsed.artifact_id, parsed.document_id)
+  const name = firstDisplayValue(artifact.name, artifact.filename, artifact.title, artifact.kind)
   const path = firstDisplayValue(artifact.path, artifact.file_path)
   const link = firstDisplayValue(artifact.link, artifact.url, artifact.href)
-  const previewUrl = firstDisplayValue(artifact.preview_url, artifact.thumbnail_url, artifact.image_url, image.dataUrl)
+  const previewUrl = firstDisplayValue(
+    artifact.preview_url,
+    artifact.thumbnail_url,
+    artifact.image_url,
+    artifact.file_path,
+    artifact.latest_frame_url,
+    image.dataUrl
+  )
   const downloadUrl = firstDisplayValue(artifact.download_url, artifact.file_url, path)
   const missing = parsed.missing === true || parsed.found === false || (!error && !id && !name && !path && !link && !previewUrl && !downloadUrl)
 
@@ -355,7 +427,7 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
     artifact: {
       id,
       name,
-      type: firstDisplayValue(artifact.type, artifact.artifact_type, artifact.kind, context.input?.artifact_type, image.mimeType),
+      type: firstDisplayValue(artifact.type, artifact.artifact_type, artifact.content_type, image.mimeType, artifact.kind, context.input?.artifact_type),
       path,
       link,
       previewUrl,
@@ -369,7 +441,8 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
 
 function errorMessage(context: ToolCardContext): string | null {
   if (!context.resultError) return null
-  if (isPlainObject(context.parsedResult)) return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? displayValue(context.resultBody)
+  if (isPlainObject(context.parsedResult))
+    return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? displayValue(context.resultBody)
   return displayValue(context.resultBody)
 }
 
@@ -476,7 +549,7 @@ function collapsedSummary(context: ToolCardContext) {
     const noun = lifecycleNoun(card.action)
     if (card.error) return `Runtime ${noun} failed`
     const session = card.session ? ` #${card.session.id}` : ""
-    const status = card.status ?? (card.action === "stop" ? card.session?.state ?? "stopped" : "succeeded")
+    const status = card.status ?? (card.action === "stop" ? (card.session?.state ?? "stopped") : "succeeded")
     const destination = card.target ?? card.url
     return `Runtime ${noun}${session}: ${status}${destination ? ` at ${destination}` : ""}`
   }
@@ -486,7 +559,9 @@ function collapsedSummary(context: ToolCardContext) {
     return pieces.length > 0 ? `Runtime inspect: ${pieces.join(", ")}${warningLabel}` : `Runtime inspect${warningLabel || ": no health fields"}`
   }
   if (card.kind === "logs") {
-    return card.entries.length === 0 ? "Runtime logs: no new lines" : `Runtime logs: ${plural(card.entries.length, "line")}${card.nextCursor ? `, cursor ${card.nextCursor}` : ""}`
+    return card.entries.length === 0
+      ? "Runtime logs: no new lines"
+      : `Runtime logs: ${plural(card.entries.length, "line")}${card.nextCursor ? `, cursor ${card.nextCursor}` : ""}`
   }
   if (card.kind === "input") {
     if (card.event.error) return `Runtime input failed: ${card.event.error}`
@@ -583,7 +658,9 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
     <div className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={lease.state ?? "unknown"} tone={stateToneForLease(lease)} />
-        <span className="font-mono text-gray-700 dark:text-gray-300">{title} #{lease.id}</span>
+        <span className="font-mono text-gray-700 dark:text-gray-300">
+          {title} #{lease.id}
+        </span>
         {lease.owner ? <Badge>{lease.owner}</Badge> : null}
         {lease.mode ? <Badge>{lease.mode}</Badge> : null}
       </div>
@@ -621,7 +698,9 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
         ) : null}
         <div>
           <SectionLabel>Control owner</SectionLabel>
-          <div className="mt-1"><LeaseDetails lease={session.activeAgentInputLease} /></div>
+          <div className="mt-1">
+            <LeaseDetails lease={session.activeAgentInputLease} />
+          </div>
         </div>
         <MetadataRows values={session.metadata} />
         {objectEntries(session.capabilities).length > 0 ? (
@@ -640,7 +719,9 @@ function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
 
   return (
     <div className="grid gap-1 sm:grid-cols-3">
-      {visibleRows.map(([label, value]) => <Row key={label} label={label} value={value} />)}
+      {visibleRows.map(([label, value]) => (
+        <Row key={label} label={label} value={value} />
+      ))}
     </div>
   )
 }
@@ -656,11 +737,13 @@ function RawRuntimeDetails({ value }: { value: unknown }) {
 function RuntimeErrorCard({ message }: { message: string }) {
   return (
     <CardShell>
-      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-        {message}
-      </div>
+      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{message}</div>
     </CardShell>
   )
+}
+
+function RuntimeNotice({ tone, message }: { tone: BannerTone; message: string }) {
+  return <div className={`rounded border px-2 py-1 ${BANNER_TONE_CLASSES[tone]}`}>{message}</div>
 }
 
 function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "lifecycle" }> }) {
@@ -668,21 +751,25 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={card.error ? "failed" : card.status ?? (card.action === "stop" ? "stopped" : "succeeded")} tone={tone} />
+        <StatePill state={card.error ? "failed" : (card.status ?? (card.action === "stop" ? "stopped" : "succeeded"))} tone={tone} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">Runtime {lifecycleNoun(card.action)}</span>
         {card.session ? <span className="font-mono text-gray-700 dark:text-gray-300">#{card.session.id}</span> : null}
       </div>
       {card.error ? (
-        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{card.error}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {card.error}
+        </div>
       ) : null}
-      <FieldRows rows={[
-        ["State", card.session?.state ?? card.status],
-        ["Command", card.command],
-        ["URL", card.url],
-        ["Launch target", card.target],
-        ["Provider", card.session?.providerKey ?? null],
-        ["Workspace", card.session?.workspaceRef ?? null]
-      ]} />
+      <FieldRows
+        rows={[
+          ["State", card.session?.state ?? card.status],
+          ["Command", card.command],
+          ["URL", card.url],
+          ["Launch target", card.target],
+          ["Provider", card.session?.providerKey ?? null],
+          ["Workspace", card.session?.workspaceRef ?? null]
+        ]}
+      />
       {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
       <RawRuntimeDetails value={card.raw} />
     </CardShell>
@@ -692,17 +779,21 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
 function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "inspect" }> }) {
   return (
     <CardShell>
-      <FieldRows rows={[
-        ["Health", card.health],
-        ["Framework", card.framework],
-        ["Ports", card.ports],
-        ["Process", card.processState]
-      ]} />
+      <FieldRows
+        rows={[
+          ["Health", card.health],
+          ["Framework", card.framework],
+          ["Ports", card.ports],
+          ["Process", card.processState]
+        ]}
+      />
       {card.warnings.length > 0 ? (
         <div>
           <SectionLabel>Warnings</SectionLabel>
           <ul className="mt-1 list-disc space-y-1 pl-4 text-amber-800 dark:text-amber-200">
-            {card.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+            {card.warnings.map((warning, index) => (
+              <li key={`${warning}-${index}`}>{warning}</li>
+            ))}
           </ul>
         </div>
       ) : null}
@@ -719,20 +810,18 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
 function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }> }) {
   return (
     <CardShell>
-      <FieldRows rows={[
-        ["Lines", String(card.entries.length)],
-        ["Cursor", card.cursor],
-        ["Next cursor", card.nextCursor]
-      ]} />
+      <FieldRows
+        rows={[
+          ["Lines", String(card.entries.length)],
+          ["Cursor", card.cursor],
+          ["Next cursor", card.nextCursor]
+        ]}
+      />
       {card.entries.length === 0 ? (
         <EmptyState>No new Runtime log lines.</EmptyState>
       ) : (
         <Disclosure label="Log preview">
-          <FilterableList
-            itemText={(entry) => entry}
-            items={card.entries}
-            placeholder="Filter log lines"
-          >
+          <FilterableList itemText={(entry) => entry} items={card.entries} placeholder="Filter log lines">
             {(entries) => <PreviewTextBlock maxLines={40} text={entries.join("\n")} />}
           </FilterableList>
         </Disclosure>
@@ -753,16 +842,24 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
         {card.event.target ? <Badge>{card.event.target}</Badge> : null}
       </div>
       {card.event.error || card.event.message ? (
-        <div className={card.event.error ? "rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}>
+        <div
+          className={
+            card.event.error
+              ? "rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              : "text-gray-600 dark:text-gray-300"
+          }
+        >
           {card.event.message ?? card.event.error}
         </div>
       ) : null}
-      <FieldRows rows={[
-        ["Type", card.event.type],
-        ["Target", card.event.target],
-        ["Value", card.event.valueSummary],
-        ["Key", card.event.key]
-      ]} />
+      <FieldRows
+        rows={[
+          ["Type", card.event.type],
+          ["Target", card.event.target],
+          ["Value", card.event.valueSummary],
+          ["Key", card.event.key]
+        ]}
+      />
       <Disclosure label="Input event">
         <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(card.rawEvent, null, 2)}</pre>
       </Disclosure>
@@ -778,7 +875,14 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
   return (
     <CardShell>
       {snapshot.error ? (
-        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{snapshot.error}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {snapshot.error}
+        </div>
+      ) : null}
+      {snapshot.warning ? (
+        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {snapshot.warning}
+        </div>
       ) : null}
       {imageUrl ? (
         <MediaPreviewShell
@@ -798,6 +902,8 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
               { label: "Title", value: snapshot.title },
               { label: "Viewport", value: snapshot.viewport },
               { label: "Target", value: snapshot.target },
+              { label: "Kind", value: snapshot.kind },
+              { label: "Document", value: snapshot.documentId, copyValue: snapshot.documentId },
               { label: "Type", value: snapshot.mimeType },
               { label: "Captured", value: snapshot.createdAt },
               { label: "Source", value: imageUrl, copyValue: imageUrl }
@@ -808,14 +914,18 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
       ) : (
         <EmptyState>No snapshot preview was returned.</EmptyState>
       )}
-      <FieldRows rows={[
-        ["Page", snapshot.pageUrl],
-        ["Title", snapshot.title],
-        ["Viewport", snapshot.viewport],
-        ["Target", snapshot.target],
-        ["Type", snapshot.mimeType],
-        ["Captured", snapshot.createdAt]
-      ]} />
+      <FieldRows
+        rows={[
+          ["Page", snapshot.pageUrl],
+          ["Title", snapshot.title],
+          ["Viewport", snapshot.viewport],
+          ["Target", snapshot.target],
+          ["Kind", snapshot.kind],
+          ["Document", snapshot.documentId],
+          ["Type", snapshot.mimeType],
+          ["Captured", snapshot.createdAt]
+        ]}
+      />
       <RawRuntimeDetails value={snapshot.raw} />
     </CardShell>
   )
@@ -831,7 +941,9 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
   return (
     <CardShell>
       {artifact.error ? (
-        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{artifact.error}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {artifact.error}
+        </div>
       ) : artifact.missing ? (
         <EmptyState>No Runtime artifact was returned.</EmptyState>
       ) : (
@@ -867,17 +979,27 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
           modalLabel="Runtime artifact preview"
         />
       ) : null}
-      <FieldRows rows={[
-        ["ID", artifact.id],
-        ["Name", artifact.name],
-        ["Type", artifact.type],
-        ["Path", artifact.path],
-        ["Link", link],
-        ["Download", downloadUrl]
-      ]} />
+      <FieldRows
+        rows={[
+          ["ID", artifact.id],
+          ["Name", artifact.name],
+          ["Type", artifact.type],
+          ["Path", artifact.path],
+          ["Link", link],
+          ["Download", downloadUrl]
+        ]}
+      />
       <div className="flex flex-wrap gap-2">
-        {link ? <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={link}>Open artifact</a> : null}
-        {downloadUrl ? <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={downloadUrl}>Download</a> : null}
+        {link ? (
+          <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={link}>
+            Open artifact
+          </a>
+        ) : null}
+        {downloadUrl ? (
+          <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={downloadUrl}>
+            Download
+          </a>
+        ) : null}
       </div>
       <RawRuntimeDetails value={artifact.raw} />
     </CardShell>
@@ -897,7 +1019,9 @@ function renderExpanded(context: ToolCardContext) {
           <EmptyState>No Runtime sessions found.</EmptyState>
         ) : (
           <div className="space-y-2">
-            {card.sessions.map((session) => <RuntimeSessionBlock key={session.id} session={session} />)}
+            {card.sessions.map((session) => (
+              <RuntimeSessionBlock key={session.id} session={session} />
+            ))}
           </div>
         )}
         <RawRuntimeDetails value={card.raw} />
@@ -928,11 +1052,10 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "acquire") {
     const confirmed = card.lease?.owner === "agent" && card.lease.state === "active"
+    const message = confirmed ? "Agent owns Runtime control." : (card.error ?? "Runtime control ownership was not confirmed.")
     return (
       <CardShell>
-        <div className={confirmed ? "rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300" : "rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"}>
-          {confirmed ? "Agent owns Runtime control." : card.error ?? "Runtime control ownership was not confirmed."}
-        </div>
+        <RuntimeNotice message={message} tone={confirmed ? "success" : "warning"} />
         <LeaseDetails lease={card.lease} />
         <RawRuntimeDetails value={card.raw} />
       </CardShell>
@@ -943,12 +1066,14 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         {card.error ? (
-          <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{card.error}</div>
+          <RuntimeNotice message={card.error} tone="error" />
         ) : card.released.length === 0 ? (
           <EmptyState>No active agent Runtime control leases were held.</EmptyState>
         ) : (
           <div className="space-y-2">
-            {card.released.map((lease) => <LeaseDetails key={lease.id} lease={lease} title="Released lease" />)}
+            {card.released.map((lease) => (
+              <LeaseDetails key={lease.id} lease={lease} title="Released lease" />
+            ))}
           </div>
         )}
         <RawRuntimeDetails value={card.raw} />

@@ -206,18 +206,22 @@ first request a short-lived control lease with `runtime_acquire_control` and
 release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
-and `runtime_stop` tears the session down. This first slice covers a browser
-dev-server session, watchable from Coding Mode's right sidebar in a Runtime
-tab (once the chat has started a session): session state, a generic visual
-frame viewer for providers that advertise screenshot/frame streams, latest
-captured screenshots as fallback, a scrolling log tail, and provider details
-like the dev server's URL. The panel also gives the operator a Take Control /
-Abort Agent Control button that immediately takes over input from the agent,
-lets the operator click, paste, or type into visual providers such as Browser
-while that input lease is active, and includes a button to capture a fresh
-screenshot on demand. Control leases are short-lived by design, but the
-panel renews an active operator lease automatically in the background, so
-staying on the tab keeps control without it silently expiring mid-task.
+and `runtime_stop` tears the session down. Runtime providers include browser
+dev-server sessions and Android emulator sessions. Browser sessions navigate
+and inspect a running web app; Android emulator sessions create or reuse an
+AVD, install APKs through Gradle/ADB, launch apps, capture emulator PNG frames,
+inspect the UI Automator hierarchy, and page `logcat`. Both are watchable from
+Coding Mode's right sidebar in a Runtime tab (once the chat has started a
+session): session state, a generic visual frame viewer for providers that
+advertise screenshot/frame streams, latest captured screenshots as fallback, a
+scrolling log tail, and provider details. The panel also gives the operator a
+Take Control / Abort Agent Control button that immediately takes over input
+from the agent, lets the operator click, paste, or type into visual providers
+such as Browser or Android emulator while that input lease is active, and
+includes a button to capture a fresh screenshot on demand. Control leases are
+short-lived by design, but the panel renews an active operator lease
+automatically in the background, so staying on the tab keeps control without it
+silently expiring mid-task.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
@@ -1337,8 +1341,9 @@ flow, while Linear can poll a team and optional label filter.
 
 Admins can open **Admin → Plugins** to inspect the plugin registry without
 checking the Gemfile. Each plugin shows its own icon — a real brand mark for
-plugins like Ruby, Rails, JavaScript, Python, Django, Go, GitHub, Discord,
-Linear, and Claude, and a shared SPQR-eagle placeholder for plugins with no
+plugins like Ruby, Rails, JavaScript, Java, Kotlin, Android, Python, Django,
+Go, GitHub, Discord, Linear, and Claude, and a shared SPQR-eagle placeholder
+for plugins with no
 natural mark of their own — the same icons also appear in agent/chat provider
 pickers and next to a Workflow's detected-language list. The page lists each
 registered plugin's version, enabled state, default enabled policy,
