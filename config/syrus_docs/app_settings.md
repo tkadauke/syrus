@@ -59,6 +59,14 @@ Maximum number of PRs that can participate in a single merge train. `merge_train
 
 Allow new user registrations. Set to `false` on private instances.
 
+### beta_mode_enabled
+
+**Type:** boolean · **Default:** false
+
+Instance-level opt-in that allows admins to explicitly enable beta or
+experimental capabilities, such as beta feature flags and experimental bundled
+plugins. Turning on beta mode does not enable any feature or plugin by itself.
+
 ### polling_paused
 
 **Type:** boolean · **Default:** false

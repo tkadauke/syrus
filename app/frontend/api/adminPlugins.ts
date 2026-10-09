@@ -46,7 +46,7 @@ export type AdminPlugin = {
 }
 
 export type AdminPluginsPayload = {
-  experimental_plugins_enabled?: boolean
+  beta_mode_enabled?: boolean
   plugins: AdminPlugin[]
   // Present on the index response (filtered by the FilterBar chip tree);
   // absent from the enable/disable cascade responses, which always return
@@ -71,7 +71,7 @@ export function fetchAdminPlugins(search = "") {
 }
 
 export function fetchAdminPlugin(name: string) {
-  return getJson<{ experimental_plugins_enabled?: boolean; plugin: AdminPlugin }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
+  return getJson<{ beta_mode_enabled?: boolean; plugin: AdminPlugin }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
 }
 
 export function enableAdminPlugin(name: string) {
@@ -85,8 +85,8 @@ export function disableAdminPlugin(name: string, confirmCascade = false) {
   )
 }
 
-export function enableExperimentalPluginsForInstance() {
+export function enableBetaModeForInstance() {
   return patchJson<unknown>("/api/v1/app/admin/settings", {
-    app_setting: { experimental_plugins_enabled: true }
+    app_setting: { beta_mode_enabled: true }
   })
 }

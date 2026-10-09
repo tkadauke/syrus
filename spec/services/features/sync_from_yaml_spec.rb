@@ -27,7 +27,8 @@ RSpec.describe Features::SyncFromYaml do
           category: Example
           name: Example Feature
           description: An example feature.
-          default: true
+          experimental: true
+          default: false
     YAML
 
     described_class.call(config_path: path)
@@ -37,8 +38,9 @@ RSpec.describe Features::SyncFromYaml do
       category: "Example",
       name: "Example Feature",
       description: "An example feature.",
-      default_enabled: true,
-      enabled: true
+      experimental: true,
+      default_enabled: false,
+      enabled: false
     )
   ensure
     path&.delete if path&.exist?
@@ -65,6 +67,7 @@ RSpec.describe Features::SyncFromYaml do
     expect(declarations.find { |d| d[:slug] == "example_feature" }).to include(
       type: :boolean,
       default_enabled: false,
+      experimental: false,
       operational_meaning: "An example feature.",
       name_i18n_key: "features.slugs.example_feature.name",
       description_i18n_key: "features.slugs.example_feature.description"

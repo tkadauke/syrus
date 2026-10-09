@@ -27,7 +27,8 @@ module Features
           category: declaration.fetch(:category),
           name: declaration.fetch(:name),
           description: declaration[:description],
-          default_enabled: declaration.fetch(:default_enabled)
+          default_enabled: declaration.fetch(:default_enabled),
+          experimental: declaration.fetch(:experimental, false)
         )
         feature.enabled = feature.default_enabled if feature.new_record?
         feature.save!

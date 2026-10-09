@@ -2,7 +2,26 @@
 
 Syrus uses feature flags to gate experimental and operational behaviors. Flags are declared in `config/features.yml`, parsed through `FeatureRegistry`, and toggled in the admin UI under the Features tab (or via Rails console: `Feature.find_by(slug: 'slug').update(enabled: true)`).
 
-All flags are typed booleans. Most default to `false` (disabled); `epicless_job_bundling`, `coding_mode`, and `persistent_mcp_sidecar` default to `true` (enabled) — all are code-complete, well-tested, and gated by product/security choice rather than incompleteness. `local_mode` defaults to `false`: it opens an exec bridge onto the operator's own machine, which is too consequential for a Labs-default-on toggle on a fresh install even though the feature itself is mature. `visual_review` no longer has an instance-wide Feature flag at all (see its own section below) — it is unconditionally on by default, controllable only per repository via `.syrus.yml`. An instance that explicitly turned a still-flagged feature on or off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from `default` for a brand-new `Feature` row, never overwriting an existing operator override when the YAML default changes. Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
+All flags are typed booleans. A declaration can also set `experimental: true`
+to mark a beta/experimental capability. Those flags stay visible in Admin →
+Features and carry a Beta/Experimental badge, but admins cannot enable them
+until the instance has enabled beta mode (`AppSetting.beta_mode_enabled`).
+Beta mode is a broad instance-level capability gate: it does not enable any
+feature or plugin by itself, it only allows admins to explicitly turn on
+beta/experimental capabilities. Most flags default to `false` (disabled);
+`epicless_job_bundling`, `coding_mode`, and `persistent_mcp_sidecar` default to
+`true` (enabled) — all are code-complete, well-tested, and gated by
+product/security choice rather than incompleteness. `local_mode` defaults to
+`false`: it opens an exec bridge onto the operator's own machine, which is too
+consequential for a Labs-default-on toggle on a fresh install. `visual_review`
+no longer has an instance-wide Feature flag at all (see its own section below)
+— it is unconditionally on by default, controllable only per repository via
+`.syrus.yml`. An instance that explicitly turned a still-flagged feature on or
+off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from
+`default` for a brand-new `Feature` row, never overwriting an existing operator
+override when the YAML default changes. Keep the YAML declaration,
+`FeatureRegistry` metadata, and this reference aligned when adding or changing
+a flag.
 
 ## Hidden flags
 
@@ -12,7 +31,7 @@ A hidden flag must default to `false`. The moment a flag is code-complete enough
 
 ## chat_speech_to_text
 
-**Category:** Labs
+**Category:** Labs · **Beta/experimental**
 
 Enables microphone dictation in Syrus Chat. `ChatSpeechToText::Capability` combines the flag with a configured backend provider to expose up to three modes: `backend_streaming` (an ActionCable channel, `ChatDictationChannel`, which rejects the subscription unless the flag is enabled), `backend_batch` (`POST /api/v1/app/chats/:chat_id/speech_to_text`, gated by a `require_speech_to_text_feature` `before_action`), and a client-side Web Speech API `browser` fallback that needs no backend.
 
@@ -41,7 +60,7 @@ Reclamation is safe and transparent: before deleting, standalone default-branch 
 
 ## local_mode
 
-**Category:** Labs · **Off by default**
+**Category:** Labs · **Beta/experimental** · **Off by default**
 
 Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone. Pairing the CLI to a chat requires a `--chat`/`--token` command copied from the chat UI's Local Mode banner — see the Local Mode documentation for the full pairing flow. Off by default for fresh installs: it opens an exec bridge onto the operator's own machine, which is reasonable for a trusted operator who opts in but too consequential to ship on by default.
 
@@ -51,7 +70,7 @@ Visual review — the headless-browser QA pass the worker agent runs against its
 
 ## chat_context_compaction
 
-**Category:** Operations
+**Category:** Operations · **Beta/experimental**
 
 **Currently has no effect.** `ChatContextCompactor#enabled_for_chat?` is
 hard-coded to `false`: this flag's only consumer was the admin Supervisor
