@@ -41,6 +41,7 @@ class TargetGraph
       uv.lock
       requirements.txt
     ].freeze
+    DEFAULT_GRADER_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
     def self.for_target(workspace_path:, graph:, label:)
       new(workspace_path: workspace_path, graph: graph).for_target(label)
@@ -133,10 +134,18 @@ class TargetGraph
     end
 
     def worker_environment_metadata_for(target)
-      capabilities = target.capabilities&.to_h.to_h
+      capabilities = effective_execution_capabilities_for(target)
       return worker_environment_metadata if capabilities.blank?
 
       worker_environment_metadata.deep_merge("capabilities" => capabilities)
+    end
+
+    def effective_execution_capabilities_for(target)
+      capabilities = target.capabilities&.to_h.to_h
+      return capabilities if capabilities.present?
+      return DEFAULT_GRADER_CAPABILITIES if target.kind == "grader"
+
+      {}
     end
 
     def source_file_entries(relevant_targets)
