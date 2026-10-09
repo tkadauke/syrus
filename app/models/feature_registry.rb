@@ -10,6 +10,7 @@ class FeatureRegistry
     :category,
     :name,
     :description,
+    :experimental,
     :operational_meaning,
     :name_i18n_key,
     :description_i18n_key
@@ -22,6 +23,7 @@ class FeatureRegistry
         category: category,
         name: name,
         description: description,
+        experimental: experimental,
         operational_meaning: operational_meaning,
         name_i18n_key: name_i18n_key,
         description_i18n_key: description_i18n_key
@@ -46,6 +48,7 @@ class FeatureRegistry
         category: raw.fetch("category").to_s,
         name: raw.fetch("name").to_s,
         description: raw["description"],
+        experimental: ActiveModel::Type::Boolean.new.cast(raw.fetch("experimental", false)),
         operational_meaning: raw["operational_meaning"] || raw["description"],
         name_i18n_key: raw["name_i18n_key"],
         description_i18n_key: raw["description_i18n_key"]
