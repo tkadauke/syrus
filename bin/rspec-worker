@@ -16,7 +16,7 @@ if [ -n "${RSPEC_TAG_ARGS:-}" ]; then
   # shellcheck disable=SC2206
   tag_args=(${RSPEC_TAG_ARGS})
 else
-  tag_args=(--tag ~ci_only)
+  tag_args=(--tag ~ci_only --tag ~work_engine_simulation_assertions)
 fi
 
 exec bin/rspec \
