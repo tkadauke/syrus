@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SectionHeading } from "../components/Heading"
 import { Toggle } from "../components/Toggle"
-import type { ReactNode } from "react"
 import { Button } from "../components/Button"
+import { PanelMessage } from "../components/PanelMessage"
+import { TonePill } from "../components/StatusPill"
 import {
   enableBetaModeForInstance,
   fetchAdminFeatures,
@@ -145,7 +146,7 @@ function FeatureCard({ feature, betaModeEnabled }: { feature: AdminFeature; beta
 }
 
 function StatusBadge({ label }: { label: string }) {
-  return <span className="rounded px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">{label}</span>
+  return <TonePill tone="amber">{label}</TonePill>
 }
 
 function updateCachedFeature(payload: AdminFeaturesPayload | undefined, slug: string, enabled: boolean) {
@@ -158,8 +159,4 @@ function updateCachedFeature(payload: AdminFeaturesPayload | undefined, slug: st
       features: category.features.map((feature) => feature.slug === slug ? { ...feature, enabled } : feature)
     }))
   }
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
