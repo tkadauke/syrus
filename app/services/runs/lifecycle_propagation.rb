@@ -207,6 +207,7 @@ module Runs
 
     def refresh_resource_summary_after_completion!
       RunResourceSummary.refresh_for(run)
+      run.association(:run_resource_summary).reset if run.association_cached?(:run_resource_summary)
     end
 
     def failure_classification_record
