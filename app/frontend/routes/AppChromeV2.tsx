@@ -12,6 +12,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-d
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatProviderOption, type ChatsIndexPayload, type NewChatPayload } from "../api/chats"
 import { getJson, postJson } from "../api/client"
+import { signOut } from "../api/auth"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { fetchAdminMaintenanceTask, fetchMaintenanceSidebar, runMaintenanceTaskAction, type MaintenanceTask } from "../api/maintenanceTasks"
@@ -413,7 +414,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       >
         <SidebarContent
           collapsed={sidebarSplitter.collapsed}
-          csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={isDesktopSidebarViewport}
           featureFlags={data?.feature_flags ?? {}}
           navItems={navItems}
@@ -442,7 +442,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           >
             <SidebarContent
               collapsed={false}
-              csrfToken={data?.csrf_token}
               dashboardSubnavEnabled={isDesktopSidebarViewport}
               featureFlags={data?.feature_flags ?? {}}
               navItems={navItems}
@@ -479,7 +478,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
           <SidebarContent
             collapsed={false}
-            csrfToken={data?.csrf_token}
             dashboardSubnavEnabled={false}
             featureFlags={data?.feature_flags ?? {}}
             navItems={navItems}
@@ -1090,7 +1088,6 @@ function AdminNavAccordion({
 
 function SidebarContent({
   collapsed,
-  csrfToken,
   dashboardSubnavEnabled,
   featureFlags,
   navItems,
@@ -1109,7 +1106,6 @@ function SidebarContent({
   onHoverEnd
 }: {
   collapsed: boolean
-  csrfToken?: string
   dashboardSubnavEnabled: boolean
   featureFlags: Record<string, boolean>
   navItems: SidebarNavItem[]
@@ -1306,8 +1302,8 @@ function SidebarContent({
           <nav aria-label={t("account_aria")}>
             <SettingsPopup
               collapsed={collapsed}
-              csrfToken={csrfToken}
               onCloseDrawer={onCloseDrawer}
+              onNotice={onNotice}
               prefix={prefix}
               showTeamProfile={showTeamProfile}
               user={user}
@@ -1739,17 +1735,37 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   )
 }
 
-function SettingsPopup({ collapsed, csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
+function SettingsPopup({ collapsed, onCloseDrawer, onNotice, prefix, showTeamProfile, user }: {
   collapsed: boolean
-  csrfToken?: string
   onCloseDrawer: () => void
+  onNotice: (message: string | null) => void
   prefix: string
   showTeamProfile: boolean
   user: NonNullable<BootstrapPayload["current_user"]>
 }) {
   const { t } = useTranslation("nav")
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+
+  async function handleSignOut() {
+    setSigningOut(true)
+    try {
+      const payload = await signOut()
+      const currentBootstrap = queryClient.getQueryData<BootstrapPayload>(["bootstrap"])
+      queryClient.clear()
+      if (currentBootstrap) {
+        queryClient.setQueryData<BootstrapPayload>(["bootstrap"], signedOutBootstrapPayload(currentBootstrap))
+      }
+      onCloseDrawer()
+      navigate(withRoutePrefix(payload.redirect_to, prefix), { replace: true })
+    } catch (_error) {
+      setSigningOut(false)
+      onNotice(t("nav:sign_out_failed"))
+    }
+  }
 
   return (
     <div className="relative" ref={menuRef}>
@@ -1774,15 +1790,20 @@ function SettingsPopup({ collapsed, csrfToken, onCloseDrawer, prefix, showTeamPr
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
           {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title={t("nav:admin_title")} to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-          <form action="/session" method="post">
-            {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
-            <Input name="_method" type="hidden" value="delete" />
-            <button className={popupButtonClass()} type="submit">{t("nav:sign_out")}</button>
-          </form>
+          <button className={popupButtonClass()} disabled={signingOut} onClick={handleSignOut} type="button">{t("nav:sign_out")}</button>
         </div>
       ) : null}
     </div>
   )
+}
+
+function signedOutBootstrapPayload(payload: BootstrapPayload): BootstrapPayload {
+  return {
+    ...payload,
+    current_user: null,
+    system_alerts: [],
+    unread_notifications_count: 0
+  }
 }
 
 const THEME_OPTIONS: Array<{ value: Theme; icon: () => ReactElement; labelKey: string }> = [
