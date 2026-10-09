@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./client"
+import { getJson, patchJson, postJson } from "./client"
 import type { FilterSchemaField } from "../components/FilterBar"
 
 export type AdminPluginExtensionPoint = {
@@ -22,6 +22,7 @@ export type AdminPlugin = {
   enabled: boolean
   default_enabled: boolean
   disableable: boolean
+  experimental: boolean
   category: string | null
   category_label: string | null
   description: string | null
@@ -45,6 +46,7 @@ export type AdminPlugin = {
 }
 
 export type AdminPluginsPayload = {
+  experimental_plugins_enabled?: boolean
   plugins: AdminPlugin[]
   // Present on the index response (filtered by the FilterBar chip tree);
   // absent from the enable/disable cascade responses, which always return
@@ -59,16 +61,21 @@ export type AdminPluginDisableConfirmation = {
   dependents: string[]
 }
 
+export type AdminPluginExperimentalBlock = {
+  blocked_experimental_plugins: Array<{ name: string; display_name: string }>
+  message: string
+}
+
 export function fetchAdminPlugins(search = "") {
   return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
 }
 
 export function fetchAdminPlugin(name: string) {
-  return getJson<{ plugin: AdminPlugin }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
+  return getJson<{ experimental_plugins_enabled?: boolean; plugin: AdminPlugin }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
 }
 
 export function enableAdminPlugin(name: string) {
-  return postJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/enable`)
+  return postJson<AdminPluginsPayload | AdminPluginExperimentalBlock>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/enable`)
 }
 
 export function disableAdminPlugin(name: string, confirmCascade = false) {
@@ -76,4 +83,10 @@ export function disableAdminPlugin(name: string, confirmCascade = false) {
     `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`,
     confirmCascade ? { confirm_cascade: true } : undefined
   )
+}
+
+export function enableExperimentalPluginsForInstance() {
+  return patchJson<unknown>("/api/v1/app/admin/settings", {
+    app_setting: { experimental_plugins_enabled: true }
+  })
 }

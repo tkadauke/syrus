@@ -251,6 +251,7 @@ module Filters
       model: PluginRecord,
       chips: {
         "enabled"         => "Filters::Chips::AdminPlugins::Enabled",
+        "experimental"    => "Filters::Chips::AdminPlugins::Experimental",
         "author"          => "Filters::Chips::AdminPlugins::Author",
         "extension_point" => "Filters::Chips::AdminPlugins::ExtensionPoint",
         "category"        => "Filters::Chips::AdminPlugins::Category",

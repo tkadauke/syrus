@@ -353,6 +353,7 @@
     "no_features_body": "Funktionssteuerelemente erscheinen hier, nachdem config/features.yml mindestens eine Funktion deklariert.",
     "enabled": "Aktiviert",
     "disabled": "Deaktiviert",
+    "experimental": "Experimentell",
     "categories": {
       "labs": "Labore",
       "ui_experiments": "UI-Experimente",
@@ -513,6 +514,8 @@
     },
     "required": "Erforderlich",
     "enable": "Aktivieren",
+    "enable_test_environment": "Testumgebung aktivieren",
+    "experimental_opt_in_body": "Dieses Plugin ist in diesem Syrus-Build verfügbar, aber diese Instanz hat experimentelle Plugins nicht aktiviert.",
     "disable": "Deaktivieren",
     "saving": "Speichert...",
     "error_toggle": "Plugin konnte nicht aktualisiert werden.",

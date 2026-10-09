@@ -6,6 +6,7 @@ module AdminMysql
   end
 
   syrus_plugin "admin_mysql" do
+    experimental true
     display_name "Admin MySQL"
     description "Live MySQL diagnostics for production operators."
     long_description "Admin MySQL exposes the live state of a Syrus instance's MySQL server: process list, connection pressure, slow-log configuration, statement digests, and targeted query termination. It is intentionally operator-facing and disabled by default because it surfaces database internals and control actions.\n\nUse this plugin when a deployment runs against MySQL and needs real-time production diagnosis without shelling into the database pod. SQLite-backed installations do not need it."

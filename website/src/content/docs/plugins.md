@@ -50,6 +50,15 @@ repositories or users that need it.
 Some plugins may be non-disableable because they provide core surfaces for a
 given distribution. Most should be disableable.
 
+Some bundled plugins are marked experimental. They remain visible in Admin ->
+Plugins and are still part of the installed Syrus build, but a self-hosted
+instance must explicitly opt into experimental plugins before enabling them.
+When an experimental plugin is disabled and the instance has not opted in, the
+Admin Plugins page shows an Experimental badge and an Enable test environment
+action. The same server-side guard applies to API calls and dependency
+cascades, so a stable plugin cannot be enabled if that action would also turn
+on an experimental dependency.
+
 A disabled plugin is not loaded. Its code stays resolvable, so enabling it
 takes effect immediately without a restart, but Syrus does not pay to load
 features nobody can reach. Migrations are the exception and always run at

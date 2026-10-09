@@ -28,6 +28,17 @@ RSpec.describe Admin::Plugins::Filter do
     expect(filter_for(tree).apply(scope).pluck(:name)).to eq([ "disabled-plugin" ])
   end
 
+  it "filters by the experimental chip" do
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true)
+
+    tree = { "and" => [ { "field" => "experimental", "op" => "is", "value" => "experimental" } ] }
+
+    scope = scope_for("stable-plugin", "experimental-plugin")
+    expect(filter_for(tree).apply(scope).pluck(:name)).to eq([ "experimental-plugin" ])
+  end
+
   it "filters by the author chip" do
     Syrus::PluginRegistry.reset!
     Syrus::PluginRegistry.register(name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")

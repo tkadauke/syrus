@@ -76,7 +76,7 @@ module Syrus
     class Definition
       SCALARS = %i[
         display_name description long_description homepage icon_url author category
-        version default_enabled disableable home_queue tick_interval prepare_priority
+        version default_enabled disableable experimental home_queue tick_interval prepare_priority
       ].freeze
 
       LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema].freeze
@@ -87,7 +87,7 @@ module Syrus
         @name = name
         @namespace = namespace
         @lib_dir = lib_dir
-        @scalars = { default_enabled: true, disableable: true, home_queue: :default, prepare_priority: 100 }
+        @scalars = { default_enabled: true, disableable: true, experimental: false, home_queue: :default, prepare_priority: 100 }
         @lists = {}
         @provides = {}
         @routes = []
