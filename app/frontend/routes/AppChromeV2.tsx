@@ -710,13 +710,15 @@ function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["sys
 function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string; onDismiss: () => void }) {
   const { t } = useTranslation("nav")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [reauthorizingProvider, setReauthorizingProvider] = useState<ConnectableAgentProvider | null>(null)
-  const action = useMutation({
+  const action = useMutation<{ redirect_to?: string } | null, Error, Extract<SystemAlertAction, { path: string }>>({
     mutationFn: (payload: Extract<SystemAlertAction, { path: string }>) => postJson(payload.path, payload.params || {}),
-    onSuccess: () => {
+    onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       void queryClient.invalidateQueries({ queryKey: ["chats"] })
+      if (payload?.redirect_to) navigate(withRoutePrefix(payload.redirect_to, prefix))
     }
   })
   const tone = {

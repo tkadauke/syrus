@@ -745,6 +745,7 @@
   "attention_reason_fallback": "Erfordert Aufmerksamkeit: {{reason}}",
   "attention_fork_pr_closed": "Der Fork-Review-PR wurde geschlossen, ohne zusammengeführt zu werden.",
   "attention_fork_pr_changes_requested": "Ein Reviewer hat Änderungen am Fork-Review-PR angefordert. Der Upstream-PR wird erst erstellt, wenn alle offenen Review-Anfragen aufgelöst sind (genehmigt oder verworfen).",
+  "attention_grader_loop_no_progress": "Eine Reparaturschleife wurde gestoppt, weil die Grader-Fehlermenge nicht kleiner wurde. Prüfen Sie den Schleifenkontext vor einem erneuten Versuch.",
   "attention_upstream_pr_closed": "Der Upstream-PR wurde geschlossen, ohne zusammengeführt zu werden.",
   "attention_upstream_pr_changes_requested": "Ein Reviewer hat Änderungen am Upstream-PR angefordert. Auto-Merge ist pausiert, bis das Review aufgelöst ist (genehmigt oder verworfen).",
   "grace_expired": "Die Nachfrist ist abgelaufen.",
