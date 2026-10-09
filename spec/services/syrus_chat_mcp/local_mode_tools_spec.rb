@@ -61,11 +61,13 @@ RSpec.describe "Local Mode MCP tools" do
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
 
-      response = call_tool(server, "read_file", { path: "README.md" })
+      expect {
+        response = call_tool(server, "read_file", { path: "README.md" })
 
-      expect(response.dig(:result, :isError)).to be_falsey
-      payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
-      expect(payload[:content]).to eq("# Project")
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload[:content]).to eq("# Project")
+      }.not_to change(ChatPendingAction, :count)
     end
 
     it "does not turn daemon results into null" do
@@ -82,14 +84,30 @@ RSpec.describe "Local Mode MCP tools" do
   describe Mcp::Tools::WriteFileTool do
     include_examples "disconnected daemon", "write_file", { path: "foo.rb", content: "# hello" }
 
-    it "dispatches write_file to the daemon" do
-      stub_dispatch("write_file", { path: "app/foo.rb", content: "class Foo; end" }, result: { written: true })
-      allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
+    it "creates a pending action and does not dispatch write_file until confirmed" do
+      daemon_session
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result).and_return({ written: true })
       server = server_with(described_class)
 
-      response = call_tool(server, "write_file", { path: "app/foo.rb", content: "class Foo; end" })
+      expect {
+        response = call_tool(server, "write_file", { path: "app/foo.rb", content: "class Foo; end" })
 
-      expect(response.dig(:result, :isError)).to be_falsey
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload).to include(pending_action_id: be_present, state: "pending")
+      }.to change(ChatPendingAction, :count).by(1)
+        .and change(LocalToolCall, :count).by(0)
+
+      action = ChatPendingAction.last
+      expect(action).to have_attributes(
+        action: "local_tool_call",
+        payload: include("tool_name" => "write_file", "arguments" => include("path" => "app/foo.rb", "content" => "class Foo; end"))
+      )
+
+      expect {
+        action.confirm!(user: user)
+      }.to change(LocalToolCall, :count).by(1)
+      expect(action.reload).to be_confirmed
     end
   end
 
@@ -101,30 +119,99 @@ RSpec.describe "Local Mode MCP tools" do
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
 
-      response = call_tool(server, "list_files", {})
+      expect {
+        response = call_tool(server, "list_files", {})
 
-      expect(response.dig(:result, :isError)).to be_falsey
-      payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
-      expect(payload[:files]).to include("README.md")
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload[:files]).to include("README.md")
+      }.not_to change(ChatPendingAction, :count)
     end
   end
 
   describe Mcp::Tools::RunCommandTool do
     include_examples "disconnected daemon", "run_command", { command: "echo hi" }
 
-    it "dispatches run_command to the daemon" do
-      stub_dispatch("run_command", { command: "bundle exec rspec" }, result: { exit_code: 0, output: "1 example, 0 failures" })
-      allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
+    it "creates a pending action and does not dispatch run_command until confirmed" do
+      daemon_session
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result).and_return({ exit_code: 0, output: "1 example, 0 failures" })
       server = server_with(described_class)
 
-      response = call_tool(server, "run_command", { command: "bundle exec rspec" })
+      expect {
+        response = call_tool(server, "run_command", { command: "bundle exec rspec" })
 
-      expect(response.dig(:result, :isError)).to be_falsey
-      payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
-      expect(payload[:exit_code]).to eq(0)
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload).to include(pending_action_id: be_present, state: "pending")
+      }.to change(ChatPendingAction, :count).by(1)
+        .and change(LocalToolCall, :count).by(0)
+
+      action = ChatPendingAction.last
+      expect(action).to have_attributes(
+        action: "local_tool_call",
+        payload: include("tool_name" => "run_command", "arguments" => include("command" => "bundle exec rspec"))
+      )
+
+      expect {
+        action.confirm!(user: user)
+      }.to change(LocalToolCall, :count).by(1)
+      expect(action.reload).to be_confirmed
+    end
+
+    it "does not dispatch a rejected run_command action and asks again on the next call" do
+      daemon_session
+      server = server_with(described_class)
+      call_tool(server, "run_command", { command: "bundle exec rspec" })
+      action = ChatPendingAction.last
+
+      expect {
+        action.reject!
+      }.not_to change(LocalToolCall, :count)
+
+      expect {
+        response = call_tool(server, "run_command", { command: "bundle exec rspec" })
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload).to include(pending_action_id: be_present, state: "pending")
+      }.to change(ChatPendingAction, :count).by(1)
+        .and change(LocalToolCall, :count).by(0)
+    end
+
+    it "reuses a confirmed exact command approval only within the same chat session" do
+      daemon_session
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result).and_return({ exit_code: 0, output: "ok" })
+      server = server_with(described_class)
+      call_tool(server, "run_command", { command: "bundle exec rspec" })
+      ChatPendingAction.last.confirm!(user: user)
+
+      expect {
+        response = call_tool(server, "run_command", { command: "bundle exec rspec" })
+        expect(response.dig(:result, :isError)).to be_falsey
+      }.to change(LocalToolCall, :count).by(1)
+        .and change(ChatPendingAction, :count).by(0)
+
+      other_chat = ChatSession.create!(user: user, mode: "local")
+      other_chat.create_local_daemon_session!(user: user, auth_token: "other")
+      other_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ described_class ],
+        server_context: { chat_session: other_chat }
+      )
+
+      expect {
+        response = call_tool(other_server, "run_command", { command: "bundle exec rspec" })
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload).to include(pending_action_id: be_present, state: "pending")
+      }.to change(ChatPendingAction, :count).by(1)
+        .and change(LocalToolCall, :count).by(0)
     end
 
     it "propagates daemon-side errors" do
+      chat_session.pending_actions.create!(
+        action: "local_tool_call",
+        payload: { "tool_name" => "run_command", "arguments" => { "command" => "bad-cmd" } },
+        state: "confirmed",
+        confirmed_at: Time.current
+      )
       stub_dispatch("run_command", { command: "bad-cmd" }, error: "command not found")
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
@@ -136,6 +223,12 @@ RSpec.describe "Local Mode MCP tools" do
     end
 
     it "treats daemon error payloads as tool errors" do
+      chat_session.pending_actions.create!(
+        action: "local_tool_call",
+        payload: { "tool_name" => "run_command", "arguments" => { "command" => "bad-cmd" } },
+        state: "confirmed",
+        confirmed_at: Time.current
+      )
       stub_dispatch("run_command", { command: "bad-cmd" }, result: { error: "command not found" })
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
@@ -155,11 +248,13 @@ RSpec.describe "Local Mode MCP tools" do
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
 
-      response = call_tool(server, "git_diff", {})
+      expect {
+        response = call_tool(server, "git_diff", {})
 
-      expect(response.dig(:result, :isError)).to be_falsey
-      payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
-      expect(payload[:diff]).to start_with("diff")
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload[:diff]).to start_with("diff")
+      }.not_to change(ChatPendingAction, :count)
     end
   end
 
@@ -171,11 +266,13 @@ RSpec.describe "Local Mode MCP tools" do
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
 
-      response = call_tool(server, "git_status", {})
+      expect {
+        response = call_tool(server, "git_status", {})
 
-      expect(response.dig(:result, :isError)).to be_falsey
-      payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
-      expect(payload[:status]).to include("On branch")
+        expect(response.dig(:result, :isError)).to be_falsey
+        payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
+        expect(payload[:status]).to include("On branch")
+      }.not_to change(ChatPendingAction, :count)
     end
   end
 
