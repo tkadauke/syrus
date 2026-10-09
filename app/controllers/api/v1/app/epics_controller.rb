@@ -66,6 +66,7 @@ module Api
 
         def create
           attrs = epic_params
+          attrs = resolve_repository_reference(attrs)
           if attrs[:repository_id].present?
             return render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden) unless membership_on_repo?(attrs[:repository_id])
           end
@@ -86,6 +87,7 @@ module Api
         def update
           epic = find_epic
           attrs = epic_params
+          attrs = resolve_repository_reference(attrs)
 
           if attrs[:repository_id].present? && attrs[:repository_id].to_i != epic.repository_id
             return render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden) unless membership_on_repo?(attrs[:repository_id])
@@ -630,6 +632,17 @@ module Api
           RepositoryMembership.at_least("write").exists?(repository_id: repository_id, user: Current.user)
         end
 
+        def resolve_repository_reference(attrs)
+          attrs = attrs.to_h.symbolize_keys
+          slug = attrs.delete(:repository).presence || attrs.delete(:repo).presence
+          return attrs if slug.blank? || attrs[:repository_id].present?
+
+          owner, name = slug.to_s.split("/", 2)
+          repository = Repository.active.find_by(owner: owner, name: name) if owner.present? && name.present?
+          attrs[:repository_id] = repository&.id || 0
+          attrs
+        end
+
         # Best-effort start after a start=true create:
         # the Epic row is already saved, so a non-startable Epic (e.g. product
         # owner actor, empty Epic) degrades to a plain create instead of failing
@@ -754,7 +767,7 @@ module Api
         end
 
         def epic_params
-          params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url, :epic_dependency_policy)
+          params.require(:epic).permit(:title, :description, :repository_id, :repository, :repo, :github_issue_url, :epic_dependency_policy)
         end
       end
     end

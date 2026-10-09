@@ -14,7 +14,8 @@ import (
 // one-click install shells out to `syrus skill install`.
 const skillFileName = "SKILL.md"
 
-const skillContents = `---
+func skillContents() string {
+	return `---
 name: syrus
 description: Drive a Syrus instance (issue→PR automation) through the syrus CLI — review the inbox, inspect jobs and test plans, check out branches locally, approve jobs for landing, and chat with the instance.
 ---
@@ -29,13 +30,13 @@ implementation. This machine has the ` + "`syrus`" + ` CLI installed and signed 
 ## Reviewing work
 
 - ` + "`syrus inbox`" + ` — implemented and failed jobs awaiting a human.
-- ` + "`syrus jobs [--closed] [--repo <owner/name>]`" + ` — list jobs.
-- ` + "`syrus job show JOB-<id>`" + ` — one job's state, PR, workflow history.
-- ` + "`syrus job diff JOB-<id>`" + ` — the job's full diff (review without a checkout).
-- ` + "`syrus job log JOB-<id>`" + ` / ` + "`syrus job watch JOB-<id>`" + ` — run logs, once or live.
+- ` + "`syrus jobs [--closed] [--repo <owner/name>]`" + ` — list active jobs by default.
+- ` + "`syrus job show JOB-<id> --json`" + ` — one job's state, PR, workflow history.
+- ` + "`syrus job diff JOB-<id> --json`" + ` — the job's full diff (review without a checkout).
+- ` + "`syrus job log JOB-<id> --json`" + ` / ` + "`syrus job watch JOB-<id> --json`" + ` — run logs, once or live.
 - ` + "`syrus test-plan [JOB-<id>]`" + ` — the reviewer-facing test plan.
-- ` + "`syrus epic show EPIC-<number>`" + ` / ` + "`syrus epic list`" + ` — epics and their children.
-- ` + "`syrus repo list`" + ` / ` + "`syrus schedule list`" + ` — repositories and recurring tasks.
+- ` + "`syrus epic show EPIC-<number> --json`" + ` / ` + "`syrus epic list --json`" + ` — epics and their children.
+- ` + "`syrus repo list --json`" + ` / ` + "`syrus schedule list`" + ` — repositories and recurring tasks.
 
 ## Acting
 
@@ -43,12 +44,16 @@ implementation. This machine has the ` + "`syrus`" + ` CLI installed and signed 
   the matching local repository.
 - ` + "`syrus status [--json]`" + ` — which job's branch this working directory has.
 - ` + "`syrus approve JOB-<id>`" + ` — approve for landing (Syrus merges it).
-- ` + "`syrus job create`" + ` — file new work as a direct job (no GitHub issue needed).
+- ` + "`syrus job create --title \"...\" --prompt \"...\" --repo owner/name --yes`" + ` — file new work as a direct job (no GitHub issue needed).
 - ` + "`syrus chat CHAT_ID \"message\"`" + ` — one streaming chat turn with the
   instance's agent (it can inspect code, queue and propose work).
 
-Output is human-formatted text (only ` + "`status`" + ` speaks ` + "`--json`" + `); prefer the
-narrow read commands above over parsing wide listings.
+Prefer commands with ` + "`--json`" + ` when available instead of parsing human
+output. The generated command catalog below is the source for flag support.
+
+## Generated Command Catalog
+
+` + RenderCommandCatalog(NewRootCommand()) + `
 
 ## Guardrails
 
@@ -62,6 +67,7 @@ narrow read commands above over parsing wide listings.
   the user to open the Syrus desktop app (it refreshes credentials
   automatically) or run ` + "`syrus login`" + `.
 `
+}
 
 func NewSkillCommand() *cobra.Command {
 	skillCmd := &cobra.Command{
@@ -97,7 +103,7 @@ func newSkillInstallCommand() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
 			}
-			if err := os.WriteFile(target, []byte(skillContents), 0o644); err != nil {
+			if err := os.WriteFile(target, []byte(skillContents()), 0o644); err != nil {
 				return err
 			}
 

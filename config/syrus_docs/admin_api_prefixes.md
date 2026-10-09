@@ -29,6 +29,10 @@ for operator automation should declare the `/api/v1/admin/*` prefix; a plugin
 route intended only for the in-app admin UI should declare the
 `/api/v1/app/admin/*` prefix.
 
+The generated endpoint inventory lives in
+`config/syrus_docs/admin_api_catalog.md`; update it with
+`bin/surface-catalogs` after route changes.
+
 ## Current reviewed overlap
 
 These capabilities currently exist on both prefixes and should not be expanded

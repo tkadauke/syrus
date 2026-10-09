@@ -9,7 +9,7 @@ module Api
         end
 
         def create
-          repository = Current.user.repositories.active.find_by(id: params[:repository_id])
+          repository = find_repository_for_create
           unless repository
             render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content)
             return
@@ -93,6 +93,18 @@ module Api
             new_repository_path: new_repository_path,
             dashboard_jobs_path: dashboard_jobs_path
           }
+        end
+
+        def find_repository_for_create
+          return Current.user.repositories.active.find_by(id: params[:repository_id]) if params[:repository_id].present?
+
+          slug = params[:repository].presence || params[:repo].presence
+          return if slug.blank?
+
+          owner, name = slug.to_s.split("/", 2)
+          return if owner.blank? || name.blank?
+
+          Current.user.repositories.active.find_by(owner: owner, name: name)
         end
 
         def selected_repository
