@@ -26,7 +26,7 @@ func TestListChatsSendsBearerToken(t *testing.T) {
 			t.Fatalf("Authorization = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"chats":[{"id":42,"title":"Planning","repository":{"id":7,"slug":"tkadauke/syrus"}}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+		w.Write([]byte(`{"groups":[{"key":"repository-7","chats":[{"id":42,"title":"Planning","repository":{"id":7,"slug":"tkadauke/syrus"}}]}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
 	}))
 	defer server.Close()
 
@@ -44,6 +44,30 @@ func TestListChatsSendsBearerToken(t *testing.T) {
 	}
 	if len(list.Repositories) != 1 || list.Repositories[0].Slug != "tkadauke/syrus" {
 		t.Fatalf("repositories = %#v", list.Repositories)
+	}
+}
+
+func TestListChatsDeduplicatesGroupedChats(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/chats" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"groups":[{"key":"status-active","chats":[{"id":42,"title":"Planning"}]},{"key":"repository-7","chats":[{"id":42,"title":"Planning"},{"id":43,"title":"Follow up"}]}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := client.ListChats(context.Background())
+	if err != nil {
+		t.Fatalf("ListChats returned error: %v", err)
+	}
+	if len(list.Chats) != 2 || list.Chats[0].ID != 42 || list.Chats[1].ID != 43 {
+		t.Fatalf("chats = %#v", list.Chats)
 	}
 }
 
