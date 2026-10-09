@@ -72,8 +72,8 @@ func TestSkillDocumentsOnlyRealCommands(t *testing.T) {
 
 	// `syrus verb` or `syrus verb subverb` mentions; ALL-CAPS and
 	// bracketed/placeholder tokens are arguments, not subcommands.
-	mention := regexp.MustCompile("`syrus ([a-z][a-z-]*)( [a-z][a-z-]*)?")
-	for _, match := range mention.FindAllStringSubmatch(skillContents, -1) {
+	mention := regexp.MustCompile("`syrus ([a-z][a-z0-9-]*)( [a-z][a-z0-9-]*)?")
+	for _, match := range mention.FindAllStringSubmatch(skillContents(), -1) {
 		full := match[1] + match[2]
 		if registered[full] {
 			continue
@@ -85,6 +85,42 @@ func TestSkillDocumentsOnlyRealCommands(t *testing.T) {
 			continue
 		}
 		t.Errorf("skill documents `syrus %s`, which is not a registered command", full)
+	}
+}
+
+func TestSkillDocumentedJSONSupportMatchesRegisteredFlags(t *testing.T) {
+	catalog := RenderCommandCatalog(NewRootCommand())
+	for _, entry := range CommandCatalog(NewRootCommand()) {
+		rowPrefix := "| `" + markdownCell(entry.Use) + "` |"
+		rowStart := strings.Index(catalog, rowPrefix)
+		if rowStart == -1 {
+			t.Fatalf("generated catalog missing %s", entry.Use)
+		}
+		rowEnd := strings.Index(catalog[rowStart:], "\n")
+		row := catalog[rowStart:]
+		if rowEnd >= 0 {
+			row = catalog[rowStart : rowStart+rowEnd]
+		}
+		documented := strings.HasSuffix(row, " | yes |")
+		if documented != entry.JSONSupport {
+			t.Errorf("%s JSON support documented=%v registered=%v", entry.Path, documented, entry.JSONSupport)
+		}
+	}
+}
+
+func TestCommandCatalogIncludesInheritedPersistentFlags(t *testing.T) {
+	var loginEntry CommandCatalogEntry
+	for _, entry := range CommandCatalog(NewRootCommand()) {
+		if entry.Path == "login" {
+			loginEntry = entry
+			break
+		}
+	}
+
+	for _, flag := range []string{"debug", "profile", "token", "url"} {
+		if !hasFlag(loginEntry.Flags, flag) {
+			t.Fatalf("login catalog flags = %v, want %q", loginEntry.Flags, flag)
+		}
 	}
 }
 

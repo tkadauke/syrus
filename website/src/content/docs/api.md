@@ -5,9 +5,11 @@ description: REST API for external systems to create and manage Syrus Jobs.
 
 # REST API
 
-Syrus exposes app-scoped user APIs and an admin REST API for external
-operators and orchestrators. Personal API tokens authenticate as their owning
-user; admin endpoints still require an admin user's token.
+Syrus exposes two REST surfaces. The user API under `/api/v1/app/*` is the
+programmatic version of the browser app: personal API tokens authenticate as
+their owning user and inherit that user's repository, Job, Epic, chat, and
+settings permissions. The operator API under `/api/v1/admin/*` is for
+instance-wide automation and requires an admin user's token.
 
 ```bash
 curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
@@ -18,6 +20,10 @@ Non-admin tokens are accepted on `/api/v1/app/*` endpoints and are scoped by
 the same authorization policies as the browser UI. `/api/v1/admin/*` endpoints
 reject non-admin tokens with `403 Forbidden`; missing or invalid tokens return
 a JSON `401` error.
+
+The generated [user API catalog](/docs/generated/user-api-catalog) lists every
+registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives
+with the operator docs in `config/syrus_docs/admin_api_catalog.md`.
 
 Repeated invalid bearer tokens from the same source IP are rate-limited (20
 per 5 minutes); once tripped, further bad-token attempts from that IP get a
@@ -127,9 +133,10 @@ Optional fields are `title`, `priority` (`high`, `medium`, `low`),
 omitted, Syrus derives a short deterministic title from the prompt.
 
 `POST /api/v1/app/jobs` is the non-admin equivalent — the Job belongs to the
-authenticated token user rather than the repository owner, and `repository_id`
-must reference one of that user's own active repositories (the `syrus job
-create` CLI command posts here). It accepts the same optional `title`,
+authenticated token user rather than the repository owner, and it accepts
+either `repository_id` or `repository`/`repo` as an `owner/name` slug for one of
+that user's own active repositories (the `syrus job create` CLI command posts
+here). It accepts the same optional `title`,
 `prompt`, `priority` (`urgent`, `high`, `medium`, `low`), `agent_provider`,
 `epic_id`, and `owner_user_id` fields; `epic_id` must reference an Epic in the
 same repository, and `owner_user_id` must reference a user who is a member of
@@ -345,7 +352,8 @@ Optional fields are `github_issue_url`, `owner_user_id`, and
 `auto_approve_mode`.
 
 User-scoped clients can also create Epics through the app API with any
-user API token:
+user API token. Use `repository`/`repo` as an `owner/name` slug, or
+`repository_id` when the caller already has the database id:
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/epics \
@@ -353,7 +361,7 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
   -H "Content-Type: application/json" \
   -d '{
     "epic": {
-      "repository_id": 123,
+      "repository": "acme/widgets",
       "title": "Documentation cleanup",
       "description": "Group the docs polish work."
     }

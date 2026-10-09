@@ -13,6 +13,10 @@ The usage recorder intentionally does not persist full tool inputs or results.
 Detailed transcript rendering remains backed by the existing run transcript and
 chat message records.
 
+The generated MCP tool inventory lives in
+`config/syrus_docs/mcp_tool_catalog.md`; update it with
+`bin/surface-catalogs` after registry changes.
+
 Operators can inspect aggregate usage through:
 
 - `GET /api/v1/app/admin/mcp_tool_usage` — session-authenticated, used by the
