@@ -215,6 +215,14 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(job.workflows.find_by!(trigger_kind: "initial").worker_storage_key).to be_present
   end
 
+  it "repairs stalled intake classification before runtime exists" do
+    result = run_scenario("stalled_intake_reclassifies", max_ticks: 2)
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("repair reclassify_stalled_intake -> applied")
+    expect(Job.find(result.job_ids.first).classifier_attempts).to eq(1)
+  end
+
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
     result = run_scenario("stale_initial_intent_after_successful_retry")
 

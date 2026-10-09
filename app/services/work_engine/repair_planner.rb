@@ -377,6 +377,23 @@ module WorkEngine
         end
       end
 
+      class StalledClassifierPendingJob < Base
+        def plan
+          automatic_plan(
+            "reclassify_stalled_intake",
+            primary_job,
+            "The Job is still waiting on intake classification past the stale-work threshold, " \
+            "so re-enqueue the classifier through its concurrency-locked job.",
+            execution_steps: [ "ClassifyIssueJob.perform_later" ],
+            preconditions: {
+              job_state: "triaging",
+              triaging_reason: %w[classifier_pending classifier_uncertain],
+              classifier_attempts_below_limit: true
+            }
+          )
+        end
+      end
+
       class QueuedRunHostAdmissionDeferralBudgetExhausted < Base
         def plan
           automatic_plan(
