@@ -274,7 +274,8 @@ With `--watch`, an empty inbox stays open and refreshes every 30 seconds.
 Use `syrus job` commands for direct Job work:
 
 ```bash
-syrus job list --state open --limit 20
+syrus job list --limit 20
+syrus job list --state running
 syrus job list --repo tkadauke/myapp
 syrus job search "dark mode"
 syrus job show 456
@@ -290,6 +291,11 @@ syrus job checkout 456
 syrus job test-plan 456
 syrus job open 456
 ```
+
+Job listing defaults to `--state open`, which is an alias for active
+work. Use a concrete state such as `queued`, `running`, `implemented`,
+`failed`, `approved`, `landing`, or `closed`, or use `--state all` to
+disable state filtering.
 
 Commands that accept a Job ID also accept `JOB-<n>` (e.g. `JOB-456`) and
 human-readable slugs derived from the job title (e.g.

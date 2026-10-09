@@ -725,7 +725,7 @@ func TestJobListSendsStateAndLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = r
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"count":1,"jobs":[{"id":42,"state":"open","title":"Fix the aqueduct","repository_slug":"acme/widgets"}]}`))
+		w.Write([]byte(`{"count":2,"jobs":[{"id":42,"state":"queued","title":"Fix the aqueduct","repository_slug":"acme/widgets"},{"id":43,"state":"implemented","title":"Review the aqueduct","repository_slug":"acme/widgets","pr_number":7}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -751,8 +751,54 @@ func TestJobListSendsStateAndLimit(t *testing.T) {
 	if got := seen.URL.Query().Get("q"); got != "" {
 		t.Fatalf("q = %q, expected empty for job list", got)
 	}
-	if got := output.String(); !strings.Contains(got, "Fix the aqueduct") {
+	got := output.String()
+	if !strings.Contains(got, "Fix the aqueduct") || !strings.Contains(got, "Review the aqueduct") {
 		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestJobListSendsExplicitClosedState(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"jobs":[{"id":42,"state":"closed","title":"Closed aqueduct","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list", "--state", "closed"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/jobs")
+	}
+	if got := seen.URL.Query().Get("state"); got != "closed" {
+		t.Fatalf("state = %q", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Closed aqueduct") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestJobListRejectsUnsupportedState(t *testing.T) {
+	command := NewJobCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"list", "--state", "openish"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected unsupported state to fail")
+	}
+	if !strings.Contains(err.Error(), "state must be one of:") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -787,7 +833,7 @@ func TestJobSearchSendsQueryToServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = r
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"count":1,"jobs":[{"id":7,"state":"open","title":"Repair the aqueduct","repository_slug":"acme/widgets"}]}`))
+		w.Write([]byte(`{"count":2,"jobs":[{"id":7,"state":"running","title":"Repair the aqueduct","repository_slug":"acme/widgets"},{"id":8,"state":"implemented","title":"Inspect the aqueduct","repository_slug":"acme/widgets"}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -807,7 +853,11 @@ func TestJobSearchSendsQueryToServer(t *testing.T) {
 	if got := seen.URL.Query().Get("q"); got != "aqueduct" {
 		t.Fatalf("q = %q", got)
 	}
-	if got := output.String(); !strings.Contains(got, "Repair the aqueduct") {
+	if got := seen.URL.Query().Get("state"); got != "open" {
+		t.Fatalf("state = %q", got)
+	}
+	got := output.String()
+	if !strings.Contains(got, "Repair the aqueduct") || !strings.Contains(got, "Inspect the aqueduct") {
 		t.Fatalf("output = %q", got)
 	}
 }
