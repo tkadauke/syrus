@@ -3,11 +3,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 )
 
 func TestLast4(t *testing.T) {
@@ -27,7 +30,7 @@ func TestEpicCreatePostsToCurrentRepository(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/epics/new":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/repositories":
 			w.Write([]byte(`{"repositories":[{"id":3,"slug":"acme/widgets"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/epics":
 			postSeen = true
@@ -85,11 +88,11 @@ func TestEpicCreateYesSkipsConfirmation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/epics/new":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/repositories":
 			w.Write([]byte(`{"repositories":[{"id":3,"slug":"acme/widgets"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/epics":
 			postSeen = true
-			w.Write([]byte(`{"redirect_to":"/epics/13","epic":{"id":13}}`))
+			w.Write([]byte(`{"redirect_to":"/epics/13","epic":{"id":13,"number":13}}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -120,7 +123,7 @@ func TestEpicCreateStopsWhenConfirmationIsDeclined(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/epics/new":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/repositories":
 			w.Write([]byte(`{"repositories":[{"id":3,"slug":"acme/widgets"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/epics":
 			postSeen = true
@@ -160,7 +163,7 @@ func TestEpicCreateRequiresCurrentRepository(t *testing.T) {
 	command.SetArgs([]string{"create", "--yes"})
 
 	err := command.Execute()
-	if err == nil || err.Error() != "syrus epic create requires a GitHub repository remote" {
+	if err == nil || err.Error() != "run from a GitHub checkout or pass --repo owner/name" {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -182,6 +185,124 @@ func TestEpicCreateRequiresAvailableRepository(t *testing.T) {
 	err := command.Execute()
 	if err == nil || err.Error() != "repository acme/widgets is not available to this Syrus user" {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestEpicCreateWithFlagsNoTTYAndStart(t *testing.T) {
+	var postSeen bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/repositories":
+			w.Write([]byte(`{"repositories":[{"id":3,"slug":"acme/widgets"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/epics":
+			postSeen = true
+			var payload struct {
+				Start bool `json:"start"`
+				Epic  struct {
+					RepositoryID         int64  `json:"repository_id"`
+					Title                string `json:"title"`
+					Description          string `json:"description"`
+					GitHubIssueURL       string `json:"github_issue_url"`
+					EpicDependencyPolicy string `json:"epic_dependency_policy"`
+				} `json:"epic"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if !payload.Start {
+				t.Fatal("expected start=true")
+			}
+			if payload.Epic.RepositoryID != 3 || payload.Epic.Title != "Raise the forum" {
+				t.Fatalf("epic payload = %+v", payload.Epic)
+			}
+			if payload.Epic.Description != "Install tasteful columns." {
+				t.Fatalf("description = %q", payload.Epic.Description)
+			}
+			if payload.Epic.GitHubIssueURL != "https://github.com/acme/widgets/issues/1" {
+				t.Fatalf("github_issue_url = %q", payload.Epic.GitHubIssueURL)
+			}
+			if payload.Epic.EpicDependencyPolicy != "linear" {
+				t.Fatalf("epic_dependency_policy = %q", payload.Epic.EpicDependencyPolicy)
+			}
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"epic":{"id":13,"number":101}}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	output := &bytes.Buffer{}
+	command := NewEpicCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(output)
+	command.SetArgs([]string{
+		"create", "--repo", "acme/widgets", "--yes",
+		"--title", "Raise the forum",
+		"--prompt", "Install tasteful columns.",
+		"--start",
+		"--github-issue-url", "https://github.com/acme/widgets/issues/1",
+		"--epic-dependency-policy", "linear",
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !postSeen {
+		t.Fatal("expected POST /api/v1/app/epics")
+	}
+	if output.String() != "EPIC-101\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestEpicCreateBodyFilePreservesBlankLines(t *testing.T) {
+	bodyPath := filepath.Join(t.TempDir(), "epic.md")
+	body := "First paragraph.\n\nSecond paragraph.\n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/repositories":
+			w.Write([]byte(`{"repositories":[{"id":3,"slug":"acme/widgets"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/epics":
+			var payload struct {
+				Epic struct {
+					Description string `json:"description"`
+				} `json:"epic"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Epic.Description != "First paragraph.\n\nSecond paragraph." {
+				t.Fatalf("description = %q", payload.Epic.Description)
+			}
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"epic":{"id":13,"number":102}}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "acme/widgets")
+
+	command := NewEpicCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(&bytes.Buffer{})
+	command.SetArgs([]string{
+		"create", "--yes",
+		"--title", "Raise the forum",
+		"--file", bodyPath,
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
 	}
 }
 
@@ -1003,6 +1124,10 @@ func TestEpicSearchSendsQueryToServer(t *testing.T) {
 
 func withCredentials(t *testing.T, url string, token string) {
 	t.Helper()
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
+	t.Setenv("SYRUS_PROFILE", "")
 	cliplugintest.WithCredentials(t, url, token)
 }
 
