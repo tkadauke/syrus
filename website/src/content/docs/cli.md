@@ -304,8 +304,8 @@ the API already accepts but that the interactive prompt does not ask for:
 `--priority` (`urgent`, `high`, `medium`, or `low`; omitted defaults to
 `medium` server-side), `--agent` (an agent provider slug from an enabled
 provider plugin, e.g. `claude`, `codex`, `agy`, or `muse`), `--epic` (an
-Epic to attach the job to, as `EPIC-<id>` or a slug — resolved to its
-numeric ID before the job is created), `--depends-on` (repeatable; accepts
+Epic to attach the job to, as `EPIC-<number>` or a slug — resolved before
+the job is created), `--depends-on` (repeatable; accepts
 `JOB-<id>` for existing Jobs or a proposal slug), and `--owner` (the numeric
 user ID of a repository member to assign as owner). These are optional and
 omitted entirely from the request when not passed, rather than sent as blank
@@ -353,10 +353,11 @@ the branch doesn't exist locally or on `origin`. It still runs
 error (e.g. a network failure or server error) is surfaced as-is and does not
 trigger the branch fallback.
 
-`syrus checkout EPIC-N --complete` (where `N` is a numeric ID or a
-human-readable slug such as `EPIC-add-auth-system`) automatically selects the single branch
-that contains all of the Epic's implemented changes and checks it out, without
-opening the interactive picker. It uses a two-step algorithm:
+`syrus checkout EPIC-N --complete` (where `N` is the Epic number, or the
+argument is a human-readable slug such as `EPIC-add-auth-system`)
+automatically selects the single branch that contains all of the Epic's
+implemented changes and checks it out, without opening the interactive
+picker. It uses a two-step algorithm:
 
 1. If the Epic has an active merge-train integration branch (set by
    `merge_train_build` and not yet landed), that branch is checked out
@@ -485,14 +486,15 @@ Use `syrus epic` to inspect and create Epics:
 syrus epic list
 syrus epic list --repo tkadauke/myapp
 syrus epic search "launch"
-syrus epic show 12
+syrus epic show EPIC-12
 syrus epic create
-syrus epic open 12
+syrus epic open EPIC-12
 ```
 
 `epic create` must run inside a GitHub checkout. It prompts for a title
 and multi-line description, confirms the repository, creates the Epic,
-and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
+and prints the `EPIC-<number>` ref plus the Epic URL. Use `--yes` to skip
+the confirmation prompt.
 
 `epic list`/`epic search` and `epic show` also accept `--json` for the
 same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic

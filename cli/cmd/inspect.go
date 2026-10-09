@@ -326,7 +326,7 @@ func newEpicShowCommand() *cobra.Command {
 			if jsonOut {
 				return json.NewEncoder(out).Encode(epic)
 			}
-			fmt.Fprintf(out, "%s · %s\nState: %s\nRepo: %s\n\n", epicSlug(epic.Epic.Number), epic.Epic.Title, epic.Epic.State, epic.Epic.RepositorySlug)
+			fmt.Fprintf(out, "%s · %s\nState: %s\nRepo: %s\n\n", epicRef(epic.Epic), epic.Epic.Title, epic.Epic.State, epic.Epic.RepositorySlug)
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
 			for _, job := range epic.Jobs {
@@ -463,7 +463,7 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 	color := supportsColor(cmd.OutOrStdout())
 	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
 	for _, epic := range epics {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State, color), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d/%d done\n", epicRef(epic), inspectColorState(epic.State, color), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
 	}
 	return tw.Flush()
 }
@@ -524,7 +524,7 @@ func runEpicCreate(cmd *cobra.Command, yes bool) error {
 	if target == "" {
 		target = fmt.Sprintf("/epics/%d", created.Epic.ID)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Epic #%d\n%s\n", created.Epic.ID, appURL(creds.URL, target))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n%s\n", epicRef(created.Epic), appURL(creds.URL, target))
 	return nil
 }
 

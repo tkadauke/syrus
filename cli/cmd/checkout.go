@@ -272,7 +272,7 @@ func epicCompleteFindTip(ctx context.Context, runner gitRunner, branches []strin
 }
 
 func parseEpicRef(input string) (string, string, error) {
-	return parseRef(input, "EPIC-", "epic id")
+	return parseNumericDisplayRef(input, "EPIC-", "epic id")
 }
 
 type epicCandidate struct {
