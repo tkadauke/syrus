@@ -9,7 +9,7 @@ class IngestionClassifier
   DUPLICATE_TEXT_BYTES = 20_000
   DUPLICATE_TOKEN_LIMIT = 400
 
-  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :planned_execution, :error) do
+  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :planned_execution, :raw_output, :spawned_process_id, :error) do
     def success? = error.nil?
     def invalid? = invalid_kind.present?
   end
@@ -35,13 +35,20 @@ class IngestionClassifier
   def call
     return failure("job is not awaiting classifier triage") unless classifier_pending_job?
 
+    attempt = start_attempt!
     record_attempt!
-    result = invoke_classifier
-    return mark_uncertain(result.error) unless result.success?
+    result = with_attempt_process_attribution(attempt) { invoke_classifier }
+    attempt.update_columns(spawned_process_id: result.spawned_process_id) if result.spawned_process_id && attempt.spawned_process_id.blank?
+    unless result.success?
+      finish_attempt!(attempt, outcome: "uncertain", error: result.error, raw_output: result.raw_output)
+      return mark_uncertain(result.error)
+    end
 
     apply(result)
+    finish_attempt!(attempt, outcome: "classified", decision: decision_payload(result), raw_output: result.raw_output)
     result
   rescue StandardError => e
+    finish_attempt!(attempt, outcome: "errored", error: "#{e.class}: #{e.message}") if attempt
     mark_uncertain("#{e.class}: #{e.message}")
   end
 
@@ -58,6 +65,24 @@ class IngestionClassifier
   # consumed the same budget as one that ended in an error.
   def record_attempt!
     job.increment!(:classifier_attempts)
+  end
+
+  def start_attempt!
+    job.classification_attempts.create!(
+      started_at: Time.current,
+      agent_provider: job.workflow_agent_provider
+    )
+  end
+
+  def with_attempt_process_attribution(attempt)
+    previous = Thread.current[:syrus_current_job_classification_attempt]
+    previous_job = Thread.current[:syrus_current_job]
+    Thread.current[:syrus_current_job_classification_attempt] = attempt
+    Thread.current[:syrus_current_job] = job
+    yield
+  ensure
+    Thread.current[:syrus_current_job_classification_attempt] = previous
+    Thread.current[:syrus_current_job] = previous_job
   end
 
   def invoke_classifier
@@ -78,18 +103,18 @@ class IngestionClassifier
       timeout: timeout,
       max_turns: max_turns
     )
-    return failure(judgment.error) if judgment.failed?
+    return failure(judgment.error, raw_output: judgment.raw_text, spawned_process_id: judgment.spawned_process_id) if judgment.failed?
 
-    parse(judgment.value)
+    parse(judgment.value, raw_output: judgment.raw_text, spawned_process_id: judgment.spawned_process_id)
   end
 
-  def parse(parsed)
-    return failure("invalid JSON: expected an object") unless parsed.is_a?(Hash)
+  def parse(parsed, raw_output: nil, spawned_process_id: nil)
+    return failure("invalid JSON: expected an object", raw_output: raw_output, spawned_process_id: spawned_process_id) unless parsed.is_a?(Hash)
 
     invalid = parsed["invalid"].is_a?(Hash) ? parsed["invalid"] : {}
     kind = invalid["kind"].to_s.presence
-    return failure("invalid kind #{kind.inspect}") if kind && !Job::VALIDITIES.include?(kind)
-    return failure("invalid kind must not be valid") if kind == "valid"
+    return failure("invalid kind #{kind.inspect}", raw_output: raw_output, spawned_process_id: spawned_process_id) if kind && !Job::VALIDITIES.include?(kind)
+    return failure("invalid kind must not be valid", raw_output: raw_output, spawned_process_id: spawned_process_id) if kind == "valid"
 
     epic_id = parsed["epic_id"].presence
     epic_id = Integer(epic_id) if epic_id
@@ -100,10 +125,12 @@ class IngestionClassifier
       reason: invalid["reason"].to_s.strip.presence,
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
       planned_execution: planned_execution_attributes(parsed["planned_execution"]),
+      raw_output: raw_output,
+      spawned_process_id: spawned_process_id,
       error: nil
     )
   rescue ArgumentError
-    failure("epic_id must be an integer or null")
+    failure("epic_id must be an integer or null", raw_output: raw_output, spawned_process_id: spawned_process_id)
   end
 
   def apply(result)
@@ -164,6 +191,28 @@ class IngestionClassifier
       job.update_columns(triaging_uncertainty_reason: reason.to_s.truncate(1_000))
     end
     failure(reason)
+  end
+
+  def finish_attempt!(attempt, outcome:, decision: nil, error: nil, raw_output: nil)
+    return if attempt.finished_at.present?
+
+    attempt.finish!(
+      outcome: outcome,
+      decision: decision,
+      error: error,
+      raw_output: raw_output
+    )
+  end
+
+  def decision_payload(result)
+    {
+      classification: result.invalid? ? "invalid" : "valid",
+      epic_id: result.epic_id,
+      invalid_kind: result.invalid_kind,
+      reason: result.reason,
+      evidence_urls: result.evidence_urls,
+      planned_execution: result.planned_execution
+    }
   end
 
   def epic_index
@@ -305,8 +354,17 @@ class IngestionClassifier
     value.respond_to?(:to_time) ? value.to_time : value
   end
 
-  def failure(reason)
-    Result.new(epic_id: nil, invalid_kind: nil, reason: nil, evidence_urls: [], planned_execution: nil, error: reason)
+  def failure(reason, raw_output: nil, spawned_process_id: nil)
+    Result.new(
+      epic_id: nil,
+      invalid_kind: nil,
+      reason: nil,
+      evidence_urls: [],
+      planned_execution: nil,
+      raw_output: raw_output,
+      spawned_process_id: spawned_process_id,
+      error: reason
+    )
   end
 
   def planned_execution_attributes(value)

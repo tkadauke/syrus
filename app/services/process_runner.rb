@@ -364,6 +364,7 @@ class ProcessRunner
                  kind: nil,
                  run: nil,
                  workflow: nil,
+                 job: nil,
                  chat_session: nil,
                  agent: nil,
                  display_command: nil,
@@ -385,6 +386,7 @@ class ProcessRunner
     @kind = kind
     @run = run
     @workflow = resolve_workflow_attribution(workflow)
+    @job = job || @run&.job || @workflow&.job || Thread.current[:syrus_current_job]
     @chat_session = chat_session
     @agent = agent
     @display_command = display_command
@@ -711,9 +713,12 @@ class ProcessRunner
       silent_timeout_s: @silent_timeout&.to_i,
       run: @run,
       workflow: @workflow,
+      job: @job,
       chat_session: @chat_session,
       agent: @agent
-    )
+    ).tap do |process|
+      Thread.current[:syrus_current_job_classification_attempt]&.update_columns(spawned_process_id: process.id)
+    end
   end
 
   def update_pid!(pid)

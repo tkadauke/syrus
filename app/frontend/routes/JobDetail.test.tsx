@@ -1781,6 +1781,51 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   })
 
+  it("renders classification attempts and distinguishes in-flight attempts", () => {
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "classifier_pending" },
+        classification_attempts: [
+          {
+            id: 2,
+            started_at: "2026-10-09T15:00:00Z",
+            finished_at: null,
+            duration_seconds: null,
+            in_flight: true,
+            outcome: null,
+            decision: null,
+            error: null,
+            raw_output: null,
+            agent_provider: "codex",
+            spawned_process_id: 99,
+            spawned_process_path: "/admin/processes/99",
+            spawned_process_outcome: null
+          },
+          {
+            id: 1,
+            started_at: "2026-10-09T14:00:00Z",
+            finished_at: "2026-10-09T14:00:42Z",
+            duration_seconds: 42,
+            in_flight: false,
+            outcome: "uncertain",
+            decision: null,
+            error: "invalid JSON: expected an object",
+            raw_output: "not json",
+            agent_provider: "codex",
+            spawned_process_id: 98,
+            spawned_process_path: "/admin/processes/98",
+            spawned_process_outcome: "failed"
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByRole("heading", { name: "Classification attempts" })).toBeInTheDocument()
+    expect(screen.getByText("in flight")).toBeInTheDocument()
+    expect(screen.getByText("invalid JSON: expected an object")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Process #99" })).toHaveAttribute("href", "/app-shell/admin/processes/99")
+  })
+
   it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({

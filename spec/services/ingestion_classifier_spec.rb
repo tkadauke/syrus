@@ -8,11 +8,11 @@ RSpec.describe IngestionClassifier do
 
   # The classifier goes through Judgment now, so the seam is the provider call
   # every other one-shot caller stubs.
-  def stub_agent_text(text)
+  def stub_agent_text(text, spawned_process_id: nil)
     allow(AgentProviders).to receive(:run_one_shot).and_return(
       AgentInvocation::Result.new(
         turns: 1, exit_status: 0, timed_out: false, is_error: false,
-        outcome: "success", final_text: text, session_id: nil
+        outcome: "success", final_text: text, session_id: nil, spawned_process_id: spawned_process_id
       )
     )
   end
@@ -138,6 +138,32 @@ RSpec.describe IngestionClassifier do
     expect(job.runs.count).to eq(1)
   end
 
+  it "records timing and decision for a successful classification attempt" do
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 114,
+      issue_title: "Add a new report",
+      issue_body: "Build a novel operator report."
+    )
+
+    classify(job, {
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    })
+
+    attempt = job.reload.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "classified",
+      error: nil,
+      agent_provider: job.workflow_agent_provider
+    )
+    expect(attempt.decision).to include("epic_id" => nil)
+    expect(attempt.raw_output).to include("epic_id")
+  end
+
   it "persists a classifier-selected planned execution requirement before queueing" do
     job = Job.create!(
       user: user,
@@ -221,6 +247,71 @@ RSpec.describe IngestionClassifier do
 
     expect(job.reload.triaging_uncertainty_reason).to be_present
     expect(job.classifier_attempts).to eq(1)
+  end
+
+  it "records timing and outcome for an uncertain classifier result" do
+    job = Job.create!(user: user, repository: repository, issue_number: 116)
+    stub_agent_text("not json")
+
+    described_class.call(job: job, github_client: github_client)
+
+    attempt = job.reload.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "uncertain"
+    )
+    expect(attempt.error).to include("invalid JSON")
+    expect(attempt.raw_output).to eq("not json")
+  end
+
+  it "records timing and outcome for a raised classifier error" do
+    job = Job.create!(user: user, repository: repository, issue_number: 117)
+    stub_agent_text(JSON.generate(
+      "epic_id" => 999_999,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    ))
+
+    described_class.call(job: job, github_client: github_client)
+
+    attempt = job.reload.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "errored"
+    )
+    expect(attempt.error).to include("classifier returned unknown Epic")
+    expect(job.triaging_uncertainty_reason).to include("classifier returned unknown Epic")
+  end
+
+  it "attributes a classification spawned process to its Job and attempt" do
+    job = Job.create!(user: user, repository: repository, issue_number: 118)
+    process = nil
+    allow(AgentProviders).to receive(:run_one_shot) do
+      process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "codex",
+        hostname: "worker-1",
+        started_at: Time.current,
+        job: Thread.current[:syrus_current_job]
+      )
+      Thread.current[:syrus_current_job_classification_attempt]&.update_columns(spawned_process_id: process.id)
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: JSON.generate("epic_id" => nil, "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }),
+        session_id: nil,
+        spawned_process_id: process.id
+      )
+    end
+
+    described_class.call(job: job, github_client: github_client)
+
+    expect(process.reload.job).to eq(job)
+    expect(job.reload.classification_attempts.sole.spawned_process).to eq(process)
   end
 
   it "records uncertainty on the Job without creating a separate alarm" do
