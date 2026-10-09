@@ -112,24 +112,28 @@ type JobDiff struct {
 }
 
 type CreateJobRequest struct {
-	RepositoryID  int64  `json:"repository_id,omitempty"`
-	Title         string `json:"title,omitempty"`
-	Prompt        string `json:"prompt"`
-	Priority      string `json:"priority,omitempty"`
-	AgentProvider string `json:"agent_provider,omitempty"`
-	EpicID        int64  `json:"epic_id,omitempty"`
-	OwnerUserID   int64  `json:"owner_user_id,omitempty"`
+	RepositoryID    int64    `json:"repository_id,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	Prompt          string   `json:"prompt"`
+	Priority        string   `json:"priority,omitempty"`
+	AgentProvider   string   `json:"agent_provider,omitempty"`
+	EpicID          int64    `json:"epic_id,omitempty"`
+	OwnerUserID     int64    `json:"owner_user_id,omitempty"`
+	DependsOn       []string `json:"depends_on,omitempty"`
+	DependsOnJobIDs []int64  `json:"depends_on_job_ids,omitempty"`
 }
 
 type CreateJobParams struct {
-	Repository    string `json:"repository,omitempty"`
-	RepositoryID  int64  `json:"repository_id,omitempty"`
-	Title         string `json:"title,omitempty"`
-	Prompt        string `json:"prompt"`
-	Priority      string `json:"priority,omitempty"`
-	AgentProvider string `json:"agent_provider,omitempty"`
-	EpicID        int64  `json:"epic_id,omitempty"`
-	OwnerUserID   int64  `json:"owner_user_id,omitempty"`
+	Repository      string   `json:"repository,omitempty"`
+	RepositoryID    int64    `json:"repository_id,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	Prompt          string   `json:"prompt"`
+	Priority        string   `json:"priority,omitempty"`
+	AgentProvider   string   `json:"agent_provider,omitempty"`
+	EpicID          int64    `json:"epic_id,omitempty"`
+	OwnerUserID     int64    `json:"owner_user_id,omitempty"`
+	DependsOn       []string `json:"depends_on,omitempty"`
+	DependsOnJobIDs []int64  `json:"depends_on_job_ids,omitempty"`
 }
 
 func (c *Client) ListJobs(ctx context.Context, filters url.Values) (JobList, error) {
@@ -175,13 +179,15 @@ func (c *Client) GetJobDiff(ctx context.Context, id string) (JobDiff, error) {
 func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (JobDetail, error) {
 	var out JobDetail
 	err := c.do(ctx, http.MethodPost, "/api/v1/app/jobs", CreateJobRequest{
-		RepositoryID:  params.RepositoryID,
-		Title:         params.Title,
-		Prompt:        params.Prompt,
-		Priority:      params.Priority,
-		AgentProvider: params.AgentProvider,
-		EpicID:        params.EpicID,
-		OwnerUserID:   params.OwnerUserID,
+		RepositoryID:    params.RepositoryID,
+		Title:           params.Title,
+		Prompt:          params.Prompt,
+		Priority:        params.Priority,
+		AgentProvider:   params.AgentProvider,
+		EpicID:          params.EpicID,
+		OwnerUserID:     params.OwnerUserID,
+		DependsOn:       params.DependsOn,
+		DependsOnJobIDs: params.DependsOnJobIDs,
 	}, &out)
 	return out, err
 }

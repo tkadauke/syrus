@@ -11,7 +11,7 @@ module CredentialStore
           path: "/credential_store",
           paths: [ "/credential_store" ],
           component: "credential_store/CredentialStoreAdmin",
-          icon: "settings",
+          icon: "lock",
           order: 88
         }
       ]

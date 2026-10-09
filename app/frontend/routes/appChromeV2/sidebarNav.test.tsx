@@ -1,3 +1,4 @@
+import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
 import { CORE_NAV_ITEMS, applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./sidebarNav"
@@ -62,6 +63,17 @@ describe("buildSidebarNavItems", () => {
     const items = buildSidebarNavItems(baseContext, pluginPages, translate)
 
     expect(items.find((item) => item.id === "extra.page")?.label).toBe("Extra")
+  })
+
+  it("renders lock icons declared by credential-management plugin pages", () => {
+    const pluginPages: SidebarPluginPage[] = [
+      { id: "credential_store.credentials", label: "Credential Store", path: "/credential_store", paths: ["/credential_store"], order: 88, icon: "lock" }
+    ]
+
+    const items = buildSidebarNavItems(baseContext, pluginPages, translate)
+    const { container } = render(<>{items.find((item) => item.id === "credential_store.credentials")?.icon}</>)
+
+    expect(container.querySelector('rect[x="4.75"][y="10.25"]')).toBeInTheDocument()
   })
 })
 

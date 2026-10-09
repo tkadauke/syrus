@@ -18,7 +18,8 @@ RSpec.describe CredentialStore::SidebarPages do
       include(
         id: "credential_store.credentials",
         path: "/credential_store",
-        component: "credential_store/CredentialStoreAdmin"
+        component: "credential_store/CredentialStoreAdmin",
+        icon: "lock"
       )
     )
   end
