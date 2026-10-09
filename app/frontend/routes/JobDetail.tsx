@@ -40,6 +40,7 @@ import {
   type JobApprovalEvidence,
   type JobApprovalRecord,
   type JobApprovalStatus,
+  type JobClassificationAttempt,
   type JobDeploymentStage,
   type JobDetailPayload,
   type JobPrCheckAttribution,
@@ -97,7 +98,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
-import { Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
+import { DataTable, Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
 import {
   jobNavigationHref,
   navigationIndex,
@@ -828,6 +829,8 @@ function SummaryTab({
 
           <FeedbackHistoryPanel entries={payload.feedback_history} prefix={prefix} />
 
+          <ClassificationAttemptsPanel attempts={payload.classification_attempts ?? []} prefix={prefix} />
+
           <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} runsCount={payload.job.runs_count} />
           <AttachmentPreview attachments={payload.attachments} />
         </div>
@@ -980,6 +983,76 @@ function CollapsibleMarkdownSection({ title, text, emptyText }: { title: string;
       )}
     </Section.Root>
   )
+}
+
+function ClassificationAttemptsPanel({ attempts, prefix }: { attempts: JobClassificationAttempt[]; prefix: string }) {
+  const { t } = useT("jobs")
+  if (attempts.length === 0) return null
+
+  return (
+    <Section.Root className="min-w-0 overflow-x-auto">
+      <SectionHeading>{t("section_classification_attempts")}</SectionHeading>
+      <div className="mt-3">
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("classification_started")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_outcome")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_result")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_process")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {attempts.map((attempt) => (
+              <DataTable.Row key={attempt.id}>
+                <DataTable.Cell className="whitespace-nowrap align-top">
+                  <RelativeTimestamp value={attempt.started_at} />
+                  {attempt.duration_seconds != null ? (
+                    <div className="mt-1 text-xs text-text-muted">{t("classification_duration", { seconds: attempt.duration_seconds })}</div>
+                  ) : null}
+                </DataTable.Cell>
+                <DataTable.Cell className="align-top">
+                  <SmallPill tone={classificationTone(attempt)}>{attempt.in_flight ? t("classification_in_flight") : (attempt.outcome || t("classification_unknown"))}</SmallPill>
+                </DataTable.Cell>
+                <DataTable.Cell className="max-w-lg align-top">
+                  {classificationResult(attempt, t)}
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap align-top text-text-secondary">
+                  {attempt.spawned_process_path && attempt.spawned_process_id ? (
+                    <Link className="text-brand hover:underline" to={withRoutePrefix(attempt.spawned_process_path, prefix)}>
+                      {t("classification_process_link", { id: attempt.spawned_process_id })}
+                    </Link>
+                  ) : (
+                    "-"
+                  )}
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </div>
+    </Section.Root>
+  )
+}
+
+function classificationTone(attempt: JobClassificationAttempt): "neutral" | "success" | "warning" | "danger" {
+  if (attempt.in_flight) return "warning"
+  if (attempt.outcome === "classified") return "success"
+  if (attempt.outcome === "errored") return "danger"
+  return "warning"
+}
+
+function classificationResult(attempt: JobClassificationAttempt, t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (attempt.error) return <code className="break-words text-xs text-warning-text">{attempt.error}</code>
+  if (attempt.decision && Object.keys(attempt.decision).length > 0) {
+    const invalidKind = typeof attempt.decision.invalid_kind === "string" ? attempt.decision.invalid_kind : null
+    const epicId = typeof attempt.decision.epic_id === "number" ? attempt.decision.epic_id : null
+    if (invalidKind) return t("classification_decision_invalid", { kind: invalidKind })
+    if (epicId) return t("classification_decision_epic", { id: epicId })
+    return t("classification_decision_valid")
+  }
+  if (attempt.in_flight) return t("classification_waiting")
+  return attempt.raw_output ? <code className="break-words text-xs">{attempt.raw_output}</code> : "-"
 }
 
 const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
@@ -2364,14 +2437,14 @@ function AttachmentsTab({
 
   return (
     <section className="space-y-4">
-      <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+      <form className="rounded border border-border bg-surface p-4" onSubmit={submit}>
         <SectionHeading>{t("attachment_add_title")}</SectionHeading>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="text-sm font-medium text-text-secondary">
             {t("attachment_files_label")}
             <Input className="mt-1 text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="text-sm font-medium text-text-secondary">
             {t("attachment_google_doc_label")}
             <Input
               className="mt-1"
@@ -2385,7 +2458,7 @@ function AttachmentsTab({
             {t("attachment_add_button")}
           </Button>
         </div>
-        {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
+        {add.isError ? <p className="mt-2 text-sm text-danger-text">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
       </form>
 
       {payload.attachments.length > 0 ? (

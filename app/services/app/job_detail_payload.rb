@@ -75,6 +75,7 @@ module App
           ui_tabs: ::App::UiSlotsPayload.panels_for(slot: "job.detail.tab", context: { job: @job, user: Current.user }),
           ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user }),
           feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
+          classification_attempts: PerformanceLogging.phase("job_detail.classification_attempts", job_id: @job.id) { classification_attempts_json },
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
@@ -323,6 +324,33 @@ module App
       {
         billed_runs_count: billed_runs_count,
         total_cost_usd: billed_runs_count.zero? ? nil : snapshot.fetch(:total_cost_usd)
+      }
+    end
+
+    def classification_attempts_json
+      @job.classification_attempts
+          .includes(:spawned_process)
+          .latest_first
+          .limit(10)
+          .map { |attempt| classification_attempt_json(attempt) }
+    end
+
+    def classification_attempt_json(attempt)
+      process = attempt.spawned_process
+      {
+        id: attempt.id,
+        started_at: iso8601(attempt.started_at),
+        finished_at: iso8601(attempt.finished_at),
+        duration_seconds: attempt.finished_at && attempt.started_at ? (attempt.finished_at - attempt.started_at).round(1) : nil,
+        in_flight: attempt.in_flight?,
+        outcome: attempt.outcome,
+        decision: attempt.decision,
+        error: attempt.error,
+        raw_output: attempt.raw_output,
+        agent_provider: attempt.agent_provider,
+        spawned_process_id: attempt.spawned_process_id,
+        spawned_process_path: process ? "/admin/processes/#{process.id}" : nil,
+        spawned_process_outcome: process&.outcome
       }
     end
 

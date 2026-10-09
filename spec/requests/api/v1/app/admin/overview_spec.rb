@@ -66,17 +66,37 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "github_api_blocked_users",
       "agent_session_capture_rate",
       "active_storage",
+      "stalled_classifier_jobs",
       "worker_health",
       "workers",
       "recurring"
     )
     expect(body["active_runs"]["total"]).to eq(1)
     expect(body["recurring"]).to include("count" => 0)
+    expect(body["stalled_classifier_jobs"]).to include("total" => 0)
     expect(body["recurring"]).not_to have_key("overdue")
     expect(body).not_to have_key("resource_admission")
     expect(body).not_to have_key("chat_scoped_events")
     expect(body).not_to include("stuck", "stuck_pagination", "stuck_snapshot")
     expect(Admin::StuckItemsCache).not_to have_received(:read)
+  end
+
+  it "surfaces stalled classifier-pending Jobs on the admin overview" do
+    admin = Factories.user
+    repo = Factories.repository(user: admin)
+    job = Job.create!(user: admin, repository: repo, issue_number: 4846)
+    job.update_columns(created_at: 20.minutes.ago, updated_at: 20.minutes.ago)
+    sign_in_as(admin)
+
+    get api_v1_app_admin_overview_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("stalled_classifier_jobs")).to include(
+      "total" => 1,
+      "oldest_job_id" => job.id,
+      "oldest_job_slug" => job.slug,
+      "oldest_job_path" => "/jobs/#{job.slug}"
+    )
   end
 
   it "keeps the default overview query budget off recurring execution history" do

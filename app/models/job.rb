@@ -94,6 +94,8 @@ class Job < ApplicationRecord
   has_many :runs, -> { order(:created_at) }
   has_many :run_resource_summaries, dependent: :destroy
   has_many :auto_retry_attempts, dependent: :destroy
+  has_many :classification_attempts, class_name: "JobClassificationAttempt", dependent: :destroy
+  has_many :spawned_processes, dependent: :nullify
   has_many :job_logs, through: :runs
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :job_pins, dependent: :destroy
