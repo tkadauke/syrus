@@ -7,7 +7,7 @@
 import { useT } from "../../hooks/useT"
 import { Markdown } from "../../lib/Markdown"
 import { SectionHeading } from "../../components/Heading"
-import { Section } from "../../components/ui"
+import { Notice, Section, Text } from "../../components/ui"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
 import type { JobDetailPayload } from "../../api/jobs"
 import { NeedsAttentionBanner } from "./components"
@@ -24,6 +24,13 @@ export function ReportTab({ payload }: { payload: JobDetailPayload }) {
         <SectionHeading className="break-words">{report?.title || t("report_untitled")}</SectionHeading>
         {report ? (
           <>
+            {report.escalate ? (
+              <Notice className="mt-3" title={t("report_escalated")} tone="warning">
+                {report.escalation_reason ? (
+                  <Text tone="warning">{t(`report_escalation_reason.${report.escalation_reason}`, { defaultValue: report.escalation_reason })}</Text>
+                ) : null}
+              </Notice>
+            ) : null}
             <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={report.narrative} />
             {report.findings.length > 0 ? (
               <>
@@ -43,10 +50,10 @@ export function ReportTab({ payload }: { payload: JobDetailPayload }) {
 
       {report?.references.map((reference, index) => (
         reference.artifact ? (
-          <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" key={`${reference.type}-${index}`}>
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-gray-100 px-4 py-2 dark:border-gray-800">
-              <span className="min-w-0 break-words font-semibold text-gray-800 dark:text-gray-100">{reference.caption || reference.artifact.title}</span>
-              <span className="min-w-0 break-all text-xs text-gray-400 dark:text-gray-500">{reference.type}</span>
+          <div className="min-w-0 overflow-hidden rounded border border-border bg-surface" key={`${reference.type}-${index}`}>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border px-4 py-2">
+              <span className="min-w-0 break-words font-semibold text-text-primary">{reference.caption || reference.artifact.title}</span>
+              <span className="min-w-0 break-all text-xs text-text-muted">{reference.type}</span>
             </div>
             <div className="overflow-x-auto p-4">
               <ArtifactBody artifact={reference.artifact} />

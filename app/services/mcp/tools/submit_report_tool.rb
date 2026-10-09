@@ -20,6 +20,12 @@ module Mcp::Tools
     MAX_FINDING_LENGTH = 240
     MAX_REFERENCES = 20
     MAX_REFERENCE_CAPTION_LENGTH = 200
+    ESCALATION_REASONS = %w[
+      needs_human_decision
+      lacks_authority
+      remediation_failed
+      unsafe_to_proceed
+    ].freeze
 
     description <<~DESC
       Stores a narrative investigation report on the current Workflow. The
@@ -32,7 +38,9 @@ module Mcp::Tools
       submitted this run via submit_artifact/submit_visual_artifact. Local
       scratch files and edits from the investigation are not persisted as
       repository deliverables, so put any useful scratch content or summary
-      in narrative or submit it as an artifact and reference it.
+      in narrative or submit it as an artifact and reference it. Set
+      escalate when the investigation succeeded but needs operator attention,
+      and include one of the allowed escalation_reason codes.
     DESC
 
     input_schema(
@@ -69,13 +77,22 @@ module Mcp::Tools
           },
           maxItems: MAX_REFERENCES,
           description: "Optional ordered list of at most #{MAX_REFERENCES} references to artifacts/screenshots already submitted this run via submit_artifact or submit_visual_artifact. Each `type` must match an artifact you already submitted."
+        },
+        escalate: {
+          type: "boolean",
+          description: "Set true when the investigation succeeded but needs operator attention instead of only a routine report."
+        },
+        escalation_reason: {
+          type: "string",
+          enum: ESCALATION_REASONS,
+          description: "Required when escalate is true. Allowed values: #{ESCALATION_REASONS.join(', ')}."
         }
       },
       required: %w[title narrative]
     )
 
     class << self
-      def call(title:, narrative:, findings: nil, references: nil, server_context:)
+      def call(title:, narrative:, findings: nil, references: nil, escalate: false, escalation_reason: nil, server_context:)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_report)
@@ -84,17 +101,26 @@ module Mcp::Tools
         normalized_narrative = Mcp::Tools.utf8(narrative).strip.truncate(MAX_NARRATIVE_LENGTH)
         normalized_findings = normalize_findings(findings)
         normalized_references, reference_error = normalize_references(references, run.workflow)
+        normalized_escalate = ActiveModel::Type::Boolean.new.cast(escalate) == true
+        normalized_escalation_reason = Mcp::Tools.utf8(escalation_reason).strip
 
         return Mcp::Tools.invalid("title is required")     if normalized_title.empty?
         return Mcp::Tools.invalid("narrative is required")  if normalized_narrative.empty?
         return Mcp::Tools.invalid(reference_error) if reference_error
+        if normalized_escalate && !ESCALATION_REASONS.include?(normalized_escalation_reason)
+          return Mcp::Tools.invalid("escalation_reason must be one of: #{ESCALATION_REASONS.join(', ')}")
+        end
+        return Mcp::Tools.invalid("escalation_reason requires escalate: true") if normalized_escalation_reason.present? && !normalized_escalate
 
         run.workflow.set_artifact!("investigation_report", {
           title: normalized_title,
           narrative: normalized_narrative,
           findings: normalized_findings,
-          references: normalized_references
+          references: normalized_references,
+          escalate: normalized_escalate,
+          escalation_reason: normalized_escalate ? normalized_escalation_reason : nil
         })
+        handle_escalation!(run, normalized_title, normalized_escalation_reason) if normalized_escalate
         Mcp::Tools.write_log(run, "[mcp] submit_report received: #{normalized_title.inspect}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
@@ -143,6 +169,21 @@ module Mcp::Tools
           set << entry["type"] if entry["type"].present?
           set << entry["original_type"] if entry["original_type"].present?
         end
+      end
+
+      def handle_escalation!(run, title, escalation_reason)
+        job = run.job
+        dedupe_key = "investigation_escalated:workflow:#{run.workflow_id}"
+        job.set_needs_attention!(reason: Job::INVESTIGATION_ESCALATED_ATTENTION_REASON)
+        NotificationService.create_for(
+          user: job.owner_user || job.user,
+          kind: "investigation_escalated",
+          job: job,
+          repository: job.repository,
+          body: "#{job.slug} investigation escalated (#{escalation_reason}): #{title.truncate(80)}",
+          dedupe_key: dedupe_key,
+          chat_work_event_dedupe_key: dedupe_key
+        )
       end
     end
   end

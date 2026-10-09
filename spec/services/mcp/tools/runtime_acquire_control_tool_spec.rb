@@ -28,10 +28,12 @@ RSpec.describe Mcp::Tools::RuntimeAcquireControlTool do
   end
 
   it "clamps duration_seconds to the model's allowed range" do
-    session
-    body = payload(call(mode: "build", reason: "reload", duration_seconds: 5))
+    freeze_time do
+      session
+      body = payload(call(mode: "build", reason: "reload", duration_seconds: 5))
 
-    expect(Time.iso8601(body[:expires_at])).to be_within(1.second).of(RuntimeControlLease::MIN_DURATION.from_now)
+      expect(Time.iso8601(body[:expires_at])).to eq(RuntimeControlLease::MIN_DURATION.from_now)
+    end
   end
 
   it "rejects observe_only" do

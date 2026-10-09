@@ -163,6 +163,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_043429) do
     t.index ["resumable_type", "resumable_id"], name: "index_agents_on_resumable", unique: true
   end
 
+  create_table "alertmanager_investigations", force: :cascade do |t|
+    t.string "fingerprint", null: false
+    t.string "host", null: false
+    t.string "runbook_url", null: false
+    t.string "runbook_repository"
+    t.string "runbook_ref"
+    t.string "runbook_path"
+    t.json "alert_payload"
+    t.integer "repository_id"
+    t.integer "job_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["fingerprint", "created_at"], name: "idx_alertmanager_investigations_fingerprint_time"
+    t.index ["host", "created_at"], name: "idx_alertmanager_investigations_host_time"
+    t.index ["job_id"], name: "index_alertmanager_investigations_on_job_id"
+    t.index ["repository_id"], name: "index_alertmanager_investigations_on_repository_id"
+  end
+
   create_table "app_settings", force: :cascade do |t|
     t.integer "adversarial_review_rounds", default: 0, null: false
     t.integer "chat_coding_workspace_budget_mb", default: 0, null: false

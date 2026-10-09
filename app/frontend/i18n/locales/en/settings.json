@@ -233,6 +233,7 @@
     "pref_pr_merged": "Notify me when a job is merged",
     "pref_epic_completed": "Notify me when an epic completes",
     "pref_main_inconclusive": "Notify me when main branch health needs review",
+    "pref_investigation_escalated": "Notify me when an investigation escalates",
     "updated": "Notification preferences updated.",
     "see_also": "This controls what you're notified about. To choose where notifications are delivered, see"
   },

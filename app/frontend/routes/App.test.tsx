@@ -15879,14 +15879,16 @@ function credentialsPayload(overrides: {
   }
 }
 
-function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed", boolean>> & { message?: string } = {}) {
+function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "main_inconclusive" | "investigation_escalated", boolean>> & { message?: string } = {}) {
   return {
     notification_preferences: {
       job_failed: overrides.job_failed ?? true,
       job_implemented: overrides.job_implemented ?? true,
       pr_comment_addressed: overrides.pr_comment_addressed ?? true,
       pr_merged: overrides.pr_merged ?? true,
-      epic_completed: overrides.epic_completed ?? false
+      epic_completed: overrides.epic_completed ?? false,
+      main_inconclusive: overrides.main_inconclusive ?? true,
+      investigation_escalated: overrides.investigation_escalated ?? true
     },
     message: overrides.message
   }

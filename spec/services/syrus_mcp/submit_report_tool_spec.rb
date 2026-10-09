@@ -16,8 +16,8 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     run.step.update_columns(kind: "submit_report")
   end
 
-  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil)
-    described_class.call(title: title, narrative: narrative, findings: findings, references: references, server_context: { run: run })
+  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil, escalate: false, escalation_reason: nil)
+    described_class.call(title: title, narrative: narrative, findings: findings, references: references, escalate: escalate, escalation_reason: escalation_reason, server_context: { run: run })
   end
 
   it "accepts a run_id-only sidecar context" do
@@ -40,16 +40,82 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
       "title" => "Dashboard slowness",
       "narrative" => "It's slow because of an N+1 query.",
       "findings" => [ "N+1 query in DashboardController#index", "Missing index on jobs.repository_id" ],
-      "references" => []
+      "references" => [],
+      "escalate" => false,
+      "escalation_reason" => nil
     )
   end
 
-  it "defaults findings and references to empty lists when omitted" do
-    call
+  it "defaults findings and references to empty lists and does not escalate when omitted" do
+    expect { call }.not_to change { Notification.where(kind: "investigation_escalated", job: job).count }
 
     artifact = run.workflow.reload.artifact("investigation_report")
     expect(artifact["findings"]).to eq([])
     expect(artifact["references"]).to eq([])
+    expect(artifact["escalate"]).to eq(false)
+    expect(artifact["escalation_reason"]).to be_nil
+    expect(job.reload.needs_attention).to eq(false)
+    expect(job.reload.needs_attention_reason).to be_nil
+  end
+
+  it "persists an escalation, marks the job as needing attention, and creates one notification" do
+    expect {
+      call(escalate: true, escalation_reason: "needs_human_decision")
+    }.to change { Notification.where(kind: "investigation_escalated", job: job).count }.by(1)
+
+    artifact = run.workflow.reload.artifact("investigation_report")
+    expect(artifact).to include(
+      "escalate" => true,
+      "escalation_reason" => "needs_human_decision"
+    )
+    expect(job.reload).to have_attributes(
+      needs_attention: true,
+      needs_attention_reason: Job::INVESTIGATION_ESCALATED_ATTENTION_REASON
+    )
+    notification = Notification.where(kind: "investigation_escalated", job: job).sole
+    expect(notification).to have_attributes(
+      repository: job.repository,
+      dedupe_key: "investigation_escalated:workflow:#{run.workflow_id}"
+    )
+    expect(notification.body).to include("needs_human_decision")
+  end
+
+  it "does not create a duplicate escalation notification when the same workflow report is replayed" do
+    call(escalate: true, escalation_reason: "needs_human_decision")
+
+    expect {
+      call(escalate: true, escalation_reason: "needs_human_decision")
+    }.not_to change { Notification.where(kind: "investigation_escalated", job: job).count }
+
+    expect(Notification.where(kind: "investigation_escalated", job: job).count).to eq(1)
+  end
+
+  it "publishes the escalation chat work event with the workflow dedupe key" do
+    dedupe_key = "investigation_escalated:workflow:#{run.workflow_id}"
+    expect(ChatWorkEvents).to receive(:publish!).with(hash_including(
+      kind: "investigation_escalated",
+      dedupe_key: dedupe_key
+    ))
+
+    call(escalate: true, escalation_reason: "needs_human_decision")
+  end
+
+  it "rejects an unknown escalation reason code" do
+    response = call(escalate: true, escalation_reason: "maybe_later")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("escalation_reason must be one of")
+    expect(run.workflow.reload.artifact("investigation_report")).to be_nil
+    expect(job.reload.needs_attention_reason).to be_nil
+    expect(Notification.where(kind: "investigation_escalated", job: job)).to be_empty
+  end
+
+  it "rejects an escalation reason when escalate is false" do
+    response = call(escalation_reason: "unsafe_to_proceed")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("escalation_reason requires escalate: true")
+    expect(run.workflow.reload.artifact("investigation_report")).to be_nil
   end
 
   it "persists an ordered list of references to artifacts already submitted this run" do

@@ -58,6 +58,13 @@ job evaluates the same alert pipeline every minute, so delivery does not depend
 on an operator having the app open. Delivery is deduplicated by dismissal key so
 one incident does not flood the outbound sink.
 
+The optional Alertmanager Investigations plugin closes the loop in the other
+direction: it polls Alertmanager for firing alerts and files a read-only Syrus
+investigation only when the alert's runbook annotation resolves to a file in a
+registered repository. Alerts without a resolvable runbook are ignored, and the
+plugin deduplicates by alert fingerprint while preventing two open
+investigations for the same host.
+
 ## Browser Errors
 
 Browser errors capture client-side exceptions with path, user agent, revision,

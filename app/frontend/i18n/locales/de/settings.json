@@ -233,6 +233,7 @@
     "pref_pr_merged": "Benachrichtige mich, wenn ein Job gemergt wird",
     "pref_epic_completed": "Benachrichtige mich, wenn ein Epic abgeschlossen ist",
     "pref_main_inconclusive": "Benachrichtige mich, wenn die Main-Branch-Gesundheit überprüft werden muss",
+    "pref_investigation_escalated": "Benachrichtige mich, wenn eine Untersuchung eskaliert",
     "updated": "Benachrichtigungseinstellungen aktualisiert.",
     "see_also": "Dies steuert, worüber du benachrichtigt wirst. Um zu wählen, wohin Benachrichtigungen zugestellt werden, siehe"
   },

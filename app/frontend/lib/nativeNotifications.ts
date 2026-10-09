@@ -50,7 +50,8 @@ const KIND_LABELS: Record<string, string> = {
   main_inconclusive: "Main branch health inconclusive",
   main_recovered: "Main branch recovered",
   upstream_pr_closed: "Upstream PR closed",
-  external_pr_feedback: "External PR feedback"
+  external_pr_feedback: "External PR feedback",
+  investigation_escalated: "Investigation escalated"
 }
 
 export function nativeNotificationTitle(kind: string) {
