@@ -59,6 +59,32 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(run.agent_outcome).to be_nil
   end
 
+  it "retries transient lifecycle lock conflicts without rerunning the handler" do
+    handler_calls = 0
+    lock_raised = false
+    counting_handler = Class.new(Steps::Base) do
+      define_method(:call) { handler_calls += 1 }
+    end
+    allow(Steps).to receive(:handler_for).and_return(counting_handler)
+    allow_any_instance_of(described_class).to receive(:succeed_run!).and_wrap_original do |original, *args|
+      unless lock_raised
+        lock_raised = true
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded"
+      end
+
+      original.call(*args)
+    end
+
+    run = StepDispatcher.start_workflow(workflow)
+    allow_any_instance_of(described_class).to receive(:next_inline_run).and_return(nil)
+
+    described_class.perform_now(run.id)
+
+    expect(handler_calls).to eq(1)
+    expect(run.reload).to be_succeeded
+    expect(s_implement.reload).to be_succeeded
+  end
+
   it "captures and clears the Solid Queue role on workflow activity events" do
     run = StepDispatcher.start_workflow(workflow)
 
