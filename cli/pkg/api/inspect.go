@@ -33,13 +33,17 @@ type EpicFormPayload struct {
 }
 
 type CreateEpicRequest struct {
-	Epic CreateEpicParams `json:"epic"`
+	Epic  CreateEpicParams `json:"epic"`
+	Start bool             `json:"start,omitempty"`
 }
 
 type CreateEpicParams struct {
-	RepositoryID int64  `json:"repository_id"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
+	RepositoryID         int64  `json:"repository_id"`
+	Title                string `json:"title"`
+	Description          string `json:"description"`
+	GitHubIssueURL       string `json:"github_issue_url,omitempty"`
+	EpicDependencyPolicy string `json:"epic_dependency_policy,omitempty"`
+	Start                bool   `json:"-"`
 }
 
 type CreateEpicResponse struct {
@@ -93,7 +97,7 @@ func (c *Client) NewEpicPayload(ctx context.Context) (EpicFormPayload, error) {
 
 func (c *Client) CreateEpic(ctx context.Context, params CreateEpicParams) (CreateEpicResponse, error) {
 	var out CreateEpicResponse
-	err := c.do(ctx, http.MethodPost, "/api/v1/app/epics", CreateEpicRequest{Epic: params}, &out)
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/epics", CreateEpicRequest{Epic: params, Start: params.Start}, &out)
 	return out, err
 }
 

@@ -127,6 +127,35 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body.to_s).not_to include("Private")
   end
 
+  it "treats state=open as active work for CLI clients" do
+    queued = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Queued work", state: "queued")
+    running = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Running work", state: "running")
+    implemented = Factories.job_record(repository: repo, issue_number: 103, issue_title: "Implemented work", state: "implemented")
+    no_change_needed = Factories.job_record(repository: repo, issue_number: 104, issue_title: "No change needed", state: "no_change_needed")
+    closed = Factories.job_record(repository: repo, issue_number: 105, issue_title: "Closed work", state: "closed")
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "open", limit: 10 }
+
+    expect(response).to have_http_status(:ok)
+    job_ids = parse_body.fetch("jobs").map { |item| item.fetch("id") }
+    expect(job_ids).to include(queued.id, running.id, implemented.id)
+    expect(job_ids).not_to include(no_change_needed.id, closed.id)
+  end
+
+  it "keeps state=closed scoped to closed jobs" do
+    Factories.job_record(repository: repo, issue_number: 101, issue_title: "Queued work", state: "queued")
+    closed = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Closed work", state: "closed")
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "closed", limit: 10 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("jobs")).to contain_exactly(include(
+      "id" => closed.id,
+      "state" => "closed",
+      "title" => "Closed work"
+    ))
+  end
+
   it "scopes invocation-context CLI clients to the current run's job", :skip_sign_in do
     current_job = Factories.job_with_run(
       repository: repo,

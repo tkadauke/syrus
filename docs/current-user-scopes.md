@@ -246,6 +246,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/installations_controller.rb
   - app/controllers/api/v1/app/admin/invitations_controller.rb
   - app/controllers/api/v1/app/admin/maintenance_tasks_controller.rb
+  - app/controllers/api/v1/app/admin/macos_worker_updates_controller.rb
   - plugins/metrics_dashboard/app/controllers/api/v1/app/metrics_dashboard_controller.rb
   - app/controllers/api/v1/app/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/admin/mcp_tool_usage_controller.rb
@@ -474,12 +475,13 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/github_app_controller.rb` | admin-only | Builds GitHub App manifests using the current admin's identity/contact context. |
 | `app/controllers/api/v1/app/admin/installations_controller.rb` | admin-only | Queues installation sync for the current admin. |
 | `app/controllers/api/v1/app/admin/invitations_controller.rb` | admin-only | Records the current admin as invitation creator. |
+| `app/controllers/api/v1/app/admin/macos_worker_updates_controller.rb` | admin or machine-scoped | Human update controls are admin-only. Native workers can read/report through a scoped machine invocation context, and `Current.user` is used only for the admin side of that guard. |
 | `app/controllers/api/v1/app/admin/queue_controller.rb` | admin-only | Reads queue/process state through admin-only payloads and user-aware filters. |
 | `app/controllers/api/v1/app/admin/restart_controller.rb` | admin-only | Writes the Rails.cache restart poison-pill and passes the current admin as actor for `AdminAction` audit logging. |
 | `app/controllers/api/v1/app/admin/spawned_processes_controller.rb` | admin-only | Lists and kills subprocesses through admin payloads, with the current admin passed for authorization/audit. |
 | `app/controllers/api/v1/app/admin/users_controller.rb` | admin-only | Lists user records through an admin payload with the current admin as actor. |
 | `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Public auth status includes current-user context when a signed-in admin hits auth routes. |
-| `app/controllers/api/v1/app/credentials_controller.rb` | per-user/private and admin-only | Normal credential reads/writes mutate only the current user's credentials. API token rotation and revocation are admin-only because API bearer access exposes admin endpoints. |
+| `app/controllers/api/v1/app/credentials_controller.rb` | per-user/private and admin-only | Normal credential reads/writes, including API token rotation and revocation, mutate only the current user's credentials. Admin-only credential actions remain separately guarded. |
 | `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | team-visible with self-aware badges | Team profiles are deliberately visible across users, while ownership labels compare profile rows to the signed-in user. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the current operator's credentials, repositories, and first job progress. |
 | `plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb` | per-user/private | Design doc reads and writes resolve visibility through the signed-in user. |

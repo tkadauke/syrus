@@ -65,7 +65,7 @@ func newJobListCommand(search bool) *cobra.Command {
 			return runJobList(cmd, state, limit, args[0], jsonOut, repo)
 		}
 	}
-	cmd.Flags().StringVar(&state, "state", "open", "open, closed, or all")
+	cmd.Flags().StringVar(&state, "state", "open", jobStateFilterHelp)
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print jobs as JSON")
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
@@ -249,15 +249,40 @@ func NewEpicCommand() *cobra.Command {
 
 func newEpicCreateCommand() *cobra.Command {
 	var yes bool
+	var repo string
+	var title string
+	var body string
+	var bodyFile string
+	var start bool
+	var githubIssueURL string
+	var epicDependencyPolicy string
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create an epic in the current repository",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runEpicCreate(cmd, yes)
+			return runEpicCreate(cmd, epicCreateOptions{
+				yes:                  yes,
+				repo:                 repo,
+				title:                title,
+				body:                 body,
+				bodyFile:             bodyFile,
+				start:                start,
+				githubIssueURL:       githubIssueURL,
+				epicDependencyPolicy: epicDependencyPolicy,
+			})
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "create without prompting for confirmation")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug, e.g. owner/name")
+	cmd.Flags().StringVar(&title, "title", "", "epic title")
+	cmd.Flags().StringVar(&body, "body", "", "epic description")
+	cmd.Flags().StringVar(&body, "prompt", "", "epic description")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "read the epic description from a file")
+	cmd.Flags().StringVar(&bodyFile, "file", "", "read the epic description from a file, or '-' for stdin")
+	cmd.Flags().BoolVar(&start, "start", false, "start implementing the epic after creation")
+	cmd.Flags().StringVar(&githubIssueURL, "github-issue-url", "", "GitHub issue URL linked to the epic")
+	cmd.Flags().StringVar(&epicDependencyPolicy, "epic-dependency-policy", "", "epic dependency policy")
 	return cmd
 }
 
@@ -326,7 +351,7 @@ func newEpicShowCommand() *cobra.Command {
 			if jsonOut {
 				return json.NewEncoder(out).Encode(epic)
 			}
-			fmt.Fprintf(out, "%s · %s\nState: %s\nRepo: %s\n\n", epicSlug(epic.Epic.Number), epic.Epic.Title, epic.Epic.State, epic.Epic.RepositorySlug)
+			fmt.Fprintf(out, "%s · %s\nState: %s\nRepo: %s\n\n", epicRef(epic.Epic), epic.Epic.Title, epic.Epic.State, epic.Epic.RepositorySlug)
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
 			for _, job := range epic.Jobs {
@@ -400,6 +425,9 @@ func NewWhoamiCommand() *cobra.Command {
 }
 
 func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string) error {
+	if err := validateJobStateFilter(state); err != nil {
+		return err
+	}
 	client, _, err := apiClient()
 	if err != nil {
 		return err
@@ -463,45 +491,57 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 	color := supportsColor(cmd.OutOrStdout())
 	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
 	for _, epic := range epics {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State, color), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d/%d done\n", epicRef(epic), inspectColorState(epic.State, color), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
 	}
 	return tw.Flush()
 }
 
-func runEpicCreate(cmd *cobra.Command, yes bool) error {
-	repo := cliplugin.DetectCurrentRepoSlug()
+type epicCreateOptions struct {
+	yes                  bool
+	repo                 string
+	title                string
+	body                 string
+	bodyFile             string
+	start                bool
+	githubIssueURL       string
+	epicDependencyPolicy string
+}
+
+func runEpicCreate(cmd *cobra.Command, opts epicCreateOptions) error {
+	repo := strings.TrimSpace(opts.repo)
 	if repo == "" {
-		return errors.New("syrus epic create requires a GitHub repository remote")
+		repo = cliplugin.DetectCurrentRepoSlug()
+	}
+	if repo == "" {
+		return errors.New("run from a GitHub checkout or pass --repo owner/name")
 	}
 
 	client, creds, err := apiClient()
 	if err != nil {
 		return err
 	}
-	form, err := client.NewEpicPayload(cmd.Context())
+	repositories, err := client.ListRepositories(cmd.Context())
 	if err != nil {
 		return err
 	}
-	repositoryID, ok := repositoryIDForSlug(form.Repositories, repo)
+	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
 	if !ok {
 		return fmt.Errorf("repository %s is not available to this Syrus user", repo)
 	}
 
 	reader := bufio.NewReader(cmd.InOrStdin())
-	title, err := prompt(reader, cmd.OutOrStdout(), "Title: ")
+	title, description, err := jobCreateText(reader, cmd.OutOrStdout(), opts.title, opts.body, opts.bodyFile)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(title) == "" {
-		return errors.New("Title can't be blank")
+	if title == "" {
+		return errors.New("title cannot be blank")
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), "Description (blank line to finish):")
-	description, err := readMultiline(reader)
-	if err != nil {
-		return err
+	if description == "" {
+		return errors.New("description cannot be blank")
 	}
 
-	if !yes {
+	if !opts.yes {
 		answer, err := prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Create epic in %s? [y/N] ", repo))
 		if err != nil {
 			return err
@@ -513,18 +553,24 @@ func runEpicCreate(cmd *cobra.Command, yes bool) error {
 	}
 
 	created, err := client.CreateEpic(cmd.Context(), api.CreateEpicParams{
-		RepositoryID: repositoryID,
-		Title:        title,
-		Description:  description,
+		RepositoryID:         repositoryID,
+		Title:                title,
+		Description:          description,
+		Start:                opts.start,
+		GitHubIssueURL:       strings.TrimSpace(opts.githubIssueURL),
+		EpicDependencyPolicy: strings.TrimSpace(opts.epicDependencyPolicy),
 	})
 	if err != nil {
 		return err
 	}
-	target := created.RedirectTo
-	if target == "" {
-		target = fmt.Sprintf("/epics/%d", created.Epic.ID)
+	refNumber := created.Epic.Number
+	if refNumber == 0 {
+		refNumber = created.Epic.ID
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Epic #%d\n%s\n", created.Epic.ID, appURL(creds.URL, target))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", epicSlug(refNumber))
+	if created.RedirectTo != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", appURL(creds.URL, created.RedirectTo))
+	}
 	return nil
 }
 

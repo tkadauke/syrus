@@ -43,6 +43,34 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     expect(parse_body.dig("error", "code")).to eq("invalid_credentials")
   end
 
+  it "destroys a cookie-authenticated session through the JSON endpoint" do
+    user = Factories.user(email_address: "operator@example.com", password: "supersecret")
+    sign_in_as(user)
+
+    expect {
+      delete "/api/v1/app/auth/session", as: :json
+    }.to change { user.sessions.count }.by(-1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["redirect_to"]).to eq(new_session_path)
+
+    get "/api/v1/app/dashboard", as: :json
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "rejects bearer-token sign-out because tokens are not browser sessions" do
+    user = Factories.user
+    user.update!(api_token: "syrus_cli_token")
+
+    delete "/api/v1/app/auth/session",
+      headers: { "Authorization" => "Bearer syrus_cli_token" },
+      as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("token_session_not_destroyable")
+    expect(user.reload.api_token).to eq("syrus_cli_token")
+  end
+
   it "describes open sign-up state" do
     get "/api/v1/app/auth/signup"
 

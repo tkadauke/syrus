@@ -65,7 +65,7 @@ func TestJobCreatePostsDirectJob(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-456 created. Track with: syrus job watch 456") {
+	if !strings.HasSuffix(output.String(), "JOB-456\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -116,7 +116,7 @@ func TestJobCreateWithPriorityAgentAndOwnerFlags(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-457 created. Track with: syrus job watch 457") {
+	if !strings.HasSuffix(output.String(), "JOB-457\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -127,9 +127,9 @@ func TestJobCreateWithEpicFlagResolvesEpicID(t *testing.T) {
 		case "/api/v1/app/repositories":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
-		case "/api/v1/app/epics/42":
+		case "/api/v1/app/epics/EPIC-42":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"epic":{"id":99,"title":"Aqueduct overhaul"}}`))
+			w.Write([]byte(`{"epic":{"id":99,"number":42,"title":"Aqueduct overhaul"}}`))
 		case "/api/v1/app/jobs":
 			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -158,7 +158,7 @@ func TestJobCreateWithEpicFlagResolvesEpicID(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(output.String(), "JOB-458 created. Track with: syrus job watch 458") {
+	if !strings.HasSuffix(output.String(), "JOB-458\n") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -263,6 +263,46 @@ func TestJobCreateBodyFilePreservesBlankLines(t *testing.T) {
 	}
 }
 
+func TestJobCreateFileDashReadsBodyFromStdin(t *testing.T) {
+	body := "First paragraph.\n\nSecond paragraph.\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/jobs":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["prompt"] != "First paragraph.\n\nSecond paragraph." {
+				t.Fatalf("prompt = %#v", payload["prompt"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"job":{"id":461,"title":"Tune the aqueduct"},"repository":{"slug":"acme/widgets"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(body))
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{
+		"job", "create", "--repo", "acme/widgets", "--yes",
+		"--title", "Tune the aqueduct",
+		"--file", "-",
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+}
+
 func TestJobCreateRejectsInvalidPriority(t *testing.T) {
 	writeJobActionTestCredentials(t, "http://example.invalid")
 
@@ -330,6 +370,37 @@ func TestJobCreateFailsFastOnInvalidRepoWithoutPrompting(t *testing.T) {
 	}
 }
 
+func TestJobCreateFailsFastOnInvalidEpicWithoutPrompting(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/epics/EPIC-404":
+			http.Error(w, `{"error":{"message":"not found"}}`, http.StatusNotFound)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/widgets", "--yes", "--epic", "EPIC-404"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "could not resolve epic EPIC-404") {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(output.String(), "Title:") {
+		t.Fatalf("expected no prompt output, got %q", output.String())
+	}
+}
+
 func TestJobActionPostsEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/app/jobs/456/approve" {
@@ -354,34 +425,54 @@ func TestJobActionPostsEndpoint(t *testing.T) {
 	}
 }
 
-func TestJobTestPlanRendersLatestCompletedPlan(t *testing.T) {
+func TestJobTestPlanUsesAppPayloadLikeTopLevelCommand(t *testing.T) {
+	payload := `{
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": {
+			"steps": [
+				"Navigate to /settings/profile",
+				"Click \"Upload avatar\" and select a PNG under 2 MB",
+				"Verify the avatar appears in the nav bar immediately"
+			],
+			"notes": "Avatar storage uses ActiveStorage."
+		}
+	}`
+	var requestedPaths []string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/admin/jobs/456" {
+		if r.URL.Path != "/api/v1/app/jobs/456" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
+		requestedPaths = append(requestedPaths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"id":456,
-			"workflows":[
-				{"id":1,"state":"succeeded","artifacts":{"test_plan":{"steps":["bin/old"]}}},
-				{"id":2,"state":"succeeded","artifacts":{"test_plan":{"steps":[{"step":"bin/rspec","notes":"Run the regression specs."}]}}}
-			]
-		}`))
+		w.Write([]byte(payload))
 	}))
 	defer server.Close()
 	writeJobActionTestCredentials(t, server.URL)
 
-	output := &bytes.Buffer{}
-	command := NewRootCommand()
-	command.SetOut(output)
-	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"job", "test-plan", "456"})
+	jobOutput := executeJobActionCommand(t, []string{"job", "test-plan", "456"})
+	topLevelOutput := executeJobActionCommand(t, []string{"test-plan", "456"})
 
-	if err := command.Execute(); err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+	if jobOutput != topLevelOutput {
+		t.Fatalf("outputs differ:\njob test-plan:\n%s\ntest-plan:\n%s", jobOutput, topLevelOutput)
 	}
-	if got := output.String(); !strings.Contains(got, "1. bin/rspec\n   Run the regression specs.") {
-		t.Fatalf("output = %q", got)
+
+	expected := `Test plan for JOB-456: Add user avatar upload
+
+1. Navigate to /settings/profile
+2. Click "Upload avatar" and select a PNG under 2 MB
+3. Verify the avatar appears in the nav bar immediately
+
+Notes: Avatar storage uses ActiveStorage.
+`
+	if jobOutput != expected {
+		t.Fatalf("output = %q", jobOutput)
+	}
+	if !reflect.DeepEqual(requestedPaths, []string{"/api/v1/app/jobs/456", "/api/v1/app/jobs/456"}) {
+		t.Fatalf("requested paths = %#v", requestedPaths)
 	}
 }
 
@@ -514,6 +605,9 @@ func TestJobOpenUsesConfiguredInstanceURL(t *testing.T) {
 
 func writeJobActionTestCredentials(t *testing.T, url string) {
 	t.Helper()
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("SYRUS_CLI_INTERNAL", "")
@@ -527,4 +621,20 @@ func writeJobActionTestCredentials(t *testing.T, url string) {
 	if err := os.WriteFile(filepath.Join(path, "credentials"), []byte("url="+url+"\ntoken=test-token\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func executeJobActionCommand(t *testing.T, args []string) string {
+	t.Helper()
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs(args)
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute(%v) returned error: %v", args, err)
+	}
+
+	return output.String()
 }

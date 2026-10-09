@@ -1127,7 +1127,7 @@
     "paste_auth_json": "auth.json manu inserere",
     "auth_json_help": "Serva postquam valorem Codex auth.json localem inseruisti.",
     "api_token_heading": "Tessera API",
-    "api_token_desc": "Tessera administratoris pro automatione `/api/v1/admin/*`. Textus planus semel post rotationem ostenditur.",
+    "api_token_desc": "Tessera personalis pro CLI, desktop, et API usoris. Textus planus semel post rotationem ostenditur.",
     "new_token": "Tessera Nova",
     "token_is_set": "Tessera posita est.",
     "no_token": "Nulla tessera adhuc emissa.",

@@ -172,8 +172,8 @@ open the connected Syrus instance in your browser, open Preferences, or
 quit the app.
 
 Most commands accept a normal user API token and scope themselves to
-what that user can see. Commands that read admin-only payloads, such as
-top-level `syrus test-plan`, require an admin token.
+what that user can see. Commands that operate on instance-wide
+administrative surfaces require an admin token.
 
 ## Repository Detection
 
@@ -274,7 +274,8 @@ With `--watch`, an empty inbox stays open and refreshes every 30 seconds.
 Use `syrus job` commands for direct Job work:
 
 ```bash
-syrus job list --state open --limit 20
+syrus job list --limit 20
+syrus job list --state running
 syrus job list --repo tkadauke/myapp
 syrus job search "dark mode"
 syrus job show 456
@@ -291,6 +292,11 @@ syrus job test-plan 456
 syrus job open 456
 ```
 
+Job listing defaults to `--state open`, which is an alias for active
+work. Use a concrete state such as `queued`, `running`, `implemented`,
+`failed`, `approved`, `landing`, or `closed`, or use `--state all` to
+disable state filtering.
+
 Commands that accept a Job ID also accept `JOB-<n>` (e.g. `JOB-456`) and
 human-readable slugs derived from the job title (e.g.
 `syrus job show repair-aqueduct`). The same applies to `syrus checkout`,
@@ -298,18 +304,19 @@ human-readable slugs derived from the job title (e.g.
 
 `job create` prompts for a title and multi-line description, defaults to
 the current checkout repository, and accepts `--repo owner/name` and
-`--yes`. For non-interactive callers, pass `--title` plus either `--body`
-or `--body-file`; body files preserve blank lines. Optional flags set fields
+`--yes`. For non-interactive callers, pass `--title` plus `--prompt`,
+`--body`, `--body-file`, or `--file -`; body files preserve blank lines. On
+success it prints the created `JOB-<number>` ref. Optional flags set fields
 the API already accepts but that the interactive prompt does not ask for:
 `--priority` (`urgent`, `high`, `medium`, or `low`; omitted defaults to
 `medium` server-side), `--agent` (an agent provider slug from an enabled
 provider plugin, e.g. `claude`, `codex`, `agy`, or `muse`), `--epic` (an
-Epic to attach the job to, as `EPIC-<id>` or a slug — resolved to its
-numeric ID before the job is created), `--depends-on` (repeatable; accepts
-`JOB-<id>` for existing Jobs or a proposal slug), and `--owner` (the numeric
-user ID of a repository member to assign as owner). These are optional and
-omitted entirely from the request when not passed, rather than sent as blank
-values.
+Epic to attach the job to, as `EPIC-<number>` or a slug — resolved before
+any interactive prompt), `--depends-on` (repeatable; accepts `JOB-<id>` for
+existing Jobs or a proposal slug and is sent with the create request), and
+`--owner` (the numeric user ID of a repository member to assign as owner).
+These are optional and omitted entirely from the request when not passed,
+rather than sent as blank values.
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
@@ -353,10 +360,11 @@ the branch doesn't exist locally or on `origin`. It still runs
 error (e.g. a network failure or server error) is surfaced as-is and does not
 trigger the branch fallback.
 
-`syrus checkout EPIC-N --complete` (where `N` is a numeric ID or a
-human-readable slug such as `EPIC-add-auth-system`) automatically selects the single branch
-that contains all of the Epic's implemented changes and checks it out, without
-opening the interactive picker. It uses a two-step algorithm:
+`syrus checkout EPIC-N --complete` (where `N` is the Epic number, or the
+argument is a human-readable slug such as `EPIC-add-auth-system`)
+automatically selects the single branch that contains all of the Epic's
+implemented changes and checks it out, without opening the interactive
+picker. It uses a two-step algorithm:
 
 1. If the Epic has an active merge-train integration branch (set by
    `merge_train_build` and not yet landed), that branch is checked out
@@ -373,11 +381,13 @@ branch is explicitly built on top of another.
 
 ## Test Plans
 
-The top-level test-plan shortcut accepts a numeric ID, a `JOB-<n>` slug,
-or a human-readable slug derived from the job title:
+Both `syrus test-plan` and `syrus job test-plan` read the same
+user-visible Job test plan. They accept a numeric ID, a `JOB-<n>` slug,
+or a human-readable slug derived from the Job title:
 
 ```bash
 syrus test-plan JOB-456
+syrus job test-plan 456
 syrus test-plan repair-aqueduct
 ```
 
@@ -389,8 +399,7 @@ syrus test-plan
 
 It infers the Job from branches like `syrus/issue-42-456`,
 `syrus/direct-456`, `syrus/scheduled-10-456`, and `syrus/local-456`.
-The command prints the newest completed workflow's `test_plan` artifact
-as a numbered checklist.
+The command prints the Job's test plan as a numbered checklist.
 
 After reviewing and testing locally, approve from the terminal:
 
@@ -492,14 +501,19 @@ Use `syrus epic` to inspect and create Epics:
 syrus epic list
 syrus epic list --repo tkadauke/myapp
 syrus epic search "launch"
-syrus epic show 12
+syrus epic show EPIC-12
 syrus epic create
-syrus epic open 12
+syrus epic create --repo tkadauke/myapp --title "Launch checklist" --file ./epic.md --start --yes
+syrus epic open EPIC-12
 ```
 
-`epic create` must run inside a GitHub checkout. It prompts for a title
-and multi-line description, confirms the repository, creates the Epic,
-and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
+`epic create` detects the repository from the current GitHub checkout, or
+accepts `--repo owner/name`. It prompts for a title and multi-line
+description when `--title` and body flags are absent; scripts can pass
+`--title` with `--prompt`, `--body`, `--body-file`, or `--file -` to read the
+description from stdin. Use `--start` to start the Epic immediately and
+`--yes` to skip the confirmation prompt. On success it prints the created
+`EPIC-<number>` ref plus the Epic URL.
 
 `epic list`/`epic search` and `epic show` also accept `--json` for the
 same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic
@@ -565,8 +579,7 @@ syrus k8s overview --cluster 1
 with exactly one registered cluster it is inferred automatically. All
 resource commands except `nodes` and `overview` accept `--namespace` to
 restrict the listing; omitting it lists across every namespace, the same
-as `kubectl get <kind> -A`. These commands require an admin API token,
-same as `syrus test-plan`.
+as `kubectl get <kind> -A`. These commands require an admin API token.
 
 This command group is read-only. The plugin's cluster actions (deleting a
 pod, restarting a rollout, scaling a deployment, cordoning a node) are

@@ -83,7 +83,9 @@ require_command tar
 # "CURL_AUTH_ARGS[@]: unbound variable". Bash 4.4+ (Linux) is fine either way,
 # which is exactly why this hid: the script only ever runs on macOS.
 CURL_AUTH_ARGS=()
-if [[ -n "${SYRUS_API_TOKEN:-}" ]]; then
+if [[ -n "${SYRUS_MACOS_WORKER_TOKEN:-}" ]]; then
+  CURL_AUTH_ARGS=(-H "Authorization: Bearer $SYRUS_MACOS_WORKER_TOKEN")
+elif [[ -n "${SYRUS_API_TOKEN:-}" ]]; then
   CURL_AUTH_ARGS=(-H "Authorization: Bearer $SYRUS_API_TOKEN")
 fi
 
@@ -192,7 +194,7 @@ report_state() {
   local message="${2:-}"
   local url
   url="$(report_url)"
-  [[ -n "$url" && -n "${SYRUS_API_TOKEN:-}" ]] || return 0
+  [[ -n "$url" && ${#CURL_AUTH_ARGS[@]} -gt 0 ]] || return 0
 
   CURRENT_VERSION="$(current_sha)" \
     TARGET_VERSION="${TARGET_VERSION:-}" \

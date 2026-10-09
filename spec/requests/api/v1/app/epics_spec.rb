@@ -1177,6 +1177,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       "message" => "Epic created.",
       "redirect_to" => epic_path(epic)
     )
+    expect(parse_body.dig("epic", "number")).to eq(epic.number)
+    expect(parse_body.dig("epic", "display_number")).to eq(epic.slug)
   end
 
   it "rejects creating an epic on a repository the user cannot access" do
@@ -1582,6 +1584,20 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("epic", "id")).to eq(epic.id)
+  end
+
+  it "resolves an EPIC display ref by number instead of primary key" do
+    sign_in_as(user)
+    epic_with_matching_id = Factories.epic(user: user, repository: repository, title: "Primary key match")
+    target = Factories.epic(user: user, repository: repository, title: "Number match")
+    epic_with_matching_id.update_columns(number: 10_000 + epic_with_matching_id.id, slug: "EPIC-#{10_000 + epic_with_matching_id.id}")
+    target.update_columns(number: epic_with_matching_id.id, slug: "EPIC-#{epic_with_matching_id.id}")
+
+    get "/api/v1/app/epics/EPIC-#{epic_with_matching_id.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "id")).to eq(target.id)
+    expect(parse_body.dig("epic", "title")).to eq("Number match")
   end
 
   it "returns 404 for an unknown epic slug" do

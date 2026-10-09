@@ -3,6 +3,10 @@ module Api
     module App
       module Admin
         class MacosWorkerUpdatesController < BaseController
+          skip_before_action :require_admin
+          before_action :require_macos_worker_update_access
+          after_action :audit_macos_worker_credential
+
           rescue_from ArgumentError do |e|
             render_error("bad_request", e.message, status: :bad_request)
           end
@@ -64,6 +68,32 @@ module Api
           end
 
           private
+
+          def require_macos_worker_update_access
+            return true if Current.user&.admin?
+            return true if current_invocation_context&.macos_worker?
+
+            render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
+            false
+          end
+
+          def audit_macos_worker_credential
+            return unless current_invocation_context&.macos_worker?
+
+            OperationalLogging.ingest(
+              level: response.status.to_i >= 400 ? "warn" : "info",
+              source: "macos_worker_update",
+              message: "macOS worker update credential #{response.status.to_i >= 400 ? 'rejected' : 'allowed'}",
+              context: {
+                method: request.request_method,
+                path: request.path,
+                action: action_name,
+                status: response.status.to_i,
+                hostname: params[:hostname].presence || params.dig(:status, :hostname).presence,
+                worker_storage_key: params[:worker_storage_key].presence || params.dig(:status, :worker_storage_key).presence
+              }.compact
+            )
+          end
 
           def desired_payload(release, drain:)
             enabled = release["artifact_url"].present? && release["git_sha"].present? && !!drain&.update_permitted?

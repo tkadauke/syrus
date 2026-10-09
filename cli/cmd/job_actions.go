@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -58,7 +57,9 @@ func newJobCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&owner, "owner", "", "assign a repository member as owner, by user ID")
 	cmd.Flags().StringVar(&title, "title", "", "job title")
 	cmd.Flags().StringVar(&body, "body", "", "job description")
+	cmd.Flags().StringVar(&body, "prompt", "", "job description")
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "read the job description from a file")
+	cmd.Flags().StringVar(&bodyFile, "file", "", "read the job description from a file, or '-' for stdin")
 	cmd.Flags().StringArrayVar(&dependsOn, "depends-on", nil, "existing dependency, repeatable; accepts JOB-123 or a proposal slug")
 	return cmd
 }
@@ -115,21 +116,7 @@ func newJobTestPlanCommand() *cobra.Command {
 		Short: "Show a job test plan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
-			if err != nil {
-				return err
-			}
-			job, err := client.GetAdminJob(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			plan, ok := latestTestPlan(job.Workflows)
-			if !ok {
-				fmt.Fprintln(cmd.OutOrStdout(), "No test plan yet — the job may still be implementing.")
-				return nil
-			}
-			renderTestPlan(cmd.OutOrStdout(), plan)
-			return nil
+			return runTestPlan(cmd.Context(), args[0], cmd.OutOrStdout())
 		},
 	}
 }
@@ -191,6 +178,20 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
 	}
 
+	var epicID int64
+	epic := strings.TrimSpace(opts.epic)
+	if epic != "" {
+		_, ref, err := parseEpicRef(epic)
+		if err != nil {
+			return err
+		}
+		resolved, err := client.GetEpic(cmd.Context(), ref)
+		if err != nil {
+			return fmt.Errorf("could not resolve epic %s: %w", epic, err)
+		}
+		epicID = resolved.Epic.ID
+	}
+
 	reader := bufio.NewReader(cmd.InOrStdin())
 	title, description, err := jobCreateText(reader, cmd.OutOrStdout(), opts.title, opts.body, opts.bodyFile)
 	if err != nil {
@@ -213,20 +214,6 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 		}
 	}
 
-	var epicID int64
-	epic := strings.TrimSpace(opts.epic)
-	if epic != "" {
-		_, ref, err := parseEpicRef(epic)
-		if err != nil {
-			return err
-		}
-		resolved, err := client.GetEpic(cmd.Context(), ref)
-		if err != nil {
-			return fmt.Errorf("could not resolve epic %s: %w", epic, err)
-		}
-		epicID = resolved.Epic.ID
-	}
-
 	dependsOnJobIDs, dependsOnSlugs, err := parseJobCreateDependencies(opts.dependsOn)
 	if err != nil {
 		return err
@@ -246,7 +233,7 @@ func runJobCreate(cmd *cobra.Command, opts jobCreateOptions) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s created. Track with: syrus job watch %d\n", jobSlug(job.Job.ID), job.Job.ID)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", jobSlug(job.Job.ID))
 	return nil
 }
 
@@ -258,9 +245,9 @@ func jobCreateText(reader *bufio.Reader, out io.Writer, titleFlag string, bodyFl
 		return "", "", errors.New("--body and --body-file cannot be used together")
 	}
 	if bodyFile != "" {
-		content, err := os.ReadFile(bodyFile)
+		content, err := readBodyFile(reader, bodyFile)
 		if err != nil {
-			return "", "", fmt.Errorf("read --body-file: %w", err)
+			return "", "", err
 		}
 		body = string(content)
 	}
@@ -278,6 +265,21 @@ func jobCreateText(reader *bufio.Reader, out io.Writer, titleFlag string, bodyFl
 		body = promptedBody
 	}
 	return strings.TrimSpace(title), strings.TrimSpace(body), nil
+}
+
+func readBodyFile(reader *bufio.Reader, path string) ([]byte, error) {
+	if path == "-" {
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("read --file -: %w", err)
+		}
+		return content, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read --file: %w", err)
+	}
+	return content, nil
 }
 
 func parseJobCreateDependencies(tokens []string) ([]int64, []string, error) {
@@ -401,93 +403,21 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 	return nil
 }
 
-func latestTestPlan(workflows []api.AdminWorkflow) (any, bool) {
-	sort.SliceStable(workflows, func(i, j int) bool {
-		return workflows[i].ID > workflows[j].ID
-	})
-	for _, workflow := range workflows {
-		if workflow.State != "succeeded" && workflow.FinishedAt == "" {
-			continue
-		}
-		if plan, ok := workflow.Artifacts["test_plan"]; ok && plan != nil {
-			return plan, true
-		}
-	}
-	return nil, false
-}
-
-func renderTestPlan(out io.Writer, plan any) {
-	steps := testPlanSteps(plan)
-	if len(steps) == 0 {
-		fmt.Fprintln(out, "No test plan yet — the job may still be implementing.")
-		return
-	}
-	for i, step := range steps {
-		fmt.Fprintf(out, "%d. %s\n", i+1, step.Title)
-		if step.Notes != "" {
-			fmt.Fprintf(out, "   %s\n", step.Notes)
-		}
-	}
-}
-
 func jobSlug(id any) string { return cliplugin.JobSlug(id) }
 
 func epicSlug(number any) string {
 	return fmt.Sprintf("EPIC-%v", number)
 }
 
+func epicRef(epic api.EpicItem) string {
+	if epic.Number != 0 {
+		return epicSlug(epic.Number)
+	}
+	return epicSlug(epic.ID)
+}
+
 // displayJobRef formats a job identifier for user-facing output. Numeric IDs
 // are shown with the JOB- prefix; slugs are shown as-is.
 func displayJobRef(ref string) string {
 	return displayRef(ref, "JOB-")
-}
-
-type testPlanStep struct {
-	Title string
-	Notes string
-}
-
-func testPlanSteps(plan any) []testPlanStep {
-	switch value := plan.(type) {
-	case []any:
-		return testPlanStepsFromArray(value)
-	case map[string]any:
-		for _, key := range []string{"steps", "items", "checks"} {
-			if raw, ok := value[key].([]any); ok {
-				return testPlanStepsFromArray(raw)
-			}
-		}
-	}
-	return nil
-}
-
-func testPlanStepsFromArray(items []any) []testPlanStep {
-	steps := make([]testPlanStep, 0, len(items))
-	for _, item := range items {
-		switch value := item.(type) {
-		case string:
-			steps = append(steps, testPlanStep{Title: value})
-		case map[string]any:
-			title := firstString(value, "step", "title", "command", "description", "name")
-			notes := firstString(value, "notes", "note", "details", "why")
-			if title == "" {
-				title = fmt.Sprint(value)
-			}
-			steps = append(steps, testPlanStep{Title: title, Notes: notes})
-		default:
-			steps = append(steps, testPlanStep{Title: fmt.Sprint(value)})
-		}
-	}
-	return steps
-}
-
-func firstString(values map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value, ok := values[key]; ok {
-			if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
-				return text
-			}
-		}
-	}
-	return ""
 }

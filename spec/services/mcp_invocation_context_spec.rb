@@ -60,6 +60,26 @@ RSpec.describe McpInvocationContext do
     end
   end
 
+  describe "macOS worker app API surface" do
+    it "resolves to a scoped machine context for the app API audience" do
+      token = described_class.issue_for_app_macos_worker(expires_in: 5.minutes)
+
+      resolved = described_class.resolve_for_app_api(token)
+
+      expect(resolved.surface).to eq(:macos_worker)
+      expect(resolved.tool_context).to be_macos_worker
+      expect(resolved.tool_context.user).to be_nil
+    end
+
+    it "expires like other app API invocation contexts" do
+      token = described_class.issue_for_app_macos_worker(expires_in: -1.minute)
+
+      expect(Rails.logger).to receive(:warn).with(a_string_matching(/Expired/))
+      expect { described_class.resolve_for_app_api(token) }
+        .to raise_error(described_class::Expired)
+    end
+  end
+
   describe "chat surface" do
     let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
     let(:message) { chat_session.messages.create!(role: "user", content: { "text" => "hi" }) }

@@ -381,6 +381,8 @@ module Api
         def epic_json(epic)
           {
             id: epic.id,
+            number: epic.number,
+            display_number: epic.persisted? ? epic.slug : nil,
             title: epic.title.to_s,
             description: epic.description.to_s,
             owner_user_id: epic.owner_user_id,

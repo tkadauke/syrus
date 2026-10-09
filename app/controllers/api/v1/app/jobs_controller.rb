@@ -323,7 +323,16 @@ module Api
             owner, name = params[:repo].to_s.split("/", 2)
             scope = scope.joins(:repository).where(repositories: { owner: owner, name: name })
           end
-          scope = scope.where(state: params[:state]) if params[:state].present? && params[:state] != "all"
+          scope = case params[:state].presence
+          when nil, "all"
+            scope
+          when "open"
+            scope.open_threads
+          when "closed"
+            scope.closed_threads
+          else
+            scope.where(state: params[:state])
+          end
           if params[:q].present?
             pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)

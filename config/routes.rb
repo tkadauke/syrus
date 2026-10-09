@@ -19,8 +19,8 @@ Rails.application.routes.draw do
     format: false,
     as: :chat_workspace_file_raw
 
-  # Admin REST API. Token-based auth (per-user), JSON only.
-  # See docs/plans/complete/admin-diagnostics.md for the endpoint plan.
+  # Admin REST API. Prefix ownership is documented in
+  # config/syrus_docs/admin_api_prefixes.md.
   namespace :api do
     namespace :v1 do
       namespace :app do
@@ -36,6 +36,7 @@ Rails.application.routes.draw do
         get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
+        delete "auth/session", to: "auth#destroy_session"
         post "auth/users", to: "auth#create_user"
         post "auth/passwords", to: "auth#create_password"
         patch "auth/passwords/:token", to: "auth#update_password"

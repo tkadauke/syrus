@@ -62,6 +62,39 @@ describe("AppChromeV2", () => {
     }
   })
 
+  it("signs out through the app API instead of submitting the legacy HTML form", async () => {
+    document.head.innerHTML = '<meta name="csrf-token" content="csrf-token">'
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse({ redirect_to: "/session/new" }))
+
+    renderAppChrome(<LocationProbe />, { initialEntries: ["/app-shell/settings"], routeWrapper: true })
+
+    const accountNav = screen.getByRole("navigation", { name: "Account" })
+    fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
+
+    const signOutButton = within(accountNav).getByRole("button", { name: "Sign out" })
+    expect(signOutButton.closest("form")).toBeNull()
+    fireEvent.click(signOutButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/auth/session",
+        expect.objectContaining({
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: expect.objectContaining({
+            Accept: "application/json",
+            "X-CSRF-Token": "csrf-token"
+          })
+        })
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/session/new")
+    })
+    expect(screen.queryByRole("navigation", { name: "Account" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "operator@example.com" })).toBeNull()
+  })
+
   it("renders the desktop sidebar with data-html2canvas-ignore on mobile viewports to exclude it from bug report screenshots", () => {
     const restoreMatchMedia = mockNarrowViewport()
 

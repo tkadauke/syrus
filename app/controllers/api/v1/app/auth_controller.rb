@@ -2,7 +2,8 @@ module Api
   module V1
     module App
       class AuthController < BaseController
-        skip_before_action :require_authentication
+        skip_before_action :require_authentication,
+                           only: %i[status signup create_session create_user create_password update_password]
         # Mirrors the HTML fallback controllers' limits (SessionsController /
         # PasswordsController); these JSON endpoints are the ones the React
         # forms actually hit, so they need the same brute-force brake.
@@ -40,6 +41,20 @@ module Api
           else
             render_error("invalid_credentials", I18n.t("api.auth.invalid_credentials"), status: :unprocessable_content)
           end
+        end
+
+        def destroy_session
+          if Current.session.is_a?(TokenSession)
+            render_error(
+              "token_session_not_destroyable",
+              "Bearer tokens authenticate requests but do not create a browser session to sign out.",
+              status: :unprocessable_content
+            )
+            return
+          end
+
+          terminate_session
+          render json: { redirect_to: new_session_path }
         end
 
         def create_user

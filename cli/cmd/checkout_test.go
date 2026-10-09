@@ -1222,7 +1222,7 @@ func TestCheckoutCommandPlainBranchWarnsWhenFetchFailsButLocalBranchExists(t *te
 
 func TestCheckoutCommandChecksOutSingleSinkEpicJob(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/app/epics/42" {
+		if r.URL.Path != "/api/v1/app/epics/EPIC-42" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1422,7 +1422,7 @@ func TestCheckoutCommandRoutesJobRefsToJobCheckout(t *testing.T) {
 
 func TestCheckoutCompleteChecksOutMergeTrainBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/app/epics/42" {
+		if r.URL.Path != "/api/v1/app/epics/EPIC-42" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1657,8 +1657,8 @@ func TestParseEpicRefAcceptsSlugs(t *testing.T) {
 		wantID  string
 		isErr   bool
 	}{
-		{"EPIC-42", "EPIC-42", "42", false},
-		{"epic-99", "EPIC-99", "99", false},
+		{"EPIC-42", "EPIC-42", "EPIC-42", false},
+		{"epic-99", "EPIC-99", "EPIC-99", false},
 		{"EPIC-add-auth-system", "EPIC-add-auth-system", "add-auth-system", false},
 		{"add-auth-system", "add-auth-system", "add-auth-system", false},
 		{"", "", "", true},
@@ -1742,6 +1742,39 @@ func TestCheckoutCommandAcceptsEpicSlugWithPrefix(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 	if requestedPath != "/api/v1/app/epics/add-auth-system" {
+		t.Fatalf("unexpected request path: %s", requestedPath)
+	}
+}
+
+func TestCheckoutCommandForwardsEpicDisplayRef(t *testing.T) {
+	var requestedPath string
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":5,"number":42,"title":"Add auth system","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth login endpoint","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	originalPicker := epicPickerFunc
+	epicPickerFunc = func(epicRef string, candidates []epicCandidate) (*api.JobItem, error) {
+		t.Fatal("picker should not be called for a single sink")
+		return nil, nil
+	}
+	t.Cleanup(func() { epicPickerFunc = originalPicker })
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/issue-45", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if requestedPath != "/api/v1/app/epics/EPIC-42" {
 		t.Fatalf("unexpected request path: %s", requestedPath)
 	}
 }

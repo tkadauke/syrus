@@ -1127,7 +1127,7 @@
     "paste_auth_json": "auth.json manuell einfügen",
     "auth_json_help": "Nach dem Einfügen eines lokalen Codex auth.json-Werts speichern.",
     "api_token_heading": "API-Token",
-    "api_token_desc": "Admin-Token für `/api/v1/admin/*`-Automatisierung. Klartext wird einmalig nach der Rotation angezeigt.",
+    "api_token_desc": "Persönliches Token für CLI, Desktop und User-API-Automatisierung. Klartext wird einmalig nach der Rotation angezeigt.",
     "new_token": "Neues Token",
     "token_is_set": "Ein Token ist gesetzt.",
     "no_token": "Noch kein Token ausgestellt.",

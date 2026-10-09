@@ -28,6 +28,18 @@ func parseRef(input string, prefix string, label string) (display string, id str
 	return displayRef(ref, prefix), ref, nil
 }
 
+func parseNumericDisplayRef(input string, prefix string, label string) (display string, id string, err error) {
+	display, id, err = parseRef(input, prefix, label)
+	if err != nil {
+		return "", "", err
+	}
+	ref := strings.TrimSpace(input)
+	if len(ref) >= len(prefix) && strings.EqualFold(ref[:len(prefix)], prefix) && isNumericRef(id) {
+		return display, display, nil
+	}
+	return display, id, nil
+}
+
 // displayRef formats an identifier for user-facing output: a numeric ID gets
 // the given prefix (e.g. JOB-/EPIC-); a human-readable slug is shown as-is.
 func displayRef(id string, prefix string) string {

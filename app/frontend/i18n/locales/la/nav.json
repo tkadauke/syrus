@@ -19,6 +19,7 @@
   "admin": "Curia",
   "admin_title": "Curia — domus senatus Romani",
   "sign_out": "Exi",
+  "sign_out_failed": "Exire non potuit. Iterum tenta.",
   "theme": "Themae",
   "color_theme": "Schema Colorum",
   "color_theme_current": "Schema Colorum: {{name}}",

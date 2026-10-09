@@ -5,16 +5,19 @@ description: REST API for external systems to create and manage Syrus Jobs.
 
 # REST API
 
-Syrus exposes an admin REST API for external operators and orchestrators.
-Authenticate with an admin user's API token:
+Syrus exposes app-scoped user APIs and an admin REST API for external
+operators and orchestrators. Personal API tokens authenticate as their owning
+user; admin endpoints still require an admin user's token.
 
 ```bash
 curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
   https://syrus.example.com/api/v1/admin/overview
 ```
 
-Non-admin tokens are rejected with `403 Forbidden`; missing or invalid
-tokens return a JSON `401` error.
+Non-admin tokens are accepted on `/api/v1/app/*` endpoints and are scoped by
+the same authorization policies as the browser UI. `/api/v1/admin/*` endpoints
+reject non-admin tokens with `403 Forbidden`; missing or invalid tokens return
+a JSON `401` error.
 
 Repeated invalid bearer tokens from the same source IP are rate-limited (20
 per 5 minutes); once tripped, further bad-token attempts from that IP get a
@@ -29,6 +32,14 @@ same bearer token header as the REST examples and exposes chat, inbox,
 checkout, Job, Epic, repository, and schedule commands. See
 [Syrus CLI](/docs/cli) for installation, login, command reference, and
 terminal workflows.
+
+## Browser Sessions
+
+Browser clients can end the current signed-cookie session with
+`DELETE /api/v1/app/auth/session`. The endpoint returns a JSON redirect path
+for the sign-in screen and clears the browser session cookie. Bearer tokens are
+not browser sessions, so bearer-token requests receive
+`token_session_not_destroyable` instead of silently succeeding.
 
 ## Terminal Sessions
 

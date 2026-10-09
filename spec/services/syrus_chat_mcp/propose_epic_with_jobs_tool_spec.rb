@@ -104,6 +104,82 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.find_by(slug: "empty-child")).to be_nil
   end
 
+  it "rejects a child that declares blank-only os capability values" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "blank-placement",
+        title: "Blank placement",
+        description: "Every child must choose placement.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "blank-child",
+          target_repo: repository.slug,
+          title: "Blank child",
+          description: "Blank os values are not enough to choose a worker.",
+          planned_execution: { capabilities: { os: [ " " ] } }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "blank-child")).to be_nil
+  end
+
+  it "rejects a child that declares labels but omits capabilities" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "label-only-placement",
+        title: "Label-only placement",
+        description: "Every child must choose placement.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "label-only-child",
+          target_repo: repository.slug,
+          title: "Label-only child",
+          description: "Labels cannot silently default to Linux.",
+          planned_execution: {
+            project_label: "iOS App",
+            target_label: "//ios:app",
+            source: "operator"
+          }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "label-only-child")).to be_nil
+  end
+
+  it "rejects a child that declares parser-shaped placement keys without capabilities" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "parser-key-only-placement",
+        title: "Parser-key-only placement",
+        description: "Every child must choose placement.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "parser-key-only-child",
+          target_repo: repository.slug,
+          title: "Parser-key-only child",
+          description: "Parser-shaped labels cannot silently default to Linux.",
+          planned_execution: { planned_execution_target_label: "//ios:app" }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "parser-key-only-child")).to be_nil
+  end
+
   # One undeclared child fails the whole batch rather than being silently
   # defaulted alongside its declared sibling: the Epic is created atomically,
   # so a half-declared batch has no valid outcome.
@@ -137,6 +213,39 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
     expect(chat_session.proposals.find_by(slug: "valid-child")).to be_nil
     expect(chat_session.proposals.find_by(slug: "missing-child")).to be_nil
+  end
+
+  it "rejects the whole batch when any child omits capabilities from planned execution" do
+    response = call_tool_without_defaults(
+      epic: {
+        slug: "mixed-label-placement",
+        title: "Mixed label placement",
+        description: "One child is valid and one has labels only.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "valid-child",
+          target_repo: repository.slug,
+          title: "Valid child",
+          description: "Has explicit macOS placement.",
+          planned_execution: { capabilities: { os: [ "macos" ] } }
+        },
+        {
+          slug: "label-only-child",
+          target_repo: repository.slug,
+          title: "Label-only child",
+          description: "Labels are not a placement declaration.",
+          depends_on: [ "valid-child" ],
+          planned_execution: { target_label: "//ios:app" }
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(slug: "valid-child")).to be_nil
+    expect(chat_session.proposals.find_by(slug: "label-only-child")).to be_nil
   end
 
   it "creates one Epic proposal card with child Job rows and sibling dependencies" do

@@ -123,7 +123,7 @@ func runTestPlan(ctx context.Context, slug string, stdout io.Writer) error {
 }
 
 func fetchAppJob(ctx context.Context, client *api.Client, jobID string) (appJobPayload, error) {
-	raw, err := client.GetAppJob(ctx, jobID)
+	raw, err := client.GetJob(ctx, jobID)
 	if err != nil {
 		return appJobPayload{}, err
 	}

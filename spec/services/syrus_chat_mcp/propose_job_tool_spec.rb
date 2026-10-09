@@ -87,6 +87,89 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.proposals.find_by(title: "Fix empty capabilities")).to be_nil
   end
 
+  it "rejects a proposal that declares only a project label" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix project-only placement",
+      description: "A project label is not enough to choose a worker.",
+      planned_execution: { project_label: "iOS App" }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix project-only placement")).to be_nil
+  end
+
+  it "rejects a proposal that declares only a target label" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix target-only placement",
+      description: "A target label is not enough to choose a worker.",
+      planned_execution: { target_label: "//ios:app" }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix target-only placement")).to be_nil
+  end
+
+  it "rejects a proposal that declares only a planned execution source" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix source-only placement",
+      description: "A source is not enough to choose a worker.",
+      planned_execution: { source: "operator" }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix source-only placement")).to be_nil
+  end
+
+  it "rejects a proposal that declares parser-shaped placement keys without capabilities" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix parser-key-only placement",
+      description: "Parser-shaped labels still need capabilities.",
+      planned_execution: { planned_execution_project_label: "iOS App" }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix parser-key-only placement")).to be_nil
+  end
+
+  it "rejects a proposal that declares an empty os capability" do
+    response = call_tool_without_defaults(
+      repo: repository.slug,
+      title: "Fix empty os placement",
+      description: "An empty os list is not enough to choose a worker.",
+      planned_execution: { capabilities: { os: [] } }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+    expect(chat_session.proposals.find_by(title: "Fix empty os placement")).to be_nil
+  end
+
+  it "rejects a proposal that declares blank-only os capability values" do
+    [
+      [ "Fix blank os array placement", { os: [ "" ] } ],
+      [ "Fix blank os string placement", { os: " " } ]
+    ].each do |title, capabilities|
+      response = call_tool_without_defaults(
+        repo: repository.slug,
+        title: title,
+        description: "Blank os values are not enough to choose a worker.",
+        planned_execution: { capabilities: capabilities }
+      )
+
+      expect(response[:result][:isError]).to be_truthy
+      expect(response.dig(:result, :content, 0, :text)).to include("planned_execution.capabilities is required")
+      expect(chat_session.proposals.find_by(title: title)).to be_nil
+    end
+  end
+
   it "normalizes literal backslash-n sequences in the description into real line breaks" do
     response = call_tool(
       repo: repository.slug,
