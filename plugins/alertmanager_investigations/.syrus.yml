@@ -1,0 +1,9 @@
+project:
+  id: alertmanager_investigations
+  label: "alertmanager_investigations plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

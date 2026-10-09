@@ -9,6 +9,7 @@ module AlertmanagerInvestigations
       "repository, so enabling autonomy for an alert is an explicit runbook change. The plugin " \
       "deduplicates by Alertmanager fingerprint and blocks concurrent investigations for the same host."
     homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/alertmanager_investigations.svg"
     author "Thomas Kadauke"
     category "observability"
     default_enabled false
