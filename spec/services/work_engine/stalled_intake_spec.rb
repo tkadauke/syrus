@@ -21,6 +21,37 @@ RSpec.describe "Stalled intake reconciliation" do
 
   def issue(result) = result.issues.find { |candidate| candidate.kind == "stalled_classifier_pending_job" }
 
+  def with_solid_queue_adapter
+    previous_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :solid_queue
+    yield
+  ensure
+    ActiveJob::Base.queue_adapter = previous_adapter
+  end
+
+  def failed_solid_queue_classify(stalled_job)
+    active_job = ClassifyIssueJob.new(stalled_job.id)
+    solid_queue_job = SolidQueue::Job.enqueue(active_job)
+    SolidQueue::ReadyExecution.where(job_id: solid_queue_job.id).delete_all
+    SolidQueue::FailedExecution.create!(
+      job_id: solid_queue_job.id,
+      error: {
+        "exception_class" => "SolidQueue::Processes::ProcessPrunedError",
+        "message" => "Process was found dead and pruned"
+      }
+    )
+    solid_queue_job
+  end
+
+  def repair_plan_for(*jobs)
+    WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
+      auto_executable: true, target_type: "job", target_id: jobs.first.id,
+      affected_ids: { job_ids: jobs.map(&:id) }, execution_steps: [], preconditions: {},
+      reason: "test"
+    )
+  end
+
   it "detects a Job that has been waiting on classification too long" do
     stall!
 
@@ -92,12 +123,7 @@ RSpec.describe "Stalled intake reconciliation" do
 
     it "is put back in the classifier's queue by the repair" do
       uncertain!
-      plan = WorkEngine::RepairPlanner::Plan.new(
-        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
-        auto_executable: true, target_type: "job", target_id: job.id,
-        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
-        reason: "test"
-      )
+      plan = repair_plan_for(job)
 
       expect {
         WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
@@ -135,12 +161,7 @@ RSpec.describe "Stalled intake reconciliation" do
   describe "the repair" do
     it "re-enqueues classification" do
       stall!
-      plan = WorkEngine::RepairPlanner::Plan.new(
-        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
-        auto_executable: true, target_type: "job", target_id: job.id,
-        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
-        reason: "test"
-      )
+      plan = repair_plan_for(job)
 
       expect {
         WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
@@ -149,16 +170,62 @@ RSpec.describe "Stalled intake reconciliation" do
 
     it "spends retry budget for a pending Job so repeated lost queue jobs stop looping" do
       stall!
-      plan = WorkEngine::RepairPlanner::Plan.new(
-        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
-        auto_executable: true, target_type: "job", target_id: job.id,
-        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
-        reason: "test"
-      )
+      plan = repair_plan_for(job)
 
       expect {
         WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
       }.to change { job.reload.classifier_attempts }.by(1)
+    end
+
+    it "clears a pruned failed classifier execution so the repair creates a runnable attempt" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      stall!
+
+      with_solid_queue_adapter do
+        failed_queue_job = failed_solid_queue_classify(job)
+        plan = repair_plan_for(job)
+
+        result = WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+
+        expect(result.status).to eq("applied")
+        expect(SolidQueue::Job.where(id: failed_queue_job.id)).to be_empty
+        expect(SolidQueue::ReadyExecution.joins(:job).where(solid_queue_jobs: {
+          class_name: "ClassifyIssueJob",
+          concurrency_key: ClassifyIssueJob.solid_queue_concurrency_key_for(job.id)
+        })).to exist
+      end
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    it "recovers multiple pruned classifier executions without operator action" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      stalled_jobs = [ job, Factories.job_record, Factories.job_record ]
+      stalled_jobs.each do |stalled_job|
+        stalled_job.update_columns(
+          state: "triaging", triaging_reason: "classifier_pending", created_at: 30.minutes.ago
+        )
+      end
+
+      with_solid_queue_adapter do
+        failed_queue_jobs = stalled_jobs.map { |stalled_job| failed_solid_queue_classify(stalled_job) }
+        plan = repair_plan_for(*stalled_jobs)
+
+        result = WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+
+        expect(result.status).to eq("applied")
+        expect(SolidQueue::Job.where(id: failed_queue_jobs.map(&:id))).to be_empty
+        stalled_jobs.each do |stalled_job|
+          expect(SolidQueue::ReadyExecution.joins(:job).where(solid_queue_jobs: {
+            class_name: "ClassifyIssueJob",
+            concurrency_key: ClassifyIssueJob.solid_queue_concurrency_key_for(stalled_job.id)
+          })).to exist
+        end
+      end
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
     end
   end
 

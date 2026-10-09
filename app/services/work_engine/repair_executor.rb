@@ -600,9 +600,10 @@ module WorkEngine
           end
           return skipped("intake Jobs are no longer awaiting classification") if reclassified.empty?
 
-          # ClassifyIssueJob's concurrency lock keeps a duplicate from racing a
-          # classify that is genuinely still in flight.
-          reclassified.each { |job| ClassifyIssueJob.perform_later(job.id) }
+          # ClassifyIssueJob's enqueue helper keeps a duplicate from racing a
+          # classify that is genuinely still in flight, while recovering a
+          # pruned failed execution that would otherwise keep the key blocked.
+          reclassified.each { |job| ClassifyIssueJob.enqueue_for_job!(job) }
           success("re-enqueued classification for #{reclassified.size} Job(s)")
         end
 
