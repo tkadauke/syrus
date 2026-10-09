@@ -286,12 +286,20 @@ func (c *Client) RunJobAction(ctx context.Context, id string, action string) err
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), nil, nil)
 }
 
-func (c *Client) ApproveJob(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/approve", nil, nil)
+func (c *Client) RunJobActionWithPayload(ctx context.Context, id string, action string, payload any) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), payload, nil)
 }
 
-func (c *Client) RetryJob(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/run_again", nil, nil)
+func (c *Client) RunJobWorkflowAction(ctx context.Context, id string, workflowID string, action string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/workflows/"+url.PathEscape(workflowID)+"/"+url.PathEscape(action), nil, nil)
+}
+
+func (c *Client) RunJobRunAction(ctx context.Context, id string, runID string, action string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/runs/"+url.PathEscape(runID)+"/"+url.PathEscape(action), nil, nil)
+}
+
+func (c *Client) ApproveJob(ctx context.Context, id string) error {
+	return c.RunJobAction(ctx, id, "approve")
 }
 
 func diffReviewCommentPath(jobID string, commentID int64, versionID int64, action string) string {

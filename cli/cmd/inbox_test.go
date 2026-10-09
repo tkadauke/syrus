@@ -46,8 +46,10 @@ func (f *fakeInboxClient) ApproveJob(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeInboxClient) RetryJob(_ context.Context, id string) error {
-	f.retried = append(f.retried, id)
+func (f *fakeInboxClient) RunJobAction(_ context.Context, id string, action string) error {
+	if action == "run_again" {
+		f.retried = append(f.retried, id)
+	}
 	return nil
 }
 

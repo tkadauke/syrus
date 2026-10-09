@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,16 +11,18 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/render"
 	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 	"golang.org/x/term"
 )
 
 func NewChatCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:           "chat CHAT_ID MESSAGE",
 		Short:         "Send one streaming chat turn",
 		Args:          cobra.MinimumNArgs(2),
@@ -29,6 +32,92 @@ func NewChatCommand() *cobra.Command {
 			return streamTurn(cmd.Context(), args[0], strings.Join(args[1:], " "), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
+	cmd.AddCommand(newChatListCommand(), newChatNewCommand())
+	return cmd
+}
+
+func newChatListCommand() *cobra.Command {
+	var jsonOut bool
+	var repo string
+	var all bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List chat sessions",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, _, err := apiClient()
+			if err != nil {
+				return err
+			}
+			list, err := client.ListChats(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			scope := chatRepoScope(repo, all)
+			if scope != "" {
+				list.Chats = filterChatsByRepository(list.Chats, scope)
+			}
+
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(list)
+			}
+			renderChatList(cmd.OutOrStdout(), list.Chats)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print chats as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
+	cmd.Flags().BoolVar(&all, "all", false, "show chats for every repository")
+	return cmd
+}
+
+func newChatNewCommand() *cobra.Command {
+	var jsonOut bool
+	var repo string
+	var noRepo bool
+	cmd := &cobra.Command{
+		Use:   "new",
+		Short: "Create a chat session",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, _, err := apiClient()
+			if err != nil {
+				return err
+			}
+
+			var repositoryID int64
+			scope := strings.TrimSpace(repo)
+			if !noRepo && scope == "" {
+				scope = cliplugin.DetectCurrentRepoSlug()
+			}
+			if scope != "" {
+				list, err := client.ListChats(cmd.Context())
+				if err != nil {
+					return err
+				}
+				id := chatRepositoryIDForSlug(list.Repositories, scope)
+				if id == 0 {
+					return fmt.Errorf("repository %s is not configured for this Syrus account", scope)
+				}
+				repositoryID = id
+			}
+
+			chat, err := client.CreateChat(cmd.Context(), repositoryID)
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(chat)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%d\n", chat.ID)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print the chat as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to attach, owner/name (defaults to auto-detected repo)")
+	cmd.Flags().BoolVar(&noRepo, "no-repo", false, "create a chat without attaching a repository")
+	return cmd
 }
 
 func streamTurn(parent context.Context, chatID string, message string, in io.Reader, out, errOut interface {
@@ -171,6 +260,50 @@ func chatBusyPhrases() []string {
 		"Vigilans",
 		"Expediens",
 	}
+}
+
+func chatRepoScope(repo string, all bool) string {
+	if all {
+		return ""
+	}
+	if strings.TrimSpace(repo) != "" {
+		return strings.TrimSpace(repo)
+	}
+	return cliplugin.DetectCurrentRepoSlug()
+}
+
+func filterChatsByRepository(chats []api.ChatSession, slug string) []api.ChatSession {
+	filtered := make([]api.ChatSession, 0, len(chats))
+	for _, chat := range chats {
+		if chat.Repository != nil && chat.Repository.Slug == slug {
+			filtered = append(filtered, chat)
+		}
+	}
+	return filtered
+}
+
+func renderChatList(out io.Writer, chats []api.ChatSession) {
+	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tREPOSITORY\tTITLE\tUPDATED")
+	for _, chat := range chats {
+		repository := "-"
+		if chat.Repository != nil && chat.Repository.Slug != "" {
+			repository = chat.Repository.Slug
+		}
+		title := strings.TrimSpace(chat.Title)
+		if title == "" {
+			title = "Untitled chat"
+		}
+		updated := chat.LastMessageAt
+		if updated == "" {
+			updated = chat.UpdatedAt
+		}
+		if updated == "" {
+			updated = chat.CreatedAt
+		}
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\n", chat.ID, repository, title, updated)
+	}
+	tw.Flush()
 }
 
 func proposalHandler(client *api.Client, reader *bufio.Reader, out io.Writer) func(context.Context, api.ChatProposal) error {
