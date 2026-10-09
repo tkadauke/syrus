@@ -113,6 +113,17 @@ reviewable: sign-in screenshots are valid evidence when the changed surface is
 the sign-in/login/signup/session screen itself, even if the Job mentions a
 post-login route or redirect.
 
+For authenticated routes, the expected review path is to use the repository's
+seeded/demo login from `visual_review.seed_notes` inside the MCP browser that
+`start_preview` opened, then capture evidence from that same browser session.
+Reviewers should not launch a separate unauthenticated browser context or copy
+its screenshot files solely to create artifacts. Use
+`submit_visual_artifact(capture_current_browser: true, ...)` or omit all image
+inputs so Syrus captures the active authenticated page and records the URL,
+path, title, viewport, source, and capture time. An unexpected redirect to a
+login page is a blocker unless the auth screen is the changed surface being
+reviewed.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
@@ -276,12 +287,14 @@ allowed.
 ## Screenshot artifacts
 
 The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`, an
-image-capable sibling of `submit_artifact`: it accepts either `image_path`
-pointing at a screenshot file inside the workflow workspace (preferred for
-the file path returned by `browser_screenshot`) or `image_base64` when image
-bytes are already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists
-the image as an ActiveStorage blob on the current Workflow, and records a
-`typed_artifacts` entry that Job detail review/report surfaces can render
+image-capable sibling of `submit_artifact`. The preferred path is
+`capture_current_browser: true` (also the default when no image input is
+provided), which captures the active MCP browser session and stamps page
+provenance. The tool still accepts `image_path` for an existing screenshot
+file inside the workflow workspace or `image_base64` when image bytes are
+already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists the image as
+an ActiveStorage blob on the current Workflow, and records a `typed_artifacts`
+entry that Job detail review/report surfaces and the Artifacts tab render
 through the `:image_diff` renderer so operators can see what the reviewer
 actually tested.
 
