@@ -22,12 +22,11 @@ class AppSetting < ApplicationRecord
   #                 code, so the retry reuses the assembly. This is the same
   #                 preservation the continuation-retry path already does,
   #                 widened to any retryable failure.
-  #
-  # A third option -- splitting a failed train so clean members land while
-  # the rest re-train -- is deliberately not offered yet. It needs a rule for
-  # attributing a failure to a member, and an unattributable failure would
-  # split the train arbitrarily.
-  MERGE_TRAIN_FAILURE_POLICIES = %w[restart keep_assembly].freeze
+  #   keep_fixes    terminalize the stale train on retryable rebuild-required
+  #                 failures, but keep its integration branch long enough for
+  #                 the replacement train to replay non-member repair commits
+  #                 after rebuilding member work on the current base.
+  MERGE_TRAIN_FAILURE_POLICIES = %w[restart keep_assembly keep_fixes].freeze
 
   AppSettingRegistry.definitions.each do |definition|
     next unless definition.numericality_options
@@ -161,7 +160,11 @@ class AppSetting < ApplicationRecord
   end
 
   def self.merge_train_keeps_assembly_on_failure?
-    merge_train_failure_policy == "keep_assembly"
+    merge_train_failure_policy.in?(%w[keep_assembly keep_fixes])
+  end
+
+  def self.merge_train_keeps_fixes_on_failure?
+    merge_train_failure_policy == "keep_fixes"
   end
 
   def self.merge_train_max_size

@@ -42,7 +42,14 @@ This keeps a feature from being half-present on the base branch.
 The integration branch is pushed to your repository as soon as it is built, so
 the rest of the landing attempt can continue on any worker. It is temporary
 bookkeeping under a `syrus/` name unique to that train, and Syrus deletes it
-once the train lands, fails, or is cancelled.
+once the train lands, fails, or is cancelled, except when the failure policy
+keeps a stale branch briefly so a replacement train can reuse its fixes.
+
+When the instance is configured to keep merge-train fixes, a stale failed train
+can rebuild from the current base while replaying repair commits from the
+previous integration branch. Syrus only does this when the member set is
+unchanged and the old commits can be cherry-picked cleanly; otherwise it falls
+back to the rebuilt member work and re-runs the normal landing checks.
 
 ## Job Bundles
 

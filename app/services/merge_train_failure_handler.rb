@@ -21,7 +21,7 @@ class MergeTrainFailureHandler
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
 
-    delete_integration_branch(train)
+    delete_integration_branch(train) unless preserve_branch_for_fix_replay?(train)
 
     train.members.each do |member|
       next if member.state == "merged"
@@ -245,9 +245,12 @@ class MergeTrainFailureHandler
 
   # `restart` (the default) tears the assembly down and hands every member
   # back individually, so the next attempt rebuilds membership from the
-  # approved pool and regrades from scratch. Under `keep_assembly` an
-  # infrastructure failure leaves the train and its integration branch
-  # intact instead, so the retry reuses what was already assembled.
+  # approved pool and regrades from scratch. Under `keep_assembly`, or the
+  # first rung of `keep_fixes`, an infrastructure failure leaves the train
+  # and its integration branch intact instead, so the retry reuses what was
+  # already assembled. Rebuild-required failures are excluded because the
+  # assembly is known stale; `keep_fixes` can still preserve its branch for
+  # repair replay after the train is terminalized.
   #
   # Only retryable failures qualify. A member whose own code broke the train
   # must still fail out; preserving the assembly around it would wedge the
@@ -256,8 +259,15 @@ class MergeTrainFailureHandler
   def preserve_train_for_failure_policy?
     return false if @cancelled
     return false unless AppSetting.merge_train_keeps_assembly_on_failure?
+    return false if MergeTrainFixReplay.stale_base_rebuild_required?(@workflow)
 
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def preserve_branch_for_fix_replay?(train)
+    return false if @cancelled
+
+    MergeTrainFixReplay.eligible_source?(train)
   end
 
   def merge_train
