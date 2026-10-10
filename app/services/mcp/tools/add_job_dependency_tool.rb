@@ -8,7 +8,9 @@ module Mcp::Tools
                 "Supply exactly one of depends_on_job_id (a prerequisite Job) or " \
                 "depends_on_epic_id (a prerequisite Epic). By default the target must " \
                 "finish successfully; use satisfaction_mode='closed' only for cleanup " \
-                "or teardown gates where any terminal close is acceptable."
+                "or teardown gates where any terminal close is acceptable. Use " \
+                "satisfaction_mode='deployment_stage' with required_deployment_stage_name " \
+                "to wait for a configured deployment stage on a prerequisite Job."
 
     input_schema(
       properties: {
@@ -18,14 +20,15 @@ module Mcp::Tools
         satisfaction_mode: {
           type: "string",
           enum: JobDependency::SATISFACTION_MODES,
-          description: "success waits for a successful close; closed waits for any terminal close. Defaults to success."
-        }
+          description: "success waits for a successful close; closed waits for any terminal close; deployment_stage waits for a configured deployment stage. Defaults to success."
+        },
+        required_deployment_stage_name: { type: "string", description: "Deployment stage name required when satisfaction_mode is deployment_stage." }
       },
       required: %w[job_id]
     )
 
     class << self
-      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, satisfaction_mode: "success", server_context:)
+      def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, satisfaction_mode: "success", required_deployment_stage_name: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         user = chat_session.user
         satisfaction_mode = satisfaction_mode.presence || "success"
@@ -39,9 +42,9 @@ module Mcp::Tools
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         if depends_on_job_id
-          add_job_target(job, depends_on_job_id, user, satisfaction_mode)
+          add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name)
         else
-          add_epic_target(job, depends_on_epic_id, user, satisfaction_mode)
+          add_epic_target(job, depends_on_epic_id, user, satisfaction_mode, required_deployment_stage_name)
         end
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
@@ -49,7 +52,7 @@ module Mcp::Tools
 
       private
 
-      def add_job_target(job, depends_on_job_id, user, satisfaction_mode)
+      def add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name)
         depends_on_job = user.jobs.find_by(id: depends_on_job_id)
         return Mcp::Tools.invalid("job not found: #{depends_on_job_id}") unless depends_on_job
 
@@ -60,12 +63,13 @@ module Mcp::Tools
         dependency.source = "manual"
         dependency.created_by_user ||= user
         dependency.satisfaction_mode = satisfaction_mode
+        dependency.required_deployment_stage_name = required_deployment_stage_name
         dependency.save!
 
         success_payload(job.reload)
       end
 
-      def add_epic_target(job, depends_on_epic_id, user, satisfaction_mode)
+      def add_epic_target(job, depends_on_epic_id, user, satisfaction_mode, required_deployment_stage_name)
         epic = user.epics.find_by(id: depends_on_epic_id)
         return Mcp::Tools.invalid("epic not found: #{depends_on_epic_id}") unless epic
 
@@ -76,6 +80,7 @@ module Mcp::Tools
         dependency.source = "manual"
         dependency.created_by_user ||= user
         dependency.satisfaction_mode = satisfaction_mode
+        dependency.required_deployment_stage_name = required_deployment_stage_name
         dependency.save!
 
         success_payload(job.reload)
