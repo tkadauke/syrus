@@ -108,6 +108,19 @@ Operator-facing states:
 
 Syrus then runs the required grader suite on the integration branch (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). Merge-train validation is pass/fail only and does not run `coverage_analyze`. If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
 
+If that normal bounded repair loop exhausts, merge trains get one additional
+bounded agent rung, `merge_train_agent`. This agent receives the assembled
+integration branch, the latest recorded failing set, and the train membership.
+It may make a focused repair on the integration branch or withdraw one
+evidence-backed culprit. A repair is not a merge decision: Syrus publishes the
+repaired integration branch, runs prepare and the normal landing graders again,
+and only then can `merge_train_land` run. A withdrawal stops the current train,
+routes the culprit through `LandingFailureHandler` so its approval is cleared
+and it returns to `implemented`, and defers the other members back to
+`approved` so the landing queue can rederive a train without the withdrawn
+member. The agent writes a durable `merge_train_agent` workflow artifact
+recording the action, evidence, and repair diff metadata or withdrawn member.
+
 ## Land phase
 
 `merge_train_land`:

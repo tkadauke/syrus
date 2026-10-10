@@ -4,13 +4,14 @@ module Workflows
   # iteration at instantiation time; StepDispatcher appends later repair +
   # check iterations when the check terminal Step fails.
   class RetryUntil
-    attr_reader :repair_steps, :check_steps, :max_iterations, :repair_first
+    attr_reader :repair_steps, :check_steps, :max_iterations, :repair_first, :failure_branches
 
     def initialize(repair:, check:, max_iterations: nil, repair_first: true)
       @repair_steps = normalize_steps(repair, "repair")
       @check_steps = normalize_steps(check, "check")
       @max_iterations = max_iterations
       @repair_first = repair_first
+      @failure_branches = {}
     end
 
     def retry_until? = true
@@ -32,7 +33,16 @@ module Workflows
         "repair" => repair_steps,
         "check" => check_steps,
         "repair_first" => repair_first?
-      }
+      }.tap do |template|
+        template["on_failure"] = failure_branches.transform_values do |nodes|
+          Workflows::Base.serialize_chain_template(nodes)
+        end if failure_branches.present?
+      end
+    end
+
+    def on_failure(code, branch)
+      @failure_branches[code.to_s] = Workflows::Base.normalize_chain_template(Array(branch))
+      self
     end
 
     private

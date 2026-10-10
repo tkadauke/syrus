@@ -288,6 +288,7 @@ class Step
       Entry.new(kind: "merge_train_build",  handler: "MergeTrainBuild",    label: "Build integration branch",  style: "bg-green-100 text-green-800", agentic: true,
                 repair_semantics: :rebuild),
       Entry.new(kind: "merge_train_reconcile", handler: "MergeTrainReconcile", label: "Reconcile train",       style: "bg-teal-100 text-teal-700",   agentic: true),
+      Entry.new(kind: "merge_train_agent", handler: "MergeTrainAgent", label: "Repair train",                 style: "bg-teal-100 text-teal-700",   agentic: true),
       Entry.new(kind: "merge_train_land",   handler: "MergeTrainLand",     label: "Land Epic",                  style: "bg-green-100 text-green-800", agentic: false,
                 repair_semantics: :publication,
                 reconcile_strategy: :merge_train_land),

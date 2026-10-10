@@ -187,7 +187,8 @@ separator between them.
 Bundle-backed trains run the exact same `Workflows::MergeTrain` chain as
 Epic-backed trains: `merge_train_assemble → merge_train_build →
 merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix)
-→ merge_train_land` (plus the base-moved rebase recovery branch). See
+→ merge_train_agent-on-loop-exhaustion → re-grade → merge_train_land` (plus
+the base-moved rebase recovery branch). See
 [`merge_train.md`](merge_train.md) for the full phase-by-phase description —
 everything there about build, reconciliation, grading, and land applies
 unchanged to epicless bundles.

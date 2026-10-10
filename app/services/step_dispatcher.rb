@@ -1,4 +1,5 @@
 class StepDispatcher
+  LOOP_EXHAUSTED_AFTER_GRADER_FAILURE = "loop_exhausted_after_grader_failure".freeze
   # When a Step transitions to `succeeded`, find the next runnable
   # step in its workflow's chain and create a Run on it. If there
   # is no next runnable step (chain end OR all downstream steps
@@ -1172,7 +1173,7 @@ class StepDispatcher
     elsif @from_step.succeeded?
       advance_to_next_runnable!
     else
-      exhaust_loop!
+      exhaust_loop!(loop_node)
     end
   end
 
@@ -1366,6 +1367,9 @@ class StepDispatcher
     when "try"
       branch_nodes = node.fetch("on_failure", {}).values.flat_map { |nodes| Array(nodes) }
       [ node ] + branch_nodes.flat_map { |branch_node| flatten_template_node(branch_node) }
+    when "retry_until"
+      branch_nodes = node.fetch("on_failure", {}).values.flat_map { |nodes| Array(nodes) }
+      [ node ] + branch_nodes.flat_map { |branch_node| flatten_template_node(branch_node) }
     else
       [ node ]
     end
@@ -1503,10 +1507,46 @@ class StepDispatcher
     end
   end
 
-  def exhaust_loop!
-    cancel_post_loop_steps!("loop_exhausted_after_grader_failure")
+  def exhaust_loop!(loop_node = nil)
+    return enqueue_retry_until_failure_branch!(loop_node) if retry_until_failure_branch_available?(loop_node)
+
+    cancel_post_loop_steps!(LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
     @workflow.increment!(:failure_count)
-    hard_fail_workflow!("loop_exhausted_after_grader_failure")
+    hard_fail_workflow!(LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
+  end
+
+  def retry_until_failure_branch_available?(loop_node)
+    return false unless loop_node&.fetch("type", nil) == "retry_until"
+    return false if @from_step.details.to_h["retry_until_failure_branch_expanded"]
+
+    retry_until_failure_branch_nodes(loop_node).present?
+  end
+
+  def enqueue_retry_until_failure_branch!(loop_node)
+    branch_nodes = retry_until_failure_branch_nodes(loop_node)
+    cancel_post_loop_steps!(LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
+    enqueue_try_failure_branch!(branch_nodes, LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
+    @from_step.update!(
+      details: @from_step.details.to_h.merge(
+        "retry_until_failure_branch_expanded" => true,
+        "retry_until_failure_code" => LOOP_EXHAUSTED_AFTER_GRADER_FAILURE
+      )
+    )
+  end
+
+  def retry_until_failure_branch_nodes(loop_node)
+    branch = Array(loop_node.dig("on_failure", LOOP_EXHAUSTED_AFTER_GRADER_FAILURE))
+    return branch if branch.present?
+
+    workflow_template_nodes
+      .select { |node| node["type"] == "retry_until" }
+      .detect do |node|
+        Array(node["repair"]) == Array(loop_node["repair"]) &&
+          Array(node["check"]) == Array(loop_node["check"]) &&
+          Array(node.dig("on_failure", LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)).present?
+      end
+      &.dig("on_failure", LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
+      .to_a
   end
 
   def cancel_post_loop_steps!(reason)
