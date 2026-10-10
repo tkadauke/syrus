@@ -377,14 +377,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       sqlite3 postgresql-client default-mysql-client \
       wget unzip openssh-client jq ripgrep fd-find less vim \
       python3 python3-pip python3-venv \
+      default-jre-headless \
       cmake ninja-build \
       qt6-base-dev qt6-declarative-dev libgl1-mesa-dev xvfb xauth \
       doxygen graphviz lcov gcovr \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Android SDK command-line baseline for Android plugin graders and emulator
-# runtime sessions. Java/JDK/Gradle remain owned by the JVM plugins and project
-# wrappers; this installs only the Android SDK manager packages shared by
+# runtime sessions. A JDK/Gradle for *building* JVM projects stays owned by the
+# JVM plugins and project wrappers -- but `sdkmanager` is itself a Java program,
+# so a headless JRE has to exist in this image for the step below to run at all.
+# Without one it exits 1 having printed its "no java command could be found"
+# complaint to stdout, which the `>/dev/null` on the --licenses line discards,
+# so the build fails with no output whatsoever.
+# This installs only the Android SDK manager packages shared by
 # Android builds and emulator-backed sessions.
 RUN set -eu; \
     mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" "${ANDROID_USER_HOME}" "${ANDROID_AVD_HOME}"; \
