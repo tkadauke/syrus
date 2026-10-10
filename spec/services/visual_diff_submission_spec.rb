@@ -36,6 +36,25 @@ RSpec.describe VisualDiffSubmission do
     }
   end
 
+  def sign_in_after_artifact
+    after_artifact.merge(
+      "title" => "Credential Store after change",
+      "page" => {
+        "path" => "/session/new",
+        "title" => "Sign in"
+      }
+    )
+  end
+
+  def run_visual_diff_step(workflow, job)
+    step = workflow.steps.find_by(kind: "visual_diff") ||
+      Step.create!(workflow: workflow, kind: "visual_diff", position: 1)
+    run = step.runs.first ||
+      step.runs.create!(job: job, trigger_kind: "visual_diff")
+
+    Steps::VisualDiff.new(run).call
+  end
+
   it "dispatches a manual visual_diff workflow using existing after screenshots" do
     job = Factories.job_record(user: user, repository: repository, state: "implemented")
     after_workflow_for(job)
@@ -48,6 +67,54 @@ RSpec.describe VisualDiffSubmission do
     expect(result.workflow.artifact("visual_diff_source")).to eq("manual")
     expect(result.workflow.artifact("visual_diff_after_artifacts")).to contain_exactly(include("title" => "Dashboard"))
     expect(result.run).to be_present
+  end
+
+  it "skips the full comparison chain instead of accepting sign-in evidence for a non-auth surface" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is Credential Store."
+    )
+    after_workflow_for(job, artifacts: [ sign_in_after_artifact ])
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("visual_diff_after_artifacts")).to be_empty
+    rejected = result.workflow.artifact("visual_diff_rejected_after_artifacts")
+    expect(rejected).to contain_exactly(include(
+      "title" => "Credential Store after change",
+      "rejected_reason" => include("captured \"/session/new\" titled \"Sign in\"", "Credential Store after change")
+    ))
+
+    run_visual_diff_step(result.workflow, job)
+
+    result.workflow.reload
+    expect(result.workflow.artifact("visual_diff_skipped_reason")).to include(
+      "captured \"/session/new\" titled \"Sign in\"",
+      "Credential Store after change"
+    )
+    expect(result.workflow.artifact("visual_diff_pairs")).to be_nil
+    expect(Array(result.workflow.artifact("typed_artifacts")).pluck("type")).not_to include("visual_diff_comparison")
+  end
+
+  it "keeps auth-page visual diffs when the changed surface is the auth route" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      issue_title: "Polish sign-in",
+      issue_body: "The changed surface is /session/new."
+    )
+    after_workflow_for(job, artifacts: [ sign_in_after_artifact ])
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("visual_diff_after_artifacts")).to contain_exactly(include("title" => "Credential Store after change"))
+    expect(result.workflow.artifact("visual_diff_rejected_after_artifacts")).to be_empty
   end
 
   it "rejects a manual request without after screenshots" do

@@ -15,6 +15,34 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     described_class.call(critique: critique, verdict: verdict, server_context: { run: run })
   end
 
+  def visual_run_for(job)
+    workflow = job.latest_workflow
+    step = Step.create!(workflow: workflow, kind: "visual_review", position: 99)
+    step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, prompt: "Review /credential_store.")
+  end
+
+  def add_visual_screenshot(target_run, path:, title:)
+    target_run.workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_screenshot_run_#{target_run.id}_1",
+        "original_type" => "visual_review_screenshot",
+        "title" => "Credential Store after change",
+        "payload" => {
+          "run_id" => target_run.id,
+          "image_url" => "/api/v1/app/workflows/#{target_run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{target_run.id}_1",
+          "content_type" => "image/png",
+          "byte_size" => 1234,
+          "source" => "current_browser",
+          "page" => {
+            "url" => "http://127.0.0.1:3000#{path}",
+            "path" => path,
+            "title" => title
+          }
+        }
+      }
+    ])
+  end
+
   it "accepts a run_id-only sidecar context" do
     described_class.call(
       critique: "No visual issues found.",
@@ -58,7 +86,18 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
           "run_id" => run.id,
           "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
           "content_type" => "image/jpeg",
-          "byte_size" => 1234
+          "byte_size" => 1234,
+          "source" => "current_browser",
+          "captured_at" => "2026-10-10T12:00:00.000Z",
+          "page" => {
+            "path" => "/dashboard",
+            "title" => "Dashboard"
+          },
+          "viewport" => {
+            "width" => 1280,
+            "height" => 800,
+            "device_scale_factor" => 1
+          }
         }
       },
       {
@@ -82,10 +121,103 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
         "content_type" => "image/jpeg",
         "byte_size" => 1234,
+        "page" => {
+          "path" => "/dashboard",
+          "title" => "Dashboard"
+        },
+        "viewport" => {
+          "width" => 1280,
+          "height" => 800,
+          "device_scale_factor" => 1
+        },
+        "source" => "current_browser",
+        "captured_at" => "2026-10-10T12:00:00.000Z",
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
     expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
+  end
+
+  it "keeps provenance when a non-auth route review approves a sign-in screenshot" do
+    credential_job = Factories.job(
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is /credential_store."
+    )
+    credential_run = visual_run_for(credential_job)
+    add_visual_screenshot(credential_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "Credential Store looks correct.",
+      verdict: "approved",
+      server_context: { run: credential_run }
+    )
+
+    expect(response).not_to be_error
+    iteration = credential_run.workflow.reload.artifact("visual_review_iterations").last
+    expect(iteration).to include("verdict" => "approved")
+    expect(iteration.fetch("artifacts").first).to include(
+      "page" => {
+        "url" => "http://127.0.0.1:3000/session/new",
+        "path" => "/session/new",
+        "title" => "Sign in"
+      }
+    )
+  end
+
+  it "allows skipped for an auth blocker on a non-auth intended route" do
+    credential_job = Factories.job(
+      issue_title: "Review the Credential Store route",
+      issue_body: "The changed surface is /credential_store."
+    )
+    credential_run = visual_run_for(credential_job)
+    add_visual_screenshot(credential_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "Could not reach /credential_store; the browser was redirected to /session/new.",
+      verdict: "skipped",
+      server_context: { run: credential_run }
+    )
+
+    expect(response).not_to be_error
+    expect(credential_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "skipped")
+  end
+
+  it "allows approval when the intended surface is itself sign-in" do
+    auth_job = Factories.job(
+      issue_title: "Polish the sign-in page",
+      issue_body: "The changed surface is /session/new."
+    )
+    auth_run = visual_run_for(auth_job)
+    auth_run.update!(prompt: "Review /session/new.")
+    add_visual_screenshot(auth_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "The sign-in page looks correct.",
+      verdict: "approved",
+      server_context: { run: auth_run }
+    )
+
+    expect(response).not_to be_error
+    expect(auth_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "approved")
+  end
+
+  it "allows approval for a login-form job even when the prompt mentions a post-login route" do
+    auth_job = Factories.job(
+      issue_title: "Polish the login form",
+      issue_body: "Improve /session/new; after login the user redirects to /credential_store."
+    )
+    auth_run = visual_run_for(auth_job)
+    auth_run.update!(prompt: "Review the login form at /session/new and confirm it still redirects to /credential_store.")
+    add_visual_screenshot(auth_run, path: "/session/new", title: "Sign in")
+
+    response = described_class.call(
+      critique: "The login form looks correct.",
+      verdict: "approved",
+      server_context: { run: auth_run }
+    )
+
+    expect(response).not_to be_error
+    expect(auth_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "approved")
   end
 
   it "accepts the skipped verdict for changes that aren't visually testable" do

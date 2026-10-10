@@ -92,13 +92,37 @@ in its critique why that proxy is faithful, not just convenient.
 When the intended surface is unreachable and no faithful proxy applies, the
 reviewer must not approve. It records `skipped` when the blocker is
 tooling/environment (no synced clone, missing seed data, preview
-infrastructure not wired up for that route), or `needs_work` when the missing
-route, missing data, or broken preview setup is itself an implementation or
-preview-seeding defect. Either way, the critique must name both the intended
+infrastructure not wired up for that route, auth/session state the reviewer
+cannot obtain), or `needs_work` when the missing route, missing data, redirect,
+or broken preview setup is itself an implementation or preview-seeding defect.
+Either way, the critique must name both the intended
 surface that couldn't be exercised and the fallback/proxy that was considered
 and rejected — so a review that couldn't reach the real surface is auditable
 rather than silently passing on the strength of an adjacent page's
 screenshots.
+
+Auth/error walls are called out in the reviewer prompt because they are easy
+to mistake for valid evidence when a browser lands somewhere other than the
+changed surface. If a non-auth target such as `/credential_store` redirects to
+`/session/new`, a sign-in page, a 404, or an application error, those
+screenshots are evidence of the blocker rather than evidence that the intended
+surface looks correct. The reviewer should submit `skipped` for external
+tooling/auth/seed blockers, or `needs_work` when the redirect/error is an
+implementation or preview defect. Legitimate auth/session-screen work remains
+reviewable: sign-in screenshots are valid evidence when the changed surface is
+the sign-in/login/signup/session screen itself, even if the Job mentions a
+post-login route or redirect.
+
+For authenticated routes, the expected review path is to use the repository's
+seeded/demo login from `visual_review.seed_notes` inside the MCP browser that
+`start_preview` opened, then capture evidence from that same browser session.
+Reviewers should not launch a separate unauthenticated browser context or copy
+its screenshot files solely to create artifacts. Use
+`submit_visual_artifact(capture_current_browser: true, ...)` or omit all image
+inputs so Syrus captures the active authenticated page and records the URL,
+path, title, viewport, source, and capture time. An unexpected redirect to a
+login page is a blocker unless the auth screen is the changed surface being
+reviewed.
 
 ## Verdicts
 
@@ -263,25 +287,34 @@ allowed.
 ## Screenshot artifacts
 
 The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`, an
-image-capable sibling of `submit_artifact`: it accepts either `image_path`
-pointing at a screenshot file inside the workflow workspace (preferred for
-the file path returned by `browser_screenshot`) or `image_base64` when image
-bytes are already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists
-the image as an ActiveStorage blob on the current Workflow, and records a
-`typed_artifacts` entry that Job detail review/report surfaces can render
+image-capable sibling of `submit_artifact`. The preferred path is
+`capture_current_browser: true` (also the default when no image input is
+provided), which captures the active MCP browser session and stamps page
+provenance. The tool still accepts `image_path` for an existing screenshot
+file inside the workflow workspace or `image_base64` when image bytes are
+already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists the image as
+an ActiveStorage blob on the current Workflow, and records a `typed_artifacts`
+entry that Job detail review/report surfaces and the Artifacts tab render
 through the `:image_diff` renderer so operators can see what the reviewer
 actually tested.
 
 When an approved visual-review iteration records after screenshots, Syrus
 also requests a low-priority `visual_diff` workflow on the same Job. That
 deferred workflow checks out the merge-base for `Job#effective_base_branch`,
-starts the same preview/browser capture flow on that before revision, asks
-the agent to capture matching baseline screenshots, then persists a
+inspects the after screenshots' page provenance, starts the same
+preview/browser capture flow on that before revision, asks the agent to
+capture matching baseline screenshots, then persists a
 `visual_diff_comparison` typed artifact with `before` (merge-base) and
 `after` (PR/head) images side by side. This work does not block approval or
 landing; automatically queued comparisons are cancelled or skipped once the
 Job has already moved to approval/landing, while operators can still request
 an explicit rerun from the Job detail actions.
+
+If an after screenshot looks like an auth/sign-in/error wall for a different
+changed surface, `visual_diff` records the rejected artifact and skips rather
+than training the baseline agent to reproduce the wall. Comparisons for
+auth/session pages themselves remain valid when the Job or prompt names that
+auth route as the intended surface.
 
 ## Manual "Run visual review" trigger
 

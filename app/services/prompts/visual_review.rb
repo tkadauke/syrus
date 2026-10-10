@@ -283,7 +283,9 @@ module Prompts
            If multiple affected preview projects are listed above, choose the relevant project_id
            for the area you are testing. If the documented seed data above doesn't cover the feature
            under test, you may run additional ad hoc seed commands yourself via your normal shell
-           access to reach the state you need.
+           access to reach the state you need. For authenticated routes, use the seeded/demo login in
+           this same MCP browser session before capturing evidence. Treat an unexpected auth redirect
+           as a blocker unless the auth screen itself is the changed surface under review.
         3. Use your browser tools (navigate, snapshot, click, fill, hover, wait_for, resize, screenshot,
            evaluate, file_upload, drop, drag) to drive the running app against your own improvised test
            plan targeting what changed. Don't just load the homepage — exercise the actual feature. Use
@@ -322,11 +324,16 @@ module Prompts
         4. By default, test the change at both a desktop viewport
            (#{viewport_label(DESKTOP_VIEWPORT)}) and a mobile viewport
            (#{viewport_label(MOBILE_VIEWPORT)}) via `browser_resize`, capturing screenshots at each
-           with `submit_visual_artifact` and titling them clearly (e.g. "Desktop — ..." /
-           "Mobile — ..."). You may skip one viewport when the issue/diff context makes it clearly
-           irrelevant (a mobile-nav-only bug report, a component hidden below a desktop breakpoint,
-           an admin-only desktop tool) — but if you skip a viewport, state why in your critique so it
-           is an auditable judgment call, not a silent omission. `browser_resize` fully re-applies the
+           with `submit_visual_artifact(capture_current_browser: true, ...)` and titling them clearly
+           (e.g. "Desktop — ..." / "Mobile — ..."). If your tool schema does not expose
+           `capture_current_browser`, omit `image_path` and `image_base64`; the tool defaults to the
+           same current-browser capture path. Use that path rather than copying Playwright temp files or
+           launching another unauthenticated browser context, because it preserves the authenticated page URL, title, viewport,
+           source, and capture timestamp as artifact provenance. You may skip one viewport when the issue/diff context makes it clearly
+           irrelevant (a mobile-nav-only bug
+           report, a component hidden below a desktop breakpoint, an admin-only desktop tool) — but if
+           you skip a viewport, state why in your critique so it is an auditable judgment call, not a silent omission.
+           `browser_resize` fully re-applies the
            viewport each time, so there's no need to reset between calls; but a resize triggers a
            layout reflow, so re-run `browser_snapshot` before the next click/fill after resizing —
            never reuse refs captured at the previous viewport size.
@@ -365,8 +372,9 @@ module Prompts
         applies, do not approve:
         - Call `submit_visual_review` with verdict "skipped" when the blocker
           is tooling/environment — no synced clone, missing seed data,
-          preview infrastructure that isn't wired up for this route — rather
-          than something the implementation itself should have provided.
+          auth/session state you cannot obtain, preview infrastructure that
+          isn't wired up for this route — rather than something the
+          implementation itself should have provided.
         - Call `submit_visual_review` with verdict "needs_work" when the
           missing route, missing data, or broken preview setup is itself an
           implementation or preview-seeding defect the implementing agent
@@ -375,6 +383,18 @@ module Prompts
         surface you could not exercise, and (b) the fallback or proxy page
         you considered and rejected. Do not silently substitute a different
         page's screenshots and approve as if you had verified the real one.
+
+        Auth/error walls are a common version of this failure. If you intend
+        to review a non-auth surface such as `/credential_store` and your
+        screenshots show `/session/new`, a sign-in page, a 404 page, or an
+        application error instead, those screenshots are evidence of the
+        blocker rather than evidence that the intended surface looks correct.
+        Submit "skipped" for external tooling/auth/seed blockers, or
+        "needs_work" when the redirect/error is an implementation or preview
+        defect. Legitimate auth/session-screen work is different: if the
+        changed surface is the sign-in, login, signup, or session page itself,
+        review and approve that auth surface normally, even if the Job also
+        mentions a post-login route or redirect.
       TEXT
     end
 
