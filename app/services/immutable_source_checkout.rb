@@ -2,6 +2,7 @@ require "fileutils"
 require "digest"
 require "json"
 require "open3"
+require "rbconfig"
 require "securerandom"
 
 class ImmutableSourceCheckout
@@ -677,20 +678,28 @@ class ImmutableSourceCheckout
     end
 
     def store_from!(checkout_path)
-      temporary_path = path.dirname.join(".#{path.basename}.tmp-#{Process.pid}-#{SecureRandom.hex(6)}")
-      FileUtils.rm_rf(temporary_path.to_s)
+      version_path = path.dirname.join(".#{path.basename}.version-#{Process.pid}-#{SecureRandom.hex(6)}")
+      temporary_link = path.dirname.join(".#{path.basename}.link-#{Process.pid}-#{SecureRandom.hex(6)}")
+      retired_path = nil
+      FileUtils.rm_rf(version_path.to_s)
+      FileUtils.rm_f(temporary_link.to_s)
       FileUtils.mkdir_p(path.dirname)
-      FileUtils.mkdir_p(temporary_path)
-      FileUtils.cp_r(
-        Pathname.new(checkout_path).children.map(&:to_s),
-        temporary_path.to_s,
-        preserve: true,
-        dereference_root: false
-      )
-      FileUtils.rm_rf(path.to_s)
-      FileUtils.mv(temporary_path.to_s, path.to_s)
+      FileUtils.mkdir_p(version_path)
+      copy_checkout_tree!(checkout_path, version_path)
+      File.symlink(version_path.basename.to_s, temporary_link.to_s)
+
+      if path.symlink? || !path.exist?
+        File.rename(temporary_link.to_s, path.to_s)
+        temporary_link = nil
+      else
+        retired_path = path.dirname.join(".#{path.basename}.retired-#{Process.pid}-#{SecureRandom.hex(6)}")
+        atomic_exchange!(temporary_link, path)
+        File.rename(temporary_link.to_s, retired_path.to_s)
+        temporary_link = nil
+      end
     ensure
-      FileUtils.rm_rf(temporary_path.to_s) if temporary_path && temporary_path.exist?
+      FileUtils.rm_f(temporary_link.to_s) if temporary_link
+      FileUtils.rm_rf(version_path.to_s) if version_path && !path_points_to?(version_path)
     end
 
     def path
@@ -738,6 +747,48 @@ class ImmutableSourceCheckout
     end
 
     private
+
+    def copy_checkout_tree!(checkout_path, destination)
+      attempts = 0
+
+      begin
+        FileUtils.cp_r(
+          Pathname.new(checkout_path).children.map(&:to_s),
+          destination.to_s,
+          preserve: true,
+          dereference_root: false
+        )
+      rescue Errno::ENOENT
+        attempts += 1
+        raise if attempts >= 3
+
+        FileUtils.rm_rf(destination.to_s)
+        FileUtils.mkdir_p(destination)
+        retry
+      end
+    end
+
+    def path_points_to?(version_path)
+      path.symlink? && path.realpath == version_path.realpath
+    rescue Errno::ENOENT
+      false
+    end
+
+    RENAME_EXCHANGE = 2
+    RENAMEAT2_SYSCALLS = {
+      "x86_64" => 316,
+      "aarch64" => 276,
+      "arm64" => 276
+    }.freeze
+
+    def atomic_exchange!(first_path, second_path)
+      syscall = RENAMEAT2_SYSCALLS[RbConfig::CONFIG["host_cpu"]]
+      raise "atomic prepare cache exchange is unsupported on this platform" unless syscall
+
+      Kernel.syscall(syscall, -100, first_path.to_s, -100, second_path.to_s, RENAME_EXCHANGE)
+    rescue SystemCallError => e
+      raise "atomic prepare cache exchange failed: #{e.class}: #{e.message}"
+    end
 
     def marker_matches?
       JSON.parse(marker_path.read).slice(
