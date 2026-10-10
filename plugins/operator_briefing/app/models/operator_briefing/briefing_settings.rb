@@ -4,6 +4,10 @@ module OperatorBriefing
     include ValidatesAgentProvider
 
     DEFAULT_CADENCE_EXPRESSION = "0 9 * * 1".freeze unless const_defined?(:DEFAULT_CADENCE_EXPRESSION, false)
+    # Zone a five-field cadence is interpreted in. UTC keeps a shipped plugin
+    # from baking one deployment's zone into every operator's schedule; a
+    # per-user zone belongs on the settings row, not in this constant.
+    CADENCE_TIMEZONE = "UTC".freeze unless const_defined?(:CADENCE_TIMEZONE, false)
 
     belongs_to :user
     has_many :subscriptions,
@@ -63,14 +67,25 @@ module OperatorBriefing
       parsed = cron
       return nil unless parsed
 
-      previous_time = parsed.previous_time(now + 1.minute)&.to_local_time
+      previous_time = parsed.previous_time(now + 1.minute)&.to_utc_time
       return nil unless previous_time
 
       previous_time >= 1.hour.ago(now) ? previous_time : nil
     end
 
+    # Fugit resolves an unqualified cron expression against the *process's*
+    # local timezone, so a stored cadence named a different instant depending
+    # on how the container happened to be configured: "0 9 * * 1" meant 09:00
+    # Eastern where TZ is set and 09:00 UTC in CI, which is why the scheduler
+    # spec passed locally and failed there. Pin the zone so one expression
+    # means one instant everywhere, matching how ScheduledTasks parses cron.
+    # An expression that already carries its own zone is left alone.
     def cron
-      Fugit::Cron.parse(cadence_expression)
+      expression = cadence_expression.to_s.strip
+      return nil if expression.blank?
+
+      expression = "#{expression} #{CADENCE_TIMEZONE}" if expression.split(/\s+/).size == 5
+      Fugit::Cron.parse(expression)
     end
   end
 end

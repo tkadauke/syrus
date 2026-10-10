@@ -31,7 +31,11 @@ that repository's last closed briefing. Manual regeneration bypasses this
 activity gate but does not enable future scheduled generation by itself.
 `BriefingSettings` stores each
 operator's cron-like cadence, budget-gating flag, and optional agent provider
-override. Budget-gating is best-effort for now: Syrus tracks spend, but it does
+override. A five-field cadence is interpreted in UTC, not in the server's
+local timezone, so the same expression names the same instant on every
+deployment; the default `0 9 * * 1` therefore fires Mondays at 09:00 UTC. A
+cadence that carries its own timezone field is honored as written. There is
+no per-operator timezone yet. Budget-gating is best-effort for now: Syrus tracks spend, but it does
 not yet expose a remaining-budget allowance primitive for the plugin to compare
 against, so the gate currently records that no hard allowance is available and
 fails open.
