@@ -3708,11 +3708,14 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
       state: "closed",
       closure_reason: "cancelled"
     )
-    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+    dependency = JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
 
     described_class.start_workflow(workflow)
 
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("dependency_failed")
+    expect(workflow.artifact("start_blocked_details")).to include(
+      "dependencies" => [ include("dependency_id" => dependency.id, "satisfaction_mode" => "success") ]
+    )
   end
 
   it "starts workflows with failed dependencies after an operator override" do

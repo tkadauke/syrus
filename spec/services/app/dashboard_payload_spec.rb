@@ -1395,6 +1395,39 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:blocked_reason]).to eq({ key: "waiting_to_merge", params: { slug: blocker.slug } })
     end
 
+    it "shows required and latest stages for deployment-stage dependency blockers" do
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+      production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+      )
+      blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
+      blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+      blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobDependency.create!(
+        job: blocked_job,
+        depends_on_job: blocker,
+        source: "manual",
+        created_by_user: user,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production"
+      )
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == blocked_job.id }
+
+      expect(item[:blocked_reason]).to eq(
+        key: "waiting_for_deployment_stage",
+        params: { slug: blocker.slug, stage: "production", latest_stage: "On Staging" }
+      )
+      dependency = item[:dependencies].first
+      expect(dependency).to include(
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production",
+        latest_deployment_stage: include(name: "staging", label: "On Staging")
+      )
+    end
+
     it "does not show dep reason when the only dependency is already satisfied" do
       blocker = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
       # Job is in the blocked folder due to pr_mergeable:false, not the dep (which is satisfied)

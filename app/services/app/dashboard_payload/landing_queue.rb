@@ -85,11 +85,23 @@ module App
         if dep.depends_on_epic_id.present?
           { key: "waiting_epic_to_complete", params: { number: dep.depends_on_epic&.number } }
         elsif dep.depends_on_job_id.present?
-          { key: "waiting_to_merge", params: { slug: dep.depends_on_job.slug } }
+          dependency_blocked_reason(dep, slug: dep.depends_on_job.slug)
         else
           slug = dep.unresolved_slug
           { key: "waiting_to_merge", params: { slug: slug } } if slug.present?
         end
+      end
+
+      def dependency_blocked_reason(dependency, slug:)
+        return { key: "waiting_to_merge", params: { slug: slug } } unless dependency.satisfaction_mode == "deployment_stage"
+
+        params = {
+          slug: slug,
+          stage: dependency.required_deployment_stage_name
+        }
+        latest = App::DependencyGatePayload.for(dependency)[:latest_deployment_stage]
+        params[:latest_stage] = latest[:label] || latest[:name] if latest
+        { key: "waiting_for_deployment_stage", params: params.compact }
       end
 
       def preloaded_blocked_deps_by_job_id
@@ -104,7 +116,7 @@ module App
 
         JobDependency
           .where(job_id: job_ids)
-          .includes(:depends_on_job, :depends_on_epic, :unresolved_chat_proposal)
+          .includes({ depends_on_job: [ :repository, :deployment_stage_statuses ] }, :depends_on_epic, :unresolved_chat_proposal)
           .order(:id)
           .reject(&:dependency_succeeded?)
           .each_with_object({}) { |dep, hash| hash[dep.job_id] ||= dep }
