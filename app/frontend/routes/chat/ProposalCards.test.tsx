@@ -474,7 +474,7 @@ describe("ProposalCard layout", () => {
     expect(screen.getByText("JOB-1 (mode: deployment stage · stage: staging)")).toBeInTheDocument()
   })
 
-  it("shows dependency requirements on Epic child proposal dependencies", () => {
+  it("shows dependency requirements on Epic child proposal Job dependencies", () => {
     renderProposalCard(proposal({
       kind: "epic",
       kind_label: "Epic",
@@ -497,14 +497,7 @@ describe("ProposalCard layout", () => {
         }],
         depends_on_epic_ids: [],
         media_ids: [],
-        dependency_details: [{
-          slug: "JOB-1",
-          title: "Prepare release train",
-          scope: "cross_card",
-          confirmed: true,
-          materialized_label: "JOB-1",
-          materialized_path: "/jobs/1"
-        }],
+        dependency_details: [],
         app_update_path: "/api/v1/app/chats/122/proposals/18",
         app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
       }]

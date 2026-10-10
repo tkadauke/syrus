@@ -1538,6 +1538,47 @@ function childDependencyToProposalDependency(dependency: NonNullable<ChatProposa
   }
 }
 
+function childProposalDependencies(child: ChatProposalChild) {
+  const dependencies = new Map<string, ChatProposalDependency>()
+  const detailDependencies = child.dependency_details || []
+  const jobIds = child.depends_on_job_ids || []
+  const proposalSlugs = child.dependencies || []
+
+  detailDependencies.forEach((dependency) => {
+    dependencies.set(dependency.slug, childDependencyToProposalDependency(dependency))
+  })
+  jobIds.forEach((id) => {
+    const slug = `JOB-${id}`
+    if (dependencies.has(slug)) return
+    dependencies.set(slug, {
+      slug,
+      title: slug,
+      state: "confirmed",
+      confirmed: true,
+      materialized_label: slug,
+      materialized_path: `/jobs/${id}`
+    })
+  })
+  proposalSlugs.forEach((slug) => {
+    if (dependencies.has(slug)) return
+    dependencies.set(slug, {
+      slug,
+      title: slug,
+      state: "proposed",
+      confirmed: false,
+      materialized_path: null
+    })
+  })
+  return Array.from(dependencies.values())
+}
+
+function ProposalChildDependencyStrip({ child, prefix }: { child: ChatProposalChild; prefix: string }) {
+  const dependencies = childProposalDependencies(child)
+  if (dependencies.length === 0) return null
+
+  return <ProposalDependencyStrip dependencies={dependencies} hasDependencies prefix={prefix} requirements={child.dependency_requirements || []} />
+}
+
 function ProposalChildren({
   children,
   media,
@@ -1597,14 +1638,7 @@ function ProposalChildren({
               </div>
             ) : null}
             <ProposalMediaTiles media={media} mediaIds={child.media_ids || []} previewPanels={previewPanels} />
-            {(child.dependency_details || []).length > 0 ? (
-              <ProposalDependencyStrip
-                dependencies={(child.dependency_details || []).map(childDependencyToProposalDependency)}
-                hasDependencies
-                prefix={prefix}
-                requirements={child.dependency_requirements || []}
-              />
-            ) : null}
+            <ProposalChildDependencyStrip child={child} prefix={prefix} />
             {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <Button
