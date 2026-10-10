@@ -59,6 +59,32 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(run.agent_outcome).to be_nil
   end
 
+  it "retries transient lifecycle lock conflicts without rerunning the handler" do
+    handler_calls = 0
+    lock_raised = false
+    counting_handler = Class.new(Steps::Base) do
+      define_method(:call) { handler_calls += 1 }
+    end
+    allow(Steps).to receive(:handler_for).and_return(counting_handler)
+    allow_any_instance_of(described_class).to receive(:succeed_run!).and_wrap_original do |original, *args|
+      unless lock_raised
+        lock_raised = true
+        raise ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded"
+      end
+
+      original.call(*args)
+    end
+
+    run = StepDispatcher.start_workflow(workflow)
+    allow_any_instance_of(described_class).to receive(:next_inline_run).and_return(nil)
+
+    described_class.perform_now(run.id)
+
+    expect(handler_calls).to eq(1)
+    expect(run.reload).to be_succeeded
+    expect(s_implement.reload).to be_succeeded
+  end
+
   it "captures and clears the Solid Queue role on workflow activity events" do
     run = StepDispatcher.start_workflow(workflow)
 
@@ -206,6 +232,14 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
   describe "adversarial review loop integration (implement is top-level; the loop starts with the review)" do
     before do
+      visual_review_plan = RepoVisualReviewPlan::Result.new(
+        enabled: false,
+        rounds: 1,
+        source: "spec",
+        note: "disabled for adversarial loop dispatch spec"
+      )
+      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
       allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
         RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
       )

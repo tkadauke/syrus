@@ -403,12 +403,15 @@ function BranchDivergencePanel({
   const { t } = useT("jobs")
   const sourcePath = withRoutePrefix(`/jobs/${payload.job.id}/source`, prefix)
   const branch = divergence.branch || t("workflow_pr_branch_fallback")
+  const resolved = divergence.recovery
+  const canChooseRecovery = workflow.state === "failed" && !resolved
+  const resolvedActionLabel = resolved ? branchDivergenceRecoveryActionLabel(resolved.action, t) : null
 
   return (
     <Notice className="mt-4" tone="warning">
       <div className="font-semibold">{t("workflow_divergence_title")}</div>
       <p className="mt-1">
-        {t("workflow_divergence_review")}
+        {resolved ? t("workflow_divergence_resolved_review") : t("workflow_divergence_review")}
       </p>
       <DescriptionList.Root className="mt-2 text-warning-text sm:grid-cols-3" density="compact">
         <DescriptionList.Item descriptionClassName="font-mono text-xs text-warning-text" label={t("workflow_divergence_branch")}>{branch}</DescriptionList.Item>
@@ -427,24 +430,46 @@ function BranchDivergencePanel({
       {divergence.recovery_error?.message ? (
         <Text className="mt-2 text-xs font-medium" tone="danger">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</Text>
       ) : null}
+      {resolved ? (
+        <Text className="mt-2 text-xs font-medium" tone="info">{t("workflow_divergence_resolved", { action: resolvedActionLabel })}</Text>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <Link className={buttonClasses("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
-        <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path }} tone="secondary">
-          {t("workflow_retry_from_pr")}
-        </CommandButton>
-        {divergence.recovery_pending ? (
-          <Button disabled variant="secondary">{t("workflow_replace_queued")}</Button>
-        ) : (
-          <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }} tone="danger">
-            {t("workflow_replace_pr_branch")}
-          </CommandButton>
-        )}
-        <CommandButton command={command} input={{ method: "post", path: workflow.app_discard_branch_output_path }} tone="secondary">
-          {t("workflow_discard_stale")}
-        </CommandButton>
+        {canChooseRecovery ? (
+          <>
+            <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path, body: { branch_divergence_workflow_id: workflow.id } }} tone="secondary">
+              {t("workflow_retry_from_pr")}
+            </CommandButton>
+            {divergence.recovery_pending ? (
+              <Button disabled variant="secondary">{t("workflow_replace_queued")}</Button>
+            ) : (
+              <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }} tone="danger">
+                {t("workflow_replace_pr_branch")}
+              </CommandButton>
+            )}
+            <CommandButton command={command} input={{ method: "post", path: workflow.app_discard_branch_output_path }} tone="secondary">
+              {t("workflow_discard_stale")}
+            </CommandButton>
+          </>
+        ) : null}
+        {workflow.state !== "failed" && !resolved ? (
+          <Text className="self-center text-xs font-medium" tone="info">
+            {t("workflow_divergence_recovery_unavailable")}
+          </Text>
+        ) : null}
       </div>
     </Notice>
   )
+}
+
+function branchDivergenceRecoveryActionLabel(action: string | undefined, t: (key: string) => string) {
+  const labels: Record<string, string> = {
+    force_pushed: t("workflow_divergence_action_force_pushed"),
+    discarded: t("workflow_divergence_action_discarded"),
+    superseded_by_current_pr_branch: t("workflow_divergence_action_retry_current_pr"),
+    adopted_current_pr_head: t("workflow_divergence_action_adopt_current_pr")
+  }
+  return action ? labels[action] || humanize(action) : t("workflow_divergence_action_resolved")
 }
 
 // The decision this banner asks for is destructive and irreversible, so it has

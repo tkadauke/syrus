@@ -1165,6 +1165,9 @@ class StepDispatcher
     return hard_fail_workflow! unless loop_node
 
     if @from_step.iteration < loop_max_iterations(loop_node)
+      progress = GraderLoopProgress.record_failure!(workflow: @workflow, collect_step: @from_step)
+      return stop_non_progressing_grader_loop!(progress.payload) if progress.stop?
+
       enqueue_next_loop_iteration!(loop_node)
     elsif @from_step.succeeded?
       advance_to_next_runnable!
@@ -1175,6 +1178,16 @@ class StepDispatcher
 
   def advance_to_next_runnable!
     enqueue_next_runnable_steps!
+  end
+
+  def stop_non_progressing_grader_loop!(payload)
+    cancel_post_loop_steps!(GraderLoopProgress::NO_PROGRESS_REASON)
+    @workflow.increment!(:failure_count)
+    hard_fail_workflow!(GraderLoopProgress::NO_PROGRESS_REASON)
+    Rails.logger.warn(
+      "[StepDispatcher] workflow #{@workflow.id} stopped grader retry loop without progress: " \
+      "#{payload.to_h.fetch('explanation', GraderLoopProgress::NO_PROGRESS_REASON)}"
+    )
   end
 
   def loop_node_for(step)

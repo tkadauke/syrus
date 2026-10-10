@@ -376,6 +376,35 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(job, tab: "workflows"))
   end
 
+  it "records retry-from-current-PR as the selected recovery on a diverged source workflow" do
+    job.initial_run.tap { |run| run.start!; run.fail!; run.save! }
+    source = job.latest_workflow
+    source.update!(state: "failed", finished_at: 1.minute.ago)
+    source.set_artifact!("branch_divergence", {
+      "branch" => job.branch_name,
+      "remote_sha" => "remote-sha",
+      "local_sha" => "local-sha"
+    })
+    job.update!(state: "failed", pr_number: 42)
+    finish_work_units_for(job)
+
+    expect {
+      post app_job_path(job, "run_again"), params: { branch_divergence_workflow_id: source.id }, as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    retry_workflow = job.workflows.where(trigger_kind: "retry").last
+    expect(response).to have_http_status(:ok)
+    expect(source.reload.artifact("branch_divergence_recovery")).to include(
+      "action" => "superseded_by_current_pr_branch",
+      "user_id" => user.id
+    )
+    expect(retry_workflow.reload).to be_queued
+    expect(retry_workflow.work_unit.reload).to be_queued
+    expect(retry_workflow.artifact("branch_divergence")).to be_nil
+    expect(retry_workflow.artifact("branch_divergence_recovery")).to be_nil
+  end
+
   it "retries a completed job with another configured agent provider" do
     user.update!(claude_oauth_token: "claude-token", codex_auth_mode: "api_key", codex_api_key: "sk-test")
     job.update!(agent_provider: "claude")

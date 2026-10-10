@@ -458,6 +458,60 @@ RSpec.describe SystemAlerts do
       expect(alert.message).to include(repository.slug, repair_job.slug, "triaging")
     end
 
+    it "surfaces no-progress main-branch repairs with a repair Job CTA" do
+      admin = Factories.user(admin: true)
+      owner = Factories.user
+      repository = Factories.repository(
+        user: owner,
+        main_branch_health_enabled: true,
+        main_branch_repair_enabled: true,
+        ci_health: "healthy",
+        grader_health: "broken"
+      )
+      repair_job = repository.jobs.create!(
+        user: owner,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch",
+        issue_body: "Commit: abc123",
+        agent_provider: "claude",
+        priority: "urgent",
+        state: "failed",
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: Time.current
+      )
+      workflow = Workflow.create!(
+        job: repair_job,
+        trigger_kind: "main_branch_repair",
+        state: "failed",
+        artifacts: {
+          GraderLoopProgress::STOP_ARTIFACT_KEY => {
+            "failing_set" => %w[spec/a_spec.rb spec/b_spec.rb]
+          }
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: admin).find { |candidate| candidate.id == "no_progress_main_branch_repair:#{repair_job.id}" }
+
+      expect(alert).to have_attributes(
+        severity: :alarm,
+        title: "Main branch repair stopped without progress.",
+        cta: { text: "Open repair Job", path: "/jobs/#{repair_job.id}" }
+      )
+      expect(alert.actions).to contain_exactly(
+        include(
+          text: "Start planning chat",
+          method: "post",
+          path: "/api/v1/app/jobs/#{repair_job.id}/start_chat",
+          params: include(message: include("spec/a_spec.rb", "Plan targeted follow-up work"))
+        )
+      )
+      expect(alert.dismissal_key).to include(workflow.id.to_s)
+      expect(alert.message).to include(repository.slug, repair_job.slug, "2")
+    end
+
     it "batch-loads stuck main-branch repair blockers instead of querying per broken repository" do
       admin = Factories.user(admin: true)
       owner = Factories.user

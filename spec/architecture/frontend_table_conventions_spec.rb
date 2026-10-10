@@ -69,6 +69,7 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/AdminQueue.tsx#root1" => "per-worker health minute-bucket diagnostic table",
     "app/frontend/routes/AdminQueue.tsx#root2" => "per-worker health trend diagnostic table",
     "app/frontend/routes/AdminUsers.tsx#root1" => "user detail recent-activity mini-list without stable column definitions",
+    "app/frontend/routes/JobDetail.tsx#root1" => "job detail classification-attempt history subtable with fixed diagnostic columns",
     "app/frontend/routes/RepositoryDetail.tsx#root1" => "repository detail triage-release action table",
     "app/frontend/routes/repositoryDetail/MainBranchHealth.tsx#root2" => "mobile health-history summary uses fixed compact signal columns",
     "app/frontend/routes/RepositoryForm.tsx#root1" => "credential-mode comparison matrix, not a record list",

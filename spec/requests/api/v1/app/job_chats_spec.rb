@@ -119,6 +119,8 @@ RSpec.describe "App API job chats", type: :request do
     it "returns 404 for a job in a repository the user cannot access" do
       other_repo = Factories.repository(user: Factories.user, owner: "globex", name: "private")
       other_job = Factories.job_record(repository: other_repo, issue_number: 99)
+      inaccessible_user = Factories.user(admin: false)
+      sign_in_as(inaccessible_user)
 
       post path(other_job), as: :json
 
@@ -154,6 +156,21 @@ RSpec.describe "App API job chats", type: :request do
       }.not_to change(ChatSession, :count)
 
       expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  context "as an admin without repository membership" do
+    it "can start the job chat" do
+      job
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      post path(job), as: :json
+
+      expect(response).to have_http_status(:ok)
+      chat = ChatSession.last
+      expect(chat.user_id).to eq(admin.id)
+      expect(job.reload.discussion_chat).to eq(chat)
     end
   end
 end

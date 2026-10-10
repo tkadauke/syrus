@@ -183,6 +183,15 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(job).to be_implemented
   end
 
+  it "repairs a queued Run stuck in a healthy re-enqueue loop by clearing affinity" do
+    result = run_scenario("healthy_reenqueue_loop_clears_affinity")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("queued_run_in_healthy_reenqueue_loop")
+    workflow = Job.find(result.job_ids.first).workflows.find_by!(trigger_kind: "initial")
+    expect(workflow.worker_storage_key).not_to eq("storage-loop")
+  end
+
   it "retries non-agentic runs with live queue claims but no live child process before the agent stale threshold" do
     result = run_scenario("non_agentic_claim_without_process_retries")
 
@@ -204,6 +213,14 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     job = Job.find(result.job_ids.first)
     expect(job).to be_implemented
     expect(job.workflows.find_by!(trigger_kind: "initial").worker_storage_key).to be_present
+  end
+
+  it "repairs stalled intake classification before runtime exists" do
+    result = run_scenario("stalled_intake_reclassifies", max_ticks: 2)
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("repair reclassify_stalled_intake -> applied")
+    expect(Job.find(result.job_ids.first).classifier_attempts).to eq(1)
   end
 
   it "does not relaunch a stale initial intent after a later retry implemented the job" do

@@ -41,6 +41,19 @@ RSpec.describe BranchDivergenceRecovery do
     expect(job.reload).to be_implemented
   end
 
+  it "records operator retry from the current PR branch even when the PR head moved again" do
+    job.update!(mergeability_head_sha: "newer-remote-sha")
+
+    result = described_class.retry_from_current_pr_branch!(workflow: workflow, user: user)
+
+    expect(result).to be_success
+    expect(workflow.reload.artifact("branch_divergence_recovery")).to include(
+      "action" => "superseded_by_current_pr_branch",
+      "user_id" => user.id
+    )
+    expect(job.reload).to be_implemented
+  end
+
   it "does not auto-discard superseded output when the current PR head no longer matches" do
     job.update!(mergeability_head_sha: "newer-remote-sha")
 

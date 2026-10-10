@@ -9,11 +9,10 @@ module OperatorBriefing
     end
 
     def run!
-      User.find_each do |user|
+      User.where(id: BriefingSubscription.enabled.select(:user_id)).find_each do |user|
         settings = BriefingSettings.for_user(user)
         next unless settings.due?(now: now)
 
-        BriefingSubscription.seed_for_user!(user)
         settings.enabled_subscriptions.includes(:repository).find_each do |subscription|
           repository = subscription.repository
           next if repository.archived?

@@ -122,9 +122,9 @@ true (`App::JobDetailPayload#report_json`, gated the same way). The Report
 tab renders the submitted `investigation_report` narrative (markdown) and
 findings, plus any referenced artifacts/screenshots resolved against
 `Workflow#artifacts["typed_artifacts"]` and rendered with the same
-`ArtifactBody` renderer the Artifacts tab uses. The PR-only Review tab is
-hidden entirely for investigation Jobs; other tabs (Workflows, Agent
-Conversation, Timeline, Artifacts, Source, etc.) are unaffected. Because an
+shared `ArtifactBody` renderer used by other typed-artifact surfaces. The
+PR-only Review tab is hidden entirely for investigation Jobs; other tabs
+(Workflows, Agent Conversation, Timeline, Source, etc.) are unaffected. Because an
 investigation Job's `:implemented` state is shared with the normal
 approve-and-land pipeline, `App::JobDetailPayload#actions_json` also excludes
 `investigation?` Jobs from `can_approve`/`reviewable_job` and exposes
@@ -165,6 +165,9 @@ and reason, Syrus records `blocked_by_main`, skips that iteration's pending
 grader check steps, and continues to `summarize_amend`/`push`. That preserves
 any legitimate fixes committed by earlier iterations instead of burning the
 full retry budget against a self-diagnosed pre-existing main failure.
+Other no-diff `analyze_and_fix` iterations fail with
+`agent_outcome: "no_changes_produced"` even when an earlier iteration already
+left a branch diff, because the repair step itself made no progress.
 
 `PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
 spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's

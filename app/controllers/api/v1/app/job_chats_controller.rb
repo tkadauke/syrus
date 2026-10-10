@@ -45,7 +45,8 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
+          scope = Current.user&.admin? ? Job.all : policy_scope(Job)
+          find_job_by_ref(scope.includes(:repository), params[:job_id])
         end
 
         def create_user_message(chat_session, text)

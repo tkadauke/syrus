@@ -17,6 +17,25 @@ RSpec.describe ClassifyIssueJob do
     }.merge(attrs))
   end
 
+  def with_solid_queue_adapter
+    previous_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :solid_queue
+    yield
+  ensure
+    ActiveJob::Base.queue_adapter = previous_adapter
+  end
+
+  def failed_solid_queue_classify(job, exception_class:)
+    active_job = described_class.new(job.id)
+    solid_queue_job = SolidQueue::Job.enqueue(active_job)
+    SolidQueue::ReadyExecution.where(job_id: solid_queue_job.id).delete_all
+    SolidQueue::FailedExecution.create!(
+      job_id: solid_queue_job.id,
+      error: { "exception_class" => exception_class, "message" => "worker vanished" }
+    )
+    solid_queue_job
+  end
+
   describe "#perform" do
     it "calls IngestionClassifier for an eligible Job" do
       allow(user).to receive(:agent_provider_configured?).with("claude").and_return(true)
@@ -61,6 +80,57 @@ RSpec.describe ClassifyIssueJob do
     it "discards (does not raise) if the Job has been deleted" do
       missing_id = 999_999
       expect { described_class.perform_now(missing_id) }.not_to raise_error
+    end
+  end
+
+  describe ".enqueue_for_job!" do
+    before do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+    end
+
+    after do
+      clear_solid_queue_test_tables!
+    end
+
+    it "recovers a pruned failed SolidQueue execution before enqueueing a fresh classifier attempt" do
+      job = pending_job
+      failed_job = nil
+
+      with_solid_queue_adapter do
+        failed_job = failed_solid_queue_classify(
+          job,
+          exception_class: "SolidQueue::Processes::ProcessPrunedError"
+        )
+
+        result = described_class.enqueue_for_job!(job)
+
+        expect(result.recovered_failed_execution_ids).to be_present
+        expect(SolidQueue::Job.where(id: failed_job.id)).to be_empty
+        expect(SolidQueue::FailedExecution.where(job_id: failed_job.id)).to be_empty
+        expect(SolidQueue::ReadyExecution.joins(:job).where(solid_queue_jobs: {
+          class_name: "ClassifyIssueJob",
+          concurrency_key: described_class.solid_queue_concurrency_key_for(job.id)
+        })).to exist
+      end
+    end
+
+    it "raises instead of silently reporting success when a failed execution still blocks the key" do
+      job = pending_job
+
+      with_solid_queue_adapter do
+        failed_job = failed_solid_queue_classify(
+          job,
+          exception_class: "RuntimeError"
+        )
+
+        expect {
+          described_class.enqueue_for_job!(job)
+        }.to raise_error(described_class::EnqueueBlockedError) { |error|
+          expect(error.blocking_solid_queue_job_ids).to contain_exactly(failed_job.id)
+          expect(error.concurrency_key).to eq(described_class.solid_queue_concurrency_key_for(job.id))
+        }
+      end
     end
   end
 end

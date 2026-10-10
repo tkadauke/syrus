@@ -12,7 +12,7 @@ import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
-import { NoticeToast } from "../components/NoticeToast"
+import { NoticeToast, type NoticeToastTone } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
 import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
 import { Markdown } from "../lib/Markdown"
@@ -40,6 +40,7 @@ import {
   type JobApprovalEvidence,
   type JobApprovalRecord,
   type JobApprovalStatus,
+  type JobClassificationAttempt,
   type JobDeploymentStage,
   type JobDetailPayload,
   type JobPrCheckAttribution,
@@ -47,7 +48,6 @@ import {
   type JobWorkflow,
   type PendingFeedbackComment
 } from "../api/jobs"
-import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
 import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
@@ -87,7 +87,6 @@ import {
   tabFromLocation
 } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
-import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { AgentConversationTab } from "./jobDetail/AgentConversation"
 import { TimelineTab } from "./jobDetail/Timeline"
@@ -99,7 +98,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
-import { Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
+import { DataTable, Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
 import {
   jobNavigationHref,
   navigationIndex,
@@ -224,10 +223,11 @@ export function JobDetailView({
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [notice, setNotice] = useState<{ message: string; tone: NoticeToastTone } | null>(() => payload.message ? { message: payload.message, tone: "notice" } : null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
-  const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
+  const showNotice = (message: string | null, tone: NoticeToastTone = "notice") => setNotice(message ? { message, tone } : null)
+  const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, showNotice)
   const bugReportTrigger = useBugReportTrigger()
   const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
@@ -259,7 +259,7 @@ export function JobDetailView({
     mutationFn: (body: string) => submitJobFeedback(payload.job.id, body),
     onSuccess: () => {
       setFeedbackPanelOpen(false)
-      setNotice(t("feedback_submitted"))
+      showNotice(t("feedback_submitted"))
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
     }
@@ -269,7 +269,7 @@ export function JobDetailView({
     mutationFn: (body: string) => openJobInCodingMode(payload.paths.app_open_in_coding_mode_path, body),
     onSuccess: (result) => {
       setFeedbackPanelOpen(false)
-      setNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
+      showNotice(result.message || t("open_in_coding_mode_feedback_submitted"))
       if (result.redirect_to) navigate(result.redirect_to)
       scheduleJobDetailInvalidation(queryClient, queryKey)
     }
@@ -304,7 +304,7 @@ export function JobDetailView({
   ]
 
   useEffect(() => {
-    setNotice(payload.message || null)
+    setNotice(payload.message ? { message: payload.message, tone: "notice" } : null)
   }, [payload.job.id, payload.message])
 
   useEffect(() => {
@@ -400,7 +400,7 @@ export function JobDetailView({
         </div>
       </Page.Header>
 
-      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      <NoticeToast message={notice?.message ?? null} onDismiss={() => setNotice(null)} tone={notice?.tone ?? "notice"} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {mainHealthBannerVisible(payload) ? (
@@ -443,7 +443,6 @@ export function JobDetailView({
       <Page.Nav>
         <TabNav
           active={activeTab}
-          artifactsCount={(payload.typed_artifacts ?? []).length}
           attachmentsCount={(payload.attachments ?? []).length}
           investigation={payload.job.investigation}
           workflowsCount={payload.job.workflows_count}
@@ -468,8 +467,7 @@ export function JobDetailView({
         <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} />
       ) : null}
       {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
-      {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
-      {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
+      {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={showNotice} /> : null}
       {activeTab === "source" ? (
         <SourceTab
           canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)}
@@ -746,7 +744,6 @@ function TabNav({
   active,
   workflowsCount,
   attachmentsCount,
-  artifactsCount,
   investigation = false,
   pluginTabs,
   onSelect
@@ -754,7 +751,6 @@ function TabNav({
   active: JobTab
   workflowsCount: number
   attachmentsCount: number
-  artifactsCount: number
   investigation?: boolean
   pluginTabs?: UiSlotPanel[]
   onSelect: (tab: JobTab) => void
@@ -773,7 +769,6 @@ function TabNav({
     { id: "timeline", label: t("tab_timeline") },
     { id: "target_graph", label: "Target Graph" },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
-    { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },
     { id: "source", label: t("tab_source") }
   ]
 
@@ -813,10 +808,6 @@ function SummaryTab({
 }) {
   const { t } = useT("jobs")
   const coverageInfo = payload.coverage
-  // Defaulted like the other two read sites: the payload type declares this
-  // required, but a payload without it crashes the whole Summary tab through
-  // the route error boundary rather than just hiding one panel.
-  const typedArtifacts = payload.typed_artifacts ?? []
   const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
@@ -831,8 +822,6 @@ function SummaryTab({
 
           <TestPlanPanel testPlan={payload.test_plan} />
 
-          {typedArtifacts.length > 0 ? <TypedArtifactPanel artifacts={typedArtifacts} /> : null}
-
           {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
           <PluginUiSlot panels={payload.ui_panels} props={{ job: payload.job }} />
@@ -840,6 +829,8 @@ function SummaryTab({
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
           <FeedbackHistoryPanel entries={payload.feedback_history} prefix={prefix} />
+
+          <ClassificationAttemptsPanel attempts={payload.classification_attempts ?? []} prefix={prefix} />
 
           <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} runsCount={payload.job.runs_count} />
           <AttachmentPreview attachments={payload.attachments} />
@@ -993,6 +984,76 @@ function CollapsibleMarkdownSection({ title, text, emptyText }: { title: string;
       )}
     </Section.Root>
   )
+}
+
+function ClassificationAttemptsPanel({ attempts, prefix }: { attempts: JobClassificationAttempt[]; prefix: string }) {
+  const { t } = useT("jobs")
+  if (attempts.length === 0) return null
+
+  return (
+    <Section.Root className="min-w-0 overflow-x-auto">
+      <SectionHeading>{t("section_classification_attempts")}</SectionHeading>
+      <div className="mt-3">
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("classification_started")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_outcome")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_result")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("classification_process")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {attempts.map((attempt) => (
+              <DataTable.Row key={attempt.id}>
+                <DataTable.Cell className="whitespace-nowrap align-top">
+                  <RelativeTimestamp value={attempt.started_at} />
+                  {attempt.duration_seconds != null ? (
+                    <div className="mt-1 text-xs text-text-muted">{t("classification_duration", { seconds: attempt.duration_seconds })}</div>
+                  ) : null}
+                </DataTable.Cell>
+                <DataTable.Cell className="align-top">
+                  <SmallPill tone={classificationTone(attempt)}>{attempt.in_flight ? t("classification_in_flight") : (attempt.outcome || t("classification_unknown"))}</SmallPill>
+                </DataTable.Cell>
+                <DataTable.Cell className="max-w-lg align-top">
+                  {classificationResult(attempt, t)}
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap align-top text-text-secondary">
+                  {attempt.spawned_process_path && attempt.spawned_process_id ? (
+                    <Link className="text-brand hover:underline" to={withRoutePrefix(attempt.spawned_process_path, prefix)}>
+                      {t("classification_process_link", { id: attempt.spawned_process_id })}
+                    </Link>
+                  ) : (
+                    "-"
+                  )}
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </div>
+    </Section.Root>
+  )
+}
+
+function classificationTone(attempt: JobClassificationAttempt): "neutral" | "success" | "warning" | "danger" {
+  if (attempt.in_flight) return "warning"
+  if (attempt.outcome === "classified") return "success"
+  if (attempt.outcome === "errored") return "danger"
+  return "warning"
+}
+
+function classificationResult(attempt: JobClassificationAttempt, t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (attempt.error) return <code className="break-words text-xs text-warning-text">{attempt.error}</code>
+  if (attempt.decision && Object.keys(attempt.decision).length > 0) {
+    const invalidKind = typeof attempt.decision.invalid_kind === "string" ? attempt.decision.invalid_kind : null
+    const epicId = typeof attempt.decision.epic_id === "number" ? attempt.decision.epic_id : null
+    if (invalidKind) return t("classification_decision_invalid", { kind: invalidKind })
+    if (epicId) return t("classification_decision_epic", { id: epicId })
+    return t("classification_decision_valid")
+  }
+  if (attempt.in_flight) return t("classification_waiting")
+  return attempt.raw_output ? <code className="break-words text-xs">{attempt.raw_output}</code> : "-"
 }
 
 const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
@@ -2338,27 +2399,6 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
   )
 }
 
-export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
-  const { t } = useT("jobs")
-
-  if (artifacts.length === 0) {
-    return <PanelMessage>{t("section_no_artifacts")}</PanelMessage>
-  }
-
-  return (
-    <section className="min-w-0 space-y-4">
-      {artifacts.map((artifact) => (
-        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
-          <SectionHeading className="break-words">{artifact.title}</SectionHeading>
-          <div className="mt-3 overflow-x-auto">
-            <ArtifactBody artifact={artifact} />
-          </div>
-        </div>
-      ))}
-    </section>
-  )
-}
-
 function AttachmentsTab({
   payload,
   queryKey,
@@ -2398,14 +2438,14 @@ function AttachmentsTab({
 
   return (
     <section className="space-y-4">
-      <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+      <form className="rounded border border-border bg-surface p-4" onSubmit={submit}>
         <SectionHeading>{t("attachment_add_title")}</SectionHeading>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="text-sm font-medium text-text-secondary">
             {t("attachment_files_label")}
             <Input className="mt-1 text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="text-sm font-medium text-text-secondary">
             {t("attachment_google_doc_label")}
             <Input
               className="mt-1"
@@ -2419,7 +2459,7 @@ function AttachmentsTab({
             {t("attachment_add_button")}
           </Button>
         </div>
-        {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
+        {add.isError ? <p className="mt-2 text-sm text-danger-text">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
       </form>
 
       {payload.attachments.length > 0 ? (

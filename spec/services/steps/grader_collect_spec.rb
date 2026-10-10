@@ -190,6 +190,80 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "marks a failed grader iteration that repeats the previous result" do
+    workflow.set_artifact!("iterations", [
+      [
+        {
+          "name" => "rspec",
+          "required" => true,
+          "status" => "failed",
+          "command" => "bundle exec rspec",
+          "exit_code" => 1,
+          "output" => "27 failures"
+        }
+      ]
+    ])
+    step.update!(iteration: 2)
+    run.update!(iteration: 2)
+    workflow.steps.find_by!(kind: "grader").update!(
+      iteration: 2,
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "command" => "bundle exec rspec",
+        "exit_code" => 1,
+        "output" => "27 failures"
+      }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(step.reload.details.fetch("repeated_previous_grader_result")).to include(
+      "iteration" => 2,
+      "previous_iteration" => 1,
+      "signature" => [
+        include("name" => "rspec", "status" => "failed", "output" => "27 failures")
+      ]
+    )
+    expect(workflow.reload.artifact("repeated_grader_results")).to contain_exactly(
+      include("iteration" => 2, "previous_iteration" => 1)
+    )
+  end
+
+  it "does not mark a failed grader iteration as repeated when the result changes" do
+    workflow.set_artifact!("iterations", [
+      [
+        {
+          "name" => "rspec",
+          "required" => true,
+          "status" => "failed",
+          "command" => "bundle exec rspec",
+          "exit_code" => 1,
+          "output" => "27 failures"
+        }
+      ]
+    ])
+    step.update!(iteration: 2)
+    run.update!(iteration: 2)
+    workflow.steps.find_by!(kind: "grader").update!(
+      iteration: 2,
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "command" => "bundle exec rspec",
+        "exit_code" => 1,
+        "output" => "12 failures"
+      }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(step.reload.details).not_to have_key("repeated_previous_grader_result")
+    expect(workflow.reload.artifact("repeated_grader_results")).to be_nil
+  end
+
   it "fails collection when a required grader was cancelled" do
     workflow.steps.find_by!(kind: "grader").update!(
       state: "cancelled",

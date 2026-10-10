@@ -942,7 +942,7 @@ RSpec.describe Run, :ci_only do
           planned_execution_capabilities: { "os" => [ "windows" ] },
           planned_execution_source: "explicit"
         )
-      }.to raise_error(ActiveRecord::RecordInvalid, /capabilities/)
+      }.to raise_error(ActiveRecord::RecordInvalid, /Planned execution capabilities/)
     end
 
     it "keeps explicit Linux feature work on runs when a broad worker advertises the feature" do

@@ -46,6 +46,18 @@ describe("workflowBranchDivergence", () => {
     expect(parsed?.comparison).toBeNull()
   })
 
+  it("keeps a resolved divergence available for read-only rendering", () => {
+    const parsed = workflowBranchDivergence(workflowWith({
+      branch_divergence: divergence,
+      branch_divergence_recovery: { action: "discarded", at: "2026-09-07T10:00:00Z" }
+    }))
+
+    expect(parsed?.recovery).toEqual({
+      action: "discarded",
+      at: "2026-09-07T10:00:00Z"
+    })
+  })
+
   it("ignores malformed comparison payloads rather than rendering junk", () => {
     for (const comparison of [null, "nope", [], { discarded: { commits: "no" } }, { discarded: { commits: [{}] } }]) {
       const parsed = workflowBranchDivergence(workflowWith({

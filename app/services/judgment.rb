@@ -12,7 +12,7 @@
 # goes through here.
 class Judgment
   # Every failure is one of these, in the shared vocabulary where one exists.
-  Result = Data.define(:value, :raw_text, :problem, :cost_usd) do
+  Result = Data.define(:value, :raw_text, :problem, :cost_usd, :spawned_process_id) do
     def ok? = problem.nil?
     def failed? = !ok?
     def error = problem&.evidence&.dig(:reason)
@@ -51,7 +51,10 @@ class Judgment
     result = invoke
     cost = extract_cost(result)
 
-    provider_problem(result, cost: cost) || over_ceiling(cost) || parse(result.final_text, cost: cost)
+    spawned_process_id = result.respond_to?(:spawned_process_id) ? result.spawned_process_id : nil
+    provider_problem(result, cost: cost, spawned_process_id: spawned_process_id) ||
+      over_ceiling(cost, spawned_process_id: spawned_process_id) ||
+      parse(result.final_text, cost: cost, spawned_process_id: spawned_process_id)
   rescue Timeout::Error, Errno::ETIMEDOUT => e
     # The plan's "timeout remediation from the day the primitive lands": a
     # timed-out judgment is a known Problem with a retry default, not an
@@ -72,27 +75,28 @@ class Judgment
       prompt: @prompt,
       log_sink: @log_sink,
       timeout: @timeout,
-      max_turns: @max_turns
+      max_turns: @max_turns,
+      job: Thread.current[:syrus_current_job]
     )
   end
 
   # The provider-level outcomes every copy of this checked by hand, stated
   # once and in the shared vocabulary.
-  def provider_problem(result, cost:)
+  def provider_problem(result, cost:, spawned_process_id:)
     if result.respond_to?(:timed_out) && result.timed_out
-      return failure(Problem[:timeout, evidence: { scope: @scope, reason: "timed out after #{@timeout}s", after_seconds: @timeout }], cost: cost)
+      return failure(Problem[:timeout, evidence: { scope: @scope, reason: "timed out after #{@timeout}s", after_seconds: @timeout }], cost: cost, spawned_process_id: spawned_process_id)
     end
     if result.respond_to?(:is_error) && result.is_error
-      return failure(Problem[:application_error, evidence: { scope: @scope, reason: "agent reported #{result.try(:outcome) || 'error'}" }], cost: cost)
+      return failure(Problem[:application_error, evidence: { scope: @scope, reason: "agent reported #{result.try(:outcome) || 'error'}" }], cost: cost, spawned_process_id: spawned_process_id)
     end
     if result.respond_to?(:success?) && !result.success?
-      return failure(Problem[:application_error, evidence: { scope: @scope, reason: "agent exited #{result.try(:exit_status)}" }], cost: cost)
+      return failure(Problem[:application_error, evidence: { scope: @scope, reason: "agent exited #{result.try(:exit_status)}" }], cost: cost, spawned_process_id: spawned_process_id)
     end
 
     nil
   end
 
-  def over_ceiling(cost)
+  def over_ceiling(cost, spawned_process_id:)
     return nil if @cost_ceiling_usd.nil? || cost.nil?
     return nil if cost <= @cost_ceiling_usd
 
@@ -100,30 +104,31 @@ class Judgment
       Problem[:application_error, evidence: {
         scope: @scope, reason: "judgment cost #{cost} exceeded ceiling #{@cost_ceiling_usd}"
       }],
-      cost: cost
+      cost: cost,
+      spawned_process_id: spawned_process_id
     )
   end
 
   # Agents fence their JSON about half the time; every copy of this re-derived
   # the same strip.
-  def parse(raw, cost:)
+  def parse(raw, cost:, spawned_process_id:)
     text = raw.to_s.strip.sub(/\A```(?:json)?\s*\n/, "").sub(/\n```\s*\z/, "").strip
-    return failure(Problem[:missing_required_tool_call, evidence: { scope: @scope, reason: "empty response" }], cost: cost) if text.blank?
+    return failure(Problem[:missing_required_tool_call, evidence: { scope: @scope, reason: "empty response" }], cost: cost, spawned_process_id: spawned_process_id) if text.blank?
 
     value = JSON.parse(text)
     missing = @schema.reject { |key| value.is_a?(Hash) && value.key?(key) }
     if missing.any?
       return failure(
         Problem[:missing_required_tool_call, evidence: { scope: @scope, reason: "missing keys: #{missing.join(', ')}" }],
-        raw_text: text, cost: cost
+        raw_text: text, cost: cost, spawned_process_id: spawned_process_id
       )
     end
 
-    Result.new(value: value, raw_text: text, problem: nil, cost_usd: cost)
+    Result.new(value: value, raw_text: text, problem: nil, cost_usd: cost, spawned_process_id: spawned_process_id)
   rescue JSON::ParserError => e
     failure(
       Problem[:validation_or_user_error, evidence: { scope: @scope, reason: "invalid JSON: #{e.message[0..120]}" }],
-      raw_text: text, cost: cost
+      raw_text: text, cost: cost, spawned_process_id: spawned_process_id
     )
   end
 
@@ -133,7 +138,7 @@ class Judgment
     result.cost_usd
   end
 
-  def failure(problem, raw_text: nil, cost: nil)
-    Result.new(value: nil, raw_text: raw_text, problem: problem, cost_usd: cost)
+  def failure(problem, raw_text: nil, cost: nil, spawned_process_id: nil)
+    Result.new(value: nil, raw_text: raw_text, problem: problem, cost_usd: cost, spawned_process_id: spawned_process_id)
   end
 end

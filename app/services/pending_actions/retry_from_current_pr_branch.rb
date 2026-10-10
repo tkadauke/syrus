@@ -9,7 +9,7 @@ module PendingActions
     def perform
       job = repair_action_job
       progress!("Validating branch divergence for #{job.slug}...")
-      divergence_workflow(job)
+      workflow = divergence_workflow(job)
       progress!("Creating retry workflow from current PR branch...")
       result = ::ManualAgenticRun::Enqueuer.call(
         job: job,
@@ -18,6 +18,9 @@ module PendingActions
         reason: reason,
         push: true
       )
+      recovery = BranchDivergenceRecovery.retry_from_current_pr_branch!(workflow: workflow, user: user)
+      raise ArgumentError, recovery.error unless recovery.success?
+
       progress!("Recording repair audit...")
       audit!(
         "started retry_from_current_pr_branch workflow ##{result.workflow.id}; source_workflow_id=#{payload["workflow_id"]}; instructions=#{instructions}",
@@ -51,6 +54,7 @@ module PendingActions
     def divergence_workflow(job)
       workflow = job.workflows.find(payload.fetch("workflow_id"))
       raise ArgumentError, "Workflow has no recorded branch divergence." unless workflow.artifact("branch_divergence").present?
+      raise ArgumentError, "Branch divergence was already resolved." if workflow.artifact("branch_divergence_recovery").present?
 
       workflow
     end

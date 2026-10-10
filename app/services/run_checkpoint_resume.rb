@@ -77,16 +77,18 @@ class RunCheckpointResume
   end
 
   def checkpoint_artifacts(source, failed_step, checkpoint)
-    source.artifacts.to_h.merge(artifacts).merge(
-      "checkpoint_resume" => true,
-      "checkpoint_ref" => checkpoint.remote_ref,
-      "checkpoint_sha" => checkpoint.commit_sha,
-      "checkpoint_source_run_id" => checkpoint.run_id,
-      "checkpoint_source_workflow_id" => source.id,
-      "checkpoint_resume_from_step_id" => failed_step.id,
-      "checkpoint_resume_from_step_kind" => failed_step.kind,
-      "checkpoint_resume_steps" => resume_steps(failed_step)
-    )
+    WorkflowArtifactSanitizer.without_branch_divergence(source.artifacts)
+      .merge(WorkflowArtifactSanitizer.without_branch_divergence(artifacts))
+      .merge(
+        "checkpoint_resume" => true,
+        "checkpoint_ref" => checkpoint.remote_ref,
+        "checkpoint_sha" => checkpoint.commit_sha,
+        "checkpoint_source_run_id" => checkpoint.run_id,
+        "checkpoint_source_workflow_id" => source.id,
+        "checkpoint_resume_from_step_id" => failed_step.id,
+        "checkpoint_resume_from_step_kind" => failed_step.kind,
+        "checkpoint_resume_steps" => resume_steps(failed_step)
+      )
   end
 
   def resume_steps(failed_step)

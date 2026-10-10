@@ -6,13 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
 import type { JobDetailPayload, JobRun, JobSourceDiffPayload, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
-import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { ShortcutsProvider } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { Page } from "../components/ui"
-import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
+import { FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
@@ -754,6 +753,90 @@ describe("JobDetailView", () => {
     )
 
     expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
+  })
+
+  it("renders first-time branch divergence recovery choices on failed workflows", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "failed",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("PR branch changed before this workflow could push.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry from current PR branch" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Replace PR branch" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Discard stale output" })).toBeInTheDocument()
+  })
+
+  it("renders resolved branch divergences without armed recovery choices", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "failed",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              },
+              branch_divergence_recovery: {
+                action: "discarded",
+                at: "2026-09-07T10:00:00Z"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("Resolved by operator choice: Discard stale output.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry from current PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Replace PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Discard stale output" })).not.toBeInTheDocument()
+  })
+
+  it("does not render destructive branch-divergence recovery actions on running workflows", () => {
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            state: "running",
+            artifacts: {
+              branch_divergence: {
+                branch: "syrus/issue-42-1",
+                remote_sha: "remote-sha",
+                local_sha: "local-sha"
+              }
+            }
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
+
+    expect(screen.getByText("Recovery actions are available only after the workflow has failed.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Replace PR branch" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Discard stale output" })).not.toBeInTheDocument()
   })
 
   it("shows emergency land audit details for emergency-landed jobs", () => {
@@ -1781,6 +1864,51 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   })
 
+  it("renders classification attempts and distinguishes in-flight attempts", () => {
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "classifier_pending" },
+        classification_attempts: [
+          {
+            id: 2,
+            started_at: "2026-10-09T15:00:00Z",
+            finished_at: null,
+            duration_seconds: null,
+            in_flight: true,
+            outcome: null,
+            decision: null,
+            error: null,
+            raw_output: null,
+            agent_provider: "codex",
+            spawned_process_id: 99,
+            spawned_process_path: "/admin/processes/99",
+            spawned_process_outcome: null
+          },
+          {
+            id: 1,
+            started_at: "2026-10-09T14:00:00Z",
+            finished_at: "2026-10-09T14:00:42Z",
+            duration_seconds: 42,
+            in_flight: false,
+            outcome: "uncertain",
+            decision: null,
+            error: "invalid JSON: expected an object",
+            raw_output: "not json",
+            agent_provider: "codex",
+            spawned_process_id: 98,
+            spawned_process_path: "/admin/processes/98",
+            spawned_process_outcome: "failed"
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByRole("heading", { name: "Classification attempts" })).toBeInTheDocument()
+    expect(screen.getByText("in flight")).toBeInTheDocument()
+    expect(screen.getByText("invalid JSON: expected an object")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Process #99" })).toHaveAttribute("href", "/app-shell/admin/processes/99")
+  })
+
   it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({
@@ -2629,6 +2757,34 @@ describe("JobDetailRoute", () => {
     expect(await screen.findByText("No agent activity recorded for this Job yet.")).toBeInTheDocument()
   })
 
+  it("falls back to Summary for stale direct visits to the removed Artifacts tab", async () => {
+    const payload = jobPayload({
+      typed_artifacts: [{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=artifacts"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    const summaryTab = await screen.findByRole("button", { name: "Summary" })
+    expect(summaryTab).toHaveClass("border-brand")
+    expect(screen.queryByRole("button", { name: /Artifacts/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Details" })).toBeInTheDocument()
+    expect(screen.queryByText("Schema ERD")).not.toBeInTheDocument()
+  })
+
   it("keeps a failed merge-train retry primary and suppresses stale approve actions when switching to Workflows", async () => {
     const retryAction = { key: "retry_failed_step", label: "Rebuild merge train", path: "/api/v1/app/jobs/1/retry_failed_step" }
     const payload = jobPayload({
@@ -3113,217 +3269,7 @@ describe("FeedbackHistoryPanel", () => {
   })
 })
 
-describe("ArtifactsTab", () => {
-  function renderArtifactsTab(artifacts: TypedArtifact[]) {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
-    return render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <ArtifactsTab artifacts={artifacts} />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-  }
-
-  it("shows a placeholder when there are no artifacts", () => {
-    renderArtifactsTab([])
-    expect(screen.getByText("No artifacts.")).toBeInTheDocument()
-  })
-
-  it("shows the artifact title as a section header", () => {
-    renderArtifactsTab([{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }])
-    expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
-  })
-
-  it("renders erd_diagram: table names and column lists", () => {
-    renderArtifactsTab([
-      {
-        type: "rails_schema_erd",
-        title: "Schema ERD",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "erd_diagram",
-        payload: {
-          tables: [
-            {
-              name: "users",
-              columns: [
-                { name: "id", type: "bigint" },
-                { name: "email", type: "string" }
-              ]
-            },
-            {
-              name: "posts",
-              columns: [
-                { name: "id", type: "bigint" },
-                { name: "user_id", type: "bigint" }
-              ],
-              foreign_keys: [{ from_column: "user_id", to_table: "users", to_column: "id" }]
-            }
-          ]
-        }
-      }
-    ])
-
-    expect(screen.getByText("users")).toBeInTheDocument()
-    expect(screen.getByText("posts")).toBeInTheDocument()
-    expect(screen.getByText("email")).toBeInTheDocument()
-    expect(screen.getByText(/users\.id/)).toBeInTheDocument()
-    expect(screen.getAllByTitle("foreign key")).toHaveLength(1)
-  })
-
-  it("renders migration_diff: before and after column lists", () => {
-    renderArtifactsTab([
-      {
-        type: "rails_migration_diff",
-        title: "Migration Diff",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "migration_diff",
-        payload: {
-          migration_name: "AddAdminToUsers",
-          before: { table_name: "users", columns: [{ name: "id", type: "bigint" }] },
-          after: {
-            table_name: "users",
-            columns: [
-              { name: "id", type: "bigint" },
-              { name: "admin", type: "boolean" }
-            ]
-          },
-          changes: [{ type: "added", column: { name: "admin", type: "boolean" } }]
-        }
-      }
-    ])
-
-    expect(screen.getAllByText(/users/)).toHaveLength(2)
-    expect(screen.getByText(/Before/)).toBeInTheDocument()
-    expect(screen.getByText(/After/)).toBeInTheDocument()
-    expect(screen.getAllByText("admin")).toHaveLength(2)
-  })
-
-  it("renders data_table: headers and rows", () => {
-    renderArtifactsTab([
-      {
-        type: "coverage_summary",
-        title: "Coverage Summary",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "data_table",
-        payload: {
-          headers: ["File", "Lines", "Covered"],
-          rows: [
-            ["app/models/user.rb", "120", "95"],
-            ["app/models/job.rb", "80", "72"]
-          ]
-        }
-      }
-    ])
-
-    expect(screen.getByRole("columnheader", { name: "File" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Lines" })).toBeInTheDocument()
-    expect(screen.getByRole("cell", { name: "app/models/user.rb" })).toBeInTheDocument()
-    expect(screen.getByRole("cell", { name: "95" })).toBeInTheDocument()
-  })
-
-  it("renders before_after_diff: before and after text blocks", () => {
-    renderArtifactsTab([
-      {
-        type: "config_diff",
-        title: "Config Change",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "before_after_diff",
-        payload: {
-          before: "adapter: sqlite3\ndatabase: dev.db",
-          after: "adapter: postgresql\ndatabase: production_db"
-        }
-      }
-    ])
-
-    expect(screen.getByText("Before")).toBeInTheDocument()
-    expect(screen.getByText("After")).toBeInTheDocument()
-    expect(screen.getByText(/adapter: sqlite3/)).toBeInTheDocument()
-    expect(screen.getByText(/adapter: postgresql/)).toBeInTheDocument()
-  })
-
-  it("renders image_diff: a linked screenshot image", () => {
-    renderArtifactsTab([
-      {
-        type: "visual_review_screenshot",
-        title: "Homepage after fix",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "image_diff",
-        payload: {
-          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
-          content_type: "image/png",
-          byte_size: 48213
-        }
-      }
-    ])
-
-    const image = screen.getByRole("img", { name: "Homepage after fix" })
-    expect(image).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
-    expect(image.closest("a")).toHaveAttribute("href", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
-  })
-
-  it("renders before_after_visual_diff: linked before and after screenshots", () => {
-    renderArtifactsTab([
-      {
-        type: "visual_diff_comparison",
-        title: "Before/after visual comparison",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "before_after_visual_diff",
-        payload: {
-          pairs: [
-            {
-              title: "Dashboard",
-              before: {
-                title: "Dashboard",
-                image_url: "/api/v1/app/workflows/2/visual_artifact?type=before"
-              },
-              after: {
-                title: "Dashboard",
-                image_url: "/api/v1/app/workflows/1/visual_artifact?type=after"
-              }
-            }
-          ]
-        }
-      }
-    ])
-
-    expect(screen.getByText("Merge-base / before")).toBeInTheDocument()
-    expect(screen.getByText("PR / after")).toBeInTheDocument()
-    expect(screen.getByRole("img", { name: "Merge-base / before: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/2/visual_artifact?type=before")
-    expect(screen.getByRole("img", { name: "PR / after: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=after")
-  })
-
-  it("falls back to raw JSON for image_diff artifacts with no image_url", () => {
-    renderArtifactsTab([
-      {
-        type: "visual_review_screenshot",
-        title: "Homepage after fix",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: "image_diff",
-        payload: {}
-      }
-    ])
-
-    expect(screen.queryByRole("img")).not.toBeInTheDocument()
-    expect(screen.getByText("{}")).toBeInTheDocument()
-  })
-
-  it("falls back to raw JSON for unknown renderer_type", () => {
-    renderArtifactsTab([
-      {
-        type: "unknown_type",
-        title: "Unknown Artifact",
-        created_at: "2026-08-06T10:00:00Z",
-        renderer_type: null,
-        payload: { custom_key: "custom_value" }
-      }
-    ])
-
-    expect(screen.getByText(/custom_key/)).toBeInTheDocument()
-    expect(screen.getByText(/custom_value/)).toBeInTheDocument()
-  })
-
+describe("Job detail tabs", () => {
   it("shows the Agent Conversation tab in the TabNav", () => {
     renderJobDetail(jobPayload())
     expect(screen.getByRole("button", { name: "Agent Conversation" })).toBeInTheDocument()
@@ -3371,25 +3317,25 @@ describe("ArtifactsTab", () => {
     }
   })
 
-  it("shows the Artifacts tab in the TabNav with count", () => {
+  it("omits the Artifacts tab from the TabNav even when typed artifacts exist", () => {
     renderJobDetail(
       jobPayload({
         typed_artifacts: [{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }]
       })
     )
-    expect(screen.getByRole("button", { name: "Artifacts (1)" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Artifacts/ })).not.toBeInTheDocument()
   })
 
-  it("renders the ArtifactsTab when the artifacts tab is active", () => {
+  it("does not render typed artifacts on Summary", () => {
     renderJobDetail(
       jobPayload({
         typed_artifacts: [
           { type: "rails_schema_erd", title: "Schema ERD", payload: { tables: [] }, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
         ]
-      }),
-      { activeTab: "artifacts" }
+      })
     )
-    expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Details" })).toBeInTheDocument()
+    expect(screen.queryByText("Schema ERD")).not.toBeInTheDocument()
   })
 })
 
@@ -4381,7 +4327,7 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
 function renderJobDetail(
   payload: JobDetailPayload,
   options: {
-    activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"
+    activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests"
     initialEntry?: string
     showLocation?: boolean
     wrapInPageRoot?: boolean

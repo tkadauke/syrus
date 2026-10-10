@@ -192,6 +192,7 @@
   "attention_reason": {
     "fork_pr_closed": "Fork-PR geschlossen",
     "fork_pr_changes_requested": "Änderungen angefordert",
+    "grader_loop_no_progress": "Reparaturschleife gestoppt",
     "investigation_escalated": "Untersuchung eskaliert",
     "unread_pr_feedback": "Ungelesenes PR-Feedback",
     "upstream_pr_closed": "PR geschlossen",

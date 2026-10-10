@@ -59,6 +59,12 @@ export type AdminOverviewPayload = {
     error_class?: string | null
     message?: string | null
   }
+  stalled_classifier_jobs?: {
+    total: number
+    oldest_job_id: number | null
+    oldest_job_slug: string | null
+    oldest_job_path: string | null
+  }
   worker_data_root_usages?: {
     hostname: string
     path: string

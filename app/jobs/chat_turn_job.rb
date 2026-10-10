@@ -110,7 +110,7 @@ class ChatTurnJob < ApplicationJob
     touch_chat!
     stop_requested?(force: true)
     if result&.success?
-      create_terminal_completion_message! unless @cancelled
+      close_dangling_tool_calls! unless @cancelled
     else
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
@@ -941,16 +941,6 @@ class ChatTurnJob < ApplicationJob
     return unless turn_in_flight || closed_tool_calls.positive?
 
     create_message!("system", terminal_failure_content(exception: exception, result: result, provider: provider))
-  end
-
-  def create_terminal_completion_message!
-    return unless @chat && @user_message
-
-    @chat.reload
-    return unless @chat.turn_in_flight?
-
-    close_dangling_tool_calls!
-    create_message!("system", text: "Agent turn completed.")
   end
 
   def create_message!(role, content)

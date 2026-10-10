@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react"
 import katex from "katex"
 import "katex/dist/katex.min.css"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
@@ -16,10 +16,13 @@ type MarkdownProps = { className?: string; text: string; linkifyUrls?: boolean; 
 type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
 type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
+type TableColumnMeasurement = { kind: TableColumnKind; min: number; preferred: number }
+type TableColumnLayout = { wide: boolean; widths: number[] }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
 const PLAIN_URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
 const WIDE_TABLE_COLUMN_COUNT = 5
+const MIN_COLUMN_WIDTHS: Record<TableColumnKind, number> = { compact: 44, label: 72, prose: 96 }
 const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   compact: 0.45,
   label: 1.15,
@@ -325,39 +328,188 @@ function renderTable(lines: string[], index: number, key: number, options: Rende
 
   return {
     nextIndex: index,
-    node: (
-      <div key={`block-${key}`} className="chat-prose-table-wrap">
-        <table className={wide ? "chat-prose-table chat-prose-table--wide" : "chat-prose-table chat-prose-table--balanced"}>
-          <colgroup>
-            {columnHints.map((hint, cellIndex) => (
-              <col
-                key={cellIndex}
-                className={`chat-prose-table__col chat-prose-table__col--${hint.kind}`}
-                data-chat-table-column={hint.kind}
-                style={{ "--chat-table-column-width": hint.width } as CSSProperties}
-              />
+    node: <MeasuredMarkdownTable columnHints={columnHints} fallbackWide={wide} headers={headers} key={`block-${key}`} measurementKey={tableMeasurementKey(headers, rows)} options={options} rows={rows} />
+  }
+}
+
+function MeasuredMarkdownTable({ columnHints, fallbackWide, headers, measurementKey, options, rows }: { columnHints: TableColumnHint[]; fallbackWide: boolean; headers: string[]; measurementKey: string; options: RenderInlineOptions; rows: string[][] }) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const tableRef = useRef<HTMLTableElement | null>(null)
+  const [layout, setLayout] = useState<TableColumnLayout | null>(null)
+  const tableClassName = [
+    "chat-prose-table",
+    layout?.wide || (!layout && fallbackWide) ? "chat-prose-table--wide" : "chat-prose-table--balanced",
+    layout ? "chat-prose-table--measured" : null
+  ].filter(Boolean).join(" ")
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current
+    const table = tableRef.current
+    if (!wrapper || !table) return
+
+    const measure = () => {
+      const available = wrapper.getBoundingClientRect().width || wrapper.clientWidth
+      if (!available) return
+
+      const nextLayout = allocateMarkdownTableColumns(measureMarkdownTableColumns(table, columnHints), available)
+      setLayout((previous) => sameTableLayout(previous, nextLayout) ? previous : nextLayout)
+    }
+
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(wrapper)
+    return () => observer.disconnect()
+  }, [measurementKey])
+
+  return (
+    <div className="chat-prose-table-wrap" ref={wrapperRef}>
+      <table className={tableClassName} ref={tableRef}>
+        <colgroup>
+          {columnHints.map((hint, cellIndex) => (
+            <col
+              key={cellIndex}
+              className={`chat-prose-table__col chat-prose-table__col--${hint.kind}`}
+              data-chat-table-column={hint.kind}
+              style={{ "--chat-table-column-width": layout ? `${layout.widths[cellIndex]}px` : hint.width } as CSSProperties}
+            />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            {headers.map((header, cellIndex) => (
+              <th key={cellIndex}>{renderInline(header, options)}</th>
             ))}
-          </colgroup>
-          <thead>
-            <tr>
-              {headers.map((header, cellIndex) => (
-                <th key={cellIndex}>{renderInline(header, options)}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {headers.map((_header, cellIndex) => (
+                <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {headers.map((_header, cellIndex) => (
-                  <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function tableMeasurementKey(headers: string[], rows: string[][]) {
+  return [headers, ...rows].map((row) => row.join("\u001f")).join("\u001e")
+}
+
+function measureMarkdownTableColumns(table: HTMLTableElement, columnHints: TableColumnHint[]): TableColumnMeasurement[] {
+  const measurements = columnHints.map((hint) => ({
+    kind: hint.kind,
+    min: MIN_COLUMN_WIDTHS[hint.kind],
+    preferred: MIN_COLUMN_WIDTHS[hint.kind]
+  }))
+  const measurer = document.createElement("div")
+  measurer.className = "chat-prose chat-prose-table-measurer"
+  measurer.setAttribute("aria-hidden", "true")
+  document.body.appendChild(measurer)
+
+  try {
+    for (const row of Array.from(table.rows)) {
+      Array.from(row.cells).forEach((cell, columnIndex) => {
+        const measurement = measurements[columnIndex]
+        if (!measurement) return
+
+        measurement.min = Math.max(measurement.min, measureTableCell(cell, measurer, "min-content"))
+        measurement.preferred = Math.max(measurement.preferred, measureTableCell(cell, measurer, "max-content"))
+      })
+    }
+  } finally {
+    measurer.remove()
   }
+
+  return measurements.map((measurement) => ({
+    ...measurement,
+    preferred: Math.max(measurement.preferred, measurement.min)
+  }))
+}
+
+function measureTableCell(cell: HTMLTableCellElement, measurer: HTMLElement, width: "min-content" | "max-content") {
+  const clone = cell.cloneNode(true) as HTMLTableCellElement
+  clone.style.width = width
+  clone.style.minWidth = "0"
+  clone.style.maxWidth = "none"
+  clone.style.whiteSpace = "normal"
+
+  const table = document.createElement("table")
+  table.className = "chat-prose-table"
+  table.style.width = width
+  table.style.maxWidth = "none"
+  const row = document.createElement("tr")
+  row.appendChild(clone)
+  table.appendChild(row)
+  measurer.appendChild(table)
+  const measured = clone.getBoundingClientRect().width || clone.scrollWidth
+  table.remove()
+  return Math.ceil(measured)
+}
+
+export function allocateMarkdownTableColumns(columns: TableColumnMeasurement[], availableWidth: number): TableColumnLayout {
+  if (columns.length === 0) return { wide: false, widths: [] }
+
+  const minWidths = columns.map((column) => Math.max(MIN_COLUMN_WIDTHS[column.kind], Math.ceil(column.min)))
+  const preferredWidths = columns.map((column, index) => Math.max(minWidths[index], Math.ceil(column.preferred)))
+  const minTotal = sum(minWidths)
+
+  if (minTotal > availableWidth) return { wide: true, widths: minWidths }
+
+  const preferredTotal = sum(preferredWidths)
+  if (preferredTotal >= availableWidth) return { wide: false, widths: distributeByNeed(minWidths, preferredWidths, availableWidth - minTotal) }
+
+  return { wide: false, widths: distributeByWeight(preferredWidths, columns, availableWidth - preferredTotal) }
+}
+
+function distributeByNeed(minWidths: number[], preferredWidths: number[], extra: number) {
+  const widths = [...minWidths]
+  let remaining = extra
+  let candidates = preferredWidths.map((preferred, index) => ({ index, need: preferred - minWidths[index] })).filter((candidate) => candidate.need > 0)
+
+  while (remaining > 0.01 && candidates.length > 0) {
+    const totalNeed = sum(candidates.map((candidate) => candidate.need))
+    const nextCandidates = []
+
+    for (const candidate of candidates) {
+      const addition = Math.min(candidate.need, remaining * (candidate.need / totalNeed))
+      widths[candidate.index] += addition
+      const need = candidate.need - addition
+      if (need > 0.01) nextCandidates.push({ index: candidate.index, need })
+    }
+
+    const used = sum(widths) - sum(minWidths)
+    remaining = extra - used
+    if (nextCandidates.length === candidates.length && remaining < 0.5) break
+    candidates = nextCandidates
+  }
+
+  return roundedWidths(widths, sum(minWidths) + extra)
+}
+
+function distributeByWeight(widths: number[], columns: TableColumnMeasurement[], extra: number) {
+  const totalWeight = columns.reduce((sum, column) => sum + tableColumnWeight(column.kind), 0)
+  return roundedWidths(widths.map((width, index) => width + extra * (tableColumnWeight(columns[index].kind) / totalWeight)), sum(widths) + extra)
+}
+
+function roundedWidths(widths: number[], targetTotal: number) {
+  const rounded = widths.map((width) => Math.max(1, Math.round(width)))
+  const delta = Math.round(targetTotal) - sum(rounded)
+  if (rounded.length > 0 && delta !== 0) rounded[rounded.length - 1] += delta
+  return rounded
+}
+
+function sameTableLayout(previous: TableColumnLayout | null, next: TableColumnLayout) {
+  return Boolean(previous && previous.wide === next.wide && previous.widths.length === next.widths.length && previous.widths.every((width, index) => width === next.widths[index]))
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0)
 }
 
 function splitTableRow(line: string) {

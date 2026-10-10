@@ -49,7 +49,7 @@ module SystemAlerts
   private_class_method :alerts_for
 
   def self.admin_alerts
-    [ data_root_disk_usage, *stuck_main_branch_repairs ].compact
+    [ data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
   end
   private_class_method :admin_alerts
 
@@ -274,6 +274,78 @@ module SystemAlerts
     end
   end
   private_class_method :stuck_main_branch_repairs
+
+  def self.no_progress_main_branch_repairs
+    Job
+      .includes(:repository, :workflows)
+      .where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR, needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON)
+      .where(state: %w[failed closed])
+      .order(updated_at: :desc, id: :desc)
+      .limit(10)
+      .filter_map do |job|
+        workflow = job.workflows.to_a
+          .sort_by { |candidate| [ candidate.created_at || Time.zone.at(0), candidate.id ] }
+          .reverse
+          .find { |candidate| candidate.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY).present? }
+        stop = workflow&.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY).to_h
+        next if stop.blank?
+
+        failing_count = Array(stop["failing_set"]).size
+        Alert.new(
+          id: "no_progress_main_branch_repair:#{job.id}",
+          dismissal_key: "no_progress_main_branch_repair:#{job.id}:#{workflow.id}:#{job.updated_at&.to_i}",
+          severity: :alarm,
+          title: "Main branch repair stopped without progress.",
+          message: "Repair <code>#{ERB::Util.html_escape(job.slug)}</code> stopped on " \
+                   "<code>#{ERB::Util.html_escape(job.repository.slug)}</code> because the grader failure set did not converge. " \
+                   "The latest round still has <code>#{failing_count}</code> failing #{'item'.pluralize(failing_count)}.",
+          action_steps: [
+            "Open the repair Job and use the grader-loop stop context to split targeted follow-up work.",
+            "Do not start another automatic repair from the same branch state; it will repeat the same loop."
+          ],
+          cta: { text: "Open repair Job", path: "/jobs/#{job.id}" },
+          actions: [
+            {
+              text: "Start planning chat",
+              method: "post",
+              path: "/api/v1/app/jobs/#{job.id}/start_chat",
+              params: { message: no_progress_chat_message(job, workflow, stop) }
+            }
+          ]
+        )
+      end
+  end
+  private_class_method :no_progress_main_branch_repairs
+
+  def self.no_progress_chat_message(job, workflow, stop)
+    failing_set = Array(stop["failing_set"])
+    rounds = Array(stop["rounds"])
+    lines = [
+      "Plan targeted follow-up work for a main-branch repair that stopped without grader progress.",
+      "",
+      "Repair Job: #{job.slug}",
+      "Workflow: #{workflow.slug}",
+      "Stop reason: #{stop['explanation'].presence || GraderLoopProgress::NO_PROGRESS_REASON}",
+      "Repository: #{job.repository.slug}",
+      "",
+      "Failing set:",
+      *failing_set.map { |failure| "- #{failure}" },
+      "",
+      "Rounds:"
+    ]
+    rounds.each do |round|
+      repair = round["repair"].to_h
+      lines << "- iteration #{round['iteration']}: #{Array(round['failing_set']).size} failing item(s); " \
+        "repair #{repair['kind'].presence || 'none'} diff_bytes=#{repair['diff_bytes'].presence || 0}"
+      Array(round["grader_results"]).each do |result|
+        lines << "  - #{result['name']}: exit=#{result['exit_code'].presence || 'unknown'} tests=#{Array(result['failed_tests']).size}"
+      end
+    end
+    lines << ""
+    lines << "Propose scoped implementation Jobs for the failures above. Do not propose another broad repair retry from the same state."
+    lines.join("\n").truncate(8_000)
+  end
+  private_class_method :no_progress_chat_message
 
   def self.stuck_repair_candidates(repository_ids)
     return Job.none if repository_ids.blank?

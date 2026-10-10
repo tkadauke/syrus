@@ -17,6 +17,7 @@ module WorkEngine
         commits_behind_base manual_paused approved_at approved_via landed_sha
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
         mergeability_head_sha github_mergeable github_mergeable_state
+        triaging_reason classifier_attempts created_at
       ].freeze
       WORKFLOW_UPDATE_KEYS = %w[
         worker_hostname worker_storage_key started_at finished_at cleaned_up_at
@@ -210,6 +211,7 @@ module WorkEngine
           updates[key] = attrs[key] if attrs.key?(key)
         end
         updates["approved_at"] = Time.zone.parse(updates["approved_at"]) if updates["approved_at"].present?
+        updates["created_at"] = Time.zone.parse(updates["created_at"]) if updates["created_at"].present?
         updates
       end
 
@@ -471,6 +473,7 @@ module WorkEngine
           updates[:base_sha] = config["base_sha"] if config["base_sha"].present?
           run.update_columns(updates)
           run.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
+          run.update_columns(updated_at: parse_optional_time(config["updated_at"])) if config["updated_at"].present?
           create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic

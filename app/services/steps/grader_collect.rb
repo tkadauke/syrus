@@ -300,7 +300,7 @@ module Steps
     def append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
       iterations = Array(workflow.artifact("iterations"))
       index = run.iteration - 1
-      iterations[index] = if grader_steps.empty? && (cache_hit = workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY))
+      iteration = if grader_steps.empty? && (cache_hit = workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY))
         [
           {
             "name" => "cached grader conclusion",
@@ -356,7 +356,39 @@ module Steps
           }.compact
         end
       end
+      mark_repeated_grader_result!(iterations, index, iteration)
+      iterations[index] = iteration
       workflow.set_artifact!("iterations", iterations)
+    end
+
+    def mark_repeated_grader_result!(iterations, index, iteration)
+      previous = iterations[index - 1] if index.positive?
+      return unless previous.present?
+
+      current_signature = grader_result_signature(iteration)
+      return if current_signature.empty?
+      return unless current_signature == grader_result_signature(previous)
+
+      repeated = {
+        "iteration" => run.iteration,
+        "previous_iteration" => run.iteration - 1,
+        "signature" => current_signature,
+        "recorded_at" => Time.current.iso8601
+      }
+      step.update!(details: step.details.to_h.merge("repeated_previous_grader_result" => repeated))
+      workflow.set_artifact!(
+        "repeated_grader_results",
+        Array(workflow.artifact("repeated_grader_results")) + [ repeated.except("signature") ]
+      )
+    end
+
+    def grader_result_signature(entries)
+      Array(entries).map do |entry|
+        entry = entry.to_h
+        next unless entry["status"] == "failed"
+
+        entry.slice("name", "required", "status", "command", "exit_code", "timed_out", "output").compact
+      end.compact
     end
 
     def record_grader_loop_metrics!(grader_steps, failed_required:)

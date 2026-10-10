@@ -115,10 +115,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       end
 
       expect(error.problem&.code).to eq("merge_train_rebuild_required")
-      # The prose form is not what carries this -- LandingFailureHandler reads
-      # the declared Problem, which is why the message does not need to match
-      # its legacy patterns.
-      expect(LandingFailureHandler.merge_train_rebuild_required?(error.message)).to be(false)
+      expect(LandingFailureHandler.merge_train_rebuild_required?(error.message)).to be(true)
     end
 
     it "refuses to run against a terminal train" do
