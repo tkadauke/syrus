@@ -3782,7 +3782,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(agent_run.reload.state).to eq("running")
   end
 
-  it "auto-fails a stale running grader Run and reports the in-place replacement Run" do
+  it "auto-fails a stale running grader Run and reports the scheduled replacement retry" do
     step.update_columns(kind: "grader", state: "running", started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago)
     workflow.update_columns(state: "running", started_at: step.started_at)
     run.update_columns(
@@ -3797,16 +3797,17 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     result = nil
     expect {
       result = reconcile_and_execute(run_id: run.id)
-    }.not_to change { AutoRetryAttempt.count }
+    }.to change { AutoRetryAttempt.count }.by(1)
 
     repair_plan = plan(result, :mark_worker_died)
     expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
     expect(repair_plan.execution_steps).to eq([ "Run#fail!(agent_outcome: worker_died)" ])
     expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
-    replacement_run = step.runs.where.not(id: run.id).last
-    expect(replacement_run).to have_attributes(state: "queued")
-    expect(result.repair_executions.map(&:message)).to include("marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}")
-    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}/))
+    attempt = AutoRetryAttempt.find_by!(run: run, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+    expect(attempt).to have_attributes(retry_kind: "failed_step", skipped_reason: nil)
+    expect(step.runs.where.not(id: run.id)).to be_empty
+    expect(result.repair_executions.map(&:message)).to include("marked #{run.slug} worker_died; scheduled replacement retry attempt ##{attempt.id} on #{step.slug}")
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked #{run.slug} worker_died; scheduled replacement retry attempt ##{attempt.id} on #{step.slug}/))
   end
 
   it "defers repair execution on transient database lock timeouts" do

@@ -487,6 +487,9 @@ module WorkEngine
           if (replacement_run = worker_died_replacement_run(run, existing_run_ids: existing_run_ids))
             return success("marked #{run_label(run)} worker_died; queued replacement #{run_label(replacement_run)} on #{step_label(run.step)}")
           end
+          if (retry_attempt = worker_died_retry_attempt(run))
+            return success("marked #{run_label(run)} worker_died; scheduled replacement retry attempt ##{retry_attempt.id} on #{step_label(run.step)}")
+          end
 
           success("marked #{run_label(run)} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
         end
@@ -501,6 +504,13 @@ module WorkEngine
 
         def worker_died_replacement_run(run, existing_run_ids:)
           run.step&.runs&.where.not(id: existing_run_ids)&.order(:id)&.last
+        end
+
+        def worker_died_retry_attempt(run)
+          AutoRetryAttempt.unskipped
+            .where(run: run, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+            .order(:id)
+            .last
         end
 
         def transient_database_lock_error?(error)
