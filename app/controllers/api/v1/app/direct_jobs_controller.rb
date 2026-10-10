@@ -151,7 +151,8 @@ module Api
             delivery_track: delivery_track,
             planned_execution_attrs: planned_execution_attrs,
             depends_on: Array(params[:depends_on]),
-            depends_on_job_ids: Array(params[:depends_on_job_ids]).filter_map { |id| Integer(id, exception: false) }
+            depends_on_job_ids: Array(params[:depends_on_job_ids]).filter_map { |id| Integer(id, exception: false) },
+            dependency_requirements: params[:dependency_requirements] || []
           )
           @create_direct_job_error = result.error
           @create_direct_job_proposal = result.proposal

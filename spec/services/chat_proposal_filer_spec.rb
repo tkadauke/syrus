@@ -20,6 +20,13 @@ RSpec.describe ChatProposalFiler do
     ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
   end
 
+  def stub_deployment_stage(name = "staging")
+    stage = SyrusYml::DeploymentStage.new(name: name, label: name.titleize, tag: name, tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+  end
+
   describe "#file!" do
     it "files a leaf after its upstream closure and wires Job dependencies" do
       root = proposal(slug: "a", title: "Root")
@@ -253,6 +260,57 @@ RSpec.describe ChatProposalFiler do
       dependency = job_proposal.reload.job.dependencies.first
       expect(dependency.depends_on_job).to eq(prerequisite)
       expect(job_proposal.job.reload).to be_queued
+    end
+
+    it "materializes deployment-stage requirements for direct Job proposals" do
+      stub_deployment_stage("staging")
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8)
+      job_proposal = proposal(
+        slug: "deploy-gated-job",
+        title: "Deploy gated job",
+        depends_on_job_ids: [ prerequisite.id ],
+        dependency_requirements: [
+          {
+            "job_id" => prerequisite.id,
+            "satisfaction_mode" => "deployment_stage",
+            "required_deployment_stage_name" => "staging"
+          }
+        ]
+      )
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(job_proposal.reload.job.dependencies.sole).to have_attributes(
+        depends_on_job: prerequisite,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+    end
+
+    it "rolls back invalid deployment-stage requirements before confirming direct Job proposals" do
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [], source: ".syrus.yml", note: "no deployment_stages configured")
+      )
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8)
+      job_proposal = proposal(
+        slug: "invalid-deploy-gated-job",
+        title: "Invalid deploy gated job",
+        depends_on_job_ids: [ prerequisite.id ],
+        dependency_requirements: [
+          {
+            "job_id" => prerequisite.id,
+            "satisfaction_mode" => "deployment_stage",
+            "required_deployment_stage_name" => "staging"
+          }
+        ]
+      )
+
+      expect {
+        expect {
+          described_class.new(user: user, repository: repository).file!([ job_proposal ])
+        }.to raise_error(ArgumentError, /requires deployment_stages to be configured/)
+      }.to change(JobDependency, :count).by(0).and change(Job, :count).by(0)
+      expect(job_proposal.reload).to be_proposed
     end
 
     it "attaches created Jobs to the originating chat session" do

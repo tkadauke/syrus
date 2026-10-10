@@ -447,6 +447,66 @@ describe("ProposalCard layout", () => {
     expect(dependencyInfo).toHaveClass("flex-auto")
     expect(dependencyInfo).not.toHaveClass("flex-1")
   })
+
+  it("shows deployment-stage requirements on proposal dependency chips and metadata", () => {
+    renderProposalCard(proposal({
+      kind: "job",
+      kind_label: "Job",
+      has_dependencies: true,
+      depends_on_job_ids: [1],
+      dependencies: [{
+        slug: "JOB-1",
+        title: "Prepare release train",
+        state: "open",
+        confirmed: true,
+        anchor_message_id: null,
+        materialized_label: "JOB-1",
+        materialized_path: "/jobs/1"
+      }],
+      dependency_requirements: [{
+        job_id: 1,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      }]
+    }))
+
+    expect(screen.getByText("mode: deployment stage · stage: staging")).toBeInTheDocument()
+    expect(screen.getByText("JOB-1 (mode: deployment stage · stage: staging)")).toBeInTheDocument()
+  })
+
+  it("shows dependency requirements on Epic child proposal Job dependencies", () => {
+    renderProposalCard(proposal({
+      kind: "epic",
+      kind_label: "Epic",
+      epic_bundle: true,
+      children: [{
+        id: 18,
+        title: "Child",
+        slug: "child",
+        body: "Build it.",
+        state: "proposed",
+        state_label: "Proposed",
+        proposed: true,
+        repository_slug: "tkadauke/syrus",
+        dependencies: [],
+        depends_on_job_ids: [1],
+        dependency_requirements: [{
+          job_id: 1,
+          satisfaction_mode: "deployment_stage",
+          required_deployment_stage_name: "staging"
+        }],
+        depends_on_epic_ids: [],
+        media_ids: [],
+        dependency_details: [],
+        app_update_path: "/api/v1/app/chats/122/proposals/18",
+        app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
+      }]
+    }))
+
+    fireEvent.click(screen.getByText("Child"))
+
+    expect(screen.getByText("mode: deployment stage · stage: staging")).toBeInTheDocument()
+  })
 })
 
 describe("ProposalCard media", () => {
