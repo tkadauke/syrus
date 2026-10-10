@@ -1018,8 +1018,17 @@ module Api
 
           attrs = proposal_update_params
           ApplicationRecord.transaction do
+            raw_dependency_requirements = if attrs.key?(:dependency_requirements)
+              attrs[:dependency_requirements]
+            else
+              preserved_dependency_requirements_for_edit(
+                proposal,
+                depends_on_job_ids: Array(attrs[:depends_on_job_ids]),
+                dependency_slugs: Array(attrs[:dependency_slugs])
+              )
+            end
             dependency_requirements = ProposalJobDependencyRequirements.normalize(
-              attrs[:dependency_requirements],
+              raw_dependency_requirements,
               depends_on_job_ids: Array(attrs[:depends_on_job_ids]),
               depends_on_slugs: Array(attrs[:dependency_slugs])
             )
@@ -1564,6 +1573,18 @@ module Api
 
         def proposal_update_params
           params.require(:proposal).permit(:title, :body, :target_epic_id, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [], dependency_requirements: [ :job_id, :depends_on_job_id, :proposal_slug, :depends_on, :slug, :satisfaction_mode, :required_deployment_stage_name ])
+        end
+
+        def preserved_dependency_requirements_for_edit(proposal, depends_on_job_ids:, dependency_slugs:)
+          job_ids = Array(depends_on_job_ids).filter_map { |id| Integer(id, exception: false) }
+          slugs = Array(dependency_slugs).map(&:to_s)
+
+          Array(proposal.dependency_requirements).select do |requirement|
+            source = requirement.to_h
+            job_id = Integer(source["job_id"] || source[:job_id] || source["depends_on_job_id"] || source[:depends_on_job_id], exception: false)
+            proposal_slug = (source["proposal_slug"] || source[:proposal_slug] || source["depends_on"] || source[:depends_on] || source["slug"] || source[:slug]).to_s
+            (job_id && job_ids.include?(job_id)) || (proposal_slug.present? && slugs.include?(proposal_slug))
+          end
         end
 
         def route_to_backlog_update_value(proposal, attrs)
