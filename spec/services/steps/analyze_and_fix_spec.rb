@@ -114,6 +114,42 @@ RSpec.describe Steps::AnalyzeAndFix, :ci_only do
     expect(second_prompt).not_to include("existing branch diff")
   end
 
+  it "reads grader results written after this handler's Workflow was loaded" do
+    # The test above writes `iterations` through the same in-memory Workflow
+    # the handler later reads, so it cannot catch staleness. In production
+    # grader_collect writes that rollup from a different instance, and the
+    # repair step read its own older copy -- which is why real repair
+    # prompts never carried grader feedback at all.
+    second_step = Step.create!(
+      workflow: workflow,
+      kind: "analyze_and_fix",
+      position: 100,
+      iteration: 2,
+      loop_id: step.loop_id
+    )
+    second_run = second_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, iteration: 2)
+    second_handler = described_class.new(second_run)
+    stub_handler_dependencies(second_handler)
+
+    Workflow.find(workflow.id).set_artifact!("iterations", [
+      [
+        {
+          "name" => "rspec-ci",
+          "required" => true,
+          "status" => "failed",
+          "command" => "bin/rspec-ci",
+          "exit_code" => 1,
+          "output" => "4197 examples, 27 failures"
+        }
+      ]
+    ])
+
+    second_handler.call
+
+    expect(second_run.reload.prompt).to include("loop-blocking required grader(s): rspec-ci")
+    expect(second_run.prompt).to include("4197 examples, 27 failures")
+  end
+
   it "skips prompt rebuild when run.prompt is already set" do
     run.update!(prompt: "pre-set prompt content")
 

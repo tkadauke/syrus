@@ -38,6 +38,21 @@ module Steps
     private
 
     def compose_prompt
+      # Every artifact this prompt depends on is written by *other* steps:
+      # `iterations` by grader_collect at the end of the previous round,
+      # `failed_checks` and `head_sha` by the workflow's setup. This handler's
+      # Workflow instance was loaded before those writes, and `#artifact`
+      # reads the in-memory copy, so a stale object yields an empty
+      # `iterations` and the grader-feedback section silently renders as
+      # nothing.
+      #
+      # That is not hypothetical: across every ci_failure repair in
+      # production, iteration 2+ prompts were byte-identical to iteration 1
+      # and carried no grader results at all, while the rollup sat in the
+      # database with a failed required grader recorded for each round. The
+      # agent was asked to fix CI five times without ever being told which
+      # grader was blocking it.
+      workflow.reload
       issue = job.issue? ? GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number) : job.synthetic_issue
       failed = workflow.artifact("failed_checks") || []
       head_sha = workflow.artifact("head_sha")
