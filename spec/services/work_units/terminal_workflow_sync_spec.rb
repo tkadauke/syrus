@@ -16,6 +16,57 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     expect(workflow.work_unit.work_unit_locks.active).to be_empty
   end
 
+  it "marks an active Workflow terminal when its WorkUnit is already terminal" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+    workflow.work_unit.mark_terminal!("failed")
+
+    described_class.call(workflow)
+
+    expect(workflow.reload).to be_failed
+  end
+
+  it "cancels an active Workflow when its WorkUnit is already cancelled" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "queued")
+    workflow.work_unit.mark_terminal!("cancelled")
+
+    described_class.call(workflow)
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq("terminal_work_unit")
+  end
+
+  it "does not terminalize a Workflow owned by an active replacement WorkUnit" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+    stale_unit = workflow.work_unit
+    stale_unit.mark_terminal!("cancelled")
+    replacement_intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    replacement = WorkUnit.new(
+      work_intent: replacement_intent,
+      kind: "initial",
+      state: "running",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    replacement.save!(validate: false)
+
+    described_class.call(workflow)
+
+    expect(workflow.reload).to be_running
+  end
+
   it "does not change non-terminal workflow ownership" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
 
@@ -40,5 +91,28 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     expect(second.work_unit.reload).to have_attributes(state: "cancelled")
     expect(first.work_unit.work_unit_locks.active).to be_empty
     expect(second.work_unit.work_unit_locks.active).to be_empty
+  end
+
+  it "normalizes active workflows with terminal WorkUnits for a non-closed job" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "queued")
+    workflow.work_unit.mark_terminal!("cancelled")
+    job.update_columns(state: "running")
+
+    described_class.for_job(job)
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq("terminal_work_unit")
+  end
+
+  it "leaves active workflows with terminal WorkUnits reportable for closed jobs" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "queued")
+    workflow.work_unit.mark_terminal!("cancelled")
+    job.update_columns(state: "closed", finished_at: 1.minute.ago, closure_reason: "operator_cancelled")
+
+    described_class.for_job(job)
+
+    expect(workflow.reload).to be_queued
   end
 end
