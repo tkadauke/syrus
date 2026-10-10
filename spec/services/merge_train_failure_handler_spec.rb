@@ -26,6 +26,14 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
   end
 
   describe "#call" do
+    around do |example|
+      previous = described_class.multisect_evaluator
+      described_class.multisect_evaluator = nil
+      example.run
+    ensure
+      described_class.multisect_evaluator = previous
+    end
+
     # merge_train_build publishes the integration branch so the rest of the
     # chain is worker-independent. The landing path already deletes it on the
     # way out; a train that never lands has to as well, or every failed train
@@ -149,6 +157,43 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
 
       expect(train.reload).to be_terminal
       expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "runs the configured multisect rung before falling back to normal train teardown" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(
+        train,
+        b,
+        failure_reason: "required graders failed",
+      )
+      workflow.update!(artifacts: workflow.artifacts.merge(
+        GraderLoopProgress::ARTIFACT_KEY => [
+          { "iteration" => 1, "failing_set" => [ "spec/a_spec.rb\u0000fails" ] }
+        ]
+      ))
+      config = SyrusYml::Config.new(
+        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
+        coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
+        merge_train: SyrusYml::MergeTrainConfig.new(failure_rungs: [ "multisect" ], multisect_section_width: 2),
+        project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil
+      )
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil, outcome: :loaded)
+      )
+      described_class.multisect_evaluator = lambda do |members:, role:, **|
+        reproduced = role == "oracle" || members.any? { |member| member.job_id == a.id }
+        MergeTrainMultisect::Evaluation.new(reproduced, "stubbed", {})
+      end
+
+      described_class.call(workflow: workflow)
+
+      artifact = workflow.reload.artifact(MergeTrainMultisect::ARTIFACT_KEY)
+      expect(artifact["status"]).to eq("attributed")
+      expect(artifact["attributed_member"]["job_id"]).to eq(a.id)
+      expect(train.reload.state).to eq("failed")
     end
 
     it "reverts members with no evidence of landing back to a re-landable state" do
