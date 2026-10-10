@@ -40,21 +40,28 @@ issue ingestion cannot accidentally start dependent Epic children independently.
 
 ## When the classifier cannot decide
 
-Any classifier failure — a malformed response, a provider timeout, an unknown
-Epic id, an exception — marks the Job `classifier_uncertain`. That is a real
-outcome, not an error: an issue like *"jobs fail silently, syrus needs to do
-this better"* genuinely cannot be placed without a person.
+Classifier uncertainty means the classifier could not make a reliable decision
+about the issue itself: a malformed response, an unknown Epic id, or an issue
+like *"jobs fail silently, syrus needs to do this better"* genuinely cannot be
+placed without a person. Exceptions that match Syrus's shared transient or
+infrastructure failure vocabulary are treated differently: the attempt is
+recorded as errored, but the Job stays `classifier_pending` while retry budget
+remains so the queue can try classification again instead of asking a person to
+judge an issue the classifier never read.
 
-Three things happen:
+When a classifier result or exhausted retry budget reaches
+`classifier_uncertain`, three things happen:
 
 1. **The reason is recorded** on `Job#triaging_uncertainty_reason` and shown on
    the Job page. Without it there is no way to tell a transient provider error
    (retry it) from an unclear request (read it).
-2. **One automatic retry.** `WorkEngine::Reconciler` picks the Job up ten
-   minutes after creation and plans a `reclassify_stalled_intake` repair, which
-   puts it back to `classifier_pending` and re-runs the classifier.
-   `Job::MAX_CLASSIFIER_ATTEMPTS` (2) bounds this: a classifier that is
-   uncertain twice is telling you about the issue, not about the provider.
+2. **One automatic retry.** `ClassifyIssueJob` retries transient or
+   infrastructure exceptions immediately through the job queue. For uncertain
+   classifier results, `WorkEngine::Reconciler` picks the Job up ten minutes
+   after creation and plans a `reclassify_stalled_intake` repair, which puts it
+   back to `classifier_pending` and re-runs the classifier.
+   `Job::MAX_CLASSIFIER_ATTEMPTS` (2) bounds both paths: once the budget is
+   spent, the Job moves to `classifier_uncertain` with the last reason recorded.
 3. **The Job remains in a human-reviewable triage state** with the uncertainty
    reason recorded on the Job itself.
 
