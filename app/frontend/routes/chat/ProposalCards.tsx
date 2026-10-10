@@ -28,6 +28,7 @@ import {
   type ChatProposal,
   type ChatProposalChild,
   type ChatProposalDependency,
+  type ChatProposalDependencyRequirement,
   type ChatProposalMutationPayload,
   type ChatProposalSearchResult
 } from "../../api/chats"
@@ -585,6 +586,7 @@ export function ProposalCard({
                 dependencies={proposal.dependencies}
                 hasDependencies={proposal.has_dependencies}
                 prefix={prefix}
+                requirements={proposal.dependency_requirements || []}
               />
             </div>
             <h3 className="mt-2 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
@@ -1261,12 +1263,14 @@ function ProposalDependencyStrip({
   className = "mt-2",
   dependencies,
   hasDependencies,
-  prefix
+  prefix,
+  requirements = []
 }: {
   className?: string
   dependencies: ChatProposalDependency[]
   hasDependencies: boolean
   prefix: string
+  requirements?: ChatProposalDependencyRequirement[]
 }) {
   const { t } = useT("chat")
   if (!hasDependencies) {
@@ -1277,7 +1281,7 @@ function ProposalDependencyStrip({
     <div className={`${className} flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300`}>
       <span className="font-medium text-gray-700 dark:text-gray-200">Depends on:</span>
       {dependencies.map((dependency) => (
-        <ProposalDependencyLink dependency={dependency} key={dependency.slug} prefix={prefix} />
+        <ProposalDependencyLink dependency={dependency} key={dependency.slug} prefix={prefix} requirement={requirementForDependency(dependency, requirements)} />
       ))}
     </div>
   )
@@ -1293,16 +1297,31 @@ function preservedDependencyRequirements(proposal: EditableProposal, jobDeps: De
   })
 }
 
-function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
+function ProposalDependencyLink({
+  dependency,
+  prefix,
+  requirement
+}: {
+  dependency: ChatProposalDependency
+  prefix: string
+  requirement?: ChatProposalDependencyRequirement
+}) {
   const title = dependency.display_label || dependency.materialized_label || dependency.title
   const label = dependency.display_label ? title : `${title} ${dependency.confirmed ? "✓" : "⏳"}`
+  const requirementLabel = requirement ? dependencyRequirementLabel(requirement) : null
   const className =
-    "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+    "inline-flex max-w-full flex-wrap items-center gap-x-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+  const content = (
+    <>
+      <span>{label}</span>
+      {requirementLabel ? <span className="font-normal text-gray-500 dark:text-gray-400">{requirementLabel}</span> : null}
+    </>
+  )
 
   if (dependency.anchor_message_id) {
     return (
       <a className={className} href={`#message-${dependency.anchor_message_id}`}>
-        {label}
+        {content}
       </a>
     )
   }
@@ -1310,12 +1329,38 @@ function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatPropos
   if (dependency.materialized_path) {
     return (
       <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>
-        {label}
+        {content}
       </Link>
     )
   }
 
-  return <span className={className}>{label}</span>
+  return <span className={className}>{content}</span>
+}
+
+function requirementForDependency(dependency: ChatProposalDependency, requirements: ChatProposalDependencyRequirement[]) {
+  return requirements.find((requirement) => dependencyMatchesRequirement(dependency, requirement))
+}
+
+function dependencyMatchesRequirement(dependency: ChatProposalDependency, requirement: ChatProposalDependencyRequirement) {
+  if (requirement.proposal_slug) return dependency.slug === requirement.proposal_slug
+  if (requirement.job_id == null) return false
+
+  const jobLabel = `JOB-${requirement.job_id}`
+  return (
+    dependency.slug === jobLabel ||
+    dependency.materialized_label === jobLabel ||
+    dependency.display_label === jobLabel ||
+    dependency.materialized_path === `/jobs/${requirement.job_id}`
+  )
+}
+
+function dependencyRequirementLabel(requirement: ChatProposalDependencyRequirement) {
+  const labels: Record<ChatProposalDependencyRequirement["satisfaction_mode"], () => string> = {
+    success: () => "mode: success",
+    closed: () => "mode: closed",
+    deployment_stage: () => `mode: deployment stage · stage: ${requirement.required_deployment_stage_name || "unspecified"}`
+  }
+  return labels[requirement.satisfaction_mode]()
 }
 
 function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
@@ -1421,6 +1466,7 @@ function ProposalResultLink({ path, prefix, children }: { path: string | null; p
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   const { t } = useT("chat")
   const routeLabel = proposal.route_to_backlog ? t("proposal_route_backlog") : t("proposal_route_start_normally")
+  const dependencyLabels = proposalDependencyLabels(proposal)
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
       <div>
@@ -1447,7 +1493,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
       ) : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
-        <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
+        <dd>{dependencyLabels.length > 0 ? <PillList values={dependencyLabels} /> : t("none")}</dd>
       </div>
       {proposal.target_epic_label ? (
         <div>
@@ -1465,6 +1511,31 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
       ) : null}
     </dl>
   )
+}
+
+function proposalDependencyLabels(proposal: ChatProposal) {
+  const requirementDetails = proposalDependencyRequirementLabels(proposal.dependency_requirements || [])
+  return [...(proposal.dependency_slugs || []), ...(proposal.depends_on_job_ids || []).map((id) => requirementDetails.get(`JOB-${id}`) || `JOB-${id}`)]
+}
+
+function proposalDependencyRequirementLabels(requirements: ChatProposalDependencyRequirement[]) {
+  return new Map(
+    requirements.map((requirement) => {
+      const target = requirement.job_id != null ? `JOB-${requirement.job_id}` : requirement.proposal_slug || "Dependency"
+      return [target, `${target} (${dependencyRequirementLabel(requirement)})`]
+    })
+  )
+}
+
+function childDependencyToProposalDependency(dependency: NonNullable<ChatProposalChild["dependency_details"]>[number]): ChatProposalDependency {
+  return {
+    slug: dependency.slug,
+    title: dependency.materialized_label || dependency.title,
+    state: dependency.confirmed ? "confirmed" : "proposed",
+    confirmed: dependency.confirmed,
+    materialized_label: dependency.materialized_label,
+    materialized_path: dependency.materialized_path
+  }
 }
 
 function ProposalChildren({
@@ -1526,6 +1597,14 @@ function ProposalChildren({
               </div>
             ) : null}
             <ProposalMediaTiles media={media} mediaIds={child.media_ids || []} previewPanels={previewPanels} />
+            {(child.dependency_details || []).length > 0 ? (
+              <ProposalDependencyStrip
+                dependencies={(child.dependency_details || []).map(childDependencyToProposalDependency)}
+                hasDependencies
+                prefix={prefix}
+                requirements={child.dependency_requirements || []}
+              />
+            ) : null}
             {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <Button
