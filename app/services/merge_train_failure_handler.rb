@@ -27,7 +27,7 @@ class MergeTrainFailureHandler
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
 
-    delete_integration_branch(train)
+    delete_integration_branch(train) unless preserve_branch_for_fix_replay?(train)
 
     train.members.each do |member|
       next if member.state == "merged"
@@ -369,6 +369,12 @@ class MergeTrainFailureHandler
     return nil unless loaded.loaded?
 
     loaded.config&.merge_train
+  end
+
+  def preserve_branch_for_fix_replay?(train)
+    return false if @cancelled
+
+    MergeTrainFixReplay.eligible_source?(train)
   end
 
   def merge_train

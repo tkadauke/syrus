@@ -47,7 +47,18 @@ Branch refs are fetched through the repository's authenticated GitHub URL so pri
 
 Once the integration branch is assembled, `merge_train_build` immediately pushes it to the repository and records it as the workflow's required workspace branch. Workflow workspaces live on each worker's local disk, but every Run is picked up by whichever worker is free, so a train routinely continues on a machine that has no copy of the workspace and re-clones. Publishing the branch means that re-clone can check out the branch the train is actually about to land; recording it means `WorkflowWorkspace` refuses to substitute anything else. Without both, the re-clone fell back to a single member's branch, and every later step — graders, `landing_fix`, and finally the land push — silently operated on that member branch while reporting on the train.
 
-The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
+When `merge_train_failure_policy` is `keep_fixes`, a rebuilt train may carry a
+`merge_train_keep_fixes_source_train_id` artifact from a previous failed train.
+After member branches have been rebuilt on the current base, `merge_train_build`
+checks that the source and replacement trains have the same ordered member set.
+It then treats the source integration branch's commits minus the recorded member
+`LandedCommit` rows as repair commits and cherry-picks those repairs onto the
+rebuilt assembly before publishing. If the member set changed, the source branch
+is missing, or a repair cherry-pick conflicts, replay is skipped or aborted and
+the branch is reset to the rebuilt member-only tip before the workflow
+continues.
+
+The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too unless `keep_fixes` leaves a stale failed branch available for the replacement train. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
 
 Because the branch now exists on the remote before landing, `merge_train_land` states its `--force-with-lease` value explicitly (`--force-with-lease=refs/heads/<branch>:<remote tip from ls-remote>`). A bare `--force-with-lease` leases against the remote-tracking ref, and Syrus pushes to an authenticated URL rather than a named remote, so git has no tracking namespace to read and rejects the push with `stale info`. That only ever worked because the branch did not exist remotely until the landing push itself — with no ref to protect, git allowed it.
 
