@@ -180,6 +180,14 @@ fails and nothing lands; the children revert to needing re-approval, and
 re-approving them re-dispatches a fresh train. Epic children land only via
 the train, never individually.
 
+Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
+When a train's required graders fail, Syrus can validate that the focused
+selector reproduces on the full assembly, confirm the failure is not already
+known flaky or inherited from the base revision, and then section the train's
+members to attribute a single culprit. The section width is repository
+configurable because wider rounds trade more concurrent focused grades for
+fewer wall-clock rounds.
+
 ### Manual
 
 Trigger: an operator starts a free-form run. Steps: `manual`. The operator's
