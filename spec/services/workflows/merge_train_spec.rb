@@ -28,8 +28,26 @@ RSpec.describe Workflows::MergeTrain do
       expect(ordered_kinds.index("merge_train_reconcile")).to be < ordered_kinds.index("prepare")
       expect(ordered_kinds.index("merge_train_reconcile")).to be < ordered_kinds.index("grader_fanout")
       expect(Step::Kind.fetch("merge_train_reconcile").agentic).to be(true)
+      expect(Step::Kind.fetch("merge_train_agent").agentic).to be(true)
       expect(workflow.trigger_kind).to eq("merge_train")
       expect(described_class.queue_name).to eq(:merges)
+    end
+
+    it "declares a bounded agent rung after the normal landing grader loop fails" do
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      workflow = described_class.instantiate(job: tip, artifacts: { "merge_train_id" => train.id })
+
+      retry_node = workflow.chain_template.find do |node|
+        node["type"] == "retry_until" &&
+          Array(node["repair"]) == [ "landing_fix" ] &&
+          node.dig("on_failure", StepDispatcher::LOOP_EXHAUSTED_AFTER_GRADER_FAILURE).present?
+      end
+      branch = retry_node.dig("on_failure", StepDispatcher::LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
+
+      expect(branch.map { |node| node["type"] == "step" ? node["kind"] : node["type"] }).to eq(
+        %w[ merge_train_agent prepare retry_until try ]
+      )
+      expect(branch.last).to include("type" => "try", "step" => "merge_train_land")
     end
   end
 

@@ -38,7 +38,7 @@ module Workflows
         "merge_train_build",
         "merge_train_reconcile",
         "prepare",
-        landing_grader_retry_loop,
+        landing_grader_retry_loop_with_agent_rung,
         merge_train_land_with_rebase_recovery
       ]
       without_skipped_prepare(job, chain)
