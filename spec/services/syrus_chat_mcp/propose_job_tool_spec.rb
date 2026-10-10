@@ -28,8 +28,58 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     { capabilities: { os: [ "linux" ] } }
   end
 
+  def stub_deployment_stage(name = "staging")
+    stage = SyrusYml::DeploymentStage.new(name: name, label: name.titleize, tag: name, tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+  end
+
   def response_payload(response)
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+  end
+
+  it "stores deployment-stage requirements for existing Job dependencies" do
+    stub_deployment_stage("staging")
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 44)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Ship after staging",
+      description: "Wait for staging.",
+      dependency_requirements: [
+        { job_id: prerequisite.id, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "staging" }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = ChatProposal.find(response_payload(response).fetch(:id))
+    expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+    expect(proposal.dependency_requirements).to contain_exactly(
+      include("job_id" => prerequisite.id, "satisfaction_mode" => "deployment_stage", "required_deployment_stage_name" => "staging")
+    )
+    expect(response_payload(response).fetch(:dependency_requirements).sole).to include(
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "staging"
+    )
+  end
+
+  it "rejects deployment-stage requirements for unresolved proposal dependencies" do
+    ChatProposal.create!(chat_session: chat_session, slug: "upstream", title: "Upstream", body: "Build it.", kind: "job", repository: repository)
+    stub_deployment_stage("staging")
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wait for unresolved proposal",
+      description: "This cannot be validated yet.",
+      dependency_requirements: [
+        { proposal_slug: "upstream", satisfaction_mode: "deployment_stage", required_deployment_stage_name: "staging" }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("still only a proposal")
+    expect(chat_session.proposals.find_by(title: "Wait for unresolved proposal")).to be_nil
   end
 
   it "tells agents to use real newlines in Markdown descriptions" do

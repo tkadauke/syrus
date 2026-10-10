@@ -29,6 +29,13 @@ RSpec.describe ChatEpicProposalMaterializer do
     ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
   end
 
+  def stub_deployment_stage(name = "staging")
+    stage = SyrusYml::DeploymentStage.new(name: name, label: name.titleize, tag: name, tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+  end
+
   it "materializes the Epic, child Jobs, and sibling Job dependencies in one transaction" do
     proposal = epic_proposal
     prerequisite_epic = Factories.epic(user: user, repository: repository)
@@ -500,6 +507,57 @@ RSpec.describe ChatEpicProposalMaterializer do
     result = described_class.new(user: user).file!(proposal)
 
     expect(result.jobs.sole.dependencies.map(&:depends_on_job)).to contain_exactly(existing_job)
+  end
+
+  it "materializes deployment-stage requirements for child Job depends_on_job_ids" do
+    stub_deployment_stage("staging")
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    proposal = epic_proposal
+    child = child_for(proposal, "deploy-gated-child")
+    child.update!(
+      depends_on_job_ids: [ prerequisite.id ],
+      dependency_requirements: [
+        {
+          "job_id" => prerequisite.id,
+          "satisfaction_mode" => "deployment_stage",
+          "required_deployment_stage_name" => "staging"
+        }
+      ]
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.sole.dependencies.sole).to have_attributes(
+      depends_on_job: prerequisite,
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "staging"
+    )
+  end
+
+  it "rolls back invalid deployment-stage requirements before confirming child Jobs" do
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [], source: ".syrus.yml", note: "no deployment_stages configured")
+    )
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    proposal = epic_proposal
+    child = child_for(proposal, "invalid-deploy-gated-child")
+    child.update!(
+      depends_on_job_ids: [ prerequisite.id ],
+      dependency_requirements: [
+        {
+          "job_id" => prerequisite.id,
+          "satisfaction_mode" => "deployment_stage",
+          "required_deployment_stage_name" => "staging"
+        }
+      ]
+    )
+
+    expect {
+      expect {
+        described_class.new(user: user).file!(proposal)
+      }.to raise_error(ArgumentError, /requires deployment_stages to be configured/)
+    }.to change(JobDependency, :count).by(0).and change(Job, :count).by(0)
+    expect(proposal.reload).to be_proposed
   end
 
   it "creates pending Job dependencies for unresolved cross-card Job proposal references" do
