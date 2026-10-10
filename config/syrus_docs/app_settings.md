@@ -71,10 +71,10 @@ conservative.
 This is the same preservation the continuation-retry path already performs,
 widened to any retryable failure.
 
-`keep_fixes` is the next escalation rung for stale trains that cannot safely
-reuse the old assembly, especially when the base branch moved. The failed
-train is terminalized, but its integration branch is left available when the
-failure is retryable or explicitly rebuild-required. The replacement train
+`keep_fixes` runs the same assembly-preservation rung first for ordinary
+retryable failures. When the failure is explicitly rebuild-required, especially
+when the base branch moved, Syrus terminalizes the stale train but leaves its
+integration branch available for the replacement train. The replacement train
 rebuilds every member on the current base and, if the member set is identical,
 cherry-picks the previous integration branch commits that were not recorded as
 member work. If a repair cherry-pick conflicts, Syrus aborts the replay, resets
