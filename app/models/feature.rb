@@ -96,6 +96,10 @@ class Feature < ApplicationRecord
     enabled?(:landing_validation_prefetch)
   end
 
+  def self.grader_fanout_overlay_enabled?
+    enabled?(:grader_fanout_overlay)
+  end
+
   def self.distributed_workflow_dag_enabled?(repository = nil)
     return false unless enabled?(:distributed_workflow_dag)
     return true if repository.nil?

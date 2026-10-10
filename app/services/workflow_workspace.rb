@@ -199,6 +199,7 @@ class WorkflowWorkspace
     # rm_rf unlinks the lock file's path along with the rest of the
     # directory, but the fd stays valid (and the flock held) until we
     # close it below — POSIX keeps an unlinked-but-open inode alive.
+    ImmutableSourceCheckoutOverlay.unmounts_under(p, log: ->(message) { Rails.logger.info(message) }) if p.exist?
     FileUtils.rm_rf(p.to_s) if p.exist?
     FileUtils.rm_rf(agent_home.to_s) if agent_home.exist?
     # The lock lives beside the workspace now, so removing the workspace no
