@@ -192,7 +192,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/close_investigation` | `api/v1/app/job_lifecycle#close_investigation` |
 | core | POST | `/api/v1/app/jobs/:job_id/dependencies` | `api/v1/app/job_metadata#add_dependency` |
 | core | DELETE | `/api/v1/app/jobs/:job_id/dependencies/:dependency_id` | `api/v1/app/job_metadata#remove_dependency` |
-| core | POST | `/api/v1/app/jobs/:job_id/dependencies/override` | `api/v1/app/job_metadata#override_dependencies` |
 | core | GET | `/api/v1/app/jobs/:job_id/dependency_options` | `api/v1/app/job_metadata#dependency_options` |
 | core | GET | `/api/v1/app/jobs/:job_id/deploy` | `api/v1/app/job_deploy#show` |
 | core | POST | `/api/v1/app/jobs/:job_id/deploy` | `api/v1/app/job_deploy#create` |
@@ -207,7 +206,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:job_id/diff_review_versions/:id` | `api/v1/app/diff_review_versions#show` |
 | core | POST | `/api/v1/app/jobs/:job_id/epic_dependencies` | `api/v1/app/job_metadata#add_epic_dependency` |
 | core | DELETE | `/api/v1/app/jobs/:job_id/epic_dependencies/:depends_on_epic_id` | `api/v1/app/job_metadata#remove_epic_dependency` |
-| core | POST | `/api/v1/app/jobs/:job_id/force_fail` | `api/v1/app/job_lifecycle#force_fail` |
 | core | POST | `/api/v1/app/jobs/:job_id/mark_valid` | `api/v1/app/job_metadata#mark_valid` |
 | core | POST | `/api/v1/app/jobs/:job_id/move_to_backlog` | `api/v1/app/job_lifecycle#move_to_backlog` |
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_coding_mode` | `api/v1/app/job_coding_mode#open` |

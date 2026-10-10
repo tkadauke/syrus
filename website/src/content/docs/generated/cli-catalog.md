@@ -13,6 +13,8 @@ Generated catalog of commands registered in the Cobra command tree.
 |---|---|---|---|
 | `syrus approve JOB-ID` | Approve a Syrus job for landing | `--debug`, `--profile` | no |
 | `syrus chat CHAT_ID MESSAGE` | Send one streaming chat turn | `--debug`, `--profile` | no |
+| `syrus chat list` | List chat sessions | `--all`, `--debug`, `--json`, `--profile`, `--repo` | yes |
+| `syrus chat new` | Create a chat session | `--debug`, `--json`, `--no-repo`, `--profile`, `--repo` | yes |
 | `syrus checkout JOB-ID\|EPIC-ID\|BRANCH` | Check out a Syrus Job branch, Epic branch, or plain git branch | `--complete`, `--debug`, `--no-hooks`, `--profile` | no |
 | `syrus credential` | Inspect Credential Store records and run credential wrappers | `--debug`, `--profile` | no |
 | `syrus credential credentials` | List accessible credential handles | `--debug`, `--json`, `--profile`, `--type` | yes |
@@ -33,19 +35,37 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus insights` | Inspect operational insights | `--debug`, `--profile` | no |
 | `syrus insights spending` | Summarize agent spend | `--debug`, `--group-by`, `--json`, `--profile`, `--since`, `--until` | yes |
 | `syrus job` | Inspect Syrus jobs | `--debug`, `--profile` | no |
-| `syrus job approve JOB-ID` | Approved | `--debug`, `--profile` | no |
-| `syrus job cancel JOB-ID` | Cancellation requested | `--debug`, `--profile` | no |
+| `syrus job accept-triage JOB-ID` | Accept a triaged job | `--debug`, `--profile` | no |
+| `syrus job approve JOB-ID` | Approve a job for landing | `--debug`, `--profile` | no |
+| `syrus job cancel JOB-ID` | Cancel a job | `--debug`, `--profile` | no |
+| `syrus job check-mergeability JOB-ID` | Check a job pull request's mergeability | `--debug`, `--profile` | no |
 | `syrus job checkout JOB-ID` | Check out a job branch locally | `--debug`, `--no-hooks`, `--profile` | no |
+| `syrus job close-investigation JOB-ID` | Close a completed investigation job | `--debug`, `--profile` | no |
 | `syrus job create` | Create a direct Syrus job | `--agent`, `--body`, `--body-file`, `--debug`, `--depends-on`, `--epic`, `--file`, `--owner`, `--priority`, `--profile`, `--prompt`, `--repo`, `--title`, `--yes` | no |
+| `syrus job diagnose JOB-ID --run RUN-ID` | Diagnose an active run | `--debug`, `--profile`, `--run` | no |
 | `syrus job diff JOB-ID` | Show a job pull request diff | `--debug`, `--json`, `--profile` | yes |
 | `syrus job list` | List jobs | `--debug`, `--json`, `--limit`, `--profile`, `--repo`, `--state` | yes |
 | `syrus job log JOB-ID` | Show or stream a job transcript | `--debug`, `--json`, `--profile` | yes |
+| `syrus job move-to-backlog JOB-ID` | Move a job to the backlog | `--debug`, `--profile` | no |
 | `syrus job open JOB-ID` | Open a job in the browser | `--debug`, `--profile` | no |
-| `syrus job rebase JOB-ID` | Rebase enqueued | `--debug`, `--profile` | no |
-| `syrus job retry JOB-ID` | Retry enqueued | `--debug`, `--profile` | no |
+| `syrus job pause JOB-ID` | Pause a job | `--debug`, `--profile` | no |
+| `syrus job push-commits JOB-ID --workflow WORKFLOW-ID` | Push pending workflow commits | `--debug`, `--profile`, `--workflow` | no |
+| `syrus job rebase JOB-ID` | Rebase a job pull request | `--debug`, `--profile` | no |
+| `syrus job recheck-pr-checks JOB-ID` | Recheck a job pull request's checks | `--debug`, `--profile` | no |
+| `syrus job reject-triage JOB-ID` | Reject a triaged job | `--debug`, `--profile` | no |
+| `syrus job release-from-backlog JOB-ID` | Release a job from the backlog | `--debug`, `--profile` | no |
+| `syrus job reopen JOB-ID` | Reopen a closed job | `--debug`, `--profile` | no |
+| `syrus job resume JOB-ID --source-run RUN-ID` | Resume a job from a source run | `--debug`, `--profile`, `--source-run` | no |
+| `syrus job retry JOB-ID` | Retry a job | `--debug`, `--profile` | no |
+| `syrus job retry-step JOB-ID --workflow WORKFLOW-ID` | Retry a failed workflow step | `--debug`, `--profile`, `--workflow` | no |
 | `syrus job search QUERY` | Search jobs by title | `--debug`, `--json`, `--limit`, `--profile`, `--repo`, `--state` | yes |
 | `syrus job show JOB-ID` | Show a job | `--debug`, `--json`, `--profile` | yes |
+| `syrus job start JOB-ID` | Start a direct job | `--debug`, `--profile` | no |
+| `syrus job stop-landing JOB-ID` | Stop an in-progress landing | `--debug`, `--profile` | no |
+| `syrus job stop-run JOB-ID --run RUN-ID` | Stop an active run | `--debug`, `--profile`, `--run` | no |
 | `syrus job test-plan JOB-ID` | Show a job test plan | `--debug`, `--profile` | no |
+| `syrus job unapprove JOB-ID` | Remove your job approval | `--debug`, `--profile` | no |
+| `syrus job unpause JOB-ID` | Unpause a job | `--debug`, `--profile` | no |
 | `syrus job watch JOB-ID` | Watch a job | `--debug`, `--json`, `--profile` | yes |
 | `syrus jobs` | List Syrus jobs | `--closed`, `--debug`, `--profile`, `--repo` | no |
 | `syrus k8s` | Inspect registered Kubernetes clusters | `--debug`, `--profile` | no |
@@ -63,6 +83,12 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus login` | Log in to a Syrus instance | `--debug`, `--profile`, `--token`, `--url` | no |
 | `syrus repo` | Inspect Syrus repositories | `--debug`, `--profile` | no |
 | `syrus repo list` | List repositories | `--debug`, `--json`, `--profile` | yes |
+| `syrus review` | Review job diffs from scripts | `--debug`, `--profile` | no |
+| `syrus review add JOB-ID` | Add a diff review comment | `--body`, `--debug`, `--diff-hunk`, `--line`, `--new-line`, `--old-line`, `--path`, `--profile`, `--run-id`, `--side`, `--state`, `--surface`, `--version`, `--workflow-id` | no |
+| `syrus review list JOB-ID` | List diff review comments for a job | `--all-versions`, `--debug`, `--json`, `--path`, `--profile`, `--state`, `--surface`, `--version` | yes |
+| `syrus review reply JOB-ID COMMENT-ID` | Reply to a diff review comment thread | `--body`, `--debug`, `--profile`, `--version` | no |
+| `syrus review resolve JOB-ID COMMENT-ID` | Resolve a diff review comment thread | `--debug`, `--profile`, `--version` | no |
+| `syrus review submit JOB-ID` | Submit pending diff review comments as job feedback | `--comment-id`, `--debug`, `--profile`, `--version` | no |
 | `syrus schedule` | Manage Syrus schedules | `--debug`, `--profile` | no |
 | `syrus schedule create` | Create a schedule in the current repository | `--debug`, `--profile`, `--yes` | no |
 | `syrus schedule delete ID` | Delete a schedule | `--debug`, `--profile` | no |

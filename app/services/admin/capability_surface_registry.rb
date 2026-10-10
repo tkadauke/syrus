@@ -29,7 +29,9 @@ module Admin
 
     SURFACES = %i[user_api admin_api cli mcp].freeze
 
-    API_CLI_PENDING_ACTION_REASON = "PendingAction execution is currently chat-confirmation backed; direct API and CLI invocation decisions are tracked separately from the implementation class.".freeze
+    USER_API_PENDING_ACTION_REASON = "PendingAction execution is intentionally not exposed through the user API.".freeze
+    CLI_PENDING_ACTION_REASON = "PendingAction execution has no direct CLI invocation contract yet.".freeze
+    ADMIN_API_PENDING_ACTION_REASON = "This PendingAction requires chat context and cannot be invoked through the generic admin API endpoint.".freeze
     MCP_PENDING_ACTION_REASON = "This PendingAction has no static McpToolRegistry exposure yet; any dynamic or future MCP exposure must be registered explicitly.".freeze
     WORKFLOW_MCP_REASON = "Workflow-agent capability only; no user API, admin API, or CLI invocation contract is registered.".freeze
     MCP_TOOL_CAPABILITY_ALIASES = {
@@ -78,6 +80,7 @@ module Admin
       rebase_job
       reconcile_job_state
       reenqueue_work
+      repair_queue_affinity
       reopen_epic_and_attach_job
       reopen_job
       repair_provider_circuit_evidence
@@ -114,9 +117,9 @@ module Admin
 
       PENDING_ACTION_CAPABILITIES.each do |key|
         decisions[key] = {
-          user_api: { status: "not_exposed", reason: API_CLI_PENDING_ACTION_REASON },
-          admin_api: { status: "not_exposed", reason: API_CLI_PENDING_ACTION_REASON },
-          cli: { status: "not_exposed", reason: API_CLI_PENDING_ACTION_REASON },
+          user_api: { status: "not_exposed", reason: USER_API_PENDING_ACTION_REASON },
+          admin_api: { status: "not_exposed", reason: ADMIN_API_PENDING_ACTION_REASON },
+          cli: { status: "not_exposed", reason: CLI_PENDING_ACTION_REASON },
           mcp: { status: "not_exposed", reason: MCP_PENDING_ACTION_REASON }
         }
       end
@@ -197,8 +200,27 @@ module Admin
 
     def exposed_sources_for(key, surface)
       return mcp_capability_sources.fetch(key, []) if surface == :mcp
+      return admin_api_pending_action_sources_for(key) if surface == :admin_api
 
       []
+    end
+
+    def admin_api_pending_action_sources_for(key)
+      sources = pending_action_sources.fetch(key, [])
+      return [] if sources.empty? || api_blocked_pending_action?(key, sources)
+
+      sources.map do |source|
+        source.merge(
+          source: "admin_api",
+          name: "/api/v1/admin/pending_actions/invoke",
+          action_key: key
+        )
+      end
+    end
+
+    def api_blocked_pending_action?(key, sources)
+      PendingActions::ApiInvocation::CHAT_BOUND_ACTIONS.key?(key) ||
+        sources.any? { |source| source.fetch(:requires_chat_session, false) }
     end
 
     def mcp_capability_sources
@@ -239,7 +261,8 @@ module Admin
         index[key] << {
           source: "pending_action",
           name: klass.name,
-          admin_only: klass.admin_only?
+          admin_only: klass.admin_only?,
+          requires_chat_session: klass.requires_chat_session?
         }
       end
     end

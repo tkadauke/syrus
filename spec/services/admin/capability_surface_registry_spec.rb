@@ -120,6 +120,50 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     expect(capability.decision_for(:mcp).sources).to contain_exactly(include(source: "mcp", name: "cancel_job"))
   end
 
+  it "marks API-invokable pending actions exposed on the admin API" do
+    registry = described_class.new(
+      mcp_entries: [],
+      pending_action_classes: [ pending_action_class("retry_job") ],
+      explicit_decisions: {
+        retry_job: {
+          user_api: { status: "not_exposed", reason: "No user API endpoint." },
+          admin_api: { status: "not_exposed", reason: "Would be wrong if the generic endpoint is available." },
+          cli: { status: "not_exposed", reason: "No CLI command." },
+          mcp: { status: "not_exposed", reason: "No MCP tool." }
+        }
+      }
+    )
+
+    capability = registry.capabilities.fetch(0)
+
+    expect(capability.key).to eq("retry_job")
+    expect(capability.decision_for(:admin_api)).to be_exposed
+    expect(capability.decision_for(:admin_api).sources).to contain_exactly(
+      include(source: "admin_api", name: "/api/v1/admin/pending_actions/invoke", action_key: "retry_job")
+    )
+  end
+
+  it "keeps chat-bound pending actions out of the generic admin API exposure" do
+    registry = described_class.new(
+      mcp_entries: [],
+      pending_action_classes: [ pending_action_class("complete_implement_step") ],
+      explicit_decisions: {
+        complete_implement_step: {
+          user_api: { status: "not_exposed", reason: "No user API endpoint." },
+          admin_api: { status: "not_exposed", reason: "Requires a chat session." },
+          cli: { status: "not_exposed", reason: "No CLI command." },
+          mcp: { status: "not_exposed", reason: "No MCP tool." }
+        }
+      }
+    )
+
+    capability = registry.capabilities.fetch(0)
+
+    expect(capability.key).to eq("complete_implement_step")
+    expect(capability.decision_for(:admin_api)).not_to be_exposed
+    expect(capability.decision_for(:admin_api).reason).to eq("Requires a chat session.")
+  end
+
   it "maps known MCP tool aliases onto their pending-action capability" do
     registry = described_class.new(
       mcp_entries: [ mcp_entry(capability: nil, tool_name: "admin_maintenance_tasks", mutation: true, admin_only: true) ],

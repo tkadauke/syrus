@@ -27,6 +27,7 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | POST | `/api/v1/admin/jobs/:id/force_fail` | `api/v1/admin/jobs#force_fail` |
 | core | GET | `/api/v1/admin/mcp_tool_usage` | `api/v1/admin/mcp_tool_usage#show` |
 | core | GET | `/api/v1/admin/overview` | `api/v1/admin/overview#show` |
+| core | POST | `/api/v1/admin/pending_actions/invoke` | `api/v1/admin/pending_actions#invoke` |
 | core | GET | `/api/v1/admin/plugins` | `api/v1/admin/plugins#index` |
 | core | GET | `/api/v1/admin/plugins/:name/config` | `api/v1/admin/plugins#show_config` |
 | core | PATCH | `/api/v1/admin/plugins/:name/config` | `api/v1/admin/plugins#update_config` |

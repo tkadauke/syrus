@@ -137,6 +137,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `refresh_pr_checks` | chat | essential | write | yes | - | - | - | - |
 | `rename_chat` | chat | essential | write | no | - | - | - | - |
 | `repair_provider_circuit_evidence` | chat | essential | write | yes | - | - | - | - |
+| `repair_queue_affinity` | chat | essential | write | yes | - | - | - | - |
 | `replace_pr_branch_with_workflow_output` | chat | essential | write | yes | - | - | - | - |
 | `repo_info` | chat | essential | read | no | - | - | - | - |
 | `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - |
