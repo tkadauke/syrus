@@ -609,7 +609,7 @@ RSpec.describe Run, :ci_only do
     end
   end
 
-  describe "in-place worker_died step retry" do
+  describe "worker_died step retry scheduling" do
     let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
     let(:step) { Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running") }
 
@@ -624,18 +624,26 @@ RSpec.describe Run, :ci_only do
       r
     end
 
-    it "creates a new Run on the same step and keeps the step running on the first worker_died" do
+    it "schedules an auto-retry and keeps the step running on the first worker_died" do
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
 
       run.agent_outcome = "worker_died"
-      run.fail!
-      run.save!
+      expect {
+        run.fail!
+        run.save!
+      }.to have_enqueued_job(AutoRetryJob)
 
       expect(step.reload).not_to be_failed
-      expect(step.runs.where(state: "queued").count).to eq(1)
+      attempt = AutoRetryAttempt.find_by!(run: run)
+      expect(attempt).to have_attributes(
+        failure_classification: "worker_died",
+        retry_kind: "failed_step",
+        attempt_number: 1
+      )
+      expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
-    it "keeps creating retry runs until the budget is exhausted" do
+    it "keeps scheduling retries until the budget is exhausted" do
       make_worker_died_run!(step)
       make_worker_died_run!(step)
 
@@ -645,7 +653,8 @@ RSpec.describe Run, :ci_only do
       run.save!
 
       expect(step.reload).not_to be_failed
-      expect(step.runs.where(state: "queued").count).to eq(1)
+      expect(AutoRetryAttempt.find_by!(run: run)).to have_attributes(attempt_number: 3)
+      expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
     it "fails the step normally once WORKER_DIED_STEP_MAX_RETRIES prior worker_died runs exist" do
@@ -658,6 +667,22 @@ RSpec.describe Run, :ci_only do
 
       expect(step.reload).to be_failed
       expect(step.runs.where(state: "queued").count).to eq(0)
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
+    it "jitters simultaneous worker_died grader retries" do
+      first = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      second_step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "running")
+      second = second_step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      first.update!(agent_outcome: "worker_died")
+      first.fail!
+      first.save!
+      second.update!(agent_outcome: "worker_died")
+      second.fail!
+      second.save!
+
+      scheduled_times = AutoRetryAttempt.where(run: [ first, second ]).order(:id).pluck(:scheduled_at)
+      expect(scheduled_times.first.to_i).not_to eq(scheduled_times.second.to_i)
     end
 
     it "skips the in-place retry for non-worker_died failures and fails the step immediately" do
@@ -707,7 +732,7 @@ RSpec.describe Run, :ci_only do
       expect(run.reload.run_failure_classification.classification).to eq("grader_failure")
     end
 
-    it "does not call StepDispatcher.fail_from when a retry run is created" do
+    it "does not call StepDispatcher.fail_from when a retry is scheduled" do
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
       run.agent_outcome = "worker_died"
 
