@@ -77,6 +77,79 @@ RSpec.describe ClassifyIssueJob do
       described_class.perform_now(job.id)
     end
 
+    it "re-enqueues a bounded retry when an infrastructure failure leaves the Job pending" do
+      job = pending_job
+      allow(Job).to receive(:find).with(job.id).and_return(job)
+      allow(job).to receive(:user).and_return(user)
+      allow(user).to receive(:agent_provider_configured?).with("claude").and_return(true)
+      allow(IngestionClassifier).to receive(:call) do
+        job.increment!(:classifier_attempts)
+        IngestionClassifier::Result.new(
+          epic_id: nil,
+          invalid_kind: nil,
+          reason: nil,
+          evidence_urls: [],
+          planned_execution: nil,
+          raw_output: nil,
+          spawned_process_id: nil,
+          error: "ActiveModel::MissingAttributeError: can't write unknown attribute `job_id`"
+        )
+      end
+
+      expect(described_class).to receive(:enqueue_for_job!).with(job)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not re-enqueue when a genuine uncertain result parks the Job for triage" do
+      job = pending_job
+      allow(Job).to receive(:find).with(job.id).and_return(job)
+      allow(job).to receive(:user).and_return(user)
+      allow(user).to receive(:agent_provider_configured?).with("claude").and_return(true)
+      allow(IngestionClassifier).to receive(:call) do
+        job.increment!(:classifier_attempts)
+        job.mark_classifier_uncertain!
+        IngestionClassifier::Result.new(
+          epic_id: nil,
+          invalid_kind: nil,
+          reason: nil,
+          evidence_urls: [],
+          planned_execution: nil,
+          raw_output: "not json",
+          spawned_process_id: nil,
+          error: "invalid JSON: expected an object"
+        )
+      end
+
+      expect(described_class).not_to receive(:enqueue_for_job!)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "does not re-enqueue infrastructure failures once the classifier attempt cap is spent" do
+      job = pending_job(classifier_attempts: Job::MAX_CLASSIFIER_ATTEMPTS - 1)
+      allow(Job).to receive(:find).with(job.id).and_return(job)
+      allow(job).to receive(:user).and_return(user)
+      allow(user).to receive(:agent_provider_configured?).with("claude").and_return(true)
+      allow(IngestionClassifier).to receive(:call) do
+        job.increment!(:classifier_attempts)
+        IngestionClassifier::Result.new(
+          epic_id: nil,
+          invalid_kind: nil,
+          reason: nil,
+          evidence_urls: [],
+          planned_execution: nil,
+          raw_output: nil,
+          spawned_process_id: nil,
+          error: "ActiveModel::MissingAttributeError: can't write unknown attribute `job_id`"
+        )
+      end
+
+      expect(described_class).not_to receive(:enqueue_for_job!)
+
+      described_class.perform_now(job.id)
+    end
+
     it "discards (does not raise) if the Job has been deleted" do
       missing_id = 999_999
       expect { described_class.perform_now(missing_id) }.not_to raise_error
