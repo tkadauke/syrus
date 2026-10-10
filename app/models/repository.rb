@@ -72,6 +72,7 @@ class Repository < ApplicationRecord
   attribute :fork_auto_sync_enabled, :boolean, default: false
   attribute :external_pr_ingestion_enabled, :boolean, default: false
   attribute :distributed_workflow_dag_enabled, :boolean, default: false
+  attribute :merge_train_multisect_section_width, :integer
   attribute :poll_issue_errors, :json, default: []
 
   attr_accessor :main_branch_repair_enabled_explicit
@@ -118,6 +119,13 @@ class Repository < ApplicationRecord
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
+  validates :merge_train_multisect_section_width,
+            numericality: {
+              only_integer: true,
+              greater_than_or_equal_to: MergeTrainMultisect::MIN_SECTION_WIDTH,
+              less_than_or_equal_to: MergeTrainMultisect::MAX_SECTION_WIDTH
+            },
+            allow_nil: true
   validates :name, uniqueness: {
     scope: :owner,
     case_sensitive: false,

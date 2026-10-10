@@ -20,6 +20,51 @@ class MergeTrainMultisect
 
   def self.call(...) = new(...).call
 
+  def self.normalize_section_width(value)
+    Integer(value).clamp(MIN_SECTION_WIDTH, MAX_SECTION_WIDTH)
+  rescue ArgumentError, TypeError
+    DEFAULT_SECTION_WIDTH
+  end
+
+  def self.section_width_for(repository)
+    normalize_section_width(repository.merge_train_multisect_section_width.presence || DEFAULT_SECTION_WIDTH)
+  end
+
+  def self.focused_selector(workflow)
+    rounds = Array(workflow.artifact(GraderLoopProgress::ARTIFACT_KEY))
+    stop = workflow.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY)
+    failing_set = Array(stop && stop["failing_set"]).presence ||
+      Array(rounds.max_by { |round| round.to_h["iteration"].to_i }.to_h["failing_set"])
+    failing_set.map(&:to_s).map(&:strip).reject(&:empty?).uniq.sort
+  end
+
+  def self.partition(members, section_width:)
+    width = [ normalize_section_width(section_width), members.size ].min
+    size = (members.size.to_f / width).ceil
+    members.each_slice(size).to_a
+  end
+
+  def self.member_payload(member)
+    {
+      "merge_train_member_id" => member.id,
+      "job_id" => member.job_id,
+      "job_slug" => member.job.slug,
+      "position" => member.position
+    }
+  end
+
+  def self.members_payload(members)
+    members.map { |member| member_payload(member) }
+  end
+
+  def self.evaluation_payload(evaluation)
+    {
+      "reproduced" => evaluation.reproduced?,
+      "reason" => evaluation.reason,
+      "details" => evaluation.details.to_h
+    }
+  end
+
   def initialize(workflow:, train:, section_width: DEFAULT_SECTION_WIDTH, evaluator:, determinism_gate: nil, log: nil)
     @workflow = workflow
     @train = train
@@ -101,23 +146,15 @@ class MergeTrainMultisect
   attr_reader :workflow, :train, :section_width, :evaluator, :determinism_gate, :rounds
 
   def normalize_section_width(value)
-    Integer(value).clamp(MIN_SECTION_WIDTH, MAX_SECTION_WIDTH)
-  rescue ArgumentError, TypeError
-    DEFAULT_SECTION_WIDTH
+    self.class.normalize_section_width(value)
   end
 
   def focused_selector
-    rounds = Array(workflow.artifact(GraderLoopProgress::ARTIFACT_KEY))
-    stop = workflow.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY)
-    failing_set = Array(stop && stop["failing_set"]).presence ||
-      Array(rounds.max_by { |round| round.to_h["iteration"].to_i }.to_h["failing_set"])
-    failing_set.map(&:to_s).map(&:strip).reject(&:empty?).uniq.sort
+    self.class.focused_selector(workflow)
   end
 
   def partition(members)
-    width = [ section_width, members.size ].min
-    size = (members.size.to_f / width).ceil
-    members.each_slice(size).to_a
+    self.class.partition(members, section_width: section_width)
   end
 
   def evaluate(section:, round:, role:, selector:)
@@ -177,24 +214,15 @@ class MergeTrainMultisect
   end
 
   def members_payload(members)
-    members.map { |member| member_payload(member) }
+    self.class.members_payload(members)
   end
 
   def member_payload(member)
-    {
-      "merge_train_member_id" => member.id,
-      "job_id" => member.job_id,
-      "job_slug" => member.job.slug,
-      "position" => member.position
-    }
+    self.class.member_payload(member)
   end
 
   def evaluation_payload(evaluation)
-    {
-      "reproduced" => evaluation.reproduced?,
-      "reason" => evaluation.reason,
-      "details" => evaluation.details.to_h
-    }
+    self.class.evaluation_payload(evaluation)
   end
 
   class DeterminismGate
@@ -250,12 +278,12 @@ class MergeTrainMultisect
   class FocusedEvaluator
     TIMEOUT_SECONDS = 10.minutes
 
-    def initialize(workflow:, train:, log: nil, git: nil)
+    def initialize(workflow:, train:, log: nil, git: nil, workspace_path: nil)
       @workflow = workflow
       @train = train
       @log = log || ->(_message) { }
       @git = git || GitRunner.new(workflow: workflow, env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
-      @workspace_path = WorkflowWorkspace.path_for(workflow)
+      @workspace_path = workspace_path || WorkflowWorkspace.path_for(workflow)
     end
 
     def call(members:, failing_set:, round:, role:, **)

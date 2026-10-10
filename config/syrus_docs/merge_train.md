@@ -93,12 +93,22 @@ Three cases are handled before they can fail at all:
   Nothing has been published at that point, so this asks for a rebuild rather
   than failing the train and clearing every other member's approval.
 
-Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
-uses the most recent `GraderLoopProgress#failing_set` as a focused selector,
-validates that the selector reproduces against the full assembly, checks the
-existing flaky/inherited-failure gates, then walks member sections with
-`section_width - 1` focused subset grades per round. When one graded section
-reproduces, Syrus also confirms the omitted section before narrowing so an
+Repositories can opt into a `multisect` failure rung in `.syrus.yml`. When the
+ladder selects it, Syrus inserts visible `merge_train_multisect_prepare`,
+`merge_train_multisect_evaluate`, and `merge_train_multisect_collect` Steps
+inside the failed `merge_train` workflow instead of hiding the walk inside
+failure cleanup. The prepare Step records the members, focused selector,
+base/integration SHAs, configured rung, DB-sourced section width, planned
+sections, oracle eligibility, determinism evidence, and any abort reason.
+
+The rung uses the most recent `GraderLoopProgress#failing_set` as a focused
+selector, validates that the selector reproduces against the full assembly,
+checks the existing flaky/inherited-failure gates, then walks member sections
+with up to `merge_train_multisect_section_width - 1` focused subset evaluation
+Steps per round. Those section Steps use independent immutable-source
+workspaces when distributed workflow DAG execution is enabled, so available
+hosts can run a round concurrently. When one graded section reproduces, Syrus
+also schedules an omitted-section confirmation before narrowing so an
 interaction with the omitted section cannot be misreported as a single culprit.
 Multiple reproducing sections abort as an interaction failure; an empty selector
 or a non-reproducing oracle aborts without attribution. On success Syrus records

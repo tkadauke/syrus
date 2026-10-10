@@ -17,9 +17,10 @@ class MergeTrainFailureHandler
     return unless train
     return if preserve_train_for_continuation_retry?
     return if preserve_train_for_failure_policy?
+    return if schedule_multisect_rung!(train) unless @cancelled
+    return if preserve_after_multisect_attribution?(train)
 
     reason = failure_reason
-    run_multisect_rung!(train) unless @cancelled
     unless train.terminal?
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
@@ -263,34 +264,37 @@ class MergeTrainFailureHandler
     failed_run&.run_failure_classification&.retryable == true
   end
 
-  def run_multisect_rung!(train)
+  def schedule_multisect_rung!(train)
     config = merge_train_config
-    return unless config&.failure_rungs&.include?("multisect")
+    return false unless config&.failure_rungs&.include?("multisect")
+    return false if @workflow.artifact(MergeTrainMultisectWorkflow::COMPLETED_ARTIFACT_KEY).present?
 
-    result = MergeTrainMultisect.call(
+    failed_step = RetryFailedStepEnqueuer.failed_step_for(@workflow)
+    failed_step ||= @workflow.steps.where(state: "failed").order(:position, :id).last
+    return false unless failed_step
+
+    inserted = MergeTrainMultisectWorkflow.insert_after_failure!(
       workflow: @workflow,
       train: train,
-      section_width: config.multisect_section_width,
-      evaluator: self.class.multisect_evaluator || default_multisect_evaluator,
-      log: ->(message) { job_log(@workflow.job, message, kind: "system") }
+      failed_step: failed_step
     )
-    return unless result.attributed?
-
-    job_log(
-      result.member.job,
-      "merge_train: focused multisect attributed the train failure to this member; automatic withdrawal is not enabled.",
-      kind: "system"
-    )
+    job_log(@workflow.job, "merge_train: scheduled focused multisect attribution inside this workflow", kind: "system") if inserted
+    inserted
   rescue StandardError => e
     Rails.logger.warn("[MergeTrainFailureHandler] merge_train_multisect failed: #{e.class}: #{e.message}")
+    false
   end
 
-  def default_multisect_evaluator
-    MergeTrainMultisect::FocusedEvaluator.new(
-      workflow: @workflow,
-      train: merge_train,
-      log: ->(message, kind: "system") { job_log(@workflow.job, message, kind: kind) }
-    )
+  def preserve_after_multisect_attribution?(train)
+    payload = @workflow.artifact(MergeTrainMultisectWorkflow::COMPLETED_ARTIFACT_KEY).to_h
+    return false unless payload["status"] == "attributed"
+
+    train.update!(state: "failed", failure_reason: "merge_train_multisect: #{payload['reason']}".truncate(500), finished_at: Time.current) unless train.terminal?
+    member = payload["attributed_member"].to_h
+    if (job = Job.find_by(id: member["job_id"]))
+      job_log(job, "merge_train: focused multisect attributed the train failure to this member; automatic withdrawal is not enabled.", kind: "system")
+    end
+    true
   end
 
   def merge_train_config

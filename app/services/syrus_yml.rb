@@ -147,7 +147,7 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
-  MergeTrainConfig = Data.define(:failure_rungs, :multisect_section_width)
+  MergeTrainConfig = Data.define(:failure_rungs)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
@@ -1419,11 +1419,7 @@ class SyrusYml
     raise ParseError, "merge_train: must be a mapping" unless raw.is_a?(Hash)
 
     rungs = parse_merge_train_failure_rungs(raw["failure_rungs"] || raw["failure_ladder"])
-    multisect = raw["multisect"]
-    raise ParseError, "merge_train.multisect: must be a mapping" unless multisect.nil? || multisect.is_a?(Hash)
-
-    section_width = multisect&.key?("section_width") ? parse_multisect_section_width(multisect["section_width"]) : MergeTrainMultisect::DEFAULT_SECTION_WIDTH
-    MergeTrainConfig.new(failure_rungs: rungs, multisect_section_width: section_width)
+    MergeTrainConfig.new(failure_rungs: rungs)
   end
 
   def parse_merge_train_failure_rungs(raw)
@@ -1440,17 +1436,6 @@ class SyrusYml
     raise ParseError, "merge_train.failure_rungs: must contain only multisect" if invalid.any?
 
     rungs
-  end
-
-  def parse_multisect_section_width(raw)
-    width = Integer(raw)
-    unless width.between?(MergeTrainMultisect::MIN_SECTION_WIDTH, MergeTrainMultisect::MAX_SECTION_WIDTH)
-      raise ParseError, "merge_train.multisect.section_width: must be between #{MergeTrainMultisect::MIN_SECTION_WIDTH} and #{MergeTrainMultisect::MAX_SECTION_WIDTH}"
-    end
-
-    width
-  rescue ArgumentError, TypeError
-    raise ParseError, "merge_train.multisect.section_width: must be an integer"
   end
 
   def parse_external_prs_ingest(raw)

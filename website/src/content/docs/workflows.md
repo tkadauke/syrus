@@ -184,11 +184,13 @@ Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
 When a train's required graders fail, Syrus can validate that the focused
 selector reproduces on the full assembly, confirm the failure is not already
 known flaky or inherited from the base revision, and then section the train's
-members to attribute a single culprit. Before narrowing to a reproducing
-section, Syrus also confirms the omitted section so interaction failures are
-escalated instead of misattributed. The section width is repository
-configurable because wider rounds trade more concurrent focused grades for
-fewer wall-clock rounds.
+members to attribute a single culprit. Multisect appears as prepare, section
+evaluation, and collect Steps in the same workflow; section evaluations can run
+in parallel on independent immutable-source workspaces when distributed workflow
+DAG execution is enabled. Before narrowing to a reproducing section, Syrus also
+confirms the omitted section so interaction failures are escalated instead of
+misattributed. The section width is a repository database setting because wider
+rounds trade more concurrent focused grades for fewer wall-clock rounds.
 
 ### Manual
 

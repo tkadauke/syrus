@@ -87,6 +87,12 @@ RSpec.describe Repository do
     expect(repo.errors[:review_policy]).to be_present
   end
 
+  it "rejects invalid merge train multisect section widths" do
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", merge_train_multisect_section_width: 1)
+    expect(repo).not_to be_valid
+    expect(repo.errors[:merge_train_multisect_section_width]).to be_present
+  end
+
   it "has_many final_approvers through repository_final_approvers" do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
     approver = Factories.user
