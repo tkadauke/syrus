@@ -214,6 +214,8 @@ module App
             id: dependency.id,
             pending: dependency.pending?,
             succeeded: dependency.dependency_succeeded?,
+            satisfaction_mode: dependency.satisfaction_mode,
+            required_deployment_stage_name: dependency.required_deployment_stage_name,
             unresolved_slug: dependency.unresolved_slug,
             depends_on_job: dashboard_dependency_job_json(dependency.depends_on_job),
             depends_on_epic: dashboard_dependency_epic_json(dependency.depends_on_epic)

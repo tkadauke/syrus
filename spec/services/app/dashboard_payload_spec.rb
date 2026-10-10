@@ -841,6 +841,30 @@ RSpec.describe App::DashboardPayload, :ci_only do
         satisfaction_mode: "closed"
       )
 
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repo).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
+      )
+      deployed_dependency = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      pending_deployment_dependency = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      waiting_for_stage_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: waiting_for_stage_child,
+        depends_on_job: pending_deployment_dependency,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      reached_stage_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: reached_stage_child,
+        depends_on_job: deployed_dependency,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      deployed_dependency.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.current)
+
       approved_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
       JobDependency.create!(job: approved_child, depends_on_job: approved_same_epic, source: "manual")
 
@@ -854,7 +878,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       semantic_item = rows[:items].find { |item| item[:id] == epic.id }
       held_item = rows[:items].find { |item| item[:id] == held_epic.id }
 
-      expect(semantic_item[:blocked_child_count]).to eq(1)
+      expect(semantic_item[:blocked_child_count]).to eq(2)
       expect(held_item[:blocked_child_count]).to eq(1)
     end
 
