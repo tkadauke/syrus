@@ -1276,9 +1276,11 @@ grader still shows the active phase.
 
 Non-agentic. Applies structured code-suggestion patches (e.g., from review comments) before the agent responds.
 
-## Step resilience: in-place worker_died retry
+## Step resilience: worker_died replacement retry
 
 When a worker process is killed mid-step (deploy rolling restart, OOM, node eviction), the run is classified as `worker_died`. For **non-agentic** steps (e.g., `prepare`, `push`, `grade`, `auto_merge`), Syrus creates a new Run on the same Step instead of immediately failing it. This repeats up to `Run::WORKER_DIED_STEP_MAX_RETRIES` (3) times before the step fails normally and the operator sees the Retry button.
+
+The replacement is scheduled through `AutoRetryAttempt`/`AutoRetryJob`, not dispatched synchronously from the failed Run callback. Worker affinity is cleared before the replacement Run is created, so queue placement can choose a fresh worker instead of returning to the host that just lost the Run. Scheduling uses deterministic per-Run jitter within `Run::WORKER_DIED_STEP_RETRY_JITTER_SECONDS` to smooth rolling-restart bursts while still starting replacement work quickly.
 
 **Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use the work-engine reconciler's session-resume path so the agent can pick up where it left off with prior conversation context intact. Successful provider session transcripts are retained until the normal `ProviderSession::RETAIN_AFTER_TERMINAL` pruning window expires so later workflow steps can rehydrate resume state after worker movement or deploys.
 
@@ -1294,4 +1296,4 @@ handle them through the normal retryable-failure path.
 
 Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
 
-The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.
+The replacement retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.
