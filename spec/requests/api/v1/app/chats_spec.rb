@@ -4381,6 +4381,57 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("message")).to eq("Proposal updated.")
   end
 
+  it "preserves dependency requirements when editing a proposal without resubmitting them" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    stage = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+    job_dependency = Factories.job_record(user: user, repository: repository, issue_title: "Existing Job")
+    proposal = ChatProposal.create!(
+      chat_session: chat,
+      slug: "build-ui",
+      title: "Build UI",
+      body: "Old body.",
+      depends_on_job_ids: [ job_dependency.id ],
+      dependency_requirements: [
+        {
+          "job_id" => job_dependency.id,
+          "satisfaction_mode" => "deployment_stage",
+          "required_deployment_stage_name" => "staging"
+        }
+      ]
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Build better UI",
+        body: "New body.",
+        dependency_slugs: [],
+        depends_on_job_ids: [ job_dependency.id ],
+        depends_on_epic_ids: []
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.dependency_requirements).to contain_exactly(
+      include(
+        "job_id" => job_dependency.id,
+        "satisfaction_mode" => "deployment_stage",
+        "required_deployment_stage_name" => "staging"
+      )
+    )
+    expect(parse_body.dig("proposal", "dependency_requirements")).to contain_exactly(
+      include(
+        "job_id" => job_dependency.id,
+        "satisfaction_mode" => "deployment_stage",
+        "required_deployment_stage_name" => "staging"
+      )
+    )
+  end
+
   it "updates backlog routing on a proposed direct Job proposal" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

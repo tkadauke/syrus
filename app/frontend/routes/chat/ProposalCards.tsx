@@ -170,6 +170,7 @@ export function ProposalEditModal({
         body,
         dependency_slugs: proposalDeps.map((dep) => dep.key),
         depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+        dependency_requirements: preservedDependencyRequirements(proposal, jobDeps, proposalDeps),
         depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
         media_ids: mediaIds,
         target_epic_id: targetEpicId,
@@ -1280,6 +1281,16 @@ function ProposalDependencyStrip({
       ))}
     </div>
   )
+}
+
+function preservedDependencyRequirements(proposal: EditableProposal, jobDeps: DependencyPill[], proposalDeps: DependencyPill[]) {
+  const jobIds = new Set(jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)))
+  const proposalSlugs = new Set(proposalDeps.map((dep) => dep.key))
+  return (proposal.dependency_requirements || []).filter((requirement) => {
+    if (requirement.job_id != null) return jobIds.has(requirement.job_id)
+    if (requirement.proposal_slug) return proposalSlugs.has(requirement.proposal_slug)
+    return false
+  })
 }
 
 function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
