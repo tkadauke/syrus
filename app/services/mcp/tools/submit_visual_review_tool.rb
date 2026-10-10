@@ -89,7 +89,9 @@ module Mcp::Tools
             "content_type" => payload["content_type"],
             "byte_size" => payload["byte_size"],
             "page" => payload["page"],
+            "viewport" => payload["viewport"],
             "source" => payload["source"],
+            "captured_at" => payload["captured_at"],
             "text" => payload["text"] || payload["dom_text"] || payload["body_text"],
             "created_at" => entry["created_at"]
           }.compact

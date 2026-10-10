@@ -31,7 +31,15 @@ RSpec.describe Steps::VisualDiff do
   it "pairs baseline screenshots by title and falls back to capture order" do
     workflow = Workflow.create!(job: Factories.job_record, trigger_kind: "visual_diff")
     after_artifacts = [
-      { "title" => "Dashboard", "image_url" => "/after-dashboard.png", "type" => "after-1" },
+      {
+        "title" => "Dashboard",
+        "image_url" => "/after-dashboard.png",
+        "type" => "after-1",
+        "source" => "current_browser",
+        "captured_at" => "2026-10-10T12:00:00.000Z",
+        "page" => { "path" => "/dashboard", "title" => "Dashboard" },
+        "viewport" => { "width" => 1280, "height" => 800, "device_scale_factor" => 1 }
+      },
       { "title" => "Settings", "image_url" => "/after-settings.png", "type" => "after-2" }
     ]
     baselines = [
@@ -49,6 +57,12 @@ RSpec.describe Steps::VisualDiff do
       [ "Dashboard", "/before-dashboard.png", "/after-dashboard.png" ],
       [ "Settings", "/before-settings.png", "/after-settings.png" ]
     ])
+    expect(pairs.first["after"]).to include(
+      "source" => "current_browser",
+      "captured_at" => "2026-10-10T12:00:00.000Z",
+      "page" => { "path" => "/dashboard", "title" => "Dashboard" },
+      "viewport" => { "width" => 1280, "height" => 800, "device_scale_factor" => 1 }
+    )
   end
 
   it "returns no pairs when baseline screenshots are missing" do
