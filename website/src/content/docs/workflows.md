@@ -176,9 +176,14 @@ The guarantee is **Epic consistency**: an Epic advances as a whole,
 green, dependency-closed set or not at all — there are never half-merged
 Epics on the base branch. If the grade-and-fix loop can't make the
 integrated tree green (or a child won't integrate), the whole attempt
-fails and nothing lands; the children revert to needing re-approval, and
-re-approving them re-dispatches a fresh train. Epic children land only via
-the train, never individually.
+fails and nothing lands. The repository can declare an ordered
+`merge_train.failure_policy` ladder in `.syrus.yml`; absent that config,
+Syrus uses the instance compatibility default. The implemented rungs are
+`restart`, which tears the failed assembly down and returns members through
+normal landing-failure handling, `keep_assembly`, which preserves a retryable
+failed train for the next attempt, and `keep_fixes`, which can preserve repair
+commits across a required train rebuild. Epic children land only via the train,
+never individually.
 
 Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
 When a train's required graders fail, Syrus can validate that the focused

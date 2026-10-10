@@ -2714,7 +2714,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
     t.integer "upstream_pr_grace_period_days", default: 7, null: false
     t.bigint "upstream_repository_id"
     t.integer "user_id"
-    t.json "merge_train_failure_policy"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

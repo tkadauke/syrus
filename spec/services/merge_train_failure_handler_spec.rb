@@ -49,6 +49,11 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
     )
   end
 
+  def stub_merge_train_failure_ladder(rungs)
+    content = "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n"
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => content })
+  end
+
   describe "#call" do
     around do |example|
       previous = described_class.multisect_evaluator
@@ -159,9 +164,9 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_landing
     end
 
-    it "lets a repository ladder override the instance default" do
+    it "lets the repository .syrus.yml ladder override the instance default" do
       AppSetting.current.update!(merge_train_failure_policy: "restart")
-      repository.update!(merge_train_failure_policy: [ "keep_assembly" ])
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
@@ -187,8 +192,8 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_landing
     end
 
-    it "maps the retry attempt to the repository ladder rung" do
-      repository.update!(merge_train_failure_policy: [ "restart", "keep_assembly" ])
+    it "maps the retry attempt to the repository .syrus.yml ladder rung" do
+      stub_merge_train_failure_ladder([ "restart", "keep_assembly" ])
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
@@ -201,8 +206,8 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_landing
     end
 
-    it "falls back to restart when the retry attempt is past the repository ladder" do
-      repository.update!(merge_train_failure_policy: [ "keep_assembly" ])
+    it "falls back to restart when the retry attempt is past the repository .syrus.yml ladder" do
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
@@ -215,8 +220,8 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.members.first.reload.state).to eq("failed")
     end
 
-    it "skips unknown repository ladder rungs" do
-      repository.update!(merge_train_failure_policy: [ "future_rung", "keep_assembly" ])
+    it "skips unknown repository .syrus.yml ladder rungs" do
+      stub_merge_train_failure_ladder([ "future_rung", "keep_assembly" ])
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
@@ -228,8 +233,8 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_landing
     end
 
-    it "stops the repository ladder at the automatic retry budget" do
-      repository.update!(merge_train_failure_policy: [ "future_1", "future_2", "future_3", "keep_assembly" ])
+    it "stops the repository .syrus.yml ladder at the automatic retry budget" do
+      stub_merge_train_failure_ladder([ "future_1", "future_2", "future_3", "keep_assembly" ])
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
@@ -309,7 +314,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
         coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
-        merge_train: SyrusYml::MergeTrainConfig.new(failure_rungs: [ "multisect" ]),
+        merge_train: SyrusYml::MergeTrainConfig.new(failure_policy: nil, failure_rungs: [ "multisect" ]),
         project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil
       )
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
