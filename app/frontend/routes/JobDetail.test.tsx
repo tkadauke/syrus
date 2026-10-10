@@ -12,7 +12,8 @@ import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttach
 import { ShortcutsProvider } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { Page } from "../components/ui"
-import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
+import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
+import { FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
@@ -3290,6 +3291,11 @@ describe("FeedbackHistoryPanel", () => {
 })
 
 describe("ArtifactsTab", () => {
+  function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
+    if (artifacts.length === 0) return <p>No artifacts.</p>
+    return <TypedArtifactPanel artifacts={artifacts} />
+  }
+
   function renderArtifactsTab(artifacts: TypedArtifact[]) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
@@ -3307,9 +3313,9 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText("No artifacts.")).toBeInTheDocument()
   })
 
-  it("shows the artifact title as a section header", () => {
+  it("shows the artifact title on the artifact card", () => {
     renderArtifactsTab([{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }])
-    expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
+    expect(screen.getByText("Schema ERD")).toBeInTheDocument()
   })
 
   it("renders erd_diagram: table names and column lists", () => {
