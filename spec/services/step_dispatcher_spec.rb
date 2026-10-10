@@ -1822,6 +1822,40 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(loop_wf.failure_count).to eq(1)
     end
 
+    it "records the grader loop decision when no template loop node matches" do
+      loop_wf = Workflow.create!(
+        job: job,
+        trigger_kind: "manual",
+        chain_template: [
+          { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement adversarial_review ] }
+        ]
+      )
+      grade = Step.create!(workflow: loop_wf, kind: "grade", position: 0, iteration: 1, loop_id: "loop-a")
+
+      WorkflowActivity.synchronously do
+        described_class.fail_from(grade)
+      end
+
+      event = grader_loop_decision_for(grade)
+      expect(event.reason_key).to eq("grader_loop_no_matching_node")
+      expect(event.metadata).to include(
+        "outcome" => "grader_loop_no_matching_node",
+        "loop_id" => "loop-a",
+        "iteration" => 1,
+        "loop_node_matched" => false,
+        "actual_step_kinds" => %w[ grade ],
+        "comparable_step_kinds" => %w[ grade ]
+      )
+      expect(event.metadata.fetch("candidate_expected_step_kinds")).to contain_exactly(
+        include(
+          "type" => "loop",
+          "expected_step_kinds" => contain_exactly(%w[ implement adversarial_review ], %w[ adversarial_review ], %w[ implement ]),
+          "max_iterations" => 2
+        )
+      )
+      expect(loop_wf.reload).to be_failed
+    end
+
     it "fails the workflow and cancels post-loop steps when grade exhausts the loop budget" do
       loop_wf = workflow_with_loop(max_iterations: 1)
       loop_wf.start!; loop_wf.save!
@@ -1829,7 +1863,9 @@ RSpec.describe StepDispatcher, :ci_only do
       summarize = loop_wf.steps.find_by!(kind: "summarize")
       pr_open = loop_wf.steps.find_by!(kind: "pr_open")
 
-      described_class.fail_from(grade)
+      WorkflowActivity.synchronously do
+        described_class.fail_from(grade)
+      end
 
       expect(loop_wf.reload).to be_failed
       expect(loop_wf.failure_reason).to eq("loop_exhausted_after_grader_failure")
@@ -1838,6 +1874,19 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(summarize.cancellation_reason).to eq("loop_exhausted_after_grader_failure")
       expect(pr_open.reload).to be_cancelled
       expect(pr_open.cancellation_reason).to eq("loop_exhausted_after_grader_failure")
+      expect(grader_loop_decision_for(grade)).to have_attributes(
+        reason_key: "grader_loop_budget_exhausted",
+        metadata: include(
+          "outcome" => "grader_loop_budget_exhausted",
+          "loop_id" => "loop-a",
+          "iteration" => 1,
+          "max_iterations" => 1,
+          "loop_node_matched" => true,
+          "actual_step_kinds" => %w[ implement grade ],
+          "comparable_step_kinds" => %w[ implement grade ],
+          "matched_node" => include("expected_step_kinds" => include(%w[ implement grade ]))
+        )
+      )
     end
 
     it "hard-fails the workflow when a non-grade step inside a loop fails" do
@@ -2077,9 +2126,11 @@ RSpec.describe StepDispatcher, :ci_only do
       second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
       add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
 
-      expect {
-        described_class.fail_from(second_collect)
-      }.not_to change { retry_workflow.steps.count }
+      WorkflowActivity.synchronously do
+        expect {
+          described_class.fail_from(second_collect)
+        }.not_to change { retry_workflow.steps.count }
+      end
 
       expect(retry_workflow.reload).to be_failed
       expect(retry_workflow.failure_reason).to eq("grader_loop_no_progress")
@@ -2094,6 +2145,23 @@ RSpec.describe StepDispatcher, :ci_only do
         %w[spec/a_spec.rb spec/b_spec.rb]
       ])
       expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_nil
+      expect(grader_loop_decision_for(second_collect)).to have_attributes(
+        reason_key: "grader_loop_no_progress",
+        metadata: include(
+          "outcome" => "grader_loop_no_progress",
+          "loop_id" => "grade-loop",
+          "iteration" => 2,
+          "max_iterations" => 3,
+          "loop_node_matched" => true,
+          "actual_step_kinds" => %w[ landing_fix grader_fanout grader grader_collect ],
+          "comparable_step_kinds" => %w[ landing_fix grader_fanout grader_collect ],
+          "progress" => include(
+            "verdict" => "stop",
+            "stop" => true,
+            "payload" => include("reason" => "grader_loop_no_progress")
+          )
+        )
+      )
     end
 
     it "continues a retry_until grader loop while the failing set shrinks" do
@@ -2105,13 +2173,28 @@ RSpec.describe StepDispatcher, :ci_only do
       second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
       add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb])
 
-      expect {
-        described_class.fail_from(second_collect)
-      }.to change { Run.count }.by(1)
+      WorkflowActivity.synchronously do
+        expect {
+          described_class.fail_from(second_collect)
+        }.to change { Run.count }.by(1)
+      end
 
       expect(retry_workflow.reload).to be_queued
       expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
       expect(job.reload.needs_attention_reason).to be_nil
+      expect(grader_loop_decision_for(second_collect)).to have_attributes(
+        reason_key: "grader_loop_repair_enqueued",
+        metadata: include(
+          "outcome" => "grader_loop_repair_enqueued",
+          "loop_id" => "grade-loop",
+          "iteration" => 2,
+          "max_iterations" => 3,
+          "loop_node_matched" => true,
+          "actual_step_kinds" => %w[ landing_fix grader_fanout grader grader_collect ],
+          "comparable_step_kinds" => %w[ landing_fix grader_fanout grader_collect ],
+          "progress" => include("verdict" => "continue", "stop" => false, "payload" => nil)
+        )
+      )
     end
 
     it "stops a retry_until grader loop when a repair trades failures instead of shrinking the set" do
@@ -2900,6 +2983,13 @@ RSpec.describe StepDispatcher, :ci_only do
     allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(run, "rspec").and_return(failures)
     collect_step.reload
     grader
+  end
+
+  def grader_loop_decision_for(step)
+    WorkflowActivityEvent
+      .where(event_type: "grader_loop_decision", step: step)
+      .order(:id)
+      .last
   end
 
   def workflow_with_loop(max_iterations:)
