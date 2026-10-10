@@ -177,7 +177,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
         coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
-        merge_train: SyrusYml::MergeTrainConfig.new(failure_rungs: [ "multisect" ], multisect_section_width: 2),
+        merge_train: SyrusYml::MergeTrainConfig.new(failure_rungs: [ "multisect" ]),
         project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil
       )
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
@@ -187,6 +187,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
         reproduced = role == "oracle" || members.any? { |member| member.job_id == a.id }
         MergeTrainMultisect::Evaluation.new(reproduced, "stubbed", {})
       end
+      AppSetting.current.update!(merge_train_multisect_section_width: 2)
 
       described_class.call(workflow: workflow)
 

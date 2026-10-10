@@ -97,13 +97,14 @@ Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
 uses the most recent `GraderLoopProgress#failing_set` as a focused selector,
 validates that the selector reproduces against the full assembly, checks the
 existing flaky/inherited-failure gates, then walks member sections with
-`section_width - 1` focused subset grades per round. When one graded section
-reproduces, Syrus also confirms the omitted section before narrowing so an
-interaction with the omitted section cannot be misreported as a single culprit.
-Multiple reproducing sections abort as an interaction failure; an empty selector
-or a non-reproducing oracle aborts without attribution. On success Syrus records
-a `merge_train_multisect` workflow artifact naming the attributed member.
-Automatic member withdrawal is not part of this rung.
+`AppSetting.merge_train_multisect_section_width - 1` focused subset grades per
+round. When one graded section reproduces, Syrus also confirms the omitted
+section before narrowing so an interaction with the omitted section cannot be
+misreported as a single culprit. Multiple reproducing sections abort as an
+interaction failure; an empty selector or a non-reproducing oracle aborts
+without attribution. On success Syrus records a `merge_train_multisect` workflow
+artifact naming the attributed member. Automatic member withdrawal is not part
+of this rung.
 
 ## Reconciliation phase
 
