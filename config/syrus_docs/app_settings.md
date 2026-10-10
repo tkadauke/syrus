@@ -45,6 +45,36 @@ Minimum number of repeated broken-main reports before the aggregator surfaces a 
 
 When true, approved Epic child Jobs do not land one-by-one. They wait until every open sibling is approved, then the Epic lands as a single atomic `merge_train` workflow. When false, approved Jobs land individually via `auto_merge`.
 
+### merge_train_failure_policy
+
+**Type:** string · **Default:** `restart` · **Options:** `restart`, `keep_assembly`
+
+What happens to an assembled merge train when its workflow fails.
+
+`restart` is the historical behaviour: the train is terminalized, its
+integration branch is deleted, and every member is handed back to
+`LandingFailureHandler` individually — transient blockers defer and stay
+approved, genuine failures revert to `implemented` and need re-approval. The
+next attempt re-derives its membership from the approved pool and regrades
+from scratch, so a train of a dozen Jobs stopped by one infrastructure
+failure discards the whole assembly.
+
+`keep_assembly` leaves the train and its integration branch intact **when the
+failed run was classified retryable** — a worker death, a rate limit, a disk
+or database capacity problem — so the retry reuses what was already
+assembled instead of rebuilding it. A failure attributable to a member's own
+code still tears the train down under this policy; preserving the assembly
+around a real defect would wedge the train on it indefinitely. An
+unclassifiable failure is treated as attributable, which keeps the behaviour
+conservative.
+
+This is the same preservation the continuation-retry path already performs,
+widened to any retryable failure.
+
+Splitting a failed train — landing the clean members while the rest re-train
+— is not offered. It needs a rule for attributing a failure to a particular
+member, and an unattributable failure would split the train arbitrarily.
+
 ### merge_train_max_size
 
 **Type:** integer · **Default:** 20 · **Min:** 1

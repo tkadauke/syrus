@@ -113,6 +113,44 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_approved
     end
 
+    it "keeps the assembly and integration branch on a retryable failure when the policy says so" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(train.members.first.reload.state).not_to eq("failed")
+      expect(a.reload).to be_landing
+    end
+
+    it "still tears the train down under keep_assembly when the failure is not retryable" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "grader_failure", retryable: false, confidence: 0.9,
+        reason: "required graders failed", classified_at: Time.current
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

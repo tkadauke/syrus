@@ -14,6 +14,7 @@ class MergeTrainFailureHandler
     train = merge_train
     return unless train
     return if preserve_train_for_continuation_retry?
+    return if preserve_train_for_failure_policy?
 
     reason = failure_reason
     unless train.terminal?
@@ -240,6 +241,23 @@ class MergeTrainFailureHandler
     return false unless failed_step
 
     @workflow.work_definition.retry_policy.continuation?(failed_step)
+  end
+
+  # `restart` (the default) tears the assembly down and hands every member
+  # back individually, so the next attempt rebuilds membership from the
+  # approved pool and regrades from scratch. Under `keep_assembly` an
+  # infrastructure failure leaves the train and its integration branch
+  # intact instead, so the retry reuses what was already assembled.
+  #
+  # Only retryable failures qualify. A member whose own code broke the train
+  # must still fail out; preserving the assembly around it would wedge the
+  # train on the same defect indefinitely. A failure we cannot classify is
+  # treated as attributable, which keeps the default conservative.
+  def preserve_train_for_failure_policy?
+    return false if @cancelled
+    return false unless AppSetting.merge_train_keeps_assembly_on_failure?
+
+    failed_run&.run_failure_classification&.retryable == true
   end
 
   def merge_train

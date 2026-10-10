@@ -135,6 +135,19 @@ class AppSettingRegistry
       surface: :admin_console
     ),
     Definition.new(
+      key: :merge_train_failure_policy,
+      type: :string,
+      default: "restart",
+      min: nil,
+      max: nil,
+      category: "Landing queue",
+      operational_meaning: "What happens to an assembled merge train when it fails: 'restart' discards the assembly and hands every member back individually; 'keep_assembly' preserves the train and its integration branch when the failure was infrastructure, so the retry reuses it.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :merge_train_max_size,
       type: :integer,
       default: 20,
@@ -587,7 +600,8 @@ class AppSettingRegistry
 
   def self.options_for(key)
     {
-      workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES
+      workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES,
+      merge_train_failure_policy: AppSetting::MERGE_TRAIN_FAILURE_POLICIES
     }[key.to_sym]
   end
 

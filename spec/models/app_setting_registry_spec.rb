@@ -38,6 +38,7 @@ RSpec.describe AppSettingRegistry do
       :adversarial_review_rounds,
       :max_job_failures,
       :rebase_failure_cooldown_minutes,
+      :merge_train_failure_policy,
       :merge_train_max_size,
       :signups_open,
       :telegram_bot_handle,

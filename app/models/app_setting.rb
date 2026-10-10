@@ -9,6 +9,26 @@ class AppSetting < ApplicationRecord
 
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
 
+  # What happens to an assembled merge train when its workflow fails.
+  #
+  #   restart       the historical behaviour: terminalize the train, delete
+  #                 the integration branch, and hand every member back to
+  #                 LandingFailureHandler. The next attempt re-derives its
+  #                 membership from the approved pool and regrades from
+  #                 scratch -- so a train of a dozen Jobs stopped by one
+  #                 infrastructure failure discards the whole assembly.
+  #   keep_assembly leave the train and its integration branch intact when
+  #                 the failure was infrastructure rather than a member's
+  #                 code, so the retry reuses the assembly. This is the same
+  #                 preservation the continuation-retry path already does,
+  #                 widened to any retryable failure.
+  #
+  # A third option -- splitting a failed train so clean members land while
+  # the rest re-train -- is deliberately not offered yet. It needs a rule for
+  # attributing a failure to a member, and an unattributable failure would
+  # split the train arbitrarily.
+  MERGE_TRAIN_FAILURE_POLICIES = %w[restart keep_assembly].freeze
+
   AppSettingRegistry.definitions.each do |definition|
     next unless definition.numericality_options
 
@@ -20,6 +40,7 @@ class AppSetting < ApplicationRecord
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
+  validates :merge_train_failure_policy, inclusion: { in: MERGE_TRAIN_FAILURE_POLICIES }
   validates :singleton_key, inclusion: { in: [ SINGLETON_KEY ] }
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
@@ -133,6 +154,14 @@ class AppSetting < ApplicationRecord
   # off; landing keeps the per-Job auto_merge path until enabled.
   def self.merge_train_enabled?
     current.merge_train_enabled
+  end
+
+  def self.merge_train_failure_policy
+    current.merge_train_failure_policy.presence_in(MERGE_TRAIN_FAILURE_POLICIES) || "restart"
+  end
+
+  def self.merge_train_keeps_assembly_on_failure?
+    merge_train_failure_policy == "keep_assembly"
   end
 
   def self.merge_train_max_size
