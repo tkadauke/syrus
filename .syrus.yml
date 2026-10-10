@@ -393,7 +393,6 @@ grade:
       enabled: true
       rspec_modes: [full, focused, ci]
       group_by: runtime
-      runtime_log: config/rspec_runtime_baseline.log
       allowed_missing: 100
       unknown_runtime: 0.1
       exec_args: bin/rspec-worker

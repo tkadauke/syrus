@@ -424,6 +424,44 @@ RSpec.describe Steps::Grader, :ci_only do
     ])
   end
 
+  it "materializes grader inputs after prepare targets and before the grader command" do
+    step.update!(details: step.details.merge(
+      "command" => "bin/rspec",
+      "runtime_profile_destination" => ".syrus/parallel_runtime_tests.log",
+      "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
+    ))
+    events = []
+    provider = Class.new do
+      class << self
+        attr_accessor :events
+
+        def materialize_grader_inputs(context)
+          events << "materialize:#{context.destination_path}"
+        end
+      end
+    end
+    provider.events = events
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_input_materializer).and_return([ provider ])
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      events << kwargs[:command].last
+      instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false,
+        silent_timed_out: false, operator_killed: false,
+        aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+      ))
+    end
+
+    handler.call
+
+    expect(events).to eq([
+      "npm ci",
+      "materialize:.syrus/parallel_runtime_tests.log",
+      "bin/rspec"
+    ])
+  end
+
   it "runs nested prepare targets from their project directory" do
     FileUtils.mkdir_p(@ws_path.join("cli"))
     step.update!(details: step.details.merge(
