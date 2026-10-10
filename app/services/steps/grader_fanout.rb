@@ -65,7 +65,7 @@ module Steps
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
       if (plan.rerun_only_failed? || retrying_transient_only_failure? || retrying_no_change_repair?) && step.iteration > 1
-        passed_steps_by_name = previous_iteration_passed_steps_by_name
+        passed_steps_by_name = reusable_passed_steps_by_name
         active_graders, carried_forward = if retrying_transient_only_failure?
           partition_transient_retry_graders(active_graders, passed_steps_by_name, reason: "passed before infrastructure-only retry")
         elsif retrying_no_change_repair?
@@ -82,13 +82,14 @@ module Steps
             else
               "rerun_only_failed; #{result.reason}"
             end
-            log("[grader_fanout] skipping #{grader.name} (passed iteration #{step.iteration - 1}; #{reason}) [#{target_label_for(grader)}]")
+            source_iteration = passed_steps_by_name[grader.name]&.iteration || step.iteration - 1
+            log("[grader_fanout] skipping #{grader.name} (passed iteration #{source_iteration}; #{reason}) [#{target_label_for(grader)}]")
           end
           record_carried_forward_graders!(carried_forward, passed_steps_by_name)
         end
       end
 
-      active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled?
+      active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled? && !code_changing_repair_for_this_iteration?
 
       if active_graders.empty?
         record_fanout_outcome!("all_graders_skipped")
@@ -238,18 +239,44 @@ module Steps
       end.uniq
     end
 
-    # Graders that succeeded on the immediately preceding iteration, keyed by
-    # name. `rerun_only_failed` only looks back one iteration (not the full
-    # history). A previous pass is only reusable when current target-health
-    # fingerprints still prove the target and executable dependencies. That
-    # keeps retry repairs from skipping a grader whose inputs changed.
-    def previous_iteration_passed_steps_by_name
+    # Most recent succeeded grader Step for each name that still belongs to the
+    # current checkout. Partial retries can skip a grader for one or more
+    # iterations; the next retry should still carry that pass forward. A repair
+    # Run that commits a real diff starts a new checkout boundary, so older
+    # grader Steps are not reusable for this fanout.
+    def reusable_passed_steps_by_name
       return {} if step.loop_id.blank?
 
+      lower_bound = last_code_changing_repair_iteration.to_i
       workflow.steps
-              .where(kind: "grader", loop_id: step.loop_id, iteration: step.iteration - 1, state: "succeeded")
-              .filter_map { |s| [ s.details && s.details["name"], s ] if s.details && s.details["name"] }
-              .to_h
+              .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
+              .where("iteration > ? AND iteration < ?", lower_bound, step.iteration)
+              .order(iteration: :desc, position: :desc)
+              .each_with_object({}) do |s, memo|
+                name = s.details && s.details["name"]
+                memo[name] ||= s if name
+              end
+    end
+
+    def last_code_changing_repair_iteration
+      return @last_code_changing_repair_iteration if defined?(@last_code_changing_repair_iteration)
+
+      @last_code_changing_repair_iteration = workflow.steps
+              .where(loop_id: step.loop_id)
+              .where("iteration <= ?", step.iteration)
+              .where.not(kind: %w[grader grader_fanout grader_collect format generate])
+              .includes(:runs)
+              .select { |repair_step| repair_step.runs.any? { |repair_run| code_changing_repair_run?(repair_run) } }
+              .map(&:iteration)
+              .max
+    end
+
+    def code_changing_repair_for_this_iteration?
+      last_code_changing_repair_iteration == step.iteration
+    end
+
+    def code_changing_repair_run?(repair_run)
+      repair_run.head_sha.present? || repair_run.step_agent_diff.present?
     end
 
     def partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
@@ -263,7 +290,7 @@ module Steps
           true
         else
           forced = forced_target_health_entry(grader, result, reason: carry_forward_blocked_reason(grader, result)).merge(
-            "source_iteration" => step.iteration - 1,
+            "source_iteration" => passed_steps_by_name[grader.name]&.iteration || step.iteration - 1,
             "carry_forward_blocked" => true
           )
           record_target_health_forced!([ forced ])
@@ -356,7 +383,7 @@ module Steps
           "name" => grader.name,
           "required" => grader.required,
           "target_label" => target_label_for(grader),
-          "source_iteration" => step.iteration - 1,
+          "source_iteration" => passed_steps_by_name[grader.name]&.iteration || step.iteration - 1,
           "reason" => result.reason,
           "target_fingerprints" => result.fingerprints.to_h,
           "target_health_record_refs" => result.record_refs,

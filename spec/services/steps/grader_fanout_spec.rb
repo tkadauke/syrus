@@ -1987,7 +1987,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   end
 
   describe "grade.rerun_only_failed" do
-    def create_prior_grader_step(name:, state:, iteration: 1)
+    def create_prior_grader_step(name:, state:, iteration: 1, details: {})
       Step.create!(
         workflow: workflow,
         kind: "grader",
@@ -1995,18 +1995,22 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         iteration: iteration,
         loop_id: loop_id,
         state: state,
-        details: { "name" => name, "required" => true }
+        details: { "name" => name, "required" => true }.merge(details)
       )
     end
 
-    def build_iteration_two_handler
-      collect2 = Step.create!(workflow: workflow, kind: "grader_collect", position: 202, iteration: 2, loop_id: loop_id)
-      fanout2 = Step.create!(workflow: workflow, kind: "grader_fanout", position: 201, iteration: 2, loop_id: loop_id, next_step_id: collect2.id)
-      run2 = fanout2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: fanout2.iteration)
-      handler2 = described_class.new(run2)
+    def build_iteration_handler(iteration)
+      collect_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 100 + iteration * 100 + 2, iteration: iteration, loop_id: loop_id)
+      fanout_step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 100 + iteration * 100 + 1, iteration: iteration, loop_id: loop_id, next_step_id: collect_step.id)
+      run = fanout_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: fanout_step.iteration)
+      handler = described_class.new(run)
       fake_ws2 = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
-      allow(handler2).to receive(:workspace).and_return(fake_ws2)
-      handler2
+      allow(handler).to receive(:workspace).and_return(fake_ws2)
+      handler
+    end
+
+    def build_iteration_two_handler
+      build_iteration_handler(2)
     end
 
     it "runs every active grader on the first iteration even when the flag is on" do
@@ -2070,6 +2074,42 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       )
       expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
         include("name" => "lint", "reason" => "passed before infrastructure-only retry")
+      )
+    end
+
+    it "carries forward a grader that passed two iterations ago and was skipped during the intervening infrastructure retry" do
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+
+      handler.call
+      prior_graders = workflow.steps.where(kind: "grader", iteration: 1).index_by { |grader| grader.details["name"] }
+      prior_graders.fetch("tests").update_columns(state: "failed")
+      prior_graders.fetch("lint").update_columns(state: "succeeded")
+      collect_step.update_columns(
+        state: "failed",
+        details: { Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true }
+      )
+
+      build_iteration_two_handler.call
+      workflow.steps.where(kind: "grader", iteration: 2).sole.update_columns(state: "failed")
+      workflow.steps.find_by!(kind: "grader_collect", iteration: 2, loop_id: loop_id).update_columns(
+        state: "failed",
+        details: { Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true }
+      )
+
+      build_iteration_handler(3).call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 3).pluck(:details)).to contain_exactly(
+        include("name" => "tests")
+      )
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
+        include("name" => "lint", "reason" => "passed before infrastructure-only retry", "source_iteration" => 1)
       )
     end
 
@@ -2139,6 +2179,41 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       build_iteration_two_handler.call
 
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+    end
+
+    it "does not carry a pass across a repair iteration that committed a real diff" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+      create_prior_grader_step(name: "tests", state: "failed")
+      create_prior_grader_step(name: "lint", state: "succeeded")
+      record_target_health("//:grade/lint", status: "passed")
+      repair_step = Step.create!(
+        workflow: workflow,
+        kind: "landing_fix",
+        position: 150,
+        iteration: 2,
+        loop_id: loop_id
+      )
+      repair_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        head_sha: "fixed123",
+        step_agent_diff: "diff --git a/app.rb b/app.rb\n+fix"
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to eq([])
     end
 
     it "carries forward a previously passing required grader only when target health still proves the current fingerprints" do
