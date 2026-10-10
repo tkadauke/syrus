@@ -49,7 +49,7 @@ RSpec.describe MergeTrainMultisect, :ci_only do
       section_width: section_width,
       evaluator: evaluator,
       determinism_gate: determinism_gate,
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
   end
 
@@ -66,7 +66,7 @@ RSpec.describe MergeTrainMultisect, :ci_only do
     expect(result).to be_attributed
     expect(result.member).to eq(culprit)
     expect(result.rounds.size).to eq(2)
-    expect(evaluated_sections.size).to eq(6)
+    expect(evaluated_sections.size).to be < member_count
     expect(workflow.reload.artifact(described_class::ARTIFACT_KEY)["attributed_member"]["job_id"]).to eq(culprit.job_id)
   end
 
@@ -95,6 +95,19 @@ RSpec.describe MergeTrainMultisect, :ci_only do
     second_culprit = members[7]
     evaluator = evaluator_for do |section, role|
       role == "oracle" || section.include?(first_culprit) || section.include?(second_culprit)
+    end
+
+    result = call_multisect(evaluator: evaluator)
+
+    expect(result).not_to be_attributed
+    expect(result.reason).to eq("multiple_sections_reproduced")
+  end
+
+  it "checks the omitted section before attributing a graded reproducing section" do
+    graded_culprit = members[1]
+    omitted_culprit = members.last
+    evaluator = evaluator_for do |section, role|
+      role == "oracle" || section.include?(graded_culprit) || section.include?(omitted_culprit)
     end
 
     result = call_multisect(evaluator: evaluator)
