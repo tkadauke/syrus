@@ -1345,7 +1345,8 @@ module WorkEngine
         def plan
           waiting_plan(
             "wait_for_main_health",
-            "Main branch health is blocking start, so this should wait for the health signal to recover."
+            "Main branch health is blocking start, so this should wait for the health signal to recover.",
+            target: primary_workflow
           )
         end
       end
