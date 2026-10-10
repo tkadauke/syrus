@@ -75,6 +75,27 @@ RSpec.describe Repository do
     expect(repo.epic_dependency_policy).to eq("linear")
   end
 
+  it "defaults merge train failure policy to the instance ladder" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+
+    expect(repo.merge_train_failure_policy).to be_nil
+    expect(repo.merge_train_failure_policy_ladder).to eq([ "keep_assembly" ])
+  end
+
+  it "normalizes merge train failure policy to an ordered rung list" do
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets", merge_train_failure_policy: "restart, keep_assembly")
+
+    expect(repo.merge_train_failure_policy).to eq([ "restart", "keep_assembly" ])
+  end
+
+  it "rejects malformed merge train failure policy values" do
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", merge_train_failure_policy: { "rung" => "restart" })
+
+    expect(repo).not_to be_valid
+    expect(repo.errors[:merge_train_failure_policy]).to be_present
+  end
+
   it "rejects unknown Epic dependency policies" do
     repo = Repository.new(user: owner, owner: "acme", name: "widgets", epic_dependency_policy: "mesh")
     expect(repo).not_to be_valid

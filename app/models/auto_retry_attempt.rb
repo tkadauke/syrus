@@ -93,6 +93,10 @@ class AutoRetryAttempt < ApplicationRecord
     where(workflow: workflow).retry_workflow.unskipped.exists?
   end
 
+  def self.retry_budget_limit_for(classification)
+    classification == WORKER_DIED_CLASSIFICATION ? MAX_WORKER_DIED_ATTEMPTS : MAX_ATTEMPTS
+  end
+
   def self.prune_stale_pending!(limit: 1_000)
     count = 0
 
