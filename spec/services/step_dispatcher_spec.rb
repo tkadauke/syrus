@@ -45,6 +45,36 @@ RSpec.describe StepDispatcher, :ci_only do
     s2.update!(next_step_id: s3.id)
   end
 
+  describe ".fail_from" do
+    it "expands a retry_until failure branch after the bounded grader loop exhausts" do
+      train_workflow = Workflows::MergeTrain.instantiate(
+        job: job,
+        artifacts: { "merge_train_id" => MergeTrain.create!(repository: job.repository, priority: job.priority, base_branch: "main").id }
+      )
+      train_workflow.update!(state: "running")
+      collect = train_workflow.steps.find_by!(kind: "grader_collect")
+      collect.previous_step.update_columns(iteration: AppSetting.grade_max_iterations)
+      collect.update_columns(
+        state: "failed",
+        iteration: AppSetting.grade_max_iterations,
+        finished_at: Time.current
+      )
+      dispatcher = described_class.new(train_workflow, advancing_from: collect)
+      loop_node = dispatcher.send(:loop_node_for, collect)
+
+      expect(dispatcher.send(:retry_until_failure_branch_nodes, loop_node)).to be_present
+
+      described_class.fail_from(collect)
+
+      inserted = train_workflow.reload.steps.where("position > ?", collect.position).order(:position).limit(5)
+      expect(inserted.pluck(:kind)).to eq(%w[merge_train_agent prepare grader_fanout grader_collect merge_train_land])
+      expect(inserted.last.position).to be > inserted.find { |step| step.kind == "grader_collect" }.position
+      expect(train_workflow.steps.where(kind: "merge_train_land").order(:position).first).to be_queued
+      expect(train_workflow.steps.where(kind: "merge_train_land").order(:position).last).to be_cancelled
+      expect(train_workflow).to be_running
+    end
+  end
+
   def clear_live_worker_queues!
     ensure_solid_queue_test_tables!
     clear_solid_queue_test_tables!
