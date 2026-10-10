@@ -169,6 +169,7 @@ export type ChatProposal = {
   app_confirm_path: string
   app_reject_path: string
   depends_on_job_ids?: number[]
+  dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   goal_provenance?: GoalProvenance | null
   media_ids?: string[]
@@ -208,6 +209,7 @@ export type ChatProposalChild = {
   repository_slug: string | null
   dependencies: string[]
   depends_on_job_ids?: number[]
+  dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   provider_setting?: string | null
   goal_provenance?: GoalProvenance | null
@@ -268,6 +270,13 @@ export type ChatProposalUpdateInput = {
   media_ids?: string[]
   target_epic_id?: number | null
   route_to_backlog?: boolean
+}
+
+export type ChatProposalDependencyRequirement = {
+  job_id?: number
+  proposal_slug?: string
+  satisfaction_mode: "success" | "closed" | "deployment_stage"
+  required_deployment_stage_name?: string | null
 }
 
 export type ChatMediaSnapshot = {

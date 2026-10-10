@@ -120,6 +120,19 @@ module Mcp::Tools
               description: { type: "string", description: "Markdown child Job prompt/body for a reviewable, landable implementation Job. Do not use Epic children for spike, audit-only, discovery-only, or investigation-style work; propose a standalone investigation=true Job for read-only exploration. Documentation belongs here only when it directly supports the product/code/config change being landed, usually in the same child Job as that change. Stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
+              dependency_requirements: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    job_id: { type: "integer" },
+                    proposal_slug: { type: "string" },
+                    satisfaction_mode: { type: "string", enum: JobDependency::SATISFACTION_MODES },
+                    required_deployment_stage_name: { type: "string" }
+                  }
+                },
+                description: "Optional per-dependency requirements for this child. Bare depends_on_job_ids and depends_on slugs default to success. Deployment-stage gates against sibling or unconfirmed proposal slugs are rejected."
+              },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
               planned_execution: {
@@ -177,6 +190,15 @@ module Mcp::Tools
         return Mcp::Tools.invalid(explicit_branching_error) if explicit_branching_error
 
         default_linear_sibling_dependencies(normalized_jobs, target_epic)
+        normalized_jobs.each do |job|
+          job[:dependency_requirements] = ProposalJobDependencyRequirements.normalize(
+            job[:raw_dependency_requirements],
+            depends_on_job_ids: job[:depends_on_job_ids],
+            depends_on_slugs: job[:depends_on]
+          )
+          job[:depends_on_job_ids] = job[:dependency_requirements].filter_map { |requirement| requirement["job_id"] }
+          job[:depends_on] = normalize_string_list(job[:depends_on]) | job[:dependency_requirements].filter_map { |requirement| requirement["proposal_slug"] }
+        end
         validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs, target_epic)
         return Mcp::Tools.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
@@ -262,6 +284,8 @@ module Mcp::Tools
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
           depends_on_job_ids: normalize_integer_list(job["depends_on_job_ids"]),
           depends_on: normalize_string_list(job["depends_on"]),
+          raw_dependency_requirements: job["dependency_requirements"],
+          dependency_requirements: [],
           provider_setting: provider_setting,
           provider_error: provider_error,
           planned_execution: job["planned_execution"],
@@ -358,6 +382,18 @@ module Mcp::Tools
           return "proposal item #{job[:slug]} target_repo is required" if job[:target_repo].empty?
           return "proposal item #{job[:slug]} cannot depend on itself" if job[:depends_on].include?(job[:slug])
           return "proposal item #{job[:slug]} #{job[:provider_error]}" if job[:provider_error]
+        end
+
+        jobs.each do |job|
+          sibling_stage_gate = job[:dependency_requirements].find do |requirement|
+            requirement["satisfaction_mode"] == "deployment_stage" && slugs.include?(requirement["proposal_slug"])
+          end
+          if sibling_stage_gate
+            return "proposal item #{job[:slug]} cannot use deployment-stage gating for unresolved sibling proposal #{sibling_stage_gate.fetch("proposal_slug")}"
+          end
+          ProposalJobDependencyRequirements.validate!(user: user, requirements: job[:dependency_requirements])
+        rescue ArgumentError => e
+          return "proposal item #{job[:slug]} #{e.message}"
         end
 
         dependency_slugs = jobs.flat_map { |job| job[:depends_on] }.uniq
@@ -531,6 +567,7 @@ module Mcp::Tools
             labels: nil,
             depends_on_epic_ids: job[:depends_on_epic_ids],
             depends_on_job_ids: job[:depends_on_job_ids],
+            dependency_requirements: job[:dependency_requirements],
             provider_setting: job[:provider_setting],
             **job.fetch(:planned_execution_attrs),
             media_ids: job[:media_ids],
@@ -585,6 +622,7 @@ module Mcp::Tools
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
+              dependency_requirements: child.dependency_requirements || [],
               provider_setting: child.provider_setting,
               goal_provenance: App::GoalProvenancePayload.for(child),
               depends_on: child.dependencies.order(:slug).pluck(:slug)

@@ -775,6 +775,15 @@ Job targets whose upstream repository declares that stage in `deployment_stages`
 Syrus rejects unknown or untracked stages instead of creating a dependency that
 cannot unblock.
 
+`propose_job` and `propose_epic_with_jobs` can carry the same per-dependency
+gate through `dependency_requirements`. Existing `depends_on_job_ids` and
+proposal-slug `depends_on` values still default to `success`; use
+`dependency_requirements` only when a specific dependency needs `closed` or
+`deployment_stage`. Deployment-stage gates against proposal slugs are accepted
+only after that proposal has already materialized to a Job. Sibling or otherwise
+unresolved proposal targets are rejected because Syrus cannot validate their
+repository stage configuration yet.
+
 A `propose_job` card with `epic_id` set targets an existing Epic — confirming
 it adds the Job as that Epic's child instead of creating an epicless direct
 Job. The proposal edit modal shows the target Epic as a removable pill; an

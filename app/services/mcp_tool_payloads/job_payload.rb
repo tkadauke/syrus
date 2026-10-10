@@ -89,13 +89,23 @@ module McpToolPayloads
           unresolved_ref: dependency.unresolved_slug,
           unresolved_ref_kind: dependency.pending_reference_kind,
           unresolved_ref_state: dependency.pending_reference_state,
-          source: dependency.source
+          source: dependency.source,
+          satisfaction_mode: dependency.satisfaction_mode,
+          required_deployment_stage_name: dependency.required_deployment_stage_name
         }
       elsif dependency.depends_on_job
-        job_reference_payload(dependency.depends_on_job)
+        job_reference_payload(dependency.depends_on_job).merge(dependency_requirement_payload(dependency))
       elsif dependency.depends_on_epic
-        epic_reference_payload(dependency.depends_on_epic)
+        epic_reference_payload(dependency.depends_on_epic).merge(dependency_requirement_payload(dependency))
       end
+    end
+
+    def dependency_requirement_payload(dependency)
+      {
+        satisfaction_mode: dependency.satisfaction_mode,
+        required_deployment_stage_name: dependency.required_deployment_stage_name,
+        source: dependency.source
+      }
     end
 
     # Cross-epic reference included in dependency lists.
