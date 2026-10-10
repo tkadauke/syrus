@@ -240,7 +240,7 @@ function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: Dashbo
   if (bulkAction === "assign_owner") return open
   if (bulkAction === "set_priority") return open
   if (bulkAction === "approve") return Boolean(job.can_approve)
-  if (bulkAction === "accept_triage") return job.state === "triaging" && job.triaging_reason === "classifier_uncertain"
+  if (bulkAction === "accept_triage") return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
   if (bulkAction === "close") return job.state !== "closed"
 
   return false
