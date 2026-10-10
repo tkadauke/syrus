@@ -1403,6 +1403,54 @@ describe("JobDetailView", () => {
     expect(screen.queryByText(/once that PR merges/)).not.toBeInTheDocument()
   })
 
+  it("describes deployment-stage blockers with the required stage instead of same-epic ordering", () => {
+    const dependency = {
+      id: 12,
+      source: "manual",
+      satisfaction_mode: "deployment_stage" as const,
+      required_deployment_stage_name: "staging",
+      manual: true,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 5762,
+        kind: "issue",
+        state: "closed",
+        summary_state: "closed",
+        epic_id: 18,
+        repository_slug: "tkadauke/syrus",
+        issue_number: 5762,
+        issue_title: "Add overview briefing base",
+        branch_name: "syrus/issue-5762",
+        pr_number: 5762,
+        job_path: "/jobs/5762"
+      }
+    }
+
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", summary_state: "queued", epic_id: 18 },
+        epic: {
+          id: 18,
+          number: 18,
+          display_number: "EPIC-18",
+          title: "Operator briefing",
+          state: "in_progress",
+          epic_path: "/epics/18"
+        },
+        dependencies: [dependency],
+        unsatisfied_dependencies: [dependency]
+      })
+    )
+
+    expect(screen.getByText(/waiting for deployment stage staging/)).toBeInTheDocument()
+    expect(screen.getByText("Waits for deployment stage: staging")).toBeInTheDocument()
+    expect(screen.queryByText(/waiting on the Epic's dependency order/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/once that PR merges/)).not.toBeInTheDocument()
+  })
+
   it("hides same-epic dependency blockers while the job is actively implementing", () => {
     const dependency = {
       id: 12,
