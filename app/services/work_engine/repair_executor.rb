@@ -408,7 +408,7 @@ module WorkEngine
         end
 
         def retry_budget_limit(classification)
-          classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
+          AutoRetryAttempt.retry_budget_limit_for(classification)
         end
 
         DELAYED_RETRY_DEDUP_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
