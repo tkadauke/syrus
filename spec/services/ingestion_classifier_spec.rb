@@ -333,6 +333,76 @@ RSpec.describe IngestionClassifier do
     expect(job.triaging_uncertainty_reason).to include("classifier returned unknown Epic")
   end
 
+  it "leaves infrastructure-shaped exceptions eligible for another classification pass" do
+    job = Job.create!(user: user, repository: repository, issue_number: 120)
+    stub_agent_text(JSON.generate(
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    ))
+    classifier = described_class.new(job: job, github_client: github_client)
+    allow(classifier).to receive(:apply).and_raise(
+      ActiveModel::MissingAttributeError,
+      "can't write unknown attribute `job_id`"
+    )
+
+    result = nil
+
+    expect {
+      result = classifier.call
+    }.not_to raise_error
+
+    expect(job.reload).to be_triaging
+    expect(job.triaging_reason).to eq("classifier_pending")
+    expect(job.triaging_uncertainty_reason).to be_nil
+    expect(job.classifier_attempts).to eq(1)
+    expect(result).not_to be_success
+    expect(result.error).to include("ActiveModel::MissingAttributeError")
+    attempt = job.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "errored"
+    )
+    expect(attempt.error).to include("ActiveModel::MissingAttributeError")
+    expect(attempt.error).to include("can't write unknown attribute")
+  end
+
+  it "parks infrastructure-shaped exceptions for human triage after the retry budget is spent" do
+    job = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 121,
+      classifier_attempts: Job::MAX_CLASSIFIER_ATTEMPTS - 1
+    )
+    stub_agent_text(JSON.generate(
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
+    ))
+    classifier = described_class.new(job: job, github_client: github_client)
+    allow(classifier).to receive(:apply).and_raise(
+      ActiveModel::MissingAttributeError,
+      "can't write unknown attribute `job_id`"
+    )
+
+    expect {
+      classifier.call
+    }.not_to raise_error
+
+    expect(job.reload).to be_triaging
+    expect(job.triaging_reason).to eq("classifier_uncertain")
+    expect(job.triaging_uncertainty_reason).to include("ActiveModel::MissingAttributeError")
+    expect(job.triaging_uncertainty_reason).to include("can't write unknown attribute")
+    expect(job.classifier_attempts).to eq(Job::MAX_CLASSIFIER_ATTEMPTS)
+    attempt = job.classification_attempts.sole
+    expect(attempt).to have_attributes(
+      started_at: be_present,
+      finished_at: be_present,
+      outcome: "errored"
+    )
+    expect(attempt.error).to include("ActiveModel::MissingAttributeError")
+    expect(attempt.error).to include("can't write unknown attribute")
+  end
+
   it "attributes a classification spawned process to its Job and attempt" do
     job = Job.create!(user: user, repository: repository, issue_number: 118)
     process = nil
