@@ -102,6 +102,81 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.third.metadata["grader_mode"]).to eq("ci")
   end
 
+  it "keeps the default expansion when explicit paths are configured without fixed full-path mode" do
+    steps = described_class.grade_steps(
+      config: {
+        "name" => "simulation-specs",
+        "paths" => [ "spec/services/simulation_spec.rb" ],
+        "phases" => %w[review landing ci]
+      },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:name)).to eq(%w[simulation-specs simulation-specs-focused simulation-specs-ci])
+    expect(steps.map(&:phases)).to eq([ %w[landing], %w[review], %w[ci] ])
+    expect(steps.first.run).to include("spec/services/simulation_spec.rb")
+    expect(steps.second.run).to include(".syrus/rspec-focused-files")
+    expect(steps.third.run).to include("RUN_CI_ONLY_SPECS=true")
+  end
+
+  it "supports a fixed full-path grader that runs configured paths in every selected phase" do
+    steps = described_class.grade_steps(
+      config: {
+        "name" => "work-engine-simulations",
+        "fixed_full_path" => true,
+        "paths" => [ "spec/services/work_engine/simulation/scenario_runner_spec.rb" ],
+        "phases" => %w[review landing ci],
+        "when_files_changed" => [ "app/services/work_engine/**/*.rb", "spec/services/work_engine/**/*.rb" ],
+        "timeout_minutes" => 12,
+        "required" => false,
+        "failures" => "allow_inherited",
+        "display_name" => "Work engine simulations"
+      },
+      default_failures: "strict"
+    )
+
+    expect(steps.size).to eq(1)
+    step = steps.sole
+    expect(step.name).to eq("work-engine-simulations")
+    expect(step.display_name).to eq("Work engine simulations")
+    expect(step.phases).to eq(%w[review landing ci])
+    expect(step.run).to include("bundle exec rspec")
+    expect(step.run).to include("spec/services/work_engine/simulation/scenario_runner_spec.rb")
+    expect(step.run).not_to include(".syrus/rspec-focused-files")
+    expect(step.run).not_to include("RUN_CI_ONLY_SPECS=true")
+    expect(step.run).to include(".syrus/rspec-json/work-engine-simulations.json")
+    expect(step.junit_output).to eq(".syrus/grade-output/work-engine-simulations-junit.xml")
+    expect(step.when_files_changed).to eq([ "app/services/work_engine/**/*.rb", "spec/services/work_engine/**/*.rb" ])
+    expect(step.timeout_minutes).to eq(12)
+    expect(step.required).to be(false)
+    expect(step.failures).to eq("allow_inherited")
+    expect(step.base_retry).to eq(SyrusYml::BaseRetry.new(strategy: "plugin", command: nil))
+    expect(step.metadata).to include(
+      "grader_type" => "rspec",
+      "grader_framework" => "rspec",
+      "grader_mode" => "full"
+    )
+    expect(step.metadata["result_outputs"]).to eq([
+      { "artifact" => ".syrus/grade-output/work-engine-simulations-junit.xml", "format" => "junit" }
+    ])
+  end
+
+  it "requires explicit paths for fixed full-path mode" do
+    expect {
+      described_class.grade_steps(config: { "fixed_full_path" => true }, default_failures: "strict")
+    }.to raise_error(ArgumentError, "fixed_full_path requires paths or spec_paths")
+  end
+
+  it "accepts spec_paths for fixed full-path mode" do
+    step = described_class.grade_steps(
+      config: { "fixed_full_path" => true, "spec_paths" => [ "spec/system/widget_spec.rb" ] },
+      default_failures: "strict"
+    ).sole
+
+    expect(step.name).to eq("rspec")
+    expect(step.run).to include("spec/system/widget_spec.rb")
+  end
+
   it "synthesizes mode-aware operator-facing display names by default" do
     steps = described_class.grade_steps(config: {}, default_failures: "strict")
 
