@@ -26,6 +26,7 @@ module Syrus
       prepare_detector
       grade_detector
       grader_type
+      grader_input_materializer
       review_criteria_provider
       post_implementation_review_provider
       diff_review_annotation_provider
@@ -81,6 +82,7 @@ module Syrus
       prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
       grade_detector:          -> { Syrus::Plugin::GradeDetector },
       grader_type:             -> { Syrus::Plugin::GraderType },
+      grader_input_materializer: -> { Syrus::Plugin::GraderInputMaterializer },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
       post_implementation_review_provider: -> { Syrus::Plugin::PostImplementationReviewProvider },
       diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },

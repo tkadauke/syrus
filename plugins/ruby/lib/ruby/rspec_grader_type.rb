@@ -342,12 +342,11 @@ module Ruby
       parallel_args = [
         *parallel_process_args,
         "--quiet",
-        *parallel_group_args,
-        *parallel_runtime_tolerance_args,
-        "--runtime-log", parallel_runtime_log(mode),
+        *parallel_static_group_args,
         *parallel_execution_args(mode, args, json_output: json_output, junit_output: junit_output, shell_expand_args: shell_expand_args)
       ]
       parallel_command = parallel_shell_command(parallel_args, shell_expand_args: shell_expand_args)
+      runtime_grouping_setup = parallel_runtime_grouping_setup(mode)
       extra_serial_command = extra_serial ? serial_extra_command(extra_serial) : nil
       status_checks = if extra_serial
         <<~BASH.squish
@@ -364,6 +363,7 @@ module Ruby
         #{database_prepare_command}
         #{parallel_prepare_command}
         #{parallel_process_setup}
+        #{runtime_grouping_setup}
         set +e;
         #{env_prefix} #{parallel_command};
         parallel_status="$?";
@@ -397,15 +397,17 @@ module Ruby
     end
 
     def parallel_shell_command(parallel_args, shell_expand_args:)
+      runtime_prefix = parallel_runtime_grouping? ? "$parallel_runtime_args " : ""
+
       unless shell_expand_args && parallel_exec_args.present?
         rendered = Shellwords.join(parallel_args).gsub(PARALLEL_PROCESS_PLACEHOLDER) { '"$RSPEC_PARALLEL_PROCESSES"' }
-        return "#{parallel_rspec_binary} #{rendered}"
+        return "#{parallel_rspec_binary} #{runtime_prefix}#{rendered}"
       end
 
       expandable = parallel_args.last
       quoted = Shellwords.join(parallel_args[0...-1])
       rendered = quoted.gsub(PARALLEL_PROCESS_PLACEHOLDER) { '"$RSPEC_PARALLEL_PROCESSES"' }
-      "#{parallel_rspec_binary} #{rendered} #{expandable}"
+      "#{parallel_rspec_binary} #{runtime_prefix}#{rendered} #{expandable}"
     end
 
     def serial_extra_command(extra_serial)
@@ -509,8 +511,10 @@ module Ruby
 
     PARALLEL_PROCESS_PLACEHOLDER = "__SYRUS_RSPEC_PROCESSES__"
 
-    def parallel_group_args
+    def parallel_static_group_args
       group_by = parallel_config["group_by"].to_s.strip.presence
+      return [] if group_by == "runtime"
+
       group_by ? [ "--group-by", group_by ] : []
     end
 
@@ -539,6 +543,26 @@ module Ruby
 
     def parallel_runtime_log(mode)
       parallel_config["runtime_log"].to_s.strip.presence || ".syrus/parallel_runtime_#{artifact_name(name_for_mode(mode))}.log"
+    end
+
+    def parallel_runtime_grouping?
+      parallel_config["group_by"].to_s.strip == "runtime"
+    end
+
+    def parallel_runtime_grouping_setup(mode)
+      return "" unless parallel_runtime_grouping?
+
+      runtime_log = parallel_runtime_log(mode)
+      runtime_args = Shellwords.join([ "--group-by", "runtime", *parallel_runtime_tolerance_args, "--runtime-log", runtime_log ])
+      escaped_runtime_log = Shellwords.escape(runtime_log)
+      <<~BASH.squish
+        parallel_runtime_args="";
+        if [ -s #{escaped_runtime_log} ]; then
+          parallel_runtime_args=#{Shellwords.escape(runtime_args)};
+        else
+          echo "No RSpec runtime profile found at #{escaped_runtime_log}; falling back to parallel_tests default grouping";
+        fi;
+      BASH
     end
 
     def parallel_junit_dir(junit_output)
@@ -665,6 +689,7 @@ module Ruby
           "grader_type" => self.class.type_name,
           "grader_framework" => "rspec",
           "grader_mode" => mode,
+          "runtime_profile_destination" => parallel_rspec_enabled_for?(mode) ? parallel_runtime_log(mode) : nil,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
           "coverage_outputs" => coverage? ? [ { "artifact" => "coverage/.resultset.json", "format" => "simplecov" } ] : [],
           "filter_capabilities" => {
