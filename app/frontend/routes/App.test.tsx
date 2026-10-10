@@ -3569,7 +3569,7 @@ describe("App", () => {
               dashboardPayload({
                 subject: "job",
                 view: "list",
-                total: 2,
+                total: 3,
                 preferences: {
                   ...dashboardPayload().preferences,
                   visible_columns: ["checkbox", "issue", "state"]
@@ -3608,6 +3608,17 @@ describe("App", () => {
                       retry_delay_reason: null,
                       state_label: "Retryable failure"
                     }
+                  }),
+                  dashboardJobItem({
+                    id: 48,
+                    title: "Proposed fixture",
+                    state: "triaging",
+                    triaging_reason: "proposed_job",
+                    issue_number: null,
+                    can_approve: false,
+                    can_release_from_backlog: false,
+                    can_move_to_backlog: false,
+                    claimed_by_user: null
                   })
                 ]
               })
@@ -3637,6 +3648,12 @@ describe("App", () => {
     expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Backlog" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Implemented fixture"))
+    fireEvent.click(screen.getByLabelText("Select Failed fixture"))
+    fireEvent.click(screen.getByLabelText("Select Proposed fixture"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Accept" })).toBeInTheDocument()
   }, 30000)
 
   it("renders dashboard timestamp columns as relative times with absolute tooltips", async () => {

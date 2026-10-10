@@ -181,10 +181,12 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(body.dig("paths", "new_job_path")).to eq(new_job_path)
     end
 
-    it "marks classifier-uncertain triage jobs as bulk acceptable" do
+    it "marks triage decision jobs as bulk acceptable" do
       uncertain = Factories.job_record(repository: repo, issue_number: 71, issue_title: "Acceptable triage")
+      proposed = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", issue_title: "Proposed follow-up")
       pending = Factories.job_record(repository: repo, issue_number: 72, issue_title: "Pending classifier")
       uncertain.update_columns(state: "triaging", triaging_reason: "classifier_uncertain")
+      proposed.update_columns(state: "triaging", triaging_reason: "proposed_job")
       pending.update_columns(state: "triaging", triaging_reason: "classifier_pending")
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list" }
@@ -192,6 +194,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       items = parse_body.fetch("items").index_by { |item| item.fetch("id") }
       expect(items.fetch(uncertain.id).dig("bulk_actions", "accept_triage")).to eq(true)
+      expect(items.fetch(proposed.id).dig("bulk_actions", "accept_triage")).to eq(true)
       expect(items.fetch(pending.id).dig("bulk_actions", "accept_triage")).to eq(false)
     end
 
@@ -2211,27 +2214,31 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body["batch_id"]).to be_present
     end
 
-    it "accepts selected classifier-uncertain triage jobs" do
+    it "accepts selected triage decision jobs" do
       accepted = Factories.job_record(repository: repo, issue_number: 12)
+      proposed = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", issue_title: "Proposed follow-up")
       skipped = Factories.job_record(repository: repo, issue_number: 13)
       accepted.update_columns(
         state: "triaging",
         triaging_reason: "classifier_uncertain",
         triaging_uncertainty_reason: "invalid JSON: expected an object"
       )
+      proposed.update_columns(state: "triaging", triaging_reason: "proposed_job")
       skipped.update_columns(state: "triaging", triaging_reason: "classifier_pending")
       allow(AppEvents).to receive(:broadcast)
 
       post "/api/v1/app/dashboard/jobs/bulk",
-           params: { job_ids: [ accepted.id, skipped.id ], bulk_action: "accept_triage" },
+           params: { job_ids: [ accepted.id, proposed.id, skipped.id ], bulk_action: "accept_triage" },
            as: :json
 
       expect(response).to have_http_status(:ok)
       expect(accepted.reload).to be_queued
       expect(accepted.triaging_uncertainty_reason).to be_nil
+      expect(proposed.reload).to be_queued
+      expect(proposed.triaging_reason).to eq("proposed_job")
       expect(skipped.reload).to be_triaging
-      expect(parse_body["message"]).to eq("Accepted 1 job for work. Skipped 1 job.")
-      expect(parse_body["affected_job_ids"]).to eq([ accepted.id ])
+      expect(parse_body["message"]).to eq("Accepted 2 jobs for work. Skipped 1 job.")
+      expect(parse_body["affected_job_ids"]).to eq([ accepted.id, proposed.id ])
       expect(parse_body["skipped_job_ids"]).to eq([ skipped.id ])
       expect(AppEvents).to have_received(:broadcast).with(
         user: user,
@@ -2239,7 +2246,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         resource: "job",
         id: nil,
         changed: [ "bulk" ],
-        payload: { "action" => "accept_triage", "affected_job_ids" => [ accepted.id ] }
+        payload: { "action" => "accept_triage", "affected_job_ids" => [ accepted.id, proposed.id ] }
       )
     end
 
