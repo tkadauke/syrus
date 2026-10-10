@@ -158,9 +158,21 @@ write Run state. The root-owned `/etc/syrus/worker.env` should include:
 - Artifact verification material, including the release checksum metadata and
   any trust anchors needed to fetch it from private storage.
 
-Mac workers must not run database migrations. Deploy the k3s release and let
-the cluster run migrations first, then roll the Mac pool to a schema-compatible
+Mac workers must not run database migrations. The cluster deploy should run
+the new release's database migrations before any web or worker workload is
+rolled to the new image, then the Mac pool can move to a schema-compatible
 worker artifact.
+
+That ordering is intentional: it avoids new worker code running against an old
+schema, but it means old code may run briefly against the new schema while the
+rollout is in progress. Write production migrations with that expand/contract
+contract in mind: additive changes first, destructive changes only after the
+old code has been removed from service.
+
+Cluster worker entrypoints should also check for pending migrations before
+starting queue consumers. A worker whose image expects migrations that have not
+run yet should fail at startup instead of claiming work and surfacing the
+problem later as an unrelated job failure.
 
 ## Ingress and TLS
 

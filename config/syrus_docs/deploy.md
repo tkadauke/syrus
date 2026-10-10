@@ -78,3 +78,26 @@ Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's def
 - **Anchor Job closure**: `Workflows::Deploy#after_success`/`#after_fail` close the anchor Job (`job.deploy_job?` is true only for this synthetic Job, never for a manual deploy's ordinary Job) the same way `Workflows::MainGrader.close_anchor_job!` closes its own anchor Job — regardless of whether the deploy succeeded, since the pass/fail detail lives on the Workflow/Run, not the Job. The anchor Job is filtered out of the operator dashboard and other Job pickers the same way `main_grader` Jobs already are (`Filters::Chips::Jobs::JobType::SYSTEM_KINDS`, chat attachment search, agent-insight's recent-Job sampling).
 
 A manually-triggered deploy (see above) is unaffected by any of this — it always targets the ordinary Job it was launched on and is never subject to the concurrency/throttle checks here, which only gate the synthetic continuous-deploy anchor Job.
+
+## Syrus Kubernetes rollout ordering
+
+Syrus's own `bin/deploy` applies database migrations as an explicit
+pre-rollout step. After images are built and pushed, and after Flux is
+suspended/image overrides are pinned, the script creates a one-shot
+`syrus-db-prepare-*` Kubernetes Job from the `syrus-web` deployment's runtime
+environment. That Job runs the newly built app image with `./bin/rails
+db:prepare` and must complete before `pin_live_images` changes `syrus-web`,
+`syrus-worker-home`, `syrus-worker-compute`, `syrus-preview`, or plugin service
+workloads to the new SHA.
+
+This deliberately trades "new code against the old schema" for "old code
+against the new schema" during the rollout. That is the safe direction only
+when migrations are backward compatible with the currently running release:
+add columns/tables/indexes first, keep old readers and writers working, and
+land destructive or contract migrations only after the old code is no longer
+running.
+
+Worker containers also check `db:abort_if_pending_migrations` before starting
+`bin/jobs`. In a normal deploy that check is already satisfied by the
+pre-rollout Job. If a worker is started against a database that is still behind
+the image, it exits loudly before it can claim Solid Queue work.
