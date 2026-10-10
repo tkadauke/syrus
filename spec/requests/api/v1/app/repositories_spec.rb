@@ -1858,6 +1858,16 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("repository", "feedback_policy")).to eq("auto")
   end
 
+  it "includes merge_train_failure_policy in the edit form payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", merge_train_failure_policy: [ "restart", "keep_assembly" ])
+
+    get "/api/v1/app/repositories/#{repository.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("repository", "merge_train_failure_policy")).to eq([ "restart", "keep_assembly" ])
+  end
+
   it "updates feedback_policy via PATCH" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", feedback_policy: "auto")
@@ -1874,6 +1884,24 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.feedback_policy).to eq("confirm")
+  end
+
+  it "updates merge_train_failure_policy via PATCH" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: {
+        owner: repository.owner,
+        name: repository.name,
+        default_branch: repository.default_branch,
+        trigger_label: repository.trigger_label,
+        merge_train_failure_policy: "restart, keep_assembly"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload.merge_train_failure_policy).to eq([ "restart", "keep_assembly" ])
   end
 
   it "includes review_policy in the edit form payload" do

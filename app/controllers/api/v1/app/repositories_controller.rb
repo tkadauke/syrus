@@ -531,6 +531,7 @@ module Api
             feedback_policy: repository.feedback_policy,
             review_policy: repository.review_policy,
             epic_dependency_policy: repository.epic_dependency_policy,
+            merge_train_failure_policy: repository.merge_train_failure_policy,
             github_owner_id: repository.github_owner_id,
             github_repository_id: repository.github_repository_id,
             repository_path: repository.persisted? ? repository_path(repository) : nil,
@@ -1413,7 +1414,9 @@ module Api
             :review_policy,
             :epic_dependency_policy,
             :github_repository_id,
-            :github_owner_id
+            :github_owner_id,
+            :merge_train_failure_policy,
+            merge_train_failure_policy: []
           )
         end
 
