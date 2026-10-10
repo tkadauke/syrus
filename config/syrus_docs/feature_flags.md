@@ -246,6 +246,18 @@ Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, bui
 
 `ChatMcpTransportSelector` and `WorkflowMcpTransportSelector` each independently decide whether to route to the daemon (`:persistent`) or return a non-persistent `:stdio` decision; routing to the daemon requires the flag enabled, a passing daemon health check, and the daemon advertising the relevant capability. Claude can use HTTP MCP directly; stdio-only workflow and chat agent CLIs use `bin/syrus-mcp-proxy`, which forwards to the selected daemon with a short-lived invocation token instead of booting Rails with worker secrets in the agent process. Workflow proxy traffic goes to the role-specific daemon URL so `tools/list` is scoped to that workflow agent role. Workflow agents can still fall back to the direct per-run stdio sidecar when non-persistent. Chat stdio fallback stays supported without exposing secrets: when persistent chat transport is not selected, `ChatTurnJob` starts a worker-owned loopback compatibility daemon and points the stable chat server names at `bin/syrus-mcp-proxy`; if that fallback cannot start, the explicit unavailable responder reports the MCP failure. The resulting transport decision and reason are recorded on workflow step details or the chat's `artifacts["mcp_transport"]` for diagnostics, with chat stdio fallback marked as proxy-backed. No `AppSetting`/DB column controls this flag; when disabled, workflow agents keep their default stdio sidecar behavior and chat turns use the proxy-backed stdio compatibility path. On by default.
 
+## per_spawn_resource_limits
+
+**Category:** Operations · **Off by default**
+
+Enables cgroup v2 memory ceilings for subprocesses launched through `ProcessRunner`.
+When enabled, each `SpawnedProcess` records a `resource_attribution.cgroup`
+payload showing whether enforcement was applied, disabled, unavailable, or
+failed. That payload is intentionally loud: diagnostics can tell the operator
+that a command ran with no memory ceiling instead of implying containment from
+the feature flag alone. A recorded `memory.events` `oom_kill` increment is
+classified as `process_memory_limit_exceeded`.
+
 ## emergency_land
 
 **Category:** Labs
