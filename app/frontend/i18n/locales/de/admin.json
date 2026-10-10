@@ -256,6 +256,7 @@
     "col_muse_token": "Muse-Token",
     "col_provider_availability": "Provider-Verfügbarkeit",
     "col_attention": "Aufmerksamkeit",
+    "auth_error": "Auth-Fehler",
     "col_gh_api": "GH-API",
     "col_gh_api_blocked_at": "GH blockiert um",
     "col_gh_api_blocked_reason": "GH-Blockierungsgrund",

@@ -322,12 +322,15 @@ function ProviderAvailabilitySummary({ user }: { user: AdminUserRow }) {
 }
 
 function CredentialAttention({ user }: { user: AdminUserRow }) {
+  const { t } = useT("admin")
   const attention = user.credential_attention
   if (!attention) return <span>-</span>
 
   return (
     <span className="inline-flex max-w-xs flex-col gap-0.5 text-xs text-red-700 dark:text-red-300" title={attention.message}>
-      <span>{attention.provider_label} auth error</span>
+      <span>
+        {attention.provider_label} {t("users.auth_error")}
+      </span>
       <span className="font-mono text-red-600 dark:text-red-400">{attention.blocked_work_units_count} blocked</span>
     </span>
   )

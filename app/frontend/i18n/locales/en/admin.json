@@ -411,6 +411,7 @@
     "col_muse_token": "Muse token",
     "col_provider_availability": "Provider availability",
     "col_attention": "Attention",
+    "auth_error": "auth error",
     "col_gh_api": "GH API",
     "col_gh_api_blocked_at": "GH blocked at",
     "col_gh_api_blocked_reason": "GH blocked reason",
