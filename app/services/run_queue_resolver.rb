@@ -114,7 +114,7 @@ class RunQueueResolver
 
   def capability_specific_requirements?(requirements)
     return false if requirements.blank?
-    return false if requirements == DEFAULT_RUN_CAPABILITIES && !explicit_target_requirements?
+    return false if requirements == DEFAULT_RUN_CAPABILITIES
 
     requirements["os"].present?
   end

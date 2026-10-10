@@ -146,6 +146,7 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.steps.pluck(:kind, :state)).to eq([
         [ "prepare",          "succeeded" ],
         [ "implement",        "succeeded" ],
+        [ "visual_review",    "succeeded" ],
         [ "coverage_analyze", "succeeded" ],
         [ "dependency_audit", "succeeded" ],
         [ "summarize",        "succeeded" ],
@@ -288,6 +289,7 @@ RSpec.describe RunJob, :ci_only do
       expect(kinds_and_states).to eq([
         [ "prepare",              "succeeded" ],
         [ "respond",              "succeeded" ],
+        [ "visual_review",        "succeeded" ],
         [ "coverage_analyze",     "succeeded" ],
         [ "coverage_pr_comment",  "succeeded" ],
         [ "dependency_audit",           "succeeded" ],
@@ -847,6 +849,9 @@ RSpec.describe RunJob, :ci_only do
           note: nil
         )
       )
+      visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "spec", note: "disabled")
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
+      allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
       allow_any_instance_of(RunJob).to receive(:next_inline_run).and_return(nil)
       initial_job = job
       workflow = initial_job.workflows.last
@@ -1729,6 +1734,16 @@ RSpec.describe RunJob, :ci_only do
       )
       run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
       allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+      ensure_solid_queue_test_tables!
+      SolidQueue::Process.create!(
+        hostname: "worker-storage-main",
+        kind: "worker",
+        last_heartbeat_at: Time.current,
+        metadata: { "queues" => [ "resume-storage-main" ], "capabilities" => { "os" => [ "linux" ] } },
+        name: "worker-storage-main:1",
+        pid: 123,
+        created_at: Time.current
+      )
       run_job = RunJob.new
       allow(run_job).to receive(:queue_name).and_return("runs")
 
@@ -1809,7 +1824,7 @@ RSpec.describe RunJob, :ci_only do
       clear_enqueued_jobs
       expect {
         RunJob.perform_now(collect_run.id)
-      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("runs")
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("merges")
 
       expect(collect.reload).to be_queued
       expect(collect_run.reload).to be_queued
@@ -1858,7 +1873,7 @@ RSpec.describe RunJob, :ci_only do
       result = nil
       expect {
         result = run_job.send(:next_inline_run)
-      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("resume-storage-main")
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("merges")
 
       expect(result).to be_nil
       expect(collect_run.reload).to be_queued

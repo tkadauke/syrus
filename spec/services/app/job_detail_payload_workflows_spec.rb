@@ -82,9 +82,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       step_payload = workflow_payload.fetch(:steps).first
       run_payload = step_payload.fetch(:runs).first
 
-      expect(workflow_payload.fetch(:entity_revision)).to eq(workflow.entity_revision)
-      expect(step_payload.fetch(:entity_revision)).to eq(step.entity_revision)
-      expect(run_payload.fetch(:entity_revision)).to eq(run.entity_revision)
+      expect(workflow_payload.fetch(:entity_revision)).to eq(workflow.reload.entity_revision)
+      expect(step_payload.fetch(:entity_revision)).to eq(step.reload.entity_revision)
+      expect(run_payload.fetch(:entity_revision)).to eq(run.reload.entity_revision)
     end
 
     it "serializes planned execution placement for jobs and workflows" do

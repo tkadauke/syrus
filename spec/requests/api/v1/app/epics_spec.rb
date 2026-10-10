@@ -1590,8 +1590,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     sign_in_as(user)
     epic_with_matching_id = Factories.epic(user: user, repository: repository, title: "Primary key match")
     target = Factories.epic(user: user, repository: repository, title: "Number match")
-    epic_with_matching_id.update_columns(number: 10_000 + epic_with_matching_id.id, slug: "EPIC-#{10_000 + epic_with_matching_id.id}")
-    target.update_columns(number: epic_with_matching_id.id, slug: "EPIC-#{epic_with_matching_id.id}")
+    Epic.where(id: epic_with_matching_id.id).update_all(number: 10_000 + epic_with_matching_id.id, slug: "EPIC-#{10_000 + epic_with_matching_id.id}")
+    Epic.where(id: target.id).update_all(number: epic_with_matching_id.id, slug: "EPIC-#{epic_with_matching_id.id}")
 
     get "/api/v1/app/epics/EPIC-#{epic_with_matching_id.id}"
 
