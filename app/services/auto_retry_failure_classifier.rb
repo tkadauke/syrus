@@ -102,6 +102,11 @@ class AutoRetryFailureClassifier
     if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, run.run_failure_classification.reason.presence || "provider authentication token expired")
     end
+    if authoritative_run_failure_classification?(run.run_failure_classification)
+      classification = run.run_failure_classification
+      reason = classification.reason.presence || "run failure classifier marked #{classification.classification}"
+      return classification.retryable? ? retryable(classification.classification, reason) : non_retryable(classification.classification, reason)
+    end
     if provider_auth_failure?(run)
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, "provider authentication token expired")
     end
@@ -133,6 +138,17 @@ class AutoRetryFailureClassifier
   private
 
   attr_reader :workflow
+
+  AUTHORITATIVE_RUN_FAILURE_CLASSIFICATIONS = %w[
+    disk_full
+    grader_failure
+    worker_died
+    worker_died_under_resource_pressure
+  ].freeze
+
+  def authoritative_run_failure_classification?(classification)
+    classification&.classification.in?(AUTHORITATIVE_RUN_FAILURE_CLASSIFICATIONS)
+  end
 
   # Resolved through the registry rather than trusted verbatim, so a code that
   # no longer exists falls back to the patterns instead of raising.

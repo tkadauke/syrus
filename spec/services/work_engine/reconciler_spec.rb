@@ -4342,10 +4342,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not schedule a second failed_step retry for repeated reconciler passes over the same worker-died grader_fanout Run" do
-    # A grader Step normally self-heals a worker_died failure in place
-    # (Runs::LifecyclePropagation#retried_in_place_after_worker_died?, up to
-    # Run::WORKER_DIED_STEP_MAX_RETRIES), bypassing AutoRetryAttempt entirely.
-    # Exhaust that budget first so this Run's failure escalates to the same
+    # A grader Step normally schedules bounded worker_died replacement retries
+    # through Runs::LifecyclePropagation. Exhaust that budget first so this
+    # Run's failure escalates to the same
     # reconciler-driven mark_worker_died_and_retry_failed_step path an
     # agentic Run would use.
     step.update_columns(kind: "grader", next_step_id: nil)
