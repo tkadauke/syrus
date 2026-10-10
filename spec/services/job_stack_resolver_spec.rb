@@ -47,5 +47,32 @@ RSpec.describe JobStackResolver, :ci_only do
       expect(result.parent).to be_nil
       expect(result.artifacts).to eq({})
     end
+
+    it "includes deployment-stage gate details in dependency blocker payloads" do
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+      production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+      )
+      prerequisite = Factories.job_record(repository: job.repository, state: "closed", landed_sha: "abc123")
+      prerequisite.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+      JobDependency.create!(
+        job: job,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production"
+      )
+
+      result = described_class.new(job, workflow: workflow).resolve!
+      dependency = result.blocker.fetch("dependencies").first
+
+      expect(result).not_to be_ready
+      expect(dependency).to include(
+        "satisfaction_mode" => "deployment_stage",
+        "required_deployment_stage_name" => "production",
+        "latest_deployment_stage" => include(name: "staging", label: "On Staging")
+      )
+    end
   end
 end

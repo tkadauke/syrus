@@ -1990,6 +1990,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
   const deploymentStageNames = deploymentStageDependencyNames(payload.unsatisfied_dependencies)
+  const deploymentStageTargets = deploymentStageDependencyTargets(t, payload.unsatisfied_dependencies)
   const hasSameEpicDependency =
     deploymentStageNames.length === 0 &&
     payload.job.epic_id != null &&
@@ -2008,7 +2009,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
             ))}
           </span>
           <span className="ml-1">
-            {dependencyBlockerMessage(t, { count, deploymentStageNames, hasSameEpicDependency })}
+            {dependencyBlockerMessage(t, { count, deploymentStageNames, deploymentStageTargets, hasSameEpicDependency })}
           </span>
         </div>
         {payload.actions.can_override_dependencies ? (
@@ -2030,14 +2031,22 @@ function dependencyBlockerMessage(
   {
     count,
     deploymentStageNames,
+    deploymentStageTargets,
     hasSameEpicDependency
   }: {
     count: number
     deploymentStageNames: string[]
+    deploymentStageTargets: string[]
     hasSameEpicDependency: boolean
   }
 ) {
   if (deploymentStageNames.length > 0) {
+    if (deploymentStageTargets.length > 0) {
+      return t(
+        deploymentStageTargets.length === 1 ? "blocked_auto_start_deployment_stage_target_one" : "blocked_auto_start_deployment_stage_target_other",
+        { targets: deploymentStageTargets.join(", ") }
+      )
+    }
     return t(deploymentStageNames.length === 1 ? "blocked_auto_start_deployment_stage_one" : "blocked_auto_start_deployment_stage_other", {
       stages: deploymentStageNames.join(", ")
     })
@@ -2046,6 +2055,17 @@ function dependencyBlockerMessage(
   if (hasSameEpicDependency) return t("blocked_auto_start_same_epic")
 
   return count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")
+}
+
+function deploymentStageDependencyTargets(t: ReturnType<typeof useT>["t"], dependencies: JobDependency[]) {
+  return dependencies
+    .filter((dependency) => dependency.satisfaction_mode === "deployment_stage" && dependency.required_deployment_stage_name)
+    .map((dependency) => {
+      const target = dependency.depends_on_job ? jobSlug(dependency.depends_on_job.id) : dependency.unresolved_slug
+      if (!target) return null
+      return t("dependency_deployment_stage_target", { target, stage: dependency.required_deployment_stage_name })
+    })
+    .filter((description): description is string => Boolean(description))
 }
 
 function deploymentStageDependencyNames(dependencies: JobDependency[]) {
@@ -2279,7 +2299,10 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     </span>
                     {dependency.satisfaction_mode === "deployment_stage" && dependency.required_deployment_stage_name ? (
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {t("dependency_waits_for_deployment_stage", { stage: dependency.required_deployment_stage_name })}
+                        {t("dependency_waits_for_deployment_stage", {
+                          stage: dependency.required_deployment_stage_name,
+                          latestStage: dependency.depends_on_job?.latest_deployment_stage?.label || dependency.depends_on_job?.latest_deployment_stage?.name || t("dependency_deployment_stage_none")
+                        })}
                       </span>
                     ) : null}
                     {!dependency.succeeded ? <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill> : null}

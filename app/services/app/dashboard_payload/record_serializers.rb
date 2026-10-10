@@ -211,23 +211,22 @@ module App
 
       def dashboard_job_dependencies_json(dependencies)
         dependencies.map do |dependency|
+          gate_payload = App::DependencyGatePayload.for(dependency)
           {
             id: dependency.id,
             pending: dependency.pending?,
             succeeded: dependency.dependency_succeeded?,
-            satisfaction_mode: dependency.satisfaction_mode,
-            required_deployment_stage_name: dependency.required_deployment_stage_name,
             unresolved_slug: dependency.unresolved_slug,
-            depends_on_job: dashboard_dependency_job_json(dependency.depends_on_job),
+            depends_on_job: dashboard_dependency_job_json(dependency.depends_on_job, latest_deployment_stage: gate_payload[:latest_deployment_stage]),
             depends_on_epic: dashboard_dependency_epic_json(dependency.depends_on_epic)
-          }
+          }.merge(gate_payload)
         end
       end
 
-      def dashboard_dependency_job_json(job)
+      def dashboard_dependency_job_json(job, latest_deployment_stage: nil)
         return nil unless job
 
-        {
+        payload = {
           id: job.id,
           slug: job.slug,
           title: job.issue_title,
@@ -235,6 +234,8 @@ module App
           repository_slug: job.repository.slug,
           job_path: job_path(job)
         }
+        payload[:latest_deployment_stage] = latest_deployment_stage
+        payload
       end
 
       def dashboard_dependency_epic_json(epic)

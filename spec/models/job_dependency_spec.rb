@@ -334,6 +334,34 @@ RSpec.describe JobDependency do
       expect(dependent.reload).to be_dependencies_satisfied
     end
 
+    it "uses preloaded deployment-stage statuses when checking satisfaction" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      described_class.create!(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      JobDeploymentStageStatus.create!(job: prerequisite, stage_name: "staging", reached_at: Time.current)
+      dependency = described_class.includes(depends_on_job: :deployment_stage_statuses).find_by!(job: dependent)
+
+      deployment_stage_queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        deployment_stage_queries += 1 if sql.match?(/\ASELECT/i) && sql.include?("job_deployment_stage_statuses")
+      end
+
+      satisfied = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        dependency.dependency_succeeded?
+      end
+
+      expect(satisfied).to be(true)
+      expect(deployment_stage_queries).to eq(0)
+    end
+
     it "does not use the implemented open-PR shortcut for deployment-stage dependencies" do
       stub_deployment_stages
       prerequisite = Factories.job_record(

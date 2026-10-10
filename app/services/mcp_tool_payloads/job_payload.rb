@@ -71,13 +71,14 @@ module McpToolPayloads
     end
 
     # Cross-job reference included in dependency lists.
-    def job_reference_payload(job)
+    def job_reference_payload(job, dependency: nil)
       {
         id: job.id,
         issue_number: job.issue_number,
         issue_title: job.issue_title,
         state: job.state,
-        repository: job.repository.slug
+        repository: job.repository.slug,
+        latest_deployment_stage: dependency ? App::DependencyGatePayload.for(dependency)[:latest_deployment_stage] : nil
       }
     end
 
@@ -94,7 +95,7 @@ module McpToolPayloads
           required_deployment_stage_name: dependency.required_deployment_stage_name
         }
       elsif dependency.depends_on_job
-        job_reference_payload(dependency.depends_on_job).merge(dependency_requirement_payload(dependency))
+        job_reference_payload(dependency.depends_on_job, dependency: dependency).merge(dependency_requirement_payload(dependency))
       elsif dependency.depends_on_epic
         epic_reference_payload(dependency.depends_on_epic).merge(dependency_requirement_payload(dependency))
       end
