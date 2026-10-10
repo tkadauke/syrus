@@ -374,11 +374,16 @@ class McpToolRegistry
         # and cannot distinguish real main-branch regressions from transient
         # infrastructure failures, so granting these would produce false quorum
         # signals.
+        workflow(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, step_kinds: %w[submit_report], mutation: true),
+        workflow(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report], mutation: true),
         workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
         workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and

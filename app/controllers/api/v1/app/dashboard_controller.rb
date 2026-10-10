@@ -106,6 +106,8 @@ module Api
             bulk_close_jobs(jobs)
           when "approve"
             bulk_approve_jobs(jobs)
+          when "accept_triage"
+            bulk_accept_triage(jobs)
           when "claim"
             bulk_claim_jobs(jobs)
           when "release_claim"
@@ -281,6 +283,32 @@ module Api
               skipped_job_ids: (skipped_auto_merge_disabled.map(&:id) + skipped_ids).uniq,
               action: "approve",
               extra: { batch_id: batch_id }
+            )
+          end
+        end
+
+        def bulk_accept_triage(jobs)
+          accepted_ids = []
+          skipped_ids = []
+
+          jobs.find_each do |job|
+            unless JobPolicy.new(Current.user, job).write? && job.awaiting_triage_decision?
+              skipped_ids << job.id
+              next
+            end
+
+            job.accept_triage!
+            accepted_ids << job.id
+          end
+
+          if accepted_ids.empty?
+            render_error("validation_failed", "No selected jobs were awaiting a triage decision.", status: :unprocessable_content)
+          else
+            render_bulk_success(
+              bulk_partial_message("Accepted #{helpers.pluralize(accepted_ids.size, 'job')} for work.", skipped_ids),
+              affected_job_ids: accepted_ids,
+              skipped_job_ids: skipped_ids,
+              action: "accept_triage"
             )
           end
         end

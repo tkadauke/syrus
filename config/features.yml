@@ -5,6 +5,7 @@ features:
     name_i18n_key: "features.slugs.chat_speech_to_text.name"
     description: "Enables microphone dictation in Syrus Chat with capability-based backend transcription and browser fallback."
     description_i18n_key: "features.slugs.chat_speech_to_text.description"
+    experimental: true
     default: false
   - slug: coding_mode
     category: "Labs"
@@ -40,6 +41,7 @@ features:
     name_i18n_key: "features.slugs.local_mode.name"
     description: "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
     description_i18n_key: "features.slugs.local_mode.description"
+    experimental: true
     default: false
   - slug: chat_context_compaction
     category: "Operations"
@@ -59,6 +61,7 @@ features:
     category: "Operations"
     name: "Distributed workflow DAG"
     description: "Enables repository-opt-in workflow Step placement metadata for distributed DAG execution experiments. When disabled, all Steps keep legacy pinned-workspace placement."
+    experimental: true
     default: false
   - slug: epicless_job_bundling
     category: "Labs"
@@ -80,9 +83,11 @@ features:
     name_i18n_key: "features.slugs.emergency_land.name"
     description: "Enables an emergency-land escape hatch for Coding Mode, letting a repository-tier admin or global admin land a Coding Mode chat's committed branch immediately, bypassing Syrus's grader, adversarial-review, and visual-review pipeline. A separate, explicit opt-in layered on top of Coding Mode itself, since it skips Syrus's own quality gates for incident response."
     description_i18n_key: "features.slugs.emergency_land.description"
+    experimental: true
     default: false
   - slug: execution_request_assertions
     category: "Operations"
     name: "Execution request assertions"
     description: "Checks local ProcessRunner executions against declared mount and network requests before container execution backends depend on that contract."
+    experimental: true
     default: false

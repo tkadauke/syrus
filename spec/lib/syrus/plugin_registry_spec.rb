@@ -729,6 +729,45 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.icon_url).to eq("https://example.com/icon.png")
     end
 
+    it "stores experimental status on the manifest and PluginRecord" do
+      expect {
+        described_class.register(name: "experimental_plugin", version: "1.0.0", experimental: true)
+      }.not_to change(AppSetting, :count)
+
+      manifest = described_class.all_plugins.first
+      record = PluginRecord.find_by!(name: "experimental_plugin")
+      expect(manifest).to be_experimental
+      expect(record.experimental).to be(true)
+      expect(record.default_enabled).to be(true)
+      expect(record.enabled).to be(false)
+      expect(manifest.enabled?).to be(false)
+    end
+
+    it "enables a default-enabled plugin that is promoted from experimental before it ever ran" do
+      described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true)
+      record = PluginRecord.find_by!(name: "promoted_plugin")
+      expect(record.enabled).to be(false)
+      expect(record.ever_enabled).to be(false)
+
+      described_class.register(name: "promoted_plugin", version: "1.0.1", experimental: false)
+
+      manifest = described_class.all_plugins.first
+      expect(record.reload.experimental).to be(false)
+      expect(record.enabled).to be(true)
+      expect(manifest.enabled?).to be(true)
+    end
+
+    it "treats experimental plugins as enabled after the instance opts in" do
+      AppSetting.current.update!(beta_mode_enabled: true)
+
+      described_class.register(name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true)
+
+      manifest = described_class.all_plugins.first
+      record = PluginRecord.find_by!(name: "opted_in_experimental_plugin")
+      expect(record.enabled).to be(true)
+      expect(manifest.enabled?).to be(true)
+    end
+
     it "stores plugin-provided links on the manifest" do
       described_class.register(
         name: "linked_plugin",
@@ -802,6 +841,18 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           description: "Cluster access material."
         }
       ])
+    end
+
+    it "accepts experimental from the manifest DSL" do
+      plugin = Module.new do
+        extend Syrus::PluginApi
+
+        syrus_plugin "dsl_experimental_plugin" do
+          experimental true
+        end
+      end
+
+      expect(plugin.syrus_plugin_definition.manifest_arguments.fetch(:experimental)).to be(true)
     end
 
     it "rejects invalid credential type names" do
@@ -1354,6 +1405,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         homepage:    "https://example.com",
         default_enabled: false,
         disableable: true,
+        experimental: true,
         category: "tooling"
       )
       manifest = described_class.all_plugins.first
@@ -1370,6 +1422,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled).to be(false)
       expect(manifest.default_enabled).to be(false)
       expect(manifest.disableable).to be(true)
+      expect(manifest.experimental).to be(true)
       expect(manifest.category).to eq("tooling")
     end
 

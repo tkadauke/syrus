@@ -85,7 +85,7 @@ module Api
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
 
-          unless job.triaging? && job.triaging_reason_classifier_uncertain?
+          unless job.awaiting_triage_decision?
             render_error("validation_failed", lifecycle_t("not_awaiting_triage", slug: job.slug), status: :unprocessable_content)
             return
           end
@@ -100,7 +100,7 @@ module Api
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
 
-          unless job.triaging? && job.triaging_reason_classifier_uncertain?
+          unless job.awaiting_triage_decision?
             render_error("validation_failed", lifecycle_t("not_awaiting_triage", slug: job.slug), status: :unprocessable_content)
             return
           end

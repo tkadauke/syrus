@@ -25,6 +25,16 @@ const pluginFilterSchema = [
     ]
   },
   {
+    field: "experimental",
+    label: "Experimental",
+    bucket: "enum",
+    operators: ["is"],
+    values: [
+      { value: "experimental", label: "Experimental" },
+      { value: "stable", label: "Stable" }
+    ]
+  },
+  {
     field: "author",
     label: "Author",
     bucket: "string",
@@ -347,6 +357,7 @@ describe("AdminPlugins", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     expect(screen.getByRole("button", { name: "Enabled list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Experimental list" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Author text" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Extension point list" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
@@ -641,6 +652,39 @@ describe("AdminPlugins", () => {
 
     expect(await screen.findByText("Plugin detail route")).toBeInTheDocument()
     expect(reloadMock).not.toHaveBeenCalled()
+  })
+
+  it("badges experimental plugins and offers a direct beta-mode opt-in while blocked", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/admin/settings") && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ settings: {}, message: "Settings updated." }))
+      }
+      return Promise.resolve(jsonResponse({
+        beta_mode_enabled: false,
+        plugins: [
+          {
+            name: "terminal",
+            display_name: "Terminal",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: false,
+            experimental: true,
+            description: "Interactive shells",
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("Experimental")).toBeInTheDocument()
+    expect(screen.getByText("This plugin is available in this Syrus build, but this instance has not enabled beta mode.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Enable beta mode" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({ method: "PATCH" })))
+    expect(reloadMock).toHaveBeenCalled()
   })
 
   it("renders plugin detail sections with docs, metrics, routes, config, and a provided link", async () => {

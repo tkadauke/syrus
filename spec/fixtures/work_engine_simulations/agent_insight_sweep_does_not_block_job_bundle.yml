@@ -1,5 +1,6 @@
 name: agent insight sweep does not block job bundle
 app_settings:
+  beta_mode_enabled: true
   merge_train_enabled: true
 features:
   epicless_job_bundling: true

@@ -1,5 +1,6 @@
 class WorkerHostHealthSampler
   CpuSnapshot = Data.define(:idle, :total)
+  PressureReading = Data.define(:values, :source, :path)
 
   class << self
     def record!(instance:, observed_at: Time.current, data_root_snapshot: nil, capability_snapshot: nil)
@@ -27,6 +28,11 @@ class WorkerHostHealthSampler
       memory = memory_metrics
       data_root = data_root_snapshot || data_root_metrics
       pressure = pressure_metrics
+      raw_metrics = raw_metrics(data_root: data_root, observed_at: observed_at)
+      pressure.each do |kind, reading|
+        raw_metrics[:"#{kind}_pressure_source"] = reading.source if reading.source
+        raw_metrics[:"#{kind}_pressure_path"] = reading.path if reading.path
+      end
 
       {
         cpu_used_percent: cpu,
@@ -39,11 +45,11 @@ class WorkerHostHealthSampler
         data_root_used_percent: data_root&.used_percent,
         data_root_available_bytes: data_root&.available_bytes,
         data_root_total_bytes: data_root&.total_bytes,
-        cpu_pressure_some: pressure.dig(:cpu, :some),
-        cpu_pressure_full: pressure.dig(:cpu, :full),
-        io_pressure_some: pressure.dig(:io, :some),
-        io_pressure_full: pressure.dig(:io, :full),
-        raw_metrics: raw_metrics(data_root: data_root, observed_at: observed_at)
+        cpu_pressure_some: pressure.fetch(:cpu).values[:some],
+        cpu_pressure_full: pressure.fetch(:cpu).values[:full],
+        io_pressure_some: pressure.fetch(:io).values[:some],
+        io_pressure_full: pressure.fetch(:io).values[:full],
+        raw_metrics: raw_metrics
       }
     end
 
@@ -90,11 +96,12 @@ class WorkerHostHealthSampler
     # WorkerHostHealthSample row -- callers just want a few bucketed fields
     # to attach to an already-emitted slow-phase event.
     def io_pressure_snapshot
-      pressure = read_pressure("/proc/pressure/io")
+      pressure = read_pressure_with_source("io")
       data_root = data_root_metrics
       {
-        io_pressure_some: pressure[:some],
-        io_pressure_full: pressure[:full],
+        io_pressure_some: pressure.values[:some],
+        io_pressure_full: pressure.values[:full],
+        io_pressure_source: pressure.source,
         data_root_used_percent: data_root&.used_percent,
         data_root_filesystem: data_root&.filesystem,
         data_root_mounted_on: data_root&.mounted_on
@@ -163,41 +170,60 @@ class WorkerHostHealthSampler
     # (cgroup v1, PSI disabled, a non-containerised macOS worker), and record
     # which source answered so a future bogus reading is attributable rather
     # than mysterious.
-    CGROUP_PRESSURE_PATHS = {
-      cpu: "/sys/fs/cgroup/cpu.pressure",
-      io: "/sys/fs/cgroup/io.pressure"
-    }.freeze
-
-    PROC_PRESSURE_PATHS = {
-      cpu: "/proc/pressure/cpu",
-      io: "/proc/pressure/io"
-    }.freeze
-
     def pressure_metrics
-      @pressure_sources = {}
-      CGROUP_PRESSURE_PATHS.keys.index_with do |resource|
-        cgroup = read_pressure(CGROUP_PRESSURE_PATHS.fetch(resource))
-        if cgroup.present?
-          @pressure_sources[resource] = "cgroup"
-          cgroup
-        else
-          @pressure_sources[resource] = "proc"
-          read_pressure(PROC_PRESSURE_PATHS.fetch(resource))
-        end
+      readings = {
+        cpu: read_pressure_with_source("cpu"),
+        io: read_pressure_with_source("io")
+      }
+      @pressure_sources = readings.each_with_object({}) do |(resource, reading), memo|
+        memo[resource] = reading.source if reading.source
       end
+      readings
     end
 
     def pressure_sources
       @pressure_sources || {}
     end
 
-    def read_pressure(path)
-      parse_pressure(File.read(path))
+    def read_pressure_with_source(kind)
+      pressure_paths(kind).each do |source, path|
+        return PressureReading.new(values: parse_pressure(File.read(path)), source: source, path: path)
+      rescue Errno::ENOENT
+        next
+      rescue StandardError => e
+        Rails.logger.debug { "[WorkerHostHealthSampler] pressure sample failed: #{path}: #{e.class}: #{e.message}" }
+        next
+      end
+
+      PressureReading.new(values: {}, source: nil, path: nil)
+    end
+
+    def pressure_paths(kind)
+      paths = []
+      cgroup_path = cgroup_v2_pressure_path("#{kind}.pressure") || "/sys/fs/cgroup/#{kind}.pressure"
+      paths << [ "cgroup", cgroup_path ]
+      paths << [ "proc", "/proc/pressure/#{kind}" ]
+      paths
+    end
+
+    def cgroup_v2_pressure_path(filename)
+      relative_path = cgroup_v2_relative_path
+      return unless relative_path
+
+      File.join("/sys/fs/cgroup", relative_path.delete_prefix("/"), filename)
+    end
+
+    def cgroup_v2_relative_path
+      File.read("/proc/self/cgroup").each_line do |line|
+        hierarchy, controllers, path = line.chomp.split(":", 3)
+        return path if hierarchy == "0" && controllers == "" && path.present?
+      end
+      nil
     rescue Errno::ENOENT
-      {}
+      nil
     rescue StandardError => e
-      Rails.logger.debug { "[WorkerHostHealthSampler] pressure sample failed: #{path}: #{e.class}: #{e.message}" }
-      {}
+      Rails.logger.debug { "[WorkerHostHealthSampler] cgroup path sample failed: #{e.class}: #{e.message}" }
+      nil
     end
 
     def raw_metrics(data_root:, observed_at:)

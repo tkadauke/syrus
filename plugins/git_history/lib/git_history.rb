@@ -2,6 +2,7 @@ module GitHistory
   extend Syrus::PluginApi
 
   syrus_plugin "git_history" do
+    experimental true
     display_name "Git History"
     description "Full commit history for a repository, with attribution back to the Syrus Job/Epic/chat/issue/cron task that landed it."
     long_description "Git History adds a repository tab that traces commits back to the Syrus work that produced them. It connects Git commits to jobs, epics, chats, issues, cron tasks, and landing activity so operators can answer why a commit exists and which automation path created it.\n\nThis plugin is useful for auditability and debugging confusing branch history. It reads local bare clones maintained by Syrus and presents the history in the app without changing repository behavior."

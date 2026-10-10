@@ -242,6 +242,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
     t.json "macos_worker_desired_release"
+    t.boolean "beta_mode_enabled", default: false, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -274,6 +275,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.index ["job_id"], name: "index_auto_retry_attempts_on_job_id"
     t.index ["performed_at", "skipped_reason", "scheduled_at", "id"], name: "idx_auto_retry_attempts_pending_schedule"
     t.index ["run_id"], name: "index_auto_retry_attempts_on_run_id"
+    t.index ["updated_at", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_settled_window"
     t.index ["workflow_id", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_workflow_pending"
     t.index ["workflow_id", "retry_kind"], name: "index_auto_retry_attempts_on_workflow_retry_kind"
     t.index ["workflow_id", "retry_workflow_uniqueness_key"], name: "idx_auto_retry_attempts_unique_retry_workflow", unique: true
@@ -1328,6 +1330,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.boolean "default_enabled", default: false, null: false
     t.text "description"
     t.boolean "enabled", default: false, null: false
+    t.boolean "experimental", default: false, null: false
     t.string "name", null: false
     t.string "slug", null: false
     t.datetime "updated_at", null: false
@@ -2472,6 +2475,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.datetime "last_ticked_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false
+    t.boolean "experimental", default: false, null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 

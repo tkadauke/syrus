@@ -167,6 +167,7 @@ function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: D
       assign_owner: allSelectedCan("assign_owner"),
       set_priority: allSelectedCan("set_priority"),
       approve: allSelectedCan("approve"),
+      accept_triage: allSelectedCan("accept_triage"),
       close: allSelectedCan("close")
     }
   }, [selectedJobs])
@@ -215,6 +216,7 @@ function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: D
           </>
         ) : null}
         {canRun.approve ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button> : null}
+        {canRun.accept_triage ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("accept_triage")} type="button">{t("accept_triage")}</button> : null}
         {canRun.close ? <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button> : null}
       </div>
       {dialog}
@@ -238,6 +240,7 @@ function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: Dashbo
   if (bulkAction === "assign_owner") return open
   if (bulkAction === "set_priority") return open
   if (bulkAction === "approve") return Boolean(job.can_approve)
+  if (bulkAction === "accept_triage") return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
   if (bulkAction === "close") return job.state !== "closed"
 
   return false

@@ -11,6 +11,7 @@ module WorkerTimeline
   }.freeze
 
   syrus_plugin "worker_timeline" do
+    experimental true
     display_name "Worker Timeline"
     description "Multi-lane worker activity timeline: one lane per durable worker process role, with Job/Workflow spans over time."
     long_description "Worker Timeline visualizes overlapping Syrus activity across durable worker process roles (worker_storage_key + queue_role) as a multi-lane timeline. Hostname and pid remain available on spans for run-location tooltips and restart markers. Hover a span to see what it was doing and, for spans that had to wait, why. The macro (cross-job) lane view drills down into a per-workflow Step/Run waterfall.\n\nIt reads WorkflowActivityEvent/SpawnedProcess/InstanceVersion data and Workflow/Step/Run timestamps; WorkflowActivityEvent#queue_role is captured for RunJob executions, with legacy hostname+pid fallback for older or unattributed rows. Enabling it does not change scheduling, grading, job behavior, or add thread-slot instrumentation."

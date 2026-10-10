@@ -36,7 +36,7 @@ module App
       { key: "landing", title: "Landing" },
       { key: "failed", title: "Failed" }
     ].freeze
-    WORKFLOW_DONE_STATES = %w[succeeded failed cancelled].freeze
+    WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     COLUMN_LABELS = {
       "epics" => {
         "epic" => "Epic",

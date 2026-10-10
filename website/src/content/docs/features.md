@@ -1074,7 +1074,11 @@ or Run, with built-in Running, Stale, and Recently failed folders.
 Admins can also toggle boolean feature flags from `/admin/features` when
 the instance declares features in `config/features.yml`. The page groups
 declared flags by category, shows the slug and description for each flag,
-and hides the admin navigation item entirely when no flags are declared.
+and hides the admin navigation item entirely when no flags are declared. Flags
+marked beta or experimental remain visible and searchable, but an admin must
+enable instance beta mode before turning them on. Beta mode does not enable any
+feature by itself; it only permits explicit opt-in to beta or experimental
+capabilities.
 
 The `performance_logging` operations flag records structured slow-request,
 slow-SQL, slow application-phase, and selected browser route-load events for production debugging. Slow
@@ -1731,8 +1735,10 @@ belongs to an Epic, duplicates existing work, or is ordinary new work. When it
 cannot tell — a vague report, or a request that could mean several things — it
 says so instead of guessing, and the Job page shows **Accept** and **Reject**
 alongside the reason it was unsure. Accept queues the work; Reject closes the
-Job. Syrus retries the classification once on its own first, so a passing
-provider error does not put an issue in front of you unnecessarily.
+Job. The Jobs dashboard can also accept multiple classifier-uncertain Jobs at
+once from the bulk toolbar. Syrus retries the classification once on its own
+first, so a passing provider error does not put an issue in front of you
+unnecessarily.
 
 When a repository is registered as a fork of an upstream that also lives in
 the instance, Jobs on the fork branch off — and open their pull request

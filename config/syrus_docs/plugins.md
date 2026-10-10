@@ -68,6 +68,16 @@ canonical detail page. Disableable installed
 plugins can be enabled or disabled live from either the index card or the
 canonical detail page (`/admin/plugins/:name`) — both share the same
 enable/disable control, disable-blocked tooltip, and cascade-confirmation UI.
+Experimental bundled plugins are visible in the same inventory and carry an
+`Experimental` badge. They are available in the Syrus build, but a self-hosted
+instance must enable beta mode before any experimental plugin can be enabled.
+If a disabled experimental plugin is blocked by that instance setting, the
+Admin Plugins control shows an **Enable beta mode** action instead of the
+normal enable action. Beta mode does not enable any plugin by itself; it only
+allows admins to explicitly enable beta or experimental capabilities. The
+shared server-side enable path enforces the same rule for API callers and
+blocks the whole request when a dependency cascade would enable an experimental
+plugin.
 From the index, successful enablement navigates to the detail page so the
 operator lands on the surfaces, docs, and metadata for the plugin they just
 turned on; disabling reloads in place. From the detail page, both enabling and
@@ -77,9 +87,10 @@ disabling reload in place. New requests and sidecars use the latest
 The page filters plugins with the same chip-based `FilterBar` query builder
 used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav).
 The `admin_plugins` subject exposes `enabled`, `author`, `extension_point`,
-`category`, and `search` chips. `enabled` filters enabled vs. disabled
-plugins. `author` is a free-text column filter. `extension_point` filters
-against the extension point names a plugin registers in `provides:`. A
+`experimental`, `category`, and `search` chips. `enabled` filters enabled vs.
+disabled plugins. `experimental` filters experimental vs. stable plugins but
+is not applied by default. `author` is a free-text column filter.
+`extension_point` filters against the extension point names a plugin registers in `provides:`. A
 `category` chip (`Filters::Chips::AdminPlugins::Category`, bucket `enum`,
 values from `Syrus::Plugin::Category::ENTRIES`) filters by the taxonomy key;
 its `is`/`is_not`/`is_one_of`/`is_none_of`/`is_set`/`is_unset` operators (from
@@ -1357,6 +1368,25 @@ Custom shell graders remain the default whenever `run:` is present, and
 The Ruby plugin provides the first built-in grader type, `rspec`. It expands to
 full RSpec for landing/CI and focused RSpec for review, both with
 plugin-backed BRR.
+
+For a grader that must keep a single stable identity while still using the
+RSpec plugin's artifacts, failure evidence, metadata, and plugin-backed BRR,
+set `fixed_full_path: true` with explicit `paths` or `spec_paths`:
+
+```yaml
+grade:
+  - type: rspec
+    name: work-engine-simulations
+    fixed_full_path: true
+    paths:
+      - spec/services/work_engine/simulation/scenario_runner_spec.rb
+    phases: [review, landing, ci]
+```
+
+That shape emits exactly one full-mode grader using the configured name and
+runs the configured spec path in every selected phase. Omitting
+`fixed_full_path` preserves the normal `name`, `name-focused`, and `name-ci`
+expansion.
 
 ## `focused_test_command`
 

@@ -253,6 +253,25 @@ notification or `ScheduleWakeup` continuation — Syrus raises
 `no_changes`; it means the agent misunderstood Step Run execution rather than
 proving the requested work was already unnecessary.
 
+**Cannot-proceed outcome:** When an agent verifies a concrete blocker that
+cannot be fixed inside the current workflow step, it calls the workflow MCP
+tool `report_cannot_proceed(reason:, details:, suggested_prompt:)`. Typical
+examples are a required binary missing from the worker image, or task
+instructions that require a service-side capability the workflow surface does
+not expose. The tool records `Workflow#artifacts["cannot_proceed"]`, creates a
+high-severity `WorkflowWarning` with `kind: "agent_cannot_proceed"` and a
+pre-filled "File a fix Job" prompt, and sets the parent Job's
+`needs_attention_reason` to `agent_cannot_proceed`.
+
+After the agent turn returns, Syrus marks the Run, Step, and Workflow
+`blocked` rather than `failed`. Blocked Workflows are terminal for cleanup and
+dashboard grouping, but they do not trigger the failed-workflow auto-retry
+path. The Job remains open and attention-marked so an operator can review the
+warning, file follow-up work from it, or dismiss it. This preserves the
+surface-then-promote discipline used by `workflow_warnings`: workflow agents
+can surface the blocker and suggested fix, but they do not directly create
+Jobs or GitHub issues.
+
 **Timeout after commit:** If the agent subprocess times out after it already
 created a commit, Syrus does a conservative partial-result check before failing
 the step. A clean worktree, an intact branch history, a non-empty diff against
@@ -448,6 +467,16 @@ evidence (a query log, a config dump, a screenshot) while it investigates.
 `Prompts::Investigation` tells the agent to note the exact artifact `type`
 each of those calls reports back, so the following `submit_report` step can
 point at that evidence by `type`.
+
+Investigation runs may also call the workflow-surface `propose_job` tool to
+create concrete follow-up implementation work. This is not the chat proposal
+card path: it creates a real Job immediately in `triaging` with
+`triaging_reason: proposed_job`, records a link back to the investigation in
+the Job body, and waits for an operator to Accept or Reject it on the Job page
+before anything starts. The tool is available only on `investigate` and
+`submit_report` steps, caps one investigation workflow at ten proposals, and
+requires explicit `planned_execution.capabilities` using the same placement
+rule as chat proposals.
 
 ### submit_report
 

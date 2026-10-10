@@ -10,6 +10,7 @@ module MysqlDbBrowser
   end
 
   syrus_plugin "mysql_db_browser" do
+    experimental true
     display_name "MySQL DB Browser"
     description "Register and manage connections to external MySQL databases with credential-store-backed secret storage."
     long_description "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Secret material is stored through Credential Store and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect."

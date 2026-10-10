@@ -181,6 +181,23 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(body.dig("paths", "new_job_path")).to eq(new_job_path)
     end
 
+    it "marks jobs awaiting a triage decision as bulk acceptable" do
+      uncertain = Factories.job_record(repository: repo, issue_number: 71, issue_title: "Acceptable triage")
+      proposed = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", issue_title: "Proposed from investigation")
+      pending = Factories.job_record(repository: repo, issue_number: 72, issue_title: "Pending classifier")
+      uncertain.update_columns(state: "triaging", triaging_reason: "classifier_uncertain")
+      proposed.update_columns(state: "triaging", triaging_reason: "proposed_job")
+      pending.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", state: "triaging" }
+
+      expect(response).to have_http_status(:ok)
+      items = parse_body.fetch("items").index_by { |item| item.fetch("id") }
+      expect(items.fetch(uncertain.id).dig("bulk_actions", "accept_triage")).to eq(true)
+      expect(items.fetch(proposed.id).dig("bulk_actions", "accept_triage")).to eq(true)
+      expect(items.fetch(pending.id).dig("bulk_actions", "accept_triage")).to eq(false)
+    end
+
     it "supports direct backlog state URLs" do
       backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Backlogged dashboard card")
       infrastructure = Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, issue_title: "Main grader backlog")
@@ -945,6 +962,109 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         )
       )
       expect(entry.fetch("blocker_jobs").sole).not_to include("epic_id", "epic_title")
+    end
+
+    it "reports a blocked job bundle as waiting behind the active Epic merge train" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
+      active_member = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        epic: epic,
+        issue_number: 21,
+        issue_title: "Land forum paving",
+        state: "landing",
+        pr_number: 21,
+        approved_at: 2.hours.ago
+      )
+      active_train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch, state: "landing")
+      MergeTrainMember.create!(merge_train: active_train, job: active_member, position: 0)
+      active_workflow = WorkUnits::Launcher.instantiate(
+        kind: "merge_train",
+        job: active_member,
+        artifacts: { "merge_train_id" => active_train.id }
+      )
+      active_unit = active_workflow.work_unit
+      active_unit.update!(state: "running")
+
+      bundled_jobs = 2.times.map do |index|
+        Factories.job_record(
+          repository: repo,
+          owner_user: user,
+          issue_number: 30 + index,
+          issue_title: "Bundle member #{index + 1}",
+          state: "landing",
+          pr_number: 30 + index,
+          approved_at: 1.hour.ago + index.minutes
+        )
+      end
+      bundle_train = MergeTrain.create!(repository: repo, base_branch: repo.default_branch, priority: "medium", state: "building")
+      bundled_jobs.each_with_index { |job, index| MergeTrainMember.create!(merge_train: bundle_train, job: job, position: index) }
+      bundle_workflow = Workflow.create!(
+        job: bundled_jobs.last,
+        trigger_kind: "merge_train",
+        state: "queued",
+        artifacts: { "merge_train_id" => bundle_train.id }
+      )
+      bundle_intent = WorkIntent.create!(
+        kind: "job_bundle",
+        state: "requested",
+        repository: repo,
+        scope_type: "repository",
+        scope_id: repo.id,
+        actor: user,
+        source_type: "spec",
+        payload_artifacts: { "merge_train_id" => bundle_train.id }
+      )
+      bundle_unit = WorkUnit.create!(
+        work_intent: bundle_intent,
+        kind: "job_bundle",
+        state: "blocked",
+        repository: repo,
+        scope_type: "repository",
+        scope_id: repo.id,
+        workflow: bundle_workflow,
+        blocked_reason: "active_work_lock",
+        blocked_details: {
+          "lock_key" => "landing:repository:#{repo.id}",
+          "work_unit_id" => active_unit.id,
+          "workflow_id" => active_workflow.id
+        }
+      )
+      bundled_jobs.each_with_index { |job, index| bundle_unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member") }
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ active_member.id, *bundled_jobs.map(&:id) ]))
+
+      user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      by_id = body.fetch("items").index_by { |item| item.fetch("id") }
+      expect(by_id.fetch(active_member.id)).to include(
+        "state" => "landing",
+        "landing_queue_wait_reason" => { "key" => "waiting_active_epic_merge_train" },
+        "landing_queue_blocked_reason" => nil
+      )
+      bundled_jobs.each do |job|
+        expect(by_id.fetch(job.id)).to include(
+          "state" => "landing",
+          "landing_queue_wait_reason" => { "key" => "waiting_active_merge_train" },
+          "landing_queue_blocked_reason" => nil,
+          "landing_queue_entry_key" => "job_bundle:#{bundle_train.id}"
+        )
+      end
+      expect(body.fetch("landing_queue").fetch("entries").map { |entry| entry.fetch("key") }).to include(
+        "epic:#{epic.id}",
+        "job_bundle:#{bundle_train.id}"
+      )
     end
 
     it "groups Epic jobs together when assigning landing queue positions" do
@@ -2092,6 +2212,42 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body["message"]).to include("Skipped 1 job whose repository has auto-merge disabled (acme/lib)")
       expect(parse_body["skipped_job_ids"]).to eq([ disabled.id ])
       expect(parse_body["batch_id"]).to be_present
+    end
+
+    it "accepts selected jobs awaiting triage decisions" do
+      accepted = Factories.job_record(repository: repo, issue_number: 12)
+      proposed = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", issue_title: "Proposed from investigation")
+      skipped = Factories.job_record(repository: repo, issue_number: 13)
+      accepted.update_columns(
+        state: "triaging",
+        triaging_reason: "classifier_uncertain",
+        triaging_uncertainty_reason: "invalid JSON: expected an object"
+      )
+      proposed.update_columns(state: "triaging", triaging_reason: "proposed_job")
+      skipped.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+      allow(AppEvents).to receive(:broadcast)
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ accepted.id, proposed.id, skipped.id ], bulk_action: "accept_triage" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(accepted.reload).to be_queued
+      expect(accepted.triaging_uncertainty_reason).to be_nil
+      expect(proposed.reload).to be_queued
+      expect(proposed.triaging_reason).to eq("proposed_job")
+      expect(skipped.reload).to be_triaging
+      expect(parse_body["message"]).to eq("Accepted 2 jobs for work. Skipped 1 job.")
+      expect(parse_body["affected_job_ids"]).to eq([ accepted.id, proposed.id ])
+      expect(parse_body["skipped_job_ids"]).to eq([ skipped.id ])
+      expect(AppEvents).to have_received(:broadcast).with(
+        user: user,
+        type: "updated",
+        resource: "job",
+        id: nil,
+        changed: [ "bulk" ],
+        payload: { "action" => "accept_triage", "affected_job_ids" => [ accepted.id, proposed.id ] }
+      )
     end
 
     it "falls back to a bot-authenticated review for app-authored jobs when the approver has no connected PAT" do

@@ -11,7 +11,7 @@ class ReconcileJobStatesJob < ApplicationJob
 
   # Called by WorkEngine::Reconciler#classify_completed_infrastructure_jobs.
   def terminal_workflow?(workflow)
-    workflow && %w[ succeeded failed cancelled ].include?(workflow.state)
+    workflow && %w[ succeeded failed cancelled blocked ].include?(workflow.state)
   end
 
   # Detection + transition plan for one Job. Returns nil when the

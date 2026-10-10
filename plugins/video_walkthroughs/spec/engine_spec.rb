@@ -45,6 +45,8 @@ RSpec.describe VideoWalkthroughs::Engine do
 
     before do
       allow(Rails).to receive(:cache).and_return(cache)
+      Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot)
+      AppSetting.current.update!(beta_mode_enabled: true)
       record = PluginRecord.find_or_initialize_by(name: "video_walkthroughs")
       record.update!(enabled: true)
       Syrus::Installer.sync!

@@ -69,6 +69,7 @@
   "priority": "Prioritas",
   "set_priority": "Prioritatem pone",
   "approve": "Approba",
+  "accept_triage": "Accipe",
   "close_action": "Claude",
   "move_to_in_progress": "Ad agenda move",
   "close_confirm_one": "{{count}} opus electum claude?",

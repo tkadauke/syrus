@@ -44,7 +44,7 @@ class Job < ApplicationRecord
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
-  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
+  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain proposed_job ].freeze
   APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so urgent (-10) runs before high (0), medium (10),
@@ -885,9 +885,10 @@ class Job < ApplicationRecord
   # opinion (or lack of one) stops mattering at that point, so the uncertainty
   # is cleared rather than carried into execution.
   def accept_triage!
-    return false unless triaging? && triaging_reason_classifier_uncertain?
+    return false unless awaiting_triage_decision?
 
-    update!(triaging_reason: "classifier_pending", triaging_uncertainty_reason: nil)
+    next_reason = triaging_reason_proposed_job? ? "proposed_job" : "classifier_pending"
+    update!(triaging_reason: next_reason, triaging_uncertainty_reason: nil)
     advance_after_triage! if may_advance_after_triage?
     true
   end
@@ -897,10 +898,14 @@ class Job < ApplicationRecord
   # as a success would corrupt the same attribution that closure reasons exist
   # to keep honest.
   def reject_triage!
-    return false unless triaging? && triaging_reason_classifier_uncertain?
+    return false unless awaiting_triage_decision?
 
     cancel_active_runs_and_close!("cancelled")
     true
+  end
+
+  def awaiting_triage_decision?
+    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_proposed_job?)
   end
 
   def ready_for_execution?
@@ -1909,16 +1914,52 @@ class Job < ApplicationRecord
       # (matches the user.repositories scope used when seeding).
       next unless dependency.job.user_id == user_id
 
-      dependency.resolve!(depends_on_job: self)
+      JobDependency.transaction(requires_new: true) do
+        dependency.resolve!(depends_on_job: self)
+        validate_resolved_parsed_epic_child_dependency!(dependency)
+      end
       Rails.logger.info(
         "[JobDependency] resolved pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
         "Depends-on: #{repository.owner}/#{repository.name}##{issue_number} -> #{slug}"
       )
     rescue ActiveRecord::RecordInvalid => e
+      quarantine_pending_dependency_dependent!(dependency, e)
       Rails.logger.warn(
         "[JobDependency] failed to resolve pending dep on #{::App::Presentation.job_slug(dependency.job_id)}: #{e.message}"
       )
     end
+  end
+
+  def validate_resolved_parsed_epic_child_dependency!(dependency)
+    dependent = dependency.job
+    return unless dependency.parsed?
+    return unless dependent&.issue? && dependent.epic_id.present?
+    return unless dependent.epic.jobs.where.not(id: dependent.id).exists?
+    return if dependent.dependencies.joins(:depends_on_job).where(jobs: { epic_id: dependent.epic_id }).exists?
+    return if JobDependency.joins(:job).where(depends_on_job_id: dependent.id, jobs: { epic_id: dependent.epic_id }).exists?
+
+    dependent.errors.add(
+      :base,
+      "GitHub-ingested Epic children must form one linear dependency chain. " \
+      "The resolved Depends-on reference does not point at another child issue in this Epic."
+    )
+    raise ActiveRecord::RecordInvalid, dependent
+  end
+
+  def quarantine_pending_dependency_dependent!(dependency, error)
+    dependent = dependency.job
+    return unless dependent&.issue? && dependent.issue_number.present?
+
+    dependent.repository.record_poll_issue_error!(
+      issue_number: dependent.issue_number,
+      issue_title: dependent.issue_title,
+      error: error
+    )
+
+    return unless dependency.parsed?
+    return if dependent.runs.where(state: %w[running succeeded failed]).exists?
+
+    dependent.destroy!
   end
 
   def log_dependency_override!(user)

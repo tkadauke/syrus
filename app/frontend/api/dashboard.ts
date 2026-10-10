@@ -483,7 +483,7 @@ export type DashboardPreferencesPayload = {
   dashboard_preferences: Record<string, unknown>
 }
 
-export type DashboardBulkJobAction = "retry" | "close" | "approve" | "claim" | "release_claim" | "release_from_backlog" | "move_to_backlog" | "assign_owner" | "set_priority" | "pause" | "unpause"
+export type DashboardBulkJobAction = "retry" | "close" | "approve" | "accept_triage" | "claim" | "release_claim" | "release_from_backlog" | "move_to_backlog" | "assign_owner" | "set_priority" | "pause" | "unpause"
 export type DashboardBulkEpicAction = "start"
 
 export type DashboardBulkJobsInput = {

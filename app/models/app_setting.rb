@@ -45,6 +45,8 @@ class AppSetting < ApplicationRecord
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
+  after_commit :refresh_beta_mode_capability_caches, if: :beta_mode_enabled_changed?
+
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
   encrypts :discord_bot_token
@@ -112,6 +114,10 @@ class AppSetting < ApplicationRecord
 
   def self.show_work_unit_debug?
     current.show_work_unit_debug
+  end
+
+  def self.beta_mode_enabled?
+    current.beta_mode_enabled
   end
 
   def self.macos_worker_desired_release
@@ -257,5 +263,19 @@ class AppSetting < ApplicationRecord
     raise ArgumentError, "Unknown secret: #{secret}" unless self.class.clearable_secrets.key?(secret)
 
     update!(secret => nil)
+  end
+
+  private
+
+  def beta_mode_enabled_changed?
+    has_attribute?(:beta_mode_enabled) && saved_change_to_beta_mode_enabled?
+  end
+
+  def refresh_beta_mode_capability_caches
+    Feature.clear_enabled_cache! if defined?(Feature)
+    return unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    Syrus::Installer.sync! if defined?(Syrus::Installer)
   end
 end

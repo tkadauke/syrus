@@ -1,7 +1,7 @@
 module Workflows
   # An investigation-only Job's chain: no PR is expected. Launched from a
-  # `direct` Job flagged `investigation: true` (see Job#investigation_launch?,
-  # InvestigationJobs::Creator) instead of a free-form implementation prompt.
+  # operator-facing Job flagged `investigation: true` (see
+  # Job#investigation_launch?) instead of a free-form implementation prompt.
   #
   #   prepare → investigate → submit_report
   #

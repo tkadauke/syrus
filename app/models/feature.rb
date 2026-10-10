@@ -14,6 +14,7 @@ class Feature < ApplicationRecord
   validates :slug, presence: true, uniqueness: true
   validates :category, presence: true
   validates :name, presence: true
+  validate :beta_mode_enabled_when_enabling_experimental
 
   attr_accessor :name_i18n_key, :description_i18n_key
 
@@ -27,8 +28,9 @@ class Feature < ApplicationRecord
   end
 
   def self.load_enabled_cache!(cache)
-    process_enabled_cache.each do |feature_slug, enabled|
-      cache[feature_slug.to_s] = enabled == true
+    beta_mode_enabled = AppSetting.beta_mode_enabled?
+    process_enabled_cache.each do |feature_slug, enabled, experimental|
+      cache[feature_slug.to_s] = effective_enabled_value?(enabled: enabled, experimental: experimental, beta_mode_enabled: beta_mode_enabled)
     end
     cache[ENABLED_CACHE_LOADED_KEY] = true
   end
@@ -44,12 +46,17 @@ class Feature < ApplicationRecord
         return @process_enabled_cache
       end
 
-      @process_enabled_cache = pluck(:slug, :enabled)
+      @process_enabled_cache = pluck(:slug, :enabled, :experimental)
       @process_enabled_cache_expires_at = now + process_cache_ttl.to_f
       @process_enabled_cache
     end
   end
   private_class_method :process_enabled_cache
+
+  def self.effective_enabled_value?(enabled:, experimental:, beta_mode_enabled:)
+    enabled == true && (beta_mode_enabled || experimental != true)
+  end
+  private_class_method :effective_enabled_value?
 
   def self.clear_enabled_cache!(slug = nil)
     cache = Current.feature_enabled_cache
@@ -127,7 +134,20 @@ class Feature < ApplicationRecord
     enabled?(:execution_request_assertions)
   end
 
+  def effective_enabled?
+    enabled? && (AppSetting.beta_mode_enabled? || !experimental?)
+  end
+
   private
+
+  def beta_mode_enabled_when_enabling_experimental
+    return unless enabled?
+    return unless will_save_change_to_enabled?
+    return unless experimental?
+    return if AppSetting.beta_mode_enabled?
+
+    errors.add(:enabled, "requires beta mode for beta or experimental features")
+  end
 
   def clear_request_enabled_cache
     self.class.clear_enabled_cache!(slug)

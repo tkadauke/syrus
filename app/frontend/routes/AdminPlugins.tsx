@@ -4,12 +4,14 @@ import { type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   disableAdminPlugin,
+  enableBetaModeForInstance,
   enableAdminPlugin,
   fetchAdminPlugin,
   fetchAdminPlugins,
   type AdminPlugin,
   type AdminPluginDisableConfirmation,
   type AdminPluginExtensionPoint,
+  type AdminPluginExperimentalBlock,
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
@@ -57,7 +59,7 @@ export function AdminPlugins() {
             />
           }
         >
-          <PluginsView isFiltered={isFiltered} plugins={plugins.data.plugins} />
+          <PluginsView betaModeEnabled={plugins.data.beta_mode_enabled === true} isFiltered={isFiltered} plugins={plugins.data.plugins} />
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
@@ -84,12 +86,12 @@ export function AdminPluginDetail() {
       </Page.Header>
       {plugin.isPending ? <PanelMessage>{t("plugins.detail_loading")}</PanelMessage> : null}
       {plugin.isError ? <PanelMessage tone="error">{errorMessage(plugin.error, t("plugins.detail_error_load"))}</PanelMessage> : null}
-      {plugin.isSuccess ? <PluginDetailView plugin={plugin.data.plugin} /> : null}
+      {plugin.isSuccess ? <PluginDetailView betaModeEnabled={plugin.data.beta_mode_enabled === true} plugin={plugin.data.plugin} /> : null}
     </Page.Root>
   )
 }
 
-function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFiltered: boolean }) {
+function PluginsView({ plugins, betaModeEnabled, isFiltered }: { plugins: AdminPlugin[]; betaModeEnabled: boolean; isFiltered: boolean }) {
   const { t } = useT("admin")
   if (plugins.length === 0) {
     return (
@@ -103,18 +105,18 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
   return (
     <section aria-label={t("plugins.list_aria")} className="space-y-4">
       {plugins.map((plugin) => (
-        <PluginCard key={plugin.name} plugin={plugin} />
+        <PluginCard betaModeEnabled={betaModeEnabled} key={plugin.name} plugin={plugin} />
       ))}
     </section>
   )
 }
 
-function PluginCard({ plugin }: { plugin: AdminPlugin }) {
+function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
   const { t } = useT("admin")
   const navigate = useNavigate()
   const dependsOn = plugin.depends_on || []
   const dependents = plugin.dependents || []
-  const toggleState = usePluginToggle(plugin, (nowEnabled) => {
+  const toggleState = usePluginToggle(plugin, betaModeEnabled, (nowEnabled) => {
     if (nowEnabled) {
       navigate(`/admin/plugins/${encodeURIComponent(plugin.name)}`)
     } else {
@@ -140,6 +142,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
+            {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
           {plugin.long_description ? (
@@ -197,14 +200,23 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   )
 }
 
-function usePluginToggle(plugin: AdminPlugin, onToggled: (nowEnabled: boolean) => void) {
+function usePluginToggle(plugin: AdminPlugin, betaModeEnabled: boolean, onToggled: (nowEnabled: boolean) => void) {
   const { t } = useT("admin")
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
-  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
+  const [experimentalBlock, setExperimentalBlock] = useState<AdminPluginExperimentalBlock | null>(null)
+  const optIn = useMutation({
+    mutationFn: enableBetaModeForInstance,
+    onSuccess: () => pageReload.reloadPage()
+  })
+  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation | AdminPluginExperimentalBlock, unknown, boolean | undefined>({
     mutationFn: (confirmCascade) => (plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name)),
     onSuccess: (data) => {
       if ("requires_confirmation" in data && data.requires_confirmation) {
         setPendingCascade(data)
+        return
+      }
+      if ("blocked_experimental_plugins" in data) {
+        setExperimentalBlock(data)
         return
       }
       onToggled(!plugin.enabled)
@@ -212,6 +224,7 @@ function usePluginToggle(plugin: AdminPlugin, onToggled: (nowEnabled: boolean) =
   })
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
+  const experimentalEnableBlocked = plugin.experimental && !plugin.enabled && !betaModeEnabled
 
   let disableTooltip: string | undefined
   if (plugin.enabled && !plugin.disableable) {
@@ -220,14 +233,26 @@ function usePluginToggle(plugin: AdminPlugin, onToggled: (nowEnabled: boolean) =
     disableTooltip = disableBlockers.length === 1 ? `${disableBlockers[0].label}: ${disableBlockers[0].count}` : t("plugins.disable_blocked_tooltip_many")
   }
 
-  return { toggle, pendingCascade, setPendingCascade, disableTooltip, disableBlocked, disableBlockers }
+  return { toggle, optIn, pendingCascade, setPendingCascade, experimentalBlock, disableTooltip, disableBlocked, disableBlockers, experimentalEnableBlocked }
 }
 
 type PluginToggleState = ReturnType<typeof usePluginToggle>
 
 function PluginToggleButton({ plugin, state }: { plugin: AdminPlugin; state: PluginToggleState }) {
   const { t } = useT("admin")
-  const { toggle, disableTooltip, disableBlocked } = state
+  const { toggle, optIn, disableTooltip, disableBlocked, experimentalBlock, experimentalEnableBlocked } = state
+
+  if (experimentalEnableBlocked) {
+    return (
+      <div className="max-w-xs text-sm">
+        <p className="mb-2 text-gray-600 dark:text-gray-300">{t("plugins.experimental_opt_in_body")}</p>
+        <Button disabled={optIn.isPending} onClick={() => optIn.mutate()} variant="secondary">
+          {optIn.isPending ? t("plugins.saving") : t("plugins.enable_beta_mode")}
+        </Button>
+        {optIn.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(optIn.error, t("plugins.error_toggle"))}</p> : null}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -241,6 +266,7 @@ function PluginToggleButton({ plugin, state }: { plugin: AdminPlugin; state: Plu
         </Button>
       </span>
       {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
+      {experimentalBlock ? <p className="mt-2 max-w-xs text-sm text-amber-700 dark:text-amber-300">{experimentalBlock.message}</p> : null}
     </div>
   )
 }
@@ -299,12 +325,12 @@ function HomepageLink({ homepage }: { homepage: string }) {
   )
 }
 
-function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
+function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
   const { t } = useT("admin")
   const visibleLinks = (plugin.links || []).filter((link) => plugin.enabled || link.enabled_only === false)
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
-  const toggleState = usePluginToggle(plugin, () => pageReload.reloadPage())
+  const toggleState = usePluginToggle(plugin, betaModeEnabled, () => pageReload.reloadPage())
 
   return (
     <>
@@ -316,6 +342,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
               <Page.Title className="break-words">{plugin.display_name || plugin.name}</Page.Title>
               <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</span>
               <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
+              {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
               {plugin.health ? <StatusBadge status={plugin.health.state} label={`${t("plugins.health")}: ${plugin.health.state}`} /> : null}
             </div>
             {plugin.health && plugin.health.reasons.length > 0 ? (
@@ -567,6 +594,7 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 function statusTone(status: string) {
   if (["available", "configured", "enabled", "registered"].includes(status)) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
   if (status === "required") return "bg-info/10 text-info"
+  if (status === "experimental") return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
   if (["disabled", "not_configured"].includes(status)) return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
   if (status === "error") return "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
   return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"

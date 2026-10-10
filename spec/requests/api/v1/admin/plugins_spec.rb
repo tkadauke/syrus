@@ -94,6 +94,23 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(PluginRecord.find_by!(name: "api-rails-plugin").enabled).to be(true)
   end
 
+  it "blocks experimental dependency cascades through the token admin API" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "api-experimental-dependency", version: "1.0.0", experimental: true, default_enabled: false)
+    Syrus::PluginRegistry.register(name: "api-stable-plugin", version: "1.0.0", default_enabled: false, depends_on: [ "api-experimental-dependency" ])
+
+    post "/api/v1/admin/plugins/api-stable-plugin/enable", headers: auth
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("beta_mode_not_enabled")
+    expect(parse_body.fetch("blocked_experimental_plugins")).to eq([
+      { "name" => "api-experimental-dependency", "display_name" => "Api Experimental Dependency" }
+    ])
+    expect(PluginRecord.find_by!(name: "api-stable-plugin").enabled).to be(false)
+    expect(PluginRecord.find_by!(name: "api-experimental-dependency").enabled).to be(false)
+  end
+
   it "warns instead of disabling when other enabled plugins depend on the target" do
     admin_token
     Syrus::PluginRegistry.reset!

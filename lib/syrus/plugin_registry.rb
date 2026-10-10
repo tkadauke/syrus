@@ -127,7 +127,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -171,6 +171,7 @@ module Syrus
             icon_url:        icon_url,
             default_enabled: default_enabled,
             disableable:     disableable,
+            experimental:     experimental,
             category:        category,
             home_queue:      home_queue,
             tick_interval:   tick_interval,
@@ -192,6 +193,7 @@ module Syrus
             name: name,
             default_enabled: default_enabled,
             disableable: disableable,
+            experimental: experimental,
             metadata: {
               version: version,
               display_name: display_name,
@@ -528,6 +530,16 @@ module Syrus
         end
       end
 
+      def beta_mode_enabled?
+        return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
+        return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
+        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+
+        AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.beta_mode_enabled? || false
+      rescue ActiveRecord::ActiveRecordError
+        true
+      end
+
       private
 
       def drain_effects_for_callback_provider(provider)
@@ -543,11 +555,13 @@ module Syrus
         plugins.sort_by.with_index { |m, i| [ m.prepare_priority, i ] }
       end
 
-      def upsert_plugin_record!(name:, default_enabled:, disableable:, metadata:)
+      def upsert_plugin_record!(name:, default_enabled:, disableable:, experimental:, metadata:)
         record = PluginRecord.find_or_initialize_by(name: name)
-        record.enabled = default_enabled if record.new_record?
+        record.enabled = default_enabled && (!experimental || beta_mode_enabled?) if record.new_record?
+        record.enabled = true if stable_promotion_enables_record?(record, default_enabled, experimental)
         record.default_enabled = default_enabled if record.has_attribute?(:default_enabled)
         record.disableable = disableable if record.has_attribute?(:disableable)
+        record.experimental = experimental if record.has_attribute?(:experimental)
         record.config = record.config.to_h.merge("manifest" => metadata)
         record.enabled = true if !disableable && !record.enabled?
         record.display_name = metadata[:display_name] if record.has_attribute?(:display_name)
@@ -558,12 +572,22 @@ module Syrus
         record.save!
       end
 
+      def stable_promotion_enables_record?(record, default_enabled, experimental)
+        !record.new_record? &&
+          default_enabled &&
+          !experimental &&
+          record.has_attribute?(:experimental) &&
+          record.experimental? &&
+          !record.ever_enabled?
+      end
+
       def extension_points_token_list(points)
         tokens = Array(points).map(&:to_s).reject(&:blank?).sort
         tokens.any? ? "\n#{tokens.join("\n")}\n" : nil
       end
 
       def plugin_enabled?(manifest, record)
+        return false if manifest.experimental? && !beta_mode_enabled?
         return manifest.default_enabled? unless record
         return true unless manifest.disableable?
 
@@ -578,6 +602,7 @@ module Syrus
             name: manifest.name,
             default_enabled: manifest.default_enabled,
             disableable: manifest.disableable,
+            experimental: manifest.experimental,
             metadata: manifest.metadata.to_h.merge(
               version: manifest.version,
               display_name: manifest.display_name,
@@ -627,9 +652,10 @@ module Syrus
 
       def manifest_with_record(manifest, record)
         manifest.with(
-          enabled: record.effective_enabled?,
+          enabled: plugin_enabled?(manifest, record),
           default_enabled: record.has_attribute?(:default_enabled) ? record.default_enabled : manifest.default_enabled,
-          disableable: record.has_attribute?(:disableable) ? record.disableable : manifest.disableable
+          disableable: record.has_attribute?(:disableable) ? record.disableable : manifest.disableable,
+          experimental: record.has_attribute?(:experimental) ? record.experimental : manifest.experimental
         )
       end
 
