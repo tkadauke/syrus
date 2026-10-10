@@ -50,6 +50,14 @@ class JobStackResolver
     return blocked_result(STACK_BLOCK_REASON, pending_blocker(unresolved)) if unresolved.any?(&:pending?)
     return blocked_result(STACK_BLOCK_REASON, missing_job_blocker(unresolved)) if unresolved.any? { |dependency| dependency.depends_on_job_id.blank? }
 
+    withdrawn = unresolved.select(&:dependency_approval_withdrawn_for_execution?)
+    if withdrawn.any?
+      return blocked_result(
+        Job::WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON,
+        withdrawn_approval_blocker(withdrawn)
+      )
+    end
+
     stackable_unresolved = unresolved.select { |dependency| stackable_parent?(dependency.depends_on_job) }
     return force_main! if stackable_unresolved.empty? && unresolved.all?(&:execution_dependency_satisfied?)
     return blocked_result(STACK_BLOCK_REASON, pending_blocker(unresolved)) if stackable_unresolved.empty?
@@ -204,6 +212,14 @@ class JobStackResolver
       "build" => build.to_h,
       "action" => "Land the sibling dependencies, linearize the stack, or resolve merge conflicts before retrying."
     )
+  end
+
+  def withdrawn_approval_blocker(dependencies)
+    {
+      "kind" => "dependency_approval_withdrawn",
+      "message" => "a dependency was approved and later had that approval withdrawn",
+      "dependencies" => dependency_payloads(dependencies)
+    }
   end
 
   def dependency_payloads(dependencies)

@@ -15,14 +15,7 @@ class JobDependency
       private
 
       def resolved_dependency_succeeded?
-        dependency.depends_on_job.dependency_succeeded? || same_epic_dependency_approved?
-      end
-
-      def same_epic_dependency_approved?
-        return false if dependency.job&.epic_id.blank?
-        return false unless dependency.depends_on_job&.epic_id == dependency.job.epic_id
-
-        dependency.depends_on_job.approved? || dependency.depends_on_job.landing?
+        dependency.depends_on_job.dependency_succeeded? || dependency.same_epic_dependency_approved?
       end
 
       def dependency_ready_for_execution?
