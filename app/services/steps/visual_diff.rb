@@ -129,7 +129,7 @@ module Steps
           {
             "title" => after_artifact["title"].presence || baseline["title"].presence || "Screenshot #{index + 1}",
             "before" => image_payload(baseline),
-            "after" => after_artifact.slice("type", "title", "image_url", "content_type", "byte_size", "created_at")
+            "after" => image_payload(after_artifact)
           }
         end
       end
@@ -148,11 +148,15 @@ module Steps
         {
           "type" => entry["type"],
           "title" => entry["title"],
-          "image_url" => payload["image_url"],
-          "content_type" => payload["content_type"],
-          "byte_size" => payload["byte_size"],
-          "created_at" => entry["created_at"]
-        }
+          "image_url" => payload["image_url"] || entry["image_url"],
+          "content_type" => payload["content_type"] || entry["content_type"],
+          "byte_size" => payload["byte_size"] || entry["byte_size"],
+          "created_at" => entry["created_at"],
+          "source" => payload["source"] || entry["source"],
+          "captured_at" => payload["captured_at"] || entry["captured_at"],
+          "page" => payload["page"] || entry["page"],
+          "viewport" => payload["viewport"] || entry["viewport"]
+        }.compact
       end
     end
   end

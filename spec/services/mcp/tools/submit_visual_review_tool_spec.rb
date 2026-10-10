@@ -88,9 +88,15 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
           "content_type" => "image/jpeg",
           "byte_size" => 1234,
           "source" => "current_browser",
+          "captured_at" => "2026-10-10T12:00:00.000Z",
           "page" => {
             "path" => "/dashboard",
             "title" => "Dashboard"
+          },
+          "viewport" => {
+            "width" => 1280,
+            "height" => 800,
+            "device_scale_factor" => 1
           }
         }
       },
@@ -119,7 +125,13 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
           "path" => "/dashboard",
           "title" => "Dashboard"
         },
+        "viewport" => {
+          "width" => 1280,
+          "height" => 800,
+          "device_scale_factor" => 1
+        },
         "source" => "current_browser",
+        "captured_at" => "2026-10-10T12:00:00.000Z",
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
