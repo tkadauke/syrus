@@ -2133,6 +2133,50 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(job.reload.needs_attention_reason).to eq("grader_loop_no_progress")
     end
 
+    it "continues a retry_until grader loop that shrinks the failing set while surfacing a new failure" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb spec/c_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/d_spec.rb])
+
+      described_class.fail_from(second_collect)
+
+      expect(retry_workflow.reload).to be_queued
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
+      expect(job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "does not measure progress against a round whose graders all failed for infrastructure reasons" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 4)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb spec/c_spec.rb])
+
+      described_class.fail_from(first_collect)
+
+      # The workers running this round died (a rolling restart, say), so
+      # GraderCollect marked it transient and the dispatcher skipped the
+      # repair. Its small failing set describes which workers survived, not
+      # the tree, and must not become the yardstick for the next round.
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/z_spec.rb])
+      second_collect.update!(
+        details: second_collect.details.to_h.merge(Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true)
+      )
+
+      described_class.fail_from(second_collect)
+      third_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 3)
+      add_failed_grader!(retry_workflow, third_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(third_collect)
+
+      expect(retry_workflow.reload).to be_queued
+      expect(job.reload.needs_attention_reason).to be_nil
+      expect(retry_workflow.artifact("grader_loop_stop")).to be_nil
+    end
+
     it "defers the next ci_failure retry iteration when the base becomes unhealthy mid-loop" do
       base_sha = "abc1234567890000000000000000000000000000"
       ci_job = Factories.job_record(

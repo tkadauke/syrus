@@ -51,16 +51,34 @@ class GraderLoopProgress
     collect_step.kind == "grader_collect" && collect_step.loop_id.present?
   end
 
+  # A round whose required graders all failed for infrastructure reasons is
+  # not a measurement of the repair's progress: `Steps::GraderCollect` marks
+  # it transient, `StepDispatcher` skips the repair for it entirely, and the
+  # loop simply regrades. Its failing set reflects whichever workers died,
+  # not the state of the tree, so comparing a real round against it answers
+  # the wrong question -- a rolling deploy that killed graders mid-fan-out
+  # produced a transient round, and the next genuine round was then judged
+  # against that noise and stopped.
   def previous_round
-    Array(workflow.artifact(ARTIFACT_KEY))
+    comparable_rounds
       .select { |round| round["loop_id"] == collect_step.loop_id && round["iteration"].to_i < collect_step.iteration }
       .max_by { |round| round["iteration"].to_i }
   end
 
+  def comparable_rounds
+    Array(workflow.artifact(ARTIFACT_KEY)).reject { |round| round["transient_only"] }
+  end
+
+  # Shrinking is the invariant that bounds the loop. This previously also
+  # required `current` to be a strict subset of `prior`, so a round that
+  # fixed most of the failing set while surfacing a single new failure read
+  # as no progress at all -- a loop going from 28 failing graders to 2 was
+  # stopped as stalled. Requiring the set to shrink still rules out churn
+  # that never converges, without punishing a repair that is plainly working.
   def progressing?(prior_set, current_set)
     prior = Array(prior_set)
     current = Array(current_set)
-    current.present? && (current - prior).empty? && current.length < prior.length
+    current.present? && current.length < prior.length
   end
 
   def round_payload
@@ -78,8 +96,13 @@ class GraderLoopProgress
       "failing_set" => failing_set,
       "failing_set_digest" => Digest::SHA256.hexdigest(failing_set.join("\0")),
       "repair" => repair,
+      "transient_only" => transient_only_round?,
       "recorded_at" => Time.current.iso8601
     }
+  end
+
+  def transient_only_round?
+    collect_step.details.to_h[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY] == true
   end
 
   def stop_payload(prior, current)
