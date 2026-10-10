@@ -50,12 +50,14 @@ module Steps
     /ix
 
     def call
-      workspace.setup
-
       definition = step.details || {}
       name = definition.fetch("name") { raise StepFailed, "grader Step missing details[name]" }
       command = definition.fetch("command") { raise StepFailed, "grader Step missing details[command]" }
       timeout_minutes = (definition["timeout_minutes"] || 15).to_i
+
+      workspace.setup
+      validate_workspace_tracked_files!(name: name)
+
       prepare_target_results = run_prepare_target_dependencies!(definition["prepare_targets"], requested_by: "#{step.kind}:#{name}")
 
       log("[grader:#{name}] $ #{command}")
@@ -179,6 +181,47 @@ module Steps
     end
 
     private
+
+    def validate_workspace_tracked_files!(name:)
+      missing_path = first_missing_tracked_file
+      return unless missing_path
+
+      fail_with!(
+        :workspace_checkout_invalid,
+        "grader #{name} checkout is missing tracked file: #{missing_path}",
+        evidence: {
+          "grader_name" => name,
+          "missing_path" => missing_path,
+          "workspace_path" => workspace.path.to_s
+        }
+      )
+    end
+
+    def first_missing_tracked_file
+      output, stderr, status = Open3.capture3("git", "ls-files", "-s", "-z", chdir: workspace.path.to_s)
+      unless status.success?
+        fail_with!(
+          :workspace_checkout_invalid,
+          "grader checkout could not list tracked files: #{stderr.presence || "git ls-files exited #{status.exitstatus}"}",
+          evidence: { "workspace_path" => workspace.path.to_s }
+        )
+      end
+
+      output.split("\0").filter_map { |entry| tracked_blob_path(entry) }.find do |relative_path|
+        path = workspace.path.join(relative_path)
+        !path.file? && !path.symlink?
+      end
+    end
+
+    def tracked_blob_path(entry)
+      metadata, relative_path = entry.split("\t", 2)
+      return if relative_path.blank?
+
+      mode = metadata.to_s.split.first
+      return if mode == "160000"
+
+      relative_path
+    end
 
     def accept_failure_by_base_retry?(name:, definition:)
       return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
