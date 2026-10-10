@@ -1,3 +1,7 @@
+require "open3"
+require "shellwords"
+require "timeout"
+
 class MergeTrainMultisect
   ARTIFACT_KEY = "merge_train_multisect".freeze
   DEFAULT_SECTION_WIDTH = 4
@@ -22,7 +26,7 @@ class MergeTrainMultisect
     @section_width = normalize_section_width(section_width)
     @evaluator = evaluator
     @determinism_gate = determinism_gate || DeterminismGate.new(workflow: workflow, log: log)
-    @log = log || ->(_message) {}
+    @log = log || ->(_message) { }
     @rounds = []
   end
 
@@ -55,7 +59,9 @@ class MergeTrainMultisect
         reproducing << { index: index, section: section, evaluation: evaluation } if evaluation.reproduced?
         section_payload(section, index: index, omitted: false, evaluation: evaluation)
       end
-      evaluations << section_payload(omitted_section, index: sections.size - 1, omitted: true, evaluation: nil)
+      omitted_evaluation = omitted_evaluation_for(omitted_section, reproducing: reproducing, selector: selector)
+      reproducing << { index: sections.size - 1, section: omitted_section, evaluation: omitted_evaluation } if omitted_evaluation&.reproduced?
+      evaluations << section_payload(omitted_section, index: sections.size - 1, omitted: true, evaluation: omitted_evaluation)
       rounds << {
         "round" => rounds.size + 1,
         "candidate_member_ids" => candidates.map(&:job_id),
@@ -125,6 +131,12 @@ class MergeTrainMultisect
     )
   end
 
+  def omitted_evaluation_for(section, reproducing:, selector:)
+    return nil unless reproducing.one?
+
+    evaluate(section: section, round: rounds.size + 1, role: "omitted_confirmation", selector: selector)
+  end
+
   def abort!(reason, **extra)
     payload = base_payload(reason: reason, **extra)
     record!(payload)
@@ -188,7 +200,7 @@ class MergeTrainMultisect
   class DeterminismGate
     def initialize(workflow:, log: nil)
       @workflow = workflow
-      @log = log || ->(_message) {}
+      @log = log || ->(_message) { }
       @payload = {}
     end
 
@@ -232,6 +244,223 @@ class MergeTrainMultisect
           log: log
         )
       end
+    end
+  end
+
+  class FocusedEvaluator
+    TIMEOUT_SECONDS = 10.minutes
+
+    def initialize(workflow:, train:, log: nil, git: nil)
+      @workflow = workflow
+      @train = train
+      @log = log || ->(_message) { }
+      @git = git || GitRunner.new(workflow: workflow, env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
+      @workspace_path = WorkflowWorkspace.path_for(workflow)
+    end
+
+    def call(members:, failing_set:, round:, role:, **)
+      return Evaluation.clean(reason: "focused_selector_empty") if failing_set.empty?
+      return Evaluation.clean(reason: "workspace_unavailable") unless workspace_path.directory?
+
+      grader_contexts = failed_grader_contexts(failing_set)
+      return Evaluation.clean(reason: "focused_selector_empty") if grader_contexts.empty?
+
+      with_subset_checkout(members, round: round, role: role) do
+        grader_contexts.each do |context|
+          command = focused_command(context)
+          next if command.blank?
+
+          evaluation = run_focused_command(context, command, failing_set)
+          return evaluation if evaluation.reproduced?
+        end
+      end
+
+      Evaluation.clean(reason: "focused_selector_did_not_reproduce")
+    rescue StandardError => e
+      log.call("[merge_train_multisect] focused subset grade failed for #{role}: #{e.class}: #{e.message}")
+      Evaluation.clean(reason: "focused_subset_error", details: { error: "#{e.class}: #{e.message}" })
+    end
+
+    private
+
+    attr_reader :workflow, :train, :log, :git, :workspace_path
+
+    GraderContext = Data.define(:step, :name, :failed_cases)
+
+    def failed_grader_contexts(failing_set)
+      TestEvidenceLookup.failed_grader_steps(workflow).filter_map do |grader_step|
+        name = grader_step.details.to_h["name"].to_s.presence
+        next unless name
+
+        failed_cases = TestEvidenceLookup.failed_test_cases_for(grader_step.latest_run, name)
+        failed_cases = cases_from_failing_set(failing_set) if failed_cases.empty?
+        next if failed_cases.empty?
+
+        GraderContext.new(grader_step, name, failed_cases)
+      end
+    end
+
+    def cases_from_failing_set(failing_set)
+      failing_set.filter_map do |identity|
+        suite_name, name = identity.to_s.split("\0", 2)
+        next if suite_name.blank? || name.blank?
+
+        {
+          "suite_name" => suite_name,
+          "name" => name,
+          "file_path" => suite_name,
+          "identity" => identity
+        }
+      end
+    end
+
+    def with_subset_checkout(members, round:, role:)
+      original_ref = git.run("rev-parse", "--abbrev-ref", "HEAD", chdir: workspace_path.to_s).strip
+      original_sha = git.run("rev-parse", "HEAD", chdir: workspace_path.to_s).strip
+      subset_branch = "__syrus_multisect_#{workflow.id}_#{round}_#{role}"
+
+      abort_rebase
+      git.run("checkout", "-B", subset_branch, base_sha, chdir: workspace_path.to_s)
+      members.each { |member| integrate_member!(member) }
+      yield
+    ensure
+      restore_checkout(original_ref, original_sha, subset_branch)
+    end
+
+    def integrate_member!(member)
+      branch = member.job.branch_name.to_s
+      raise "member #{member.job.slug} has no branch" if branch.blank?
+
+      fetch_branch(branch)
+      temp_branch = "__syrus_multisect_member_#{member.id}"
+      previous_tip = git.run("rev-parse", "HEAD", chdir: workspace_path.to_s).strip
+      git.run("checkout", "-B", temp_branch, "FETCH_HEAD", chdir: workspace_path.to_s)
+      git.run("rebase", previous_tip, chdir: workspace_path.to_s)
+      git.run("checkout", "-", chdir: workspace_path.to_s)
+      git.run("merge", "--ff-only", temp_branch, chdir: workspace_path.to_s)
+      git.run("branch", "-D", temp_branch, chdir: workspace_path.to_s)
+    rescue GitRunner::GitError => e
+      abort_rebase
+      raise "could not integrate #{branch}: #{e.message}"
+    end
+
+    def fetch_branch(branch)
+      GithubAuthenticatedGit.run(repository: train.repository, user: workflow.job.user, git: git, operation_type: "git_merge_train_multisect_fetch", log: log) do |url|
+        git.run("fetch", url, "refs/heads/#{branch}", chdir: workspace_path.to_s)
+      end
+    end
+
+    def base_sha
+      sha = workflow.artifact("merge_train_base_sha").to_s.presence
+      return sha if sha
+
+      git.run("rev-parse", "origin/#{train.base_branch}", chdir: workspace_path.to_s).strip
+    end
+
+    def focused_command(context)
+      config = base_retry_config(context.step)
+      return nil unless config
+      return interpolate_explicit_command(config.fetch("command"), context.failed_cases) if config.fetch("strategy") == "command"
+      return files_as_args_command(context.step, context.failed_cases) if config.fetch("strategy") == "files_as_args"
+
+      Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
+        command = provider.command_for(
+          grader_name: context.name,
+          grader_command: context.step.details.to_h["command"],
+          failed_cases: context.failed_cases,
+          base_retry: config
+        )
+        return command.to_s.strip if command.to_s.strip.present?
+      rescue StandardError => e
+        log.call("[merge_train_multisect] focused_test_command #{provider} declined with #{e.class}: #{e.message}")
+      end
+      nil
+    end
+
+    def base_retry_config(grader_step)
+      raw = grader_step.details.to_h["base_retry"]
+      return nil if raw.blank?
+      return { "strategy" => "command", "command" => raw } if raw.is_a?(String)
+
+      config = raw.to_h.stringify_keys
+      strategy = config["strategy"].to_s
+      return nil if strategy.blank?
+
+      config.merge("strategy" => strategy)
+    end
+
+    def interpolate_explicit_command(command, failed_cases)
+      files = failed_cases.filter_map { |test_case| test_case["file_path"].presence }.uniq.sort
+      command
+        .gsub("{files}", Shellwords.join(files))
+        .gsub("{failed_count}", failed_cases.size.to_s)
+    end
+
+    def files_as_args_command(grader_step, failed_cases)
+      files = failed_cases.filter_map { |test_case| test_case["file_path"].presence }.uniq.sort
+      return nil if files.empty?
+
+      "#{grader_step.details.to_h['command']} #{Shellwords.join(files)}"
+    end
+
+    def run_focused_command(context, command, failing_set)
+      output = +""
+      status = nil
+      Timeout.timeout(TIMEOUT_SECONDS) do
+        Open3.popen2e(env, "bash", "-c", command, chdir: workspace_path.to_s) do |stdin, stream, wait_thread|
+          stdin.close
+          stream.each { |chunk| output << chunk }
+          status = wait_thread.value
+        end
+      end
+      parsed = parse_result(context, output)
+      return Evaluation.clean(reason: "focused_output_not_parseable") unless parsed
+
+      failed = parsed.cases.select { |test_case| %w[failed error].include?(test_case.status) }
+      identities = failed.map { |test_case| [ test_case.suite_name, test_case.name ].join("\0") }.uniq.sort
+      reproduced = (identities & failing_set).any?
+      details = {
+        grader_name: context.name,
+        command: CommandRedactor.redact(command),
+        exit_status: status&.exitstatus,
+        failed_identities: identities
+      }
+      reproduced ? Evaluation.reproduced(details: details) : Evaluation.clean(details: details)
+    rescue Timeout::Error
+      Evaluation.clean(reason: "focused_timeout", details: { grader_name: context.name })
+    end
+
+    def parse_result(context, output)
+      junit_path = context.step.details.to_h["junit_output"].to_s.strip.presence
+      if junit_path
+        path = workspace_path.join(junit_path)
+        return JunitXmlParser.parse(path.read) if path.file?
+      end
+      JunitXmlParser.parse(output)
+    rescue JunitXmlParser::ParseError
+      nil
+    end
+
+    def env
+      { "RAILS_ENV" => "test", "GIT_TERMINAL_PROMPT" => "0" }
+    end
+
+    def restore_checkout(original_ref, original_sha, subset_branch)
+      abort_rebase
+      return unless original_sha
+
+      target = original_ref.present? && original_ref != "HEAD" ? original_ref : original_sha
+      git.run("checkout", target, chdir: workspace_path.to_s)
+      git.run("reset", "--hard", original_sha, chdir: workspace_path.to_s)
+      git.run("branch", "-D", subset_branch, chdir: workspace_path.to_s) if subset_branch
+    rescue StandardError => e
+      log.call("[merge_train_multisect] could not restore workspace after subset grade: #{e.class}: #{e.message}")
+    end
+
+    def abort_rebase
+      git.run("rebase", "--abort", chdir: workspace_path.to_s)
+    rescue GitRunner::GitError
+      nil
     end
   end
 end
