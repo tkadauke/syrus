@@ -81,6 +81,12 @@ member, and an unattributable failure would split the train arbitrarily.
 
 Maximum number of PRs that can participate in a single merge train. `merge_train_assemble` rejects the train if the member count exceeds this limit.
 
+### merge_train_multisect_section_width
+
+**Type:** integer · **Default:** 4 · **Range:** 2–16
+
+Number of sections used per round by the focused merge-train multisect attribution rung. Wider values spend more concurrent focused grades and subset builds per round to reduce wall-clock rounds, so raise this only when the instance has enough spare worker capacity.
+
 ## Instance operations
 
 ### signups_open
