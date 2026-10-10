@@ -67,6 +67,7 @@ class Run < ApplicationRecord
   # reads, broad greps, multi-file edits).
   STALE_HEARTBEAT_THRESHOLD = 30.minutes
   WORKER_DIED_STEP_MAX_RETRIES = 3
+  WORKER_DIED_STEP_RETRY_JITTER_SECONDS = 60
   NON_IDEMPOTENT_IN_PLACE_RETRY_STEP_KINDS = %w[
     grader_fanout
     preflight_grader_fanout

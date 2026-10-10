@@ -49,6 +49,40 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("non_retryable_failure")
   end
 
+  it "uses the persisted retryable run classification before non-retryable message patterns" do
+    fail_run!(error_class: "Steps::Base::StepFailed", error_message: "required grader failed after worker died")
+    run.run_failure_classification&.destroy!
+    run.create_run_failure_classification!(
+      classification: "worker_died",
+      retryable: true,
+      confidence: 0.95,
+      reason: "worker process disappeared while the grader was active",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("worker_died")
+  end
+
+  it "keeps genuine grader test failures non-retryable through their classification" do
+    fail_run!(error_class: "Steps::Base::StepFailed", error_message: "required grader failed")
+    run.run_failure_classification&.destroy!
+    run.create_run_failure_classification!(
+      classification: "grader_failure",
+      retryable: false,
+      confidence: 0.9,
+      reason: "grader command exited non-zero",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("grader_failure")
+  end
+
   it "retries no-diff runs caused by agent background-wait misconceptions" do
     fail_run!(
       error_class: "Steps::Base::AgentGaveUpWaiting",
