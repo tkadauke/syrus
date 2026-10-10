@@ -325,6 +325,148 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.state).to eq("grading")
     end
 
+    it "replays previous repair commits onto a rebuilt stale-base train" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      source_train = MergeTrain.create!(
+        epic: epic,
+        repository: repository,
+        base_branch: "master",
+        integration_branch: "syrus/merge-train-old",
+        integration_sha: "oldint999",
+        state: "failed",
+        failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+        finished_at: Time.current
+      )
+      [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: source_train, job: job, position: i) }
+      Workflow.create!(
+        job: b,
+        trigger_kind: "merge_train",
+        state: "failed",
+        artifacts: {
+          "merge_train_id" => source_train.id,
+          "merge_train_base_sha" => "oldbase123",
+          "merge_train_stale_base" => { "reason" => "base_moved" }
+        },
+        failure_reason: source_train.failure_reason
+      )
+      LandedCommit.create!(landable: a, sha: "old-member-a", kind: "implementation", position: 0)
+      LandedCommit.create!(landable: b, sha: "old-member-b", kind: "implementation", position: 0)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_build", train, b)
+      handler.workflow.set_artifact!(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT, source_train.id)
+      git = stub_git(handler, base: "newbase456")
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run)
+        .with("rev-list", "--reverse", "oldbase123..oldint999", chdir: "/tmp/ws")
+        .and_return("old-member-a\nold-member-b\nrepair-1\n")
+
+      handler.call
+
+      expect(git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/master", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/syrus/merge-train-old", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("cherry-pick", "repair-1", chdir: "/tmp/ws")
+      expect(handler.workflow.artifact(MergeTrainFixReplay::STATUS_ARTIFACT)).to include(
+        "status" => "replayed",
+        "source_train_id" => source_train.id,
+        "commit_shas" => [ "repair-1" ]
+      )
+      expect(train.reload.integration_sha).to eq("intsha999")
+    end
+
+    it "aborts a conflicting repair replay and leaves the rebuilt member assembly clean" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      source_train = MergeTrain.create!(
+        epic: epic,
+        repository: repository,
+        base_branch: "master",
+        integration_branch: "syrus/merge-train-old",
+        integration_sha: "oldint999",
+        state: "failed",
+        failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+        finished_at: Time.current
+      )
+      MergeTrainMember.create!(merge_train: source_train, job: a, position: 0)
+      Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        state: "failed",
+        artifacts: {
+          "merge_train_id" => source_train.id,
+          "merge_train_base_sha" => "oldbase123",
+          "merge_train_stale_base" => { "reason" => "base_moved" }
+        },
+        failure_reason: source_train.failure_reason
+      )
+      LandedCommit.create!(landable: a, sha: "old-member-a", kind: "implementation", position: 0)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      handler.workflow.set_artifact!(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT, source_train.id)
+      git = stub_git(handler, base: "newbase456")
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run)
+        .with("rev-list", "--reverse", "oldbase123..oldint999", chdir: "/tmp/ws")
+        .and_return("old-member-a\nrepair-1\nrepair-2\n")
+      allow(git).to receive(:run)
+        .with("cherry-pick", "repair-1", chdir: "/tmp/ws")
+        .and_return(nil)
+      allow(git).to receive(:run)
+        .with("cherry-pick", "repair-2", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "cherry-pick", "repair-2" ], 1, "conflict"))
+
+      handler.call
+
+      expect(git).to have_received(:run).with("cherry-pick", "--abort", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("reset", "--hard", "intsha999", chdir: "/tmp/ws")
+      expect(handler.workflow.artifact(MergeTrainFixReplay::STATUS_ARTIFACT)).to include(
+        "status" => "conflicted"
+      )
+      expect(train.reload.state).to eq("grading")
+    end
+
+    it "does not replay previous repairs when the rebuilt member set changed" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      source_train = MergeTrain.create!(
+        epic: epic,
+        repository: repository,
+        base_branch: "master",
+        integration_branch: "syrus/merge-train-old",
+        integration_sha: "oldint999",
+        state: "failed",
+        failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+        finished_at: Time.current
+      )
+      MergeTrainMember.create!(merge_train: source_train, job: a, position: 0)
+      Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        state: "failed",
+        artifacts: {
+          "merge_train_id" => source_train.id,
+          "merge_train_base_sha" => "oldbase123",
+          "merge_train_stale_base" => { "reason" => "base_moved" }
+        },
+        failure_reason: source_train.failure_reason
+      )
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_build", train, b)
+      handler.workflow.set_artifact!(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT, source_train.id)
+      git = stub_git(handler, base: "newbase456")
+      allow(handler).to receive(:run_agent)
+
+      handler.call
+
+      expect(git).not_to have_received(:run).with("cherry-pick", anything, any_args)
+      expect(handler.workflow.artifact(MergeTrainFixReplay::STATUS_ARTIFACT)).to include(
+        "status" => "skipped",
+        "reason" => "member set changed"
+      )
+    end
+
     it "refreshes the installation token and retries when GitHub rejects an authenticated fetch" do
       AppSetting.current.update!(github_app_id: 123, github_app_private_key_pem: "stub-pem")
       allow(GithubAppClient).to receive(:app_jwt).and_return("app-jwt")

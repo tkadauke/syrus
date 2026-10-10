@@ -141,7 +141,7 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "Landing queue",
-      operational_meaning: "What happens to an assembled merge train when it fails: 'restart' discards the assembly and hands every member back individually; 'keep_assembly' preserves the train and its integration branch when the failure was infrastructure, so the retry reuses it.",
+      operational_meaning: "What happens to an assembled merge train when it fails: 'restart' discards the assembly and hands every member back individually; 'keep_assembly' preserves the train and its integration branch when the failure was infrastructure, so the retry reuses it; 'keep_fixes' rebuilds stale trains while replaying previous repair commits when safe.",
       zero_means: nil,
       admin_editable: true,
       secret: false,

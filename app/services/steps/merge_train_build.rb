@@ -43,6 +43,15 @@ module Steps
         integrate!(member, branch)
       end
 
+      MergeTrainFixReplay.new(
+        workflow: workflow,
+        train: train,
+        git: @git,
+        chdir: @chdir,
+        fetch_branch: method(:fetch_branch!),
+        log: method(:log)
+      ).call
+
       @git.run("checkout", @integration, chdir: @chdir)
       sha = @git.run("rev-parse", "HEAD", chdir: @chdir).strip
       tree_sha = @git.run("rev-parse", "HEAD^{tree}", chdir: @chdir).strip
