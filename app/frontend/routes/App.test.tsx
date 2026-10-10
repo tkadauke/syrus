@@ -8951,6 +8951,7 @@ describe("App", () => {
               agent_provider: "codex",
               auto_approve_mode: "if_graders_pass",
               feedback_policy: "confirm",
+              merge_train_failure_policy: "",
               github_owner_id: "123",
               github_repository_id: "456"
             }
