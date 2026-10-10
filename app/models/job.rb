@@ -40,6 +40,7 @@ class Job < ApplicationRecord
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
   INVESTIGATION_ESCALATED_ATTENTION_REASON = "investigation_escalated".freeze
+  WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON = "dependency_approval_withdrawn".freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
@@ -1108,6 +1109,10 @@ class Job < ApplicationRecord
     end
   end
 
+  def approval_withdrawn?
+    approval_withdrawn_at.present?
+  end
+
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
     mark_implemented! if may_mark_implemented?
     return false unless may_approve?
@@ -1115,7 +1120,14 @@ class Job < ApplicationRecord
 
     approver = reviewer_user || user
     approval = job_approvals.find_or_initialize_by(user: approver)
-    approval.approved_at ||= approved_at
+    stale_withdrawn_approval = approval_withdrawn? &&
+      approval.approved_at.present? &&
+      approval.approved_at <= approval_withdrawn_at
+    if stale_withdrawn_approval
+      approval.approved_at = approved_at
+    else
+      approval.approved_at ||= approved_at
+    end
     approval.save!
 
     return false unless approval_satisfied?
@@ -1982,15 +1994,18 @@ class Job < ApplicationRecord
     self.approved_via = options.fetch(:via)
     self.approved_by_user = options[:by_user]
     self.approval_evidence = options[:evidence].presence || {}
+    self.approval_withdrawn_at = nil
     self.landing_failure_reason = nil
   end
 
   def clear_approval_metadata
+    if approved_at.present? || approved_via.present? || approved_by_user_id.present? || approval_evidence.present? || approved?
+      self.approval_withdrawn_at ||= Time.current
+    end
     self.approved_at = nil
     self.approved_via = nil
     self.approved_by_user = nil
     self.approval_evidence = {}
-    job_approvals.destroy_all
   end
 
   def clear_runaway_protection

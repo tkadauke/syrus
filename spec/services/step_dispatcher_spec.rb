@@ -3680,6 +3680,20 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
 
   before { s1.update!(next_step_id: s2.id) }
 
+  def implemented_parent(**attrs)
+    Factories.job_with_run(
+      repository: job_model.repository,
+      issue_number: SecureRandom.random_number(10_000),
+      state: "implemented",
+      branch_name: "syrus/issue-#{SecureRandom.hex(3)}",
+      pr_number: SecureRandom.random_number(10_000),
+      workflow_attrs: { state: "succeeded" },
+      step_attrs: { state: "succeeded" },
+      run_attrs: { state: "succeeded", head_sha: SecureRandom.hex(20) },
+      **attrs
+    )
+  end
+
   it "records stack_dependencies_not_ready as the block reason on a non-rebase workflow" do
     prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
     JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
@@ -3687,6 +3701,58 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
     described_class.start_workflow(workflow)
 
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
+  end
+
+  it "blocks a cross-epic dependent after its upstream approval is withdrawn, then unblocks it when approval is restored" do
+    parent_epic = Factories.epic(user: job_model.user, repository: job_model.repository, state: "in_progress")
+    child_epic = Factories.epic(user: job_model.user, repository: job_model.repository, state: "in_progress")
+    prerequisite = implemented_parent(epic: parent_epic, approved_at: Time.current, approved_via: "operator", state: "approved")
+    prerequisite.unapprove!
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+    job_model.update_columns(epic_id: child_epic.id)
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { s1.runs.count }
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("dependency_approval_withdrawn")
+
+    prerequisite.approve!(via: "operator")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "blocks an epicless dependent after its upstream approval is withdrawn" do
+    prerequisite = implemented_parent(approved_at: Time.current, approved_via: "operator", state: "approved")
+    prerequisite.unapprove!
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("dependency_approval_withdrawn")
+  end
+
+  it "keeps the pre-approval stacking flow for a parent that was never approved" do
+    prerequisite = implemented_parent
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "does not block unrelated jobs in the same repository when another job approval is withdrawn" do
+    unrelated = implemented_parent(approved_at: Time.current, approved_via: "operator", state: "approved")
+    unrelated.unapprove!
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
   it "still preserves dependency blockers when workflow admission control is disabled" do

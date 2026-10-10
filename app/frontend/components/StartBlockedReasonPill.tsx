@@ -18,6 +18,7 @@ type StartBlockedReason =
   | "manual_pause"
   | "main_branch_health"
   | "dependency_failed"
+  | "dependency_approval_withdrawn"
   | "stack_dependencies_not_ready"
   | "stack_fan_in_base_unavailable"
   | "job_not_ready_for_execution"
@@ -40,6 +41,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   manual_pause: "gray",
   main_branch_health: "red",
   dependency_failed: "red",
+  dependency_approval_withdrawn: "amber",
   stack_dependencies_not_ready: "amber",
   stack_fan_in_base_unavailable: "amber",
   job_not_ready_for_execution: "amber",

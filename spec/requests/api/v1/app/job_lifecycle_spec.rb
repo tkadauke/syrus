@@ -608,9 +608,17 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(job.reload).to be_implemented
     expect(job.approved_at).to be_nil
     expect(job.approved_via).to be_nil
+    expect(job.approval_withdrawn_at).to be_present
+    expect(job.job_approvals.where(user: user).count).to eq(1)
     expect(parse_body).to include("message" => "Job unapproved.")
     expect(parse_body.dig("actions", "can_approve")).to be(true)
     expect(parse_body.dig("actions", "can_unapprove")).to be(false)
+
+    post app_job_path(job, "approve"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(job.approval_withdrawn_at).to be_nil
   end
 
   it "closes an implemented investigation job as reviewed" do

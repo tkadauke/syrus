@@ -92,9 +92,9 @@ class StepDispatcher
     unless merge_train_workflow?(workflow)
       stack_resolution = JobStackResolver.new(workflow.job, workflow: workflow).resolve!
       unless stack_resolution.ready?
-        return fail_unstartable_landing_workflow!(workflow, "landing start blocked: stack dependencies not ready") if workflow.landing_workflow?
-
         reason = stack_resolution.reason || STACK_BLOCK_REASON
+        return fail_unstartable_landing_workflow!(workflow, "landing start blocked: #{reason}") if workflow.landing_workflow?
+
         cancel_unstartable_rebase_workflow!(workflow, reason)
         unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
           record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF, details: stack_resolution.blocker) unless start_blocked_backoff_active?(workflow, reason)
@@ -106,6 +106,7 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, STACK_BLOCK_REASON)
     clear_start_blocked!(workflow, FAN_IN_BLOCK_REASON)
+    clear_start_blocked!(workflow, WITHDRAWN_APPROVAL_BLOCK_REASON)
 
     unless workflow.job.ready_for_execution?
       reason = if workflow.job.blocked_by_epic_before_execution?
@@ -229,6 +230,7 @@ class StepDispatcher
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
   URGENT_BLOCK_REASON = "urgent_job_active"
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
+  WITHDRAWN_APPROVAL_BLOCK_REASON = Job::WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON
   STACK_BLOCK_REASON = "stack_dependencies_not_ready"
   FAN_IN_BLOCK_REASON = JobStackResolver::FAN_IN_BLOCK_REASON
   JOB_BLOCK_REASON = "job_not_ready_for_execution"

@@ -82,6 +82,7 @@ module JobDependencies
   def clear_dependency_start_blocks!
     dependency_blocked_workflows.each do |workflow|
       StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
+      StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON)
       StepDispatcher.clear_start_blocked!(workflow, "dependency_failed")
     end
   end

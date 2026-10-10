@@ -2297,6 +2297,20 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.approval_satisfied?).to be true
       end
 
+      it "does not count approvals recorded before approval was withdrawn" do
+        repo = Factories.repository(user: owner, review_policy: "self")
+        job = Factories.job_record(
+          user: owner,
+          owner_user: owner,
+          repository: repo,
+          state: "implemented",
+          approval_withdrawn_at: Time.current
+        )
+        JobApproval.create!(job: job, user: owner, approved_at: 1.minute.ago)
+
+        expect(job.approval_satisfied?).to be false
+      end
+
       it "returns false when only a non-owner has approved" do
         repo = Factories.repository(user: owner, review_policy: "self")
         job = Factories.job_record(user: owner, owner_user: owner, repository: repo, state: "implemented")

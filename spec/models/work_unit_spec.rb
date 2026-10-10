@@ -30,6 +30,7 @@ RSpec.describe WorkUnit do
       manual_pause
       main_branch_health
       dependency_failed
+      dependency_approval_withdrawn
       stack_dependencies_not_ready
       stack_fan_in_base_unavailable
       job_not_ready_for_execution
@@ -57,6 +58,7 @@ RSpec.describe WorkUnit do
   it "splits dependency-wait reasons out of the pause-worthy reasons" do
     expect(described_class::DEPENDENCY_BLOCKED_REASONS).to contain_exactly(
       "dependency_failed",
+      "dependency_approval_withdrawn",
       "stack_dependencies_not_ready",
       "stack_fan_in_base_unavailable",
       "job_not_ready_for_execution"
