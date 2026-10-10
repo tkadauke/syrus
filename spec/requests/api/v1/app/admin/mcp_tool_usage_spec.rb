@@ -373,10 +373,11 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       expect(usage_queries).to all(match(/normalized_tool_name/i))
       expect(usage_queries).to all(match(/server_name/i))
       expect(aggregate_tool_queries).to all(match(/LIMIT/i))
-      # +2 vs. the original McpToolUsage-only budget: one bounded authority
-      # aggregate, plus startup_timing_payload's own bounded
-      # McpStartupPhaseEvent query (see Admin::McpStartupTimingPayload).
-      expect_performance_budget(metrics, max_sql: 16, max_payload_bytes: 80.kilobytes)
+      # +3 vs. the original McpToolUsage-only budget: one bounded authority
+      # aggregate, startup_timing_payload's own bounded McpStartupPhaseEvent
+      # query (see Admin::McpStartupTimingPayload), plus the advertised-tool
+      # availability lookup that keeps the unused-tools section current.
+      expect_performance_budget(metrics, max_sql: 17, max_payload_bytes: 80.kilobytes)
     end
   end
 end
