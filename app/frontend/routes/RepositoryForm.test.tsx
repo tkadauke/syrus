@@ -40,7 +40,6 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       feedback_policy: "confirm",
       review_policy: "self",
       epic_dependency_policy: "linear",
-      merge_train_failure_policy: ["restart", "keep_assembly"],
       github_owner_id: null,
       github_repository_id: null,
       repository_path: "/repositories/1",
@@ -435,7 +434,6 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           feedback_policy: "confirm",
           review_policy: "self",
           epic_dependency_policy: "linear",
-          merge_train_failure_policy: "restart, keep_assembly",
           github_owner_id: "",
           github_repository_id: ""
         }
