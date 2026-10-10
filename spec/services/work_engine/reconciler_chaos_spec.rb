@@ -370,20 +370,29 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         end
 
         desired_iterations = random.rand(1..3)
+        failure_count = random.rand(desired_iterations..4)
         current_iteration = fanout.iteration
         loop_id = fanout.loop_id
         loop do
-          insert_dynamic_grader_steps!(workflow, loop_id: loop_id, iteration: current_iteration, count: random.rand(1..4))
+          insert_dynamic_grader_steps!(
+            workflow,
+            loop_id: loop_id,
+            iteration: current_iteration,
+            count: random.rand(failure_count..4),
+            failed_count: failure_count
+          )
           break if current_iteration >= desired_iterations
 
           collect = workflow.steps.find_by!(kind: "grader_collect", loop_id: loop_id, iteration: current_iteration)
           StepDispatcher.fail_from(collect)
           current_iteration += 1
+          failure_count = [ failure_count - 1, 1 ].max
         end
       end
     end
 
-    def insert_dynamic_grader_steps!(workflow, loop_id:, iteration:, count:)
+    def insert_dynamic_grader_steps!(workflow, loop_id:, iteration:, count:, failed_count: 0)
+      ensure_grader_retry_iteration!(workflow, loop_id: loop_id, iteration: iteration) if loop_id.present?
       fanout = workflow.steps.find_by!(kind: "grader_fanout", loop_id: loop_id, iteration: iteration)
       collect = workflow.steps.find_by!(kind: "grader_collect", loop_id: loop_id, iteration: iteration)
       return unless fanout && collect
@@ -402,9 +411,48 @@ RSpec.describe "Work engine reconciler chaos simulation" do
           details: { "name" => "topology-grader-#{iteration}-#{index + 1}", "required" => true }
         )
       end
+      mark_failed_graders!(graders.first(failed_count), iteration: iteration)
 
       ([ fanout ] + graders + [ collect ]).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
       trace << "grader_loop=#{loop_id}:iteration=#{iteration}:graders=#{count}"
+    end
+
+    def ensure_grader_retry_iteration!(workflow, loop_id:, iteration:)
+      return if workflow.steps.exists?(kind: "grader_fanout", loop_id: loop_id, iteration: iteration)
+      return if iteration <= 1
+
+      previous_collect = workflow.steps.find_by!(kind: "grader_collect", loop_id: loop_id, iteration: iteration - 1)
+      continuation = previous_collect.next_step
+      insertion_position = previous_collect.position + 1
+      workflow.steps.where("position >= ?", insertion_position).where.not(id: previous_collect.id).update_all([ "position = position + ?", 3 ])
+
+      steps = %w[implement grader_fanout grader_collect].map.with_index do |kind, index|
+        Step.create!(
+          workflow: workflow,
+          kind: kind,
+          position: insertion_position + index,
+          iteration: iteration,
+          loop_id: loop_id,
+          placement_policy: Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository)
+        )
+      end
+
+      ([ previous_collect ] + steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+      steps.last.update!(next_step_id: continuation&.id)
+    end
+
+    def mark_failed_graders!(graders, iteration:)
+      graders.each_with_index do |grader, index|
+        grader.update_columns(
+          state: "failed",
+          details: grader.details.to_h.merge(
+            "name" => "synthetic-grader-#{index + 1}",
+            "command" => "topology-grader #{index + 1}",
+            "exit_code" => 1,
+            "output" => "synthetic failure #{index + 1}"
+          )
+        )
+      end
     end
 
     def topology_queued_without_queue_claim(workflow, step)
@@ -1691,11 +1739,9 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     workflow = workflow_class.instantiate(job: job)
     workflow.update_columns(state: "running", started_at: 10.minutes.ago)
 
-    insert_grader_steps!(workflow, iteration: 1, count: 3)
-    StepDispatcher.fail_from(workflow.steps.find_by!(kind: "grader_collect", iteration: 1))
-    insert_grader_steps!(workflow, iteration: 2, count: 3)
-    StepDispatcher.fail_from(workflow.steps.find_by!(kind: "grader_collect", iteration: 2))
-    insert_grader_steps!(workflow, iteration: 3, count: 3)
+    insert_grader_steps!(workflow, iteration: 1, count: 3, failed_count: 3)
+    insert_grader_steps!(workflow, iteration: 2, count: 3, failed_count: 2)
+    insert_grader_steps!(workflow, iteration: 3, count: 3, failed_count: 1)
 
     third_grader = workflow.steps.where(kind: "grader", iteration: 3).order(:position).third
     run = third_grader.runs.create!(
@@ -1733,7 +1779,8 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end.uniq
   end
 
-  def insert_grader_steps!(workflow, iteration:, count:)
+  def insert_grader_steps!(workflow, iteration:, count:, failed_count: 0)
+    ensure_grader_retry_iteration!(workflow, iteration: iteration)
     fanout = workflow.steps.find_by!(kind: "grader_fanout", iteration: iteration)
     collect = workflow.steps.find_by!(kind: "grader_collect", iteration: iteration)
     return if workflow.steps.where(kind: "grader", iteration: iteration, loop_id: fanout.loop_id).exists?
@@ -1751,9 +1798,48 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         details: { "name" => "grader-#{iteration}-#{index + 1}", "required" => true }
       )
     end
+    mark_failed_graders!(graders.first(failed_count), iteration: iteration)
 
     ([ fanout ] + graders + [ collect ]).each_cons(2) do |step, next_step|
       step.update!(next_step_id: next_step.id)
+    end
+  end
+
+  def ensure_grader_retry_iteration!(workflow, iteration:)
+    return if workflow.steps.exists?(kind: "grader_fanout", iteration: iteration)
+    return if iteration <= 1
+
+    previous_collect = workflow.steps.find_by!(kind: "grader_collect", iteration: iteration - 1)
+    continuation = previous_collect.next_step
+    insertion_position = previous_collect.position + 1
+    workflow.steps.where("position >= ?", insertion_position).where.not(id: previous_collect.id).update_all([ "position = position + ?", 3 ])
+
+    steps = %w[implement grader_fanout grader_collect].map.with_index do |kind, index|
+      Step.create!(
+        workflow: workflow,
+        kind: kind,
+        position: insertion_position + index,
+        iteration: iteration,
+        loop_id: previous_collect.loop_id,
+        placement_policy: Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository)
+      )
+    end
+
+    ([ previous_collect ] + steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+    steps.last.update!(next_step_id: continuation&.id)
+  end
+
+  def mark_failed_graders!(graders, iteration:)
+    graders.each_with_index do |grader, index|
+      grader.update_columns(
+        state: "failed",
+        details: grader.details.to_h.merge(
+          "name" => "synthetic-grader-#{index + 1}",
+          "command" => "topology-grader #{index + 1}",
+          "exit_code" => 1,
+          "output" => "synthetic failure #{index + 1}"
+        )
+      )
     end
   end
 end
