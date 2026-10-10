@@ -313,6 +313,54 @@ RSpec.describe Metrics::MaintenanceSampler do
 end
 
 RSpec.describe Metrics::MaintenanceSource do
+  def create_attempt(**overrides)
+    job = Factories.job_with_run
+    workflow = job.latest_workflow
+    AutoRetryAttempt.create!({
+      job: job,
+      workflow: workflow,
+      run: job.runs.first,
+      agent_provider: "claude",
+      failure_classification: "worker_died",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 5.minutes.from_now
+    }.merge(overrides))
+  end
+
+  it "has an updated_at-leading index for the settled auto-retry metric window" do
+    expect(
+      ActiveRecord::Base.connection.index_exists?(
+        :auto_retry_attempts,
+        [ :updated_at, :performed_at, :skipped_reason ],
+        name: "idx_auto_retry_attempts_settled_window"
+      )
+    ).to eq(true)
+  end
+
+  describe "#settled_auto_retry_attempts" do
+    it "reads only attempts that settled inside the updated_at window" do
+      t0 = Time.current
+      skipped_in_window = travel_to(t0 + 1.minute) {
+        create_attempt(skipped_reason: "job is terminal")
+      }
+      travel_to(t0 + 2.minutes) {
+        create_attempt(performed_at: Time.current)
+      }
+      travel_to(t0 + 3.minutes) {
+        create_attempt
+      }
+      old_settled = travel_to(t0 - 1.minute) {
+        create_attempt(skipped_reason: "source workflow was already superseded")
+      }
+
+      reasons = described_class.new.settled_auto_retry_attempts(after: t0, through: t0 + 5.minutes)
+
+      expect(reasons).to contain_exactly(skipped_in_window.skipped_reason, nil)
+      expect(reasons).not_to include(old_settled.skipped_reason)
+    end
+  end
+
   describe "#provider_sessions_bytes" do
     it "uses MySQL table metadata instead of scanning transcript text" do
       connection = instance_double(
