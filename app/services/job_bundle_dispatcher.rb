@@ -56,7 +56,7 @@ class JobBundleDispatcher
       workflow = WorkUnits::Launcher.instantiate(
         kind: "job_bundle",
         job: members.last,
-        artifacts: { "merge_train_id" => train.id }
+        artifacts: { "merge_train_id" => train.id }.merge(fix_replay_artifacts_for(members))
       )
     end
 
@@ -266,6 +266,20 @@ class JobBundleDispatcher
     LandingQueueReentry.landing_start_blocker?(reason) ||
       LandingFailureHandler.merge_train_rebuild_required?(reason) ||
       reason.to_s.start_with?(MergeTrain::STALE_RUNTIME_FAILURE_REASON)
+  end
+
+  def fix_replay_artifacts_for(members)
+    member_ids = members.map(&:id)
+    source = MergeTrain
+      .where(repository_id: @repository.id, epic_id: nil, state: "failed")
+      .where.not(integration_branch: nil)
+      .order(finished_at: :desc, id: :desc)
+      .detect do |train|
+        MergeTrainFixReplay.eligible_source?(train) &&
+          train.members.order(:position).pluck(:job_id) == member_ids
+      end
+
+    MergeTrainFixReplay.source_artifacts_for(source)
   end
 
   def cooldown_reason(failed_bundle)

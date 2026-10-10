@@ -151,6 +151,51 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.members.first.reload.state).to eq("failed")
     end
 
+    it "keeps the old integration branch available for keep_fixes after a stale-base failure" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(
+        train,
+        a,
+        failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
+      )
+      workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(a.reload.state).to eq("approved")
+      expect(train.reload.state).to eq("failed")
+    end
+
+    it "does not keep fixes for a non-retryable failure" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "grader_failure", retryable: false, confidence: 0.9,
+        reason: "required graders failed", classified_at: Time.current
+      )
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

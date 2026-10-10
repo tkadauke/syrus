@@ -39,6 +39,71 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  it "carries a keep_fixes source artifact from a failed stale-base train with the same members" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: failed_train, job: job, position: i, state: "failed") }
+    Workflow.create!(
+      job: b,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" }
+      },
+      failure_reason: failed_train.failure_reason
+    )
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to eq(failed_train.id)
+  end
+
+  it "does not carry a keep_fixes source artifact when the failed train's members changed" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    MergeTrainMember.create!(merge_train: failed_train, job: a, position: 0, state: "failed")
+    Workflow.create!(
+      job: a,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" }
+      },
+      failure_reason: failed_train.failure_reason
+    )
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to be_nil
+    expect(workflow.work_unit.member_jobs).to contain_exactly(a, b)
+  end
+
   it "starts a linear Epic stack without creating a standalone reconciliation Job" do
     allow(StepDispatcher).to receive(:start_workflow).and_call_original
     root = approved_child(1)
