@@ -47,7 +47,7 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 
 ### merge_train_failure_policy
 
-**Type:** string · **Default:** `restart` · **Options:** `restart`, `keep_assembly`
+**Type:** string · **Default:** `restart` · **Options:** `restart`, `keep_assembly`, `keep_fixes`
 
 What happens to an assembled merge train when its workflow fails.
 
@@ -70,6 +70,16 @@ conservative.
 
 This is the same preservation the continuation-retry path already performs,
 widened to any retryable failure.
+
+`keep_fixes` is the next escalation rung for stale trains that cannot safely
+reuse the old assembly, especially when the base branch moved. The failed
+train is terminalized, but its integration branch is left available when the
+failure is retryable or explicitly rebuild-required. The replacement train
+rebuilds every member on the current base and, if the member set is identical,
+cherry-picks the previous integration branch commits that were not recorded as
+member work. If a repair cherry-pick conflicts, Syrus aborts the replay, resets
+the rebuilt assembly to its pre-replay tip, and continues without the old fixes
+so a half-applied repair branch is never published.
 
 Splitting a failed train — landing the clean members while the rest re-train
 — is not offered. It needs a rule for attributing a failure to a particular
