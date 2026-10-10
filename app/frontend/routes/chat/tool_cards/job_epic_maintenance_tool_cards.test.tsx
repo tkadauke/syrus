@@ -128,7 +128,7 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it("renders dependency add and remove details for Job and Epic targets", () => {
     const addJob = context("add_job_dependency", {
-      input: { job_id: 50, depends_on_job_id: 49, satisfaction_mode: "closed" },
+      input: { job_id: 50, depends_on_job_id: 49, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "production" },
       parsedResult: { job_id: 50, depends_on_job_ids: [49], depends_on_epic_ids: [12] }
     })
     const removeEpic = context("remove_epic_dependency", {
@@ -140,7 +140,8 @@ describe("Job and Epic maintenance tool cards", () => {
     render(<>{addJobDependencyCard.renderExpanded(addJob)}{removeEpicDependencyCard.renderExpanded(removeEpic)}</>)
 
     expect(screen.getAllByText("JOB-49").length).toBeGreaterThan(0)
-    expect(screen.getByText("closed")).toBeInTheDocument()
+    expect(screen.getByText("deployment_stage")).toBeInTheDocument()
+    expect(screen.getByText("production")).toBeInTheDocument()
     expect(screen.getAllByText("Current dependencies").length).toBeGreaterThan(0)
     expect(screen.getByText("EPIC-12")).toBeInTheDocument()
     expect(screen.getByText("EPIC-19")).toBeInTheDocument()

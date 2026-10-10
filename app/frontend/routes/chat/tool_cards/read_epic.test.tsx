@@ -66,7 +66,20 @@ describe("read_epic tool card", () => {
     const parsedResult = {
       epic: { id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
       child_jobs: [
-        { id: 319, issue_title: "Add extension point", state: "merged" },
+        {
+          id: 319,
+          issue_title: "Add extension point",
+          state: "merged",
+          depends_on_jobs: [
+            {
+              id: 318,
+              state: "closed",
+              satisfaction_mode: "deployment_stage",
+              required_deployment_stage_name: "production",
+              latest_deployment_stage: { name: "staging", label: "Staging" }
+            }
+          ]
+        },
         { id: 320, issue_title: "Add core tool cards", state: "running" }
       ]
     }
@@ -76,6 +89,7 @@ describe("read_epic tool card", () => {
     expect(screen.getByText("Child Jobs (1/2)")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-319" })).toHaveAttribute("href", "/jobs/319")
     expect(screen.getByRole("link", { name: "JOB-320" })).toHaveAttribute("href", "/jobs/320")
+    expect(screen.getByText("JOB-319 waits for JOB-318 · stage production · latest Staging")).toBeInTheDocument()
   })
 
   it("omits optional sections when fields are missing", () => {

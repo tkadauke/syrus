@@ -122,12 +122,16 @@ export type DashboardDependencyTarget = {
   repository_slug?: string
   job_path?: string
   epic_path?: string
+  latest_deployment_stage?: DashboardDeploymentStage | null
 }
 
 export type DashboardJobDependency = {
   id: number | string
   pending: boolean
   succeeded: boolean
+  satisfaction_mode?: "success" | "closed" | "deployment_stage"
+  required_deployment_stage_name?: string | null
+  latest_deployment_stage?: DashboardDeploymentStage | null
   unresolved_slug: string | null
   depends_on_job: DashboardDependencyTarget | null
   depends_on_epic: DashboardDependencyTarget | null

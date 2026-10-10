@@ -34,6 +34,33 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action, :action)).to eq("manual_intervention")
   end
 
+  it "includes deployment-stage dependency gate details" do
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    upstream = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: "abc123")
+    upstream.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    JobDependency.create!(
+      job: job,
+      depends_on_job: upstream,
+      source: "manual",
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "production"
+    )
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+    dependency = payload.dig(:dependencies, :unsatisfied).first
+
+    expect(dependency).to include(
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "production",
+      latest_deployment_stage: include(name: "staging", label: "On Staging")
+    )
+  end
+
   it "recommends releasing the landing slot for a queued zero-run auto-merge admission block" do
     job = Factories.job_record(
       user: user,

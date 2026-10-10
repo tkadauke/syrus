@@ -57,6 +57,15 @@ describe("read_job tool card", () => {
         state: "queued",
         dependencies: [
           { id: 4040, issue_title: "Upstream job", state: "approved", repository: "tkadauke/syrus" },
+          {
+            id: 4041,
+            issue_title: "Deploy upstream job",
+            state: "closed",
+            repository: "tkadauke/syrus",
+            satisfaction_mode: "deployment_stage",
+            required_deployment_stage_name: "production",
+            latest_deployment_stage: { name: "staging", label: "Staging" }
+          },
           { epic_id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
           { pending: true, unresolved_ref: "owner/repo#123", unresolved_ref_kind: "issue", unresolved_ref_state: "open" }
         ]
@@ -66,6 +75,8 @@ describe("read_job tool card", () => {
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("link", { name: "JOB-4040" })).toHaveAttribute("href", "/jobs/4040")
+    expect(screen.getByRole("link", { name: "JOB-4041" })).toHaveAttribute("href", "/jobs/4041")
+    expect(screen.getByText(/stage production .* latest Staging/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "the Tier 1 tool-card work" })).toHaveAttribute("href", "/epics/291")
     expect(screen.getByText(/approved/)).toBeInTheDocument()
     expect(screen.getByText("owner/repo#123 · open")).toBeInTheDocument()
