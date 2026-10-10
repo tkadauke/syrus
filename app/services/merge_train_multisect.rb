@@ -72,12 +72,11 @@ class MergeTrainMultisect
         return abort!("multiple_sections_reproduced", members: members_payload(members), failing_set: selector,
           reproducing_section_indexes: reproducing.map { |entry| entry[:index] })
       end
-
-      candidates = if reproducing.one?
-        reproducing.first.fetch(:section)
-      else
-        omitted_section
+      unless reproducing.one?
+        return abort!("no_subset_reproduced", members: members_payload(members), failing_set: selector)
       end
+
+      candidates = reproducing.first.fetch(:section)
 
       if candidates.empty? || candidates.size == members.size
         return abort!("no_subset_reproduced", members: members_payload(members), failing_set: selector)
