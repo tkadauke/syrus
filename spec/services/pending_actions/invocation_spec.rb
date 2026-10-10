@@ -74,7 +74,8 @@ RSpec.describe PendingActions::Invocation do
     repository = Factories.repository(user: admin)
     invocation = non_chat_invocation(user: admin, repository: repository)
 
-    expect(ChatPendingAction::ACTIONS.size).to eq(56)
+    expect(ChatPendingAction::ACTIONS.size).to eq(57)
+    expect(ChatPendingAction::ACTIONS).to include("repair_queue_affinity")
     ChatPendingAction::ACTIONS.each do |action_key|
       command = PendingActions.for(action_key).new(invocation)
 
