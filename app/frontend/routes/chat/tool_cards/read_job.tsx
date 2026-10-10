@@ -4,7 +4,17 @@ import { Badge, CardShell, displayValue, EntityReference, Row, SectionLabel, Sta
 // Core-owned tool card for read_job (the Tier 1 tool-card work). Shows the
 // canonical JOB id, title, state, PR, branch, priority, agent provider,
 // dependencies, and deployment stage when present.
-type DependencyBadge = { key: string; id: string | null; kind: "job" | "epic" | null; label: string; state: string | null; pending: boolean }
+type DependencyBadge = {
+  key: string
+  id: string | null
+  kind: "job" | "epic" | null
+  label: string
+  state: string | null
+  pending: boolean
+  satisfactionMode: string | null
+  requiredStage: string | null
+  latestStage: string | null
+}
 type DeploymentStage = { name: string; label: string; reached: boolean }
 
 type JobCard = {
@@ -28,19 +38,63 @@ function dependencyBadges(value: unknown): DependencyBadge[] {
 
     if (item.pending) {
       const label = displayValue(item.unresolved_ref) || "pending dependency"
-      return [{ key: `pending-${index}`, id: null, kind: null, label, state: displayValue(item.unresolved_ref_state), pending: true }]
+      return [{
+        key: `pending-${index}`,
+        id: null,
+        kind: null,
+        label,
+        state: displayValue(item.unresolved_ref_state),
+        pending: true,
+        satisfactionMode: displayValue(item.satisfaction_mode),
+        requiredStage: displayValue(item.required_deployment_stage_name),
+        latestStage: latestDeploymentStageLabel(item.latest_deployment_stage)
+      }]
     }
 
     if (item.epic_id !== undefined) {
       const epicId = displayValue(item.epic_id)
       if (!epicId) return []
-      return [{ key: `epic-${epicId}`, id: epicId, kind: "epic", label: displayValue(item.display_number) || `EPIC-${epicId}`, state: displayValue(item.state), pending: false }]
+      return [{
+        key: `epic-${epicId}`,
+        id: epicId,
+        kind: "epic",
+        label: displayValue(item.display_number) || `EPIC-${epicId}`,
+        state: displayValue(item.state),
+        pending: false,
+        satisfactionMode: displayValue(item.satisfaction_mode),
+        requiredStage: displayValue(item.required_deployment_stage_name),
+        latestStage: latestDeploymentStageLabel(item.latest_deployment_stage)
+      }]
     }
 
     const jobId = displayValue(item.id)
     if (!jobId) return []
-    return [{ key: `job-${jobId}`, id: jobId, kind: "job", label: `JOB-${jobId}`, state: displayValue(item.state), pending: false }]
+    return [{
+      key: `job-${jobId}`,
+      id: jobId,
+      kind: "job",
+      label: `JOB-${jobId}`,
+      state: displayValue(item.state),
+      pending: false,
+      satisfactionMode: displayValue(item.satisfaction_mode),
+      requiredStage: displayValue(item.required_deployment_stage_name),
+      latestStage: latestDeploymentStageLabel(item.latest_deployment_stage)
+    }]
   })
+}
+
+function latestDeploymentStageLabel(value: unknown) {
+  if (!isPlainObject(value)) return null
+  return displayValue(value.label) || displayValue(value.name)
+}
+
+function dependencyGateLabel(dependency: DependencyBadge) {
+  if (dependency.satisfactionMode === "deployment_stage") {
+    const parts = [`stage ${dependency.requiredStage || "unspecified"}`]
+    if (dependency.latestStage) parts.push(`latest ${dependency.latestStage}`)
+    return parts.join(" · ")
+  }
+  return dependency.satisfactionMode
 }
 
 function deploymentStages(value: unknown): DeploymentStage[] {
@@ -124,6 +178,7 @@ function renderExpanded(context: ToolCardContext) {
               >
                 {dependency.kind ? <EntityReference id={dependency.id} kind={dependency.kind} label={dependency.label} slug={dependency.label} /> : dependency.label}
                 {dependency.state ? ` · ${dependency.state}` : ""}
+                {dependencyGateLabel(dependency) ? ` · ${dependencyGateLabel(dependency)}` : ""}
               </span>
             ))}
           </div>

@@ -5,7 +5,12 @@ class JobDependency
         return false unless dependency.depends_on_job_id.present?
         return false if dependency.required_deployment_stage_name.blank?
 
-        dependency.depends_on_job.deployment_stage_statuses.exists?(stage_name: dependency.required_deployment_stage_name)
+        stage_statuses = dependency.depends_on_job.deployment_stage_statuses
+        if stage_statuses.loaded?
+          stage_statuses.any? { |status| status.stage_name == dependency.required_deployment_stage_name }
+        else
+          stage_statuses.exists?(stage_name: dependency.required_deployment_stage_name)
+        end
       end
 
       def terminal_unsuccessful_for_execution?

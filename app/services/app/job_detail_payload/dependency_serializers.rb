@@ -13,8 +13,6 @@ module App
         {
           id: dependency.id,
           source: dependency.source,
-          satisfaction_mode: dependency.satisfaction_mode,
-          required_deployment_stage_name: dependency.required_deployment_stage_name,
           manual: dependency.manual?,
           pending: dependency.pending?,
           succeeded: dependency.dependency_succeeded?,
@@ -22,9 +20,9 @@ module App
           unresolved_ref_kind: dependency.pending_reference_kind,
           unresolved_ref_state: dependency.pending_reference_state,
           created_by_user_id: dependency.created_by_user_id,
-          depends_on_job: job_target && dependency_job_json(job_target),
+          depends_on_job: job_target && dependency_job_json(job_target, dependency: dependency),
           depends_on_epic: epic_target && dependency_epic_json(epic_target)
-        }
+        }.merge(App::DependencyGatePayload.for(dependency))
       end
 
       def dependent_json(dependency)
@@ -35,8 +33,8 @@ module App
         }
       end
 
-      def dependency_job_json(job)
-        {
+      def dependency_job_json(job, dependency: nil)
+        payload = {
           id: job.id,
           kind: job.kind,
           state: job.state,
@@ -49,6 +47,8 @@ module App
           pr_number: job.pr_number,
           job_path: job_path(job)
         }
+        payload[:latest_deployment_stage] = App::DependencyGatePayload.for(dependency)[:latest_deployment_stage] if dependency
+        payload
       end
 
       def dependency_job_summary_state(job)

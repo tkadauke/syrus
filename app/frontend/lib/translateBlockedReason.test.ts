@@ -51,6 +51,8 @@ describe("translateBlockedReason", () => {
       .toBe("common:blocked_reasons.pr_checks_pending(slug=JOB-789)")
     expect(translateBlockedReason({ key: "waiting_to_merge", params: { slug: "JOB-42" } }, mockT))
       .toBe("common:blocked_reasons.waiting_to_merge(slug=JOB-42)")
+    expect(translateBlockedReason({ key: "waiting_for_deployment_stage", params: { slug: "JOB-42", stage: "production" } }, mockT))
+      .toBe("common:blocked_reasons.waiting_for_deployment_stage(slug=JOB-42,stage=production)")
     expect(translateBlockedReason({ key: "waiting_epic_to_complete", params: { number: 7 } }, mockT))
       .toBe("common:blocked_reasons.waiting_epic_to_complete(number=7)")
   })
