@@ -273,6 +273,7 @@
   },
   "start_blocked_reasons": {
     "dependency_failed": "Abhängigkeit fehlgeschlagen",
+    "dependency_approval_withdrawn": "Abhängigkeitsfreigabe zurückgezogen",
     "stack_dependencies_not_ready": "Wartet auf Abhängigkeit",
     "stack_fan_in_base_unavailable": "Fan-in-Basis nicht verfügbar",
     "job_not_ready_for_execution": "Noch nicht bereit",
@@ -295,6 +296,7 @@
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Eine erforderliche Job- oder Epic-Abhängigkeit endete ohne erfolgreiche Auflösung. Überschreibe oder entferne die Abhängigkeit, um fortzufahren.",
+    "dependency_approval_withdrawn": "Ein vorgelagerter Job wurde freigegeben und diese Freigabe später zurückgezogen. Gib den vorgelagerten Job erneut frei, um fortzufahren.",
     "stack_dependencies_not_ready": "Eine erforderliche Job- oder Epic-Abhängigkeit ist noch nicht erfolgreich abgeschlossen.",
     "stack_fan_in_base_unavailable": "Mehrere Abhängigkeits-PR-Branches sind bereit, aber Syrus konnte keine kombinierte Ausführungsbasis vorbereiten.",
     "job_not_ready_for_execution": "Der Job ist noch nicht gültig für die Ausführung oder sein Epic hat ihn nicht freigegeben.",
@@ -324,6 +326,7 @@
     "admission_control": "Zulassungskontrolle",
     "main_branch_health": "Hauptbranch-Gesundheit",
     "dependency_failed": "Abhängigkeit fehlgeschlagen",
+    "dependency_approval_withdrawn": "Abhängigkeitsfreigabe zurückgezogen",
     "stack_dependencies_not_ready": "Wartet auf Abhängigkeit",
     "stack_fan_in_base_unavailable": "Fan-in-Basis nicht verfügbar",
     "job_not_ready_for_execution": "Noch nicht bereit",

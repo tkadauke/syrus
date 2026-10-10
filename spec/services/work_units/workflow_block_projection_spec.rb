@@ -25,6 +25,7 @@ RSpec.describe WorkUnits::WorkflowBlockProjection do
   it "maps scheduler start-blocked reasons to typed work unit reasons" do
     mappings = {
       StepDispatcher::DEPENDENCY_FAILED_BLOCK_REASON => "dependency_failed",
+      StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON => "dependency_approval_withdrawn",
       StepDispatcher::STACK_BLOCK_REASON => "stack_dependencies_not_ready",
       StepDispatcher::FAN_IN_BLOCK_REASON => "stack_fan_in_base_unavailable",
       StepDispatcher::JOB_BLOCK_REASON => "job_not_ready_for_execution",
