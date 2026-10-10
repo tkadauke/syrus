@@ -57,6 +57,7 @@ module Steps
       command = definition.fetch("command") { raise StepFailed, "grader Step missing details[command]" }
       timeout_minutes = (definition["timeout_minutes"] || 15).to_i
       prepare_target_results = run_prepare_target_dependencies!(definition["prepare_targets"], requested_by: "#{step.kind}:#{name}")
+      materialize_grader_inputs!(name: name, definition: definition)
 
       log("[grader:#{name}] $ #{command}")
 
@@ -179,6 +180,21 @@ module Steps
     end
 
     private
+
+    def materialize_grader_inputs!(name:, definition:)
+      GraderInputMaterialization.call(
+        repository: repository,
+        workflow: workflow,
+        step: step,
+        run: run,
+        grader_name: name,
+        grader_definition: definition,
+        workspace_path: workspace.path,
+        destination_path: definition["runtime_profile_destination"]
+      )
+    rescue StandardError => e
+      log("[grader:#{name}] grader input materializer warning: #{e.class}: #{e.message}")
+    end
 
     def accept_failure_by_base_retry?(name:, definition:)
       return false unless definition["failures"] == MainBranchFailureClassifier::ALLOW_INHERITED
