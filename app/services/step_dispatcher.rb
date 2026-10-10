@@ -1161,17 +1161,46 @@ class StepDispatcher
   end
 
   def handle_loop_iteration
-    loop_node = loop_node_for(@from_step)
-    return hard_fail_workflow! unless loop_node
+    loop_match = loop_match_for(@from_step)
+    loop_node = loop_match.fetch(:node)
+    unless loop_node
+      record_grader_loop_decision!("grader_loop_no_matching_node", loop_match: loop_match)
+      return hard_fail_workflow!
+    end
 
-    if @from_step.iteration < loop_max_iterations(loop_node)
+    max_iterations = loop_max_iterations(loop_node)
+    if @from_step.iteration < max_iterations
       progress = GraderLoopProgress.record_failure!(workflow: @workflow, collect_step: @from_step)
-      return stop_non_progressing_grader_loop!(progress.payload) if progress.stop?
+      if progress.stop?
+        record_grader_loop_decision!(
+          GraderLoopProgress::NO_PROGRESS_REASON,
+          loop_match: loop_match,
+          max_iterations: max_iterations,
+          progress: progress
+        )
+        return stop_non_progressing_grader_loop!(progress.payload)
+      end
 
+      record_grader_loop_decision!(
+        "grader_loop_repair_enqueued",
+        loop_match: loop_match,
+        max_iterations: max_iterations,
+        progress: progress
+      )
       enqueue_next_loop_iteration!(loop_node)
     elsif @from_step.succeeded?
+      record_grader_loop_decision!(
+        "grader_loop_checks_succeeded",
+        loop_match: loop_match,
+        max_iterations: max_iterations
+      )
       advance_to_next_runnable!
     else
+      record_grader_loop_decision!(
+        "grader_loop_budget_exhausted",
+        loop_match: loop_match,
+        max_iterations: max_iterations
+      )
       exhaust_loop!
     end
   end
@@ -1191,6 +1220,10 @@ class StepDispatcher
   end
 
   def loop_node_for(step)
+    loop_match_for(step).fetch(:node)
+  end
+
+  def loop_match_for(step)
     # Runtime-inserted Steps aren't part of the static chain_template --
     # Steps::GraderFanout materializes one `grader` Step per configured grader.
     # Drop them before comparing so the template "[implement, grader_fanout,
@@ -1199,14 +1232,25 @@ class StepDispatcher
     #
     # Which kinds those are is declared on the step kind, so a second
     # fan-out step kind is a registry entry rather than another name here.
-    inserted = Step::Kind.runtime_inserted_kinds
     actual_kinds = @workflow.steps
                             .where(loop_id: step.loop_id, iteration: step.iteration)
                             .order(:position)
                             .pluck(:kind)
-                            .reject { |kind| inserted.include?(kind) }
+    inserted = Step::Kind.runtime_inserted_kinds
+    comparable_kinds = actual_kinds.reject { |kind| inserted.include?(kind) }
+    candidates = loop_node_candidates
+    node = candidates.find { |candidate| loop_node_matches?(candidate, comparable_kinds) }
 
-    workflow_template_nodes.find { |node| loop_node_matches?(node, actual_kinds) }
+    {
+      node: node,
+      actual_step_kinds: actual_kinds,
+      comparable_step_kinds: comparable_kinds,
+      candidate_expected_step_kinds: candidates.map { |candidate| loop_node_match_payload(candidate) }
+    }
+  end
+
+  def loop_node_candidates
+    workflow_template_nodes.select { |node| %w[ loop retry_until ].include?(node["type"]) }
   end
 
   def loop_node_matches?(node, actual_kinds)
@@ -1241,6 +1285,58 @@ class StepDispatcher
     else
       []
     end
+  end
+
+  def loop_node_expected_step_kind_sets(loop_node)
+    case loop_node["type"]
+    when "loop"
+      full_steps = Array(loop_node["steps"]).map(&:to_s)
+      [ full_steps, [ full_steps.last ], [ full_steps.first ] ].uniq
+    when "retry_until"
+      [ Array(loop_node["check"]).map(&:to_s), loop_step_kinds(loop_node) ].uniq
+    else
+      []
+    end
+  end
+
+  def loop_node_match_payload(loop_node)
+    {
+      "type" => loop_node["type"],
+      "id" => loop_node["id"],
+      "expected_step_kinds" => loop_node_expected_step_kind_sets(loop_node),
+      "max_iterations" => loop_max_iterations(loop_node)
+    }.compact
+  end
+
+  def record_grader_loop_decision!(reason_key, loop_match:, max_iterations: nil, progress: nil)
+    loop_node = loop_match.fetch(:node)
+    metadata = {
+      "outcome" => reason_key,
+      "loop_id" => @from_step.loop_id,
+      "iteration" => @from_step.iteration,
+      "max_iterations" => max_iterations || (loop_max_iterations(loop_node) if loop_node),
+      "loop_node_matched" => loop_node.present?,
+      "actual_step_kinds" => loop_match.fetch(:actual_step_kinds),
+      "comparable_step_kinds" => loop_match.fetch(:comparable_step_kinds),
+      "candidate_expected_step_kinds" => loop_match.fetch(:candidate_expected_step_kinds),
+      "matched_node" => (loop_node_match_payload(loop_node) if loop_node),
+      "progress" => progress && {
+        "verdict" => progress.stop? ? "stop" : "continue",
+        "stop" => progress.stop?,
+        "payload" => progress.payload
+      }
+    }.compact
+
+    WorkflowActivity.record!(
+      event_type: "grader_loop_decision",
+      source: "step_dispatcher",
+      workflow: @workflow,
+      step: @from_step,
+      reason_key: reason_key,
+      severity: reason_key.in?([ "grader_loop_repair_enqueued", "grader_loop_checks_succeeded" ]) ? "info" : "warn",
+      message: "#{@workflow.slug} grader loop decision: #{reason_key}.",
+      metadata: metadata
+    )
   end
 
   # The final iteration of a loop (review budget exhausted) drops the
