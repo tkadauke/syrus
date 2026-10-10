@@ -1,7 +1,7 @@
 require "set"
 
 class JobDependency < ApplicationRecord
-  SATISFACTION_MODES = %w[success closed].freeze
+  SATISFACTION_MODES = %w[success closed deployment_stage].freeze
 
   belongs_to :job
   belongs_to :depends_on_job, class_name: "Job", optional: true
@@ -17,6 +17,7 @@ class JobDependency < ApplicationRecord
   validate :no_self_reference
   validate :no_cycle
   validate :pending_fields_consistent
+  validate :satisfaction_mode_fields_consistent
   validate :linear_chain_within_epic
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
@@ -60,17 +61,15 @@ class JobDependency < ApplicationRecord
   end
 
   def dependency_succeeded?
-    return dependency_closed? if satisfaction_mode == "closed"
-    return depends_on_epic.done? if depends_on_epic_id.present?
-    return resolved_dependency_succeeded? if resolved?
-
-    referenced_epic&.done? == true
+    satisfaction_policy.dependency_succeeded?
   end
 
   def execution_dependency_satisfied?
-    return dependency_succeeded? if satisfaction_mode == "closed"
+    satisfaction_policy.execution_dependency_satisfied?
+  end
 
-    dependency_succeeded? || dependency_ready_for_execution?
+  def dependency_terminal_unsuccessful_for_execution?
+    satisfaction_policy.terminal_unsuccessful_for_execution?
   end
 
   def referenced_epic
@@ -101,31 +100,8 @@ class JobDependency < ApplicationRecord
 
   private
 
-  def resolved_dependency_succeeded?
-    depends_on_job.dependency_succeeded? || same_epic_dependency_approved?
-  end
-
-  def dependency_closed?
-    return depends_on_job.closed? if depends_on_job_id.present?
-    return depends_on_epic.done? || depends_on_epic.archived? if depends_on_epic_id.present?
-
-    referenced_epic&.then { |epic| epic.done? || epic.archived? } == true
-  end
-
-  def same_epic_dependency_approved?
-    return false if job&.epic_id.blank?
-    return false unless depends_on_job&.epic_id == job.epic_id
-
-    depends_on_job.approved? || depends_on_job.landing?
-  end
-
-  def dependency_ready_for_execution?
-    return false unless depends_on_job
-
-    depends_on_job.implemented? &&
-      depends_on_job.pr_number.present? &&
-      depends_on_job.branch_name.present? &&
-      depends_on_job.head_sha.present?
+  def satisfaction_policy
+    JobDependency::SatisfactionModes.for(self)
   end
 
   def unresolved_github_issue_url
@@ -151,6 +127,12 @@ class JobDependency < ApplicationRecord
     if unresolved_owner.blank? || unresolved_repo.blank? || unresolved_number.blank?
       errors.add(:base, "pending rows need owner, repo, and number")
     end
+  end
+
+  def satisfaction_mode_fields_consistent
+    return unless SATISFACTION_MODES.include?(satisfaction_mode)
+
+    satisfaction_policy.validate!
   end
 
   def no_self_reference

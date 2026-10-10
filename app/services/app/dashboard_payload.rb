@@ -762,7 +762,16 @@ module App
             AND #{dependency_job_table}.state = 'closed'
           )
           OR (
-            #{dependency_table}.satisfaction_mode != 'closed'
+            #{dependency_table}.satisfaction_mode = 'deployment_stage'
+            AND EXISTS (
+              SELECT 1
+              FROM job_deployment_stage_statuses dependency_stage_statuses
+              WHERE dependency_stage_statuses.job_id = #{dependency_job_table}.id
+                AND dependency_stage_statuses.stage_name = #{dependency_table}.required_deployment_stage_name
+            )
+          )
+          OR (
+            #{dependency_table}.satisfaction_mode = 'success'
             AND (
               #{job_success_sql(dependency_job_table)}
               OR (
