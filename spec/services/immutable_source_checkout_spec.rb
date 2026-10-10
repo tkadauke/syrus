@@ -157,6 +157,82 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "publishes prepare cache replacements without exposing a missing checkout to readers" do
+    cache = test_prepare_cache
+    source = Dir.mktmpdir("syrus-prepare-cache-source")
+    File.write(File.join(source, "sentinel.txt"), "old\n")
+    cache.store_from!(source)
+    File.write(File.join(source, "sentinel.txt"), "new\n")
+
+    observed_missing = Concurrent::AtomicBoolean.new(false)
+    stop_reader = Concurrent::AtomicBoolean.new(false)
+    reader = Thread.new do
+      until stop_reader.true?
+        observed_missing.make_true unless cache.path.join("sentinel.txt").file?
+      end
+    end
+
+    allow(FileUtils).to receive(:rm_rf).and_wrap_original do |original, target, *args, **kwargs|
+      result = if kwargs.empty?
+        original.call(target, *args)
+      else
+        original.call(target, *args, **kwargs)
+      end
+      sleep 0.05 if target.to_s == cache.path.to_s
+      result
+    end
+
+    cache.store_from!(source)
+    stop_reader.make_true
+    reader.join
+
+    expect(cache.path.join("sentinel.txt").read).to eq("new\n")
+    expect(observed_missing.true?).to be(false)
+  ensure
+    stop_reader&.make_true
+    reader&.join
+    FileUtils.rm_rf(source) if source
+  end
+
+  it "replaces an existing prepare cache entry without nesting the new tree inside the old path" do
+    cache = test_prepare_cache
+    first_source = Dir.mktmpdir("syrus-prepare-cache-first")
+    second_source = Dir.mktmpdir("syrus-prepare-cache-second")
+    File.write(File.join(first_source, "sentinel.txt"), "old\n")
+    File.write(File.join(second_source, "sentinel.txt"), "new\n")
+    File.write(File.join(second_source, "fresh.txt"), "fresh\n")
+
+    cache.store_from!(first_source)
+    cache.store_from!(second_source)
+
+    expect(cache.path.join("sentinel.txt").read).to eq("new\n")
+    expect(cache.path.join("fresh.txt").read).to eq("fresh\n")
+    expect(cache.path.children.map { |child| child.basename.to_s }).to contain_exactly("fresh.txt", "sentinel.txt")
+  ensure
+    FileUtils.rm_rf(first_source) if first_source
+    FileUtils.rm_rf(second_source) if second_source
+  end
+
+  it "retries prepare cache publication when a source entry disappears during the copy walk" do
+    cache = test_prepare_cache
+    source = Dir.mktmpdir("syrus-prepare-cache-source")
+    File.write(File.join(source, "sentinel.txt"), "ready\n")
+    calls = 0
+    allow(FileUtils).to receive(:cp_r).and_wrap_original do |original, *args, **kwargs|
+      calls += 1
+      raise Errno::ENOENT, "vanished" if calls == 1
+
+      kwargs.empty? ? original.call(*args) : original.call(*args, **kwargs)
+    end
+
+    cache.store_from!(source)
+
+    expect(calls).to eq(2)
+    expect(cache.path.join("sentinel.txt").read).to eq("ready\n")
+  ensure
+    FileUtils.rm_rf(source) if source
+  end
+
   it "preserves root symlinks when restoring a local prepare cache" do
     first_checkout = described_class.new(step)
     first_checkout.setup
@@ -501,5 +577,22 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "runtime" => { "ruby_platform" => "#{os}-ruby" },
       "tool_versions" => { "ruby" => "ruby 3.4.10" }
     }
+  end
+
+  def test_prepare_cache
+    plan = instance_double(
+      RepoPrepPlan::Result,
+      source: ".syrus.yml",
+      note: nil,
+      guessed?: false,
+      commands: [ "true" ]
+    )
+    described_class::PrepareCache.new(
+      workflow: workflow,
+      step: step,
+      snapshot: snapshot,
+      plan: plan,
+      worker_storage_key: WorkerStorageIdentity.queue_key
+    )
   end
 end

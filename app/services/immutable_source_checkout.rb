@@ -677,20 +677,27 @@ class ImmutableSourceCheckout
     end
 
     def store_from!(checkout_path)
-      temporary_path = path.dirname.join(".#{path.basename}.tmp-#{Process.pid}-#{SecureRandom.hex(6)}")
-      FileUtils.rm_rf(temporary_path.to_s)
+      version_path = path.dirname.join(".#{path.basename}.version-#{Process.pid}-#{SecureRandom.hex(6)}")
+      temporary_link = path.dirname.join(".#{path.basename}.link-#{Process.pid}-#{SecureRandom.hex(6)}")
+      retired_path = nil
+      FileUtils.rm_rf(version_path.to_s)
+      FileUtils.rm_f(temporary_link.to_s)
       FileUtils.mkdir_p(path.dirname)
-      FileUtils.mkdir_p(temporary_path)
-      FileUtils.cp_r(
-        Pathname.new(checkout_path).children.map(&:to_s),
-        temporary_path.to_s,
-        preserve: true,
-        dereference_root: false
-      )
-      FileUtils.rm_rf(path.to_s)
-      FileUtils.mv(temporary_path.to_s, path.to_s)
+      FileUtils.mkdir_p(version_path)
+      copy_checkout_tree!(checkout_path, version_path)
+      File.symlink(version_path.basename.to_s, temporary_link.to_s)
+
+      if path.symlink? || !path.exist?
+        File.rename(temporary_link.to_s, path.to_s)
+      else
+        retired_path = path.dirname.join(".#{path.basename}.retired-#{Process.pid}-#{SecureRandom.hex(6)}")
+        File.rename(path.to_s, retired_path.to_s)
+        File.rename(temporary_link.to_s, path.to_s)
+      end
     ensure
-      FileUtils.rm_rf(temporary_path.to_s) if temporary_path && temporary_path.exist?
+      FileUtils.rm_f(temporary_link.to_s) if temporary_link
+      FileUtils.rm_rf(version_path.to_s) if version_path && !path_points_to?(version_path)
+      FileUtils.rm_rf(retired_path.to_s) if retired_path
     end
 
     def path
@@ -738,6 +745,32 @@ class ImmutableSourceCheckout
     end
 
     private
+
+    def copy_checkout_tree!(checkout_path, destination)
+      attempts = 0
+
+      begin
+        FileUtils.cp_r(
+          Pathname.new(checkout_path).children.map(&:to_s),
+          destination.to_s,
+          preserve: true,
+          dereference_root: false
+        )
+      rescue Errno::ENOENT
+        attempts += 1
+        raise if attempts >= 3
+
+        FileUtils.rm_rf(destination.to_s)
+        FileUtils.mkdir_p(destination)
+        retry
+      end
+    end
+
+    def path_points_to?(version_path)
+      path.symlink? && path.realpath == version_path.realpath
+    rescue Errno::ENOENT
+      false
+    end
 
     def marker_matches?
       JSON.parse(marker_path.read).slice(
