@@ -147,7 +147,11 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
-  MergeTrainConfig = Data.define(:failure_rungs)
+  MergeTrainConfig = Data.define(:failure_policy, :failure_rungs) do
+    def initialize(failure_policy: [], failure_rungs: [])
+      super
+    end
+  end
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
@@ -304,6 +308,16 @@ class SyrusYml
   end
 
   private
+
+  def parse_merge_train(raw)
+    return nil if raw.nil?
+    raise ParseError, "merge_train: must be a mapping" unless raw.is_a?(Hash)
+
+    MergeTrainConfig.new(
+      failure_policy: parse_string_array(raw["failure_policy"], "merge_train.failure_policy"),
+      failure_rungs: parse_merge_train_failure_rungs(raw["failure_rungs"] || raw["failure_ladder"])
+    )
+  end
 
   def parse_agent_insight(raw)
     return nil if raw.nil?
@@ -1412,14 +1426,6 @@ class SyrusYml
     raise ParseError, "external_prs: must be a mapping" unless raw.is_a?(Hash)
 
     ExternalPrsConfig.new(ingest: parse_external_prs_ingest(raw["ingest"]))
-  end
-
-  def parse_merge_train(raw)
-    return nil if raw.nil?
-    raise ParseError, "merge_train: must be a mapping" unless raw.is_a?(Hash)
-
-    rungs = parse_merge_train_failure_rungs(raw["failure_rungs"] || raw["failure_ladder"])
-    MergeTrainConfig.new(failure_rungs: rungs)
   end
 
   def parse_merge_train_failure_rungs(raw)

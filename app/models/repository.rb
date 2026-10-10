@@ -54,7 +54,6 @@ class Repository < ApplicationRecord
   attribute :isolated_repro_dismissal_enabled, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
-  attribute :merge_train_failure_policy, :json
   attribute :fork_pr_grace_period_hours, :integer, default: 24
   attribute :upstream_pr_grace_period_days, :integer, default: 7
   attribute :ci_health, :string, default: "unknown"
@@ -119,7 +118,6 @@ class Repository < ApplicationRecord
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
-  validate :merge_train_failure_policy_is_ordered_string_list
   validates :name, uniqueness: {
     scope: :owner,
     case_sensitive: false,
@@ -128,7 +126,6 @@ class Repository < ApplicationRecord
   validate :upstream_owner_and_name_are_paired
 
   before_validation :normalize_agent_provider
-  before_validation :normalize_merge_train_failure_policy
   before_validation :normalize_upstream_metadata
   before_validation :normalize_main_branch_health_settings
   before_validation :default_main_branch_repair_for_fork, on: :create
@@ -368,10 +365,6 @@ class Repository < ApplicationRecord
     feedback_policy == "confirm"
   end
 
-  def merge_train_failure_policy_ladder
-    Array(merge_train_failure_policy).presence
-  end
-
   # Mark the repo as done. Side-effect: also flips polling_enabled off so
   # that *if* someone unarchives later, polling stays off until they
   # explicitly re-enable it (re-enabling polling is a deliberate act, not
@@ -537,29 +530,6 @@ class Repository < ApplicationRecord
 
   def normalize_agent_provider
     self.agent_provider = nil if agent_provider.blank?
-  end
-
-  def normalize_merge_train_failure_policy
-    self.merge_train_failure_policy =
-      case merge_train_failure_policy
-      when nil
-        nil
-      when String
-        merge_train_failure_policy.split(",").map(&:strip).reject(&:blank?).presence
-      when Array
-        Array(merge_train_failure_policy).map { |rung| rung.to_s.strip }.reject(&:blank?).presence
-      else
-        merge_train_failure_policy
-      end
-  end
-
-  def merge_train_failure_policy_is_ordered_string_list
-    value = merge_train_failure_policy
-    return if value.nil?
-
-    unless value.is_a?(Array) && value.all? { |rung| rung.is_a?(String) }
-      errors.add(:merge_train_failure_policy, "must be an ordered list of rung names")
-    end
   end
 
   def normalize_upstream_metadata
