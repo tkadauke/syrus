@@ -85,7 +85,8 @@ the admin Jobs API with `closure_reason=emergency_landed`.
 
 Common blockers include:
 
-- unsatisfied Job or Epic dependencies,
+- unsatisfied Job or Epic dependencies, including dependencies that wait for a
+  configured deployment stage on an upstream Job,
 - an unmergeable PR branch,
 - pending or failed required PR checks,
 - another epic-wide workflow already active for the same Epic,

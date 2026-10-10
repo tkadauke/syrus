@@ -110,7 +110,7 @@ module App
           .where(job_id: job_ids)
           .includes(:depends_on_job, :depends_on_epic, :unresolved_chat_proposal)
           .order(:id)
-          .reject { |dep| dep.depends_on_job&.dependency_succeeded? || dep.depends_on_epic&.done? }
+          .reject(&:dependency_succeeded?)
           .each_with_object({}) { |dep, hash| hash[dep.job_id] ||= dep }
       end
 

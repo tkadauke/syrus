@@ -64,6 +64,29 @@ RSpec.describe "Mcp::Tools job dependency tools" do
       expect(job.reload.dependencies.sole).to have_attributes(satisfaction_mode: "closed", source: "manual", created_by_user: user)
     end
 
+    it "can create a deployment-stage JobDependency with the required stage name" do
+      stage = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+      )
+      job = Factories.job_record(user: user, repository: repository)
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 43)
+
+      response = call_tool(
+        "add_job_dependency",
+        job_id: job.id,
+        depends_on_job_id: prerequisite.id,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.dependencies.sole).to have_attributes(
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+    end
+
     it "updates an existing dependency satisfaction mode when requested explicitly" do
       job = Factories.job_record(user: user, repository: repository)
       prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 43)

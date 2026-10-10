@@ -14,6 +14,7 @@ module App
           id: dependency.id,
           source: dependency.source,
           satisfaction_mode: dependency.satisfaction_mode,
+          required_deployment_stage_name: dependency.required_deployment_stage_name,
           manual: dependency.manual?,
           pending: dependency.pending?,
           succeeded: dependency.dependency_succeeded?,
