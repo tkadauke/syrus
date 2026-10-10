@@ -9,6 +9,7 @@ class WorkflowActivityEvent < ApplicationRecord
     workflow_finished
     run_started
     run_finished
+    grader_loop_decision
     landing_queue_changed
     landing_workflow_dispatched
   ].freeze
