@@ -161,6 +161,19 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :merge_train_multisect_section_width,
+      type: :integer,
+      default: 4,
+      min: 2,
+      max: 16,
+      category: "Landing queue",
+      operational_meaning: "Number of sections used per round by the focused merge-train multisect attribution rung.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :signups_open,
       type: :boolean,
       default: false,
