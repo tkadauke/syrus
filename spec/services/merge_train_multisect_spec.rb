@@ -116,6 +116,21 @@ RSpec.describe MergeTrainMultisect, :ci_only do
     expect(result.reason).to eq("multiple_sections_reproduced")
   end
 
+  it "aborts instead of attributing the omitted section when every graded section is clean" do
+    evaluated_roles = []
+    evaluator = evaluator_for do |_section, role|
+      evaluated_roles << role
+      role == "oracle"
+    end
+
+    result = call_multisect(evaluator: evaluator)
+
+    expect(result).not_to be_attributed
+    expect(result.reason).to eq("no_subset_reproduced")
+    expect(evaluated_roles).to eq([ "oracle", "section", "section", "section" ])
+    expect(workflow.reload.artifact(described_class::ARTIFACT_KEY)["reason"]).to eq("no_subset_reproduced")
+  end
+
   it "treats an empty focused selector as a failure to reproduce, not a pass" do
     workflow.update!(artifacts: { "merge_train_id" => train.id, GraderLoopProgress::ARTIFACT_KEY => [] })
     evaluator = evaluator_for { |_section, _role| true }
