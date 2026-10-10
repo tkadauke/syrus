@@ -160,7 +160,7 @@ class AppSetting < ApplicationRecord
   end
 
   def self.merge_train_keeps_assembly_on_failure?
-    merge_train_failure_policy == "keep_assembly"
+    merge_train_failure_policy.in?(%w[keep_assembly keep_fixes])
   end
 
   def self.merge_train_keeps_fixes_on_failure?
