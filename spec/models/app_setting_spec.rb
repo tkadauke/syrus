@@ -133,14 +133,25 @@ RSpec.describe AppSetting do
   it "rejects zero for failure and merge-train thresholds that are used as hard caps" do
     expect(AppSettingRegistry.fetch(:max_job_failures).min).to eq(1)
     expect(AppSettingRegistry.fetch(:merge_train_max_size).min).to eq(1)
+    expect(AppSettingRegistry.fetch(:merge_train_multisect_section_width).min).to eq(2)
 
     setting = AppSetting.current
     setting.max_job_failures = 0
     setting.merge_train_max_size = 0
+    setting.merge_train_multisect_section_width = 1
 
     expect(setting).not_to be_valid
     expect(setting.errors[:max_job_failures]).to include("must be greater than or equal to 1")
     expect(setting.errors[:merge_train_max_size]).to include("must be greater than or equal to 1")
+    expect(setting.errors[:merge_train_multisect_section_width]).to include("must be greater than or equal to 2")
+  end
+
+  it ".merge_train_multisect_section_width defaults to 4 and reflects the setting" do
+    expect(AppSetting.merge_train_multisect_section_width).to eq(4)
+
+    AppSetting.current.update!(merge_train_multisect_section_width: 3)
+
+    expect(AppSetting.merge_train_multisect_section_width).to eq(3)
   end
 
   it ".video_retention_days returns the column value (default 7)" do

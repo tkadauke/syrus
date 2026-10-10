@@ -168,6 +168,10 @@ class AppSetting < ApplicationRecord
     current.merge_train_max_size
   end
 
+  def self.merge_train_multisect_section_width
+    current.merge_train_multisect_section_width
+  end
+
   # Walkthrough-video media management. The analysis + screenshots persist
   # forever (they're the value); only the heavy video is time- and
   # size-bounded by VideoWalkthroughs::PruneJob.

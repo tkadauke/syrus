@@ -270,7 +270,7 @@ class MergeTrainFailureHandler
     result = MergeTrainMultisect.call(
       workflow: @workflow,
       train: train,
-      section_width: config.multisect_section_width,
+      section_width: AppSetting.merge_train_multisect_section_width,
       evaluator: self.class.multisect_evaluator || default_multisect_evaluator,
       log: ->(message) { job_log(@workflow.job, message, kind: "system") }
     )

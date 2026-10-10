@@ -853,18 +853,17 @@ Configures repository-local merge-train failure handling.
 ```yaml
 merge_train:
   failure_rungs: [multisect]
-  multisect:
-    section_width: 4
 ```
 
 `failure_rungs` is an ordered list of enabled failure-response rungs. Today the
 supported repository-configured rung is `multisect`.
 
-`multisect.section_width` controls how many sections the multisect walk uses
-per round. It must be between 2 and 16 and defaults to 4. Wider values spend
-more concurrent focused grades per round to reduce wall-clock rounds, so only
-enable wider sectioning for repositories whose worker/build capacity can absorb
-the extra subset builds.
+The multisect section width is instance-wide:
+`AppSetting.merge_train_multisect_section_width` controls how many sections the
+walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
+spend more concurrent focused grades per round to reduce wall-clock rounds, so
+raise the setting only when the instance's worker/build capacity can absorb the
+extra subset builds.
 
 ## formatters
 
