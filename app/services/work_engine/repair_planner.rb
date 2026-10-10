@@ -384,7 +384,7 @@ module WorkEngine
             primary_job,
             "The Job is still waiting on intake classification past the stale-work threshold, " \
             "so re-enqueue the classifier through its concurrency-locked job.",
-            execution_steps: [ "ClassifyIssueJob.perform_later" ],
+            execution_steps: [ "ClassifyIssueJob.enqueue_for_job!" ],
             preconditions: {
               job_state: "triaging",
               triaging_reason: %w[classifier_pending classifier_uncertain],

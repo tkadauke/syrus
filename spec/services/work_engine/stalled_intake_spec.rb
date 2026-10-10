@@ -72,6 +72,7 @@ RSpec.describe "Stalled intake reconciliation" do
     expect(plan.auto_executable).to be(true)
     expect(plan.target_type).to eq("Job")
     expect(plan.target_id).to eq(job.id)
+    expect(plan.execution_steps).to eq([ "ClassifyIssueJob.enqueue_for_job!" ])
   end
 
   # A classify that is genuinely still in flight is not stalled.

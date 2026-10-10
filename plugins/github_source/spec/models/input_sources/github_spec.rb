@@ -54,6 +54,19 @@ RSpec.describe InputSources::Github do
       expect(job.issue_number).to eq(42)
     end
 
+    it "enqueues classifier-pending issues through the recovery-aware classifier helper" do
+      allow_any_instance_of(User).to receive(:agent_provider_configured?).and_return(true)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
+
+      expect(ClassifyIssueJob).to receive(:enqueue_for_job!) do |created_job|
+        expect(created_job).to be_a(Job)
+        expect(created_job).to be_triaging
+        expect(created_job.triaging_reason).to eq("classifier_pending")
+      end
+
+      source.poll!
+    end
+
     it "does not create a duplicate Job when the issue was already ingested" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
       source.poll!
