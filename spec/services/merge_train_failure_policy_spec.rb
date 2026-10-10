@@ -1,10 +1,16 @@
 require "rails_helper"
 
 RSpec.describe MergeTrainFailurePolicy do
-  let(:repository) { instance_double(Repository, merge_train_failure_policy_ladder: nil) }
+  let(:user) { Factories.user(github_token: "ghp_test") }
+  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+
+  def stub_ladder(rungs)
+    content = rungs ? "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n" : nil
+    stub_repository_content(repository, files: content ? { SyrusYml::CONFIG_FILE => content } : {})
+  end
 
   it "uses a repository ladder when one is configured" do
-    repository = instance_double(Repository, merge_train_failure_policy_ladder: [ "keep_assembly" ])
+    stub_ladder([ "keep_assembly" ])
 
     policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "worker_died")
 
@@ -13,6 +19,7 @@ RSpec.describe MergeTrainFailurePolicy do
 
   it "falls back to the instance default when the repository has no ladder" do
     AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    stub_ladder(nil)
 
     policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "worker_died")
 
@@ -21,6 +28,7 @@ RSpec.describe MergeTrainFailurePolicy do
 
   it "keeps using the instance default on later attempts when the repository has no ladder" do
     AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    stub_ladder(nil)
 
     policy = described_class.resolve(repository: repository, attempt_number: 2, retry_classification: "worker_died")
 
@@ -28,7 +36,7 @@ RSpec.describe MergeTrainFailurePolicy do
   end
 
   it "maps attempts to ordered rungs" do
-    repository = instance_double(Repository, merge_train_failure_policy_ladder: [ "restart", "keep_assembly" ])
+    stub_ladder([ "restart", "keep_assembly" ])
 
     policy = described_class.resolve(repository: repository, attempt_number: 2, retry_classification: "worker_died")
 
@@ -36,7 +44,7 @@ RSpec.describe MergeTrainFailurePolicy do
   end
 
   it "falls back to restart when the attempt is past the ladder" do
-    repository = instance_double(Repository, merge_train_failure_policy_ladder: [ "keep_assembly" ])
+    stub_ladder([ "keep_assembly" ])
 
     policy = described_class.resolve(repository: repository, attempt_number: 2, retry_classification: "worker_died")
 
@@ -44,7 +52,7 @@ RSpec.describe MergeTrainFailurePolicy do
   end
 
   it "skips unknown rungs instead of raising" do
-    repository = instance_double(Repository, merge_train_failure_policy_ladder: [ "future_rung", "keep_assembly" ])
+    stub_ladder([ "future_rung", "keep_assembly" ])
 
     policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "worker_died")
 
@@ -52,7 +60,7 @@ RSpec.describe MergeTrainFailurePolicy do
   end
 
   it "stops walking at the retry budget" do
-    repository = instance_double(Repository, merge_train_failure_policy_ladder: [ "future_1", "future_2", "future_3", "keep_assembly" ])
+    stub_ladder([ "future_1", "future_2", "future_3", "keep_assembly" ])
 
     policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "rate_limited")
 

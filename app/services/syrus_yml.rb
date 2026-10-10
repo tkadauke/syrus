@@ -77,7 +77,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts, :merge_train)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -147,6 +147,7 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
+  MergeTrainConfig = Data.define(:failure_policy)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
@@ -295,13 +296,23 @@ class SyrusYml
       project: parse_project(raw["project"]),
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
-      scripts: parse_scripts(raw["scripts"])
+      scripts: parse_scripts(raw["scripts"]),
+      merge_train: parse_merge_train(raw["merge_train"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_merge_train(raw)
+    return nil if raw.nil?
+    raise ParseError, "merge_train: must be a mapping" unless raw.is_a?(Hash)
+
+    MergeTrainConfig.new(
+      failure_policy: parse_string_array(raw["failure_policy"], "merge_train.failure_policy")
+    )
+  end
 
   def parse_agent_insight(raw)
     return nil if raw.nil?

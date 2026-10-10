@@ -76,7 +76,6 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       feedback_policy: r.feedback_policy,
       review_policy: r.review_policy,
       epic_dependency_policy: r.epic_dependency_policy,
-      merge_train_failure_policy: r.merge_train_failure_policy?.join(", ") ?? "",
       github_owner_id: "",
       github_repository_id: ""
     })

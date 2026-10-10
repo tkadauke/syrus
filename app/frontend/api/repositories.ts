@@ -84,7 +84,6 @@ export type RepositoryFormRecord = {
   feedback_policy: string
   review_policy: RepositoryReviewPolicy
   epic_dependency_policy: RepositoryEpicDependencyPolicy
-  merge_train_failure_policy: string[] | null
   github_owner_id: number | null
   github_repository_id: number | null
   repository_path: string | null
@@ -164,7 +163,6 @@ export type RepositoryInput = {
   feedback_policy: string
   review_policy: RepositoryReviewPolicy
   epic_dependency_policy: RepositoryEpicDependencyPolicy
-  merge_train_failure_policy: string
   github_owner_id: string
   github_repository_id: string
 }

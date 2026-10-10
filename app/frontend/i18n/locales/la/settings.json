@@ -863,8 +863,6 @@
     "feedback_confirm": "Confirmare — probatio domini operis requiritur antequam ad commenta externa/sociorum agatur",
     "feedback_auto": "Auto — statim Operis fluxus pro responsis domini et sodalium in ordinem ponere",
     "feedback_hint": "Commenta domini operis semper automatice initiantur. Commentatores externi confirmationem requirunt.",
-    "label_merge_train_failure_policy": "Scala defectus traminis merge",
-    "merge_train_failure_policy_hint": "Gradus commatibus separati. Vacuum relinque ut praedefinitione instantiae utaris.",
     "label_review_policy": "Ratio probationis",
     "review_policy_self": "Ipse — probatio ipsius domini operis sufficit",
     "review_policy_two_person": "Duae personae — dominus operis cum uno alio probatore",

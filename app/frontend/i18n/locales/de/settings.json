@@ -863,8 +863,6 @@
     "feedback_confirm": "Bestätigen — Genehmigung des Job-Eigentümers erforderlich, bevor auf externe/Mitglieder-Kommentare reagiert wird",
     "feedback_auto": "Auto — Workflows für Feedback von Besitzern und Mitgliedern sofort einreihen",
     "feedback_hint": "Kommentare des Job-Eigentümers lösen immer automatisch aus. Externe Kommentatoren benötigen Bestätigung.",
-    "label_merge_train_failure_policy": "Merge-Train-Fehlerleiter",
-    "merge_train_failure_policy_hint": "Kommagetrennte Stufen. Leer lassen, um den instanzweiten Standard zu verwenden.",
     "label_review_policy": "Genehmigungsrichtlinie",
     "review_policy_self": "Selbst — die Genehmigung des Job-Eigentümers allein genügt",
     "review_policy_two_person": "Zwei Personen — der Job-Eigentümer plus ein weiterer Genehmiger",
