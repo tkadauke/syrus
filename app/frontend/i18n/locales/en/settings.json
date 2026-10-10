@@ -863,6 +863,8 @@
     "feedback_confirm": "Confirm — require job owner approval before acting on external/member comments",
     "feedback_auto": "Auto — immediately queue workflows for owner and member feedback",
     "feedback_hint": "Job owner comments always trigger automatically. External commenters require confirmation.",
+    "label_merge_train_failure_policy": "Merge-train failure ladder",
+    "merge_train_failure_policy_hint": "Comma-separated rungs. Leave blank to use the instance default.",
     "label_review_policy": "Review policy",
     "review_policy_self": "Self — the job owner's own approval is enough",
     "review_policy_two_person": "Two-person — the job owner plus one other approver",

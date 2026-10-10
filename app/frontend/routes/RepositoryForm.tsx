@@ -562,6 +562,17 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             <Form.HelpText>{t('repository_form.feedback_hint')}</Form.HelpText>
           </Field>
 
+          <Field label={t('repository_form.label_merge_train_failure_policy')}>
+            <Form.Input
+              className="font-mono"
+              onChange={(event) => setValues({ ...values, merge_train_failure_policy: event.target.value })}
+              placeholder="restart, keep_assembly"
+              type="text"
+              value={values.merge_train_failure_policy}
+            />
+            <Form.HelpText>{t('repository_form.merge_train_failure_policy_hint')}</Form.HelpText>
+          </Field>
+
           <Field label={t('repository_form.label_review_policy')}>
             <Form.Select
               onChange={(event) => setValues({ ...values, review_policy: event.target.value as RepositoryReviewPolicy })}
@@ -921,6 +932,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     feedback_policy: payload.repository.feedback_policy,
     review_policy: payload.repository.review_policy,
     epic_dependency_policy: payload.repository.epic_dependency_policy,
+    merge_train_failure_policy: payload.repository.merge_train_failure_policy?.join(", ") ?? "",
     github_owner_id: payload.repository.github_owner_id == null ? "" : String(payload.repository.github_owner_id),
     github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id)
   }
