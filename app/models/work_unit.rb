@@ -11,6 +11,7 @@ class WorkUnit < ApplicationRecord
   # not "Paused".
   DEPENDENCY_BLOCKED_REASONS = %w[
     dependency_failed
+    dependency_approval_withdrawn
     stack_dependencies_not_ready
     stack_fan_in_base_unavailable
     job_not_ready_for_execution
@@ -22,6 +23,7 @@ class WorkUnit < ApplicationRecord
     manual_pause
     main_branch_health
     dependency_failed
+    dependency_approval_withdrawn
     stack_dependencies_not_ready
     stack_fan_in_base_unavailable
     job_not_ready_for_execution
