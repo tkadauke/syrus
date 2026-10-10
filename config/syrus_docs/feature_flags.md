@@ -250,13 +250,40 @@ Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, bui
 
 **Category:** Operations · **Off by default**
 
-Enables cgroup v2 memory ceilings for subprocesses launched through `ProcessRunner`.
-When enabled, each `SpawnedProcess` records a `resource_attribution.cgroup`
-payload showing whether enforcement was applied, disabled, unavailable, or
-failed. That payload is intentionally loud: diagnostics can tell the operator
-that a command ran with no memory ceiling instead of implying containment from
-the feature flag alone. A recorded `memory.events` `oom_kill` increment is
-classified as `process_memory_limit_exceeded`.
+Enables adaptive cgroup v2 memory ceilings for subprocesses launched through
+`ProcessRunner`. When enabled, each `SpawnedProcess` records a
+`resource_attribution.cgroup` payload showing whether enforcement was applied,
+disabled, unavailable, or failed. That payload is intentionally loud:
+diagnostics can tell the operator that a command ran with no memory ceiling
+instead of implying containment from the feature flag alone. A recorded
+`memory.events` `oom_kill` increment is classified as
+`process_memory_limit_exceeded`.
+
+The default memory ceiling is derived from the worker pod's effective cgroup
+memory limit rather than a fleet-wide fixed number. Syrus reserves memory for
+the Rails/Solid Queue supervisor and filesystem overhead, then divides the
+remaining memory by the current concurrency slots and multiplies by the run's
+admission units. Agentic subprocesses default to
+`SYRUS_AGENTIC_CAPACITY_UNITS` (2) and grader subprocesses default to
+`SYRUS_GRADER_CAPACITY_UNITS` (1), matching the host-admission vocabulary.
+Operators can still force exact bytes with `SYRUS_SPAWN_MEMORY_MAX_BYTES`,
+`SYRUS_SPAWN_MEMORY_HIGH_BYTES`, and `SYRUS_SPAWN_MEMORY_SWAP_MAX_BYTES`, or
+tune reserves with `SYRUS_SPAWN_RAILS_RESERVED_BYTES` and
+`SYRUS_SPAWN_FILESYSTEM_RESERVED_BYTES`.
+
+Delegation is checked before a subprocess starts. If the worker container
+cannot create child cgroups with the memory controller, the cgroup payload is
+recorded as `state: "unavailable"` with a delegation reason; Syrus does not
+pretend a limit was applied. Bare-metal macOS development is the same explicit
+no-enforcement mode (`no cgroup enforcement available ... outside a Linux
+container`). The Electron docker-compose worker still runs inside Linux, so it
+can enforce cgroups when the container runtime delegates them.
+
+Per-spawn cgroups do not replace the checkout/fan-out filesystem fix. Page
+cache is charged to the cgroup that first faults the page in, so worker-side
+copies before the command starts can remain pod-level pressure rather than
+child-cgroup usage. Both controls are needed: cgroups bound the spawned
+process tree, while the checkout/fan-out fix removes avoidable pod pressure.
 
 ## emergency_land
 

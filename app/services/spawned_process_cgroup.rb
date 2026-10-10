@@ -1,10 +1,9 @@
 require "fileutils"
 require "securerandom"
+require "etc"
 
 class SpawnedProcessCgroup
   VERSION = 1
-  DEFAULT_MEMORY_MAX_FRACTION = 0.75
-  DEFAULT_MEMORY_HIGH_FRACTION = 0.9
   DEFAULT_SWAP_MAX_BYTES = 0
   CLEANUP_WAIT_SECONDS = 5.0
   CLEANUP_POLL_SECONDS = 0.05
@@ -24,6 +23,7 @@ class SpawnedProcessCgroup
     @memory_peak_bytes = nil
     @cpu_stat = {}
     @io_stat = {}
+    @budget = nil
     @cleanup = nil
 
     prepare
@@ -78,6 +78,7 @@ class SpawnedProcessCgroup
       "memory_high_bytes" => memory_high_bytes,
       "memory_max_bytes" => memory_max_bytes,
       "memory_swap_max_bytes" => memory_swap_max_bytes,
+      "budget" => budget,
       "memory_oom_group" => state.in?(%w[ready applied]),
       "memory_events" => memory_events_delta.presence || memory_events_after.presence,
       "memory_events_before" => memory_events_before.presence,
@@ -98,12 +99,18 @@ class SpawnedProcessCgroup
 
   attr_reader :spawned_process, :reason, :path, :memory_high_bytes, :memory_max_bytes,
               :memory_swap_max_bytes, :memory_events_before, :memory_events_after,
-              :memory_peak_bytes, :cpu_stat, :io_stat, :cleanup
+              :memory_peak_bytes, :cpu_stat, :io_stat, :budget, :cleanup
 
   def prepare
     unless Feature.per_spawn_resource_limits_enabled?
       @state = "disabled"
       @reason = "per_spawn_resource_limits feature flag is disabled"
+      return
+    end
+
+    unless linux_platform?
+      @state = "unavailable"
+      @reason = "no cgroup enforcement available on #{Etc.uname[:sysname]} outside a Linux container"
       return
     end
 
@@ -120,17 +127,23 @@ class SpawnedProcessCgroup
       return
     end
 
-    @memory_max_bytes = configured_bytes("SYRUS_SPAWN_MEMORY_MAX_BYTES") || default_memory_max_bytes
+    unless cgroup_delegation_available?(parent)
+      @state = "unavailable"
+      @reason = "worker cgroup is not delegated for child cgroup creation"
+      return
+    end
+
+    budget_result = SpawnedProcessCgroupBudget.for(spawned_process: spawned_process)
+    @budget = budget_result.details
+    @memory_max_bytes = budget_result.memory_max_bytes
     unless memory_max_bytes&.positive?
       @state = "unavailable"
       @reason = "no finite memory ceiling is configured or detectable"
       return
     end
 
-    @memory_high_bytes = configured_bytes("SYRUS_SPAWN_MEMORY_HIGH_BYTES") ||
-      (memory_max_bytes * DEFAULT_MEMORY_HIGH_FRACTION).floor
-    @memory_swap_max_bytes = configured_bytes("SYRUS_SPAWN_MEMORY_SWAP_MAX_BYTES", allow_zero: true)
-    @memory_swap_max_bytes = DEFAULT_SWAP_MAX_BYTES if memory_swap_max_bytes.nil?
+    @memory_high_bytes = budget_result.memory_high_bytes
+    @memory_swap_max_bytes = budget_result.memory_swap_max_bytes
 
     @path = File.join(parent, "syrus-spawned-process-#{spawned_process.id}-#{SecureRandom.hex(4)}")
     FileUtils.mkdir_p(path)
@@ -180,6 +193,12 @@ class SpawnedProcessCgroup
     nil
   end
 
+  def linux_platform?
+    Etc.uname[:sysname] == "Linux"
+  rescue StandardError
+    false
+  end
+
   def memory_controller_available?(parent)
     controllers = File.read(File.join(parent, "cgroup.controllers")).split
     controllers.include?("memory")
@@ -187,23 +206,29 @@ class SpawnedProcessCgroup
     File.exist?(File.join(parent, "memory.max"))
   end
 
-  def configured_bytes(name, allow_zero: false)
-    raw = ENV[name].to_s.strip
-    return nil if raw.blank?
-    value = Integer(raw, 10)
-    return nil if value.negative?
-    return nil if value.zero? && !allow_zero
+  def cgroup_delegation_available?(parent)
+    return true if fake_cgroup_parent_path?(parent)
+    return false unless enable_memory_subtree_control(parent)
 
-    value
-  rescue ArgumentError
-    nil
+    probe = File.join(parent, ".syrus-delegation-probe-#{Process.pid}-#{SecureRandom.hex(4)}")
+    FileUtils.mkdir_p(probe)
+    File.exist?(File.join(probe, "cgroup.procs")) &&
+      File.exist?(File.join(probe, "memory.max"))
+  rescue Errno::EACCES, Errno::EROFS, Errno::ENOENT, Errno::ENOTDIR
+    false
+  ensure
+    FileUtils.rm_rf(probe) if probe
   end
 
-  def default_memory_max_bytes
-    limit = RunProcessParallelism.effective_memory_limit_bytes
-    return unless limit&.positive?
+  def enable_memory_subtree_control(parent)
+    subtree_control = File.join(parent, "cgroup.subtree_control")
+    return true unless File.exist?(subtree_control)
+    return true if File.read(subtree_control).split.include?("memory")
 
-    (limit * DEFAULT_MEMORY_MAX_FRACTION).floor
+    File.write(subtree_control, "+memory")
+    File.read(subtree_control).split.include?("memory")
+  rescue Errno::EACCES, Errno::EROFS, Errno::ENOENT, Errno::EBUSY, Errno::EINVAL
+    false
   end
 
   def write_limit(file, value)
@@ -286,5 +311,10 @@ class SpawnedProcessCgroup
   def fake_cgroup_parent?
     root = ENV["SYRUS_SPAWN_CGROUP_PARENT"].presence
     root && path.start_with?(File.expand_path(root))
+  end
+
+  def fake_cgroup_parent_path?(candidate)
+    root = ENV["SYRUS_SPAWN_CGROUP_PARENT"].presence
+    root && candidate.start_with?(File.expand_path(root))
   end
 end

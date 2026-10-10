@@ -57,4 +57,73 @@ RSpec.describe SpawnedProcessCgroup, :ci_only do
     )
     expect(Dir.exist?(cgroup_dir)).to be(false)
   end
+
+  it "derives an adaptive memory ceiling from the effective pod limit, reserves, admission units, and slots" do
+    ENV.delete("SYRUS_SPAWN_MEMORY_MAX_BYTES")
+    ENV.delete("SYRUS_SPAWN_MEMORY_HIGH_BYTES")
+    ENV["JOB_CONCURRENCY"] = "4"
+    ENV["SYRUS_AGENTIC_CAPACITY_UNITS"] = "2"
+    ENV["SYRUS_SPAWN_RAILS_RESERVED_BYTES"] = "1073741824"
+    ENV["SYRUS_SPAWN_FILESYSTEM_RESERVED_BYTES"] = "536870912"
+    allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16.gigabytes)
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(8)
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: Time.current
+    )
+
+    cgroup = described_class.new(spawned_process: process)
+
+    expect(cgroup.payload).to include(
+      "state" => "ready",
+      "memory_max_bytes" => 7_784_628_224,
+      "memory_high_bytes" => 7_006_165_401,
+      "budget" => include(
+        "source" => "adaptive",
+        "run_type" => "agentic",
+        "admission_units" => 2,
+        "concurrent_slots" => 4,
+        "effective_memory_limit_bytes" => 17_179_869_184,
+        "rails_reserved_bytes" => 1_073_741_824,
+        "filesystem_reserved_bytes" => 536_870_912,
+        "reservable_memory_bytes" => 15_569_256_448
+      )
+    )
+  end
+
+  it "records unavailable when the worker cgroup is not delegated for child cgroup creation" do
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: Time.current
+    )
+    allow_any_instance_of(described_class).to receive(:cgroup_delegation_available?).and_return(false)
+
+    cgroup = described_class.new(spawned_process: process)
+
+    expect(cgroup.payload).to include(
+      "state" => "unavailable",
+      "reason" => "worker cgroup is not delegated for child cgroup creation"
+    )
+  end
+
+  it "records macOS bare-metal execution as a loud no-enforcement mode" do
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: Time.current
+    )
+    allow(Etc).to receive(:uname).and_return({ sysname: "Darwin" })
+
+    cgroup = described_class.new(spawned_process: process)
+
+    expect(cgroup.payload).to include(
+      "state" => "unavailable",
+      "reason" => "no cgroup enforcement available on Darwin outside a Linux container"
+    )
+  end
 end
