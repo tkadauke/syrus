@@ -309,6 +309,18 @@ module Workflows
       )
     end
 
+    def self.landing_grader_retry_loop_with_agent_rung
+      landing_grader_retry_loop.on_failure(
+        StepDispatcher::LOOP_EXHAUSTED_AFTER_GRADER_FAILURE,
+        [
+          :merge_train_agent,
+          "prepare",
+          landing_grader_retry_loop,
+          Workflows::MergeTrain.merge_train_land_with_rebase_recovery
+        ]
+      )
+    end
+
     def self.grader_gate_steps
       [ "grader_fanout", "grader_collect" ]
     end
@@ -380,7 +392,7 @@ module Workflows
     end
 
     def self.validate_control_node!(node)
-      if node.is_a?(Workflows::Try)
+      if node.is_a?(Workflows::Try) || (node.is_a?(Workflows::RetryUntil) && node.failure_branches.present?)
         node.failure_branches.each_value do |branch|
           branch.each { |branch_node| validate_control_node!(branch_node) if branch_node.respond_to?(:to_chain_template) }
         end
@@ -397,7 +409,7 @@ module Workflows
       when Workflows::Loop
         node.steps
       when Workflows::RetryUntil
-        node.repair_steps + node.check_steps
+        node.repair_steps + node.check_steps + node.failure_branches.values.flatten
       when Workflows::Try
         [ node.step_kind ] + node.failure_branches.values.flatten
       else
