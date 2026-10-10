@@ -9,6 +9,7 @@ module WorkUnits
       "resource_safety" => "resource_safety",
       "main_branch_broken" => "main_branch_health",
       "dependency_failed" => "dependency_failed",
+      "dependency_approval_withdrawn" => "dependency_approval_withdrawn",
       "stack_dependencies_not_ready" => "stack_dependencies_not_ready",
       "stack_fan_in_base_unavailable" => "stack_fan_in_base_unavailable",
       "job_not_ready_for_execution" => "job_not_ready_for_execution",

@@ -3340,20 +3340,32 @@ module WorkEngine
     end
 
     def stale_dependency_start_block?(workflow)
-      start_block_reason(workflow).to_s.in?([ StepDispatcher::STACK_BLOCK_REASON, "stack_dependencies_not_ready" ]) &&
+      start_block_reason(workflow).to_s.in?([
+        StepDispatcher::STACK_BLOCK_REASON,
+        StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
+        "stack_dependencies_not_ready"
+      ]) &&
         !start_blocked_check_due?(workflow) &&
         workflow.job.dependencies_satisfied_for_execution?
     end
 
     def dependency_block_reason?(reason)
-      %w[dependency_failed stack_dependencies_not_ready stack_fan_in_base_unavailable job_not_ready_for_execution].include?(reason.to_s)
+      %w[
+        dependency_failed
+        stack_dependencies_not_ready
+        dependency_approval_withdrawn
+        stack_fan_in_base_unavailable
+        job_not_ready_for_execution
+      ].include?(reason.to_s)
     end
 
     def current_start_block_active?(workflow, reason)
       case reason.to_s
       when StepDispatcher::MAIN_HEALTH_BLOCK_REASON, "main_branch_health"
         StepDispatcher.main_health_blocking?(workflow)
-      when StepDispatcher::STACK_BLOCK_REASON, "stack_dependencies_not_ready"
+      when StepDispatcher::STACK_BLOCK_REASON,
+        StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
+        "stack_dependencies_not_ready"
         !workflow.job.dependencies_satisfied_for_execution?
       when StepDispatcher::DEPENDENCY_FAILED_BLOCK_REASON, "dependency_failed"
         workflow.job.dependencies_failed_for_execution?
