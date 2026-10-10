@@ -885,7 +885,7 @@ class LandingQueueProcessor
       end
 
       waiting = dependency.pending? ? dependency.unresolved_slug : dependency.depends_on_job
-      return override_or_block(job, { key: "waiting_to_merge", params: { slug: dependency_label(waiting) } }, waiting, consume: consume_override)
+      return override_or_block(job, dependency_wait_reason(dependency, waiting), waiting, consume: consume_override)
     end
 
     { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
@@ -1116,7 +1116,7 @@ class LandingQueueProcessor
   end
 
   def unmerged_dependency(job)
-    job.dependencies.includes(:depends_on_job, :depends_on_epic).find do |dependency|
+    job.dependencies.includes({ depends_on_job: [ :repository, :deployment_stage_statuses ] }, :depends_on_epic).find do |dependency|
       dependency.pending? || !dependency.dependency_succeeded?
     end
   end
@@ -1125,6 +1125,19 @@ class LandingQueueProcessor
     return waiting if waiting.is_a?(String)
 
     waiting.slug
+  end
+
+  def dependency_wait_reason(dependency, waiting)
+    slug = dependency_label(waiting)
+    return { key: "waiting_to_merge", params: { slug: slug } } unless dependency.satisfaction_mode == "deployment_stage"
+
+    params = {
+      slug: slug,
+      stage: dependency.required_deployment_stage_name
+    }
+    latest = App::DependencyGatePayload.for(dependency)[:latest_deployment_stage]
+    params[:latest_stage] = latest[:label] || latest[:name] if latest
+    { key: "waiting_for_deployment_stage", params: params.compact }
   end
 
   def audit(job, message)

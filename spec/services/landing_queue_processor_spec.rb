@@ -433,6 +433,37 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(entry.blocked_reason).to eq({ key: "waiting_to_merge", params: { slug: prerequisite.slug } })
   end
 
+  it "uses a deployment-stage blocker reason for deploy-stage dependencies" do
+    stage = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+    prerequisite = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 1,
+      pr_number: 1,
+      state: "closed",
+      closure_reason: "pr_merged",
+      landed_sha: "abc123"
+    )
+    blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+    ready = queue_job(issue_number: 3, approved_at: 1.minute.ago)
+    JobDependency.create!(
+      job: blocked,
+      depends_on_job: prerequisite,
+      source: "manual",
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "production"
+    )
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(ready)
+    entry = described_class.entries(Job.where(id: blocked.id)).first
+    expect(entry.blocked_reason).to eq({ key: "waiting_for_deployment_stage", params: { slug: prerequisite.slug, stage: "production" } })
+  end
+
   it "explains when an approved Job is waiting for an Epic dependency" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     blocked = queue_job(issue_number: 2, approved_at: 2.minutes.ago)

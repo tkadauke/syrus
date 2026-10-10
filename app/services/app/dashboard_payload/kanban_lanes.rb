@@ -39,7 +39,7 @@ module App
               :tags,
               :pr_links,
               :deployment_stage_statuses,
-              { dependencies: [ :depends_on_epic, { depends_on_job: :repository } ] },
+              { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :deployment_stage_statuses ] } ] },
               { chat_proposals: [ :chat_session, :message_anchors ] },
               { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
             )
