@@ -228,11 +228,7 @@ module WorkEngine
         end
 
         def retry_budget_limit(retry_classification)
-          if retry_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-            AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS
-          else
-            AutoRetryAttempt::MAX_ATTEMPTS
-          end
+          AutoRetryAttempt.retry_budget_limit_for(retry_classification)
         end
 
         def retry_whole_workflow_safe?
