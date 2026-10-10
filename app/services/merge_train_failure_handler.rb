@@ -13,6 +13,7 @@ class MergeTrainFailureHandler
   def call
     train = merge_train
     return unless train
+    return handle_agent_withdrawal!(train) if agent_withdrawn_job_id.present?
     return if preserve_train_for_continuation_retry?
     return if preserve_train_for_failure_policy?
 
@@ -258,6 +259,33 @@ class MergeTrainFailureHandler
     return false unless AppSetting.merge_train_keeps_assembly_on_failure?
 
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def handle_agent_withdrawal!(train)
+    reason = failure_reason
+    unless train.terminal?
+      train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+    end
+    delete_integration_branch(train)
+
+    train.members.includes(:job).each do |member|
+      job = member.job
+      if member.job_id == agent_withdrawn_job_id
+        LandingFailureHandler.call(job: job, reason: reason, run: nil) if job&.landing?
+      elsif job&.landing? && job.may_defer_landing?
+        job.landing_failure_reason = "merge_train_agent withdrew another member; rederive train without it"
+        job.defer_landing!
+        job.save! if job.changed?
+      end
+      member.update!(state: "failed", reason: reason.truncate(500)) unless member.state == "merged"
+    end
+  end
+
+  def agent_withdrawn_job_id
+    return @agent_withdrawn_job_id if defined?(@agent_withdrawn_job_id)
+
+    id = @workflow.artifact(Steps::MergeTrainAgent::WITHDRAWN_JOB_ID_ARTIFACT).to_i
+    @agent_withdrawn_job_id = id.positive? ? id : nil
   end
 
   def merge_train
