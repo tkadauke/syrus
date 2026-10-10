@@ -302,6 +302,22 @@ framework-aware commands and base-revision retry metadata. Use custom
 `run:` commands when a plugin-defined grader cannot express a repository's
 test command yet.
 
+For an RSpec check that should keep one stable grader identity while still
+using the Ruby plugin's JUnit/JSON output, failure evidence, metadata, and
+base-revision retry behavior, set `fixed_full_path: true` with explicit
+`paths` or `spec_paths`. That runs the configured spec paths in every selected
+phase instead of generating focused/full/CI sibling graders.
+
+```yaml
+grade:
+  - type: rspec
+    name: simulation-specs
+    fixed_full_path: true
+    paths:
+      - spec/services/simulation/scenario_runner_spec.rb
+    phases: [review, landing, ci]
+```
+
 `phases` controls where a grader runs:
 
 | Phase | Used for |
