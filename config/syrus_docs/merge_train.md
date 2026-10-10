@@ -93,6 +93,17 @@ Three cases are handled before they can fail at all:
   Nothing has been published at that point, so this asks for a rebuild rather
   than failing the train and clearing every other member's approval.
 
+Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
+uses the most recent `GraderLoopProgress#failing_set` as a focused selector,
+validates that the selector reproduces against the full assembly, checks the
+existing flaky/inherited-failure gates, then walks member sections with
+`section_width - 1` focused subset grades per round. A single reproducing
+section narrows the suspect set; multiple reproducing sections abort as an
+interaction failure; an empty selector or a non-reproducing oracle aborts
+without attribution. On success Syrus records a `merge_train_multisect`
+workflow artifact naming the attributed member. Automatic member withdrawal is
+not part of this rung.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.

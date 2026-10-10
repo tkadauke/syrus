@@ -3,6 +3,8 @@
 # transient blockers auto-retry and genuine failures require operator
 # re-approval. See docs/plans/landing-merge-train.md.
 class MergeTrainFailureHandler
+  class_attribute :multisect_evaluator, default: nil
+
   def self.call(workflow:, cancelled: false) = new(workflow: workflow, cancelled: cancelled).call
 
   def initialize(workflow:, cancelled: false)
@@ -17,6 +19,7 @@ class MergeTrainFailureHandler
     return if preserve_train_for_failure_policy?
 
     reason = failure_reason
+    run_multisect_rung!(train) unless @cancelled
     unless train.terminal?
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
@@ -258,6 +261,41 @@ class MergeTrainFailureHandler
     return false unless AppSetting.merge_train_keeps_assembly_on_failure?
 
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def run_multisect_rung!(train)
+    config = merge_train_config
+    return unless config&.failure_rungs&.include?("multisect")
+
+    result = MergeTrainMultisect.call(
+      workflow: @workflow,
+      train: train,
+      section_width: config.multisect_section_width,
+      evaluator: self.class.multisect_evaluator || default_multisect_evaluator,
+      log: ->(message) { job_log(@workflow.job, message, kind: "system") }
+    )
+    return unless result.attributed?
+
+    job_log(
+      result.member.job,
+      "merge_train: focused multisect attributed the train failure to this member; automatic withdrawal is not enabled.",
+      kind: "system"
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] merge_train_multisect failed: #{e.class}: #{e.message}")
+  end
+
+  def default_multisect_evaluator
+    lambda do |**|
+      MergeTrainMultisect::Evaluation.clean(reason: "focused_subset_runner_unavailable")
+    end
+  end
+
+  def merge_train_config
+    loaded = RepoDefaultBranchSyrusYml.for_job(@workflow.job)
+    return nil unless loaded.loaded?
+
+    loaded.config&.merge_train
   end
 
   def merge_train
