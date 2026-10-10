@@ -25,6 +25,21 @@ RSpec.describe "landing failure handling" do
     )
   end
 
+  before do
+    allow(AppSetting).to receive(:runs_paused?).and_return(false)
+    allow(RunHostAdmission).to receive(:call) do |run:, **|
+      RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "landing_failure_spec",
+        delay: nil,
+        details: { "run_id" => run.id }
+      )
+    end
+    allow(WorkerCapabilities).to receive(:current).and_return(
+      { capabilities: { "os" => [ "linux" ] } }
+    )
+  end
+
   it "returns a failed landing Job to implemented with a reason" do
     job.approve!(via: "github_review")
     job.start_landing!
