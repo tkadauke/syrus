@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_152613) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_100232) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -273,6 +273,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_152613) do
     t.index ["job_id"], name: "index_auto_retry_attempts_on_job_id"
     t.index ["performed_at", "skipped_reason", "scheduled_at", "id"], name: "idx_auto_retry_attempts_pending_schedule"
     t.index ["run_id"], name: "index_auto_retry_attempts_on_run_id"
+    t.index ["updated_at", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_settled_window"
     t.index ["workflow_id", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_workflow_pending"
     t.index ["workflow_id", "retry_kind"], name: "index_auto_retry_attempts_on_workflow_retry_kind"
     t.index ["workflow_id", "retry_workflow_uniqueness_key"], name: "idx_auto_retry_attempts_unique_retry_workflow", unique: true
