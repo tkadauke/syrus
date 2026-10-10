@@ -151,6 +151,32 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.members.first.reload.state).to eq("failed")
     end
 
+    it "withdraws only the agent-attributed culprit and defers the other members for a rederived train" do
+      culprit = member_job(issue_number: 1)
+      other = member_job(issue_number: 2)
+      culprit.update!(approved_at: 1.hour.ago, approved_via: "operator")
+      other.update!(approved_at: 1.hour.ago, approved_via: "operator")
+      train = build_train([ culprit, other ])
+      workflow = build_workflow(train, culprit, failure_reason: "merge_train_agent withdrew #{culprit.slug}")
+      workflow.set_artifact!(Steps::MergeTrainAgent::WITHDRAWN_JOB_ID_ARTIFACT, culprit.id)
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_agent", state: "failed", position: 5)
+      failed_run = Run.create!(job: culprit, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      RunDiagnostic.create!(
+        run: failed_run,
+        error_class: "Steps::Base::StepFailed",
+        error_message: "merge_train_agent withdrew #{culprit.slug}",
+        problem_code: "merge_train_rebuild_required"
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(culprit.reload).to be_implemented
+      expect(culprit.approved_at).to be_nil
+      expect(other.reload).to be_approved
+      expect(train.members.map(&:reload).map(&:state)).to all(eq("failed"))
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
