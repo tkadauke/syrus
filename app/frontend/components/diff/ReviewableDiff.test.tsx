@@ -1174,6 +1174,12 @@ describe("ReviewableDiff", () => {
     expect(viewer.querySelector(".overflow-x-scroll")).toHaveClass("w-full", "min-w-0", "max-w-full", "[container-type:inline-size]")
   })
 
+  it("allows callers to make the diff viewer a constrained flex child", () => {
+    render(<ReviewableDiff className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col" files={files} mode="continuous" />)
+
+    expect(screen.getByTestId("agent-diff-viewer")).toHaveClass("max-md:flex", "max-md:min-h-0", "max-md:flex-1", "max-md:flex-col")
+  })
+
   it("sources mobile file-header stickiness from the shared chrome inset", () => {
     render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
 

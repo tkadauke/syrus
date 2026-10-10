@@ -76,6 +76,7 @@ export type DiffReviewThread = {
 export type ReviewableDiffProps = {
   annotations?: Record<string, Record<string, LineAnnotation>> | Record<string, LineAnnotation> | null
   changedFilesPopup?: boolean
+  className?: string
   comments?: Record<string, Record<string, DiffReviewThread[]>> | null
   composingBody?: string
   composingDiscussError?: Error | null
@@ -310,6 +311,7 @@ function estimateFileSectionHeight(
 export function ReviewableDiff({
   annotations,
   changedFilesPopup = false,
+  className,
   comments,
   composingBody,
   composingDiscussError,
@@ -538,7 +540,7 @@ export function ReviewableDiff({
   }
 
   return (
-    <div className="relative min-w-0 max-w-full [contain:inline-size]" data-testid="agent-diff-viewer" ref={containerRef}>
+    <div className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")} data-testid="agent-diff-viewer" ref={containerRef}>
       <div
         className={containerClass}
         data-rendered-file-count={renderedFileCount}

@@ -1581,6 +1581,7 @@ function TestFailureLabel({ failure }: { failure: RunTestFailureSummary["failure
 // wires up useDiffReviewFeedback.
 function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
+  const diffViewerClass = "max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col"
 
   if (view === "diff") {
     return (
@@ -1588,6 +1589,7 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
         {payload.agent_diff ? (
           <AgentDiff
+            className={diffViewerClass}
             diff={payload.agent_diff}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
             showFileHeaders
@@ -1603,6 +1605,7 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
         {payload.step_agent_diff ? (
           <AgentDiff
+            className={diffViewerClass}
             diff={payload.step_agent_diff}
             onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
             showFileHeaders
