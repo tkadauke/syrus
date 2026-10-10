@@ -18,6 +18,7 @@ module TestInsights
     hosts [ :parser ]
     provides domain_subscriber: "TestInsights::Subscribers",
              test_evidence: "TestInsights::TestEvidence",
+             grader_input_materializer: "TestInsights::GraderRuntimeProfileProvider",
              "global_search:source" => "TestInsights::SearchSource",
              repo_page_tab: "TestInsights::RepoPageTabs",
              ui_slot: "TestInsights::UiSlots",
