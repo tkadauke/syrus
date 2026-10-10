@@ -228,6 +228,7 @@ ROLLOUT_STALL_DIAGNOSE_INTERVAL="${ROLLOUT_STALL_DIAGNOSE_INTERVAL:-90s}"
 PREPULL="${PREPULL:-1}"
 PREPULL_TIMEOUT="${PREPULL_TIMEOUT:-12m}"
 PREPULL_DAEMONSET="syrus-image-prepull"
+DB_PREPARE_TIMEOUT="${DB_PREPARE_TIMEOUT:-10m}"
 ROLLOUT_VERBOSE_DIAGNOSTICS="${ROLLOUT_VERBOSE_DIAGNOSTICS:-false}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
 MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"
@@ -240,8 +241,14 @@ ACTIVE_BACKUP_NAMESPACE=""
 ACTIVE_BACKUP_LABEL=""
 ACTIVE_PREPULL_KUBECONFIG=""
 ACTIVE_PREPULL_NAMESPACE=""
+ACTIVE_DB_PREPARE_KUBECONFIG=""
+ACTIVE_DB_PREPARE_NAMESPACE=""
+ACTIVE_DB_PREPARE_JOB=""
 
 cleanup_rollout_controls() {
+  if [ -n "$ACTIVE_DB_PREPARE_KUBECONFIG" ]; then
+    delete_db_prepare_job "$ACTIVE_DB_PREPARE_KUBECONFIG" "$ACTIVE_DB_PREPARE_NAMESPACE" "$ACTIVE_DB_PREPARE_JOB" || true
+  fi
   if [ -n "$ACTIVE_PREPULL_KUBECONFIG" ]; then
     delete_prepull_daemonset "$ACTIVE_PREPULL_KUBECONFIG" "$ACTIVE_PREPULL_NAMESPACE" || true
   fi
@@ -284,6 +291,7 @@ rollout() {
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
   prepull_worker_image "$label" "$kubeconfig" "$namespace"
+  run_database_migrations "$label" "$kubeconfig" "$namespace"
   # Changing the image is the rollout trigger. An additional `rollout restart`
   # creates an annotation-only ReplicaSet, and Flux removes that imperative
   # annotation on resume, replacing every pod a second time.
@@ -411,6 +419,145 @@ delete_prepull_daemonset() {
     -n "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   ACTIVE_PREPULL_KUBECONFIG=""
   ACTIVE_PREPULL_NAMESPACE=""
+}
+
+run_database_migrations() {
+  local label="$1" kubeconfig="$2" namespace="$3"
+  local job_name
+  job_name="syrus-db-prepare-${SHA}-$(date +%s)-$$"
+
+  if ! KUBECONFIG="$kubeconfig" kubectl get deployment syrus-web -n "$namespace" >/dev/null 2>&1; then
+    echo "✗ ${label}: deployment/syrus-web not found in ${namespace}; cannot run migrations before rollout" >&2
+    exit 1
+  fi
+
+  echo "→ ${label}: applying database migrations with ${REGISTRY}:${SHA}"
+  ACTIVE_DB_PREPARE_KUBECONFIG="$kubeconfig"
+  ACTIVE_DB_PREPARE_NAMESPACE="$namespace"
+  ACTIVE_DB_PREPARE_JOB="$job_name"
+
+  KUBECONFIG="$kubeconfig" kubectl get deployment syrus-web -n "$namespace" -o json |
+    DB_PREPARE_JOB="$job_name" \
+    DB_PREPARE_IMAGE="${REGISTRY}:${SHA}" \
+    DB_PREPARE_DEADLINE_SECONDS="$(duration_to_seconds "$DB_PREPARE_TIMEOUT")" \
+    ruby -rjson -e '
+      deployment = JSON.parse(STDIN.read)
+      pod_spec = deployment.fetch("spec").fetch("template").fetch("spec")
+      containers = Array(pod_spec["initContainers"]) + Array(pod_spec["containers"])
+      source = containers.find { |container| container["name"] == "db-prepare" } ||
+        containers.find { |container| container["name"] == "syrus-web" } ||
+        containers.first
+      abort "deployment/syrus-web has no container to copy for db prepare" unless source
+
+      db_prepare = source.dup
+      %w[args command lifecycle livenessProbe ports readinessProbe startupProbe].each { |key| db_prepare.delete(key) }
+      db_prepare["name"] = "db-prepare"
+      db_prepare["image"] = ENV.fetch("DB_PREPARE_IMAGE")
+      db_prepare["command"] = [ "./bin/rails" ]
+      db_prepare["args"] = [ "db:prepare" ]
+
+      copied_pod_keys = %w[
+        affinity
+        automountServiceAccountToken
+        dnsConfig
+        dnsPolicy
+        hostAliases
+        imagePullSecrets
+        nodeSelector
+        priorityClassName
+        runtimeClassName
+        schedulerName
+        securityContext
+        serviceAccount
+        serviceAccountName
+        tolerations
+        topologySpreadConstraints
+        volumes
+      ]
+      job_pod_spec = pod_spec.select { |key, value| copied_pod_keys.include?(key) && !value.nil? }
+      job_pod_spec["restartPolicy"] = "Never"
+      job_pod_spec["containers"] = [ db_prepare ]
+
+      puts JSON.generate({
+        "apiVersion" => "batch/v1",
+        "kind" => "Job",
+        "metadata" => {
+          "name" => ENV.fetch("DB_PREPARE_JOB"),
+          "labels" => {
+            "app" => "syrus",
+            "component" => "db-prepare",
+            "managed-by" => "bin-deploy"
+          }
+        },
+        "spec" => {
+          "activeDeadlineSeconds" => Integer(ENV.fetch("DB_PREPARE_DEADLINE_SECONDS")),
+          "backoffLimit" => 0,
+          "ttlSecondsAfterFinished" => 600,
+          "template" => {
+            "metadata" => {
+              "labels" => {
+                "app" => "syrus",
+                "component" => "db-prepare",
+                "managed-by" => "bin-deploy"
+              }
+            },
+            "spec" => job_pod_spec
+          }
+        }
+      })
+    ' | KUBECONFIG="$kubeconfig" kubectl apply -n "$namespace" -f - >/dev/null
+
+  if wait_for_db_prepare_job "$kubeconfig" "$namespace" "$job_name"; then
+    echo "✓ ${label}: database migrations complete"
+    delete_db_prepare_job "$kubeconfig" "$namespace" "$job_name"
+    return 0
+  fi
+
+  echo "✗ ${label}: database migrations did not complete before ${DB_PREPARE_TIMEOUT}" >&2
+  KUBECONFIG="$kubeconfig" kubectl describe job "$job_name" -n "$namespace" >&2 || true
+  KUBECONFIG="$kubeconfig" kubectl logs "job/${job_name}" -n "$namespace" --all-containers --tail=200 >&2 || true
+  exit 1
+}
+
+wait_for_db_prepare_job() {
+  local kubeconfig="$1" namespace="$2" job_name="$3"
+  local total_seconds deadline state
+  total_seconds="$(duration_to_seconds "$DB_PREPARE_TIMEOUT")"
+  deadline=$((SECONDS + total_seconds))
+
+  while true; do
+    state="$(KUBECONFIG="$kubeconfig" kubectl get job "$job_name" -n "$namespace" -o json 2>/dev/null |
+      ruby -rjson -e '
+        job = JSON.parse(STDIN.read)
+        conditions = Array(job.dig("status", "conditions"))
+        if conditions.any? { |condition| condition["type"] == "Complete" && condition["status"] == "True" }
+          puts "complete"
+        elsif conditions.any? { |condition| condition["type"] == "Failed" && condition["status"] == "True" }
+          puts "failed"
+        else
+          puts "pending"
+        end
+      ' || true)"
+    case "$state" in
+      complete) return 0 ;;
+      failed) return 1 ;;
+    esac
+
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+delete_db_prepare_job() {
+  local kubeconfig="$1" namespace="$2" job_name="$3"
+  [ -n "$job_name" ] || return 0
+  KUBECONFIG="$kubeconfig" kubectl delete job "$job_name" \
+    -n "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  ACTIVE_DB_PREPARE_KUBECONFIG=""
+  ACTIVE_DB_PREPARE_NAMESPACE=""
+  ACTIVE_DB_PREPARE_JOB=""
 }
 
 pin_live_images() {
