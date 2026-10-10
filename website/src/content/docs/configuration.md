@@ -70,8 +70,6 @@ grade:
 
 merge_train:
   failure_rungs: [multisect]
-  multisect:
-    section_width: 4
 
 hooks:
   post_checkout:
@@ -87,7 +85,6 @@ Schema:
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
 | `merge_train.failure_rungs` | Array of strings | Repository-local merge-train failure rungs; currently supports `multisect` |
-| `merge_train.multisect.section_width` | Integer | Number of sections used by the focused multisect attribution rung; valid range is 2-16 |
 | `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |

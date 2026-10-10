@@ -186,9 +186,9 @@ selector reproduces on the full assembly, confirm the failure is not already
 known flaky or inherited from the base revision, and then section the train's
 members to attribute a single culprit. Before narrowing to a reproducing
 section, Syrus also confirms the omitted section so interaction failures are
-escalated instead of misattributed. The section width is repository
-configurable because wider rounds trade more concurrent focused grades for
-fewer wall-clock rounds.
+escalated instead of misattributed. The section width is an instance setting
+because wider rounds trade more concurrent focused grades for fewer wall-clock
+rounds.
 
 ### Manual
 
