@@ -1754,6 +1754,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"
     t.string "planned_execution_source"
+    t.datetime "approval_withdrawn_at"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"

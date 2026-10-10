@@ -223,7 +223,14 @@ module Api
           end
 
           approval = job.job_approvals.find_or_initialize_by(user: Current.user)
-          approval.approved_at ||= Time.current
+          stale_withdrawn_approval = job.approval_withdrawn? &&
+            approval.approved_at.present? &&
+            approval.approved_at <= job.approval_withdrawn_at
+          if stale_withdrawn_approval
+            approval.approved_at = Time.current
+          else
+            approval.approved_at ||= Time.current
+          end
           approval.save!
           Metrics::ProductUsage.record(:job_approved)
 

@@ -65,11 +65,28 @@ class JobDependency < ApplicationRecord
   end
 
   def execution_dependency_satisfied?
+    return satisfaction_policy.execution_dependency_satisfied? if satisfaction_mode == "closed"
+    return false if dependency_approval_withdrawn_for_execution?
+
     satisfaction_policy.execution_dependency_satisfied?
   end
 
   def dependency_terminal_unsuccessful_for_execution?
     satisfaction_policy.terminal_unsuccessful_for_execution?
+  end
+
+  def dependency_approval_withdrawn_for_execution?
+    return false unless depends_on_job
+    return false if same_epic_dependency_approved?
+
+    depends_on_job.approval_withdrawn?
+  end
+
+  def same_epic_dependency_approved?
+    return false if job&.epic_id.blank?
+    return false unless depends_on_job&.epic_id == job.epic_id
+
+    depends_on_job.approved? || depends_on_job.landing?
   end
 
   def referenced_epic
