@@ -296,7 +296,7 @@ module Admin
           unresolved_ref: dependency.unresolved_slug,
           unresolved_ref_kind: dependency.pending_reference_kind,
           unresolved_ref_state: dependency.pending_reference_state
-        }
+        }.merge(App::DependencyGatePayload.for(dependency))
       elsif dependency.depends_on_epic
         {
           dependency_id: dependency.id,
@@ -305,7 +305,7 @@ module Admin
           epic_id: dependency.depends_on_epic_id,
           state: dependency.depends_on_epic.state,
           satisfied: dependency.dependency_succeeded?
-        }
+        }.merge(App::DependencyGatePayload.for(dependency))
       else
         target = dependency.depends_on_job
         {
@@ -319,7 +319,7 @@ module Admin
           branch_name: target.branch_name,
           pr_number: target.pr_number || target.external_pr_number,
           satisfied: dependency.dependency_succeeded?
-        }
+        }.merge(App::DependencyGatePayload.for(dependency))
       end
     end
 
@@ -337,9 +337,9 @@ module Admin
           unresolved_ref: dependency.unresolved_slug,
           unresolved_ref_kind: dependency.pending_reference_kind,
           unresolved_ref_state: dependency.pending_reference_state
-        } ]
+        }.merge(App::DependencyGatePayload.for(dependency)) ]
       end
-      return [ { key: "epic:#{dependency.depends_on_epic_id}", epic_id: dependency.depends_on_epic_id, target_type: "epic", state: dependency.depends_on_epic&.state } ] if dependency.depends_on_epic_id.present?
+      return [ { key: "epic:#{dependency.depends_on_epic_id}", epic_id: dependency.depends_on_epic_id, target_type: "epic", state: dependency.depends_on_epic&.state }.merge(App::DependencyGatePayload.for(dependency)) ] if dependency.depends_on_epic_id.present?
 
       target = dependency.depends_on_job
       return [] unless target
@@ -347,7 +347,7 @@ module Admin
 
       seen << target.id
       blockers = target.dependencies.includes(:depends_on_epic, :depends_on_job).reject(&:dependency_succeeded?)
-      return [ { key: "job:#{target.id}", job_id: target.id, slug: target.slug, state: target.state, closure_reason: target.closure_reason } ] if blockers.empty?
+      return [ { key: "job:#{target.id}", job_id: target.id, slug: target.slug, state: target.state, closure_reason: target.closure_reason }.merge(App::DependencyGatePayload.for(dependency)) ] if blockers.empty?
 
       blockers.flat_map { |blocker| unsatisfied_leaf_blockers(blocker, seen) }
     end

@@ -396,6 +396,14 @@ export type JobDependencyTarget = {
   branch_name: string | null
   pr_number: number | null
   job_path: string
+  latest_deployment_stage?: JobDependencyDeploymentStage | null
+}
+
+export type JobDependencyDeploymentStage = {
+  name: string
+  label: string
+  scope?: "repository"
+  reached_at: string | null
 }
 
 export type JobDependencyEpicTarget = {

@@ -131,6 +131,7 @@ function buildRows(context: ToolCardContext, result: Record<string, unknown>) {
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
   pushRow(rows, "Dependency", dependencyLabel(context, result))
   pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
+  pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
   pushRow(rows, "Reason", result.reason)
   return rows

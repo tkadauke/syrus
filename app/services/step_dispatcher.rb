@@ -82,7 +82,7 @@ class StepDispatcher
 
       cancel_unstartable_rebase_workflow!(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
       unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
-        record_start_blocked!(workflow, DEPENDENCY_FAILED_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF) unless start_blocked_backoff_active?(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
+        record_start_blocked!(workflow, DEPENDENCY_FAILED_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF, details: failed_dependency_details(workflow.job)) unless start_blocked_backoff_active?(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
       end
       warn_if_stuck_queued(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
       return
@@ -297,6 +297,26 @@ class StepDispatcher
 
     next_check_at = WorkUnits::StartBlock.for(workflow).next_check_at
     next_check_at.present? && next_check_at.future?
+  end
+
+  def self.failed_dependency_details(job)
+    dependencies = job.failed_dependencies_for_execution
+    return nil if dependencies.empty?
+
+    {
+      "dependencies" => dependencies.map do |dependency|
+        target = dependency.depends_on_job
+        {
+          "dependency_id" => dependency.id,
+          "job_id" => target&.id,
+          "slug" => target&.slug,
+          "state" => target&.state,
+          "satisfaction_mode" => dependency.satisfaction_mode,
+          "required_deployment_stage_name" => dependency.required_deployment_stage_name,
+          "latest_deployment_stage" => App::DependencyGatePayload.for(dependency)[:latest_deployment_stage]
+        }.compact
+      end
+    }
   end
 
   def self.record_start_blocked!(workflow, reason, backoff:, details: nil)

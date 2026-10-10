@@ -1390,7 +1390,8 @@ describe("JobDetailView", () => {
         issue_title: "Add overview briefing base",
         branch_name: "syrus/issue-5762",
         pr_number: 5762,
-        job_path: "/jobs/5762"
+        job_path: "/jobs/5762",
+        latest_deployment_stage: { name: "staging", label: "Staging", reached_at: "2026-07-30T12:00:00Z" }
       }
     }
 
@@ -1457,8 +1458,7 @@ describe("JobDetailView", () => {
       })
     )
 
-    expect(screen.getByText(/waiting for deployment stage staging/)).toBeInTheDocument()
-    expect(screen.getByText("Waits for deployment stage: staging")).toBeInTheDocument()
+    expect(screen.getByText(/waiting for JOB-5762 to reach staging/)).toBeInTheDocument()
     expect(screen.queryByText(/waiting on the Epic's dependency order/)).not.toBeInTheDocument()
     expect(screen.queryByText(/once that PR merges/)).not.toBeInTheDocument()
   })
