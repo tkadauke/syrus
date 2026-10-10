@@ -1020,7 +1020,7 @@ module WorkEngine
             execution_steps: [ "StepDispatcher.clear_start_blocked!", "WorkUnits::Launcher.start!" ],
             preconditions: {
               workflow_state: "queued",
-              start_blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
+              start_blocked_reason: issue.evidence["start_blocked_reason"],
               unsatisfied_dependencies: []
             }
           )

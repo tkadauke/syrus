@@ -4646,6 +4646,91 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
+  it "does not clear a dependency block while an upstream approval remains withdrawn" do
+    parent = Factories.job_with_run(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 601,
+      state: "approved",
+      approved_at: Time.current,
+      approved_via: "operator",
+      branch_name: "syrus/issue-601",
+      pr_number: 601,
+      workflow_attrs: { state: "succeeded" },
+      step_attrs: { state: "succeeded" },
+      run_attrs: { state: "succeeded", head_sha: SecureRandom.hex(20) }
+    )
+    parent.unapprove!
+    JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: "dependency_approval_withdrawn",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :stale_dependency_start_block)).to be_nil
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to be_nil
+  end
+
+  it "repairs a withdrawn-approval dependency block once approval is restored" do
+    parent = Factories.job_with_run(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 602,
+      state: "approved",
+      approved_at: Time.current,
+      approved_via: "operator",
+      branch_name: "syrus/issue-602",
+      pr_number: 602,
+      workflow_attrs: { state: "succeeded" },
+      step_attrs: { state: "succeeded" },
+      run_attrs: { state: "succeeded", head_sha: SecureRandom.hex(20) }
+    )
+    parent.unapprove!
+    parent.approve!(via: "operator")
+    JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: "dependency_approval_withdrawn",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :stale_dependency_start_block)
+
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "clear_stale_start_block_and_start_workflow"
+    )
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
   it "releases an Epic-blocked child job once the Epic is in progress and dependencies are satisfied" do
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     parent = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 501, state: "approved", pr_number: 501)
