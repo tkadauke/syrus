@@ -83,9 +83,10 @@ host-specific secret system you already use for Apple builds. The launchd user
 must be able to unlock or access those identities without an interactive login
 session.
 
-Mac workers should not run database migrations. Deploy the k3s/web release and
-let the cluster finish migrations before rolling the Mac pool to a
-schema-compatible worker artifact.
+Mac workers should not run database migrations. Deploy the k3s/web release with
+its pre-rollout migration step first, then roll the Mac pool to a
+schema-compatible worker artifact. Migrations in that cluster release must stay
+backward compatible with the old worker code until the old workers are gone.
 
 ## Launchd Lifecycle
 
