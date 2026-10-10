@@ -486,12 +486,12 @@ class RunJob < ApplicationJob
     @run.agent_outcome = "worker_died"
     @run.fail!
     @run.save!
-    # run failure propagation may have created an in-place retry run when
-    # the worker_died budget isn't exhausted. Only fail the step explicitly
-    # when no active retry run was queued by the callback.
+    # Run failure propagation may have scheduled a replacement retry when the
+    # worker_died budget is not exhausted. Only fail the step explicitly when
+    # no replacement work was queued by the callback.
     @step.reload
-    if @step.runs.where.not(id: @run.id).active.exists?
-      log("run abandoned — worker died mid-execution; retrying in-place automatically")
+    if @step.runs.where.not(id: @run.id).active.exists? || AutoRetryAttempt.pending.where(run: @run).exists?
+      log("run abandoned — worker died mid-execution; retrying automatically")
     else
       @step.fail! if @step.may_fail?
       @step.save!
