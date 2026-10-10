@@ -342,6 +342,8 @@ module Ruby
       parallel_args = [
         *parallel_process_args,
         "--quiet",
+        *parallel_group_args,
+        *parallel_runtime_tolerance_args,
         "--runtime-log", parallel_runtime_log(mode),
         *parallel_execution_args(mode, args, json_output: json_output, junit_output: junit_output, shell_expand_args: shell_expand_args)
       ]
@@ -506,6 +508,23 @@ module Ruby
     end
 
     PARALLEL_PROCESS_PLACEHOLDER = "__SYRUS_RSPEC_PROCESSES__"
+
+    def parallel_group_args
+      group_by = parallel_config["group_by"].to_s.strip.presence
+      group_by ? [ "--group-by", group_by ] : []
+    end
+
+    def parallel_runtime_tolerance_args
+      [
+        *parallel_numeric_arg("allowed_missing", "--allowed-missing"),
+        *parallel_numeric_arg("unknown_runtime", "--unknown-runtime")
+      ]
+    end
+
+    def parallel_numeric_arg(config_key, option)
+      value = parallel_config[config_key].to_s.strip.presence
+      value ? [ option, value ] : []
+    end
 
     def parallel_process_setup
       configured = parallel_config["processes"].to_s.strip.presence

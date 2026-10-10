@@ -653,9 +653,22 @@ grade:
     parallel_rspec:
       enabled: true
       rspec_modes: [full, focused, ci]
+      group_by: runtime
+      runtime_log: config/rspec_runtime_baseline.log
+      allowed_missing: 100
+      unknown_runtime: 0.1
       exec_args: bin/rspec-worker
       prepare_command: bundle exec rake parallel:prepare
 ```
+
+`parallel_rspec.group_by` passes `--group-by` through to `parallel_rspec`.
+Use `runtime` with a `parallel_rspec.runtime_log` file that exists in a fresh
+grader checkout when large suites have uneven spec-file costs; otherwise the
+first run has no measured history to balance from. Runtime logs use the
+`path/to/spec.rb:seconds` format that `parallel_tests` writes. When the log is
+partial, `parallel_rspec.allowed_missing` and `parallel_rspec.unknown_runtime`
+pass through to `parallel_tests` so known expensive files can still drive the
+split while unmeasured files get a conservative default.
 
 Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
 at all — declaring it in `.syrus.yml` has no effect and is not parsed into
