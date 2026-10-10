@@ -463,6 +463,7 @@
     "no_plugins_body": "Registrierte Plugin-Manifeste erscheinen hier, nachdem Plugin-Engines geladen wurden.",
     "enabled": "Aktiviert",
     "disabled": "Deaktiviert",
+    "experimental": "Experimentell",
     "depends_on": "Abhängig von",
     "required_by": "Benötigt von",
     "cascade_confirm_heading": "Andere aktivierte Plugins hängen von diesem ab",

@@ -80,6 +80,7 @@ RSpec.describe Mcp::Sidecar do
 
       expect(tool_names - plugin_names).to contain_exactly(
         *%w[read_live_state read_run_worker_health get_coverage_report report_main_concern record_isolated_repro
+            report_cannot_proceed
             start_preview stop_preview read_preview_log
             submit_summary submit_test_plan submit_artifact run_target_prepare patch_workflow submit_visual_artifact
             list_artifacts read_artifact]

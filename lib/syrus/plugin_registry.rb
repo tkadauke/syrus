@@ -587,8 +587,7 @@ module Syrus
       end
 
       def plugin_enabled?(manifest, record)
-        return false if manifest.experimental? && !beta_mode_enabled?
-        return manifest.default_enabled? unless record
+        return manifest.default_enabled? && (!manifest.experimental? || beta_mode_enabled?) unless record
         return true unless manifest.disableable?
 
         record.effective_enabled?

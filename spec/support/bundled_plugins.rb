@@ -11,9 +11,11 @@ module Syrus
         # finishes; doing it in an initializer creates rows that db:prepare can
         # immediately erase, leaving every registry-backed validation disabled.
         # all_plugins materializes missing PluginRecord rows from the boot snapshot.
-        Syrus::PluginRegistry.all_plugins
+        default_enabled_plugin_names = Syrus::PluginRegistry.all_plugins
+          .select(&:default_enabled?)
+          .map(&:name)
 
-        TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+        (default_enabled_plugin_names | TEST_PROVIDER_PLUGIN_NAMES).each do |plugin_name|
           record = PluginRecord.find_or_create_by!(name: plugin_name)
           record.update!(enabled: true) unless record.enabled?
         end

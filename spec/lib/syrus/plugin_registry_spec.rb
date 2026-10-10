@@ -743,6 +743,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled?).to be(false)
     end
 
+    it "honors an already-enabled experimental PluginRecord without requiring beta mode" do
+      described_class.register(name: "already_enabled_experimental_plugin", version: "1.0.0", experimental: true)
+      PluginRecord.find_by!(name: "already_enabled_experimental_plugin").update!(enabled: true)
+      described_class.clear_plugin_record_cache!
+
+      manifest = described_class.all_plugins.first
+      expect(manifest.enabled?).to be(true)
+    end
+
     it "enables a default-enabled plugin that is promoted from experimental before it ever ran" do
       described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true)
       record = PluginRecord.find_by!(name: "promoted_plugin")
