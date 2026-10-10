@@ -16,6 +16,7 @@ class MergeTrainFailurePolicy
   end
 
   def resolve
+    return Rungs::Restart.new unless config_determined?
     return instance_default_rung unless configured_ladder?
     return Rungs::Restart.new if @attempt_number < 1 || @attempt_number > retry_budget_limit
 
@@ -38,15 +39,24 @@ class MergeTrainFailurePolicy
     ladder.present?
   end
 
+  def config_determined?
+    loaded_syrus_yml.determined?
+  end
+
   def ladder
     return @ladder if defined?(@ladder)
 
-    loaded = load_syrus_yml
-    @ladder = loaded.config&.merge_train&.failure_policy.presence
+    @ladder = loaded_syrus_yml.config&.merge_train&.failure_policy.presence
   end
 
   def retry_budget_limit
     AutoRetryAttempt.retry_budget_limit_for(@retry_classification)
+  end
+
+  def loaded_syrus_yml
+    return @loaded_syrus_yml if defined?(@loaded_syrus_yml)
+
+    @loaded_syrus_yml = load_syrus_yml
   end
 
   def load_syrus_yml

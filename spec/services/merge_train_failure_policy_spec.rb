@@ -35,6 +35,24 @@ RSpec.describe MergeTrainFailurePolicy do
     expect(policy).to be_a(MergeTrainFailurePolicy::Rungs::KeepAssembly)
   end
 
+  it "uses restart when the repository .syrus.yml is invalid" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => "merge_train: [nope]\n" })
+
+    policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "worker_died")
+
+    expect(policy).to be_a(MergeTrainFailurePolicy::Rungs::Restart)
+  end
+
+  it "uses restart when the repository .syrus.yml cannot be read" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("rate limited"))
+
+    policy = described_class.resolve(repository: repository, attempt_number: 1, retry_classification: "worker_died")
+
+    expect(policy).to be_a(MergeTrainFailurePolicy::Rungs::Restart)
+  end
+
   it "maps attempts to ordered rungs" do
     stub_ladder([ "restart", "keep_assembly" ])
 
