@@ -16,7 +16,7 @@ class MergeTrainFailurePolicy
   end
 
   def resolve
-    return instance_default_rung unless repository_ladder?
+    return instance_default_rung unless configured_ladder?
     return Rungs::Restart.new if @attempt_number < 1 || @attempt_number > retry_budget_limit
 
     rung_names = ladder.drop(@attempt_number - 1).first(retry_budget_limit - @attempt_number + 1)
@@ -34,15 +34,24 @@ class MergeTrainFailurePolicy
     IMPLEMENTED_RUNGS.fetch(AppSetting.merge_train_failure_policy).new
   end
 
-  def repository_ladder?
+  def configured_ladder?
     ladder.present?
   end
 
   def ladder
-    @ladder ||= @repository&.merge_train_failure_policy_ladder
+    return @ladder if defined?(@ladder)
+
+    loaded = load_syrus_yml
+    @ladder = loaded.config&.merge_train&.failure_policy.presence
   end
 
   def retry_budget_limit
     AutoRetryAttempt.retry_budget_limit_for(@retry_classification)
+  end
+
+  def load_syrus_yml
+    return RepoDefaultBranchSyrusYml::Result.new(config: nil, source: "none", note: "no repository", outcome: :absent) unless @repository
+
+    RepoDefaultBranchSyrusYml.new(repository: @repository, user: @repository.user).resolve
   end
 end
