@@ -301,6 +301,10 @@ RSpec.describe Ruby::RspecGraderType do
           "enabled" => true,
           "rspec_modes" => [ "full", "focused" ],
           "processes" => "4",
+          "group_by" => "runtime",
+          "runtime_log" => "config/rspec_runtime_baseline.log",
+          "allowed_missing" => "100",
+          "unknown_runtime" => "0.1",
           "exec_args" => "bin/rspec-worker",
           "prepare_command" => "bundle exec rake parallel:prepare"
         }
@@ -311,6 +315,10 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')
     expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES=4')
     expect(steps.first.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
+    expect(steps.first.run).to include("--group-by runtime")
+    expect(steps.first.run).to include("--allowed-missing 100")
+    expect(steps.first.run).to include("--unknown-runtime 0.1")
+    expect(steps.first.run).to include("--runtime-log config/rspec_runtime_baseline.log")
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
