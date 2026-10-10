@@ -286,9 +286,11 @@ class MergeTrainFailureHandler
   end
 
   def default_multisect_evaluator
-    lambda do |**|
-      MergeTrainMultisect::Evaluation.clean(reason: "focused_subset_runner_unavailable")
-    end
+    MergeTrainMultisect::FocusedEvaluator.new(
+      workflow: @workflow,
+      train: merge_train,
+      log: ->(message, kind: "system") { job_log(@workflow.job, message, kind: kind) }
+    )
   end
 
   def merge_train_config
