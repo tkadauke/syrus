@@ -143,6 +143,51 @@ describe("WorkflowsTab", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/diff_review_comments"), expect.anything())
   })
 
+  it("makes run artifact diffs the mobile flex child with their own vertical scroll region", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/jobs/42/runs/51/artifacts") {
+        return Promise.resolve(new Response(JSON.stringify({
+          job_id: 42,
+          workflow_id: 10,
+          run_id: 51,
+          diff_review_version_id: 100,
+          base_ref: "base-sha",
+          head_ref: "head-sha",
+          agent_diff: [
+            "diff --git a/app/models/job.rb b/app/models/job.rb",
+            "--- a/app/models/job.rb",
+            "+++ b/app/models/job.rb",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new"
+          ].join("\n"),
+          agent_diff_bytes: 120,
+          step_agent_diff: null,
+          logs_count: 0,
+          logs: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    const viewer = await screen.findByTestId("agent-diff-viewer")
+    expect(viewer).toHaveClass("max-md:flex", "max-md:min-h-0", "max-md:flex-1", "max-md:flex-col")
+    expect(viewer.querySelector("[data-total-file-count]")).toHaveClass("max-md:min-h-0", "max-md:flex-1", "max-md:max-h-none")
+    expect(screen.getByTestId("diff-file-scroll")).toHaveClass("overflow-x-scroll", "[-webkit-overflow-scrolling:touch]")
+  })
+
   it("hides Step diff when it duplicates the full diff, as on a first implement run", () => {
     const workflow = workflowWithDiffRun()
     workflow.steps[0].runs[0].step_agent_diff_present = true
