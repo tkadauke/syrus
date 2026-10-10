@@ -81,10 +81,72 @@ RSpec.describe "Mcp::Tools job dependency tools" do
       )
 
       expect(response.dig(:result, :isError)).to be_falsey
+      expect(payload(response).fetch(:dependencies).sole).to include(
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
       expect(job.reload.dependencies.sole).to have_attributes(
         satisfaction_mode: "deployment_stage",
         required_deployment_stage_name: "staging"
       )
+    end
+
+    it "rejects deployment-stage dependencies when the upstream repository has no deployment stages" do
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [], source: ".syrus.yml", note: "no deployment_stages configured")
+      )
+      job = Factories.job_record(user: user, repository: repository)
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 43)
+
+      response = call_tool(
+        "add_job_dependency",
+        job_id: job.id,
+        depends_on_job_id: prerequisite.id,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(error_text(response)).to include("requires deployment_stages to be configured")
+      expect(job.reload.dependencies).to be_empty
+    end
+
+    it "rejects deployment-stage dependencies for unknown stage names" do
+      stage = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+      )
+      job = Factories.job_record(user: user, repository: repository)
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 43)
+
+      response = call_tool(
+        "add_job_dependency",
+        job_id: job.id,
+        depends_on_job_id: prerequisite.id,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production"
+      )
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(error_text(response)).to include("is not configured")
+      expect(job.reload.dependencies).to be_empty
+    end
+
+    it "rejects deployment-stage dependencies on Epics" do
+      job = Factories.job_record(user: user, repository: repository)
+      epic = Factories.epic(repository: repository)
+
+      response = call_tool(
+        "add_job_dependency",
+        job_id: job.id,
+        depends_on_epic_id: epic.id,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(error_text(response)).to include("must be a Job")
+      expect(job.reload.dependencies).to be_empty
     end
 
     it "updates an existing dependency satisfaction mode when requested explicitly" do

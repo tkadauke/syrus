@@ -26,6 +26,10 @@ class JobDependency
       end
 
       def validate!
+        if dependency.required_deployment_stage_name.present?
+          dependency.errors.add(:required_deployment_stage_name, "is only allowed for deployment-stage dependencies")
+        end
+
         true
       end
 

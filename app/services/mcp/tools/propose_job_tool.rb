@@ -94,6 +94,19 @@ module Mcp::Tools
         description: { type: "string", description: "Markdown Job description, stored and rendered as Markdown after JSON decoding. Use real newline characters for paragraphs, lists, and code fences, and plain `\"`/`'` quote characters for quoted text; do not include literal backslash-n sequences (`\\n`) or JSON-style escaped quotes (`\\\"`, `\\'`)." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Job depends on. Required to include one of the target Epic's existing Jobs when epic_id targets a non-empty Epic — this is how a new Job chains onto that Epic's stack instead of becoming a disconnected parallel branch." },
+        dependency_requirements: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              job_id: { type: "integer", description: "Existing Job ID this proposal depends on." },
+              proposal_slug: { type: "string", description: "Job proposal slug from this chat session. Deployment-stage gates require this proposal to already be confirmed to a Job." },
+              satisfaction_mode: { type: "string", enum: JobDependency::SATISFACTION_MODES, description: "Defaults to success. Use deployment_stage with required_deployment_stage_name for deploy-stage-gated dependencies." },
+              required_deployment_stage_name: { type: "string", description: "Configured deployment stage name required when satisfaction_mode is deployment_stage." }
+            }
+          },
+          description: "Optional per-dependency requirements. Bare depends_on_job_ids and depends_on slugs still default to success."
+        },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." },
         media: {
           type: "array",
@@ -119,13 +132,19 @@ module Mcp::Tools
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, provider: nil, planned_execution: nil, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, planned_execution: nil, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
         description = normalize_proposal_markdown(description).strip
         depends_on_epic_ids = normalize_integer_list(depends_on_epic_ids)
-        depends_on_job_ids = normalize_integer_list(depends_on_job_ids)
+        dependency_requirements = ProposalJobDependencyRequirements.normalize(
+          dependency_requirements,
+          depends_on_job_ids: depends_on_job_ids,
+          depends_on_slugs: depends_on
+        )
+        depends_on_job_ids = dependency_requirements.filter_map { |requirement| requirement["job_id"] }
+        depends_on = normalize_string_list(depends_on) | dependency_requirements.filter_map { |requirement| requirement["proposal_slug"] }
 
         return Mcp::Tools.invalid("repo is required") if repo.to_s.strip.empty?
         return Mcp::Tools.invalid("repository not found") unless repository
@@ -158,6 +177,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
         dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
+        ProposalJobDependencyRequirements.validate!(user: chat_session.user, requirements: dependency_requirements)
         if target_epic && target_epic.jobs.exists?
           if (depends_on_job_ids & target_epic.jobs.pluck(:id)).empty?
             return Mcp::Tools.invalid(
@@ -183,6 +203,7 @@ module Mcp::Tools
             kind: "job",
             depends_on_epic_ids: depends_on_epic_ids,
             depends_on_job_ids: depends_on_job_ids,
+            dependency_requirements: dependency_requirements,
             media_ids: Array(media),
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),

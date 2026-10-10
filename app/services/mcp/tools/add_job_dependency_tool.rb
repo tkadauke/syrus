@@ -90,7 +90,8 @@ module Mcp::Tools
         Mcp::Tools.success(
           job_id: job.id,
           depends_on_job_ids: depends_on_job_ids(job),
-          depends_on_epic_ids: depends_on_epic_ids(job)
+          depends_on_epic_ids: depends_on_epic_ids(job),
+          dependencies: job.dependencies.order(:id).map { |dependency| dependency_payload(dependency) }
         )
       end
 
@@ -100,6 +101,16 @@ module Mcp::Tools
 
       def depends_on_epic_ids(job)
         job.dependencies.where.not(depends_on_epic_id: nil).order(:depends_on_epic_id).pluck(:depends_on_epic_id)
+      end
+
+      def dependency_payload(dependency)
+        {
+          id: dependency.id,
+          depends_on_job_id: dependency.depends_on_job_id,
+          depends_on_epic_id: dependency.depends_on_epic_id,
+          satisfaction_mode: dependency.satisfaction_mode,
+          required_deployment_stage_name: dependency.required_deployment_stage_name
+        }.compact
       end
     end
   end
