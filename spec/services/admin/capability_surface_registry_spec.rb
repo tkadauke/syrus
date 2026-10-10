@@ -4,6 +4,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
   StubMcpEntry = Data.define(:capability, :tool_name, :surface, :mutation, :admin_only)
 
   around do |example|
+    described_class.new.send(:load_pending_action_classes)
     original_registry = PendingActions::REGISTRY.dup
     example.run
   ensure
