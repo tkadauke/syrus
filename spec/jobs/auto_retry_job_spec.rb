@@ -69,6 +69,47 @@ RSpec.describe AutoRetryJob do
     expect(step.reload).to be_queued
   end
 
+  it "re-places a running worker_died grader retry through queue placement on a fresh host" do
+    workflow.update_columns(
+      state: "running",
+      worker_hostname: "worker-old",
+      worker_storage_key: "storage-old"
+    )
+    step.update_columns(kind: "grader", state: "running")
+    run.update_columns(
+      state: "failed",
+      agent_outcome: "worker_died",
+      agent_provider: "claude",
+      finished_at: Time.current
+    )
+    run.create_run_failure_classification!(
+      classification: "worker_died",
+      retryable: true,
+      confidence: 0.95,
+      classified_at: Time.current
+    )
+    attempt = AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: "claude",
+      failure_classification: "worker_died",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: Time.current
+    )
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to change { step.runs.where(state: "queued").count }.by(1)
+
+    replacement = step.runs.order(:id).last
+    expect(attempt.reload.performed_at).to be_present
+    expect(replacement).not_to eq(run)
+    expect(workflow.reload.worker_hostname).to be_nil
+    expect(workflow.worker_storage_key).to be_nil
+  end
+
   it "targets the Step that produced the automatic retry" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     allow(RetryFailedStepEnqueuer).to receive(:call).and_call_original
