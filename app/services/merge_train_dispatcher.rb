@@ -51,7 +51,7 @@ class MergeTrainDispatcher
       workflow = WorkUnits::Launcher.instantiate(
         kind: "merge_train",
         job: members.last,
-        artifacts: { "merge_train_id" => train.id }
+        artifacts: { "merge_train_id" => train.id }.merge(fix_replay_artifacts_for(members))
       )
     end
 
@@ -131,6 +131,19 @@ class MergeTrainDispatcher
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)
       .first
+  end
+
+  def fix_replay_artifacts_for(members)
+    source = MergeTrain
+      .where(epic_id: @epic.id, state: "failed")
+      .where.not(integration_branch: nil)
+      .order(finished_at: :desc, id: :desc)
+      .detect do |train|
+        MergeTrainFixReplay.eligible_source?(train) &&
+          train.members.order(:position).pluck(:job_id) == members.map(&:id)
+      end
+
+    MergeTrainFixReplay.source_artifacts_for(source)
   end
 
   def landing_unit_blockers_for(members)
