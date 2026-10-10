@@ -198,6 +198,21 @@ class ClassifyIssueJob < ApplicationJob
       return
     end
 
-    IngestionClassifier.call(job: job)
+    result = IngestionClassifier.call(job: job)
+    enqueue_retry_if_still_pending!(job, result)
+  end
+
+  private
+
+  def enqueue_retry_if_still_pending!(job, result)
+    return unless result.respond_to?(:success?) && !result.success?
+
+    job.reload
+    return unless job.triaging? && job.triaging_reason_classifier_pending?
+    return unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
+
+    self.class.enqueue_for_job!(job)
+  rescue EnqueueBlockedError => e
+    Rails.logger.warn("[ClassifyIssueJob] #{job.slug}: classifier retry blocked: #{e.message}")
   end
 end
