@@ -53,8 +53,11 @@ class IngestionClassifier
     finish_attempt!(attempt, outcome: "classified", decision: decision_payload(result), raw_output: result.raw_output)
     result
   rescue StandardError => e
-    finish_attempt!(attempt, outcome: "errored", error: "#{e.class}: #{e.message}") if attempt
-    mark_uncertain("#{e.class}: #{e.message}")
+    error = "#{e.class}: #{e.message}"
+    finish_attempt!(attempt, outcome: "errored", error: error) if attempt
+    raise if retryable_infrastructure_failure?(e, error) && classifier_attempts_remaining?
+
+    mark_uncertain(error)
   end
 
   private
@@ -70,6 +73,16 @@ class IngestionClassifier
   # consumed the same budget as one that ended in an error.
   def record_attempt!
     job.increment!(:classifier_attempts)
+  end
+
+  def classifier_attempts_remaining?
+    job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
+  end
+
+  def retryable_infrastructure_failure?(exception, error)
+    AutoRetryFailureClassifier.retryable_exception?(exception) ||
+      LandingFailureHandler.transient_blocker?(error) ||
+      LandingFailureHandler.infrastructure_blocker?(error)
   end
 
   def start_attempt!

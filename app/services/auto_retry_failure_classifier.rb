@@ -25,6 +25,7 @@ class AutoRetryFailureClassifier
   RETRYABLE_ERROR_CLASSES = %w[
     ActiveRecord::ConnectionNotEstablished
     ActiveRecord::ConnectionTimeoutError
+    ActiveModel::MissingAttributeError
     Timeout::Error
     Net::OpenTimeout
     Net::ReadTimeout
@@ -89,6 +90,22 @@ class AutoRetryFailureClassifier
     NON_RETRYABLE_MESSAGE_PATTERNS.any? { |pattern| message.to_s.match?(pattern) }
   end
 
+  def self.retryable_exception?(exception)
+    retryable_error_class?(exception.class.name) ||
+      retryable_message?("#{exception.class}: #{exception.message}")
+  end
+
+  def self.retryable_error_class?(error_class)
+    RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
+      error_class.to_s.end_with?("TimeoutError", "Timeout")
+  end
+
+  def self.retryable_message?(message)
+    text = message.to_s
+    !non_retryable_message?(text) &&
+      RETRYABLE_MESSAGE_PATTERNS.any? { |pattern| text.match?(pattern) }
+  end
+
   def initialize(workflow:)
     @workflow = workflow
   end
@@ -148,8 +165,7 @@ class AutoRetryFailureClassifier
   end
 
   def retryable_error_class?(error_class)
-    RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
-      error_class.to_s.end_with?("TimeoutError", "Timeout")
+    self.class.retryable_error_class?(error_class)
   end
 
   def provider_auth_failure?(run)
