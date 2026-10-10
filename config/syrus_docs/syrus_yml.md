@@ -120,8 +120,11 @@ Currently implemented rungs:
 - `keep_assembly` preserves the existing train and integration branch when the
   failed run is classified as retryable.
 
-When `merge_train.failure_policy` is absent, Syrus falls back to the instance
-`AppSetting.merge_train_failure_policy` compatibility default.
+When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
+instance `AppSetting.merge_train_failure_policy` compatibility default. If
+Syrus cannot parse or read the repository's default-branch `.syrus.yml`, it
+uses the conservative `restart` behavior instead of applying the instance
+default.
 
 ### capabilities
 

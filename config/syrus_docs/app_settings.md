@@ -52,8 +52,11 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 Compatibility default for what happens to an assembled merge train when its
 workflow fails. Repositories should declare their ordered escalation ladder in
 default-branch `.syrus.yml` under `merge_train.failure_policy`; this instance
-setting is used when that repository config is absent, preserving the previous
-instance-wide behavior across retry attempts.
+setting is used only when that repository config is confirmed absent,
+preserving the previous instance-wide behavior across retry attempts. If the
+repository config exists but cannot be parsed or read, Syrus uses the
+conservative `restart` behavior rather than guessing from this instance
+default.
 
 `restart` is the historical behaviour: the train is terminalized, its
 integration branch is deleted, and every member is handed back to
