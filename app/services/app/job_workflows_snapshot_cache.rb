@@ -6,10 +6,11 @@ module App
   # The Job's own `entity_revision` only bumps when the Job row itself is
   # saved (see Revisionable), not when a child Workflow/Step/Run changes, so
   # it cannot key this cache on its own. Instead the fingerprint aggregates
-  # the count and max `entity_revision` of every Workflow/Step/Run under the
-  # Job -- three small indexed aggregate queries, cheap enough to run on every
-  # request, that change if and only if the nested tree this method renders
-  # would render differently. `admin` is folded in too: WorkflowSerializers
+  # the count and summed `entity_revision` of every Workflow/Step/Run under
+  # the Job -- three small indexed aggregate queries, cheap enough to run on
+  # every request, that change whenever any row in the nested tree this
+  # method renders changes. The aggregate has to be one that every row
+  # contributes to; see the note on #workflow_stats for why MAX did not. `admin` is folded in too: WorkflowSerializers
   # includes admin-only fields (failure classification inputs, diagnostic
   # internals) gated on @user.admin?, so a cached admin payload must never be
   # handed to a non-admin request or vice versa.
@@ -66,16 +67,29 @@ module App
 
     private
 
+    # SUM, not MAX. `MAX(entity_revision)` over a set only moves when the
+    # maximum itself moves, so every row below the maximum can change freely
+    # without touching the fingerprint. A Job with 272 Steps whose revisions
+    # sat at 10 and 11 under a maximum of 12 served a stale payload for the
+    # full TTL while 70 graders transitioned queued -> running -> succeeded:
+    # no Step was added, so COUNT held, and none overtook the maximum, so MAX
+    # held. The cache self-healed only while Steps were being *added*, which
+    # is precisely backwards -- a fan-out goes stale exactly when it stops
+    # growing and starts resolving.
+    #
+    # Revisions only ever increment, so the sum is monotonic and changes
+    # whenever any row in the set changes. Paired with COUNT it also
+    # distinguishes an addition from an update.
     def workflow_stats
-      Workflow.where(job_id: @job.id).pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(entity_revision)"))
+      Workflow.where(job_id: @job.id).pick(Arel.sql("COUNT(*)"), Arel.sql("SUM(entity_revision)"))
     end
 
     def step_stats
-      Step.joins(:workflow).where(workflows: { job_id: @job.id }).pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(steps.entity_revision)"))
+      Step.joins(:workflow).where(workflows: { job_id: @job.id }).pick(Arel.sql("COUNT(*)"), Arel.sql("SUM(steps.entity_revision)"))
     end
 
     def run_stats
-      Run.where(job_id: @job.id).pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(entity_revision)"))
+      Run.where(job_id: @job.id).pick(Arel.sql("COUNT(*)"), Arel.sql("SUM(entity_revision)"))
     end
 
     def cache_key

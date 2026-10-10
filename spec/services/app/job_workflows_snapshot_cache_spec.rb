@@ -62,6 +62,31 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
     expect(calls).to eq(1)
   end
 
+  it "recomputes when a Step below the highest entity_revision changes" do
+    # The failure this guards against needs two Steps at different
+    # revisions: one well ahead, and one changing underneath it. MAX over
+    # the set never moves, and COUNT never moves because nothing is added,
+    # so the fingerprint held and a Job page served a stale snapshot for the
+    # full TTL while its graders resolved.
+    trailing = workflow.steps.first
+    leading = Step.create!(workflow: workflow, kind: "grader", position: 99, state: "queued")
+    4.times { |i| leading.update!(details: leading.details.to_h.merge("bump" => i)) }
+
+    expect(leading.reload.entity_revision).to be > trailing.reload.entity_revision
+
+    fetch { [ "built" ] }
+
+    trailing.update!(state: "running")
+
+    expect(trailing.reload.entity_revision).to be < leading.reload.entity_revision
+
+    calls = 0
+    result = fetch { calls += 1; [ "rebuilt" ] }
+
+    expect(result).to eq([ "rebuilt" ])
+    expect(calls).to eq(1)
+  end
+
   it "keeps admin and non-admin snapshots in separate cache entries" do
     fetch(admin: false) { [ "non-admin" ] }
     fetch(admin: true) { [ "admin" ] }
