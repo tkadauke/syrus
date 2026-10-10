@@ -7,11 +7,17 @@ module Syrus
 
       def restore_test_provider_records
         # Rails can load this support file before test database maintenance has
-        # replaced the schema. Enable the providers only after that maintenance
-        # finishes; doing it in an initializer creates rows that db:prepare can
-        # immediately erase, leaving every registry-backed validation disabled.
+        # replaced the schema. Restore default-enabled plugins and test
+        # providers only after that maintenance finishes; doing it in an
+        # initializer creates rows that db:prepare can immediately erase,
+        # leaving every registry-backed validation disabled.
         # all_plugins materializes missing PluginRecord rows from the boot snapshot.
-        Syrus::PluginRegistry.all_plugins
+        manifests = Syrus::PluginRegistry.all_plugins
+
+        manifests.select(&:default_enabled?).each do |manifest|
+          record = PluginRecord.find_or_create_by!(name: manifest.name)
+          record.update!(enabled: true) unless record.enabled?
+        end
 
         TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
           record = PluginRecord.find_or_create_by!(name: plugin_name)

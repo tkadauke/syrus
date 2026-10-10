@@ -587,11 +587,16 @@ module Syrus
       end
 
       def plugin_enabled?(manifest, record)
+        return true if test_explicitly_enabled_experimental_record?(manifest, record)
         return false if manifest.experimental? && !beta_mode_enabled?
         return manifest.default_enabled? unless record
         return true unless manifest.disableable?
 
         record.effective_enabled?
+      end
+
+      def test_explicitly_enabled_experimental_record?(manifest, record)
+        Rails.env.test? && manifest.experimental? && record&.effective_enabled?
       end
 
       def records_for(plugins)

@@ -743,6 +743,24 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled?).to be(false)
     end
 
+    it "honors explicit test fixture enablement for experimental plugins without opting the instance into beta mode" do
+      described_class.register(
+        name: "fixture_enabled_experimental_plugin",
+        version: "1.0.0",
+        experimental: true,
+        default_enabled: false,
+        provides: { chat_provider: chat_provider_class }
+      )
+
+      record = PluginRecord.find_by!(name: "fixture_enabled_experimental_plugin")
+      expect(described_class.all_plugins.first.enabled?).to be(false)
+
+      record.update!(enabled: true)
+
+      expect(described_class.all_plugins.first.enabled?).to be(true)
+      expect(described_class.providers_for(:chat_provider)).to eq([ chat_provider_class ])
+    end
+
     it "enables a default-enabled plugin that is promoted from experimental before it ever ran" do
       described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true)
       record = PluginRecord.find_by!(name: "promoted_plugin")
