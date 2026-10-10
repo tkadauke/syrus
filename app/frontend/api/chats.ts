@@ -266,6 +266,7 @@ export type ChatProposalUpdateInput = {
   body: string
   dependency_slugs: string[]
   depends_on_job_ids: number[]
+  dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids: number[]
   media_ids?: string[]
   target_epic_id?: number | null
