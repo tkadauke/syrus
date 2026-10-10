@@ -1358,6 +1358,25 @@ The Ruby plugin provides the first built-in grader type, `rspec`. It expands to
 full RSpec for landing/CI and focused RSpec for review, both with
 plugin-backed BRR.
 
+For a grader that must keep a single stable identity while still using the
+RSpec plugin's artifacts, failure evidence, metadata, and plugin-backed BRR,
+set `fixed_full_path: true` with explicit `paths` or `spec_paths`:
+
+```yaml
+grade:
+  - type: rspec
+    name: work-engine-simulations
+    fixed_full_path: true
+    paths:
+      - spec/services/work_engine/simulation/scenario_runner_spec.rb
+    phases: [review, landing, ci]
+```
+
+That shape emits exactly one full-mode grader using the configured name and
+runs the configured spec path in every selected phase. Omitting
+`fixed_full_path` preserves the normal `name`, `name-focused`, and `name-ci`
+expansion.
+
 ## `focused_test_command`
 
 Base-revision retry (BRR) uses this extension point when a grader with

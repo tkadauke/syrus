@@ -31,6 +31,8 @@ module Ruby
     end
 
     def grade_steps
+      return fixed_full_path_grade_steps if fixed_full_path?
+
       [
         grade_step(name: full_name, run: full_command, phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope),
         grade_step(name: focused_name, run: focused_command, phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope),
@@ -41,6 +43,31 @@ module Ruby
     private
 
     attr_reader :config, :default_failures
+
+    def fixed_full_path_grade_steps
+      unless explicit_rspec_paths?
+        raise ArgumentError, "fixed_full_path requires paths or spec_paths"
+      end
+
+      [
+        grade_step(
+          name: full_name,
+          run: full_command,
+          phases: configured_phases,
+          mode: "full",
+          junit_output: junit_output(full_name),
+          when_files_changed: configured_scope
+        )
+      ]
+    end
+
+    def fixed_full_path?
+      ActiveModel::Type::Boolean.new.cast(config["fixed_full_path"])
+    end
+
+    def explicit_rspec_paths?
+      config.key?("paths") || config.key?("spec_paths")
+    end
 
     def full_name
       config["name"].to_s.strip.presence || "rspec"
