@@ -20,6 +20,7 @@ function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJ
     owner_user_id: null,
     owner_user: null,
     repository_slug: "owner/repo",
+    depends_on_job_ids: [],
     ...overrides
   }
 }
@@ -171,6 +172,23 @@ describe("EpicDetail", () => {
     fireEvent.click(within(tabs).getByRole("button", { name: "History" }))
     expect(within(tabs).getByRole("button", { name: "History" })).toHaveClass("border-brand")
     expect(screen.getByText("Old title")).toBeInTheDocument()
+  })
+
+  it("links Add Job to the current Epic chain tail", () => {
+    const payload = detailPayload()
+    payload.jobs = [
+      job("open", { id: 10, slug: "JOB-10" }),
+      job("open", { id: 11, slug: "JOB-11", depends_on_job_ids: [10] })
+    ]
+
+    renderDetail(payload)
+
+    fireEvent.click(screen.getByRole("button", { name: "Jobs (2)" }))
+
+    expect(screen.getByRole("link", { name: "+ Add Job" })).toHaveAttribute(
+      "href",
+      "/jobs/new?repository_id=1&epic_id=3&depends_on_job_ids=11"
+    )
   })
 
   it("shows the Epic's own state when no child Job is landing", () => {

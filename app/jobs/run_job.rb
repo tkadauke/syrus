@@ -805,7 +805,7 @@ class RunJob < ApplicationJob
       if queued && !self.class.distributed_parallel_run?(queued)
         return queued if inline_successor_executable_here?(queued)
 
-        queued.reenqueue!
+        queued.reenqueue!(ignore_workflow_affinity: true)
         log(
           "successor Run ##{queued.id} for #{cursor.kind} requires workflow storage " \
             "#{queued.workflow&.worker_storage_key}; re-enqueued instead of running inline on #{WorkerStorageIdentity.queue_key}",

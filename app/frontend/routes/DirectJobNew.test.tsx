@@ -63,7 +63,10 @@ function renderRoute(payload = formPayload()) {
 }
 
 describe("DirectJobNew agent provider icon", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, "", "/")
+  })
 
   it("renders the selected provider's icon at the expected size", async () => {
     renderRoute(formPayload({
@@ -96,7 +99,10 @@ describe("DirectJobNew agent provider icon", () => {
 })
 
 describe("DirectJobNew epic linking", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, "", "/")
+  })
 
   it("shows which epic the job will join when the form payload targets one", async () => {
     renderRoute(formPayload({
@@ -117,6 +123,7 @@ describe("DirectJobNew epic linking", () => {
 
   it("submits epic_id alongside the job when targeting an epic", async () => {
     let submittedBody: FormData | null = null
+    window.history.pushState({}, "", "/jobs/new?repository_id=1&epic_id=7&depends_on_job_ids=42")
     vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
       if (init?.method === "POST") {
         submittedBody = init.body as FormData
@@ -148,6 +155,7 @@ describe("DirectJobNew epic linking", () => {
 
     await waitFor(() => expect(submittedBody).not.toBeNull())
     expect(submittedBody!.get("epic_id")).toBe("7")
+    expect(submittedBody!.getAll("depends_on_job_ids[]")).toEqual(["42"])
   })
 })
 

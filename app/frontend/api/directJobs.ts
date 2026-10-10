@@ -61,6 +61,7 @@ export type CreateDirectJobInput = {
   model: string
   effortLevel: string
   epicId: string
+  dependsOnJobIds?: string[]
   title: string
   prompt: string
   priority: string
@@ -95,6 +96,9 @@ export function createDirectJob(values: CreateDirectJobInput) {
   formData.append("effort_level", values.effortLevel)
   if (values.epicId) {
     formData.append("epic_id", values.epicId)
+  }
+  for (const id of values.dependsOnJobIds || []) {
+    formData.append("depends_on_job_ids[]", id)
   }
   formData.append("title", values.title)
   formData.append("prompt", values.prompt)

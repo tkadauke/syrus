@@ -31,7 +31,7 @@ test("creates an Epic with child Jobs from the UI and lists them on the Epic det
   await expect(page.getByText("2 Jobs")).toBeVisible()
 
   // The dependency graph covers dependencies on other Epics/external Jobs --
-  // these two freshly created, unchained child Jobs shouldn't produce any.
+  // this Epic's internal child chain shouldn't produce any.
   await openEpicTab(page, "Dependencies")
   await expect(page.getByText("No external dependencies")).toBeVisible()
 })
@@ -49,21 +49,20 @@ test("enforces the linear-chain dependency policy when chaining child Jobs (no f
   const jobBId = await addChildJob(page, epicId, jobBTitle, "Depends on job A.")
   const jobCId = await addChildJob(page, epicId, jobCTitle, "Attempts to also depend on job A.")
 
-  // B -> A is a valid, single-link chain.
-  await addDependency(page, jobBId, jobATitle)
+  // B -> A is wired by the Epic "Add Job" flow for non-empty Epics.
+  await page.goto(`/jobs/${jobBId}`)
   await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
 
-  // C -> A would fork the chain: A would have two downstream Jobs (fan-out).
+  // C already depends on B, so C -> A would create a fan-in.
   await addDependency(page, jobCId, jobATitle)
-  await expect(page.getByText(/must form a single chain/)).toBeVisible()
-  await expect(page.getByText("No dependencies.")).toBeVisible()
+  await expect(page.getByText(/must form a single chain/).first()).toBeVisible()
+  await expect(page.getByRole("button", { name: `Copy JOB-${jobBId} to clipboard` }).first()).toBeVisible()
 
-  // B -> C would merge two upstream Jobs into B, which already depends on A
-  // (fan-in).
+  // B -> C would cycle the existing A -> B -> C chain.
   await addDependency(page, jobBId, jobCTitle)
-  await expect(page.getByText(/must form a single chain/)).toBeVisible()
+  await expect(page.getByText(/must form a single chain/).first()).toBeVisible()
   await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
-  await expect(page.getByRole("button", { name: `Copy JOB-${jobCId} to clipboard` })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "1 other Job depends on this one" })).toBeVisible()
 })
 
 test("edits an Epic's metadata", async ({ page }) => {

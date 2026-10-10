@@ -3,7 +3,7 @@ class CreateJobClassificationAttempts < ActiveRecord::Migration[8.1]
     return if table_exists?(:job_classification_attempts)
 
     create_table :job_classification_attempts do |t|
-      t.references :job, null: false
+      t.references :job, null: false, foreign_key: false
       t.datetime :started_at, null: false
       t.datetime :finished_at
       t.string :outcome, limit: 32
@@ -11,7 +11,7 @@ class CreateJobClassificationAttempts < ActiveRecord::Migration[8.1]
       t.text :error
       t.text :raw_output, limit: 16.megabytes
       t.string :agent_provider, limit: 64
-      t.references :spawned_process, null: true
+      t.references :spawned_process, null: true, foreign_key: false
 
       t.timestamps
 

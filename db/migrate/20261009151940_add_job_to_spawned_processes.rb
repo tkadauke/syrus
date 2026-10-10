@@ -1,7 +1,7 @@
 class AddJobToSpawnedProcesses < ActiveRecord::Migration[8.1]
   def up
     unless column_exists?(:spawned_processes, :job_id)
-      add_reference :spawned_processes, :job, null: true
+      add_reference :spawned_processes, :job, null: true, foreign_key: false
     end
   end
 

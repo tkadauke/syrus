@@ -29,6 +29,7 @@ type DirectJobFormState = {
   model: string
   effortLevel: string
   epicId: string
+  dependsOnJobIds: string[]
   title: string
   prompt: string
   priority: string
@@ -364,12 +365,17 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     model: payload.selected_model || "",
     effortLevel: payload.selected_effort_level || "",
     epicId: payload.selected_epic_id || "",
+    dependsOnJobIds: selectedDependsOnJobIds(),
     title: "",
     prompt: "",
     priority: "medium",
     createMore: payload.create_more,
     googleDocUrl: ""
   }
+}
+
+function selectedDependsOnJobIds() {
+  return new URLSearchParams(window.location.search).getAll("depends_on_job_ids").filter(Boolean)
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
