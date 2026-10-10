@@ -185,6 +185,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
       role: "worker",
       version: "test",
       observed_at: Time.current,
+      cpu_used_percent: 95.0,
       cpu_pressure_some: 55.0,
       raw_metrics: {}
     )

@@ -231,8 +231,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         - name: backend-tests
           run: bin/rspec
           when_files_changed: ["app/**/*.rb"]
-          capabilities:
-            os: linux
     YAML
     stub_changed_files("ios/App/View.swift")
 
@@ -263,8 +261,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         - name: backend-tests
           run: bin/rspec
           when_files_changed: ["app/**/*.rb"]
-          capabilities:
-            os: linux
     YAML
     stub_changed_files("ios/App/View.swift", "app/models/user.rb")
 
@@ -292,7 +288,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           capabilities:
             os: linux
     YAML
-    stub_changed_files("ios/App/View.swift", "linux/package.sh")
+    stub_changed_files("ios/App/View.swift", "linux/pkg/package.sh")
 
     handler.call
 

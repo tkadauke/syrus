@@ -28,7 +28,7 @@ module Steps
         # one", which is exactly what merge_train_rebuild_required means.
         fail_with!(
           :merge_train_rebuild_required,
-          "merge_train: members not in :landing (#{not_landing.map(&:id).join(', ')}); rebuild required",
+          "merge_train: member jobs not in :landing (#{not_landing.map(&:id).join(', ')}); rebuild required",
           evidence: { "member_job_ids" => not_landing.map(&:id), "member_states" => not_landing.map(&:state).uniq }
         )
       end

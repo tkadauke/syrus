@@ -179,7 +179,6 @@ class ImplementationCapabilityEscalation
     return [] if required_values.empty?
     return [] if required_values == [ TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD ]
     return [] if planned_values.include?(TargetGraph::ExecutionCapabilities::CONFLICTING_WILDCARD)
-    return [] if required_values == [ "linux" ] && planned_values == [ "macos" ]
 
     required_values - planned_values
   end

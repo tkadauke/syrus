@@ -25,7 +25,7 @@ RSpec.describe ImplementationCapabilityEscalation do
         project_id: "repo",
         source_scope: [ "app/**/*" ],
         command: "bin/rspec",
-        capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
+        capabilities: TargetGraph::ExecutionCapabilities.new
       )
     )
     graph
@@ -34,7 +34,7 @@ RSpec.describe ImplementationCapabilityEscalation do
   def add_linux_package_target(graph)
     graph.add_target(
       TargetGraph::Target.new(
-        label: TargetGraph::Label.parse("//linux:grade/package"),
+        label: TargetGraph::Label.parse("//:grade/linux-package"),
         kind: "grader",
         project_id: "repo",
         source_scope: [ "linux/**/*" ],
@@ -80,7 +80,7 @@ RSpec.describe ImplementationCapabilityEscalation do
     expect(result.most_constrained_target.fetch("target_label")).to eq("//ios:grade/ui")
   end
 
-  it "does not warn for mixed macOS and Linux changes when macOS is the primary placement" do
+  it "warns for a Linux-only affected target when macOS is the primary placement" do
     workflow.update!(
       planned_execution_capabilities: { "os" => [ "macos" ] },
       planned_execution_source: "inferred"
@@ -90,10 +90,11 @@ RSpec.describe ImplementationCapabilityEscalation do
     result = described_class.call(
       workflow: workflow,
       graph: graph,
-      changed_files: [ "ios/App/View.swift", "linux/package.sh" ]
+      changed_files: [ "ios/App/View.swift", "linux/pkg/package.sh" ]
     )
 
-    expect(result).not_to be_escalated
-    expect(result.mismatched_targets).to be_empty
+    expect(result).to be_escalated
+    expect(result.most_constrained_target.fetch("target_label")).to eq("//:grade/linux-package")
+    expect(result.mismatched_targets.map { |target| target.fetch("target_label") }).to eq([ "//:grade/linux-package" ])
   end
 end
