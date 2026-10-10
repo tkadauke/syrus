@@ -87,10 +87,9 @@ class MergeTrainMultisectWorkflow
         position: insertion_position + evaluations.size,
         placement_policy: control_plane_policy,
         details: collect_details.deep_stringify_keys,
-        depends_on_ids: eval_steps.map(&:id)
+        depends_on_ids: collect_dependency_ids(after_step, eval_steps)
       )
-      after_step.update!(next_step_id: eval_steps.first&.id || collect.id)
-      eval_steps.each { |step| step.update!(next_step_id: collect.id) }
+      link_evaluations!(after_step: after_step, eval_steps: eval_steps, collect: collect)
       collect.update!(next_step_id: continuation&.id)
     end
     StepDispatcher.advance_from(after_step)
@@ -120,5 +119,29 @@ class MergeTrainMultisectWorkflow
 
   def evaluation_policy
     distributed_workflow_dag_enabled? ? Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT : Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+  end
+
+  def collect_dependency_ids(after_step, eval_steps)
+    return [ after_step.id ] if eval_steps.empty?
+    return eval_steps.map(&:id) if distributed_workflow_dag_enabled?
+
+    [ eval_steps.last.id ]
+  end
+
+  def link_evaluations!(after_step:, eval_steps:, collect:)
+    return after_step.update!(next_step_id: collect.id) if eval_steps.empty?
+
+    if distributed_workflow_dag_enabled?
+      after_step.update!(next_step_id: eval_steps.first.id)
+      eval_steps.each { |step| step.update!(next_step_id: collect.id) }
+      return
+    end
+
+    after_step.update!(next_step_id: eval_steps.first.id)
+    eval_steps.each_cons(2) do |previous, step|
+      step.update!(depends_on_ids: [ previous.id ])
+      previous.update!(next_step_id: step.id)
+    end
+    eval_steps.last.update!(next_step_id: collect.id)
   end
 end
