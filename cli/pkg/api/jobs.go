@@ -91,6 +91,83 @@ type JobDiff struct {
 	NoGithubToken bool   `json:"no_github_token"`
 }
 
+type DiffReviewComments struct {
+	JobID               int64                                     `json:"job_id"`
+	DiffReviewVersionID *int64                                    `json:"diff_review_version_id"`
+	LatestVersionID     *int64                                    `json:"latest_version_id"`
+	Comments            []DiffReviewComment                       `json:"comments"`
+	ByPath              map[string]map[string][]DiffReviewComment `json:"by_path,omitempty"`
+}
+
+type DiffReviewComment struct {
+	ID                  int64           `json:"id"`
+	JobID               int64           `json:"job_id"`
+	DiffReviewVersionID int64           `json:"diff_review_version_id"`
+	ParentID            *int64          `json:"parent_id"`
+	UserID              int64           `json:"user_id"`
+	User                *DiffReviewUser `json:"user,omitempty"`
+	WorkflowID          *int64          `json:"workflow_id"`
+	RunID               *int64          `json:"run_id"`
+	Surface             string          `json:"surface"`
+	BaseRef             string          `json:"base_ref"`
+	HeadRef             string          `json:"head_ref"`
+	AnchorKind          string          `json:"anchor_kind"`
+	Path                string          `json:"path"`
+	Side                string          `json:"side"`
+	OldLine             *int64          `json:"old_line"`
+	NewLine             *int64          `json:"new_line"`
+	AnchorKey           string          `json:"anchor_key"`
+	DiffHunk            string          `json:"diff_hunk"`
+	Context             json.RawMessage `json:"context,omitempty"`
+	Body                string          `json:"body"`
+	State               string          `json:"state"`
+	CreatedAt           string          `json:"created_at"`
+	UpdatedAt           string          `json:"updated_at"`
+	SubmittedAt         string          `json:"submitted_at"`
+	ResolvedAt          string          `json:"resolved_at"`
+	SupersededAt        string          `json:"superseded_at"`
+}
+
+type DiffReviewUser struct {
+	ID           int64  `json:"id"`
+	DisplayName  string `json:"display_name"`
+	EmailAddress string `json:"email_address"`
+	AvatarURL    string `json:"avatar_url"`
+}
+
+type CreateDiffReviewCommentRequest struct {
+	DiffReviewComment DiffReviewCommentInput `json:"diff_review_comment"`
+}
+
+type DiffReviewCommentInput struct {
+	Surface             string          `json:"surface,omitempty"`
+	DiffReviewVersionID int64           `json:"diff_review_version_id,omitempty"`
+	BaseRef             string          `json:"base_ref,omitempty"`
+	HeadRef             string          `json:"head_ref,omitempty"`
+	AnchorKind          string          `json:"anchor_kind,omitempty"`
+	Path                string          `json:"path,omitempty"`
+	Side                string          `json:"side,omitempty"`
+	OldLine             int64           `json:"old_line,omitempty"`
+	NewLine             int64           `json:"new_line,omitempty"`
+	DiffHunk            string          `json:"diff_hunk,omitempty"`
+	Body                string          `json:"body,omitempty"`
+	State               string          `json:"state,omitempty"`
+	WorkflowID          int64           `json:"workflow_id,omitempty"`
+	RunID               int64           `json:"run_id,omitempty"`
+	Context             json.RawMessage `json:"context,omitempty"`
+}
+
+type SubmitDiffReviewCommentsRequest struct {
+	CommentIDs          []int64 `json:"comment_ids,omitempty"`
+	DiffReviewVersionID int64   `json:"diff_review_version_id,omitempty"`
+}
+
+type DiffReviewSubmitResponse struct {
+	Message  string              `json:"message"`
+	Workflow *WorkflowBrief      `json:"workflow"`
+	Comments []DiffReviewComment `json:"comments"`
+}
+
 type CreateJobRequest struct {
 	RepositoryID    int64    `json:"repository_id,omitempty"`
 	Title           string   `json:"title,omitempty"`
@@ -150,6 +227,45 @@ func (c *Client) GetJobDiff(ctx context.Context, id string) (JobDiff, error) {
 	return out, err
 }
 
+func (c *Client) ListDiffReviewComments(ctx context.Context, id string, filters url.Values) (DiffReviewComments, error) {
+	var out DiffReviewComments
+	path := "/api/v1/app/jobs/" + url.PathEscape(id) + "/diff_review_comments"
+	if encoded := filters.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
+}
+
+func (c *Client) CreateDiffReviewComment(ctx context.Context, id string, input DiffReviewCommentInput) (DiffReviewComments, error) {
+	var out DiffReviewComments
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/diff_review_comments", CreateDiffReviewCommentRequest{
+		DiffReviewComment: input,
+	}, &out)
+	return out, err
+}
+
+func (c *Client) SubmitDiffReviewComments(ctx context.Context, id string, commentIDs []int64, versionID int64) (DiffReviewSubmitResponse, error) {
+	var out DiffReviewSubmitResponse
+	err := c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/diff_review_comments/submit", SubmitDiffReviewCommentsRequest{
+		CommentIDs:          commentIDs,
+		DiffReviewVersionID: versionID,
+	}, &out)
+	return out, err
+}
+
+func (c *Client) ResolveDiffReviewComment(ctx context.Context, id string, commentID int64, versionID int64) (DiffReviewComments, error) {
+	var out DiffReviewComments
+	err := c.do(ctx, http.MethodPost, diffReviewCommentPath(id, commentID, versionID, "resolve"), nil, &out)
+	return out, err
+}
+
+func (c *Client) ReplyToDiffReviewComment(ctx context.Context, id string, commentID int64, body string, versionID int64) (DiffReviewComments, error) {
+	var out DiffReviewComments
+	err := c.do(ctx, http.MethodPost, diffReviewCommentPath(id, commentID, versionID, "reply"), map[string]string{"body": body}, &out)
+	return out, err
+}
+
 func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (JobDetail, error) {
 	var out JobDetail
 	err := c.do(ctx, http.MethodPost, "/api/v1/app/jobs", CreateJobRequest{
@@ -170,10 +286,29 @@ func (c *Client) RunJobAction(ctx context.Context, id string, action string) err
 	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), nil, nil)
 }
 
-func (c *Client) ApproveJob(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/approve", nil, nil)
+func (c *Client) RunJobActionWithPayload(ctx context.Context, id string, action string, payload any) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/"+url.PathEscape(action), payload, nil)
 }
 
-func (c *Client) RetryJob(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/run_again", nil, nil)
+func (c *Client) RunJobWorkflowAction(ctx context.Context, id string, workflowID string, action string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/workflows/"+url.PathEscape(workflowID)+"/"+url.PathEscape(action), nil, nil)
+}
+
+func (c *Client) RunJobRunAction(ctx context.Context, id string, runID string, action string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(id)+"/runs/"+url.PathEscape(runID)+"/"+url.PathEscape(action), nil, nil)
+}
+
+func (c *Client) ApproveJob(ctx context.Context, id string) error {
+	return c.RunJobAction(ctx, id, "approve")
+}
+
+func diffReviewCommentPath(jobID string, commentID int64, versionID int64, action string) string {
+	path := "/api/v1/app/jobs/" + url.PathEscape(jobID) + "/diff_review_comments/" + url.PathEscape(formatID(commentID))
+	if action != "" {
+		path += "/" + url.PathEscape(action)
+	}
+	if versionID != 0 {
+		path += "?diff_review_version_id=" + url.QueryEscape(formatID(versionID))
+	}
+	return path
 }

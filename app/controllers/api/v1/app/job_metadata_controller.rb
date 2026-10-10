@@ -105,17 +105,6 @@ module Api
           render_metadata(job.reload, message: "Epic dependency removed.", changed: [ "dependencies" ])
         end
 
-        def override_dependencies
-          job = find_job
-          unless Current.user.admin?
-            render_error("forbidden", "Only admins can override dependencies.", status: :forbidden)
-            return
-          end
-
-          job.force_run_dependencies!(user: Current.user)
-          render_metadata(job.reload, message: "Dependency gate overridden.", changed: [ "dependencies" ])
-        end
-
         def stack_base
           job = find_job
           value = params[:stack_base].to_s

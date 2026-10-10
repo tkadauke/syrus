@@ -1,6 +1,7 @@
 module PendingActions
   class LocalToolCall < Base
     action_key "local_tool_call"
+    requires_chat_session!
 
     ALLOWED_TOOLS = %w[run_command write_file].freeze
     PRESENTATION_LABELS = {

@@ -16,7 +16,9 @@ database ID.
 session-or-token authenticated through the app API stack, has CSRF/session
 semantics, and may return page-shaped payloads built around React components:
 filter trees, sort descriptors, pagination metadata, sidebar counts, and
-control schemas.
+control schemas. Admin-only mutations that are only launched from in-app
+operator screens, such as stuck-Job repair buttons or Job detail controls,
+belong here rather than under the user-facing `/api/v1/app/*` paths.
 
 New externally scriptable operator capabilities belong under
 `/api/v1/admin/*`. New admin-screen data fetches or mutations that exist only
@@ -24,10 +26,30 @@ to drive React UI state belong under `/api/v1/app/admin/*`. If the same
 capability needs both consumers, expose it deliberately on both prefixes and
 keep the payload/auth contract for each consumer explicit.
 
+`POST /api/v1/admin/pending_actions/invoke` is the generic operator
+automation bridge for `PendingActions` operations. The request names an
+`action_key`, a JSON `payload`, and a required `reason`; the API call itself is
+the confirmation, so the operation runs synchronously after validation and
+records an `AdminAction` audit row with the acting user, payload, reason, and
+result. Validation failures and operation-raised `ArgumentError`s return
+client errors, not server errors. Actions that intrinsically require a chat
+session or persisted `ChatPendingAction` record are rejected before execution
+instead of being reported as successfully invoked.
+
 Plugin-declared admin API routes follow the same rule. A plugin route intended
 for operator automation should declare the `/api/v1/admin/*` prefix; a plugin
 route intended only for the in-app admin UI should declare the
 `/api/v1/app/admin/*` prefix.
+
+The generated endpoint inventory lives in
+`config/syrus_docs/admin_api_catalog.md`; update it with
+`bin/surface-catalogs` after route changes.
+
+The user-facing `/api/v1/app/*` namespace must not grow new inline admin
+refusal checks. If an endpoint is admin-only, put it under one of the admin
+prefixes. The reviewed exceptions are limited to non-migration compatibility
+cases such as the maintenance-task sidebar returning an empty badge payload for
+non-admin users and the legacy Job lifecycle timeline endpoint.
 
 ## Current reviewed overlap
 
@@ -38,6 +60,7 @@ without a deliberate migration choice:
 - backend exceptions
 - browser errors
 - console controls
+- Job dependency override and force-fail controls for in-app repair screens
 - MCP tool usage
 - overview and stuck queues
 - plugin enablement/configuration

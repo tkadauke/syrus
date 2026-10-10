@@ -51,7 +51,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
       "job_id" => job.id,
       "job_state" => job.reload.state,
       "job_path" => "/jobs/#{job.id}",
-      "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail",
+      "force_fail_path" => "/api/v1/app/admin/jobs/#{job.id}/force_fail",
       "has_transcript" => false
     )
     expect(parse_body["items"].first["repair_plan"].fetch("action")).to match(/\Amark_worker_died/)
@@ -181,7 +181,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
       "attention_state" => "operator_action_required",
       "job_id" => job.id,
       "job_state" => "running",
-      "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail"
+      "force_fail_path" => "/api/v1/app/admin/jobs/#{job.id}/force_fail"
     ))
   end
 

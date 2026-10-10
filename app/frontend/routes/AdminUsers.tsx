@@ -8,6 +8,7 @@ import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import { DataTable, Page } from "../components/ui"
@@ -154,6 +155,8 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
       render: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
     },
     { key: "tokens", header: t("users.col_tokens"), className: "font-mono text-xs", render: (user) => tokenSummary(user) },
+    { key: "provider_availability", header: t("users.col_provider_availability"), render: (user) => <ProviderAvailabilitySummary user={user} /> },
+    { key: "needs_attention", header: t("users.col_attention"), required: true, render: (user) => <CredentialAttention user={user} /> },
     { key: "api_token", header: t("users.col_api_token"), render: (user) => (user.has_api_token ? t("users.yes") : "-") },
     { key: "gh_token", header: t("users.col_github_token"), render: (user) => (user.has_github_token ? t("users.yes") : "-") },
     { key: "claude_token", header: t("users.col_claude_token"), render: (user) => (user.has_claude_token ? t("users.yes") : "-") },
@@ -247,6 +250,8 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
           <Info label={t("users.info_codex_auth_mode")} value={user.codex_auth_mode} />
           <Info label={t("users.info_max_turns")} value={String(user.agent_max_turns)} />
           <Info label={t("users.info_tokens")} value={tokenSummary(user)} />
+          <Info label={t("users.info_provider_availability")} value={<ProviderAvailabilitySummary user={user} />} />
+          <Info label={t("users.info_attention")} value={<CredentialAttention user={user} />} />
           <Info label={t("users.info_gh_rate")} value={rateLimitLabel(user)} />
         </InfoPanel>
       </section>
@@ -299,6 +304,43 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
   )
 }
 
+function ProviderAvailabilitySummary({ user }: { user: AdminUserRow }) {
+  const entries = Object.entries(user.provider_availability || {})
+  if (entries.length === 0) return <span>-</span>
+
+  return (
+    <span className="flex flex-wrap gap-1">
+      {entries.map(([provider, availability]) => (
+        <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200" key={provider}>
+          <span>{availability?.label || provider}</span>
+          <span className="font-mono text-gray-500 dark:text-gray-400">{availability?.state || "unknown"}</span>
+          <ProviderAvailabilityWarning availability={availability} />
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function CredentialAttention({ user }: { user: AdminUserRow }) {
+  const { t } = useT("admin")
+  const attention = user.credential_attention
+  if (!attention) return <span>-</span>
+
+  return (
+    <span className="inline-flex max-w-xs flex-col gap-0.5 text-xs text-red-700 dark:text-red-300" title={attention.message}>
+      <span>
+        {attention.provider_label} {t("users.auth_error")}
+      </span>
+      <span className="font-mono text-red-600 dark:text-red-400">{attention.blocked_work_units_count} blocked</span>
+    </span>
+  )
+}
+
+const schedulingButtonClassName = [
+  "rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400",
+  "dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+].join(" ")
+
 function SchedulingButton({ user }: { user: AdminUserDetail }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
@@ -312,7 +354,7 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
 
   return (
     <button
-      className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:bg-gray-400"
+      className={schedulingButtonClassName}
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
       type="button"

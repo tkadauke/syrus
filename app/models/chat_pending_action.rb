@@ -1,4 +1,6 @@
 class ChatPendingAction < ApplicationRecord
+  include PendingActions::Invocation
+
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
   TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
@@ -48,6 +50,7 @@ class ChatPendingAction < ApplicationRecord
     force_state_transition
     cancel_stale_work
     reenqueue_work
+    repair_queue_affinity
     force_landing_recheck
     manual_agentic_run
     adopt_current_pr_head
@@ -94,6 +97,7 @@ class ChatPendingAction < ApplicationRecord
     force_state_transition
     cancel_stale_work
     reenqueue_work
+    repair_queue_affinity
     rerun_ci_repair
     mark_ci_repair_noop
   ].freeze

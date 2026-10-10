@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { fetchAdminWorkUnits, type AdminWorkUnitsPayload, type LinkedJob, type WorkIntentSummary, type WorkUnitSummary } from "../api/adminWorkUnits"
 import { updateAdminSettings } from "../api/adminSettings"
@@ -205,6 +206,12 @@ function UnitList({ units, prefix }: { units: WorkUnitSummary[]; prefix: string 
           {(unit.blocked_reason || unit.preemption_reason || unit.pause_requested) ? (
             <div className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-300">
               {[unit.blocked_reason && t("work_units.blocked_reason", { reason: unit.blocked_reason }), unit.preemption_reason && t("work_units.preempted_reason", { reason: unit.preemption_reason }), unit.pause_requested && t("work_units.pause_requested")].filter(Boolean).join(" · ")}
+            </div>
+          ) : null}
+          {unit.provider_availability ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-red-700 dark:text-red-300">
+              <ProviderAvailabilityWarning availability={unit.provider_availability} />
+              <span>{t("work_units.provider_availability_state", { provider: unit.provider_availability.label || unit.provider_availability.provider, state: unit.provider_availability.state })}</span>
             </div>
           ) : null}
           {unit.members.length > 0 ? <div className="mt-1"><JobLinks jobs={unit.members.map((member) => member.job).filter((job): job is LinkedJob => Boolean(job))} prefix={prefix} /></div> : null}

@@ -60,6 +60,23 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title")).to eq("Summon the build consul")
   end
 
+  it "creates direct jobs with a repository slug" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository: repository.slug,
+      title: "Summon the slug consul",
+      prompt: "Make the tiny CLI action work.",
+      priority: "medium"
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(Job.order(:id).last).to have_attributes(
+      title: "Summon the slug consul",
+      repository_id: repository.id
+    )
+  end
+
   it "accepts an explicit planned execution override for direct Jobs" do
     sign_in_as(user)
 

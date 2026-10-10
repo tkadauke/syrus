@@ -175,6 +175,9 @@ Most commands accept a normal user API token and scope themselves to
 what that user can see. Commands that operate on instance-wide
 administrative surfaces require an admin token.
 
+The generated [CLI command catalog](/docs/generated/cli-catalog) lists every
+registered command, its flags, and whether that command supports `--json`.
+
 ## Repository Detection
 
 When a command runs inside a GitHub checkout, Syrus reads the `origin`
@@ -229,8 +232,19 @@ syrus --debug
 You can also send one message to an existing chat session:
 
 ```bash
+syrus chat list
+syrus chat list --json
+syrus chat new
+syrus chat new --repo tkadauke/myapp --json
 syrus chat 123 "Inspect the queued proposals"
 ```
+
+`chat list` prints chat IDs for scripted use. It scopes to the current
+GitHub `origin` repository when run from a checkout, accepts `--repo
+owner/name` to choose another repository, and accepts `--all` to list
+every chat your account can see. `chat new` creates a chat attached to the
+current repository by default; pass `--repo owner/name` to choose one or
+`--no-repo` for an unattached chat. Both commands support `--json`.
 
 When a chat turn proposes a Job or Epic, the CLI pauses and asks whether
 to confirm (`c`) or skip (`s`) the proposal before returning to the input.
@@ -269,6 +283,25 @@ Common keys:
 
 With `--watch`, an empty inbox stays open and refreshes every 30 seconds.
 
+## Diff Review
+
+`syrus review` is the scriptable home for diff review comments. It lives as
+one top-level command group, instead of under `syrus job`, so review does not
+grow a second duplicate command path alongside the existing approval,
+checkout, and test-plan aliases.
+
+```bash
+syrus review list JOB-123 --json
+syrus review add JOB-123 --path app/models/widget.rb --line 42 --body "Please add a regression spec."
+syrus review submit JOB-123 --comment-id 987
+syrus review resolve JOB-123 987
+syrus review reply JOB-123 987 --body "Fixed in the latest push."
+```
+
+`list` accepts `--json`, `--version`, `--all-versions`, `--state`, `--path`,
+and `--surface`. Mutating commands are flag-driven and work without a TTY.
+Job references accept `JOB-123`, `job-123`, bare numeric IDs, and slugs.
+
 ## Jobs
 
 Use `syrus job` commands for direct Job work:
@@ -284,9 +317,27 @@ syrus job watch 456
 syrus job diff 456
 syrus job create
 syrus job approve 456
+syrus job unapprove 456
 syrus job cancel 456
 syrus job retry 456
 syrus job rebase 456
+syrus job start 456
+syrus job pause 456
+syrus job unpause 456
+syrus job stop-landing 456
+syrus job move-to-backlog 456
+syrus job release-from-backlog 456
+syrus job accept-triage 456
+syrus job reject-triage 456
+syrus job reopen 456
+syrus job close-investigation 456
+syrus job check-mergeability 456
+syrus job recheck-pr-checks 456
+syrus job resume 456 --source-run 789
+syrus job retry-step 456 --workflow 321
+syrus job push-commits 456 --workflow 321
+syrus job stop-run 456 --run 789
+syrus job diagnose 456 --run 789
 syrus job checkout 456
 syrus job test-plan 456
 syrus job open 456
@@ -317,6 +368,12 @@ existing Jobs or a proposal slug and is sent with the create request), and
 `--owner` (the numeric user ID of a repository member to assign as owner).
 These are optional and omitted entirely from the request when not passed,
 rather than sent as blank values.
+
+Job lifecycle commands are intentionally limited to actions that are useful
+from a script or terminal review loop. Destructive branch-output recovery
+actions such as force-pushing a workflow workspace over a PR branch or
+discarding branch output stay on the web/admin surfaces where the operator
+can inspect the surrounding state first.
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.

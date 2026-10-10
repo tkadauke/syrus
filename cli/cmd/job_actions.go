@@ -77,23 +77,108 @@ type jobCreateOptions struct {
 	dependsOn []string
 }
 
-func newJobActionCommand(name string, action string, message string) *cobra.Command {
+type jobActionSpec struct {
+	name    string
+	action  string
+	short   string
+	message string
+}
+
+func newJobActionCommand(spec jobActionSpec) *cobra.Command {
 	return &cobra.Command{
-		Use:   name + " JOB-ID",
-		Short: message,
+		Use:   spec.name + " JOB-ID",
+		Short: spec.short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := apiClient()
 			if err != nil {
 				return err
 			}
-			if err := client.RunJobAction(cmd.Context(), args[0], action); err != nil {
+			if err := client.RunJobAction(cmd.Context(), args[0], spec.action); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s.\n", jobSlug(args[0]), strings.TrimSuffix(strings.ToLower(spec.message), "."))
+			return nil
+		},
+	}
+}
+
+func newJobResumeCommand() *cobra.Command {
+	var sourceRunID string
+	cmd := &cobra.Command{
+		Use:   "resume JOB-ID --source-run RUN-ID",
+		Short: "Resume a job from a source run",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sourceRunID = strings.TrimSpace(sourceRunID)
+			if sourceRunID == "" {
+				return errors.New("--source-run is required")
+			}
+			client, _, err := apiClient()
+			if err != nil {
+				return err
+			}
+			if err := client.RunJobActionWithPayload(cmd.Context(), args[0], "resume", map[string]string{"source_run_id": sourceRunID}); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s resume enqueued.\n", jobSlug(args[0]))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&sourceRunID, "source-run", "", "source run ID to resume from")
+	return cmd
+}
+
+func newJobWorkflowActionCommand(name string, action string, short string, message string) *cobra.Command {
+	var workflowID string
+	cmd := &cobra.Command{
+		Use:   name + " JOB-ID --workflow WORKFLOW-ID",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			workflowID = strings.TrimSpace(workflowID)
+			if workflowID == "" {
+				return errors.New("--workflow is required")
+			}
+			client, _, err := apiClient()
+			if err != nil {
+				return err
+			}
+			if err := client.RunJobWorkflowAction(cmd.Context(), args[0], workflowID, action); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s %s.\n", jobSlug(args[0]), strings.TrimSuffix(strings.ToLower(message), "."))
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&workflowID, "workflow", "", "workflow ID")
+	return cmd
+}
+
+func newJobRunActionCommand(name string, action string, short string, message string) *cobra.Command {
+	var runID string
+	cmd := &cobra.Command{
+		Use:   name + " JOB-ID --run RUN-ID",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID = strings.TrimSpace(runID)
+			if runID == "" {
+				return errors.New("--run is required")
+			}
+			client, _, err := apiClient()
+			if err != nil {
+				return err
+			}
+			if err := client.RunJobRunAction(cmd.Context(), args[0], runID, action); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s.\n", jobSlug(args[0]), strings.TrimSuffix(strings.ToLower(message), "."))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&runID, "run", "", "run ID")
+	return cmd
 }
 
 func newJobCheckoutCommand() *cobra.Command {

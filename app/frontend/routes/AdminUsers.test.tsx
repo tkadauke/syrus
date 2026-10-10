@@ -36,6 +36,38 @@ function userRow(overrides: Record<string, unknown> = {}) {
     github_api_blocked_at: null,
     github_api_blocked_reason: null,
     github_rate_limit: null,
+    provider_availability: {
+      claude: {
+        provider: "claude",
+        label: "Claude",
+        model: null,
+        state: "auth_error",
+        open: true,
+        usage_exhausted: false,
+        retry_after: null,
+        reason: "Provider authentication expired.",
+        message: "Claude credentials need reauthorization.",
+        evidence: {
+          current: {
+            status: "auth_error",
+            source: "usage_probe",
+            observed_at: "2026-01-01T00:00:00Z",
+            http_status: 401
+          }
+        }
+      }
+    },
+    needs_attention: true,
+    needs_attention_reason: "stale_provider_credential",
+    credential_attention: {
+      reason: "stale_provider_credential",
+      message: "Claude credentials have been failing authentication for blocked work.",
+      provider: "claude",
+      provider_label: "Claude",
+      observed_at: "2026-01-01T00:00:00Z",
+      stale_after_seconds: 21600,
+      blocked_work_units_count: 2
+    },
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides
@@ -102,11 +134,16 @@ describe("AdminUsers configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "Auth mode" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Scheduling" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Tokens" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Provider availability" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Attention" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "API token" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH API" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH blocked at" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH rate" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.getByText("auth_error")).toBeInTheDocument()
+    expect(screen.getByText("Claude auth error")).toBeInTheDocument()
+    expect(screen.getByText("2 blocked")).toBeInTheDocument()
     expect(screen.getByText("Showing 1-1 of 1 users")).toBeInTheDocument()
   })
 
@@ -134,6 +171,7 @@ describe("AdminUsers configurable columns", () => {
       "auth_mode",
       "scheduling",
       "tokens",
+      "provider_availability",
       "api_token",
       "gh_token",
       "claude_token",

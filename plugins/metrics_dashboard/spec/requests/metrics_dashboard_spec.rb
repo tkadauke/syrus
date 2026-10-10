@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "GET /api/v1/app/metrics_dashboard", type: :request do
+RSpec.describe "GET /api/v1/app/admin/metrics_dashboard", type: :request do
   # `let!` because User promotes the very first account to admin, so a lazily
   # created member would silently be one.
   let!(:admin) { Factories.user(global_role: "admin") }
@@ -19,7 +19,7 @@ RSpec.describe "GET /api/v1/app/metrics_dashboard", type: :request do
     it "serves the dashboard payload to an admin" do
       sign_in_as(admin)
 
-      get "/api/v1/app/metrics_dashboard"
+      get "/api/v1/app/admin/metrics_dashboard"
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body
@@ -33,9 +33,17 @@ RSpec.describe "GET /api/v1/app/metrics_dashboard", type: :request do
     it "refuses a non-admin" do
       sign_in_as(member)
 
-      get "/api/v1/app/metrics_dashboard"
+      get "/api/v1/app/admin/metrics_dashboard"
 
       expect(response).to have_http_status(:forbidden)
+    end
+
+    it "does not route through the non-admin app namespace" do
+      sign_in_as(admin)
+
+      get "/api/v1/app/metrics_dashboard"
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 
@@ -45,7 +53,7 @@ RSpec.describe "GET /api/v1/app/metrics_dashboard", type: :request do
     PluginRecord.find_or_create_by!(name: "metrics_dashboard").update!(enabled: false, disableable: true)
     sign_in_as(admin)
 
-    get "/api/v1/app/metrics_dashboard"
+    get "/api/v1/app/admin/metrics_dashboard"
 
     expect(response).to have_http_status(:not_found)
     expect(response.parsed_body.dig("error", "code")).to eq("plugin_disabled")

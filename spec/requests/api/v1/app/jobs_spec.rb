@@ -1322,11 +1322,11 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
-  it "lets admins force-fail an open job through the app API" do
+  it "lets admins force-fail an open job through the app-admin API" do
     user.update!(global_role: "admin")
     job.update!(state: "running")
 
-    post "/api/v1/app/jobs/#{job.id}/force_fail"
+    post "/api/v1/app/admin/jobs/#{job.id}/force_fail"
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.state).to eq("failed")
@@ -1336,13 +1336,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
-  it "rejects app force-fail for non-admin users" do
+  it "rejects app-admin force-fail for non-admin users" do
     user.update!(global_role: "user")
+    job.update!(state: "running")
+
+    post "/api/v1/app/admin/jobs/#{job.id}/force_fail"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(job.reload.state).to eq("running")
+  end
+
+  it "does not route force-fail through the non-admin app namespace" do
+    user.update!(global_role: "admin")
     job.update!(state: "running")
 
     post "/api/v1/app/jobs/#{job.id}/force_fail"
 
-    expect(response).to have_http_status(:forbidden)
+    expect(response).to have_http_status(:not_found)
     expect(job.reload.state).to eq("running")
   end
 

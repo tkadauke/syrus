@@ -8,6 +8,14 @@ module PendingActions
       @admin_only == true || action_key.start_with?("admin_")
     end
 
+    def self.requires_chat_session!
+      @requires_chat_session = true
+    end
+
+    def self.requires_chat_session?
+      @requires_chat_session == true
+    end
+
     def self.action_key(key = nil)
       if key
         @action_key = key.to_s
@@ -29,6 +37,7 @@ module PendingActions
     end
 
     def initialize(action)
+      PendingActions::Invocation.assert_compatible!(action)
       @action = action
     end
 
@@ -112,7 +121,11 @@ module PendingActions
     end
 
     def chat_session
-      @action.chat_session
+      session = @action.chat_session
+      return session if session
+      raise ArgumentError, "#{self.class.action_key} requires a ChatSession" if self.class.requires_chat_session?
+
+      nil
     end
 
     def repository
