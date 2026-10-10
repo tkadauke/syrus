@@ -3,9 +3,17 @@ require "rails_helper"
 RSpec.describe JobDependency do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
+  let(:staging_stage) { SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil) }
+  let(:production_stage) { SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil) }
 
   def issue_job(number)
     Job.create!(user: user, repository: repository, issue_number: number)
+  end
+
+  def stub_deployment_stages(repo = repository, stages: [ staging_stage, production_stage ], source: ".syrus.yml", note: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repo).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: stages, source: source, note: note)
+    )
   end
 
   # Separate after_save_commit and after_destroy_commit lines for the same
@@ -284,6 +292,149 @@ RSpec.describe JobDependency do
 
       expect(dependency).to be_execution_dependency_satisfied
       expect(dependency).not_to be_dependency_succeeded
+    end
+
+    it "keeps deployment-stage dependencies blocked before the matching stage status exists" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.create!(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(dependency).not_to be_dependency_succeeded
+      expect(dependency).not_to be_execution_dependency_satisfied
+      expect(dependent.failed_dependencies_for_execution).to be_empty
+    end
+
+    it "satisfies deployment-stage dependencies after the matching stage status is recorded" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      dependency = described_class.create!(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      JobDeploymentStageStatus.create!(job: prerequisite, stage_name: "production", reached_at: Time.current)
+      expect(dependency.reload).not_to be_dependency_succeeded
+
+      JobDeploymentStageStatus.create!(job: prerequisite, stage_name: "staging", reached_at: Time.current)
+
+      expect(dependency.reload).to be_dependency_succeeded
+      expect(dependency).to be_execution_dependency_satisfied
+      expect(dependent.reload).to be_dependencies_satisfied
+    end
+
+    it "does not use the implemented open-PR shortcut for deployment-stage dependencies" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 10,
+        state: "implemented",
+        branch_name: "syrus/parent",
+        pr_number: 10
+      )
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.create!(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(dependency).not_to be_dependency_succeeded
+      expect(dependency).not_to be_execution_dependency_satisfied
+    end
+
+    it "rejects deployment-stage dependencies on unknown stages" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.new(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "qa"
+      )
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:required_deployment_stage_name]).to include("is not configured for the upstream repository")
+    end
+
+    it "rejects deployment-stage dependencies when the upstream repository has no deployment stages configured" do
+      stub_deployment_stages(stages: [], source: "none", note: "no deployment_stages configured")
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "pr_merged")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.new(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(dependency).not_to be_valid
+      expect(dependency.errors[:required_deployment_stage_name]).to include("requires deployment_stages to be configured for the upstream repository")
+    end
+
+    it "rejects deployment-stage dependencies on Epic targets and unresolved references" do
+      stub_deployment_stages
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+      epic = Factories.epic(user: user, repository: repository)
+
+      epic_dependency = described_class.new(
+        job: dependent,
+        depends_on_epic: epic,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      pending_dependency = described_class.new(
+        job: dependent,
+        unresolved_owner: repository.owner,
+        unresolved_repo: repository.name,
+        unresolved_number: 10,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(epic_dependency).not_to be_valid
+      expect(epic_dependency.errors[:depends_on_job]).to include("must be a Job for deployment-stage dependencies")
+      expect(pending_dependency).not_to be_valid
+      expect(pending_dependency.errors[:depends_on_job]).to include("must be a Job for deployment-stage dependencies")
+    end
+
+    it "treats unsuccessful upstream closure as failed for deployment-stage dependencies" do
+      stub_deployment_stages
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 10, state: "closed", closure_reason: "cancelled")
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.create!(
+        job: dependent,
+        depends_on_job: prerequisite,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+
+      expect(dependent.failed_dependencies_for_execution).to contain_exactly(dependency)
     end
   end
 
