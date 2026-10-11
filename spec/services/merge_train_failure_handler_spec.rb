@@ -159,7 +159,7 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.members.first.reload.state).to eq("failed")
     end
 
-    it "runs the configured multisect rung before falling back to normal train teardown" do
+    it "starts the configured multisect rung as visible workflow steps" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
@@ -173,6 +173,9 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
           { "iteration" => 1, "failing_set" => [ "spec/a_spec.rb\u0000fails" ] }
         ]
       ))
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
       config = SyrusYml::Config.new(
         prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
         coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
@@ -183,18 +186,20 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
         RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil, outcome: :loaded)
       )
-      described_class.multisect_evaluator = lambda do |members:, role:, **|
-        reproduced = role == "oracle" || members.any? { |member| member.job_id == a.id }
-        MergeTrainMultisect::Evaluation.new(reproduced, "stubbed", {})
-      end
+      described_class.multisect_evaluator = ->(**) { raise "multisect should run through workflow steps" }
       AppSetting.current.update!(merge_train_multisect_section_width: 2)
 
       described_class.call(workflow: workflow)
 
-      artifact = workflow.reload.artifact(MergeTrainMultisect::ARTIFACT_KEY)
-      expect(artifact["status"]).to eq("attributed")
-      expect(artifact["attributed_member"]["job_id"]).to eq(a.id)
-      expect(train.reload.state).to eq("failed")
+      workflow.reload
+      expect(workflow).to be_running
+      expect(workflow.steps.order(:position).pluck(:kind)).to include(
+        "merge_train_multisect_prepare",
+        "merge_train_multisect_collect"
+      )
+      expect(workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY)).to be_present
+      expect(workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY)).to be_nil
+      expect(train.reload).not_to be_terminal
     end
 
     it "reverts members with no evidence of landing back to a re-landable state" do
