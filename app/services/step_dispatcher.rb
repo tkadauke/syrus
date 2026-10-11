@@ -988,6 +988,7 @@ class StepDispatcher
   end
 
   def advance!
+    clear_recovered_grader_loop_attention!
     return if handle_successful_review_loop_iteration
     return if handle_successful_step_advance_handler
 
@@ -1081,6 +1082,13 @@ class StepDispatcher
   end
 
   private
+
+  def clear_recovered_grader_loop_attention!
+    return unless @from_step&.kind == "grader_collect"
+    return unless @from_step.succeeded?
+
+    @workflow.job.clear_needs_attention!(reason: GraderLoopProgress::NO_PROGRESS_REASON)
+  end
 
   def handle_successful_step_advance_handler
     return false unless @from_step

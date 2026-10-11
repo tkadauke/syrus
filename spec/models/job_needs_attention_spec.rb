@@ -69,6 +69,26 @@ RSpec.describe JobNeedsAttention do
 
       expect { job.clear_needs_attention! }.not_to(change { job.reload.updated_at })
     end
+
+    it "clears the attention flags when the reason matches" do
+      job.clear_needs_attention!(reason: "upstream_pr_closed")
+
+      reloaded = job.reload
+      expect(reloaded.needs_attention?).to be false
+      expect(reloaded.needs_attention_reason).to be_nil
+      expect(reloaded.needs_attention_since).to be_nil
+    end
+
+    it "keeps the attention flags when the reason differs" do
+      expect {
+        job.clear_needs_attention!(reason: "fork_pr_closed")
+      }.not_to(change { job.reload.updated_at })
+
+      reloaded = job.reload
+      expect(reloaded.needs_attention?).to be true
+      expect(reloaded.needs_attention_reason).to eq("upstream_pr_closed")
+      expect(reloaded.needs_attention_since).to be_present
+    end
   end
 
   describe "#start_grace_period!" do
