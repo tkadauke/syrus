@@ -23,7 +23,12 @@ module MaintenanceTasks
         return unless task.state == "running"
 
         completed = task.completed_units.to_i + result.processed.to_i
-        failed = task.failed_units.to_i + result.failed.to_i
+        failed =
+          if result.clear_failed_units
+            result.failed.to_i
+          else
+            task.failed_units.to_i + result.failed.to_i
+          end
         total = adjusted_total_units(task, completed)
         task.checkpoint_will_change!
         task.assign_attributes(
