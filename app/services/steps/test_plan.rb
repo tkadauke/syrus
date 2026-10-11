@@ -54,7 +54,8 @@ module Steps
     def verify_test_plan!
       if workflow.artifact("test_plan").blank?
         capture_mcp_sidecar_stderr
-        raise StepFailed, "agent didn't call submit_test_plan"
+        fail_with!(:missing_required_tool_call, "agent didn't call submit_test_plan",
+                   evidence: { tool: "submit_test_plan" })
       end
     end
 

@@ -95,6 +95,29 @@ RSpec.describe "Step problem emission" do
 
       expect(described_class.classify(run.reload).classification).to eq("agent_invocation_too_large")
     end
+
+    {
+      "mcp_sidecar_failure" => "provider helper could not initialize its tool bridge",
+      "missing_required_tool_call" => "review completed without the expected machine-readable submission",
+      "disk_full" => "workspace write failed while materializing output",
+      "agent_resume_unavailable" => "provider continuity token was stale",
+      "pr_open_no_commits_between" => "publication was empty after branch preparation",
+      "branch_diverged" => "publication ref changed while preparing to push"
+    }.each do |code, changed_message|
+      it "classifies #{code} from the declared code when prose changes" do
+        run.update!(state: "failed")
+        run.create_run_diagnostic!(
+          error_class: "Steps::Base::StepFailed",
+          error_message: changed_message,
+          problem_code: code
+        )
+
+        result = described_class.classify(run.reload)
+
+        expect(result.classification).to eq(code)
+        expect(result.retryable).to eq(Problem::Kind.retryable?(code))
+      end
+    end
   end
 
   describe LandingFailureHandler do
@@ -168,6 +191,30 @@ RSpec.describe "Step problem emission" do
                                  error_message: "required graders failed: rubocop")
 
       expect(described_class.call(workflow: run.workflow).retryable?).to be(false)
+    end
+
+    it "keeps retryability stable when the message wording changes" do
+      run.update!(state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed",
+                                 error_message: "tool submission was absent after provider completion",
+                                 problem_code: "missing_required_tool_call")
+
+      result = described_class.call(workflow: run.workflow)
+
+      expect(result.classification).to eq("missing_required_tool_call")
+      expect(result).to be_retryable
+    end
+
+    it "prefers the declared Problem over legacy agent outcome names" do
+      run.update!(state: "failed", agent_outcome: "mcp_sidecar_failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed",
+                                 error_message: "tool bridge startup wording changed",
+                                 problem_code: "mcp_sidecar_failure")
+
+      result = described_class.call(workflow: run.workflow)
+
+      expect(result.classification).to eq("mcp_sidecar_failure")
+      expect(result).to be_retryable
     end
   end
 
