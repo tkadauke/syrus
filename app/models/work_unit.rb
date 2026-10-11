@@ -1,5 +1,9 @@
 class WorkUnit < ApplicationRecord
   STATES = %w[queued blocked running succeeded failed cancelled].freeze
+  # A WorkUnit is finished only in these. Note `blocked` is NOT terminal
+  # here even though Workflow#terminal? counts it: a blocked Workflow is
+  # waiting on something external, not done.
+  TERMINAL_STATES = %w[succeeded failed cancelled].freeze
   PREEMPTION_REASON_MAX_LENGTH = 64
 
   # Reasons that mean "this Job is simply waiting in line on an
@@ -161,7 +165,7 @@ class WorkUnit < ApplicationRecord
   end
 
   def mark_terminal!(state)
-    raise ArgumentError, "state must be terminal" unless state.to_s.in?(%w[succeeded failed cancelled])
+    raise ArgumentError, "state must be terminal" unless state.to_s.in?(TERMINAL_STATES)
 
     transaction do
       update!(

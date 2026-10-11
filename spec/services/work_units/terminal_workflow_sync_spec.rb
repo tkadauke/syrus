@@ -16,6 +16,26 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     expect(workflow.work_unit.work_unit_locks.active).to be_empty
   end
 
+  # Regression: Workflow#terminal? and Workflow.terminal both count `blocked`,
+  # but WorkUnit has no blocked outcome, so mark_terminal!("blocked") raised
+  # ArgumentError. This runs inside the reconciler's classification pass, so a
+  # single blocked Workflow with an active WorkUnit crashed every reconciler
+  # run -- stale runs went unreaped and nothing self-healed until it cleared.
+  it "leaves a blocked workflow's WorkUnit alone instead of raising" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "blocked")
+
+    expect { described_class.call(workflow) }.not_to raise_error
+    expect(workflow.work_unit.reload).to be_active
+  end
+
+  it "survives a blocked workflow when sweeping a whole job" do
+    blocked = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    blocked.update_columns(state: "blocked")
+
+    expect { described_class.for_job(job.reload) }.not_to raise_error
+  end
+
   it "does not change non-terminal workflow ownership" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
 
