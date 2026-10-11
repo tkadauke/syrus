@@ -111,8 +111,8 @@ before narrowing so an interaction with the omitted section cannot be
 misreported as a single culprit. Multiple reproducing sections abort as an
 interaction failure; an empty selector or a non-reproducing oracle aborts
 without attribution. On success Syrus records a `merge_train_multisect` workflow
-artifact naming the attributed member. Automatic member withdrawal is not part
-of this rung.
+artifact naming the attributed member and preserves the train for the next rung
+or operator review. Automatic member withdrawal is not part of this rung.
 
 ## Reconciliation phase
 

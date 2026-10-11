@@ -202,6 +202,36 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload).not_to be_terminal
     end
 
+    it "preserves members after multisect records an attributed member" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(train, b, failure_reason: "merge_train_multisect: attributed failure to #{a.slug}")
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_multisect_collect", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
+      workflow.set_artifact!(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY, Time.current.iso8601)
+      workflow.set_artifact!(
+        MergeTrainMultisect::ARTIFACT_KEY,
+        {
+          "status" => "attributed",
+          "reason" => "isolated_member",
+          "attributed_member" => MergeTrainMultisect.member_payload(train.members.find_by!(job: a))
+        }
+      )
+      expect(LandingFailureHandler).not_to receive(:call)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      expect(client).not_to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(train.members.reload.map(&:state)).not_to include("failed")
+      expect(a.reload).to be_landing
+      expect(b.reload).to be_landing
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
