@@ -226,7 +226,7 @@ class ReconcileJobStatesJob < ApplicationJob
       return false unless latest_wf&.failed?
       return false unless latest_wf.landing_workflow?
       return false unless LandingQueueReentry.landing_start_blocker?(latest_wf.failure_reason.presence || latest_wf.artifact("failure_reason") || WorkUnits::StartBlock.for(latest_wf).reason)
-      return false unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
+      return false unless job.landing_failure_kind&.landing_start_blocker?
       return false unless job.approved_at.present?
       return false unless job.pr_number.present?
       return false unless job.branch_name.present?

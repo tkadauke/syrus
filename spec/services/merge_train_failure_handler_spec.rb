@@ -97,9 +97,11 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       described_class.call(workflow: workflow)
 
       expect(LandingFailureHandler.transient_blocker?(train.reload.failure_reason)).to be(true)
+      expect(train.failure_code).to eq(LandingFailureCode::TRANSIENT_BLOCKER)
       # `approved`, not `implemented`: defer_landing keeps whatever approval
       # the Job had, where fail_landing would have cleared it.
       expect(a.reload).to be_approved
+      expect(a.landing_failure_code).to eq(LandingFailureCode::TRANSIENT_BLOCKER)
     end
 
     it "lets a GitHub rate limit defer rather than clear the member's approval" do

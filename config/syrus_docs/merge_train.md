@@ -59,11 +59,16 @@ which decides between two very different outcomes:
 - **Deferral** — the Job stays `approved` and the landing queue tries again.
   Used for conditions that say nothing about whether the work is landable: a
   stale train that needs rebuilding, a landing-start blocker, the rebase cap,
-  and (via `TRANSIENT_BLOCKER_PATTERNS`) GitHub 5xx responses, MCP sidecar
+  and structured transient failure codes for GitHub 5xx responses, MCP sidecar
   failures, worker deaths, lock contention and connection timeouts.
 - **Failure** — the Job reverts to `implemented` and its approval is cleared,
   requiring an operator to re-approve. This is for genuine rejections: graders
   that failed, an integration the agent could not reconcile.
+
+The human `failure_reason`/`landing_failure_reason` text is preserved for
+operators, but current control flow uses structured `failure_code` and
+`landing_failure_code` values first; legacy text matching only exists for old
+rows without those codes.
 
 Getting that split wrong is expensive in operator time rather than in
 correctness — a five-second GitHub outage used to cost a full round of
@@ -142,7 +147,7 @@ If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket
 - Members with no evidence their commits are on base go through `LandingFailureHandler`, which reverts them out of `landing`: transient blockers defer them back to `approved` (auto-retried once the blocker clears), while genuine failures fail them to `implemented`, clearing approval and requiring an operator to re-approve.
 - A member whose commits are already verifiably on base when the train fails — e.g. GitHub reported the integration merge before a crash partway through closing member PRs — is instead completed retroactively: closed `pr_merged` with the landed SHA recorded, the same as the happy path. Its PR/branch may still need manual GitHub cleanup since the usual comment/close/delete-branch steps did not get to run for it.
 - A 30-minute retry cooldown prevents the landing queue from immediately re-attempting an unrepaired integration conflict.
-- Transient landing-start blockers, such as dependency readiness or admission pressure, do not use that failed-train cooldown. Once the blocker clears, the approved Epic children re-enter the landing queue and Syrus can dispatch a fresh train automatically. Deferred failures — including a member reconciliation that could not verify a landing — are transient in this sense too, so a train that keeps failing that way can rebuild and re-dispatch every few minutes rather than every 30.
+- Transient landing-start blockers and stale-base rebuild states are persisted as structured failure codes, so changing the explanatory text does not change cooldown behavior. Once the blocker clears, the approved Epic children re-enter the landing queue and Syrus can dispatch a fresh train automatically. Deferred failures — including a member reconciliation that could not verify a landing — are transient in this sense too, so a train that keeps failing that way can rebuild and re-dispatch every few minutes rather than every 30.
 - Deterministic infrastructure/application crashes are bounded by the
   repeated-failure circuit in `WorkEngine::Reconciler`. If the same
   exception fingerprint (app revision, exception class/message, and top stack
