@@ -729,6 +729,37 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(groups[2]["chats"].map { |chat| chat["id"] }).to eq([ external_chat.id ])
   end
 
+  it "groups recent sidebar chats by configured chat agent when more than one is available" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test")
+    claude_chat = ChatSession.create!(user: user, title: "Claude chat", chat_provider: "claude", last_message_at: 1.minute.ago)
+    codex_chat = ChatSession.create!(user: user, title: "Codex chat", chat_provider: "codex", last_message_at: 2.minutes.ago)
+
+    get "/api/v1/app/chats", params: { group_by: "agent", show_empty_groups: "1" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available_agents"]).to eq([
+      { "value" => "claude", "label" => "Claude" },
+      { "value" => "codex", "label" => "Codex" }
+    ])
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.keys).to include("agent-claude", "agent-codex")
+    expect(groups.fetch("agent-claude")).to include("label" => "Claude", "group_by" => "agent", "group_value" => "claude")
+    expect(groups.fetch("agent-claude")["chats"].map { |chat| chat["id"] }).to eq([ claude_chat.id ])
+    expect(groups.fetch("agent-codex")["chats"].map { |chat| chat["id"] }).to eq([ codex_chat.id ])
+  end
+
+  it "falls back from agent grouping when the current user has only one configured chat agent" do
+    sign_in_as(user)
+    ChatSession.create!(user: user, title: "Only chat", chat_provider: "claude", last_message_at: 1.minute.ago)
+
+    get "/api/v1/app/chats", params: { group_by: "agent" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available_agents"]).to eq([ { "value" => "claude", "label" => "Claude" } ])
+    expect(parse_body["groups"].map { |group| group["group_by"] }).to eq([ "repository" ])
+  end
+
   it "classifies external chats as external even when their conversation kind is group" do
     sign_in_as(user)
     Factories.user
