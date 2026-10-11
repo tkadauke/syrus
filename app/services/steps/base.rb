@@ -75,6 +75,14 @@ module Steps
         super(@reason.presence || "agent reported it cannot proceed")
       end
     end
+    class StepSkipped < StandardError
+      attr_reader :reason
+
+      def initialize(message = nil, reason:)
+        @reason = reason.to_s
+        super(message)
+      end
+    end
     class AgentGaveUpWaiting < StepFailed
       problem_code :agent_gave_up_waiting
     end

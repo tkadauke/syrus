@@ -30,7 +30,7 @@ RSpec.describe RunPreAdmissionSkip do
         visual_review: SyrusYml::VisualReviewConfig.new(
           enabled: true, rounds: 1,
           when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
-          seed_notes: nil
+          seed_notes: nil, required: false
         )
       )
     )
