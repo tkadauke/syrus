@@ -866,7 +866,8 @@ raise the setting only when the instance's worker/build capacity can absorb the
 extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
 inside the failed merge-train workflow; with distributed workflow DAG execution
 enabled for the repository, each focused section evaluation gets its own
-immutable-source workspace and Run.
+immutable-source workspace and Run. Terminal multisect results are record-only
+and preserve the train for the next rung or operator review.
 
 ## formatters
 

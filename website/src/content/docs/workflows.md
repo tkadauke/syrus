@@ -190,8 +190,10 @@ evaluations are separate Runs, and repositories with distributed workflow DAG
 execution enabled can run a round's focused subset checks across immutable
 worker workspaces. Before narrowing to a reproducing section, Syrus also
 confirms the omitted section so interaction failures are escalated instead of
-misattributed. The section width is an instance setting because wider rounds
-trade more concurrent focused grades for fewer wall-clock rounds.
+misattributed. A terminal multisect result is record-only: it preserves the
+train for the next rung or operator review instead of withdrawing members. The
+section width is an instance setting because wider rounds trade more concurrent
+focused grades for fewer wall-clock rounds.
 
 ### Manual
 
