@@ -10,7 +10,7 @@ module ChatProposalMutation
   private
 
   def proposal_update_params
-    params.require(:proposal).permit(:title, :body, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+    params.require(:proposal).permit(:title, :body, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [], dependency_requirements: [ :job_id, :depends_on_job_id, :proposal_slug, :depends_on, :slug, :satisfaction_mode, :required_deployment_stage_name ])
   end
 
   def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

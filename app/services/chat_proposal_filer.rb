@@ -251,18 +251,25 @@ class ChatProposalFiler
   def wire_job_dependencies_for(proposal, job, job_by_proposal_id)
     proposal.dependencies.each do |dependency|
       depends_on_job = job_by_proposal_id[dependency.id] || dependency.job
+      requirement = ProposalJobDependencyRequirements.for_proposal_slug(proposal, dependency.slug)
       unless depends_on_job
-        create_pending_proposal_dependency!(job, dependency)
+        create_pending_proposal_dependency!(job, dependency, requirement: requirement)
         next
       end
 
-      validate_dependency_target!(depends_on_job)
+      validate_dependency_target!(
+        depends_on_job,
+        satisfaction_mode: requirement&.fetch("satisfaction_mode", "success") || "success",
+        required_deployment_stage_name: requirement&.fetch("required_deployment_stage_name", nil),
+        dependent_job: job
+      )
       JobDependency.find_or_create_by!(
         job: job,
         depends_on_job: depends_on_job
       ) do |job_dependency|
         job_dependency.source = "manual"
         job_dependency.created_by_user = user
+        apply_dependency_requirement!(job_dependency, requirement)
       end
     end
 
@@ -270,7 +277,7 @@ class ChatProposalFiler
       epic = user.epics.find_by(id: epic_id)
       next unless epic
 
-      validate_dependency_target!(epic)
+      validate_dependency_target!(epic, dependent_job: job)
       JobDependency.create!(
         job: job,
         depends_on_epic: epic,
@@ -283,12 +290,20 @@ class ChatProposalFiler
       depends_on_job = user.jobs.find_by(id: job_id)
       next unless depends_on_job
 
-      validate_dependency_target!(depends_on_job)
+      requirement = ProposalJobDependencyRequirements.for_job_id(proposal, job_id)
+      validate_dependency_target!(
+        depends_on_job,
+        satisfaction_mode: requirement&.fetch("satisfaction_mode", "success") || "success",
+        required_deployment_stage_name: requirement&.fetch("required_deployment_stage_name", nil),
+        dependent_job: job
+      )
       JobDependency.create!(
         job: job,
         depends_on_job: depends_on_job,
         source: "manual",
-        created_by_user: user
+        created_by_user: user,
+        satisfaction_mode: requirement&.fetch("satisfaction_mode", "success") || "success",
+        required_deployment_stage_name: requirement&.fetch("required_deployment_stage_name", nil)
       )
     end
   end

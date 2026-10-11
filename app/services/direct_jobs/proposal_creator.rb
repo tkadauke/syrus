@@ -10,8 +10,8 @@ module DirectJobs
       @user = user
     end
 
-    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [])
-      chat_session, created_chat_session = proposal_chat_session(repository, depends_on)
+    def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [])
+      chat_session, created_chat_session = proposal_chat_session(repository, depends_on | requirement_proposal_slugs(dependency_requirements))
       response = Mcp::Tools::ProposeJobTool.call(
         repo: repository.slug,
         title: proposal_title(title),
@@ -20,6 +20,7 @@ module DirectJobs
         epic_id: epic&.id,
         depends_on: depends_on,
         depends_on_job_ids: depends_on_job_ids,
+        dependency_requirements: dependency_requirements,
         provider: agent_provider.presence,
         planned_execution: planned_execution_payload(planned_execution_attrs)
       )
@@ -81,6 +82,15 @@ module DirectJobs
         ),
         true
       ]
+    end
+
+    def requirement_proposal_slugs(dependency_requirements)
+      Array(dependency_requirements).filter_map do |requirement|
+        next unless requirement.respond_to?(:to_h)
+
+        source = requirement.to_h
+        (source[:proposal_slug] || source["proposal_slug"] || source[:depends_on] || source["depends_on"] || source[:slug] || source["slug"]).to_s.strip.presence
+      end
     end
 
     def proposal_title(title)

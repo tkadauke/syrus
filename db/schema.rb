@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_171310) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -634,6 +634,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"
     t.string "planned_execution_source"
+    t.json "dependency_requirements"
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
@@ -1552,9 +1553,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_154644) do
     t.string "unresolved_owner"
     t.string "unresolved_repo"
     t.datetime "updated_at", null: false
+    t.string "required_deployment_stage_name"
     t.index ["created_by_user_id"], name: "index_job_dependencies_on_created_by_user_id"
     t.index ["depends_on_epic_id"], name: "index_job_dependencies_on_depends_on_epic_id"
     t.index ["depends_on_job_id", "job_id", "id"], name: "idx_job_dependencies_depends_on_job_job_id"
+    t.index ["depends_on_job_id", "satisfaction_mode", "required_deployment_stage_name"], name: "idx_job_dependencies_on_deployment_stage_gate"
     t.index ["depends_on_job_id"], name: "index_job_dependencies_on_depends_on_job_id"
     t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
     t.index ["job_id", "unresolved_chat_proposal_id"], name: "index_job_deps_on_unresolved_proposal_per_job", unique: true, where: "depends_on_job_id IS NULL AND unresolved_chat_proposal_id IS NOT NULL"

@@ -11,6 +11,7 @@ export type EditableProposal = Pick<ChatProposal, "id" | "kind" | "title" | "slu
   dependency_slugs?: string[]
   dependencies?: ChatProposalDependency[]
   depends_on_job_ids?: number[]
+  dependency_requirements?: ChatProposal["dependency_requirements"]
   depends_on_epic_ids?: number[]
   media_ids?: string[]
   target_epic_id?: number | null
@@ -49,6 +50,7 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
       materialized_path: dependency.materialized_path
     })),
     depends_on_job_ids: child.depends_on_job_ids || [],
+    dependency_requirements: child.dependency_requirements || [],
     depends_on_epic_ids: child.depends_on_epic_ids || [],
     media_ids: child.media_ids || []
   }

@@ -44,6 +44,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitVisualArtifactTool,
         SyrusMcp::ListArtifactsTool,
         SyrusMcp::ReadArtifactTool,
+        Mcp::Tools::ReportCannotProceedTool,
         Mcp::Tools::ReportMainConcernTool,
         Mcp::Tools::RecordIsolatedReproTool
       )
@@ -52,7 +53,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(16)
+      expect(tools.size).to eq(17)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do

@@ -10,6 +10,7 @@ class ChatProposal < ApplicationRecord
   }.freeze
 
   attribute :state, :string, default: "proposed"
+  attribute :dependency_requirements, :json, default: -> { [] }
 
   after_initialize :default_cross_entity_dependencies
   after_initialize :default_media_ids
@@ -305,6 +306,7 @@ class ChatProposal < ApplicationRecord
   def default_cross_entity_dependencies
     self.depends_on_epic_ids = [] if has_attribute?(:depends_on_epic_ids) && depends_on_epic_ids.nil?
     self.depends_on_job_ids = [] if has_attribute?(:depends_on_job_ids) && depends_on_job_ids.nil?
+    self.dependency_requirements = [] if has_attribute?(:dependency_requirements) && dependency_requirements.nil?
   end
 
   def default_media_ids

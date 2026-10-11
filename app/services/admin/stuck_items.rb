@@ -179,7 +179,7 @@ module Admin
       return "Dependency blocked: #{issue.explanation}" unless job
 
       unsuccessful = job.unsatisfied_dependencies.select do |dependency|
-        dependency.depends_on_job&.closed? && !dependency.dependency_succeeded?
+        dependency.depends_on_job.present? && dependency.dependency_terminal_unsuccessful_for_execution?
       end
       if unsuccessful.any?
         labels = unsuccessful.map { |dependency| dependency.depends_on_job.slug }.to_sentence

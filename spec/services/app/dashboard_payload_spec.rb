@@ -841,6 +841,30 @@ RSpec.describe App::DashboardPayload, :ci_only do
         satisfaction_mode: "closed"
       )
 
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repo).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
+      )
+      deployed_dependency = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      pending_deployment_dependency = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      waiting_for_stage_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: waiting_for_stage_child,
+        depends_on_job: pending_deployment_dependency,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      reached_stage_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+      JobDependency.create!(
+        job: reached_stage_child,
+        depends_on_job: deployed_dependency,
+        source: "manual",
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "staging"
+      )
+      deployed_dependency.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.current)
+
       approved_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
       JobDependency.create!(job: approved_child, depends_on_job: approved_same_epic, source: "manual")
 
@@ -854,7 +878,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       semantic_item = rows[:items].find { |item| item[:id] == epic.id }
       held_item = rows[:items].find { |item| item[:id] == held_epic.id }
 
-      expect(semantic_item[:blocked_child_count]).to eq(1)
+      expect(semantic_item[:blocked_child_count]).to eq(2)
       expect(held_item[:blocked_child_count]).to eq(1)
     end
 
@@ -1369,6 +1393,72 @@ RSpec.describe App::DashboardPayload, :ci_only do
       item = result[:items].find { |i| i[:id] == blocked_job.id }
 
       expect(item[:blocked_reason]).to eq({ key: "waiting_to_merge", params: { slug: blocker.slug } })
+    end
+
+    it "shows required and latest stages for deployment-stage dependency blockers" do
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+      production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+      )
+      blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
+      blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+      blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobDependency.create!(
+        job: blocked_job,
+        depends_on_job: blocker,
+        source: "manual",
+        created_by_user: user,
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production"
+      )
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == blocked_job.id }
+
+      expect(item[:blocked_reason]).to eq(
+        key: "waiting_for_deployment_stage",
+        params: { slug: blocker.slug, stage: "production", latest_stage: "On Staging" }
+      )
+      dependency = item[:dependencies].first
+      expect(dependency).to include(
+        satisfaction_mode: "deployment_stage",
+        required_deployment_stage_name: "production",
+        latest_deployment_stage: include(name: "staging", label: "On Staging")
+      )
+    end
+
+    it "preloads dependency deployment statuses when serializing dashboard dependencies" do
+      staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+      production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+      )
+      3.times do |index|
+        blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
+        blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+        blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented", issue_number: 100 + index)
+        JobDependency.create!(
+          job: blocked_job,
+          depends_on_job: blocker,
+          source: "manual",
+          created_by_user: user,
+          satisfaction_mode: "deployment_stage",
+          required_deployment_stage_name: "production"
+        )
+      end
+
+      deployment_stage_queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        deployment_stage_queries += 1 if sql.match?(/\ASELECT/i) && sql.include?("job_deployment_stage_statuses")
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        call(subject: "job", smart_folder_id: blocked_folder.id)
+      end
+
+      expect(deployment_stage_queries).to be <= 3
     end
 
     it "does not show dep reason when the only dependency is already satisfied" do

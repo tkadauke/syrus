@@ -56,7 +56,7 @@ class JobStackResolver
 
     parent = stack_parent_for(stackable_unresolved)
     return blocked_result(STACK_BLOCK_REASON, fan_in_blocker(unresolved.map(&:depends_on_job).compact)) unless parent
-    return blocked_result(STACK_BLOCK_REASON, parent_not_ready_blocker(parent)) unless parent_ready?(parent)
+    return blocked_result(STACK_BLOCK_REASON, parent_not_ready_blocker(parent, stackable_unresolved.find { |dependency| dependency.depends_on_job == parent })) unless parent_ready?(parent)
 
     update_parent!(parent)
   end
@@ -183,11 +183,11 @@ class JobStackResolver
     }
   end
 
-  def parent_not_ready_blocker(parent)
+  def parent_not_ready_blocker(parent, dependency = nil)
     {
       "kind" => "stack_parent_not_ready",
       "message" => "selected stack parent is missing an open PR branch or captured head SHA",
-      "dependencies" => job_payloads([ parent ])
+      "dependencies" => dependency ? dependency_payloads([ dependency ]) : job_payloads([ parent ])
     }
   end
 
@@ -215,7 +215,10 @@ class JobStackResolver
         "branch_name" => target&.branch_name,
         "state" => target&.state,
         "pending" => dependency.pending?,
-        "unresolved_ref" => dependency.pending? ? dependency.unresolved_slug : nil
+        "unresolved_ref" => dependency.pending? ? dependency.unresolved_slug : nil,
+        "satisfaction_mode" => dependency.satisfaction_mode,
+        "required_deployment_stage_name" => dependency.required_deployment_stage_name,
+        "latest_deployment_stage" => App::DependencyGatePayload.for(dependency)[:latest_deployment_stage]
       }.compact
     end
   end

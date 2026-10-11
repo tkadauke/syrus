@@ -36,6 +36,13 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     { capabilities: { os: [ "linux" ] } }
   end
 
+  def stub_deployment_stage(name = "staging")
+    stage = SyrusYml::DeploymentStage.new(name: name, label: name.titleize, tag: name, tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ stage ], source: ".syrus.yml", note: nil)
+    )
+  end
+
   def response_payload(response)
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
@@ -1103,6 +1110,61 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(response[:result][:isError]).to be_falsey
     child = chat_session.proposals.find_by!(slug: "next-step")
     expect(child.depends_on_job_ids).to eq([ existing_job.id ])
+  end
+
+  it "stores deployment-stage requirements for child Job existing-Job dependencies" do
+    stub_deployment_stage("staging")
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        {
+          slug: "ui",
+          target_repo: repository.slug,
+          title: "UI",
+          description: "Build it.",
+          dependency_requirements: [
+            { job_id: prerequisite.id, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "staging" }
+          ]
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    child = chat_session.proposals.find_by!(slug: "ui")
+    expect(child.depends_on_job_ids).to eq([ prerequisite.id ])
+    expect(child.dependency_requirements).to contain_exactly(
+      include("job_id" => prerequisite.id, "satisfaction_mode" => "deployment_stage", "required_deployment_stage_name" => "staging")
+    )
+    expect(response_payload(response).fetch(:child_jobs).sole.fetch(:dependency_requirements).sole).to include(
+      satisfaction_mode: "deployment_stage",
+      required_deployment_stage_name: "staging"
+    )
+  end
+
+  it "rejects deployment-stage requirements for same-card sibling proposals" do
+    stub_deployment_stage("staging")
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "api", target_repo: repository.slug, title: "API", description: "Build API." },
+        {
+          slug: "ui",
+          target_repo: repository.slug,
+          title: "UI",
+          description: "Build UI.",
+          dependency_requirements: [
+            { proposal_slug: "api", satisfaction_mode: "deployment_stage", required_deployment_stage_name: "staging" }
+          ]
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("cannot use deployment-stage gating for unresolved sibling proposal api")
+    expect(chat_session.proposals.count).to eq(0)
   end
 
   it "rejects unknown job depends_on_job_ids without creating proposals" do

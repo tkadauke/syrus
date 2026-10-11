@@ -1018,21 +1018,38 @@ module Api
 
           attrs = proposal_update_params
           ApplicationRecord.transaction do
-            depends_on_job_ids = dependency_ids!(Current.user.jobs, Array(attrs[:depends_on_job_ids]), "depends_on_job_ids")
+            raw_dependency_requirements = if attrs.key?(:dependency_requirements)
+              attrs[:dependency_requirements]
+            else
+              preserved_dependency_requirements_for_edit(
+                proposal,
+                depends_on_job_ids: Array(attrs[:depends_on_job_ids]),
+                dependency_slugs: Array(attrs[:dependency_slugs])
+              )
+            end
+            dependency_requirements = ProposalJobDependencyRequirements.normalize(
+              raw_dependency_requirements,
+              depends_on_job_ids: Array(attrs[:depends_on_job_ids]),
+              depends_on_slugs: Array(attrs[:dependency_slugs])
+            )
+            depends_on_job_ids = dependency_requirements.filter_map { |requirement| requirement["job_id"] }
+            dependency_slugs = Array(attrs[:dependency_slugs]) | dependency_requirements.filter_map { |requirement| requirement["proposal_slug"] }
+            depends_on_job_ids = dependency_ids!(Current.user.jobs, depends_on_job_ids, "depends_on_job_ids")
             depends_on_epic_ids = dependency_ids!(Current.user.epics, Array(attrs[:depends_on_epic_ids]), "depends_on_epic_ids")
-            validate_proposal_dependency_targets!(Current.user.jobs.where(id: depends_on_job_ids))
+            ProposalJobDependencyRequirements.validate!(user: Current.user, requirements: dependency_requirements)
             validate_proposal_dependency_targets!(Current.user.epics.where(id: depends_on_epic_ids))
             update_attrs = {
               title: attrs[:title],
               body: attrs[:body],
               depends_on_job_ids: depends_on_job_ids,
+              dependency_requirements: dependency_requirements,
               depends_on_epic_ids: depends_on_epic_ids
             }
             update_attrs[:media_ids] = Array(attrs[:media_ids]).reject(&:blank?) if attrs.key?(:media_ids)
             update_attrs[:target_epic_id] = attrs[:target_epic_id].presence if attrs.key?(:target_epic_id)
             update_attrs[:route_to_backlog] = route_to_backlog_update_value(proposal, attrs) if attrs.key?(:route_to_backlog)
             proposal.update!(update_attrs)
-            rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
+            rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)
             proposal.reset_to_proposed_after_edit!
           end
 
@@ -1555,7 +1572,19 @@ module Api
 
 
         def proposal_update_params
-          params.require(:proposal).permit(:title, :body, :target_epic_id, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+          params.require(:proposal).permit(:title, :body, :target_epic_id, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [], dependency_requirements: [ :job_id, :depends_on_job_id, :proposal_slug, :depends_on, :slug, :satisfaction_mode, :required_deployment_stage_name ])
+        end
+
+        def preserved_dependency_requirements_for_edit(proposal, depends_on_job_ids:, dependency_slugs:)
+          job_ids = Array(depends_on_job_ids).filter_map { |id| Integer(id, exception: false) }
+          slugs = Array(dependency_slugs).map(&:to_s)
+
+          Array(proposal.dependency_requirements).select do |requirement|
+            source = requirement.to_h
+            job_id = Integer(source["job_id"] || source[:job_id] || source["depends_on_job_id"] || source[:depends_on_job_id], exception: false)
+            proposal_slug = (source["proposal_slug"] || source[:proposal_slug] || source["depends_on"] || source[:depends_on] || source["slug"] || source[:slug]).to_s
+            (job_id && job_ids.include?(job_id)) || (proposal_slug.present? && slugs.include?(proposal_slug))
+          end
         end
 
         def route_to_backlog_update_value(proposal, attrs)

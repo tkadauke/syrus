@@ -222,9 +222,7 @@ class ChatJobStatusQuery
       .where(job_id: job_ids)
       .includes(:depends_on_job)
       .each_with_object(Hash.new(false)) do |dependency, result|
-        depends_on_job = dependency.depends_on_job
-        next unless depends_on_job&.closed?
-        next if Job::SUCCESSFUL_CLOSURE_REASONS.include?(depends_on_job.closure_reason)
+        next unless dependency.dependency_terminal_unsuccessful_for_execution?
 
         result[dependency.job_id] = true
       end

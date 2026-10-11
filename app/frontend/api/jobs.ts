@@ -396,6 +396,14 @@ export type JobDependencyTarget = {
   branch_name: string | null
   pr_number: number | null
   job_path: string
+  latest_deployment_stage?: JobDependencyDeploymentStage | null
+}
+
+export type JobDependencyDeploymentStage = {
+  name: string
+  label: string
+  scope?: "repository"
+  reached_at: string | null
 }
 
 export type JobDependencyEpicTarget = {
@@ -412,7 +420,8 @@ export type JobDependencyEpicTarget = {
 export type JobDependency = {
   id: number | string
   source: string
-  satisfaction_mode?: "success" | "closed"
+  satisfaction_mode?: "success" | "closed" | "deployment_stage"
+  required_deployment_stage_name?: string | null
   manual: boolean
   pending: boolean
   succeeded: boolean

@@ -43,6 +43,7 @@ import {
   type JobClassificationAttempt,
   type JobDeploymentStage,
   type JobDetailPayload,
+  type JobDependency,
   type JobPrCheckAttribution,
   type JobTestPlan,
   type JobWorkflow,
@@ -1988,8 +1989,12 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
 function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
+  const deploymentStageNames = deploymentStageDependencyNames(payload.unsatisfied_dependencies)
+  const deploymentStageTargets = deploymentStageDependencyTargets(t, payload.unsatisfied_dependencies)
   const hasSameEpicDependency =
-    payload.job.epic_id != null && payload.unsatisfied_dependencies.some((dependency) => dependency.depends_on_job?.epic_id === payload.job.epic_id)
+    deploymentStageNames.length === 0 &&
+    payload.job.epic_id != null &&
+    payload.unsatisfied_dependencies.some((dependency) => dependency.depends_on_job?.epic_id === payload.job.epic_id)
   return (
     <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2004,7 +2009,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
             ))}
           </span>
           <span className="ml-1">
-            {hasSameEpicDependency ? t("blocked_auto_start_same_epic") : count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")}
+            {dependencyBlockerMessage(t, { count, deploymentStageNames, deploymentStageTargets, hasSameEpicDependency })}
           </span>
         </div>
         {payload.actions.can_override_dependencies ? (
@@ -2018,6 +2023,59 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
         ) : null}
       </div>
     </Notice>
+  )
+}
+
+function dependencyBlockerMessage(
+  t: ReturnType<typeof useT>["t"],
+  {
+    count,
+    deploymentStageNames,
+    deploymentStageTargets,
+    hasSameEpicDependency
+  }: {
+    count: number
+    deploymentStageNames: string[]
+    deploymentStageTargets: string[]
+    hasSameEpicDependency: boolean
+  }
+) {
+  if (deploymentStageNames.length > 0) {
+    if (deploymentStageTargets.length > 0) {
+      return t(
+        deploymentStageTargets.length === 1 ? "blocked_auto_start_deployment_stage_target_one" : "blocked_auto_start_deployment_stage_target_other",
+        { targets: deploymentStageTargets.join(", ") }
+      )
+    }
+    return t(deploymentStageNames.length === 1 ? "blocked_auto_start_deployment_stage_one" : "blocked_auto_start_deployment_stage_other", {
+      stages: deploymentStageNames.join(", ")
+    })
+  }
+
+  if (hasSameEpicDependency) return t("blocked_auto_start_same_epic")
+
+  return count === 1 ? t("blocked_auto_start_one") : t("blocked_auto_start_other")
+}
+
+function deploymentStageDependencyTargets(t: ReturnType<typeof useT>["t"], dependencies: JobDependency[]) {
+  return dependencies
+    .filter((dependency) => dependency.satisfaction_mode === "deployment_stage" && dependency.required_deployment_stage_name)
+    .map((dependency) => {
+      const target = dependency.depends_on_job ? jobSlug(dependency.depends_on_job.id) : dependency.unresolved_slug
+      if (!target) return null
+      return t("dependency_deployment_stage_target", { target, stage: dependency.required_deployment_stage_name })
+    })
+    .filter((description): description is string => Boolean(description))
+}
+
+function deploymentStageDependencyNames(dependencies: JobDependency[]) {
+  return Array.from(
+    new Set(
+      dependencies
+        .filter((dependency) => dependency.satisfaction_mode === "deployment_stage")
+        .map((dependency) => dependency.required_deployment_stage_name)
+        .filter((stageName): stageName is string => Boolean(stageName))
+    )
   )
 }
 
@@ -2239,6 +2297,14 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     <span>
                       <DependencyLink dependency={dependency} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span>
                     </span>
+                    {dependency.satisfaction_mode === "deployment_stage" && dependency.required_deployment_stage_name ? (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("dependency_waits_for_deployment_stage", {
+                          stage: dependency.required_deployment_stage_name,
+                          latestStage: dependency.depends_on_job?.latest_deployment_stage?.label || dependency.depends_on_job?.latest_deployment_stage?.name || t("dependency_deployment_stage_none")
+                        })}
+                      </span>
+                    ) : null}
                     {!dependency.succeeded ? <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill> : null}
                   </span>
                   {dependency.manual && !epicTarget ? (

@@ -770,6 +770,19 @@ The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
 `success` mode is for implementation ordering and waits for a successful close.
 Use `closed` only for cleanup or teardown gates where the dependent Job should
 start once the target Job is terminal even if it was cancelled.
+Use `deployment_stage` with `required_deployment_stage_name` only for resolved
+Job targets whose upstream repository declares that stage in `deployment_stages`;
+Syrus rejects unknown or untracked stages instead of creating a dependency that
+cannot unblock.
+
+`propose_job` and `propose_epic_with_jobs` can carry the same per-dependency
+gate through `dependency_requirements`. Existing `depends_on_job_ids` and
+proposal-slug `depends_on` values still default to `success`; use
+`dependency_requirements` only when a specific dependency needs `closed` or
+`deployment_stage`. Deployment-stage gates against proposal slugs are accepted
+only after that proposal has already materialized to a Job. Sibling or otherwise
+unresolved proposal targets are rejected because Syrus cannot validate their
+repository stage configuration yet.
 
 A `propose_job` card with `epic_id` set targets an existing Epic — confirming
 it adds the Job as that Epic's child instead of creating an epicless direct
