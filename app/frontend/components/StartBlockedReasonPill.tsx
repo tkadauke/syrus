@@ -26,6 +26,7 @@ type StartBlockedReason =
   | "resource_safety"
   | "ci_repair_safety"
   | "active_work_lock"
+  | "agent_cannot_proceed"
   | "auto_retry_backoff"
   | "no_capable_worker"
   | "visual_diff_obsolete"
@@ -48,6 +49,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   resource_safety: "amber",
   ci_repair_safety: "amber",
   active_work_lock: "gray",
+  agent_cannot_proceed: "red",
   auto_retry_backoff: "amber",
   no_capable_worker: "amber",
   visual_diff_obsolete: "gray",
