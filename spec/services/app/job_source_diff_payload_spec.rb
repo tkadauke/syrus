@@ -791,6 +791,49 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(second_payload[:version]).to include(base_sha: "base-sha", head_sha: "codex-head")
   end
 
+  it "resolves the live payload to an exact current range row even when an older All changes row exists" do
+    DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "old-base",
+      head_sha: "old-head",
+      files: [
+        { path: "app/models/stale.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+old" }
+      ],
+      truncated: false,
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
+    )
+    current_version = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "current-base",
+      head_sha: "current-head",
+      files: [
+        { path: "app/services/current_rebase.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+current" }
+      ],
+      truncated: false,
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      label: "Rebase",
+      reason: "rebase",
+      metadata: {}
+    )
+    stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
+      commits: [ { sha: "current-head", message: "Current branch", date: "2026-05-02T12:00:00Z" } ], merge_base_sha: "current-base")
+    stub_repository_diff(repo, base: "current-base", head: "current-head", files: [
+      { path: "app/services/current_rebase.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+current" }
+    ], truncated: false)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload.dig(:version, :id)).to eq(current_version.id)
+    expect(payload[:files]).to contain_exactly(include(path: "app/services/current_rebase.rb"))
+    expect(payload[:versions].map { |version| version[:id] }).to include(current_version.id)
+    expect(job.diff_review_versions.count).to eq(2)
+  end
+
   it "never mutates a persisted DiffReviewVersion row when recomputing the current diff across repeated reads" do
     stub_branch_history(base_ref: "main", head_ref: "syrus/issue-42",
       commits: [ { sha: "head-one", message: "First", date: "2026-05-01T12:00:00Z" } ], merge_base_sha: "base-sha")

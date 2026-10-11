@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { canonicalReviewVersions, DiffReviewVersionSelector, duplicateRunIds } from "./DiffReviewVersionSelector"
 import type { DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import type { DiffReviewVersion } from "../../api/jobs"
@@ -276,6 +276,28 @@ describe("DiffReviewVersionSelector", () => {
 
     expect(highlightedChips(/^From/)).toHaveLength(1)
     expect(highlightedChips(/^To/)).toHaveLength(1)
+  })
+
+  it("clamps endpoint selections that cross a rebase boundary to the selected version's own range", () => {
+    const oldRange = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, base_sha: "old-base", head_sha: "old-head" })
+    const currentRange = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "current-base", head_sha: "current-head", label: "Rebase", reason: "rebase" })
+    const onRangeChange = vi.fn()
+
+    render(
+      <DiffReviewVersionSelector
+        onChange={() => {}}
+        onRangeChange={onRangeChange}
+        selectedRange={null}
+        selectedVersionId={2}
+        versions={[ oldRange, currentRange ]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    fireEvent.click(screen.getByRole("button", { name: "From v1 RUN-100" }))
+
+    expect(onRangeChange).toHaveBeenCalledWith({ baseSha: "old-base", headSha: "old-head", versionId: null })
+    expect(onRangeChange).not.toHaveBeenCalledWith({ baseSha: "old-base", headSha: "current-head", versionId: null })
   })
 
   it("highlights only the clicked range's own row when the backend-resolved active version disagrees with it", () => {
