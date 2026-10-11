@@ -4,15 +4,16 @@ const fs = require("fs")
 const path = require("path")
 
 const buildDir = process.env.SPA_BUILD_DIR ? path.resolve(process.env.SPA_BUILD_DIR) : path.resolve(__dirname, "..", "app", "assets", "builds")
-const entryPath = path.join(buildDir, "spa.js")
 const maxEntryBytes = 1_800_000
 const assetPrefix = "/assets/"
+const entryFiles = fs.existsSync(buildDir) ? fs.readdirSync(buildDir).filter((name) => /^spa-entry-.*\.digested\.js$/.test(name)) : []
 
-if (!fs.existsSync(entryPath)) {
-  console.error(`SPA entry bundle missing: ${entryPath}`)
+if (entryFiles.length !== 1) {
+  console.error(`Expected exactly one digested SPA entry bundle, found ${entryFiles.length}: ${entryFiles.join(", ")}`)
   process.exit(1)
 }
 
+const entryPath = path.join(buildDir, entryFiles[0])
 const size = fs.statSync(entryPath).size
 if (size > maxEntryBytes) {
   console.error(`SPA entry bundle is ${size.toLocaleString()} bytes, above the ${maxEntryBytes.toLocaleString()} byte budget.`)
@@ -42,4 +43,4 @@ if (bareCssChunks.length > 0) {
   process.exit(1)
 }
 
-console.log(`SPA entry bundle ${size.toLocaleString()} bytes within ${maxEntryBytes.toLocaleString()} byte budget.`)
+console.log(`SPA entry bundle ${entryFiles[0]} ${size.toLocaleString()} bytes within ${maxEntryBytes.toLocaleString()} byte budget.`)

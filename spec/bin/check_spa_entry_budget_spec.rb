@@ -21,7 +21,7 @@ RSpec.describe "bin/check-spa-entry-budget" do
 
   it "accepts split SPA output with digested dynamic CSS assets" do
     Dir.mktmpdir do |dir|
-      write_build_file(dir, "spa.js", "x" * 100)
+      write_build_file(dir, "spa-entry-abc123.digested.js", "x" * 100)
       write_build_file(dir, "spa-preload-helper-abc123.digested.js", "/assets/")
       write_build_file(dir, "spa-SlugHoverCard-def456.digested.css", "body{}")
 
@@ -33,7 +33,7 @@ RSpec.describe "bin/check-spa-entry-budget" do
 
   it "rejects bare dynamic CSS assets that Propshaft will not serve at Vite's preload URL" do
     Dir.mktmpdir do |dir|
-      write_build_file(dir, "spa.js", "x" * 100)
+      write_build_file(dir, "spa-entry-abc123.digested.js", "x" * 100)
       write_build_file(dir, "spa-preload-helper-abc123.digested.js", "/assets/")
       write_build_file(dir, "spa-SlugHoverCard.css", "body{}")
 
