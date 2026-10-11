@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from "react-router-dom"
 import { slashCommandPrompt } from "../lib/slashCommands"
 import { stubVirtualizerMeasurementsForTest } from "../test/virtualizerMeasurements"
 import { App } from "./App"
-import { NewChatLauncher } from "./AppChromeV2"
+import { AppChromeV2, NewChatLauncher } from "./AppChromeV2"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
@@ -12525,6 +12525,65 @@ describe("App", () => {
     }
   })
 
+  it("resizes the root mobile chrome from the visual viewport after landscape rotation", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const viewport = stubVisualViewport({ height: 812, width: 375 })
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const chromeRoot = await screen.findByTestId("app-chrome-root")
+      expect(chromeRoot).toHaveClass("h-[var(--syrus-app-viewport-height,100dvh)]", "overflow-hidden")
+      expect(chromeRoot).toHaveStyle({ "--syrus-app-viewport-height": "812px", "--syrus-app-viewport-width": "375px" })
+
+      viewport.setMetrics({ height: 402, width: 750, offsetTop: 0, offsetLeft: 0 })
+      window.dispatchEvent(new Event("orientationchange"))
+
+      await waitFor(() => {
+        expect(chromeRoot).toHaveStyle({ "--syrus-app-viewport-height": "402px", "--syrus-app-viewport-width": "750px" })
+      })
+      expect(document.documentElement.style.getPropertyValue("--syrus-app-viewport-height")).toBe("402px")
+    } finally {
+      restoreMedia()
+      viewport.restore()
+    }
+  })
+
+  it("applies visual viewport sizing at the app chrome level outside chat routes", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const viewport = stubVisualViewport({ height: 402, width: 750 })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+              <main>Dashboard content</main>
+            </AppChromeV2>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByTestId("app-chrome-root")).toHaveStyle({
+        "--syrus-app-viewport-height": "402px",
+        "--syrus-app-viewport-width": "750px"
+      })
+      expect(screen.getByText("Dashboard content")).toBeInTheDocument()
+    } finally {
+      restoreMedia()
+      viewport.restore()
+    }
+  })
+
   it("keeps the chat scrolled to the bottom when new messages arrive at the bottom", async () => {
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -17754,13 +17813,24 @@ function mockClipboardWrite() {
   return writeText
 }
 
-function stubVisualViewport(initialHeight: number) {
+function stubVisualViewport(initialMetrics: number | { height: number; offsetLeft?: number; offsetTop?: number; width?: number }) {
   const original = Object.getOwnPropertyDescriptor(window, "visualViewport")
   const listeners = new Map<string, Set<EventListenerOrEventListenerObject>>()
-  let height = initialHeight
+  let metrics = typeof initialMetrics === "number"
+    ? { height: initialMetrics, offsetLeft: 0, offsetTop: 0, width: window.innerWidth }
+    : { offsetLeft: 0, offsetTop: 0, width: window.innerWidth, ...initialMetrics }
   const viewport = {
     get height() {
-      return height
+      return metrics.height
+    },
+    get offsetLeft() {
+      return metrics.offsetLeft
+    },
+    get offsetTop() {
+      return metrics.offsetTop
+    },
+    get width() {
+      return metrics.width
     },
     addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
       const typeListeners = listeners.get(type) || new Set<EventListenerOrEventListenerObject>()
@@ -17779,7 +17849,10 @@ function stubVisualViewport(initialHeight: number) {
 
   return {
     setHeight(nextHeight: number) {
-      height = nextHeight
+      metrics = { ...metrics, height: nextHeight }
+    },
+    setMetrics(nextMetrics: Partial<typeof metrics>) {
+      metrics = { ...metrics, ...nextMetrics }
     },
     dispatch(type: string) {
       listeners.get(type)?.forEach((listener) => {
