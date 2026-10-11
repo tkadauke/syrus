@@ -4007,8 +4007,9 @@ describe("composer next-step suggestion", () => {
     const textarea = await findComposerTextarea()
     expect(textarea).not.toHaveFocus()
 
-    fireEvent.mouseDown(ghostText)
+    const defaultNotPrevented = fireEvent.mouseDown(ghostText)
 
+    expect(defaultNotPrevented).toBe(false)
     expect(textarea).toHaveFocus()
     expect(textarea).toHaveValue("")
     expect(screen.getByTestId("chat-suggestion-ghost")).toBeInTheDocument()
