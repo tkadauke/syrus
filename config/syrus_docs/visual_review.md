@@ -155,6 +155,7 @@ agent.
 visual_review:
   enabled: true
   rounds: 2
+  required: false
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
@@ -165,6 +166,12 @@ visual_review:
   (`false`) for this repository, overriding the always-on default. Omitting
   the key (or the whole block) defers to that default (enabled).
 - **`rounds`** — how many visual-review passes run. Range 0–10, default 1.
+- **`required`** — whether visual-review execution failures fail the workflow.
+  Defaults to `false`, which records the review `skipped`, raises a
+  WorkflowWarning, and continues when the preview cannot be prepared or another
+  infrastructure blocker prevents the review from running. Set to `true` to
+  fail the workflow instead. This does not change reviewer-submitted
+  `needs_work` findings.
 - **`when_files_changed`** — optional glob patterns; when present, visual
   review only runs when at least one changed file matches. Same semantics as
   a grader's `when_files_changed`. Omitting it runs visual review regardless

@@ -83,10 +83,12 @@ Schema:
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
 | `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
+| `adversarial_review.required` | Boolean | Fail the workflow when adversarial review cannot execute instead of recording a skipped warning |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |
 | `review_notes.low_signal` | Array of strings | Low-signal guidance for the Review Notes pass |
 | `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
 | `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |
+| `visual_review.required` | Boolean | Fail the workflow when visual review cannot execute instead of recording a skipped warning |
 | `visual_review.when_files_changed` | Array of globs | Only run visual review when matching files changed |
 | `preview` | Mapping | Commands and metadata used by the preview action and visual review |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
@@ -236,6 +238,11 @@ monorepos, nested `.syrus.yml` files can declare their own criteria, and Syrus
 adds those project criteria only when the diff under review touches that
 project directory. Identical criteria are shown once.
 
+`adversarial_review.required` defaults to `false`: if the independent reviewer
+cannot execute, Syrus marks the review step skipped, raises a warning, and
+continues. Set `required: true` to fail the workflow instead. A reviewer that
+does execute and returns `needs_work` still follows the normal repair loop.
+
 The workflow chain is created before the workspace clone exists, so Syrus
 reads this setting from `.syrus.yml` on the repository's default branch. If
 the file or setting is absent, adversarial review is disabled.
@@ -265,10 +272,15 @@ Use `when_files_changed` to keep visual review focused on UI paths:
 visual_review:
   enabled: true
   rounds: 1
+  required: false
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
 ```
+
+`required` defaults to `false`: if visual review cannot execute because the
+preview cannot be prepared, Syrus marks the review step skipped, raises a
+warning, and continues. Set `required: true` to fail the workflow instead.
 
 ### `preview`
 

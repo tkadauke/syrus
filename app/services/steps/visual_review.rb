@@ -1,5 +1,7 @@
 module Steps
   class VisualReview < Base
+    include ReviewExecutionPolicy
+
     def call
       workspace.setup
 
@@ -81,7 +83,12 @@ module Steps
       step.update!(details: step.details.to_h.merge("preview_preparation_failure" => failure))
       log("[visual_review] preview preparation unavailable: #{e.message}")
       record_skip!("Visual review infrastructure could not prepare the preview (#{failure['reason']}): #{e.message}", skip_reason: failure["reason"])
-      false
+      skip_or_fail_unavailable_review!(
+        review_kind: "visual_review",
+        reason: failure["reason"],
+        message: "preview preparation unavailable: #{e.message}",
+        config_required: visual_review_config&.required == true
+      )
     end
 
     def parent_session_id

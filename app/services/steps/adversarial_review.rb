@@ -1,5 +1,7 @@
 module Steps
   class AdversarialReview < Base
+    include ReviewExecutionPolicy
+
     FAILURE_SKIP_THRESHOLD = 1
     TURN_BUDGET = 200
 
@@ -26,9 +28,15 @@ module Steps
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
         if repeated_missing_tool_call_failures?
-          skip_review!("reviewer did not call submit_adversarial_review after " \
-                       "#{prior_failed_missing_tool_call_runs} prior failed attempt(s) of the same kind")
-          return
+          reason = "reviewer did not call submit_adversarial_review after " \
+                   "#{prior_failed_missing_tool_call_runs} prior failed attempt(s) of the same kind"
+          skip_review!(reason)
+          skip_or_fail_unavailable_review!(
+            review_kind: "adversarial_review",
+            reason: reason,
+            message: reason,
+            config_required: adversarial_review_config&.required == true
+          )
         end
 
         fail_with!(:missing_required_tool_call, "agent didn't call submit_adversarial_review",
@@ -38,7 +46,14 @@ module Steps
       raise unless skippable_review_failure?(e)
 
       log("[adversarial_review] skipped after reviewer failure: #{e.class}: #{e.message}", kind: "system")
-      skip_review!("#{e.class}: #{e.message}")
+      reason = "#{e.class}: #{e.message}"
+      skip_review!(reason)
+      skip_or_fail_unavailable_review!(
+        review_kind: "adversarial_review",
+        reason: reason,
+        message: reason,
+        config_required: adversarial_review_config&.required == true
+      )
     end
 
     private
@@ -69,6 +84,16 @@ module Steps
 
     def adversarial_review_criteria
       [ *adversarial_review_projects.criteria, *plugin_review_criteria ].uniq
+    end
+
+    def adversarial_review_config
+      return @adversarial_review_config if defined?(@adversarial_review_config)
+
+      @adversarial_review_config = begin
+        SyrusYml.load_repo(workspace.path).adversarial_review
+      rescue SyrusYml::ParseError, Errno::ENOENT
+        nil
+      end
     end
 
     def adversarial_review_projects
