@@ -91,6 +91,12 @@ deferral: GitHub 5xx, a sidecar that did not come up, a dead worker, lock
 contention, and a `prepare` failure (the workflow never reached a grader, so the
 change was never judged — the environment failed to build).
 
+Current landing failures persist both an operator-facing explanation
+(`landing_failure_reason`) and a structured `landing_failure_code`; pause,
+deferral, start-blocker re-entry, and merge-train cooldown decisions read the
+code first. The old reason-prefix/pattern checks remain only as compatibility
+for rows written before the code existed.
+
 Putting a new failure path on the wrong side of that split costs an operator a
 round of re-approving, potentially every member of a merge train.
 

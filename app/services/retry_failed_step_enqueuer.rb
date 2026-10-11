@@ -166,7 +166,7 @@ class RetryFailedStepEnqueuer
       restart_step = restart_grade_loop!(failed_step)
       if workflow.landing_workflow?
         job = workflow.job
-        job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
+        job.update_columns(landing_failure_reason: nil, landing_failure_code: nil) if job.landing_failure_reason.present? || job.landing_failure_code.present?
       end
 
       run = create_run_for!(restart_step)
@@ -188,7 +188,7 @@ class RetryFailedStepEnqueuer
 
     if workflow.landing_workflow?
       job = workflow.job
-      job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
+      job.update_columns(landing_failure_reason: nil, landing_failure_code: nil) if job.landing_failure_reason.present? || job.landing_failure_code.present?
     end
 
     run = create_run_for!(failed_step)

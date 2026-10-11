@@ -168,7 +168,10 @@ module App
             OR jobs.state = :failed_state
             OR (
               jobs.landing_failure_reason IS NOT NULL
-              AND jobs.landing_failure_reason NOT LIKE :start_blocker_prefix
+              AND (
+                jobs.landing_failure_code IS NULL AND jobs.landing_failure_reason NOT LIKE :start_blocker_prefix
+                OR jobs.landing_failure_code != :landing_start_blocked_code
+              )
             )
             OR jobs.validity IN (:review_validities)
             OR jobs.state = :implemented_state
@@ -176,6 +179,7 @@ module App
           feedback_excluded_states: %w[ triaging queued running landing ],
           failed_state: "failed",
           start_blocker_prefix: "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
+          landing_start_blocked_code: LandingFailureCode::LANDING_START_BLOCKED,
           review_validities: %w[ duplicate already_implemented ],
           implemented_state: "implemented"
         ).count

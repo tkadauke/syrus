@@ -157,6 +157,7 @@ class Job < ApplicationRecord
   before_validation :set_target_repository_from_epic, on: :create
   before_validation :defer_stale_closed_epic_assignment
   before_validation :sync_epic_title
+  before_save :clear_landing_failure_code_without_reason
   before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
@@ -1249,6 +1250,7 @@ class Job < ApplicationRecord
       self.closure_reason = nil
       self.finished_at = nil
       self.landing_failure_reason = nil
+      self.landing_failure_code = nil
       clear_approval_metadata
       save!
     end
@@ -1257,6 +1259,11 @@ class Job < ApplicationRecord
   # The most recently created Run on this thread, regardless of state.
   def current_run
     runs.reorder(created_at: :desc, id: :desc).first
+  end
+
+  def landing_failure_kind
+    LandingFailureCode.resolve(landing_failure_code) ||
+      LandingFailureCode.legacy_from_reason(landing_failure_reason)
   end
   # The closure reason an operator (or the close_job_successfully chat/admin
   # tool) applies to an investigation Job after reviewing its submitted
@@ -2149,6 +2156,10 @@ class Job < ApplicationRecord
     return true if state_changed_in_transaction? && closed? && closure_reason.in?(%w[ pr_merged no_changes ])
 
     false
+  end
+
+  def clear_landing_failure_code_without_reason
+    self.landing_failure_code = nil if landing_failure_reason.blank?
   end
 
   def enqueue_landing_queue_processor

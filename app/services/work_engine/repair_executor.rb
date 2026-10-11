@@ -1818,7 +1818,12 @@ module WorkEngine
 
           reason = MergeTrain::STALE_RUNTIME_FAILURE_REASON
           ActiveRecord::Base.transaction do
-            train.update!(state: "failed", failure_reason: reason, finished_at: now)
+            train.update!(
+              state: "failed",
+              failure_reason: reason,
+              failure_code: LandingFailureCode::TRANSIENT_BLOCKER,
+              finished_at: now
+            )
             train.members.each do |member|
               next if member.state == "merged"
 
@@ -1860,7 +1865,7 @@ module WorkEngine
           job = target_job
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not approved") unless job.approved?
-          return skipped("Job no longer has a landing-start blocker") unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
+          return skipped("Job no longer has a landing-start blocker") unless job.landing_failure_kind&.landing_start_blocker?
 
           result = LandingQueueReentry.call(job)
           return skipped("Landing-start blocker is still active") unless result.any?

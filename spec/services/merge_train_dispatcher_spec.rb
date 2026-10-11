@@ -304,6 +304,21 @@ RSpec.describe MergeTrainDispatcher do
     expect(described_class.try_dispatch!(epic)).to be_present
   end
 
+  it "uses the structured failure code, not explanation wording, for stale-base cooldown bypasses" do
+    approved_child(1)
+    MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      state: "failed",
+      failure_code: LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED,
+      failure_reason: "integration branch needs a fresh build",
+      finished_at: 5.minutes.ago
+    )
+
+    expect(described_class.try_dispatch!(epic)).to be_present
+  end
+
   it "re-dispatches immediately after an old train missing base tracking fails" do
     approved_child(1)
     MergeTrain.create!(
