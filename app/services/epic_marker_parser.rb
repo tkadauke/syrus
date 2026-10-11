@@ -1,4 +1,7 @@
 class EpicMarkerParser
+  COMMENT_OPEN = "<!--"
+  COMMENT_CLOSE = "-->"
+  MARKER_NAME = "syrus-epic"
   REFERENCE_PATTERN = /\A(?:(?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/(?<repo>[A-Za-z0-9][A-Za-z0-9._-]*))?\#?(?<number>\d+)\z/
   MAX_MARKER_VALUE_BYTES = 2.kilobytes
 
@@ -28,19 +31,50 @@ class EpicMarkerParser
   private
 
   def marker_value
-    @text.each_line do |line|
-      index = line.downcase.index("epic")
-      next unless index
-      next if index.positive? && line[index - 1].match?(/[A-Za-z0-9_]/)
+    offset = 0
+    loop do
+      start_index = @text.index(COMMENT_OPEN, offset)
+      return nil unless start_index
 
-      after_marker = line.byteslice(index + 4, MAX_MARKER_VALUE_BYTES + 16).to_s
-      colon_index = after_marker.index(":")
-      next unless colon_index && after_marker[0...colon_index].strip.empty?
+      content_start = start_index + COMMENT_OPEN.length
+      end_index = @text.index(COMMENT_CLOSE, content_start)
+      return nil unless end_index
 
-      return after_marker[(colon_index + 1)..].to_s.strip.safe_byteslice(0, MAX_MARKER_VALUE_BYTES).strip
+      content = @text[content_start...end_index].to_s
+      value = marker_value_from_comment(content)
+      return value if value
+
+      offset = end_index + COMMENT_CLOSE.length
     end
+  end
 
-    nil
+  def marker_value_from_comment(content)
+    header, *body_lines = content.lines
+    return nil unless header
+
+    header = header.strip
+    return nil unless header.downcase.start_with?(MARKER_NAME)
+
+    rest = header[MARKER_NAME.length..].to_s
+    return nil unless rest.blank? || rest.start_with?(":") || rest.match?(/\A\s/)
+
+    inline_value = rest.lstrip.delete_prefix(":").strip
+    return truncate_marker_value(inline_value) if inline_value.present?
+
+    marker_body_value(body_lines)
+  end
+
+  def marker_body_value(body_lines)
+    line = body_lines.find { |candidate| candidate.strip.present? }
+    return nil unless line
+
+    value = line.strip
+    value = value.sub(/\Aepic\s*:\s*/i, "")
+    truncate_marker_value(value)
+  end
+
+  def truncate_marker_value(value)
+    value.safe_byteslice(0, MAX_MARKER_VALUE_BYTES).strip
   end
 
   def child_of_epic(reference)
