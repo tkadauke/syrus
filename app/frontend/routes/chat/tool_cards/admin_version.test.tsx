@@ -18,8 +18,7 @@ const HEALTHY_PAYLOAD = {
   instances: [
     { id: 1, hostname: "web-1", role: "web", version: "abc123", started_at: "2026-09-01T00:00:00Z", last_heartbeat_at: "2026-09-06T00:00:00Z", data_root_usage: null },
     { id: 2, hostname: "worker-1", role: "worker", version: "abc123", started_at: "2026-09-01T00:00:00Z", last_heartbeat_at: "2026-09-06T00:00:00Z", data_root_usage: { level: "ok", used_percent: 40.0 } }
-  ],
-  worker_health: { current: [{ hostname: "worker-1", health: { level: "ok", reasons: [] } }] }
+  ]
 }
 
 describe("admin_version tool card", () => {
