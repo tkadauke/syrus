@@ -20,6 +20,10 @@ RSpec.describe PollRepositoryJob, :ci_only do
     )
   end
 
+  def epic_marker(value)
+    "<!-- syrus-epic: #{value} -->"
+  end
+
   describe "#perform with per-issue controls" do
     before do
       allow_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues).and_return({})
@@ -210,7 +214,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
     it "ingests an Epic marker declaration as an Epic without creating a Job" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+        .and_return([ issue(number: 77, body: epic_marker("Attachments rollout")) ])
 
       expect {
         described_class.perform_now(repository.id)
@@ -226,6 +230,19 @@ RSpec.describe PollRepositoryJob, :ci_only do
       )
     end
 
+    it "does not treat a natural-language Epic line as routing metadata" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+        .and change(Epic, :count).by(0)
+
+      job = Job.find_by!(repository: repository, issue_number: 77)
+      expect(job.issue_body).to eq("Epic: Attachments rollout")
+    end
+
     it "parses Epic Depends-on references while ingesting an Epic marker declaration" do
       prerequisite = Factories.epic(
         user: user,
@@ -234,7 +251,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         github_issue_url: "https://github.com/acme/widgets/issues/534"
       )
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 535, body: "Epic: Workflows\n\nDepends-on: #534") ])
+        .and_return([ issue(number: 535, body: "#{epic_marker("Workflows")}\n\nDepends-on: #534") ])
 
       described_class.perform_now(repository.id)
 
@@ -243,8 +260,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "resolves pending Epic Depends-on references when the target Epic is ingested later" do
-      dependent = issue(number: 535, body: "Epic: Workflows\n\nDepends-on: #534")
-      prerequisite = issue(number: 534, body: "Epic: Universal dashboard")
+      dependent = issue(number: 535, body: "#{epic_marker("Workflows")}\n\nDepends-on: #534")
+      prerequisite = issue(number: 534, body: epic_marker("Universal dashboard"))
       poll_count = 0
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do
         poll_count += 1
@@ -277,7 +294,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         state: "backlog"
       )
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 42, body: "Epic: #41") ])
+        .and_return([ issue(number: 42, body: epic_marker("#41")) ])
 
       described_class.perform_now(repository.id)
 
@@ -297,7 +314,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         state: "backlog"
       )
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 42, body: "Epic: 41") ])
+        .and_return([ issue(number: 42, body: epic_marker("41")) ])
 
       described_class.perform_now(repository.id)
 
@@ -308,9 +325,9 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "ingests GitHub-declared Epic children as one explicit dependency chain" do
-      declaration = issue(number: 100, body: "Epic: Widget hardening")
-      root = issue(number: 101, body: "Epic: #100")
-      dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
+      declaration = issue(number: 100, body: epic_marker("Widget hardening"))
+      root = issue(number: 101, body: epic_marker("#100"))
+      dependent = issue(number: 102, body: "#{epic_marker("#100")}\n\nDepends-on: #101")
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ declaration, root, dependent ])
 
@@ -325,9 +342,9 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "resolves an out-of-order GitHub child dependency into the same Epic chain" do
-      declaration = issue(number: 100, body: "Epic: Widget hardening")
-      dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
-      root = issue(number: 101, body: "Epic: #100")
+      declaration = issue(number: 100, body: epic_marker("Widget hardening"))
+      dependent = issue(number: 102, body: "#{epic_marker("#100")}\n\nDepends-on: #101")
+      root = issue(number: 101, body: epic_marker("#100"))
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ declaration, dependent, root ])
 
@@ -343,10 +360,10 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "quarantines the out-of-order child whose pending dependency would branch the chain" do
-      declaration = issue(number: 100, body: "Epic: Widget hardening")
-      first_dependent = issue(number: 102, body: "Epic: #100\n\nDepends-on: #101")
-      branching_dependent = issue(number: 103, body: "Epic: #100\n\nDepends-on: #101")
-      root = issue(number: 101, body: "Epic: #100")
+      declaration = issue(number: 100, body: epic_marker("Widget hardening"))
+      first_dependent = issue(number: 102, body: "#{epic_marker("#100")}\n\nDepends-on: #101")
+      branching_dependent = issue(number: 103, body: "#{epic_marker("#100")}\n\nDepends-on: #101")
+      root = issue(number: 101, body: epic_marker("#100"))
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
         state == "closed" ? [] : [ declaration, first_dependent, branching_dependent, root ]
       end
@@ -373,8 +390,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
         github_issue_url: "https://github.com/acme/widgets/issues/41",
         state: "in_progress"
       )
-      first = issue(number: 42, body: "Epic: #41")
-      second = issue(number: 43, body: "Epic: #41")
+      first = issue(number: 42, body: epic_marker("#41"))
+      second = issue(number: 43, body: epic_marker("#41"))
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
         state == "closed" ? [] : [ first, second ]
       end
@@ -404,7 +421,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       root = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42, state: "queued")
       existing_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "queued")
       JobDependency.create!(job: existing_child, depends_on_job: root, source: "manual")
-      branching_child = issue(number: 44, body: "Epic: #41\n\nDepends-on: #42")
+      branching_child = issue(number: 44, body: "#{epic_marker("#41")}\n\nDepends-on: #42")
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **_kwargs|
         state == "closed" ? [] : [ branching_child ]
       end
@@ -422,8 +439,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
     end
 
     it "keeps a child issue in triaging with pending_epic_ref until the Epic is ingested" do
-      child = issue(number: 42, body: "Epic: #41")
-      declaration = issue(number: 41, body: "Epic: Attachments rollout")
+      child = issue(number: 42, body: epic_marker("#41"))
+      declaration = issue(number: 41, body: epic_marker("Attachments rollout"))
       poll_count = 0
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do
         poll_count += 1
@@ -463,7 +480,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       )
       # Child issue on the fork must use owner/repo#number to resolve to the upstream epic.
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 42, body: "Epic: acme/core#41") ])
+        .and_return([ issue(number: 42, body: epic_marker("acme/core#41")) ])
 
       described_class.perform_now(fork.id)
 
@@ -475,7 +492,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
     it "does not convert a pending Epic reference to an epicless Job on later polls" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 42, body: "Epic: #41") ])
+        .and_return([ issue(number: 42, body: epic_marker("#41")) ])
 
       described_class.perform_now(repository.id)
       job = Job.find_by!(repository: repository, issue_number: 42)
