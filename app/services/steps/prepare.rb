@@ -200,7 +200,13 @@ module Steps
         false
       else
         record_prepare_failure!(failure)
-        raise StepFailed, prepare_failure_message(failure)
+        message = prepare_failure_message(failure)
+        if disk_full_text?(failure["output_tail"])
+          fail_with!(:disk_full, message,
+                     evidence: { command: failure["command"], exit_status: failure["exit_status"] })
+        end
+
+        raise StepFailed, message
       end
     end
 

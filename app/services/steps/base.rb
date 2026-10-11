@@ -89,6 +89,20 @@ module Steps
     class AgentTimedOut < StepFailed
       problem_code :timeout
     end
+    AGENT_RESULT_PROBLEM_CODES = {
+      "error_during_execution" => "provider_transient",
+      "error_max_turns" => "agent_max_turns",
+      "mcp_sidecar_failed" => "mcp_sidecar_failure",
+      "muse_rules_context_too_large" => "muse_rules_context_too_large",
+      "server_error" => "provider_transient",
+      "turn_failed" => "provider_transient",
+      ProviderAuthFailure::OUTCOME => "provider_auth_expired",
+      ProviderUsageLimit::OUTCOME => "provider_usage_limit"
+    }.freeze
+    AGENT_RESUME_UNAVAILABLE_PATTERN =
+      /no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename|resume.+(?:not found|missing|unavailable|expired|stale)/i
+    DISK_FULL_PATTERN =
+      /\bENOSPC\b|No space left on device|Disk quota exceeded|database or disk is full|insufficient (?:disk|storage|space)|not enough (?:disk|storage|space)/i
     DEFAULT_AGENT_RESUME = Object.new.freeze
     DISABLE_AGENT_RESUME = "__syrus_disable_agent_resume__".freeze
 
@@ -389,17 +403,39 @@ module Steps
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?
 
       raise AgentTimedOut, "agent timed out"                         if result.timed_out
-      raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
+      raise agent_result_failure(result)                              if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
       raise CannotProceed, cannot_proceed_reason if cannot_proceed_reported?
       if enforce_required_mcp_tools && missing_required_tools.present?
-        raise StepFailed,
-              "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}"
+        fail_with!(
+          :missing_required_tool_call,
+          "required MCP tool(s) were not called: #{missing_required_tools.join(', ')}",
+          evidence: { tools: missing_required_tools }
+        )
       end
 
       result
     rescue AgentProviders::ConfigurationError => e
-      raise StepFailed, e.message
+      fail_with!(:provider_auth_or_config, e.message, evidence: { provider: agent_provider })
+    end
+
+    def agent_result_failure(result)
+      outcome = result.outcome.presence || "error"
+      evidence = {
+        outcome: outcome,
+        provider: agent_provider,
+        final_text: result.final_text.to_s.truncate(500).presence
+      }.compact
+      StepFailed.new("agent reported #{outcome}",
+                     problem_code: agent_result_problem_code(result),
+                     evidence: evidence)
+    end
+
+    def agent_result_problem_code(result)
+      text = [ result.outcome, result.final_text ].compact.join("\n")
+      return "agent_resume_unavailable" if text.match?(AGENT_RESUME_UNAVAILABLE_PATTERN)
+
+      AGENT_RESULT_PROBLEM_CODES[result.outcome.to_s]
     end
 
     def agent_provider
@@ -502,7 +538,11 @@ module Steps
         .order(sequence: :desc)
         .limit(25)
         .pluck(:chunk)
-        .any? { |chunk| chunk.to_s.match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename/i) }
+        .any? { |chunk| chunk.to_s.match?(AGENT_RESUME_UNAVAILABLE_PATTERN) }
+    end
+
+    def disk_full_text?(text)
+      text.to_s.match?(DISK_FULL_PATTERN)
     end
 
     # Most recent successful Run among this Workflow's Steps of the given
