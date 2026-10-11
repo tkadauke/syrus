@@ -63,6 +63,12 @@ const SETTINGS_TRIGGER_BASE_CLASS = "flex min-w-0 items-center gap-2 rounded py-
 const COLOR_THEME_TRIGGER_CLASS = "flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-surface-raised"
 const MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT = 72
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
+type RootVisualViewportMetrics = {
+  height: number
+  offsetLeft: number
+  offsetTop: number
+  width: number
+}
 
 function randomPubliliusSyrusQuote() {
   return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
@@ -70,6 +76,120 @@ function randomPubliliusSyrusQuote() {
 
 function maintenanceSidebarTaskKey(task: MaintenanceTask) {
   return `${task.id}:${task.task_key}`
+}
+
+function roundedViewportValue(value: number | undefined) {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value || 0)) : 0
+}
+
+function readRootVisualViewportMetrics(): RootVisualViewportMetrics | null {
+  if (typeof window === "undefined" || !window.visualViewport) return null
+
+  const viewport = window.visualViewport
+  const height = roundedViewportValue(viewport.height)
+  const width = roundedViewportValue(viewport.width)
+  if (height <= 0 || width <= 0) return null
+
+  return {
+    height,
+    offsetLeft: roundedViewportValue(viewport.offsetLeft),
+    offsetTop: roundedViewportValue(viewport.offsetTop),
+    width
+  }
+}
+
+function useRootVisualViewportStyle() {
+  const [metrics, setMetrics] = useState(readRootVisualViewportMetrics)
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return
+
+    const viewport = window.visualViewport
+    let frame: number | null = null
+    let settleTimer: number | null = null
+
+    const updateMetrics = () => setMetrics(readRootVisualViewportMetrics())
+    const scheduleUpdate = () => {
+      updateMetrics()
+      if (frame != null) {
+        if (typeof window.cancelAnimationFrame === "function") {
+          window.cancelAnimationFrame(frame)
+        } else {
+          window.clearTimeout(frame)
+        }
+      }
+      if (settleTimer != null) window.clearTimeout(settleTimer)
+
+      if (typeof window.requestAnimationFrame === "function") {
+        frame = window.requestAnimationFrame(() => {
+          frame = null
+          updateMetrics()
+        })
+      } else {
+        frame = window.setTimeout(() => {
+          frame = null
+          updateMetrics()
+        }, 0)
+      }
+      settleTimer = window.setTimeout(() => {
+        settleTimer = null
+        updateMetrics()
+      }, 250)
+    }
+
+    scheduleUpdate()
+    viewport.addEventListener("resize", scheduleUpdate)
+    viewport.addEventListener("scroll", scheduleUpdate)
+    window.addEventListener("orientationchange", scheduleUpdate)
+    window.addEventListener("pageshow", scheduleUpdate)
+    window.addEventListener("resize", scheduleUpdate)
+
+    return () => {
+      viewport.removeEventListener("resize", scheduleUpdate)
+      viewport.removeEventListener("scroll", scheduleUpdate)
+      window.removeEventListener("orientationchange", scheduleUpdate)
+      window.removeEventListener("pageshow", scheduleUpdate)
+      window.removeEventListener("resize", scheduleUpdate)
+      if (frame != null) {
+        if (typeof window.cancelAnimationFrame === "function") {
+          window.cancelAnimationFrame(frame)
+        } else {
+          window.clearTimeout(frame)
+        }
+      }
+      if (settleTimer != null) window.clearTimeout(settleTimer)
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    const root = typeof document === "undefined" ? null : document.documentElement
+    if (!root || !metrics) return
+
+    root.style.setProperty("--syrus-app-viewport-height", `${metrics.height}px`)
+    root.style.setProperty("--syrus-app-viewport-width", `${metrics.width}px`)
+    root.style.setProperty("--syrus-app-viewport-offset-left", `${metrics.offsetLeft}px`)
+    root.style.setProperty("--syrus-app-viewport-offset-top", `${metrics.offsetTop}px`)
+
+    return () => {
+      root.style.removeProperty("--syrus-app-viewport-height")
+      root.style.removeProperty("--syrus-app-viewport-width")
+      root.style.removeProperty("--syrus-app-viewport-offset-left")
+      root.style.removeProperty("--syrus-app-viewport-offset-top")
+    }
+  }, [metrics])
+
+  if (!metrics) return undefined
+
+  return {
+    "--syrus-app-viewport-height": `${metrics.height}px`,
+    "--syrus-app-viewport-width": `${metrics.width}px`,
+    "--syrus-app-viewport-offset-left": `${metrics.offsetLeft}px`,
+    "--syrus-app-viewport-offset-top": `${metrics.offsetTop}px`,
+    left: "var(--syrus-app-viewport-offset-left,0px)",
+    position: "fixed",
+    top: "var(--syrus-app-viewport-offset-top,0px)",
+    width: "var(--syrus-app-viewport-width,100vw)"
+  } as CSSProperties
 }
 
 function readMaintenanceSidebarState(): MaintenanceSidebarState {
@@ -153,6 +273,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [groupChatCreating, setGroupChatCreating] = useState(false)
   const [groupChatError, setGroupChatError] = useState<string | null>(null)
   const [startingChat, setStartingChat] = useState(false)
+  const appViewportStyle = useRootVisualViewportStyle()
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
   const openBugReport = useCallback((options?: BugReportOpenOptions) => {
     bugReportRef.current?.open(options)
@@ -406,7 +527,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <BugReportContext.Provider value={bugReportContextValue}>
     <GlobalShortcutsHelp />
     {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
-    <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
+    <div className="flex h-[var(--syrus-app-viewport-height,100dvh)] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white" data-testid="app-chrome-root" style={appViewportStyle}>
       <aside
         className={`relative hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${sidebarSplitter.collapsed ? "overflow-visible" : ""}`}
         data-testid="desktop-sidebar"
