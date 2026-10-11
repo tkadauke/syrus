@@ -104,7 +104,9 @@ class RetryWorkflowEnqueuer
 
     WorkUnits::Launcher.start!(workflow)
     Result.new(workflow: workflow, error: nil, circuit: nil)
-  rescue WorkUnits::Launcher::LockConflict
+  rescue WorkUnits::Launcher::LockConflict => e
+    return failure("A retry workflow is already queued or running for this Job.") if retry_work_unit_attempt?(e.work_unit)
+
     failure("a workflow is already queued or running for this job")
   end
 
@@ -201,6 +203,12 @@ class RetryWorkflowEnqueuer
   def retry_kind
     kind = job.workflows.where(state: "failed").order(:created_at, :id).last&.trigger_kind
     SELF_RETRYING_TRIGGER_KINDS.include?(kind) ? kind : "retry"
+  end
+
+  def retry_work_unit_attempt?(work_unit)
+    work_unit&.definition&.retry_workflow_attempt?
+  rescue WorkDefinitions::UnknownKind
+    false
   end
 
   def failure(message, circuit: nil)

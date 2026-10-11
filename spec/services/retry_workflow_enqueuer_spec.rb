@@ -431,14 +431,14 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(job.workflows.where(trigger_kind: "initial").count).to eq(initial_workflow_count)
   end
 
-  it "is a no-op on Job state when the Job is not :failed (e.g. :implemented retry)" do
+  it "marks an implemented Job queued while a retry workflow is active" do
     finish_current_run!
     job.update!(state: "implemented")
 
     expect {
       result = described_class.call(job: job)
       expect(result).to be_success
-    }.not_to change { job.reload.state }
+    }.to change { job.reload.state }.from("implemented").to("queued")
   end
 
   it "can enforce alternate retry provider semantics for per-job retries" do
