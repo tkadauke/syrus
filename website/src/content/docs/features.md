@@ -630,8 +630,10 @@ paginated chat transcripts, inspect Solid Queue health, update the chat's
 pinned context for future turns, and create proposal cards for the operator
 to confirm. New chats use a short interpreted title from the first prompt,
 with the repository name as the fallback. The app sidebar groups recent chats
-by repository, and each repository group can be collapsed when the operator
-wants to fold that section away. Individual chats can be pinned or unpinned
+by repository by default, with sidebar settings for grouping by date, status,
+mode, chat type, or chat agent when those distinctions are available; each
+group can be collapsed when the operator wants to fold that section away.
+Individual chats can be pinned or unpinned
 from the sidebar actions menu, renamed through the same menu (or the
 `/rename` slash command), hidden from the sidebar and chat search, then
 restored from the Hidden chats section in user settings. The sidebar actions
