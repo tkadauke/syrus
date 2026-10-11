@@ -15,10 +15,11 @@ function LocationProbe() {
 
 function renderSidebar(
   chats: ChatNavRecord[],
-  options: { availableChatTypes?: ChatsIndexPayload["available_chat_types"]; featureFlags?: Record<string, boolean>; groups?: ChatGroupRecord[]; onCloseDrawer?: () => void; onStartChat?: (repositoryId?: number | null) => void; prefix?: string; renderOptions?: Parameters<typeof render>[1] } = {}
+  options: { availableAgents?: ChatsIndexPayload["available_agents"]; availableChatTypes?: ChatsIndexPayload["available_chat_types"]; featureFlags?: Record<string, boolean>; groups?: ChatGroupRecord[]; onCloseDrawer?: () => void; onStartChat?: (repositoryId?: number | null) => void; prefix?: string; renderOptions?: Parameters<typeof render>[1] } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+    available_agents: options.availableAgents,
     available_chat_types: options.availableChatTypes,
     groups: options.groups ?? [chatGroup({ chats })]
   }))
@@ -337,6 +338,44 @@ describe("RecentChatsSidebar settings", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_by=chat_type"), expect.anything())
+    })
+  })
+
+  it("offers agent grouping only when multiple chat agents are configured", async () => {
+    const availableAgents = [
+      { value: "claude", label: "Claude" },
+      { value: "codex", label: "Codex" }
+    ]
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_agents: availableAgents })))
+    renderSidebar([], { availableAgents })
+
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+    fireEvent.click(screen.getByRole("button", { name: /Group by/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Agent" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_by=agent"), expect.anything())
+    })
+  })
+
+  it("falls back from saved agent grouping when only one chat agent is configured", async () => {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({
+      status: "active",
+      group_by: "agent",
+      chat_types: [],
+      sort_by: "last_activity",
+      show_empty_groups: true,
+      per_group: 10
+    }))
+    const availableAgents = [{ value: "claude", label: "Claude" }]
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_agents: availableAgents })))
+
+    renderSidebar([], { availableAgents })
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+
+    expect(screen.getByRole("button", { name: /Group by/ })).toHaveTextContent("Repository")
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.every(([input]) => !String(input).includes("group_by=agent"))).toBe(true)
     })
   })
 

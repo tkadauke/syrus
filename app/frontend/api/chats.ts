@@ -650,9 +650,14 @@ export type ChatGroupRecord = {
 }
 
 export type ChatSidebarStatus = "active" | "hidden" | "all"
-export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type"
+export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type" | "agent"
 export type ChatSidebarSortBy = "name" | "date_created" | "last_activity"
 export type ChatSidebarPerGroup = 5 | 10 | 15 | 20
+
+export type ChatSidebarAgentOption = {
+  value: string
+  label: string
+}
 
 export type ChatSidebarSettings = {
   status: ChatSidebarStatus
@@ -677,6 +682,7 @@ export type ChatsIndexPayload = {
   groups_has_more?: boolean
   groups_next_offset?: number | null
   available_chat_types?: ChatType[]
+  available_agents?: ChatSidebarAgentOption[]
   repositories: ChatRepository[]
 }
 
