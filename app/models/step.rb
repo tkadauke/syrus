@@ -200,7 +200,7 @@ class Step < ApplicationRecord
     save!
   end
 
-  after_update_commit :advance_next_step!, if: :saved_change_to_state_to_succeeded?
+  after_update_commit :advance_next_step!, if: :saved_change_to_state_to_advancing_terminal?
   after_update_commit :apply_auto_approval_rule!, if: :saved_change_to_succeeded_grade?
   after_update_commit :fail_workflow!, if: :saved_change_to_state_to_failed?
   after_update_commit :cancel_workflow_chain!, if: :saved_change_to_state_to_cancelled?
@@ -208,6 +208,10 @@ class Step < ApplicationRecord
 
   def saved_change_to_state_to_succeeded?
     saved_change_to_state? && state == "succeeded"
+  end
+
+  def saved_change_to_state_to_advancing_terminal?
+    saved_change_to_state? && state.in?(%w[succeeded skipped])
   end
 
   def saved_change_to_state_to_failed?

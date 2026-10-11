@@ -242,9 +242,9 @@ class SyrusYml
       super(health_check_timeout_seconds: health_check_timeout_seconds, **rest)
     end
   end
-  AdversarialReviewConfig = Data.define(:rounds, :criteria)
+  AdversarialReviewConfig = Data.define(:rounds, :criteria, :required)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
-  VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
+  VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes, :required)
   AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
   # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
@@ -383,7 +383,8 @@ class SyrusYml
 
     AdversarialReviewConfig.new(
       rounds: parse_adversarial_review_rounds(raw["rounds"]),
-      criteria: parse_adversarial_review_criteria(raw["criteria"])
+      criteria: parse_adversarial_review_criteria(raw["criteria"]),
+      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
     )
   end
 
@@ -421,7 +422,8 @@ class SyrusYml
       enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]),
       rounds: parse_visual_review_rounds(raw["rounds"]),
       when_files_changed: when_files_changed,
-      seed_notes: raw["seed_notes"].to_s.strip.presence
+      seed_notes: raw["seed_notes"].to_s.strip.presence,
+      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
     )
   end
 

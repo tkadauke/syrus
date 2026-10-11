@@ -265,10 +265,15 @@ Use `when_files_changed` to keep visual review focused on UI paths:
 visual_review:
   enabled: true
   rounds: 1
+  required: false
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
 ```
+
+`required` defaults to `false`: if visual review cannot execute because the
+preview cannot be prepared, Syrus marks the review step skipped, raises a
+warning, and continues. Set `required: true` to fail the workflow instead.
 
 ### `preview`
 

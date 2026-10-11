@@ -64,6 +64,7 @@ Rounds range: 0–10. Default is 0 (disabled).
 ```yaml
 adversarial_review:
   rounds: 2
+  required: false
   criteria:
     - Verify all new endpoints enforce authentication
     - Check that database queries use parameterized inputs
@@ -71,6 +72,13 @@ adversarial_review:
 ```
 
 Per-repo configuration overrides the instance-wide setting. Set `rounds: 0` to disable for a specific repo even when the instance default is non-zero.
+
+`required` defaults to `false`. When the reviewer cannot execute at all
+(provider context limit, repeated missing required tool call, or another
+execution-unavailable path), Syrus records the review as `skipped`, raises a
+WorkflowWarning, and continues. Set `required: true` to fail the workflow
+instead. This policy only covers "could not execute"; a reviewer that runs and
+returns `needs_work` still follows the normal repair loop.
 
 ### criteria
 
