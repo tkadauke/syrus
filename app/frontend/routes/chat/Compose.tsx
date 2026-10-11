@@ -1308,6 +1308,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     })
   }
 
+  function focusComposerFromGhostSuggestion() {
+    textareaRef.current?.focus()
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     // Only plain Tab (never Shift+Tab or a modifier chord) accepts the
     // ghost suggestion, and only while the focused composer is empty
@@ -1938,7 +1942,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           />
           {ghostSuggestion ? (
             <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-start gap-2 overflow-hidden py-2.5 pl-3 pr-1.5 text-base leading-6 sm:py-2 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span aria-hidden="true" className="pointer-events-auto max-h-full min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words pr-2 text-gray-400 dark:text-gray-500" data-testid="chat-suggestion-ghost-text" ref={ghostSuggestionTextRef}>{ghostSuggestion}</span>
+              <span aria-hidden="true" className="pointer-events-auto max-h-full min-h-0 min-w-0 flex-1 cursor-text overflow-y-auto whitespace-pre-wrap break-words pr-2 text-gray-400 dark:text-gray-500" data-testid="chat-suggestion-ghost-text" ref={ghostSuggestionTextRef} onMouseDown={focusComposerFromGhostSuggestion}>{ghostSuggestion}</span>
               <button
                 aria-label={t("suggestion_accept_aria", { suggestion: ghostSuggestion })}
                 className="pointer-events-auto grid h-8 w-8 shrink-0 place-items-center rounded text-gray-500 leading-none transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:h-7 sm:w-7 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"

@@ -3998,6 +3998,22 @@ describe("composer next-step suggestion", () => {
     expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
   })
 
+  it("focuses the composer when clicking the ghost suggestion text", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    const ghostText = await screen.findByTestId("chat-suggestion-ghost-text")
+    const textarea = await findComposerTextarea()
+    expect(textarea).not.toHaveFocus()
+
+    fireEvent.mouseDown(ghostText)
+
+    expect(textarea).toHaveFocus()
+    expect(textarea).toHaveValue("")
+    expect(screen.getByTestId("chat-suggestion-ghost")).toBeInTheDocument()
+  })
+
   it("does not hijack Tab while the suggestion is inside the arrival grace period", async () => {
     mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
     // Freeze the clock across render AND keydown so the Tab lands
