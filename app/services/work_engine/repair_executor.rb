@@ -1752,13 +1752,32 @@ module WorkEngine
 
         # Only when this unit is the whole story: another landing unit that is
         # genuinely running still owns the Job.
+        #
+        # A merge train owns its members through `merge_train_members`, not
+        # through WorkUnitMembers: both dispatchers instantiate the train's
+        # single WorkUnit with `job: members.last`, so only the tip member is
+        # a work_unit_member. Asking the WorkUnit question alone therefore
+        # reports every non-tip member of a live train as stranded and defers
+        # it out of `landing` while the train is still grading -- which the
+        # land step then rejects as "members not in :landing", losing the
+        # whole assembly. Ask about train membership first.
         def stranded?(job, unit)
+          return false if active_merge_train_member?(job)
+
           WorkUnit
             .joins(:work_unit_members)
             .where(work_unit_members: { job_id: job.id }, state: WorkUnits::Ownership::ACTIVE_STATES)
             .where(kind: WorkDefinitions.landing_work_unit_kinds)
             .where.not(id: unit.id)
             .none?
+        end
+
+        def active_merge_train_member?(job)
+          MergeTrainMember
+            .joins(:merge_train)
+            .where(job_id: job.id)
+            .merge(MergeTrain.active)
+            .exists?
         end
       end
 

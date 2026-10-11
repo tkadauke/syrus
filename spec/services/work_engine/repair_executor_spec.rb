@@ -65,4 +65,83 @@ RSpec.describe WorkEngine::RepairExecutor do
     expect(intent.reload).to be_cancelled
     expect(target.workflows).to be_empty
   end
+
+  # Regression: a merge train owns its members through `merge_train_members`,
+  # but the train's single WorkUnit is instantiated with only the tip job, so
+  # every other member has no WorkUnitMember row. `stranded?` asked the
+  # WorkUnit question alone and therefore deferred live train members out of
+  # `landing` while the train was still grading -- which the land step then
+  # rejected as "members not in :landing", throwing away the whole assembly.
+  describe "release_externally_blocked_landing_slot with merge train members" do
+    def release_plan(unit)
+      WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "externally_blocked_landing_slot",
+        action: "release_externally_blocked_landing_slot",
+        auto_executable: true,
+        target_type: unit.class.name,
+        target_id: unit.id,
+        affected_ids: {},
+        execution_steps: [],
+        preconditions: { "work_unit_id" => unit.id },
+        reason: "test"
+      )
+    end
+
+    def blocked_landing_unit_for(member_job)
+      intent = WorkIntent.create!(
+        kind: "job_bundle",
+        state: "requested",
+        scope_type: "job",
+        scope_id: member_job.id,
+        repository: member_job.repository,
+        actor: member_job.user,
+        requested_at: Time.current,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "job_bundle",
+        state: "blocked",
+        blocked_reason: "no_capable_worker",
+        scope_type: "job",
+        scope_id: member_job.id,
+        repository: member_job.repository
+      )
+      unit.work_unit_members.create!(job: member_job, role: "primary")
+      unit.work_unit_locks.create!(lock_key: "#{WorkUnit::LANDING_LOCK_KEY_PREFIX}repository:#{member_job.repository_id}")
+      unit
+    end
+
+    let(:member_job) do
+      Factories.job_record(user: job.user, repository: job.repository, issue_number: 777).tap do |j|
+        j.update_columns(state: "landing", approved_at: Time.current)
+      end
+    end
+
+    it "leaves a member of an active merge train in landing" do
+      unit = blocked_landing_unit_for(member_job)
+      train = MergeTrain.create!(repository: job.repository, base_branch: "main", state: "grading", priority: "medium")
+      MergeTrainMember.create!(merge_train: train, job: member_job, position: 0)
+
+      described_class.call(
+        result: RepairResult.new([
+          release_plan(unit)
+        ])
+      )
+
+      expect(member_job.reload.state).to eq("landing")
+    end
+
+    it "still defers a landing Job that no active train owns" do
+      unit = blocked_landing_unit_for(member_job)
+
+      described_class.call(
+        result: RepairResult.new([
+          release_plan(unit)
+        ])
+      )
+
+      expect(member_job.reload.state).to eq("approved")
+    end
+  end
 end
