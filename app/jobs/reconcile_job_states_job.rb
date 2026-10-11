@@ -308,11 +308,18 @@ class ReconcileJobStatesJob < ApplicationJob
             guard = "may_#{event.to_s.chomp('!')}?"
             break unless job.public_send(guard)
 
+            job.visual_diff_transition_source_workflow_id = latest_workflow_id_for_visual_diff if event == :mark_implemented!
             job.public_send(event)
             job.save!
           end
         end
       end
+    ensure
+      job.visual_diff_transition_source_workflow_id = nil
+    end
+
+    def latest_workflow_id_for_visual_diff
+      job.latest_workflow&.id
     end
   end
 end
