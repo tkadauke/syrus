@@ -55,6 +55,19 @@ RSpec.describe VisualDiffSubmission do
     Steps::VisualDiff.new(run).call
   end
 
+  def run_for_workflow(workflow)
+    step = Step.create!(workflow: workflow, kind: "implement", position: 1)
+    step.runs.create!(job: workflow.job, trigger_kind: workflow.trigger_kind, state: "succeeded")
+  end
+
+  def with_current_run(run)
+    previous = Thread.current[:syrus_current_run]
+    Thread.current[:syrus_current_run] = run
+    yield
+  ensure
+    Thread.current[:syrus_current_run] = previous
+  end
+
   it "dispatches a manual visual_diff workflow using existing after screenshots" do
     job = Factories.job_record(user: user, repository: repository, state: "implemented")
     after_workflow_for(job)
@@ -169,6 +182,59 @@ RSpec.describe VisualDiffSubmission do
 
     deferred = job.workflows.where(trigger_kind: "visual_diff").last
     expect(deferred.artifact("visual_diff_source")).to eq("visual_review")
+  end
+
+  it "does not create deferred visual diff work when a rebase returns the job to implemented" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    after_workflow_for(job, trigger_kind: "initial")
+    rebase = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+
+    expect {
+      with_current_run(run_for_workflow(rebase)) do
+        job.update!(state: "implemented")
+      end
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+  end
+
+  it "does not create deferred visual diff work when a stack rebase returns the job to implemented" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    after_workflow_for(job, trigger_kind: "initial")
+    stack_rebase = Workflow.create!(job: job, trigger_kind: "stack_rebase", state: "running")
+
+    expect {
+      with_current_run(run_for_workflow(stack_rebase)) do
+        job.update!(state: "implemented")
+      end
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+  end
+
+  %w[chat_feedback pr_comment].each do |trigger_kind|
+    it "creates deferred visual diff work when a #{trigger_kind} workflow returns the job to implemented" do
+      job = Factories.job_record(user: user, repository: repository, state: "running")
+      workflow = after_workflow_for(job, trigger_kind: trigger_kind)
+
+      expect {
+        with_current_run(run_for_workflow(workflow)) do
+          job.update!(state: "implemented")
+        end
+      }.to change { job.workflows.where(trigger_kind: "visual_diff").count }.by(1)
+
+      deferred = job.workflows.where(trigger_kind: "visual_diff").last
+      expect(deferred.artifact("visual_diff_after_workflow_id")).to eq(workflow.id)
+    end
+  end
+
+  it "keeps the branch divergence recovery exemption when the job becomes implemented" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    workflow = after_workflow_for(job, trigger_kind: "initial")
+
+    expect {
+      with_current_run(run_for_workflow(workflow)) do
+        StateTransition.with_source("operator", reason_key: "branch_divergence_recovery") do
+          job.update!(state: "implemented")
+        end
+      end
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
   end
 
   it "does not enqueue deferred work when the visual review produced no screenshots" do

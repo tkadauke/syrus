@@ -1464,7 +1464,17 @@ class Job < ApplicationRecord
   def enqueue_deferred_visual_diff_work_after_implementation
     return if StateTransition.current_reason_key == "branch_divergence_recovery"
 
+    transition_source = visual_diff_transition_source_workflow
+    return if transition_source && !VisualDiffSubmission.visual_review_source_workflow?(transition_source)
+
     VisualDiffSubmission.enqueue_deferred_for_job(self)
+  end
+
+  def visual_diff_transition_source_workflow
+    run_id = StateTransition.current_run_id
+    return if run_id.blank?
+
+    Run.includes(step: :workflow).find_by(id: run_id)&.workflow
   end
 
   def cancel_deferred_visual_diff_work_after_approval
