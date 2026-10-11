@@ -75,6 +75,24 @@ describe("chat API", () => {
       expect.anything()
     )
   })
+
+  it("adds agent grouping to the recent chats query string", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
+
+    await fetchChats({
+      status: "active",
+      group_by: "agent",
+      chat_types: [],
+      sort_by: "last_activity",
+      show_empty_groups: false,
+      per_group: 10
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/chats?group_by=agent",
+      expect.anything()
+    )
+  })
 })
 
 function createdChatPayload() {

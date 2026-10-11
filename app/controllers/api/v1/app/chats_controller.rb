@@ -36,6 +36,7 @@ module Api
               groups_has_more: groups_payload.fetch(:has_more),
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
+              available_agents: chat_index_available_agents,
               repositories: PerformanceLogging.phase("chats_index.repositories") { chat_repository_scope.map { |repository| repository_json(repository) } }
             }
           }
