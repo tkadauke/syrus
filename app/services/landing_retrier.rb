@@ -84,10 +84,30 @@ class LandingRetrier
     Result.new(reapproved_jobs: reapproved, recovered_jobs: recovered, workflow: nil)
   end
 
+  def owned_by_active_merge_train?(job)
+    MergeTrainMember
+      .joins(:merge_train)
+      .where(job_id: job.id)
+      .merge(MergeTrain.active)
+      .exists?
+  end
+
   def recover_failed_train_members
     @scope.recoverable_members.filter_map do |job|
       job.lock!
       if job.landing?
+        # The train that failed is not necessarily the train that owns this
+        # Job now. The landing queue can place a member onto a replacement
+        # train before this recovery runs, and deferring it then pulls a live
+        # train's member out of :landing -- its land step later rejects the
+        # whole assembly as "members not in :landing", discarding hours of
+        # grading. MergeTrainFailureHandler guards the same race with
+        # `owned_by_replacement_landing_work?`; this path had no equivalent.
+        #
+        # Only non-terminal trains count as owners, so the failed train being
+        # recovered from never matches itself.
+        next if owned_by_active_merge_train?(job)
+
         job.defer_landing! if job.may_defer_landing?
         job.assign_attributes(landing_failure_reason: nil)
         job.save! if job.changed?

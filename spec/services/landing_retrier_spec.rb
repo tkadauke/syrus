@@ -37,6 +37,31 @@ RSpec.describe LandingRetrier do
       expect(healed.closure_reason).to eq("pr_merged")
       expect(healed.landed_sha).to eq("trainsha789")
     end
+
+    # Regression: recovery from a failed train deferred any member still in
+    # :landing without checking whether a replacement train had already
+    # claimed it. That pulled a live train's member out of :landing, and the
+    # land step then rejected the whole assembly as "members not in
+    # :landing" -- eight production trains died this way in one night.
+    it "leaves a member that a replacement train already owns in landing" do
+      claimed = bundle_job(issue_number: 3, state: "landing")
+      released = bundle_job(issue_number: 4, state: "landing")
+      failed_train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                        integration_branch: "syrus/job-bundle-old", state: "failed", finished_at: Time.current)
+      MergeTrainMember.create!(merge_train: failed_train, job: claimed, position: 0)
+      MergeTrainMember.create!(merge_train: failed_train, job: released, position: 1)
+
+      replacement = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                       integration_branch: "syrus/job-bundle-new", state: "grading")
+      MergeTrainMember.create!(merge_train: replacement, job: claimed, position: 0)
+
+      allow(JobBundleDispatcher).to receive(:try_dispatch!).and_return(nil)
+
+      described_class.rebuild_job_bundle!(repository, source_train: failed_train)
+
+      expect(claimed.reload.state).to eq("landing")
+      expect(released.reload.state).to eq("approved")
+    end
   end
 
   describe ".for_epic (epic scope, formerly EpicLandingRetrier)" do
