@@ -507,9 +507,9 @@ export function shortRevision(value: string | null | undefined) {
 
 export function DetailBlock({ title, value }: { title: string; value?: string | null }) {
   return (
-    <section>
+    <section className="flex h-full flex-col">
       <h3 className="text-xs font-medium uppercase text-text-muted">{title}</h3>
-      <pre className="mt-2 max-h-80 overflow-auto rounded border border-border bg-surface p-3 text-xs leading-5 text-text-primary">
+      <pre className="mt-2 h-64 overflow-auto rounded border border-border bg-surface p-3 text-xs leading-5 text-text-primary">
         {value || "-"}
       </pre>
     </section>
