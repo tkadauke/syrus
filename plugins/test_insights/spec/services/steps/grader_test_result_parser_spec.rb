@@ -25,6 +25,7 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
   around do |example|
     Dir.mktmpdir("syrus-grader-plugin") do |dir|
       @ws_path = Pathname.new(dir)
+      system("git", "init", "--quiet", chdir: @ws_path.to_s, exception: true)
       example.run
     end
   end
