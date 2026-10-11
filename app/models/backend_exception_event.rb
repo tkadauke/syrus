@@ -96,7 +96,7 @@ class BackendExceptionEvent < ApplicationRecord
     self.request_id = clean_string(request_id, MAX_SHORT_TEXT_BYTES)
     self.exception_class = clean_string(exception_class, MAX_SHORT_TEXT_BYTES).presence || "Exception"
     self.message = clean_string(message, MAX_MESSAGE_BYTES).presence || "Unknown backend exception"
-    self.backtrace = clean_string(backtrace, MAX_STACK_BYTES)
+    self.backtrace = clean_stack(backtrace, MAX_STACK_BYTES)
     self.controller = clean_string(controller, MAX_SHORT_TEXT_BYTES)
     self.action = clean_string(action, MAX_SHORT_TEXT_BYTES)
     self.method = clean_string(method, MAX_SHORT_TEXT_BYTES)
@@ -116,6 +116,10 @@ class BackendExceptionEvent < ApplicationRecord
 
   def clean_string(value, limit)
     OperationalLogging.redact(Mcp::Tools.utf8(value).gsub(/[[:space:]]+/, " ").strip).safe_byteslice(0, limit)
+  end
+
+  def clean_stack(value, limit)
+    OperationalLogging.redact(Mcp::Tools.utf8(value).gsub(/\r\n?/, "\n").strip).safe_byteslice(0, limit)
   end
 
   def bounded_hash(value)
