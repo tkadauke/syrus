@@ -1,7 +1,7 @@
 import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
 import type { Subscription } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
+import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
@@ -1308,7 +1308,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     })
   }
 
-  function focusComposerFromGhostSuggestion() {
+  function focusComposerFromGhostSuggestion(event: ReactMouseEvent<HTMLSpanElement>) {
+    event.preventDefault()
     textareaRef.current?.focus()
   }
 
