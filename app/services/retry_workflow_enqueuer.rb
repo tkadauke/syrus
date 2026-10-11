@@ -1,4 +1,6 @@
 class RetryWorkflowEnqueuer
+  ACTIVE_RETRY_MESSAGE = "A retry workflow is already queued or running for this Job."
+
   # Maintenance workflows that a retry should re-run AS THEMSELVES rather than
   # escalating to the initial chain.
   #
@@ -12,6 +14,7 @@ class RetryWorkflowEnqueuer
   # job lifecycle and have their own retry paths (LandingRetrier), so they
   # are not in scope here.
   SELF_RETRYING_TRIGGER_KINDS = %w[ rebase stack_rebase main_branch_repair ].freeze
+  RETRY_PREPARED_JOB_STATES = %w[ failed running triaging ].freeze
 
   Result = Data.define(:workflow, :error, :circuit) do
     def success? = workflow.present?
@@ -74,6 +77,7 @@ class RetryWorkflowEnqueuer
   def call
     return failure("Runaway protection active — clear by retrying manually.") if automatic? && job.runaway_protection.present?
 
+    entry_job_state = job.reload.state
     eligibility = RetryWorkflowEligibility.call(job: job)
     reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
@@ -84,11 +88,13 @@ class RetryWorkflowEnqueuer
 
     failure_result = nil
     workflow = nil
+    preserved_job_state = nil
     job.with_lock do
       job.reload
       eligibility = RetryWorkflowEligibility.call(job: job)
       reconcile_ready_pr! if eligibility.code == "pr_ready"
       if eligibility.eligible?
+        preserved_job_state = entry_job_state unless retry_prepares_job_state?(entry_job_state)
         state_error = prepare_job_state_for_retry
         if state_error
           failure_result = failure(state_error)
@@ -103,9 +109,10 @@ class RetryWorkflowEnqueuer
     return failure_result if failure_result
 
     WorkUnits::Launcher.start!(workflow)
+    restore_preserved_job_state!(workflow, preserved_job_state)
     Result.new(workflow: workflow, error: nil, circuit: nil)
   rescue WorkUnits::Launcher::LockConflict
-    failure("a workflow is already queued or running for this job")
+    failure(ACTIVE_RETRY_MESSAGE)
   end
 
   private
@@ -179,6 +186,20 @@ class RetryWorkflowEnqueuer
     end
 
     nil
+  end
+
+  def retry_prepares_job_state?(state = job.state)
+    RETRY_PREPARED_JOB_STATES.include?(state)
+  end
+
+  def restore_preserved_job_state!(workflow, preserved_job_state)
+    return if preserved_job_state.blank?
+    return unless workflow.reload.queued?
+
+    job.reload
+    return if job.state == preserved_job_state
+
+    job.update!(state: preserved_job_state)
   end
 
   def reconcile_ready_pr!
