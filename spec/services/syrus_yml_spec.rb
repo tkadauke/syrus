@@ -14,6 +14,23 @@ RSpec.describe SyrusYml do
     File.write(File.join(@dir, ".syrus.yml"), contents)
   end
 
+  it "parses merge train failure policy rungs" do
+    config = parse(<<~YAML)
+      merge_train:
+        failure_policy:
+          - keep_assembly
+          - restart
+    YAML
+
+    expect(config.merge_train.failure_policy).to eq([ "keep_assembly", "restart" ])
+  end
+
+  it "rejects malformed merge train configuration" do
+    expect {
+      parse("merge_train:\n  failure_policy: keep_assembly\n")
+    }.to raise_error(SyrusYml::ParseError, /merge_train\.failure_policy/)
+  end
+
   it "parses the full grade form" do
     config = parse(<<~YAML)
       grade:

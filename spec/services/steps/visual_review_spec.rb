@@ -281,7 +281,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: nil,
             seed_notes: "Log in as demo@example.com / password."
@@ -416,7 +416,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/frontend/**/*" ],
             seed_notes: nil
@@ -465,7 +465,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/views/**/*" ],
             seed_notes: nil
@@ -495,7 +495,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
@@ -540,7 +540,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
@@ -595,7 +595,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [

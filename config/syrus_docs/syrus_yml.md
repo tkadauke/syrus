@@ -90,7 +90,41 @@ the rest of the tree.
 | `hooks.post_checkout:` | Always runs after `syrus checkout`. | Runs when the checked-out diff touches the project, or as a fallback when the CLI cannot compute the diff. |
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
 | `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
+| `merge_train:` | Repository merge-train escalation semantics. | Parsed as ordinary config, but merge trains are repository-level; keep escalation policy in the root file. |
 | `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
+
+### merge_train
+
+`merge_train.failure_policy` is an ordered escalation ladder for failed merge
+trains. It belongs in `.syrus.yml` because the rung order expresses repository
+workflow semantics: which recovery strategies are acceptable, and in what
+order Syrus should try them.
+
+```yaml
+merge_train:
+  failure_policy:
+    - keep_assembly
+    - restart
+```
+
+Attempt 1 starts at the first rung, attempt 2 at the second rung, and attempts
+past the end of the list fall back to `restart`. Unknown rung names are
+skipped, so a repository can commit a future ladder before every named rung is
+implemented by the running Syrus instance. The walk is bounded by the same
+automatic retry budget used for workflow repairs.
+
+Currently implemented rungs:
+
+- `restart` tears down the failed assembly and returns members through normal
+  landing-failure handling.
+- `keep_assembly` preserves the existing train and integration branch when the
+  failed run is classified as retryable.
+
+When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
+instance `AppSetting.merge_train_failure_policy` compatibility default. If
+Syrus cannot parse or read the repository's default-branch `.syrus.yml`, it
+uses the conservative `restart` behavior instead of applying the instance
+default.
 
 ### capabilities
 

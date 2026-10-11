@@ -25,6 +25,35 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
                       failure_reason: failure_reason)
   end
 
+  def record_retryable_failure!(workflow, job, classification: "worker_died")
+    step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+    run = Run.create!(job: job, step: step, trigger_kind: "merge_train", state: "failed")
+    RunFailureClassification.create!(
+      run: run, classification: classification, retryable: true, confidence: 0.95,
+      reason: "The failure can be retried automatically.",
+      classified_at: Time.current
+    )
+    run
+  end
+
+  def create_auto_retry_attempt!(workflow:, run:, classification:, attempt_number:, retry_kind: "retry_workflow")
+    AutoRetryAttempt.create!(
+      job: run.job,
+      workflow: workflow,
+      run: run,
+      agent_provider: run.agent_provider,
+      failure_classification: classification,
+      retry_kind: retry_kind,
+      attempt_number: attempt_number,
+      scheduled_at: Time.current
+    )
+  end
+
+  def stub_merge_train_failure_ladder(rungs)
+    content = "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n"
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => content })
+  end
+
   describe "#call" do
     # merge_train_build publishes the integration branch so the rest of the
     # chain is worker-independent. The landing path already deletes it on the
@@ -118,19 +147,98 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
-      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
-      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
-      RunFailureClassification.create!(
-        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
-        reason: "The worker or agent process disappeared while the run was active.",
-        classified_at: Time.current
-      )
+      record_retryable_failure!(workflow, a)
 
       described_class.call(workflow: workflow)
 
       expect(train.reload).not_to be_terminal
       expect(train.members.first.reload.state).not_to eq("failed")
       expect(a.reload).to be_landing
+    end
+
+    it "lets the repository .syrus.yml ladder override the instance default" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_retryable_failure!(workflow, a)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "keeps using the instance default on later attempts when the repository has no ladder" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "maps the retry attempt to the repository .syrus.yml ladder rung" do
+      stub_merge_train_failure_ladder([ "restart", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "falls back to restart when the retry attempt is past the repository .syrus.yml ladder" do
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "skips unknown repository .syrus.yml ladder rungs" do
+      stub_merge_train_failure_ladder([ "future_rung", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_retryable_failure!(workflow, a)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "stops the repository .syrus.yml ladder at the automatic retry budget" do
+      stub_merge_train_failure_ladder([ "future_1", "future_2", "future_3", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a, classification: "rate_limited")
+      AutoRetryAttempt::MAX_ATTEMPTS.times do |index|
+        create_auto_retry_attempt!(workflow: workflow, run: run, classification: "rate_limited", attempt_number: index + 1, retry_kind: "failed_step")
+      end
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
     end
 
     it "still tears the train down under keep_assembly when the failure is not retryable" do

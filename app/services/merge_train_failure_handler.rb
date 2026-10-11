@@ -255,9 +255,35 @@ class MergeTrainFailureHandler
   # treated as attributable, which keeps the default conservative.
   def preserve_train_for_failure_policy?
     return false if @cancelled
-    return false unless AppSetting.merge_train_keeps_assembly_on_failure?
 
+    resolved_failure_policy.preserve_train?(retryable_failure: retryable_failure?)
+  end
+
+  def retryable_failure?
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def resolved_failure_policy
+    MergeTrainFailurePolicy.resolve(
+      repository: @workflow.job&.repository,
+      attempt_number: failure_policy_attempt_number,
+      retry_classification: failure_policy_retry_classification
+    )
+  end
+
+  def failure_policy_attempt_number
+    run = failed_run
+    return 1 unless run
+
+    AutoRetryAttempt.budget_scope_for(
+      job: run.job,
+      agent_provider: run.agent_provider.presence || run.workflow&.agent_provider,
+      failure_classification: failure_policy_retry_classification
+    ).count + 1
+  end
+
+  def failure_policy_retry_classification
+    failed_run&.run_failure_classification&.classification || failed_run&.agent_outcome.to_s.presence || "unknown"
   end
 
   def merge_train

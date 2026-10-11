@@ -49,7 +49,14 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 
 **Type:** string · **Default:** `restart` · **Options:** `restart`, `keep_assembly`
 
-What happens to an assembled merge train when its workflow fails.
+Compatibility default for what happens to an assembled merge train when its
+workflow fails. Repositories should declare their ordered escalation ladder in
+default-branch `.syrus.yml` under `merge_train.failure_policy`; this instance
+setting is used only when that repository config is confirmed absent,
+preserving the previous instance-wide behavior across retry attempts. If the
+repository config exists but cannot be parsed or read, Syrus uses the
+conservative `restart` behavior rather than guessing from this instance
+default.
 
 `restart` is the historical behaviour: the train is terminalized, its
 integration branch is deleted, and every member is handed back to
@@ -70,6 +77,13 @@ conservative.
 
 This is the same preservation the continuation-retry path already performs,
 widened to any retryable failure.
+
+When a repository configures a `.syrus.yml` ladder, attempt 1 uses the first
+rung, attempt 2 the second, and so on. Attempts past the end of the list fall
+back to `restart`. Unknown rung names are skipped so repositories can name
+future rungs before the Syrus instance implements them. The walk is capped by
+the same automatic retry budget used by the WorkEngine repair planner, so a
+repeatedly failing train cannot climb forever.
 
 Splitting a failed train — landing the clean members while the rest re-train
 — is not offered. It needs a rule for attributing a failure to a particular
