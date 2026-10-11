@@ -59,6 +59,13 @@ RSpec.describe Problem::Kind do
       expect(described_class.resolve("repeated_failure_circuit_open").code).to eq("application_error")
     end
 
+    it "keeps GitHub no-commits PR-open failures retryable" do
+      problem = described_class.fetch("pr_open_no_commits_between")
+
+      expect(problem.retryable).to be(true)
+      expect(problem.default_remediation).to eq(:restart_workflow)
+    end
+
     it "returns nil for a name no plane declares" do
       expect(described_class.resolve("not_a_real_failure")).to be_nil
     end
