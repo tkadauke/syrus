@@ -20,6 +20,7 @@ import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
+import { Modal } from "../components/Modal"
 import { Select } from "../components/Select"
 import {
   applyPendingFeedback,
@@ -516,12 +517,28 @@ function HeaderChatAffordance({
 }) {
   const { t } = useT("jobs")
   const navigate = useNavigate()
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [prompt, setPrompt] = useState("")
   const startChat = useMutation({
-    mutationFn: () => startJobDiscussionChat(payload.job.id),
+    mutationFn: (message: string) => startJobDiscussionChat(payload.job.id, message),
     onSuccess: (result) => {
       navigate(withRoutePrefix(result.redirect_to, prefix))
     }
   })
+
+  function closeDialog() {
+    if (startChat.isPending) return
+    setDialogOpen(false)
+    setPrompt("")
+    startChat.reset()
+  }
+
+  function submitPrompt(event: FormEvent) {
+    event.preventDefault()
+    if (startChat.isPending) return
+    startChat.mutate(prompt)
+  }
 
   if (payload.job.source_chat) {
     return (
@@ -568,14 +585,48 @@ function HeaderChatAffordance({
           aria-label={t("chat_about_this")}
           className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
           disabled={startChat.isPending}
-          onClick={() => startChat.mutate()}
+          onClick={() => setDialogOpen(true)}
           type="button"
         >
           <ChatBubbleIcon />
           <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
           <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
         </button>
-        {startChat.isError ? <span className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(startChat.error, t("start_discussion_chat_error"))}</span> : null}
+        <Modal
+          className="w-full max-w-lg rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+          initialFocusRef={promptRef}
+          label={t("start_discussion_chat_title")}
+          onClose={closeDialog}
+          open={dialogOpen}
+        >
+          <form className="space-y-4" onSubmit={submitPrompt}>
+            <div>
+              <h2 className="text-base font-semibold text-text-primary">{t("start_discussion_chat_title")}</h2>
+              <p className="mt-1 text-sm text-text-secondary">{t("start_discussion_chat_description")}</p>
+            </div>
+            <label className="block text-sm font-medium text-text-primary" htmlFor="job-discussion-chat-prompt">
+              {t("start_discussion_chat_prompt_label")}
+            </label>
+            <textarea
+              className="min-h-32 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              disabled={startChat.isPending}
+              id="job-discussion-chat-prompt"
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={t("start_discussion_chat_prompt_placeholder")}
+              ref={promptRef}
+              value={prompt}
+            />
+            {startChat.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(startChat.error, t("start_discussion_chat_error"))}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button disabled={startChat.isPending} onClick={closeDialog} type="button" variant="secondary">
+                {t("cancel")}
+              </Button>
+              <Button disabled={startChat.isPending} type="submit">
+                {startChat.isPending ? t("submitting") : t("start_discussion_chat_submit")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </>
     )
   }
