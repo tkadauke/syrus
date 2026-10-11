@@ -553,8 +553,15 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
-  it "classifies human-readable provider rate-limit text" do
+  it "does not classify agent summaries as provider rate-limit evidence" do
     run.update!(state: "failed", agent_provider: "claude", agent_summary: "Claude API error: HTTP 429 too many requests")
+
+    expect(classification.classification).not_to eq("rate_limited")
+  end
+
+  it "classifies provider terminal log rate-limit text" do
+    run.update!(state: "failed", agent_provider: "claude")
+    JobLog.append!(run: run, chunk: "Claude API error: HTTP 429 too many requests", kind: "system")
 
     expect(classification.classification).to eq("rate_limited")
     expect(classification.retryable).to eq(true)
@@ -642,6 +649,42 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
 
     expect(classification.classification).to eq("provider_usage_limit")
+  end
+
+  it "does not classify generic billing or quota words in ordinary agent logs as provider usage exhaustion" do
+    run.update!(state: "failed", agent_provider: "codex")
+    run.step.update!(kind: "implement")
+    JobLog.append!(
+      run: run,
+      chunk: "Feature spec failed: customer quota is exhausted on the billing plan screen.",
+      kind: "agent_log"
+    )
+
+    expect(classification.classification).not_to eq("provider_usage_limit")
+  end
+
+  it "does not classify unrelated PR copy mentioning billing as provider usage exhaustion" do
+    run.update!(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "turn_failed",
+      agent_pr_body: "This PR updates the billing page copy when a customer quota is exhausted."
+    )
+    diagnostic("CodexInvocation::Error", "agent turn failed")
+
+    expect(classification.classification).not_to eq("provider_usage_limit")
+  end
+
+  it "does not classify unrelated PR copy mentioning 429s as rate-limited" do
+    run.update!(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "turn_failed",
+      agent_pr_body: "Document how the app renders HTTP 429 too many requests."
+    )
+    diagnostic("CodexInvocation::Error", "agent turn failed")
+
+    expect(classification.classification).not_to eq("rate_limited")
   end
 
   it "does not classify Codex model metadata decode failures as usage exhaustion" do

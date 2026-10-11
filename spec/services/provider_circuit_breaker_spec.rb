@@ -7,7 +7,7 @@ RSpec.describe ProviderCircuitBreaker do
     "failed to refresh available models: stream disconnected before completion: failed to decode models response: unknown variant `max`, expected none/minimal/low/medium/high/xhigh"
   end
 
-  def failed_agent_run(provider: "codex", job: nil, outcome: "provider_transient", message: "upstream 503 overloaded")
+  def failed_agent_run(provider: "codex", job: nil, outcome: "provider_transient", message: "upstream 503 overloaded", model: nil)
     job ||= Factories.job(repository: Factories.repository(user: user))
     run = Run.create!(
       job: job,
@@ -16,6 +16,7 @@ RSpec.describe ProviderCircuitBreaker do
       state: "failed",
       agent_provider: provider,
       agent_outcome: outcome,
+      model: model || ("gpt-5.5" if message.to_s.include?("gpt-5.5")),
       finished_at: now - 1.minute
     )
     RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: message)
@@ -74,6 +75,7 @@ RSpec.describe ProviderCircuitBreaker do
         message: "agent reported error"
       )
       run.run_diagnostic.destroy!
+      run.update!(step: nil)
       JobLog.append!(run: run, chunk: "provider rate-limited this request", kind: "rate_limited")
     end
 
@@ -86,6 +88,7 @@ RSpec.describe ProviderCircuitBreaker do
   it "opens immediately for a single provider usage-limit failure" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",
+      model: "gpt-5.5",
       message: "agent reported provider_usage_limit"
     )
     run.run_diagnostic.update!(
@@ -109,7 +112,7 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.retry_after).to be_within(1.second).of(now + 23.hours + 59.minutes)
   end
 
-  it "opens from usage-limit diagnostic text on the logless read path" do
+  it "does not open from usage-limit diagnostic text on the logless read path without structured classification" do
     run = failed_agent_run(
       outcome: "turn_failed",
       message: "Codex API error: weekly usage limit reached; check billing"
@@ -118,11 +121,11 @@ RSpec.describe ProviderCircuitBreaker do
 
     decision = described_class.call("codex", now: now, include_logs: false)
 
-    expect(decision).to be_open
-    expect(decision).to be_usage_limit
+    expect(decision).not_to be_open
+    expect(decision).not_to be_usage_limit
   end
 
-  it "keeps log-only usage-limit detection when logs are included" do
+  it "ignores log-only usage-limit prose even when logs are included" do
     run = failed_agent_run(outcome: "turn_failed", message: "agent exited with an error")
     run.update!(step: nil)
     JobLog.append!(run: run, chunk: "Codex API error: you're out of extra usage", kind: "agent_log")
@@ -131,13 +134,14 @@ RSpec.describe ProviderCircuitBreaker do
     logged_decision = described_class.call("codex", now: now, include_logs: true)
 
     expect(logless_decision).not_to be_usage_limit
-    expect(logged_decision).to be_open
-    expect(logged_decision).to be_usage_limit
+    expect(logged_decision).not_to be_open
+    expect(logged_decision).not_to be_usage_limit
   end
 
   it "excludes operator-repaired usage-limit classifications from circuit decisions" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",
+      model: "gpt-5.5",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
     classification = replace_failure_classification!(
@@ -186,6 +190,7 @@ RSpec.describe ProviderCircuitBreaker do
   it "closes Codex usage-limit circuit when newer matching success evidence exists" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",
+      model: "gpt-5.5",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
     replace_failure_classification!(
@@ -331,6 +336,7 @@ RSpec.describe ProviderCircuitBreaker do
   it "keeps Codex usage-limit circuit open when success evidence is for a different model" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",
+      model: "gpt-5.5",
       message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
     )
     replace_failure_classification!(
@@ -359,6 +365,7 @@ RSpec.describe ProviderCircuitBreaker do
     run = failed_agent_run(
       provider: "claude",
       outcome: "provider_usage_limit",
+      model: "claude-sonnet-4",
       message: "You're out of extra usage · resets 7am (America/New_York)"
     )
     run.update!(finished_at: Time.zone.parse("2026-08-01 08:30:00 UTC"))
@@ -415,6 +422,21 @@ RSpec.describe ProviderCircuitBreaker do
 
     expect(decision).not_to be_open
     expect(decision.failure_count).to eq(1)
+  end
+
+  it "does not open provider circuits from repeated 429 diagnostic prose without explicit rate-limit outcomes" do
+    5.times do |index|
+      failed_agent_run(
+        job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 1),
+        outcome: "turn_failed",
+        message: "HTTP 429 too many requests appears in copied logs"
+      )
+    end
+
+    decision = described_class.call("codex", now: now)
+
+    expect(decision).not_to be_open
+    expect(decision.failure_count).to eq(0)
   end
 
   it "does not treat worker deaths as provider degradation" do

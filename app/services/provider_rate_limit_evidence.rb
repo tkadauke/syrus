@@ -28,7 +28,7 @@ class ProviderRateLimitEvidence
 
     return false if provider_only? && !provider_run?
 
-    explicit_rate_limited_log? || self.class.text_match?(text.presence || provider_text)
+    explicit_rate_limited_log? || text.present? && self.class.text_match?(text)
   end
 
   private
@@ -41,17 +41,6 @@ class ProviderRateLimitEvidence
 
   def explicit_rate_limited_log?
     include_logs? && run.job_logs.where(kind: "rate_limited").exists?
-  end
-
-  def provider_text
-    [
-      run.agent_summary,
-      run.agent_pr_title,
-      run.agent_pr_body,
-      run.run_diagnostic&.error_class,
-      run.run_diagnostic&.error_message,
-      run.run_diagnostic&.error_backtrace
-    ].compact.join("\n")
   end
 
   def include_logs?
