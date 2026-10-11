@@ -1558,6 +1558,36 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.reload).to be_succeeded
     end
 
+    it "clears a stale grader loop attention reason when the Workflow succeeds" do
+      workflow.start!; workflow.save!
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: 1.hour.ago
+      )
+      s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      described_class.advance_from(s3)
+
+      expect(workflow.reload).to be_succeeded
+      expect(job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "keeps unrelated attention reasons when the Workflow succeeds" do
+      workflow.start!; workflow.save!
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: Job::INVESTIGATION_ESCALATED_ATTENTION_REASON,
+        needs_attention_since: 1.hour.ago
+      )
+      s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      described_class.advance_from(s3)
+
+      expect(workflow.reload).to be_succeeded
+      expect(job.reload.needs_attention_reason).to eq(Job::INVESTIGATION_ESCALATED_ATTENTION_REASON)
+    end
+
     it "fails instead of succeeding when a leaked tail reaches the end behind a dirty retry barrier" do
       workflow.start!; workflow.save!
       loop_id = SecureRandom.uuid
@@ -2102,6 +2132,11 @@ RSpec.describe StepDispatcher, :ci_only do
       add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
 
       described_class.fail_from(first_collect)
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: 1.hour.ago
+      )
       second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
       add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb])
 
@@ -2111,6 +2146,48 @@ RSpec.describe StepDispatcher, :ci_only do
 
       expect(retry_workflow.reload).to be_queued
       expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
+      expect(job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "keeps unrelated attention reasons when a retry_until grader loop starts progressing" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: Job::INVESTIGATION_ESCALATED_ATTENTION_REASON,
+        needs_attention_since: 1.hour.ago
+      )
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb])
+
+      expect {
+        described_class.fail_from(second_collect)
+      }.to change { Run.count }.by(1)
+
+      expect(retry_workflow.reload).to be_queued
+      expect(job.reload.needs_attention_reason).to eq(Job::INVESTIGATION_ESCALATED_ATTENTION_REASON)
+    end
+
+    it "clears a grader loop attention reason when a later retry_until grader collect succeeds" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb])
+
+      described_class.fail_from(first_collect)
+      job.update!(
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: 1.hour.ago
+      )
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      second_collect.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      described_class.advance_from(second_collect)
+
+      expect(retry_workflow.steps.find_by(kind: "push").reload.runs.count).to eq(1)
       expect(job.reload.needs_attention_reason).to be_nil
     end
 

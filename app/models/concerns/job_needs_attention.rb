@@ -10,8 +10,9 @@ module JobNeedsAttention
     )
   end
 
-  def clear_needs_attention!
+  def clear_needs_attention!(reason: nil)
     return unless needs_attention?
+    return if reason.present? && needs_attention_reason != reason
 
     update!(
       needs_attention: false,
