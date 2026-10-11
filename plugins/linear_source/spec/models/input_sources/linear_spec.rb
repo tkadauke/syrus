@@ -24,6 +24,10 @@ RSpec.describe InputSources::Linear do
     }
   end
 
+  def epic_marker(value)
+    "<!-- syrus-epic: #{value} -->"
+  end
+
   describe "#config_schema" do
     it "returns team_id and label_filter field definitions" do
       schema = source.config_schema
@@ -165,7 +169,7 @@ RSpec.describe InputSources::Linear do
     end
 
     it "ingests an Epic declaration without creating a Job" do
-      epic_issue = linear_issue(description: "Epic: Big feature rollout")
+      epic_issue = linear_issue(description: epic_marker("Big feature rollout"))
       allow_any_instance_of(LinearClient).to receive(:issues).and_return([ epic_issue ])
 
       expect { source.poll! }.to change(Epic, :count).by(1).and change(Job, :count).by(0)
@@ -176,9 +180,19 @@ RSpec.describe InputSources::Linear do
       expect(epic.github_issue_url).to eq("linear:issue:#{epic_issue['id']}")
     end
 
+    it "does not route natural-language Epic lines" do
+      issue = linear_issue(description: "Epic: Big feature rollout")
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ issue ])
+
+      expect { source.poll! }.to change(Job, :count).by(1).and change(Epic, :count).by(0)
+
+      job = Job.find_by!(input_source: source, external_ref: issue["id"])
+      expect(job.issue_body).to eq("Epic: Big feature rollout")
+    end
+
     it "does not merge two distinct Epic declarations from different Linear issues" do
-      first = linear_issue(id: "epic-a", identifier: "LIN-10", description: "Epic: Feature A")
-      second = linear_issue(id: "epic-b", identifier: "LIN-11", description: "Epic: Feature B")
+      first = linear_issue(id: "epic-a", identifier: "LIN-10", description: epic_marker("Feature A"))
+      second = linear_issue(id: "epic-b", identifier: "LIN-11", description: epic_marker("Feature B"))
       allow_any_instance_of(LinearClient).to receive(:issues).and_return([ first, second ])
 
       expect { source.poll! }.to change(Epic, :count).by(2)
@@ -188,7 +202,7 @@ RSpec.describe InputSources::Linear do
     end
 
     it "does not duplicate the Epic when the same declaration issue is polled again" do
-      epic_issue = linear_issue(id: "epic-c", description: "Epic: Feature C")
+      epic_issue = linear_issue(id: "epic-c", description: epic_marker("Feature C"))
       allow_any_instance_of(LinearClient).to receive(:issues).and_return([ epic_issue ])
       source.poll!
 
