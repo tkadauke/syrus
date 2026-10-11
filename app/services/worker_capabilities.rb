@@ -1,3 +1,4 @@
+require "json"
 require "open3"
 require "rbconfig"
 require_relative "target_graph/execution_capabilities"
@@ -317,8 +318,11 @@ class WorkerCapabilities
       diagnostics
     end
 
+    # `[1]` rather than ActiveSupport's `second`: queue config ERB is rendered
+    # before Rails and Active Support load (see the queue partitioning spec),
+    # and this probe runs in that path on any machine with xcodebuild present.
     def parse_xcode_version(output)
-      output.to_s.lines.find { |line| line.start_with?("Xcode ") }&.split&.second
+      output.to_s.lines.find { |line| line.start_with?("Xcode ") }&.split&.[](1)
     end
 
     def parse_xcode_build_version(output)
