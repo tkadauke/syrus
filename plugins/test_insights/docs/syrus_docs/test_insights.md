@@ -37,13 +37,15 @@ way — ingestion never blocks the workflow.
 ### Oversized example names don't drop the whole batch
 
 `test_insight_cases`/`test_insight_identities`' `name`, `suite_name`, and
-`file_path` columns are plain `t.string` (MySQL `VARCHAR(255)`), but a full
-RSpec example description (nested context + it-string, sometimes
-interpolated) routinely exceeds that. `TestInsights::Ingester` truncates
-those three fields to fit before every bulk insert
-(`TestInsights::TestCase.truncate_string_column`), using the *untruncated*
-suite_name/name to compute `TestIdentity.fingerprint_for` first so a test's
-durable identity never shifts just because its display name got clipped.
+`file_path` columns are plain `t.string` (MySQL `VARCHAR(255)`), while
+`failure_message`, `failure_backtrace`, and `output` are MySQL `TEXT`
+columns. A full RSpec example description (nested context + it-string,
+sometimes interpolated) or matcher diff can exceed those storage limits.
+`TestInsights::Ingester` truncates those fields to fit before every bulk
+insert (`TestInsights::TestCase.truncate_string_column` /
+`truncate_text_column`), using the *untruncated* suite_name/name to compute
+`TestIdentity.fingerprint_for` first so a test's durable identity never
+shifts just because its display name got clipped.
 Case rows are still batched 500 at a time via `insert_all!` for throughput,
 but a batch that fails anyway (any other DB-level insert error) falls back to
 inserting row-by-row so one bad row is skipped and reported instead of

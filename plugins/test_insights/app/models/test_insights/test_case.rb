@@ -18,8 +18,13 @@ module TestInsights
     # Fingerprinting must use the untruncated name/suite_name so identity keys stay
     # stable regardless of truncation -- see TestIdentity.fingerprint_for callers.
     MAX_STRING_COLUMN_BYTES = 255
+    MAX_TEXT_COLUMN_BYTES = 64.kilobytes - 1
 
     def self.truncate_string_column(value, max_bytes: MAX_STRING_COLUMN_BYTES)
+      value.nil? ? nil : value.to_s.safe_byteslice(0, max_bytes)
+    end
+
+    def self.truncate_text_column(value, max_bytes: MAX_TEXT_COLUMN_BYTES)
       value.nil? ? nil : value.to_s.safe_byteslice(0, max_bytes)
     end
 
