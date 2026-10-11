@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: "app/frontend/main.tsx",
         output: {
-          entryFileNames: "spa.js",
+          entryFileNames: "spa-entry-[hash].digested.js",
           chunkFileNames: "spa-[name]-[hash].digested.js",
           assetFileNames: "spa-[name]-[hash].digested[extname]"
         }
