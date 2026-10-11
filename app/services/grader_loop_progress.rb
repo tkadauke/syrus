@@ -30,7 +30,10 @@ class GraderLoopProgress
     workflow.set_artifact!(ARTIFACT_KEY, rounds + [ current ])
 
     return Result.continue unless prior
-    return Result.continue if progressing?(prior.fetch("failing_set"), current.fetch("failing_set"))
+    if progressing?(prior.fetch("failing_set"), current.fetch("failing_set"))
+      workflow.job.clear_needs_attention!(reason: NO_PROGRESS_REASON) unless current["transient_only"]
+      return Result.continue
+    end
 
     stop = stop_payload(prior, current)
     workflow.set_artifact!(STOP_ARTIFACT_KEY, stop)
