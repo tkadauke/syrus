@@ -275,7 +275,7 @@ module WorkEngine
         end
 
         def active_runtime_work_for_job?(job)
-          WorkUnits::TerminalWorkflowSync.for_job(job)
+          WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(job)
           job.reload.active_runtime_work?
         end
 

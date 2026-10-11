@@ -8,14 +8,20 @@ module WorkUnits
     def self.for_job(job)
       return unless job
 
-      job.workflows.terminal.includes(:work_unit).find_each do |workflow|
-        call(workflow)
-      end
+      sync_terminal_workflows_for_job(job)
 
       return if job.closed?
 
       terminal_work_unit_owned_active_workflows_for_job(job).each do |ownership|
         call(ownership.workflow)
+      end
+    end
+
+    def self.sync_terminal_workflows_for_job(job)
+      return unless job
+
+      job.workflows.terminal.includes(:work_unit).find_each do |workflow|
+        call(workflow)
       end
     end
 

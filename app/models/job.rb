@@ -305,13 +305,13 @@ class Job < ApplicationRecord
   end
 
   def active_runtime_work?
-    WorkUnits::TerminalWorkflowSync.for_job(self)
+    WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(self)
 
     any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
 
   def approval_blocking_runtime_work?
-    WorkUnits::TerminalWorkflowSync.for_job(self)
+    WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(self)
 
     approval_blocking_active_run? || approval_blocking_active_work_unit?
   end
@@ -1231,7 +1231,7 @@ class Job < ApplicationRecord
   end
 
   def active_runtime_workflows
-    WorkUnits::TerminalWorkflowSync.for_job(self)
+    WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(self)
 
     Workflow
       .where(id: WorkUnits::Ownership.active_workflow_ids([ id ], kinds: WorkDefinitions.first_class_work_unit_kinds).to_a)

@@ -1634,7 +1634,7 @@ module WorkEngine
     def active_runtime_workflows_for_job(job)
       @active_runtime_workflows_for_job ||= {}
       @active_runtime_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(job)
         active_work_units_for_job(job)
           .select { |unit| first_class_work_unit?(unit) }
           .filter_map(&:workflow)
@@ -1646,7 +1646,7 @@ module WorkEngine
     def active_work_unit_owned_workflows_for_job(job)
       @active_work_unit_owned_workflows_for_job ||= {}
       @active_work_unit_owned_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(job)
         active_work_units_for_job(job)
           .filter_map(&:workflow)
           .uniq(&:id)
@@ -3615,7 +3615,7 @@ module WorkEngine
     def active_runtime_work_for_job?(job)
       return false unless job
 
-      WorkUnits::TerminalWorkflowSync.for_job(job)
+      WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(job)
       job.reload.active_runtime_work?
     end
 

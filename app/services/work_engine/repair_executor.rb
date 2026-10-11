@@ -205,7 +205,7 @@ module WorkEngine
         def active_runtime_work_for_job?(job)
           return false unless job
 
-          WorkUnits::TerminalWorkflowSync.for_job(job)
+          WorkUnits::TerminalWorkflowSync.sync_terminal_workflows_for_job(job)
           job.reload.active_runtime_work?
         end
 
@@ -478,6 +478,7 @@ module WorkEngine
           return skipped("Run cannot transition to failed") unless run.may_fail?
 
           existing_run_ids = run.step&.runs&.pluck(:id) || []
+          existing_attempt_ids = run.workflow&.auto_retry_attempts&.where(run: run)&.pluck(:id) || []
           with_transition_reason do
             run.agent_outcome = AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
             run.fail!
@@ -486,6 +487,9 @@ module WorkEngine
           orphan_running_spawned_processes_for!(run)
           if (replacement_run = worker_died_replacement_run(run, existing_run_ids: existing_run_ids))
             return success("marked #{run_label(run)} worker_died; queued replacement #{run_label(replacement_run)} on #{step_label(run.step)}")
+          end
+          if (attempt = worker_died_retry_attempt(run, existing_attempt_ids: existing_attempt_ids))
+            return success("marked #{run_label(run)} worker_died; scheduled #{attempt.retry_kind} auto-retry ##{attempt.id} for #{step_label(run.step)}")
           end
 
           success("marked #{run_label(run)} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
@@ -501,6 +505,10 @@ module WorkEngine
 
         def worker_died_replacement_run(run, existing_run_ids:)
           run.step&.runs&.where.not(id: existing_run_ids)&.order(:id)&.last
+        end
+
+        def worker_died_retry_attempt(run, existing_attempt_ids:)
+          run.workflow&.auto_retry_attempts&.unskipped&.where(run: run)&.where.not(id: existing_attempt_ids)&.order(:id)&.last
         end
 
         def transient_database_lock_error?(error)
