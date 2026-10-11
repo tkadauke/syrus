@@ -6,6 +6,9 @@ class VisualDiffSubmission
   AUTOMATIC_SOURCE = "visual_review".freeze
   MANUAL_SOURCE = "manual".freeze
   BASELINE_TYPE = "visual_diff_baseline_screenshot".freeze
+  VISUAL_REVIEW_SOURCE_TRIGGER_KINDS = %w[
+    initial retry pr_comment chat_feedback manual_visual_review
+  ].freeze
 
   def self.call(job:, source: MANUAL_SOURCE, after_workflow: nil, after_iteration: nil)
     new(job: job, source: source, after_workflow: after_workflow, after_iteration: after_iteration).call
@@ -30,12 +33,16 @@ class VisualDiffSubmission
     return unless job.reload.implemented?
 
     job.workflows
-      .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
+      .where(trigger_kind: VISUAL_REVIEW_SOURCE_TRIGGER_KINDS)
       .order(created_at: :desc, id: :desc)
       .each do |workflow|
         result = enqueue_deferred_for_visual_review(workflow)
         return result if result&.success?
       end
+  end
+
+  def self.visual_review_source_workflow?(workflow)
+    workflow.present? && workflow.trigger_kind.in?(VISUAL_REVIEW_SOURCE_TRIGGER_KINDS)
   end
 
   def self.latest_approved_iteration_with_artifacts(workflow)
@@ -145,7 +152,7 @@ class VisualDiffSubmission
 
   def latest_visual_artifacts
     job.workflows
-      .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
+      .where(trigger_kind: VISUAL_REVIEW_SOURCE_TRIGGER_KINDS)
       .order(created_at: :desc, id: :desc)
       .lazy
       .map { |workflow| artifacts_for_workflow(workflow, nil) }
