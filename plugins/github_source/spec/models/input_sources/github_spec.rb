@@ -20,6 +20,10 @@ RSpec.describe InputSources::Github do
     )
   end
 
+  def epic_marker(value)
+    "<!-- syrus-epic: #{value} -->"
+  end
+
   describe "#trigger_label" do
     it "returns the config value" do
       expect(source.trigger_label).to eq("syrus")
@@ -117,7 +121,7 @@ RSpec.describe InputSources::Github do
 
     it "ingests an Epic declaration without creating a Job" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
-        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+        .and_return([ issue(number: 77, body: epic_marker("Attachments rollout")) ])
 
       expect { source.poll! }.to change(Epic, :count).by(1).and change(Job, :count).by(0)
 
@@ -125,6 +129,17 @@ RSpec.describe InputSources::Github do
       expect(epic.user).to eq(user)
       expect(epic.repository).to eq(repository)
       expect(epic.title).to eq("Attachments rollout")
+    end
+
+    it "does not route natural-language Epic lines" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+
+      expect { source.poll! }.to change(Job, :count).by(1).and change(Epic, :count).by(0)
+
+      job = Job.find_by!(repository: repository, issue_number: 77)
+      expect(job.input_source).to eq(source)
+      expect(job.issue_body).to eq("Epic: Attachments rollout")
     end
 
     it "preloads prior jobs and referenced epics for the issue batch" do
@@ -137,9 +152,9 @@ RSpec.describe InputSources::Github do
       )
       existing = Factories.job(user: user, repository: repository, issue_number: 101)
       issues = [
-        issue(number: 101, body: "Epic: #77"),
-        issue(number: 102, body: "Epic: #77"),
-        issue(number: 103, body: "Epic: #77")
+        issue(number: 101, body: epic_marker("#77")),
+        issue(number: 102, body: epic_marker("#77")),
+        issue(number: 103, body: epic_marker("#77"))
       ]
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
         state == "closed" ? [] : issues

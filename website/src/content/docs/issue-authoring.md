@@ -34,7 +34,7 @@ syrus
 An Epic declaration:
 
 ```markdown
-epic: Release hardening
+<!-- syrus-epic: Release hardening -->
 
 Group the release hardening Jobs here.
 ```
@@ -42,7 +42,7 @@ Group the release hardening Jobs here.
 A child Job attached to that Epic:
 
 ```markdown
-epic: #123
+<!-- syrus-epic: #123 -->
 
 Tighten the checkout error message.
 ```
@@ -50,7 +50,7 @@ Tighten the checkout error message.
 A child Job that must wait for another child Job:
 
 ```markdown
-epic: #123
+<!-- syrus-epic: #123 -->
 depends on: #124
 
 Update the docs after the API change lands.
@@ -59,8 +59,19 @@ Update the docs after the API change lands.
 Cross-repository references include `owner/repo` before the issue number:
 
 ```markdown
-epic: acme/platform#123
+<!-- syrus-epic: acme/platform#123 -->
 blocked by: acme/platform#124, acme/docs#8
+```
+
+Only the `syrus-epic` HTML comment is interpreted as Epic routing metadata.
+Visible prose such as `Epic: #123`, quoted text, headings, or issue-template
+fields are treated as ordinary issue text. To migrate an older template that
+already contains an `Epic: ...` line, wrap that line in a Syrus marker block:
+
+```markdown
+<!-- syrus-epic
+Epic: #123
+-->
 ```
 
 ## Labels
@@ -99,10 +110,11 @@ starts implementation, or reject it to close it as cancelled.
 
 ## Epic Markers
 
-Syrus reads Epic markers from standalone lines in the issue body:
+Syrus reads Epic markers only from explicit Syrus-owned HTML comments in the
+issue body:
 
 ```markdown
-epic: Release hardening
+<!-- syrus-epic: Release hardening -->
 ```
 
 When the value is plain text, the issue declares an Epic. Syrus creates or
@@ -110,22 +122,31 @@ finds the Epic by the GitHub issue URL and uses the marker value as the Epic
 title.
 
 ```markdown
-epic: #123
+<!-- syrus-epic: #123 -->
 ```
 
 When the value is an issue reference, the issue becomes a child Job of the
 Epic declared by that referenced issue. The reference can be same-repository
-(`#123`) or cross-repository (`owner/repo#123`).
+(`#123` or `123`) or cross-repository (`owner/repo#123`).
 
-The `#` is required. `epic: 123` is treated as malformed and ignored rather
-than interpreted as issue `#123`. Likewise, `epic: owner/repo123` or other
-values containing a broken `#` reference are ignored. If Syrus ignores a
-malformed Epic marker, the issue follows the ordinary Job ingestion path.
+Visible prose such as `Epic: #123`, markdown headings, quoted text, and issue
+template fields are ignored for Epic routing. Existing templates can migrate by
+wrapping the old visible line in a marker block:
 
-Filing order does not matter. If a child issue says `epic: #123` before the
+```markdown
+<!-- syrus-epic
+Epic: #123
+-->
+```
+
+Values containing a broken `#` reference, such as `owner/repo123`, are ignored.
+If Syrus ignores a malformed Epic marker, the issue follows the ordinary Job
+ingestion path.
+
+Filing order does not matter. If a child issue references an Epic before the
 Epic issue itself has been ingested, Syrus creates the child Job in a pending
-Epic-reference state. When the Epic issue is later labelled and ingested,
-Syrus resolves the pending child automatically.
+Epic-reference state. When the Epic issue is later labelled and ingested, Syrus
+resolves the pending child automatically.
 
 ## Dependencies
 
@@ -182,18 +203,18 @@ A common pattern is:
 
 ```markdown
 # Issue 124
-epic: #123
+<!-- syrus-epic: #123 -->
 
 Build the database model.
 
 # Issue 125
-epic: #123
+<!-- syrus-epic: #123 -->
 depends on: #124
 
 Add the API endpoint.
 
 # Issue 126
-epic: #123
+<!-- syrus-epic: #123 -->
 depends on: #125
 
 Document the endpoint.
