@@ -9,7 +9,10 @@ RSpec.describe BackendExceptionLogging do
   it "records request exceptions independent of operational log indexing" do
     allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(false)
     exception = NoMethodError.new("undefined method `map' for nil")
-    exception.set_backtrace([ Rails.root.join("app/controllers/widgets_controller.rb:12").to_s ])
+    exception.set_backtrace([
+      Rails.root.join("app/controllers/widgets_controller.rb:12").to_s,
+      Rails.root.join("app/services/widget_lookup.rb:34").to_s
+    ])
 
     described_class.ingest_request({
       exception: [ "NoMethodError", exception.message ],
@@ -34,6 +37,21 @@ RSpec.describe BackendExceptionLogging do
       status: 500
     )
     expect(event.metadata).to include("duration_ms" => "123.4")
+    expect(event.backtrace.lines.map(&:chomp)).to eq([
+      "app/controllers/widgets_controller.rb:12",
+      "app/services/widget_lookup.rb:34"
+    ])
+  end
+
+  it "preserves backtrace frame line breaks when normalizing direct event writes" do
+    event = BackendExceptionEvent.create!(
+      source: "action_controller",
+      exception_class: "NoMethodError",
+      message: "undefined method `map' for nil",
+      backtrace: "app/controllers/widgets_controller.rb:12\r\napp/services/widget_lookup.rb:34"
+    )
+
+    expect(event.backtrace).to eq("app/controllers/widgets_controller.rb:12\napp/services/widget_lookup.rb:34")
   end
 
   it "records active job exceptions with the current run context" do
