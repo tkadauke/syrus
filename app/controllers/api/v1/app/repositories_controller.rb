@@ -555,7 +555,8 @@ module Api
               visual_review_mode: "unavailable",
               adversarial_review_rounds: nil,
               coverage_configured: false,
-              delivery_tracks_count: 0
+              delivery_tracks_count: 0,
+              merge_train_failure_policy: nil
             }
           end
 
@@ -572,7 +573,8 @@ module Api
             visual_review_mode: visual_review_mode(config.visual_review),
             adversarial_review_rounds: config.adversarial_review&.rounds,
             coverage_configured: config.coverage.present?,
-            delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0
+            delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0,
+            merge_train_failure_policy: config.merge_train&.failure_policy.presence
           }
         end
 
