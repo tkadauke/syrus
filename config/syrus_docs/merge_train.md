@@ -93,6 +93,27 @@ Three cases are handled before they can fail at all:
   Nothing has been published at that point, so this asks for a rebuild rather
   than failing the train and clearing every other member's approval.
 
+Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
+appears as visible `merge_train_multisect_prepare`,
+`merge_train_multisect_evaluate`, and `merge_train_multisect_collect` Steps in
+the failed merge-train workflow. Prepare records the selected rung, candidate
+members, focused selector, base/integration SHAs, section width, planned first
+sections, and oracle eligibility. Evaluation Steps run the focused subset
+checks; when distributed workflow DAG execution is enabled for the repository,
+those section evaluations use immutable-source workspaces so a round's
+`AppSetting.merge_train_multisect_section_width - 1` focused grades can fan out
+across workers. Collect validates that the full assembly oracle reproduced,
+checks the existing flaky/inherited-failure gates, narrows to the reproducing
+section, and schedules the next round or omitted-section confirmation.
+
+When one graded section reproduces, Syrus also confirms the omitted section
+before narrowing so an interaction with the omitted section cannot be
+misreported as a single culprit. Multiple reproducing sections abort as an
+interaction failure; an empty selector or a non-reproducing oracle aborts
+without attribution. On success Syrus records a `merge_train_multisect` workflow
+artifact naming the attributed member and preserves the train for the next rung
+or operator review. Automatic member withdrawal is not part of this rung.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.

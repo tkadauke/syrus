@@ -68,6 +68,9 @@ grade:
       ci:
         include: [ci_only]
 
+merge_train:
+  failure_rungs: [multisect]
+
 hooks:
   post_checkout:
     - bundle exec rails db:migrate
@@ -81,6 +84,7 @@ Schema:
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
 | `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
+| `merge_train.failure_rungs` | Array of strings | Repository-local merge-train failure rungs; currently supports the visible prepare/evaluate/collect `multisect` rung |
 | `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |

@@ -846,6 +846,29 @@ The lookback is exactly one iteration: a grader that is itself carried forward (
 
 Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
 
+## merge_train
+
+Configures repository-local merge-train failure handling.
+
+```yaml
+merge_train:
+  failure_rungs: [multisect]
+```
+
+`failure_rungs` is an ordered list of enabled failure-response rungs. Today the
+supported repository-configured rung is `multisect`.
+
+The multisect section width is instance-wide:
+`AppSetting.merge_train_multisect_section_width` controls how many sections the
+walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
+spend more concurrent focused grades per round to reduce wall-clock rounds, so
+raise the setting only when the instance's worker/build capacity can absorb the
+extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
+inside the failed merge-train workflow; with distributed workflow DAG execution
+enabled for the repository, each focused section evaluation gets its own
+immutable-source workspace and Run. Terminal multisect results are record-only
+and preserve the train for the next rung or operator review.
+
 ## formatters
 
 Configures the `format` step: a deterministic pass that runs after the agentic step (`implement`/`respond`) and before graders check, on every grader-retry iteration, so a style-only failure a formatter could fix for free doesn't cost the agent a turn.

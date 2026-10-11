@@ -26,6 +26,14 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
   end
 
   describe "#call" do
+    around do |example|
+      previous = described_class.multisect_evaluator
+      described_class.multisect_evaluator = nil
+      example.run
+    ensure
+      described_class.multisect_evaluator = previous
+    end
+
     # merge_train_build publishes the integration branch so the rest of the
     # chain is worker-independent. The landing path already deletes it on the
     # way out; a train that never lands has to as well, or every failed train
@@ -149,6 +157,79 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
 
       expect(train.reload).to be_terminal
       expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "starts the configured multisect rung as visible workflow steps" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(
+        train,
+        b,
+        failure_reason: "required graders failed",
+      )
+      workflow.update!(artifacts: workflow.artifacts.merge(
+        GraderLoopProgress::ARTIFACT_KEY => [
+          { "iteration" => 1, "failing_set" => [ "spec/a_spec.rb\u0000fails" ] }
+        ]
+      ))
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
+      config = SyrusYml::Config.new(
+        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
+        coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
+        merge_train: SyrusYml::MergeTrainConfig.new(failure_rungs: [ "multisect" ]),
+        project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil
+      )
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil, outcome: :loaded)
+      )
+      described_class.multisect_evaluator = ->(**) { raise "multisect should run through workflow steps" }
+      AppSetting.current.update!(merge_train_multisect_section_width: 2)
+
+      described_class.call(workflow: workflow)
+
+      workflow.reload
+      expect(workflow).to be_running
+      expect(workflow.steps.order(:position).pluck(:kind)).to include(
+        "merge_train_multisect_prepare",
+        "merge_train_multisect_collect"
+      )
+      expect(workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY)).to be_present
+      expect(workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY)).to be_nil
+      expect(train.reload).not_to be_terminal
+    end
+
+    it "preserves members after multisect records an attributed member" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(train, b, failure_reason: "merge_train_multisect: attributed failure to #{a.slug}")
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_multisect_collect", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
+      workflow.set_artifact!(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY, Time.current.iso8601)
+      workflow.set_artifact!(
+        MergeTrainMultisect::ARTIFACT_KEY,
+        {
+          "status" => "attributed",
+          "reason" => "isolated_member",
+          "attributed_member" => MergeTrainMultisect.member_payload(train.members.find_by!(job: a))
+        }
+      )
+      expect(LandingFailureHandler).not_to receive(:call)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      expect(client).not_to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(train.members.reload.map(&:state)).not_to include("failed")
+      expect(a.reload).to be_landing
+      expect(b.reload).to be_landing
     end
 
     it "reverts members with no evidence of landing back to a re-landable state" do

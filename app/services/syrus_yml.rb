@@ -77,7 +77,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph, :scripts)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -147,6 +147,7 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
+  MergeTrainConfig = Data.define(:failure_rungs)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
@@ -292,6 +293,7 @@ class SyrusYml
       raw_delivery: raw_delivery,
       approval: parse_approval(raw["approval"]),
       external_prs: parse_external_prs(raw["external_prs"]),
+      merge_train: parse_merge_train(raw["merge_train"]),
       project: parse_project(raw["project"]),
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
@@ -1410,6 +1412,30 @@ class SyrusYml
     raise ParseError, "external_prs: must be a mapping" unless raw.is_a?(Hash)
 
     ExternalPrsConfig.new(ingest: parse_external_prs_ingest(raw["ingest"]))
+  end
+
+  def parse_merge_train(raw)
+    return nil if raw.nil?
+    raise ParseError, "merge_train: must be a mapping" unless raw.is_a?(Hash)
+
+    rungs = parse_merge_train_failure_rungs(raw["failure_rungs"] || raw["failure_ladder"])
+    MergeTrainConfig.new(failure_rungs: rungs)
+  end
+
+  def parse_merge_train_failure_rungs(raw)
+    values =
+      case raw
+      when nil then []
+      when String then [ raw ]
+      when Array then raw
+      else raise ParseError, "merge_train.failure_rungs: must be a rung string or an array of rung strings"
+      end
+
+    rungs = values.map { |value| value.to_s.strip }.reject(&:empty?).uniq
+    invalid = rungs - %w[multisect]
+    raise ParseError, "merge_train.failure_rungs: must contain only multisect" if invalid.any?
+
+    rungs
   end
 
   def parse_external_prs_ingest(raw)

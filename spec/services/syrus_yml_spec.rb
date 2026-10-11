@@ -2673,4 +2673,35 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.config/)
     end
   end
+
+  describe "merge_train" do
+    it "parses the multisect failure rung" do
+      config = parse(<<~YAML)
+        merge_train:
+          failure_rungs: [multisect]
+      YAML
+
+      expect(config.merge_train.failure_rungs).to eq([ "multisect" ])
+    end
+
+    it "ignores legacy multisect section width config" do
+      config = parse(<<~YAML)
+        merge_train:
+          failure_rungs: [multisect]
+          multisect:
+            section_width: 1
+      YAML
+
+      expect(config.merge_train.failure_rungs).to eq([ "multisect" ])
+    end
+
+    it "rejects invalid failure rungs" do
+      expect {
+        parse(<<~YAML)
+          merge_train:
+            failure_rungs: [unknown]
+        YAML
+      }.to raise_error(SyrusYml::ParseError, /merge_train\.failure_rungs/)
+    end
+  end
 end
