@@ -308,6 +308,7 @@ export type RepositorySyrusYmlSummary = {
   adversarial_review_rounds: number | null
   coverage_configured: boolean
   delivery_tracks_count: number
+  merge_train_failure_policy: string[] | null
 }
 
 export type RepositoryCognitiveDebtPayload = {

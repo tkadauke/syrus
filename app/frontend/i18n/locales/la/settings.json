@@ -656,6 +656,18 @@
     "syrus_yml_loaded": "Ex {{source}} onerata.",
     "syrus_yml_not_loaded": "Non onerata.",
     "syrus_yml_not_loaded_with_note": "Non onerata: {{note}}",
+    "syrus_yml_merge_train_failure_policy": "Scala defectus merge-train",
+    "syrus_yml_merge_train_fallback": "Praedefinitum instantiae adhibetur",
+    "syrus_yml_merge_train_fallback_detail": "Nulla merge_train.failure_policy in .syrus.yml; Syrus praedefinitum instantiae adhibet.",
+    "syrus_yml_merge_train_button": "Scala",
+    "syrus_yml_merge_train_rung_restart": "restart",
+    "syrus_yml_merge_train_rung_keep_assembly": "keep_assembly",
+    "syrus_yml_merge_train_up": "Sursum",
+    "syrus_yml_merge_train_down": "Deorsum",
+    "syrus_yml_merge_train_move_up": "{{rung}} sursum movere",
+    "syrus_yml_merge_train_move_down": "{{rung}} deorsum movere",
+    "syrus_yml_merge_train_yaml": ".syrus.yml",
+    "syrus_yml_merge_train_clear": "Praedefinitum instantiae uti",
     "needs_triage_showing_limited": "Ostenduntur {{shown}} ex {{total}}"
   },
   "delivery": {

@@ -656,6 +656,18 @@
     "syrus_yml_loaded": "Aus {{source}} geladen.",
     "syrus_yml_not_loaded": "Nicht geladen.",
     "syrus_yml_not_loaded_with_note": "Nicht geladen: {{note}}",
+    "syrus_yml_merge_train_failure_policy": "Merge-Train-Fehlerleiter",
+    "syrus_yml_merge_train_fallback": "Instanz-Fallback wird verwendet",
+    "syrus_yml_merge_train_fallback_detail": "Keine merge_train.failure_policy in .syrus.yml; Syrus verwendet den Instanz-Standard.",
+    "syrus_yml_merge_train_button": "Leiter",
+    "syrus_yml_merge_train_rung_restart": "restart",
+    "syrus_yml_merge_train_rung_keep_assembly": "keep_assembly",
+    "syrus_yml_merge_train_up": "Hoch",
+    "syrus_yml_merge_train_down": "Runter",
+    "syrus_yml_merge_train_move_up": "{{rung}} nach oben bewegen",
+    "syrus_yml_merge_train_move_down": "{{rung}} nach unten bewegen",
+    "syrus_yml_merge_train_yaml": ".syrus.yml",
+    "syrus_yml_merge_train_clear": "Instanz-Fallback verwenden",
     "needs_triage_showing_limited": "Zeige {{shown}} von {{total}}"
   },
   "delivery": {
