@@ -2282,7 +2282,7 @@ module WorkEngine
     def classify_approved_jobs_with_landing_start_blockers
       jobs.filter_map do |job|
         next unless job.approved?
-        next unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
+        next unless job.landing_failure_kind&.landing_start_blocker?
         next if active_runtime_work_for_job?(job)
 
         issue(

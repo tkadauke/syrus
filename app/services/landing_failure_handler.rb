@@ -61,10 +61,11 @@ class LandingFailureHandler
     return unless job&.landing?
 
     job.landing_failure_reason = reason.truncate(500)
-    if infrastructure_blocker?
+    job.landing_failure_code = failure_code.code
+    if failure_code.pause_landing?
       pause_landing!
       job.defer_landing! if job.may_defer_landing?
-    elsif rebase_cap_blocker? || merge_train_rebuild_required? || landing_start_blocker? || transient_blocker?
+    elsif failure_code.defer_landing?
       log_deferral!
       job.defer_landing! if job.may_defer_landing?
     else
@@ -89,14 +90,33 @@ class LandingFailureHandler
     return @problem if @problem || @problem_resolved
 
     @problem_resolved = true
-    # Queried directly, not through `run.run_diagnostic`: CaptureRunDiagnostic
-    # creates the row with create_or_find_by!, which leaves an already-loaded
-    # association cached as nil on the very Run we are asked about.
-    code = RunDiagnostic.where(run_id: run.id).pick(:problem_code) if run
+    # Queried directly, not through associations: CaptureRunDiagnostic and
+    # RunFailureClassifier can create rows after the Run object was loaded,
+    # leaving cached associations stale on the very Run we are asked about.
+    code = if run
+      RunDiagnostic.where(run_id: run.id).pick(:problem_code).presence ||
+        RunFailureClassification.where(run_id: run.id).pick(:classification)
+    end
     @problem = Problem.resolve(code) if code.present?
   end
 
   def problem_code = problem&.code
+
+  def failure_code
+    @failure_code ||= LandingFailureCode.from_problem(problem) ||
+      classified_reason_code ||
+      LandingFailureCode.fetch(LandingFailureCode::ATTRIBUTABLE_FAILURE)
+  end
+
+  def classified_reason_code
+    return LandingFailureCode.fetch(LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED) if merge_train_rebuild_required?
+    return LandingFailureCode.fetch(LandingFailureCode::LANDING_START_BLOCKED) if landing_start_blocker?
+    return LandingFailureCode.fetch(LandingFailureCode::INFRASTRUCTURE_BLOCKER) if infrastructure_blocker?
+    return LandingFailureCode.fetch(LandingFailureCode::REBASE_CAP_REACHED) if rebase_cap_blocker?
+    return LandingFailureCode.fetch(LandingFailureCode::TRANSIENT_BLOCKER) if transient_blocker?
+
+    nil
+  end
 
   def infrastructure_blocker?
     return true if problem_code == "disk_full"
@@ -115,7 +135,7 @@ class LandingFailureHandler
   end
 
   def landing_start_blocker?
-    reason.match?(/\Alanding start blocked: /i)
+    LandingQueueReentry.legacy_landing_start_blocker_reason?(reason)
   end
 
   def transient_blocker?
@@ -123,7 +143,7 @@ class LandingFailureHandler
   end
 
   def self.stale_merge_train_base?(reason)
-    merge_train_rebuild_required?(reason)
+    code_or_legacy_reason(reason)&.merge_train_rebuild_required? || false
   end
 
   def self.merge_train_rebuild_required?(reason)
@@ -131,6 +151,10 @@ class LandingFailureHandler
     text.match?(/\Amerge_train: base moved .* rebuild required/i) ||
       text.match?(/\Amerge_train: missing built base SHA; rebuild required/i) ||
       text.match?(/\Amerge_train: members not in :landing \(.*\); rebuild required/i)
+  end
+
+  def self.code_or_legacy_reason(code_or_reason)
+    LandingFailureCode.resolve(code_or_reason) || LandingFailureCode.legacy_from_reason(code_or_reason)
   end
 
   def pause_landing!
@@ -157,11 +181,11 @@ class LandingFailureHandler
     log_run = run || job.current_run
     return unless log_run
 
-    message = if landing_start_blocker?
+    message = if failure_code.landing_start_blocker?
       "landing_queue: deferred landing because the landing workflow could not start yet (#{reason.truncate(180)})"
-    elsif transient_blocker?
+    elsif failure_code.code == LandingFailureCode::TRANSIENT_BLOCKER
       "landing_queue: deferred landing after a transient failure; the Job keeps its approval and the queue will try again (#{reason.truncate(180)})"
-    elsif merge_train_rebuild_required?
+    elsif failure_code.merge_train_rebuild_required?
       "landing_queue: deferred landing because the merge-train validation is stale or incomplete; Syrus will rebuild the train"
     else
       "landing_queue: deferred landing because the rebase cap was reached; run a manual rebase or wait for the PR head/base to change before retrying"

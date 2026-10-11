@@ -123,6 +123,49 @@ RSpec.describe LandingFailureHandler do
     expect(run.job_logs.pluck(:chunk)).to include(include("landing_queue: paused landing"))
   end
 
+  it "uses the structured problem code for pause decisions even when the explanation wording changes" do
+    job = landing_job
+    run = auto_merge_run(job)
+    RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed",
+                          error_message: "worker capacity exhausted",
+                          problem_code: "disk_full")
+
+    described_class.call(
+      job: job,
+      run: run,
+      reason: "the worker cannot accept more bytes right now"
+    )
+
+    expect(job.reload.landing_failure_code).to eq(LandingFailureCode::INFRASTRUCTURE_BLOCKER)
+    expect(job).to be_approved
+    expect(user.reload).to be_landing_paused
+  end
+
+  it "uses a persisted run classification for deferral even when the explanation wording changes" do
+    job = landing_job
+    run = auto_merge_run(job)
+    approved_at = job.approved_at
+    RunFailureClassification.create!(
+      run: run,
+      classification: "mcp_sidecar_failure",
+      retryable: true,
+      confidence: 0.75,
+      reason: "The agent sidecar failed or disconnected.",
+      classified_at: Time.current
+    )
+
+    described_class.call(
+      job: job,
+      run: run,
+      reason: "landing support process exited before reporting readiness"
+    )
+
+    expect(job.reload.landing_failure_code).to eq(LandingFailureCode::TRANSIENT_BLOCKER)
+    expect(job).to be_approved
+    expect(job.approved_at).to eq(approved_at)
+    expect(user.reload).not_to be_landing_paused
+  end
+
   it "preserves approval for rebase cap blockers without globally pausing landing" do
     job = landing_job
     run = auto_merge_run(job)
@@ -156,6 +199,26 @@ RSpec.describe LandingFailureHandler do
     expect(job.approved_at).to eq(approved_at)
     expect(job.landing_failure_reason).to include("missing built base SHA")
     expect(user.reload.landing_paused).to eq(false)
+    expect(run.job_logs.pluck(:chunk)).to include(include("merge-train validation is stale or incomplete"))
+  end
+
+  it "uses the structured problem code for merge-train rebuild decisions even when the explanation wording changes" do
+    job = landing_job
+    run = auto_merge_run(job)
+    approved_at = job.approved_at
+    RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed",
+                          error_message: "integration branch needs a fresh build",
+                          problem_code: "merge_train_rebuild_required")
+
+    described_class.call(
+      job: job,
+      run: run,
+      reason: "integration branch needs a fresh build"
+    )
+
+    expect(job.reload.landing_failure_code).to eq(LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED)
+    expect(job).to be_approved
+    expect(job.approved_at).to eq(approved_at)
     expect(run.job_logs.pluck(:chunk)).to include(include("merge-train validation is stale or incomplete"))
   end
 

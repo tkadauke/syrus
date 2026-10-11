@@ -89,7 +89,7 @@ class LandingRetrier
       job.lock!
       if job.landing?
         job.defer_landing! if job.may_defer_landing?
-        job.assign_attributes(landing_failure_reason: nil)
+        job.assign_attributes(landing_failure_reason: nil, landing_failure_code: nil)
         job.save! if job.changed?
         next job
       end
@@ -103,7 +103,8 @@ class LandingRetrier
         approved_via: nil,
         approved_by_user_id: nil,
         approval_evidence: {},
-        landing_failure_reason: nil
+        landing_failure_reason: nil,
+        landing_failure_code: nil
       )
       job.job_approvals.destroy_all
       job.save!

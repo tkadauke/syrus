@@ -16,6 +16,7 @@ class MergeTrain < ApplicationRecord
   validates :state, inclusion: { in: STATES }
   validates :priority, inclusion: { in: Job::PRIORITIES }, allow_nil: true
   validate :epic_or_priority_but_not_both
+  before_save :clear_failure_code_without_reason
 
   scope :active, -> { where.not(state: TERMINAL_STATES) }
 
@@ -47,7 +48,16 @@ class MergeTrain < ApplicationRecord
     TERMINAL_STATES.include?(state)
   end
 
+  def failure_kind
+    LandingFailureCode.resolve(failure_code) ||
+      LandingFailureCode.legacy_from_reason(failure_reason)
+  end
+
   private
+
+  def clear_failure_code_without_reason
+    self.failure_code = nil if failure_reason.blank?
+  end
 
   def epic_or_priority_but_not_both
     epic_backed = epic_id.present?

@@ -21,6 +21,7 @@ class LandingWorkJobState
         return false unless repairable?
 
         job.landing_failure_reason = nil
+        job.landing_failure_code = nil
         if job.may_start_landing?
           job.start_landing!
         elsif job.may_repair_to_landing?

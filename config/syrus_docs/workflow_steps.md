@@ -158,10 +158,12 @@ starts.
 The declared code is persisted on the Run's diagnostic and read by the layers
 that act on the failure — `RunFailureClassifier` returns it directly (with
 confidence `1.0`, because it is a report rather than a guess), and
-`LandingFailureHandler` uses it to tell "rebuild this train" apart from "this
-landing is dead". Those layers previously recovered the meaning by matching
-regular expressions against the message text, and they disagreed with each
-other whenever the wording drifted.
+`LandingFailureHandler` persists a derived `landing_failure_code` so later
+landing queue and merge-train decisions can tell "rebuild this train" apart
+from "this landing is dead" without reparsing the explanation text. Those
+layers previously recovered the meaning by matching regular expressions
+against the message text, and they disagreed with each other whenever the
+wording drifted.
 
 Declaring a problem is **optional and should stay that way**. Most failures are
 genuinely opaque at the raise site — a git command failed, the provider
@@ -187,12 +189,11 @@ command then succeeds because the first attempt left the missing gem behind.
 A genuinely broken manifest still fails, one attempt later. The recorded
 `prepare_failure` is always the final attempt.
 
-A `prepare` failure inside a **landing** workflow is also treated as transient by
-`LandingFailureHandler` (`TRANSIENT_BLOCKER_PATTERNS`): the workflow never
-reached a grader, so nothing about the change was rejected — the environment
-failed to build. The Job keeps its approval and the landing queue retries,
-rather than reverting to `implemented` and making an operator re-approve work
-that was never judged.
+A `prepare` failure inside a **landing** workflow is also treated as transient
+by `LandingFailureHandler`: the workflow never reached a grader, so nothing
+about the change was rejected — the environment failed to build. The Job keeps
+its approval and the landing queue retries, rather than reverting to
+`implemented` and making an operator re-approve work that was never judged.
 
 Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `merge_train_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`, `main_branch_repair`.
 
