@@ -1779,6 +1779,57 @@ RSpec.describe StepDispatcher, :ci_only do
   end
 
   describe ".fail_from" do
+    # Regression: `grader_fanout` has no fail_policy, so `fail!` fell through to
+    # hard_fail_workflow! no matter how the run was classified. A deploy
+    # restarting a worker mid-fanout therefore killed whole merge trains, even
+    # though the run was already recorded as retryable infrastructure.
+    def failed_fanout_with(classification:, retryable:)
+      wf = workflow_with_grader_retry_until(max_iterations: 3)
+      fanout = wf.steps.find_by!(kind: "grader_fanout", iteration: 1)
+      run = fanout.runs.create!(job: job, trigger_kind: "manual")
+      run.update_column(:state, "failed")
+      RunFailureClassification.create!(
+        run: run,
+        classification: classification,
+        retryable: retryable,
+        classified_at: Time.current
+      )
+      fanout.update_column(:state, "failed")
+      [ wf, fanout ]
+    end
+
+    it "retries a hard-failing step whose run died of infrastructure" do
+      wf, fanout = failed_fanout_with(classification: "worker_died", retryable: true)
+
+      expect { described_class.fail_from(fanout) }.to change { fanout.reload.runs.count }.by(1)
+
+      expect(fanout.reload.state).to eq("queued")
+      expect(wf.reload.state).not_to eq("failed")
+    end
+
+    it "still hard-fails when the run was not retryable" do
+      wf, fanout = failed_fanout_with(classification: "grader_failure", retryable: false)
+
+      described_class.fail_from(fanout)
+
+      expect(fanout.reload.state).to eq("failed")
+      expect(wf.reload.state).to eq("failed")
+    end
+
+    it "stops retrying an infrastructure failure once the budget is spent" do
+      wf, fanout = failed_fanout_with(classification: "worker_died", retryable: true)
+      extra = StepDispatcher::INFRASTRUCTURE_STEP_RETRY_LIMIT
+      extra.times do
+        r = fanout.runs.create!(job: job, trigger_kind: "manual")
+        r.update_column(:state, "failed")
+      end
+      fanout.update_column(:state, "failed")
+
+      described_class.fail_from(fanout.reload)
+
+      expect(wf.reload.state).to eq("failed")
+    end
+
     it "materializes the next loop iteration when grade fails with budget remaining" do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)

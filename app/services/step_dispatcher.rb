@@ -228,6 +228,10 @@ class StepDispatcher
   BACKLOG_BLOCK_REASON = "job_backlogged"
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
   URGENT_BLOCK_REASON = "urgent_job_active"
+  # Retries allowed for a step whose run died of infrastructure, before the
+  # workflow is allowed to hard-fail. Bounded so a genuinely unrunnable step
+  # cannot spin: a third failure is no longer plausibly a passing worker.
+  INFRASTRUCTURE_STEP_RETRY_LIMIT = 2
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
   STACK_BLOCK_REASON = "stack_dependencies_not_ready"
   FAN_IN_BLOCK_REASON = JobStackResolver::FAN_IN_BLOCK_REASON
@@ -1094,10 +1098,37 @@ class StepDispatcher
     when :retry_step
       handle_loop_iteration
     else
+      return if retry_step_after_infrastructure_failure!
       return if handle_try_failure
 
       hard_fail_workflow!
     end
+  end
+
+  # A step kind with no fail_policy hard-fails the workflow. That is right for
+  # work that was judged and found wanting, and wrong for a worker that
+  # disappeared underneath it: a deploy restarting a worker mid-`grader_fanout`
+  # killed whole merge trains, because the dispatch keys on the step kind alone
+  # and never looked at the run, which was already classified as retryable
+  # infrastructure.
+  #
+  # Only the hard-fail branch is affected. Kinds that advance (`grader`) or
+  # drive a loop (`grader_collect`) already have their own handling for a dead
+  # worker and keep it unchanged.
+  def retry_step_after_infrastructure_failure!
+    step = @from_step
+    return false unless step&.failed?
+    return false unless retryable_infrastructure_failure?(step)
+    return false if step.runs.count > INFRASTRUCTURE_STEP_RETRY_LIMIT
+
+    step.reopen!
+    step.save!
+    self.class.create_run_and_enqueue(step, @workflow)
+    true
+  end
+
+  def retryable_infrastructure_failure?(step)
+    step.runs.reorder(id: :desc).first&.run_failure_classification&.retryable == true
   end
 
   private
