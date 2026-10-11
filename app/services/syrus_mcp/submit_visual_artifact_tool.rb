@@ -2,13 +2,13 @@ require "mcp"
 require "base64"
 
 module SyrusMcp
-  # Image-capable sibling to SubmitArtifactTool. Accepts an image file path
-  # inside the workflow workspace or base64-encoded image bytes and persists it
-  # as an ActiveStorage
-  # blob on the current Workflow (mirroring the has_one_attached
-  # :coverage_hit_map pattern), then records a 'typed_artifacts' entry
-  # pointing at it so the job detail UI's Artifacts tab can render it
-  # through a registered :image_diff renderer.
+  # Image-capable sibling to SubmitArtifactTool. Captures the current browser
+  # page, accepts an image file path inside the workflow workspace, or accepts
+  # base64-encoded image bytes and persists the image as an ActiveStorage blob
+  # on the current Workflow (mirroring the has_one_attached :coverage_hit_map
+  # pattern), then records a 'typed_artifacts' entry pointing at it so the job
+  # detail UI's Artifacts tab can render it through a registered :image_diff
+  # renderer.
   class SubmitVisualArtifactTool < MCP::Tool
     tool_name "submit_visual_artifact"
 
@@ -19,14 +19,14 @@ module SyrusMcp
 
     description <<~DESC
       Stores an image (e.g. a browser screenshot) as a typed artifact on the
-      current Workflow, persisted via ActiveStorage. Prefer image_path for files
-      already saved in the workflow workspace, such as browser_screenshot output;
-      capture_current_browser to capture from the active MCP browser session
-      without copying temp files, omit image inputs to default to that same
-      current-browser capture, and use image_base64 only when bytes are already
-      in memory. type is a free-form string identifier; visual-review
-      screenshots are persisted under run-scoped internal artifact types so
-      later review iterations do not overwrite earlier evidence.
+      current Workflow, persisted via ActiveStorage. For visual-review browser
+      screenshots, prefer capture_current_browser: true, or omit image_path and
+      image_base64 to default to that same current-browser capture path. Use
+      image_path only for image files you know are already inside the workflow
+      workspace, and use image_base64 only when bytes are already in memory.
+      type is a free-form string identifier; visual-review screenshots are
+      persisted under run-scoped internal artifact types so later review
+      iterations do not overwrite earlier evidence.
     DESC
 
     input_schema(
@@ -41,15 +41,15 @@ module SyrusMcp
         },
         image_base64: {
           type: "string",
-          description: "Base64-encoded image bytes (no data: URI prefix). Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
+          description: "Base64-encoded image bytes (no data: URI prefix). Use only when image bytes are already in memory. Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
         },
         image_path: {
           type: "string",
-          description: "Path to an image file in the workflow workspace, relative to the workspace root or absolute within it. Prefer this for existing files. Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
+          description: "Path to an image file already inside the workflow workspace, relative to the workspace root or absolute within it. Reserve this for files you know are workflow-local; browser screenshots should usually use capture_current_browser or omit image inputs. Use exactly one of image_base64, image_path, or capture_current_browser; omit all three to capture the current browser."
         },
         capture_current_browser: {
           type: "boolean",
-          description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. This is also the default when image_base64 and image_path are omitted."
+          description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. Prefer this for visual-review screenshots. This is also the default when image_base64 and image_path are omitted."
         },
         content_type: {
           type: "string",
@@ -159,7 +159,7 @@ module SyrusMcp
           { data: data, source: image_source[:source] }
         when :path
           path = safe_image_path(image_source[:path], run)
-          return { error: "image_path must point to a file inside the workflow workspace" } unless path
+          return { error: outside_workspace_image_path_error } unless path
           return { error: "image_path not found: #{image_source[:path]}" } unless File.file?(path)
           return { error: "image exceeds maximum size of #{MAX_IMAGE_BYTES / 1.megabyte} MB" } if File.size(path) > MAX_IMAGE_BYTES
 
@@ -268,6 +268,12 @@ module SyrusMcp
 
       def tool_error_text(response)
         response&.content&.first&.dig(:text).presence || "browser tool unavailable"
+      end
+
+      def outside_workspace_image_path_error
+        "image_path must point to a file inside the workflow workspace. " \
+          "For visual-review browser screenshots, call submit_visual_artifact with capture_current_browser: true, " \
+          "or omit image_path and image_base64 to capture the current browser directly."
       end
 
       def visual_artifact_payload(workflow:, run:, stored_type:, original_type:, source:, content_type:, byte_size:, metadata:)
