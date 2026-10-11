@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, adminEventLinkClass } from "./AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, DetailBlock, adminEventLinkClass } from "./AdminEventLogPanel"
 import { Page } from "./ui/Page"
 
 function dataTransfer() {
@@ -174,6 +174,16 @@ describe("AdminEventPageShell", () => {
     const description = screen.getByText("Operational context")
     const filterBar = screen.getByText("Filter bar")
     expect(description.compareDocumentPosition(filterBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe("DetailBlock", () => {
+  it("uses a fixed internal scroll region so short and long details align", () => {
+    render(<DetailBlock title="Backtrace" value={"app/services/example.rb:1\napp/services/example.rb:2"} />)
+
+    const block = screen.getByText("app/services/example.rb:1", { exact: false }).closest("pre")
+    expect(block?.className).toContain("h-64")
+    expect(block?.className).toContain("overflow-auto")
   })
 })
 
