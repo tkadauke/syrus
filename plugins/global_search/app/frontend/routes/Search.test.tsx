@@ -224,13 +224,15 @@ describe("SearchRoute results", () => {
     })
   })
 
-  it("renders filters directly below the search type tabs", async () => {
+  it("renders filters at the left edge of the search page chrome", async () => {
     renderWithPayload(chatGroupPayload(), "/search?query=needle&types%5B%5D=chat")
 
     await screen.findByRole("link", { name: "Forum planning" })
     const tabs = screen.getByRole("navigation", { name: "Search type filters" })
-    const filterRow = tabs.nextElementSibling
+    const filterBar = screen.getByTestId("search-filter-bar")
+    const filterRow = filterBar.firstElementChild
 
+    expect(tabs.closest("header")?.nextElementSibling).toBe(filterBar)
     expect(filterRow?.querySelector("button")).toHaveTextContent("+ Add filter")
     expect(filterRow?.tagName.toLowerCase()).toBe("div")
   })
