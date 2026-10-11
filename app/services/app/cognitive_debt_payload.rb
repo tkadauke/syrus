@@ -2,6 +2,9 @@ module App
   class CognitiveDebtPayload
     REVIEW_QUEUE_LIMIT = 8
     CHURN_LOOKBACK = 90.days
+    # Rows per batch when walking DiffReviewVersion. Each row carries a
+    # files_snapshot blob, so this bounds peak memory per round trip.
+    DIFF_VERSION_BATCH_SIZE = 200
 
     def self.for(repository:)
       new(repository: repository).to_h
@@ -147,18 +150,32 @@ module App
         .flat_map { |snapshot| Array(snapshot) }
     end
 
+    # `ORDER BY created_at` here made MySQL sort every DiffReviewVersion row in
+    # the repository while carrying `files_snapshot` -- a JSON blob averaging
+    # ~25KB and reaching 576KB -- through the sort. At ~3.7k rows that is ~91MB
+    # of sort payload against a sort buffer sized in single-digit MB, so the
+    # repository page 500'd with "Out of sort memory".
+    #
+    # Nothing here needs a SQL sort: we only want each path's most recent
+    # timestamp. Walking primary-key batches ascending uses the PK index with
+    # no filesort, and assigning unconditionally means the highest id -- the
+    # newest row -- is the one that sticks. (A `CHURN_LOOKBACK` bound like
+    # `recent_file_snapshots` has would not have fixed this: 3.2k of those 3.7k
+    # rows are inside 30 days, so the blob, not the window, is the problem.)
     def latest_diff_version_time_by_path
-      @latest_diff_version_time_by_path ||= DiffReviewVersion
-        .joins(:job)
-        .where(jobs: { repository_id: repository.id })
-        .order(created_at: :desc)
-        .pluck(:created_at, :files_snapshot)
-        .each_with_object({}) do |(created_at, files), times|
-          Array(files).each do |file|
-            path = file_value(file, "path").to_s
-            times[path] ||= created_at if path.present?
+      @latest_diff_version_time_by_path ||= {}.tap do |times|
+        DiffReviewVersion
+          .joins(:job)
+          .where(jobs: { repository_id: repository.id })
+          .in_batches(of: DIFF_VERSION_BATCH_SIZE) do |batch|
+            batch.pluck(:created_at, :files_snapshot).each do |created_at, files|
+              Array(files).each do |file|
+                path = file_value(file, "path").to_s
+                times[path] = created_at if path.present?
+              end
+            end
           end
-        end
+      end
     end
 
     def target_health_records
