@@ -66,8 +66,9 @@ class RetryWorkflowEnqueuer
 
   def self.call(...) = new(...).call
 
-  def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false)
+  def initialize(job:, workflow: nil, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false)
     @job = job
+    @workflow = workflow
     @agent_provider = agent_provider.to_s.presence
     @artifacts = retry_artifacts(artifacts)
     @provider_validation = ProviderValidation.for(provider_validation).new(job)
@@ -78,7 +79,7 @@ class RetryWorkflowEnqueuer
     return failure("Runaway protection active — clear by retrying manually.") if automatic? && job.runaway_protection.present?
 
     entry_job_state = job.reload.state
-    eligibility = RetryWorkflowEligibility.call(job: job)
+    eligibility = RetryWorkflowEligibility.call(job: job, workflow: workflow)
     reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
     return failure("That agent is not available for retry.") unless agent_provider_allowed?
@@ -87,11 +88,12 @@ class RetryWorkflowEnqueuer
     job.sync_skip_prepare_from_source!
 
     failure_result = nil
-    workflow = nil
+    retry_workflow = nil
     preserved_job_state = nil
     job.with_lock do
       job.reload
-      eligibility = RetryWorkflowEligibility.call(job: job)
+      terminalize_source_failed_workflow_for_retry!
+      eligibility = RetryWorkflowEligibility.call(job: job, workflow: workflow)
       reconcile_ready_pr! if eligibility.code == "pr_ready"
       if eligibility.eligible?
         preserved_job_state = entry_job_state unless retry_prepares_job_state?(entry_job_state)
@@ -99,7 +101,7 @@ class RetryWorkflowEnqueuer
         if state_error
           failure_result = failure(state_error)
         else
-          workflow = instantiate_retry_workflow
+          retry_workflow = instantiate_retry_workflow
         end
       else
         failure_result = failure(eligibility.message)
@@ -108,16 +110,16 @@ class RetryWorkflowEnqueuer
 
     return failure_result if failure_result
 
-    WorkUnits::Launcher.start!(workflow)
-    restore_preserved_job_state!(workflow, preserved_job_state)
-    Result.new(workflow: workflow, error: nil, circuit: nil)
+    WorkUnits::Launcher.start!(retry_workflow)
+    restore_preserved_job_state!(retry_workflow, preserved_job_state)
+    Result.new(workflow: retry_workflow, error: nil, circuit: nil)
   rescue WorkUnits::Launcher::LockConflict
     failure(ACTIVE_RETRY_MESSAGE)
   end
 
   private
 
-  attr_reader :job, :agent_provider, :artifacts, :provider_validation
+  attr_reader :job, :workflow, :agent_provider, :artifacts, :provider_validation
 
   def retry_artifacts(raw_artifacts)
     WorkflowArtifactSanitizer.without_branch_divergence(raw_artifacts).presence
@@ -186,6 +188,18 @@ class RetryWorkflowEnqueuer
     end
 
     nil
+  end
+
+  def terminalize_source_failed_workflow_for_retry!
+    return unless workflow&.job_id == job.id
+    return unless workflow.running?
+    return unless workflow.steps.where(state: "failed").exists?
+    return unless workflow.may_fail?
+
+    workflow.fail!
+    workflow.save!
+    WorkUnits::TerminalWorkflowSync.call(workflow)
+    job.reload
   end
 
   def retry_prepares_job_state?(state = job.state)

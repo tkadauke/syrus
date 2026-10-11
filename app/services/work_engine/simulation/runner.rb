@@ -133,15 +133,15 @@ module WorkEngine
             execute_active_runs!(tick)
             next if retryable_failed_jobs?
             return success(tick + 1) if complete?
-            return waiting(tick + 1) if no_active_runs? && valid_waiting?
+            return waiting(tick + 1) if idle? && valid_waiting?
 
             after = fingerprint
-            if after == before && no_active_runs?
+            if after == before && idle?
               return stuck(tick + 1, "no state changed")
             end
           end
 
-          return waiting(max_ticks) if valid_waiting? && no_active_runs?
+          return waiting(max_ticks) if valid_waiting? && idle?
 
           stuck(max_ticks, "max ticks exhausted")
         end
@@ -1205,6 +1205,7 @@ module WorkEngine
       end
 
       def complete?
+        return false if pending_auto_retry_attempts.exists?
         return expectations_complete? if expectations.present?
 
         jobs.all? { |job| success_state_for(job).include?(job.reload.state) }
@@ -1334,16 +1335,32 @@ module WorkEngine
         active_runs.empty?
       end
 
+      def idle?
+        no_active_runs? && pending_auto_retry_attempts.none?
+      end
+
       def active_runs
         Run.joins(step: :workflow)
           .where(job_id: job_ids, state: %w[queued running])
           .where(steps: { state: %w[queued running] })
           .where(workflows: { state: %w[queued running] })
+          .order("steps.position ASC", "runs.id ASC")
           .includes(:job, step: :workflow)
           .to_a
+          .reject { |run| blocked_by_pending_auto_retry?(run) }
           .reject { |run| queued_run_blocked_by_explicit_solid_queue_state?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
           .reject { |run| run.running? && stale_simulated_worker_evidence?(run) }
+      end
+
+      def blocked_by_pending_auto_retry?(run)
+        step = run.step
+        return false unless step
+
+        pending_auto_retry_attempts.includes(run: :step).any? do |attempt|
+          source_step = attempt.run&.step
+          source_step&.workflow_id == step.workflow_id && source_step.position < step.position
+        end
       end
 
       def queued_run_blocked_by_explicit_solid_queue_state?(run)

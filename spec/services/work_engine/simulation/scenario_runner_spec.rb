@@ -201,8 +201,10 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
       .where(job_id: result.job_ids, steps: { kind: "grader" })
       .order(:id)
       .to_a
-    expect(grader_runs.map(&:state)).to eq(%w[failed succeeded])
+    expect(grader_runs.map(&:state)).to eq(%w[failed])
     expect(grader_runs.first.agent_outcome).to eq(AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+    expect(AutoRetryAttempt.where(job_id: result.job_ids).pick(:performed_at)).to be_present
+    expect(Job.find(result.job_ids.first)).to be_implemented
   end
 
   it "reroutes a pinned Run after repeated host admission deferrals" do

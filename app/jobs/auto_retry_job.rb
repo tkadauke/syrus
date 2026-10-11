@@ -339,6 +339,7 @@ class AutoRetryJob < ApplicationJob
   def retry_workflow(attempt)
     RetryWorkflowEnqueuer.call(
       job: attempt.job,
+      workflow: attempt.workflow,
       agent_provider: attempt.agent_provider,
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       provider_validation: :none,

@@ -155,6 +155,7 @@ RSpec.describe AutoRetryJob do
 
     expect(RetryWorkflowEnqueuer).to have_received(:call).with(
       job: job,
+      workflow: workflow,
       agent_provider: "claude",
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       provider_validation: :none,
