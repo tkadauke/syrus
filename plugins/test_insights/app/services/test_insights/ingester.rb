@@ -147,9 +147,9 @@ module TestInsights
             file_path: TestCase.truncate_string_column(c.file_path),
             status: c.status,
             duration_ms: c.duration_ms,
-            output: c.output,
-            failure_message: c.failure_message,
-            failure_backtrace: c.failure_backtrace,
+            output: TestCase.truncate_text_column(c.output),
+            failure_message: TestCase.truncate_text_column(c.failure_message),
+            failure_backtrace: TestCase.truncate_text_column(c.failure_backtrace),
             created_at: now,
             updated_at: now
           }
