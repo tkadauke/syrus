@@ -1,11 +1,10 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, Row, SectionLabel } from "../toolCardUi"
-import { HealthPill, parseHealthLevel, parseWorkerHealthCounts, Table, TBody, Td, THead } from "../adminToolCard"
+import { CardShell, displayValue, EmptyState, Row } from "../toolCardUi"
+import { HealthPill, parseHealthLevel, Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_version (the tool-card work). Renders the
 // request-handling instance's own identity, the live instance roster
-// (rolling deploy visibility -- old and new SHAs both show up mid-rollout),
-// and an aggregate worker-health rollup.
+// (rolling deploy visibility -- old and new SHAs both show up mid-rollout).
 type InstanceRow = {
   key: string
   hostname: string
@@ -41,7 +40,6 @@ type VersionCard = {
   requestHandlerRole: string | null
   requestHandlerVersion: string | null
   instances: InstanceRow[]
-  workerHealth: ReturnType<typeof parseWorkerHealthCounts>
 }
 
 function parseVersionCard(context: ToolCardContext): VersionCard | null {
@@ -52,8 +50,7 @@ function parseVersionCard(context: ToolCardContext): VersionCard | null {
     requestHandlerHostname: displayValue(parsed.request_handler.hostname),
     requestHandlerRole: displayValue(parsed.request_handler.role),
     requestHandlerVersion: displayValue(parsed.request_handler.version),
-    instances: parsed.instances.flatMap((instance, index) => { const row = parseInstanceRow(instance, index); return row ? [row] : [] }),
-    workerHealth: parseWorkerHealthCounts(parsed.worker_health)
+    instances: parsed.instances.flatMap((instance, index) => { const row = parseInstanceRow(instance, index); return row ? [row] : [] })
   }
 }
 
@@ -77,13 +74,6 @@ function renderExpanded(context: ToolCardContext) {
         <Row label="Role" value={card.requestHandlerRole ?? "—"} />
         <Row label="Version" value={card.requestHandlerVersion ?? "—"} />
       </dl>
-      {card.workerHealth ? (
-        <div className="flex items-center gap-2">
-          <SectionLabel>Worker health</SectionLabel>
-          <HealthPill level={card.workerHealth.worst} />
-          <span className="text-gray-600 dark:text-gray-300">{card.workerHealth.total} worker{card.workerHealth.total === 1 ? "" : "s"}</span>
-        </div>
-      ) : null}
       {card.instances.length === 0 ? (
         <EmptyState>No live instances found.</EmptyState>
       ) : (

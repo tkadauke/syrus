@@ -57,13 +57,15 @@ and `xcrun simctl list`. They do not mutate keychains, signing state,
 simulator contents, or selected devices. Linux k3s and Docker Compose workers
 can usually rely on detected `os:linux` and host architecture.
 
-Admin Workers, worker-health payloads, `admin_version`, `read_worker_health`,
-and `read_queue` all include the normalized capability map and probe
-diagnostics. For iOS-capable Mac workers those diagnostics include macOS host
-version and architecture facts, selected developer directory, Xcode version and
-build version, command-line-tool usability, available iOS simulator runtimes,
-and a bounded sample of available simulator devices. Historical health samples
-keep the capability snapshot that was true when the sample was recorded.
+Admin Workers, worker-health payloads, `read_worker_health`, and `read_queue`
+include the normalized capability map and probe diagnostics. For iOS-capable
+Mac workers those diagnostics include macOS host version and architecture facts,
+selected developer directory, Xcode version and build version,
+command-line-tool usability, available iOS simulator runtimes, and a bounded
+sample of available simulator devices. Historical health samples keep the
+capability snapshot that was true when the sample was recorded. `admin_version`
+is intentionally limited to the request handler and live instance version
+fields.
 
 External worker pools can set `SYRUS_WORKER_POOL_NAME` to a stable
 operator-facing name such as `macos-xcode`. Syrus records that value in worker
