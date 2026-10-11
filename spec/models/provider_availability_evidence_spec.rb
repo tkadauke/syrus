@@ -52,7 +52,7 @@ RSpec.describe ProviderAvailabilityEvidence do
     let(:run) { job.initial_run }
 
     it "records non-Codex invocation usage evidence without Codex account scoping" do
-      run.update!(agent_provider: "muse", agent_outcome: "provider_usage_limit")
+      run.update!(agent_provider: "muse", agent_outcome: "provider_usage_limit", model: "muse-spark-test")
       run.create_run_failure_classification!(
         classification: "provider_usage_limit",
         confidence: 0.95,

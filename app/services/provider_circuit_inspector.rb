@@ -67,7 +67,7 @@ class ProviderCircuitInspector
       agent_provider: run.agent_provider,
       agent_outcome: run.agent_outcome,
       finished_at: run.finished_at&.iso8601,
-      extracted_model: ProviderUsageLimit.extract_model(text),
+      extracted_model: ProviderUsageLimit.extract_model(text, run: run, legacy: true),
       retry_after: retry_after&.iso8601,
       diagnostic: diagnostic_payload(run.run_diagnostic),
       classification: classification_payload(run.run_failure_classification),

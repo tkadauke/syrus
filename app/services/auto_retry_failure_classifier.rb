@@ -190,9 +190,6 @@ class AutoRetryFailureClassifier
     diagnostic = run.run_diagnostic
     text = [
       run.agent_outcome,
-      run.agent_summary,
-      run.agent_pr_title,
-      run.agent_pr_body,
       diagnostic&.error_class,
       diagnostic&.error_message,
       diagnostic&.error_backtrace,
