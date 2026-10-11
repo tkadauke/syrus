@@ -1001,6 +1001,15 @@ function mobileWorkspaceTabsVisible(payload: ChatPayload) {
     payload.agent_busy
 }
 
+function initialWorkspacePanelState(payload: ChatPayload) {
+  const storedCollapsed = storedWorkspaceCollapsed()
+  if (payload.messages.length === 0 && !storedCollapsed) {
+    return { collapsed: true, persistInitialState: false }
+  }
+
+  return { collapsed: storedCollapsed, persistInitialState: true }
+}
+
 function ChatWorkspace({
   chatId,
   payload,
@@ -1021,7 +1030,9 @@ function ChatWorkspace({
   const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
-  const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
+  const initialPanelStateRef = useRef<ReturnType<typeof initialWorkspacePanelState> | null>(null)
+  if (initialPanelStateRef.current === null) initialPanelStateRef.current = initialWorkspacePanelState(payload)
+  const [panelCollapsed, setPanelCollapsed] = useState(initialPanelStateRef.current.collapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
@@ -1029,6 +1040,7 @@ function ChatWorkspace({
   const chatFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const filesFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const bookmarkRequestIdRef = useRef(0)
+  const skipInitialPanelPersistenceRef = useRef(!initialPanelStateRef.current.persistInitialState)
   const previousMediaRef = useRef({ chatId: payload.chat.id, count: mediaItemCount(payload) })
   const suppressNextComposerMediaSwitchRef = useRef(false)
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
@@ -1045,6 +1057,9 @@ function ChatWorkspace({
     : undefined
 
   useLayoutEffect(() => {
+    const nextPanelState = initialWorkspacePanelState(payload)
+    skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
+    setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
     setActiveMobileTab("chat")
     setBookmarkTarget(null)
@@ -1112,6 +1127,11 @@ function ChatWorkspace({
   }, [workspaceWidth])
 
   useEffect(() => {
+    if (skipInitialPanelPersistenceRef.current) {
+      skipInitialPanelPersistenceRef.current = false
+      return
+    }
+
     storeWorkspacePreference(CHAT_WORKSPACE_COLLAPSED_KEY, String(panelCollapsed))
   }, [panelCollapsed])
 

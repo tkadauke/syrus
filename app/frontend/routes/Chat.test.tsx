@@ -343,6 +343,57 @@ describe("ChatWorkspace panel collapse", () => {
       expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("true")
     })
   }, 15000)
+
+  it("keeps an unstarted desktop chat collapsed even when the saved preference is open", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    mockChatRouteFetch(chatPayload({ messages: [] }))
+
+    renderRoute()
+
+    expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("false")
+  })
+
+  it("respects a saved open preference for a started desktop chat", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    mockChatRouteFetch(chatPayload())
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Close workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open workspace panel" })).not.toBeInTheDocument()
+  })
+
+  it("collapses the panel when in-app navigation opens an unstarted chat", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    const firstChat = chatPayload()
+    const secondChat = chatPayload({ chat: { id: 9, title: "Canal planning" }, messages: [] })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/9") return Promise.resolve(jsonResponse(secondChat))
+
+      return Promise.resolve(jsonResponse(firstChat))
+    })
+
+    renderRouteWithChatSwitch()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+
+    expect(await screen.findByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("complementary", { name: "Chat workspace" })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("false")
+  })
 })
 
 describe("ChatWorkspace split breakpoint", () => {
