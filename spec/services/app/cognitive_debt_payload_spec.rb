@@ -60,4 +60,43 @@ RSpec.describe App::CognitiveDebtPayload do
       expect(times.keys).to match_array((0..4).map { |i| "app/f#{i}.rb" })
     end
   end
+  describe ".cached / .refresh!" do
+    # The test environment uses :null_store, so caching is a no-op there and
+    # these would pass vacuously. Swap in a real store for this block.
+    around do |example|
+      previous = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      example.run
+    ensure
+      Rails.cache = previous
+    end
+
+    it "serves a second call from cache without recomputing" do
+      diff_version(path: "app/a.rb", created_at: 1.day.ago)
+      described_class.cached(repository: repository)
+
+      expect(described_class).not_to receive(:new)
+      described_class.cached(repository: repository)
+    end
+
+    # The key must NOT rotate per diff review version: an active repository
+    # would then miss on every page load and recompute inline, which is the
+    # cost this cache exists to remove. Staleness is bounded by the refresh
+    # job and the TTL instead.
+    it "keeps a stable key as new diff review versions land" do
+      diff_version(path: "app/a.rb", created_at: 2.days.ago)
+      first = described_class.cache_key(repository)
+      diff_version(path: "app/b.rb", created_at: 1.day.ago)
+
+      expect(described_class.cache_key(repository)).to eq(first)
+    end
+
+    it "refresh! writes the snapshot that cached reads back" do
+      diff_version(path: "app/a.rb", created_at: 1.day.ago)
+      refreshed = described_class.refresh!(repository: repository)
+
+      expect(described_class).not_to receive(:new)
+      expect(described_class.cached(repository: repository)).to eq(refreshed)
+    end
+  end
 end

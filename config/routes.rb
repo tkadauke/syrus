@@ -349,6 +349,7 @@ Rails.application.routes.draw do
         resources :teams, only: %i[ index show create update destroy ] do
           resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]
         end
+        get "repositories/:id/cognitive_debt", to: "repositories#cognitive_debt", constraints: { id: /\d+/ }
         get "repositories/:repository_id/plugin_tabs", to: "repository_plugin_tabs#index"
         get "repositories/:repository_id/preview", to: "repository_preview#show", constraints: { repository_id: /\d+/ }
         get "repositories/:repository_id/preview/logs", to: "repository_preview#logs", constraints: { repository_id: /\d+/ }

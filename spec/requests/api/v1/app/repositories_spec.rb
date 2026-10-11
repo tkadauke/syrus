@@ -2205,7 +2205,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         quality: "high"
       )
 
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt"
 
       expect(response).to have_http_status(:ok)
       debt = parse_body.fetch("cognitive_debt")
@@ -2274,7 +2274,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         quality: "high"
       )
 
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt"
 
       expect(response).to have_http_status(:ok)
       debt = parse_body.fetch("cognitive_debt")
@@ -2298,7 +2298,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     sign_in_as(user)
     repository = Factories.repository(user: user)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}/cognitive_debt"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("cognitive_debt")).to include(
@@ -2317,6 +2317,32 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:not_found)
     expect(response.body).not_to include("cognitive_debt")
+  end
+
+  describe "GET /api/v1/app/repositories/:id/cognitive_debt" do
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    it "serves the rollup on its own endpoint" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to have_key("cognitive_debt")
+    end
+
+    # The rollup walks every DiffReviewVersion in the repository and expands
+    # every line of every file into a LineFact. Inlining that in the detail
+    # payload put seconds onto every repository page load, so the page must
+    # not carry it any more.
+    it "is no longer part of the repository detail payload" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).not_to have_key("cognitive_debt")
+    end
   end
 
   describe "GET /api/v1/app/repositories/:id/coverage_trend" do

@@ -645,6 +645,13 @@ export function fetchRepositoryDetail(id: string, search = "") {
   return getJson<RepositoryDetailPayload>(`/api/v1/app/repositories/${id}${search}`)
 }
 
+// Fetched on its own rather than inside the detail payload: the rollup walks
+// every diff review version in the repository, so inlining it delayed the
+// whole page. See Api::V1::App::RepositoriesController#cognitive_debt.
+export function fetchRepositoryCognitiveDebt(id: string) {
+  return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt`)
+}
+
 
 
 

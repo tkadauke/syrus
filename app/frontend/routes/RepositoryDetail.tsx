@@ -30,7 +30,7 @@ import { StatusPill as StateStatusPill, TonePill, type PillTone } from "../compo
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryCognitiveDebtQueueItem, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
+import { fetchRepositoryCognitiveDebt, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryCognitiveDebtQueueItem, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 export function RepositoryDetailRoute() {
@@ -142,7 +142,15 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
 
 function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
   const { t } = useT("settings")
-  const debt = payload.cognitive_debt
+  // Loaded after the page renders rather than inside the detail payload: the
+  // rollup walks every diff review version in the repository, which used to
+  // put seconds onto every repository page load.
+  const debtQuery = useQuery({
+    queryFn: () => fetchRepositoryCognitiveDebt(String(payload.repository.id)),
+    queryKey: ["repository", payload.repository.id, "cognitive_debt"],
+    staleTime: 5 * 60 * 1000,
+  })
+  const debt = debtQuery.data?.cognitive_debt
   if (!debt) return null
 
   const summary = debt.summary

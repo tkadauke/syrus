@@ -6,8 +6,35 @@ module App
     # files_snapshot blob, so this bounds peak memory per round trip.
     DIFF_VERSION_BATCH_SIZE = 200
 
+    # Recomputing this costs a full walk of the repository's DiffReviewVersion
+    # rows and expands every line of every file into a LineFact, to render a
+    # handful of rollup rows. It is a trend view, not live state, so it is
+    # served from a cached snapshot that RefreshCognitiveDebtSnapshotsJob warms
+    # on a schedule. A cache miss still computes inline rather than returning
+    # nothing, so a repository that has never been warmed is correct, just slow.
+    CACHE_TTL = 6.hours
+
     def self.for(repository:)
       new(repository: repository).to_h
+    end
+
+    def self.cached(repository:)
+      Rails.cache.fetch(cache_key(repository), expires_in: CACHE_TTL) { self.for(repository: repository) }
+    end
+
+    def self.refresh!(repository:)
+      self.for(repository: repository).tap do |payload|
+        Rails.cache.write(cache_key(repository), payload, expires_in: CACHE_TTL)
+      end
+    end
+
+    # Deliberately keyed on the repository alone. Including the newest
+    # DiffReviewVersion id would rotate the key every time a review version
+    # lands, so an active repository would miss constantly and recompute on
+    # the request path -- the exact cost this cache exists to remove. This is
+    # a trend view, so it accepts being up to one refresh interval stale.
+    def self.cache_key(repository)
+      "app/cognitive_debt/#{repository.id}"
     end
 
     def initialize(repository:)

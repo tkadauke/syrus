@@ -26,6 +26,17 @@ module Api
           render json: repository_detail_payload(repository, page: detail_page)
         end
 
+        # Served separately from #show because computing it walks every
+        # DiffReviewVersion in the repository and expands every line of every
+        # file into a LineFact, to render a handful of rollup rows. Inlining
+        # that in the detail payload put seconds onto every repository page
+        # load. The page now renders immediately and this fills in after.
+        def cognitive_debt
+          repository = find_repository
+
+          render json: { cognitive_debt: ::App::CognitiveDebtPayload.cached(repository: repository) }
+        end
+
         def new
           render json: form_payload(Repository.new(default_branch: "main", trigger_label: "syrus"))
         end
@@ -382,7 +393,6 @@ module Api
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
-              cognitive_debt: PerformanceLogging.phase("repository_detail.cognitive_debt", repository_id: repository.id) { ::App::CognitiveDebtPayload.for(repository: repository) },
               delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) { ::App::DeliveryTracksPayload.for(repository: repository) },
               recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
                 ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)

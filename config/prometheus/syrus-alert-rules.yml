@@ -28,6 +28,7 @@ groups:
           or syrus_recurring_job_last_success_seconds{job="sync_enabled_forks"} > 1800
           or syrus_recurring_job_last_success_seconds{job=~"refresh_workflow_step_resource_profiles|refresh_retention_size_snapshot"} > 7200
           or syrus_recurring_job_last_success_seconds{job="prune_workflow_workspaces"} > 14400
+          or syrus_recurring_job_last_success_seconds{job="refresh_cognitive_debt_snapshots"} > 28800
           or syrus_recurring_job_last_success_seconds{job=~"prune_worker_host_health_samples|prune_run_resource_summaries|reap_stale_branches|prune_spawned_processes|prune_provider_sessions|prune_run_diagnostics|prune_work_engine_reconciler_activity|prune_old_notifications|prune_coverage_hit_map_ttl|purge_expired_passkey_challenges|prune_run_health_snapshots|prune_main_branch_health_checks|prune_workflow_step_resource_profiles"} > 172800
         for: 10m
         labels:
