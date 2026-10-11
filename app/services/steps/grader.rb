@@ -177,6 +177,14 @@ module Steps
 
         return if accept_failure_by_base_retry?(name: name, definition: definition)
 
+        if disk_full_text?(output_excerpt)
+          fail_with!(
+            :disk_full,
+            "grader #{name} failed because the worker ran out of disk or storage space",
+            evidence: { grader_name: name, exit_code: exit_code }
+          )
+        end
+
         raise StepFailed, "grader #{name} failed (exit #{exit_code})"
       end
     end

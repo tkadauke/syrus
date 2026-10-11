@@ -40,7 +40,8 @@ module OperatorBriefing
       return if revision.reload.content_blocks.any?
 
       capture_mcp_sidecar_stderr
-      raise StepFailed, "agent didn't call submit_briefing_block"
+      fail_with!(:missing_required_tool_call, "agent didn't call submit_briefing_block",
+                 evidence: { tool: "submit_briefing_block" })
     end
   end
 end
