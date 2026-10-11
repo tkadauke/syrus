@@ -31,6 +31,7 @@ RSpec.describe "Steps::Grader real RSpec output ingestion", requires_plugin: "ru
   around do |example|
     Dir.mktmpdir("syrus-grader-rspec-parser") do |dir|
       @ws_path = Pathname.new(dir)
+      system("git", "init", "-q", chdir: @ws_path.to_s)
       example.run
     end
   end

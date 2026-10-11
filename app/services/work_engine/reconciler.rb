@@ -856,6 +856,7 @@ module WorkEngine
         projection = Steps::StateProjection.for(step, runs: step_runs)
         terminal_run = projection.latest_terminal_run
         next unless terminal_run
+        next if pending_auto_retry_attempt?(step.workflow, run: terminal_run)
 
         issue(
           kind: :running_step_with_terminal_runs,

@@ -47,6 +47,7 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
   around do |example|
     Dir.mktmpdir("syrus-grader-junit") do |dir|
       @ws_path = Pathname.new(dir)
+      system("git", "init", "-q", chdir: @ws_path.to_s)
       example.run
     end
   end

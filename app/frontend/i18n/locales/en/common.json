@@ -290,6 +290,7 @@
     "active_work_lock": "Waiting on a lock",
     "auto_retry_backoff": "Retry backoff",
     "no_capable_worker": "Waiting on worker capability",
+    "agent_cannot_proceed": "Agent cannot proceed",
     "visual_diff_obsolete": "Comparison no longer needed",
     "preempted": "Preempted",
     "landing_paused": "Landing paused"
@@ -312,6 +313,7 @@
     "active_work_lock": "Another work unit holds the lock this one needs.",
     "auto_retry_backoff": "Syrus is waiting out the backoff window before the next automatic retry.",
     "no_capable_worker": "No live worker currently advertises the capabilities required for this work.",
+    "agent_cannot_proceed": "The workflow agent reported a concrete blocker and stopped so an operator can decide the next step.",
     "visual_diff_obsolete": "The job moved past the state this comparison was queued for.",
     "preempted": "A higher-priority work unit replaced this one.",
     "landing_paused": "Landing is paused for this repository."

@@ -290,6 +290,7 @@
     "active_work_lock": "Wartet auf eine Sperre",
     "auto_retry_backoff": "Wiederholungs-Wartezeit",
     "no_capable_worker": "Wartet auf Worker-Fähigkeit",
+    "agent_cannot_proceed": "Agent kann nicht fortfahren",
     "visual_diff_obsolete": "Vergleich nicht mehr nötig",
     "preempted": "Verdrängt",
     "landing_paused": "Landing pausiert"
@@ -312,6 +313,7 @@
     "active_work_lock": "Eine andere Arbeitseinheit hält die benötigte Sperre.",
     "auto_retry_backoff": "Syrus wartet das Backoff-Fenster vor dem nächsten automatischen Versuch ab.",
     "no_capable_worker": "Kein aktiver Worker meldet derzeit die für diese Arbeit erforderlichen Fähigkeiten.",
+    "agent_cannot_proceed": "Der Workflow-Agent hat einen konkreten Blocker gemeldet und angehalten, damit ein Operator den nächsten Schritt entscheiden kann.",
     "visual_diff_obsolete": "Der Job hat den Zustand überschritten, für den dieser Vergleich eingeplant war.",
     "preempted": "Eine Arbeitseinheit mit höherer Priorität hat diese ersetzt.",
     "landing_paused": "Landing ist für dieses Repository pausiert."

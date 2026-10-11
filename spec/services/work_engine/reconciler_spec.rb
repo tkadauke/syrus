@@ -4199,6 +4199,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to succeeded from #{run.slug}")
   end
 
+  it "leaves a running Step alone while a worker-died replacement retry is pending" do
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(kind: "grader", state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    run.update_columns(
+      state: "failed",
+      agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 9.minutes.ago,
+      finished_at: 8.minutes.ago
+    )
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: run.agent_provider.presence || workflow.agent_provider || job.agent_provider,
+      failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(plan(result, :reconcile_step_from_terminal_run)).to be_nil
+    expect(step.reload).to be_running
+  end
+
   it "resumes a running workflow whose succeeded step did not create a run for the queued successor" do
     prepare = workflow.steps.order(:position).second
     step.update!(next_step: prepare)
