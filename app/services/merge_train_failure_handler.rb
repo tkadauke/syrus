@@ -381,7 +381,7 @@ class MergeTrainFailureHandler
   def preserve_branch_for_fix_replay?(train)
     return false if @cancelled
 
-    MergeTrainFixReplay.eligible_source?(train)
+    MergeTrainFixReplay.eligible_source?(train, policy: resolved_failure_policy)
   end
 
   def resolved_failure_policy

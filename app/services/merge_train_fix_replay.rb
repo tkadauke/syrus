@@ -14,15 +14,39 @@ class MergeTrainFixReplay
     { SOURCE_TRAIN_ARTIFACT => train.id }
   end
 
-  def self.eligible_source?(train)
-    return false unless AppSetting.merge_train_keeps_fixes_on_failure?
+  def self.eligible_source?(train, policy: nil)
     return false unless train
+    return false unless (policy || failure_policy_for(train)).keep_fixes?
     return false if train.integration_branch.blank? || train.integration_sha.blank?
 
     latest_workflow = workflow_for(train)
     return true if stale_base_rebuild_required?(latest_workflow)
 
     failed_run_for(latest_workflow)&.run_failure_classification&.retryable == true
+  end
+
+  def self.failure_policy_for(train)
+    latest_workflow = workflow_for(train)
+    failed_run = failed_run_for(latest_workflow)
+    MergeTrainFailurePolicy.resolve(
+      repository: train.repository,
+      attempt_number: failure_policy_attempt_number(failed_run),
+      retry_classification: failure_policy_retry_classification(failed_run)
+    )
+  end
+
+  def self.failure_policy_attempt_number(failed_run)
+    return 1 unless failed_run
+
+    AutoRetryAttempt.budget_scope_for(
+      job: failed_run.job,
+      agent_provider: failed_run.agent_provider.presence || failed_run.workflow&.agent_provider,
+      failure_classification: failure_policy_retry_classification(failed_run)
+    ).count + 1
+  end
+
+  def self.failure_policy_retry_classification(failed_run)
+    failed_run&.run_failure_classification&.classification || failed_run&.agent_outcome.to_s.presence || "unknown"
   end
 
   def self.workflow_for(train)
