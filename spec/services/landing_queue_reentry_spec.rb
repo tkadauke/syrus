@@ -75,4 +75,21 @@ RSpec.describe LandingQueueReentry do
 
     expect(job.reload.landing_failure_reason).to be_nil
   end
+
+  it "uses the structured failure code, not explanation wording, for reentry candidates" do
+    job = approved_job
+    job.update!(
+      landing_failure_code: LandingFailureCode::LANDING_START_BLOCKED,
+      landing_failure_reason: "workflow admission budget delayed this landing attempt"
+    )
+    blocked_landing_workflow(job, next_check_at: 1.minute.ago)
+
+    expect {
+      result = described_class.call(job)
+      expect(result.cleared_job_ids).to eq([ job.id ])
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(job.reload.landing_failure_code).to be_nil
+    expect(job.landing_failure_reason).to be_nil
+  end
 end

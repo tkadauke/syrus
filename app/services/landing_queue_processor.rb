@@ -545,6 +545,7 @@ class LandingQueueProcessor
       raise ActiveRecord::Rollback unless blockage_for(job, consume_override: true)[:blocked_reason].blank?
 
       job.landing_failure_reason = nil
+      job.landing_failure_code = nil
       job.start_landing!
       job.save!
       work_kind = job.external_pr? ? "external_pr_merge" : "auto_merge"
@@ -970,7 +971,7 @@ class LandingQueueProcessor
   end
 
   def landing_start_blocker_retry_after(job)
-    return unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
+    return unless job.landing_failure_kind&.landing_start_blocker?
 
     workflow = job.workflows
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)

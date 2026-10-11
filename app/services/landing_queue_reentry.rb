@@ -6,7 +6,14 @@ class LandingQueueReentry
   end
 
   def self.call(job) = new(job).call
-  def self.landing_start_blocker?(reason) = reason.to_s.start_with?(START_BLOCKER_PREFIX)
+  def self.landing_start_blocker?(code_or_reason)
+    LandingFailureCode.resolve(code_or_reason)&.landing_start_blocker? ||
+      legacy_landing_start_blocker_reason?(code_or_reason)
+  end
+
+  # Compatibility for Jobs written before landing_failure_code existed.
+  # Current queue decisions should pass the structured code.
+  def self.legacy_landing_start_blocker_reason?(reason) = reason.to_s.start_with?(START_BLOCKER_PREFIX)
 
   def initialize(job)
     @job = job
@@ -15,7 +22,7 @@ class LandingQueueReentry
   def call
     ids = clearable_jobs.map(&:id)
     if ids.any?
-      Job.where(id: ids).update_all(landing_failure_reason: nil, updated_at: Time.current)
+      Job.where(id: ids).update_all(landing_failure_reason: nil, landing_failure_code: nil, updated_at: Time.current)
       LandingQueueProcessorJob.perform_later
     end
     Result.new(cleared_job_ids: ids)
@@ -33,7 +40,8 @@ class LandingQueueReentry
     end
 
     candidates
-      .where("landing_failure_reason LIKE ?", "#{START_BLOCKER_PREFIX}%")
+      .where(landing_failure_code: LandingFailureCode::LANDING_START_BLOCKED)
+      .or(candidates.where(landing_failure_code: nil).where("landing_failure_reason LIKE ?", "#{START_BLOCKER_PREFIX}%"))
       .select { |candidate| ready_to_reenter?(candidate) }
   end
 

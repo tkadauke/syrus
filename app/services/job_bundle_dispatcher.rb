@@ -48,6 +48,7 @@ class JobBundleDispatcher
 
       members.each_with_index do |job, index|
         job.landing_failure_reason = nil
+        job.landing_failure_code = nil
         job.start_landing!
         job.save!
         MergeTrainMember.create!(merge_train: train, job: job, position: index)
@@ -259,13 +260,16 @@ class JobBundleDispatcher
       .where(repository_id: @repository.id, epic_id: nil, state: "failed")
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)
-      .find { |train| !transient_failure?(train.failure_reason) }
+      .find { |train| !transient_failure?(train) }
   end
 
-  def transient_failure?(reason)
-    LandingQueueReentry.landing_start_blocker?(reason) ||
-      LandingFailureHandler.merge_train_rebuild_required?(reason) ||
-      reason.to_s.start_with?(MergeTrain::STALE_RUNTIME_FAILURE_REASON)
+  def transient_failure?(train)
+    if train.failure_code.present?
+      return LandingFailureCode.resolve(train.failure_code)&.skip_merge_train_cooldown? || false
+    end
+
+    # Compatibility for MergeTrain rows written before failure_code existed.
+    LandingFailureCode.legacy_from_reason(train.failure_reason)&.skip_merge_train_cooldown? || false
   end
 
   def fix_replay_artifacts_for(members)
