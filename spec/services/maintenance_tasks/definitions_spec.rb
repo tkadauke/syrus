@@ -293,7 +293,12 @@ RSpec.describe "maintenance task definitions" do
       completion = definition.perform_batch(task)
       task.save!
 
-      expect(completion).to have_attributes(done: true, failed: 0)
+      expect(completion).to have_attributes(
+        done: true,
+        failed: 0,
+        non_blocking_failures: true,
+        clear_failed_units: true
+      )
       expect(task.checkpoint["irrecoverable_repositories"]).to be_present
       expect(described_class.new.estimate_total_units).to eq(0)
     end
