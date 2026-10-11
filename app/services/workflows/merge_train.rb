@@ -13,9 +13,10 @@ module Workflows
   # the grade & fix loop runs graders ONCE on the integrated tip (the exact
   # tree that will exist on base after the Epic merges) and lets the agent
   # commit focused landing fixes; land merges the integration branch into the
-  # base in a single atomic merge and closes the child PRs. There is no
-  # bisection — an unrepairable integration fails the whole Epic attempt and
-  # lands nothing (Epic consistency). See docs/plans/landing-merge-train.md.
+  # base in a single atomic merge and closes the child PRs. An unrepairable
+  # integration fails the whole Epic attempt and lands nothing (Epic
+  # consistency); repository-configured failure rungs may run before the train
+  # is torn down. See docs/plans/landing-merge-train.md.
   #
   # When merge_train_land detects that the base branch moved (before or during
   # the merge API call), it raises BaseMoved with failure_code
