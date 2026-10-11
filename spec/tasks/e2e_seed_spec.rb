@@ -58,4 +58,20 @@ RSpec.describe "e2e:seed" do
       chat_provider: "codex"
     )
   end
+
+  # Regression: the Agent Insights fixture needs a plugin-contributed Job kind,
+  # and when that kind was not registered the validation error aborted the whole
+  # seed. Previews then came up with no data at all, which in turn made every
+  # visual review on them report success without reviewing anything. One demo
+  # fixture must not be able to take the seed down with it.
+  it "skips the Agent Insights fixture instead of aborting when its Job kind is unavailable" do
+    allow(Job::Kind).to receive(:values).and_return(Job::Kind.values - [ "agent_insight" ])
+
+    expect { Rake::Task["e2e:seed"].invoke }.not_to raise_error
+
+    expect(Job.where(kind: "agent_insight")).to be_empty
+    # The fixtures after the skipped one still landed.
+    demo_repo = Repository.find_by!(owner: "demo", name: "syrus-preview")
+    expect(Epic.find_by(repository: demo_repo, title: "Preview the operator workflow")).to be_present
+  end
 end

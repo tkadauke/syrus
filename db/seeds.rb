@@ -794,6 +794,15 @@ if Rails.env.development?
   insight_plugin.update!(enabled: true) unless insight_plugin_was_enabled
 
   begin
+    # Enabling the record above is supposed to install the plugin's kinds into
+    # Job::Kind. In a preview that has repeatedly not taken effect, and the
+    # resulting validation error aborted `db:prepare db:seed` outright -- so
+    # the preview came up with no seed data at all and every visual review on
+    # it silently reported success. A demo fixture must never be able to do
+    # that: check the precondition, and treat any failure below as "skip this
+    # fixture", not "abandon the seed".
+    raise "Job::Kind has no agent_insight kind after enabling the plugin" unless Job::Kind.values.include?("agent_insight")
+
     insight_job = Job.find_or_initialize_by(
       repository: demo_repo,
       kind: "agent_insight",
@@ -824,6 +833,8 @@ if Rails.env.development?
       suggestion.suggested_prompt = "Investigate why the implement step keeps failing on retry workflows for demo/syrus-preview and add regression coverage for the underlying cause."
       suggestion.evidence = failed_job ? [ { "job_id" => failed_job.id, "kind" => "repeated_failure" } ] : []
     end
+  rescue StandardError => e
+    warn "[seeds] skipping Agent Insights fixture: #{e.class}: #{e.message}"
   ensure
     insight_plugin.update!(enabled: false) unless insight_plugin_was_enabled
   end
