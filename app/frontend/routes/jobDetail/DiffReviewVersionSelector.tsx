@@ -113,6 +113,7 @@ export function DiffReviewVersionSelector({
     const nextEndpoints = orderedEndpointRange({
       endpoint,
       fromVersion: fromEndpointVersion,
+      orderedVersions: ordered,
       selectedVersion: version,
       toVersion: toEndpointVersion,
       fallbackBaseSha: rangeBaseSha,
@@ -290,6 +291,7 @@ function orderedEndpointRange({
   fallbackBaseSha,
   fallbackHeadSha,
   fromVersion,
+  orderedVersions,
   selectedVersion,
   toVersion
 }: {
@@ -297,22 +299,41 @@ function orderedEndpointRange({
   fallbackBaseSha: string
   fallbackHeadSha: string
   fromVersion: DiffReviewVersion | null
+  orderedVersions: DiffReviewVersion[]
   selectedVersion: DiffReviewVersion
   toVersion: DiffReviewVersion | null
 }) {
   if (endpoint === "from") {
     const mustClampTo = toVersion && selectedVersion.version_index > toVersion.version_index
+    const crossesBaseEpoch = !mustClampTo && !canReachBase(orderedVersions, selectedVersion, fallbackBaseSha)
     return {
       baseSha: selectedVersion.base_sha,
-      headSha: mustClampTo ? selectedVersion.head_sha : fallbackHeadSha
+      headSha: mustClampTo || crossesBaseEpoch ? selectedVersion.head_sha : fallbackHeadSha
     }
   }
 
   const mustClampFrom = fromVersion && selectedVersion.version_index < fromVersion.version_index
+  const crossesBaseEpoch = !mustClampFrom && !canReachBase(orderedVersions, selectedVersion, fallbackBaseSha)
   return {
-    baseSha: mustClampFrom ? selectedVersion.base_sha : fallbackBaseSha,
+    baseSha: mustClampFrom || crossesBaseEpoch ? selectedVersion.base_sha : fallbackBaseSha,
     headSha: selectedVersion.head_sha
   }
+}
+
+function canReachBase(versions: DiffReviewVersion[], selectedVersion: DiffReviewVersion, targetBaseSha: string) {
+  if (selectedVersion.base_sha === targetBaseSha) return true
+
+  let currentBaseSha = selectedVersion.base_sha
+  for (const version of reviewRangeVersionsBefore(versions, selectedVersion)) {
+    if (version.head_sha !== currentBaseSha) continue
+    currentBaseSha = version.base_sha
+    if (currentBaseSha === targetBaseSha) return true
+  }
+  return false
+}
+
+function reviewRangeVersionsBefore(versions: DiffReviewVersion[], selectedVersion: DiffReviewVersion) {
+  return versions.filter((version) => !isAllChangesVersion(version) && compareVersions(version, selectedVersion) < 0).reverse()
 }
 
 function RangeRow({
