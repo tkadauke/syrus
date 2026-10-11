@@ -21,6 +21,7 @@ module Workflows
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
       workflow.cleanup_workspace!
+      workflow.job.clear_needs_attention!(reason: GraderLoopProgress::NO_PROGRESS_REASON)
       workflow.propagate_succeed_to_job!
       workflow.cancel_superseded_retry_workflows!
       dispatch_hook(:after_success)
