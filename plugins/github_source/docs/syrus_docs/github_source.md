@@ -42,7 +42,7 @@ non-archived repository. Each poll:
    closed issues with the same label (to close their Jobs — see below).
 2. Preloads two caches for the whole batch before ingesting any single issue
    (`preload_ingest_caches`): the latest `Job` per issue number, and each
-   issue body's parsed `Epic:` marker (`EpicMarkerParser`) — avoiding one
+   issue body's parsed `syrus-epic` marker (`EpicMarkerParser`) — avoiding one
    query/parse per issue in a repo with many open issues.
 3. Ingests each issue (`ingest`), gated by `IngestPolicy.evaluate` (an issue
    can be skipped — logged, not raised — for reasons unrelated to this
@@ -61,13 +61,14 @@ issue number as a string — the durable `external_ref` Jobs are matched
 against on subsequent polls.
 
 **Epic markers vs. plain issues.** `ingest` first checks
-`marker_for(issue)` (an `Epic:`/`Epic: #<n>` line — see the root CLAUDE.md's
-"Syrus Epic issue markers are body-only" convention: only a standalone body
-line counts, never the title). `:epic_declaration` creates/finds an `Epic`
-by its GitHub issue URL. `:child_of_epic` resolves the referenced Epic (or,
-if it doesn't exist yet, files the Job with `triaging_reason:
-"pending_epic_ref"` and a `pending_epic_reference` payload so a later poll —
-once the Epic issue itself has been ingested — can attach it). Neither path
+`marker_for(issue)` (an explicit `<!-- syrus-epic: ... -->` HTML comment — see
+the root CLAUDE.md's "Syrus Epic issue markers are explicit machine markers"
+convention: visible `Epic:` prose and titles do not route issues).
+`:epic_declaration` creates/finds an `Epic` by its GitHub issue URL.
+`:child_of_epic` resolves the referenced Epic (or, if it doesn't exist yet,
+files the Job with `triaging_reason: "pending_epic_ref"` and a
+`pending_epic_reference` payload so a later poll — once the Epic issue itself
+has been ingested — can attach it). Neither path
 runs the plain-issue flow below.
 
 **Plain issue ingestion.** For a genuinely new issue with no prior Job: if

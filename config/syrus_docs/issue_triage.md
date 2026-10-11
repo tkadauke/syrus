@@ -27,10 +27,19 @@ from the admin processes surface.
 
 ## Issue body markers
 
-Externally filed issues can attach themselves to an Epic with `Epic: #123`,
-`Epic: 123`, or `Epic: owner/repo#123`. Bare numbers always mean an issue in
-the same repository as the filed issue; use the owner/repo form for a different
-repository.
+Externally filed issues can attach themselves to an Epic only with the explicit
+Syrus marker comment: `<!-- syrus-epic: #123 -->`,
+`<!-- syrus-epic: 123 -->`, or `<!-- syrus-epic: owner/repo#123 -->`. Bare
+numbers always mean an issue in the same repository as the filed issue; use the
+owner/repo form for a different repository. Visible prose such as `Epic: #123`
+does not route the issue. To migrate an existing template, wrap the old line in
+a marker block:
+
+```markdown
+<!-- syrus-epic
+Epic: #123
+-->
+```
 
 Job and Epic dependency lines use the same reference syntax:
 `Depends-on: #123`, `Depends-on: 123`, `Blocked-by: #123`, or

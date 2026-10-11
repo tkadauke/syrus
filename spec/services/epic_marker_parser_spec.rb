@@ -7,15 +7,19 @@ RSpec.describe EpicMarkerParser do
     described_class.parse(text: text, default_repository: repository)
   end
 
-  it "parses an Epic declaration by name" do
-    expect(marker("Epic: Ingestion classifier")).to eq({
+  def epic_marker(value)
+    "<!-- syrus-epic: #{value} -->"
+  end
+
+  it "parses an explicit Epic declaration marker by name" do
+    expect(marker(epic_marker("Ingestion classifier"))).to eq({
       kind: :epic_declaration,
       name: "Ingestion classifier"
     })
   end
 
-  it "parses a same-repo child reference" do
-    expect(marker("Epic: #447")).to eq({
+  it "parses an explicit same-repo child reference marker" do
+    expect(marker(epic_marker("#447"))).to eq({
       kind: :child_of_epic,
       owner: "acme",
       repo: "widgets",
@@ -24,7 +28,7 @@ RSpec.describe EpicMarkerParser do
   end
 
   it "parses a bare same-repo child reference" do
-    expect(marker("Epic: 447")).to eq({
+    expect(marker(epic_marker("447"))).to eq({
       kind: :child_of_epic,
       owner: "acme",
       repo: "widgets",
@@ -33,7 +37,7 @@ RSpec.describe EpicMarkerParser do
   end
 
   it "parses a cross-repo child reference" do
-    expect(marker("Epic: tkadauke/syrus#447")).to eq({
+    expect(marker(epic_marker("tkadauke/syrus#447"))).to eq({
       kind: :child_of_epic,
       owner: "tkadauke",
       repo: "syrus",
@@ -41,15 +45,22 @@ RSpec.describe EpicMarkerParser do
     })
   end
 
-  it "finds markers anywhere in the body" do
-    expect(marker("Intro text\n\n- Epic: Platform intake\n- Depends-on: #1")).to eq({
+  it "finds explicit markers anywhere in the body" do
+    expect(marker("Intro text\n\n#{epic_marker("Platform intake")}\n- Depends-on: #1")).to eq({
+      kind: :epic_declaration,
+      name: "Platform intake"
+    })
+  end
+
+  it "parses a block marker that wraps the previous Epic line format" do
+    expect(marker("<!-- syrus-epic\nEpic: Platform intake\n-->")).to eq({
       kind: :epic_declaration,
       name: "Platform intake"
     })
   end
 
   it "uses the first marker" do
-    expect(marker("Epic: First marker\nEpic: #447")).to eq({
+    expect(marker("#{epic_marker("First marker")}\n#{epic_marker("#447")}")).to eq({
       kind: :epic_declaration,
       name: "First marker"
     })
@@ -63,12 +74,32 @@ RSpec.describe EpicMarkerParser do
     expect(marker("NotEpic: #447")).to be_nil
   end
 
+  it "does not parse a natural-language Epic line" do
+    expect(marker("Epic: #447")).to be_nil
+  end
+
+  it "does not parse quoted text as an Epic marker" do
+    expect(marker("> Epic: #447")).to be_nil
+  end
+
+  it "does not parse markdown headings as an Epic marker" do
+    expect(marker("## Epic: #447")).to be_nil
+  end
+
+  it "does not parse issue-template fields as an Epic marker" do
+    expect(marker("### Epic\n\n#447")).to be_nil
+  end
+
+  it "does not parse paragraphs mentioning Epic as an Epic marker" do
+    expect(marker("This rollout belongs with the Epic: #447 planning work.")).to be_nil
+  end
+
   it "returns nil for a missing reference number" do
-    expect(marker("Epic: #")).to be_nil
+    expect(marker(epic_marker("#"))).to be_nil
   end
 
   it "returns nil for a malformed slug reference" do
-    expect(marker("Epic: foo#bar")).to be_nil
+    expect(marker(epic_marker("foo#bar"))).to be_nil
   end
 
   it "does not run a whole-body regex over long non-marker issue text" do
@@ -76,7 +107,7 @@ RSpec.describe EpicMarkerParser do
   end
 
   it "bounds absurd marker values" do
-    expect(marker("Epic: #{'x' * 100_000}")).to eq({
+    expect(marker(epic_marker("x" * 100_000))).to eq({
       kind: :epic_declaration,
       name: "x" * described_class::MAX_MARKER_VALUE_BYTES
     })
