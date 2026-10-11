@@ -3892,6 +3892,46 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
   end
 
+  it "does not terminalize a running Step while a failed Run has pending auto-retry ownership" do
+    next_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 1)
+    step.update!(kind: "grader", next_step: next_step)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(
+      state: "failed",
+      agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 9.minutes.ago,
+      finished_at: 8.minutes.ago
+    )
+    RunFailureClassification.create!(
+      run: run,
+      classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      retryable: true,
+      confidence: 0.95,
+      reason: "worker disappeared",
+      classified_at: 8.minutes.ago
+    )
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: run.agent_provider.presence || workflow.agent_provider || job.agent_provider,
+      failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(plan(result, :reconcile_step_from_terminal_run)).to be_nil
+    expect(step.reload).to be_running
+    expect(next_step.reload).to be_queued
+  end
+
   it "reconciles a queued Step whose Run failed before the Step could start" do
     next_step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 1)
     step.update!(kind: "auto_rebase", next_step: next_step)

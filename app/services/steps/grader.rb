@@ -216,6 +216,8 @@ module Steps
     def first_missing_tracked_file
       output, stderr, status = Open3.capture3("git", "ls-files", "-s", "-z", chdir: workspace.path.to_s)
       unless status.success?
+        return if stderr.to_s.include?("not a git repository")
+
         fail_with!(
           :workspace_checkout_invalid,
           "grader checkout could not list tracked files: #{stderr.presence || "git ls-files exited #{status.exitstatus}"}",

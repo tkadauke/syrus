@@ -131,6 +131,7 @@ module WorkEngine
             wake_jobs!(tick)
             process_landing_queue!(tick)
             execute_active_runs!(tick)
+            process_auto_retry_attempts!(tick)
             next if retryable_failed_jobs?
             return success(tick + 1) if complete?
             return waiting(tick + 1) if no_active_runs? && valid_waiting?
@@ -783,7 +784,7 @@ module WorkEngine
         return if attempts.empty?
 
         next_attempt = attempts.min_by { |attempt| [ attempt.scheduled_at || Time.current, attempt.id ] }
-        if next_attempt.scheduled_at&.future? && no_active_runs?
+        if next_attempt.scheduled_at&.future? && retry_attempt_can_fast_forward?(next_attempt)
           next_attempt.update!(scheduled_at: Time.current)
           events << "tick #{tick}: fast-forward auto retry #{next_attempt.id}"
         end
@@ -799,6 +800,15 @@ module WorkEngine
         return false unless auto_retry_failed_jobs?
 
         jobs.any?(&:failed?)
+      end
+
+      def retry_attempt_can_fast_forward?(attempt)
+        return true if no_active_runs?
+
+        run = attempt.run
+        return false unless run
+
+        active_runs.all? { |active| active.id == run.id }
       end
 
       def auto_retry_failed_jobs?
