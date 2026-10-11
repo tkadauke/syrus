@@ -42,6 +42,21 @@ function repositoryDetailPayload() {
       treat_grader_timeouts_as_failures: false,
       last_health_checked_sha: null
     },
+    syrus_yml: {
+      source: ".syrus.yml",
+      note: null,
+      present: true,
+      prepare_commands_count: 1,
+      graders_count: 2,
+      required_graders_count: 1,
+      formatter_mode: "not configured",
+      generated_steps_count: 0,
+      visual_review_mode: "not configured",
+      adversarial_review_rounds: null,
+      coverage_configured: false,
+      delivery_tracks_count: 0,
+      merge_train_failure_policy: null
+    },
     tabs: [],
     cognitive_debt: cognitiveDebtPayload(),
     counts: { running: 0, queued: 0, failed_7d: 0 },
@@ -318,6 +333,71 @@ describe("RepositoryDetailRoute jobs", () => {
 
     expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
     expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+})
+
+describe("RepositoryDetailRoute .syrus.yml merge-train ladder", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("summarizes the configured ladder in order and renders mobile-friendly dropdown labeling", async () => {
+    renderRoute({
+      syrus_yml: {
+        ...repositoryDetailPayload().syrus_yml,
+        merge_train_failure_policy: ["restart", "keep_assembly"]
+      }
+    })
+
+    expect(await screen.findByText("restart -> keep_assembly")).toBeInTheDocument()
+
+    const button = screen.getByRole("button", { name: "Ladder" })
+    expect(button).toHaveClass("w-full", "sm:w-auto")
+
+    fireEvent.click(button)
+
+    expect(screen.getByLabelText("restart")).toBeChecked()
+    expect(screen.getByLabelText("keep_assembly")).toBeChecked()
+    expect(screen.getByText(/merge_train:/)).toBeInTheDocument()
+  })
+
+  it("selects rungs and preserves the .syrus.yml ordered-string representation", async () => {
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ladder" }))
+    fireEvent.click(screen.getByLabelText("restart"))
+    fireEvent.click(screen.getByLabelText("keep_assembly"))
+
+    expect(screen.getByText("restart -> keep_assembly")).toBeInTheDocument()
+    expect(screen.getByText(/failure_policy: - restart - keep_assembly/)).toBeInTheDocument()
+  })
+
+  it("changes rung order with explicit controls", async () => {
+    renderRoute({
+      syrus_yml: {
+        ...repositoryDetailPayload().syrus_yml,
+        merge_train_failure_policy: ["restart", "keep_assembly"]
+      }
+    })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ladder" }))
+    fireEvent.click(screen.getByRole("button", { name: "Move keep_assembly up" }))
+
+    expect(screen.getByText("keep_assembly -> restart")).toBeInTheDocument()
+    expect(screen.getByText(/failure_policy: - keep_assembly - restart/)).toBeInTheDocument()
+  })
+
+  it("clears to the instance fallback state", async () => {
+    renderRoute({
+      syrus_yml: {
+        ...repositoryDetailPayload().syrus_yml,
+        merge_train_failure_policy: ["restart"]
+      }
+    })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ladder" }))
+    fireEvent.click(screen.getByRole("button", { name: "Use instance fallback" }))
+
+    expect(screen.getByText("Using instance fallback")).toBeInTheDocument()
+    expect(screen.getByText(/No merge_train.failure_policy/)).toBeInTheDocument()
   })
 })
 

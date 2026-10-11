@@ -656,7 +656,19 @@
     "syrus_yml_unavailable": "No .syrus.yml configuration available",
     "syrus_yml_loaded": "Loaded from {{source}}.",
     "syrus_yml_not_loaded": "Not loaded.",
-    "syrus_yml_not_loaded_with_note": "Not loaded: {{note}}"
+    "syrus_yml_not_loaded_with_note": "Not loaded: {{note}}",
+    "syrus_yml_merge_train_failure_policy": "Merge-train failure ladder",
+    "syrus_yml_merge_train_fallback": "Using instance fallback",
+    "syrus_yml_merge_train_fallback_detail": "No merge_train.failure_policy in .syrus.yml; Syrus uses the instance default.",
+    "syrus_yml_merge_train_button": "Ladder",
+    "syrus_yml_merge_train_rung_restart": "restart",
+    "syrus_yml_merge_train_rung_keep_assembly": "keep_assembly",
+    "syrus_yml_merge_train_up": "Up",
+    "syrus_yml_merge_train_down": "Down",
+    "syrus_yml_merge_train_move_up": "Move {{rung}} up",
+    "syrus_yml_merge_train_move_down": "Move {{rung}} down",
+    "syrus_yml_merge_train_yaml": ".syrus.yml",
+    "syrus_yml_merge_train_clear": "Use instance fallback"
   },
   "delivery": {
     "aria_section": "Delivery tracks",

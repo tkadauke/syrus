@@ -12,6 +12,8 @@ import {
 } from "../components/dataTable"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { DismissButton } from "../components/DismissButton"
+import { Checkbox } from "../components/Checkbox"
+import { Button } from "../components/Button"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
@@ -32,6 +34,11 @@ import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryCognitiveDebtQueueItem, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
+
+const MERGE_TRAIN_FAILURE_RUNGS = [
+  { value: "restart", labelKey: "repository.syrus_yml_merge_train_rung_restart" },
+  { value: "keep_assembly", labelKey: "repository.syrus_yml_merge_train_rung_keep_assembly" }
+] as const
 
 export function RepositoryDetailRoute() {
   const params = useParams()
@@ -518,7 +525,116 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
           </DescriptionList.Item>
         ))}
       </DescriptionList.Root>
+      {summary.present ? <MergeTrainFailurePolicySelector initialPolicy={summary.merge_train_failure_policy} /> : null}
     </section>
+  )
+}
+
+function MergeTrainFailurePolicySelector({ initialPolicy }: { initialPolicy: string[] | null }) {
+  const { t } = useT("settings")
+  const [open, setOpen] = useState(false)
+  const [policy, setPolicy] = useState<string[] | null>(initialPolicy)
+  const popupRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  const selected = policy ?? []
+  const summary = selected.length > 0
+    ? selected.join(" -> ")
+    : t("repository.syrus_yml_merge_train_fallback")
+  const yaml = selected.length > 0
+    ? `merge_train:\n  failure_policy:\n${selected.map((rung) => `    - ${rung}`).join("\n")}`
+    : t("repository.syrus_yml_merge_train_fallback_detail")
+
+  function toggleRung(rung: string, checked: boolean) {
+    const next = checked
+      ? [ ...selected, rung ].filter((value, index, values) => values.indexOf(value) === index)
+      : selected.filter((value) => value !== rung)
+    setPolicy(next.length > 0 ? next : null)
+  }
+
+  function moveRung(rung: string, direction: -1 | 1) {
+    const index = selected.indexOf(rung)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= selected.length) return
+
+    const next = [ ...selected ]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setPolicy(next)
+  }
+
+  return (
+    <div className="relative mt-4 border-t border-gray-200 pt-3 dark:border-gray-700" ref={popupRef}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {t("repository.syrus_yml_merge_train_failure_policy")}
+          </p>
+          <p className="mt-1 min-w-0 break-words font-mono text-sm text-gray-800 dark:text-gray-100">
+            {summary}
+          </p>
+        </div>
+        <Button
+          aria-expanded={open}
+          className="w-full justify-between sm:w-auto sm:min-w-40"
+          onClick={() => setOpen((value) => !value)}
+          variant="secondary"
+        >
+          <span className="truncate">{t("repository.syrus_yml_merge_train_button")}</span>
+          <ChevronIcon className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+        </Button>
+      </div>
+
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-full max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 sm:w-96">
+          <div className="space-y-2">
+            {MERGE_TRAIN_FAILURE_RUNGS.map((rung) => {
+              const checked = selected.includes(rung.value)
+              const index = selected.indexOf(rung.value)
+              return (
+                <div className="flex items-center gap-2 rounded border border-gray-200 p-2 dark:border-gray-800" key={rung.value}>
+                  <Checkbox
+                    checked={checked}
+                    label={t(rung.labelKey)}
+                    onChange={(event) => toggleRung(rung.value, event.target.checked)}
+                  />
+                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <button
+                      aria-label={t("repository.syrus_yml_merge_train_move_up", { rung: t(rung.labelKey) })}
+                      className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      disabled={!checked || index <= 0}
+                      onClick={() => moveRung(rung.value, -1)}
+                      type="button"
+                    >
+                      {t("repository.syrus_yml_merge_train_up")}
+                    </button>
+                    <button
+                      aria-label={t("repository.syrus_yml_merge_train_move_down", { rung: t(rung.labelKey) })}
+                      className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      disabled={!checked || index === selected.length - 1}
+                      onClick={() => moveRung(rung.value, 1)}
+                      type="button"
+                    >
+                      {t("repository.syrus_yml_merge_train_down")}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-3 rounded bg-gray-50 p-2 dark:bg-gray-900">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("repository.syrus_yml_merge_train_yaml")}</p>
+            <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-gray-700 dark:text-gray-200">{yaml}</pre>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-300"
+              onClick={() => setPolicy(null)}
+              type="button"
+            >
+              {t("repository.syrus_yml_merge_train_clear")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -775,9 +891,9 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
             </DataTable.Body>
           </DataTable.Root>
         ) : (
-          <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+          <Surface className="text-sm text-gray-600 dark:text-gray-400">
             {t('repository.no_triage_jobs')}
-          </p>
+          </Surface>
         )}
       </div>
       {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, t("repository.release_triage_failed"))}</PanelMessage> : null}
