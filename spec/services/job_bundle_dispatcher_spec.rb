@@ -349,6 +349,20 @@ RSpec.describe JobBundleDispatcher do
     expect(described_class.try_dispatch!(repository)).to be_present
   end
 
+  it "uses the structured failure code, not explanation wording, for bundle cooldown bypasses" do
+    approved_job(1)
+    approved_job(2)
+    MergeTrain.create!(
+      repository: repository, base_branch: "master", priority: "medium",
+      state: "failed",
+      failure_code: LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED,
+      failure_reason: "integration branch needs a fresh build",
+      finished_at: 5.minutes.ago
+    )
+
+    expect(described_class.try_dispatch!(repository)).to be_present
+  end
+
   it "re-dispatches immediately after an old bundle missing base tracking fails" do
     approved_job(1)
     approved_job(2)
