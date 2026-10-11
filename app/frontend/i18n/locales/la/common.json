@@ -273,6 +273,7 @@
     "load_error_instance": "Haec instantia Syrus onerari non potest."
   },
   "start_blocked_reasons": {
+    "agent_cannot_proceed": "Agens pergere non potest",
     "dependency_failed": "Dependentia defecit",
     "dependency_approval_withdrawn": "Approbatio dependentiae revocata",
     "stack_dependencies_not_ready": "Dependentiam exspectat",
@@ -296,6 +297,7 @@
     "landing_paused": "Descensus suspensus"
   },
   "start_blocked_reason_tooltips": {
+    "agent_cannot_proceed": "Agens rettulit se tuto pergere non posse. Monitionem inspice et, obstaculo remoto, iterum tenta.",
     "dependency_failed": "Opus vel Epicum necessarium sine exitu felici finitum est. Dependentiam remove vel praeteri ut pergas.",
     "dependency_approval_withdrawn": "Opus superius approbatum est et deinde illa approbatio revocata est. Id opus rursus approba ut pergas.",
     "stack_dependencies_not_ready": "Opus vel Epicum necessarium nondum feliciter perfectum est.",
