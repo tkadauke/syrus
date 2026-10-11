@@ -20,6 +20,7 @@ module Features
 
     def call
       return unless Feature.table_exists?
+      return unless Feature.column_names.include?("experimental")
 
       declarations.each do |declaration|
         feature = Feature.find_or_initialize_by(slug: declaration.fetch(:slug))

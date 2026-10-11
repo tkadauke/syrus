@@ -20,6 +20,15 @@ RSpec.describe Features::SyncFromYaml do
     expect(described_class.build_time_asset_precompile?).to be true
   end
 
+  it "does not synchronize before the feature schema migration has run" do
+    columns_before_migration = Feature.column_names - [ "experimental" ]
+    allow(Feature).to receive(:table_exists?).and_return(true)
+    allow(Feature).to receive(:column_names).and_return(columns_before_migration)
+    expect(Feature).not_to receive(:find_or_initialize_by)
+
+    described_class.call
+  end
+
   it "creates declared features and initializes enabled from default" do
     path = write_features_yaml(<<~YAML)
       features:
