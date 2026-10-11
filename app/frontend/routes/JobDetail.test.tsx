@@ -1988,7 +1988,8 @@ describe("JobDetailView", () => {
 
     renderJobDetail(payload)
 
-    expect(screen.getByRole("button", { name: "Chat about this" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Chat about this" })).toHaveLength(1)
+    expect(screen.queryByRole("link", { name: /Chat/ })).not.toBeInTheDocument()
   })
 
   it("keeps the mobile chat affordance compact and on the same row as header actions", () => {
@@ -2012,10 +2013,34 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
   })
 
+  it("keeps one consolidated chat affordance when a source chat and start permission are both present", () => {
+    const payload = jobPayload({
+      job: {
+        ...baseJob(),
+        source_chat: {
+          chat_id: 4,
+          chat_title: "Roadmap chat",
+          proposal_id: 9,
+          proposal_kind: "syrus_issue",
+          message_id: 12,
+          path: "/chats/4#message-12",
+          label: "Job proposal in Roadmap chat"
+        }
+      },
+      actions: { ...jobPayload().actions, can_start_chat: true }
+    })
+
+    renderJobDetail(payload)
+
+    expect(screen.queryByRole("button", { name: "Chat about this" })).not.toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Chat" })).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
   it("hides 'Chat about this' once a discussion chat is linked, showing a link to it instead", () => {
     const payload = jobPayload({
       job: { ...baseJob(), discussion_chat: { chat_id: 9, chat_title: "Bug triage", path: "/chats/9" } },
-      actions: { ...jobPayload().actions, can_start_chat: false }
+      actions: { ...jobPayload().actions, can_start_chat: true }
     })
 
     renderJobDetail(payload)
@@ -2025,19 +2050,84 @@ describe("JobDetailView", () => {
     expect(link).toHaveAttribute("href", "/app-shell/chats/9")
   })
 
-  it("starts a discussion chat and navigates to it", async () => {
+  it("opens a prompt modal before starting a discussion chat", () => {
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+
+    expect(screen.queryByRole("dialog", { name: "Start Job chat" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Start Job chat" })
+    expect(within(dialog).getByLabelText("Prompt")).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Start chat" })).toBeInTheDocument()
+  })
+
+  it("closes the discussion chat prompt modal without starting a chat", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Explain this Job." } })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByRole("dialog", { name: "Start Job chat" })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("starts a discussion chat with the prompt payload and navigates to it", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" }))
     const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
 
     renderJobDetail(payload, { showLocation: true })
     fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Please explain what is blocked." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/start_chat", expect.objectContaining({
+        body: JSON.stringify({ message: "Please explain what is blocked." }),
         method: "POST"
       }))
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/9")
     })
+  })
+
+  it("disables the discussion chat prompt actions while creation is pending", async () => {
+    let resolveStartChat: (response: Response) => void = () => {}
+    vi.spyOn(window, "fetch").mockImplementation(() => new Promise((resolve) => {
+      resolveStartChat = resolve
+    }))
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Please explain what is blocked." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Submitting..." })).toBeDisabled()
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+      expect(screen.getByLabelText("Prompt")).toBeDisabled()
+    })
+
+    resolveStartChat(jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" }))
+  })
+
+  it("shows discussion chat prompt errors", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Unable to create chat." } }, 422))
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Please explain what is blocked." } })
+    fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to create chat.")
+    expect(screen.getByRole("dialog", { name: "Start Job chat" })).toBeInTheDocument()
   })
 
   it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
