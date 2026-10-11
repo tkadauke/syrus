@@ -1914,9 +1914,49 @@ describe("hidden-context expansion", () => {
     const codeCells = Array.from(screen.getAllByRole("cell"))
       .filter((cell) => cell.className.includes("min-w-[40rem]"))
       .map((cell) => cell.textContent)
-    expect(codeCells).toEqual(["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "first", "between 2", "between 3", "between 4", "between 5", "second"])
-    expect(screen.queryByText("@@ -1,1 +1,1 @@")).not.toBeInTheDocument()
-    expect(screen.queryByText("@@ -6,1 +6,1 @@")).not.toBeInTheDocument()
+    expect(codeCells).toEqual([
+      "diff --git a/f.rb b/f.rb",
+      "--- a/f.rb",
+      "+++ b/f.rb",
+      "@@ -1,1 +1,1 @@",
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "@@ -6,1 +6,1 @@",
+      "second"
+    ])
+  })
+
+  it("places automatically revealed above-hunk context after the next hunk divider", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " first", "@@ -6,1 +6,1 @@", " second"].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue(["first", "between 2", "between 3", "between 4", "between 5", "second"].join("\n"))
+
+    render(
+      <ReviewableDiff
+        files={[twoHunkFile]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewAnnotationRanges={{
+          "f.rb": [{ id: "note-near-second-hunk", side: "new", start_line: 6, end_line: 6, title: "Inspect second hunk" }]
+        }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 2 }}
+        showFileHeaders
+      />
+    )
+
+    await findCodeCellText("between 4")
+    const codeCells = Array.from(screen.getAllByRole("cell"))
+      .filter((cell) => cell.className.includes("min-w-[40rem]"))
+      .map((cell) => cell.textContent)
+    expect(codeCells.slice(codeCells.indexOf("@@ -6,1 +6,1 @@"), codeCells.indexOf("second") + 1)).toEqual(["@@ -6,1 +6,1 @@", "between 4", "between 5", "second"])
   })
 
   it("reveals hidden context and renders an inline range annotation when a note spans two hunks", async () => {
