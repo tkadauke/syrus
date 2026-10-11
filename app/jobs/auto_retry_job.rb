@@ -310,12 +310,16 @@ class AutoRetryJob < ApplicationJob
     return false unless attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
 
     step = attempt.run&.step
-    step&.running? && attempt.workflow&.running?
+    attempt.workflow&.running? && (step&.running? || step&.failed?)
   end
 
   def retry_running_worker_died_step(attempt)
     step = attempt.run.step
     clear_failed_worker_affinity!(attempt)
+    if step.failed?
+      step.reopen!
+      step.save!
+    end
     replacement = StepDispatcher.create_run_and_enqueue(step, attempt.workflow)
 
     RetryFailedStepEnqueuer::Result.new(

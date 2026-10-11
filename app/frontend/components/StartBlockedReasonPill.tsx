@@ -16,6 +16,7 @@ type StartBlockedReason =
   | "admission_control"
   | "provider_availability"
   | "manual_pause"
+  | "agent_cannot_proceed"
   | "main_branch_health"
   | "dependency_failed"
   | "stack_dependencies_not_ready"
@@ -38,6 +39,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   admission_control: "amber",
   provider_availability: "amber",
   manual_pause: "gray",
+  agent_cannot_proceed: "amber",
   main_branch_health: "red",
   dependency_failed: "red",
   stack_dependencies_not_ready: "amber",

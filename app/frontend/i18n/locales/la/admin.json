@@ -523,6 +523,7 @@
     "required": "Necessarium",
     "enable": "Activa",
     "enable_beta_mode": "Modum beta activa",
+    "experimental": "Experimentale",
     "experimental_opt_in_body": "Hoc plugin in hoc aedificio Syrus praesto est, sed haec instantia modum beta nondum activavit.",
     "disable": "Deactiva",
     "saving": "Servatur...",

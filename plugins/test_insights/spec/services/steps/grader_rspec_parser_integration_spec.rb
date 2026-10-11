@@ -31,8 +31,19 @@ RSpec.describe "Steps::Grader real RSpec output ingestion", requires_plugin: "ru
   around do |example|
     Dir.mktmpdir("syrus-grader-rspec-parser") do |dir|
       @ws_path = Pathname.new(dir)
+      prepare_git_workspace!
       example.run
     end
+  end
+
+  def prepare_git_workspace!
+    git_opts = { chdir: @ws_path.to_s, exception: true }
+    system("git", "init", "--quiet", "-b", "main", **git_opts)
+    system("git", "config", "user.email", "test@example.com", **git_opts)
+    system("git", "config", "user.name", "Test User", **git_opts)
+    @ws_path.join("README.md").write("test workspace\n")
+    system("git", "add", "README.md", **git_opts)
+    system("git", "commit", "--quiet", "-m", "Initial commit", **git_opts)
   end
 
   def make_step(junit_output:)

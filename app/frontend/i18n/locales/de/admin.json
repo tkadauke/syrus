@@ -523,6 +523,7 @@
     "required": "Erforderlich",
     "enable": "Aktivieren",
     "enable_beta_mode": "Beta-Modus aktivieren",
+    "experimental": "Experimentell",
     "experimental_opt_in_body": "Dieses Plugin ist in diesem Syrus-Build verfügbar, aber diese Instanz hat den Beta-Modus nicht aktiviert.",
     "disable": "Deaktivieren",
     "saving": "Speichert...",
