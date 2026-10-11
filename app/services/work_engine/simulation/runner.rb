@@ -1431,8 +1431,10 @@ module WorkEngine
       def active_work_units
         WorkUnit
           .joins(:work_unit_members)
+          .left_outer_joins(:workflow)
           .where(work_unit_members: { job_id: job_ids })
           .where(state: WorkUnits::Ownership::ACTIVE_STATES)
+          .where("workflows.id IS NULL OR workflows.state IN (?)", Workflow::TriggerKind::ACTIVE_STATES)
           .distinct
           .to_a
       end
