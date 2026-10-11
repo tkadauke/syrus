@@ -427,6 +427,9 @@ class RunJob < ApplicationJob
     rescue Steps::Base::CannotProceed => e
       block_after_cannot_proceed!(e.reason)
       return
+    rescue Steps::Base::StepSkipped => e
+      skip_after_step_skipped!(e)
+      return
     end
 
     # A reaper, operator stop, or another state propagator can make
@@ -637,6 +640,20 @@ class RunJob < ApplicationJob
     elsif reconciliation.reason.present?
       log("terminal success race could not be reconciled: #{reconciliation.reason}", kind: "system")
     end
+  end
+
+  def skip_after_step_skipped!(exception)
+    log("step #{@step.kind} skipped: #{exception.message}", kind: "system")
+
+    @run.reload
+    @step.reload
+    @workflow.reload
+    return if @workflow.terminal? || @step.terminal?
+
+    @run.skip! if @run.may_skip?
+    @run.save!
+    @step.skip_with_reason!(exception.reason)
+    StepDispatcher.advance_from(@step.reload) if @step.skipped?
   end
 
   def block_after_cannot_proceed!(reason)

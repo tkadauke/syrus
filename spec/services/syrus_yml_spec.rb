@@ -491,6 +491,17 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.adversarial_review.rounds).to eq(2)
+    expect(config.adversarial_review.required).to be(false)
+  end
+
+  it "parses adversarial review required policy" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 2
+        required: true
+    YAML
+
+    expect(config.adversarial_review.required).to be(true)
   end
 
   it "clamps adversarial review rounds above the hard ceiling with a warning" do
@@ -1766,6 +1777,7 @@ RSpec.describe SyrusYml do
             - "app/frontend/**/*"
             - "app/views/**/*"
           seed_notes: "Log in as demo@example.com / password to reach the dashboard."
+          required: true
       YAML
 
       expect(config.visual_review.enabled).to be true
@@ -1775,9 +1787,10 @@ RSpec.describe SyrusYml do
         "app/views/**/*"
       ])
       expect(config.visual_review.seed_notes).to eq("Log in as demo@example.com / password to reach the dashboard.")
+      expect(config.visual_review.required).to be(true)
     end
 
-    it "defaults enabled to nil (defers to the instance-wide Feature default), rounds to 1, when_files_changed to nil, and seed_notes to nil when omitted" do
+    it "defaults enabled to nil (defers to the instance-wide Feature default), rounds to 1, when_files_changed to nil, seed_notes to nil, and required to false when omitted" do
       config = parse(<<~YAML)
         visual_review: {}
       YAML
@@ -1786,6 +1799,7 @@ RSpec.describe SyrusYml do
       expect(config.visual_review.rounds).to eq(1)
       expect(config.visual_review.when_files_changed).to be_nil
       expect(config.visual_review.seed_notes).to be_nil
+      expect(config.visual_review.required).to be(false)
     end
 
     it "leaves enabled nil when the block is present but the enabled key is omitted, even with other keys set" do

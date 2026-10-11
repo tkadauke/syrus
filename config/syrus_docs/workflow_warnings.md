@@ -129,6 +129,18 @@ and a Job `needs_attention_reason` of `agent_cannot_proceed`, so the operator
 can read the blocker without opening the transcript and decide whether to file
 a follow-up Job from the warning.
 
+## Review execution skipped
+
+`Steps::VisualReview` and `Steps::AdversarialReview` record a `kind:
+"review_execution_skipped"` warning when an advisory review cannot execute and
+the repository has not marked that review `required: true` in `.syrus.yml`.
+Examples include visual preview preparation failures and adversarial reviewer
+execution failures that do not represent a completed review verdict. The
+associated Step and Run finish `skipped` rather than `succeeded`, and the
+warning evidence includes `review_kind`, `reason`, `run_id`, and `step_id`.
+When the corresponding `.syrus.yml` block sets `required: true`, the workflow
+fails instead of recording this warning.
+
 ## Skipped target CI failures
 
 `PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when
