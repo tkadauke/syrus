@@ -269,14 +269,14 @@ export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gap
   const resolvedFileLines = fileLines
   const result: DiffLine[] = []
 
-  function appendGap(gap: ContextGap | undefined, state: GapRevealState | undefined, hunkIds: { bottom: number; top: number }) {
+  function appendGap(gap: ContextGap | undefined, state: GapRevealState | undefined, placement: "beforeHunk" | "afterHunk", hunkIds: { bottom: number; top: number }) {
     if (!gap) return
     const size = gapSize(gap)
     if (size <= 0 || !state) return
-    const intervals = revealedIntervalsForGap(gap, state)
+    const intervals = revealedIntervalsForGapPlacement(gap, state, placement)
+    const hunkId = placement === "afterHunk" ? hunkIds.bottom : hunkIds.top
 
     for (const interval of intervals) {
-      const hunkId = interval.endNew === gap.endNew ? hunkIds.bottom : hunkIds.top
       for (let newLine = interval.startNew; newLine <= interval.endNew; newLine++) {
         result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkId))
       }
@@ -286,12 +286,16 @@ export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gap
   let hunkIndex = 0
   for (const line of lines) {
     if (line.kind === "hunk") {
-      appendGap(gaps[hunkIndex], gapStates[hunkIndex], { bottom: hunkIndex, top: Math.max(0, hunkIndex - 1) })
+      const hunkIds = { bottom: hunkIndex, top: Math.max(0, hunkIndex - 1) }
+      appendGap(gaps[hunkIndex], gapStates[hunkIndex], "beforeHunk", hunkIds)
+      result.push(line)
+      appendGap(gaps[hunkIndex], gapStates[hunkIndex], "afterHunk", hunkIds)
       hunkIndex += 1
+      continue
     }
     result.push(line)
   }
-  appendGap(gaps[hunkIndex], gapStates[hunkIndex], { bottom: Math.max(0, hunkIndex - 1), top: Math.max(0, hunkIndex - 1) })
+  appendGap(gaps[hunkIndex], gapStates[hunkIndex], "beforeHunk", { bottom: Math.max(0, hunkIndex - 1), top: Math.max(0, hunkIndex - 1) })
   return result
 }
 
@@ -385,6 +389,32 @@ function revealedIntervalsForGap(gap: ContextGap, state: GapRevealState | undefi
 
   const fromBottom = Math.min(state.fromBottom, size)
   if (fromBottom > 0) intervals.push({ startNew: gap.endNew - fromBottom + 1, endNew: gap.endNew })
+
+  return mergeIntervals(intervals)
+}
+
+function revealedIntervalsForGapPlacement(gap: ContextGap, state: GapRevealState, placement: "beforeHunk" | "afterHunk"): RevealedGapSegment[] {
+  const size = gapSize(gap)
+  if (size <= 0) return []
+
+  const fromBottom = Math.min(state.fromBottom, size)
+  const bottomStartNew = fromBottom > 0 ? gap.endNew - fromBottom + 1 : gap.endNew + 1
+
+  if (placement === "afterHunk") {
+    return fromBottom > 0 ? [{ startNew: bottomStartNew, endNew: gap.endNew }] : []
+  }
+
+  const intervals: RevealedGapSegment[] = []
+  const fromTop = Math.min(state.fromTop, size)
+  if (fromTop > 0) {
+    intervals.push({ startNew: gap.startNew, endNew: Math.min(gap.startNew + fromTop - 1, bottomStartNew - 1) })
+  }
+
+  for (const segment of state.segments ?? []) {
+    const startNew = Math.max(gap.startNew, segment.startNew)
+    const endNew = Math.min(gap.endNew, segment.endNew, bottomStartNew - 1)
+    if (startNew <= endNew) intervals.push({ startNew, endNew })
+  }
 
   return mergeIntervals(intervals)
 }

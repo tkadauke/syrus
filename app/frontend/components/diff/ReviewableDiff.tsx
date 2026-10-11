@@ -1831,7 +1831,6 @@ export function UnifiedDiffTable({
             if (line.kind === "hunk") {
               hunkIndex += 1
               const controls = hunkControls?.[hunkIndex]
-              if (controls && !controls.up && !controls.down) return null
               return (
                 <HunkRow
                   controls={controls}
