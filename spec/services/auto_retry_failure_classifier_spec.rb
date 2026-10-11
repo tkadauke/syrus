@@ -190,6 +190,19 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("provider_auth_expired")
   end
 
+  it "does not treat unrelated PR text as provider auth evidence" do
+    fail_run!(agent_outcome: "turn_failed", error_class: "CodexInvocation::Error", error_message: "agent turn failed")
+    run.update!(
+      agent_provider: "codex",
+      agent_pr_body: "Document the expired token settings copy."
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("turn_failed")
+  end
+
   it "keeps unrelated transient turn failures retryable" do
     fail_run!(agent_outcome: "turn_failed", error_class: "CodexInvocation::Error", error_message: "temporary upstream failure")
     run.update!(agent_provider: "codex")

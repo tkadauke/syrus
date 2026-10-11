@@ -177,11 +177,12 @@ class RunFailureClassifier
   end
 
   def provider_usage_limit?
-    return false if ProviderUsageLimit.inconclusive?(searchable_text)
+    text = provider_failure_text
+    return false if ProviderUsageLimit.inconclusive?(text)
     return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
     return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
 
-    ProviderUsageLimit.detect?(searchable_text)
+    ProviderUsageLimit::LegacyText.detect?(text)
   end
 
   def timeout?
@@ -245,7 +246,7 @@ class RunFailureClassifier
   def provider_auth_expired?
     return false if run.agent_provider.blank?
 
-    ProviderAuthFailure.detect?(searchable_text)
+    ProviderAuthFailure.detect?(provider_failure_text)
   end
 
   def process_died?
@@ -527,14 +528,17 @@ class RunFailureClassifier
   end
 
   def rate_limit_searchable_text
+    provider_failure_text
+  end
+
+  def provider_failure_text
     [
-      run.agent_summary,
-      run.agent_pr_title,
-      run.agent_pr_body,
+      run.agent_outcome,
       diagnostic&.error_class,
       diagnostic&.error_message,
-      diagnostic&.error_backtrace
-    ].compact.join("\n")
+      diagnostic&.error_backtrace,
+      recent_logs.map(&:chunk)
+    ].flatten.compact.join("\n")
   end
 
   def diagnostic_summary

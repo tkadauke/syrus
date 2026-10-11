@@ -121,6 +121,9 @@ module App
       usage_signal = PerformanceLogging.phase("provider_availability.usage_limit_signal", provider: provider) { usage_limit_signal }
       return usage_limit_status(usage_signal) if usage_signal
 
+      rate_limit_evidence_signal = PerformanceLogging.phase("provider_availability.rate_limit_evidence_signal", provider: provider) { current_rate_limit_signal }
+      return rate_limited_status(rate_limit_evidence_signal) if rate_limit_evidence_signal
+
       latest_signal = PerformanceLogging.phase("provider_availability.latest_provider_run_signal", provider: provider) { latest_provider_run_signal }
       return rate_limited_status(latest_signal) if latest_signal
 
@@ -147,7 +150,7 @@ module App
     attr_reader :user, :provider, :now
 
     UsageLimitSignal = Data.define(:run, :model, :reason, :evidence)
-    RateLimitSignal = Data.define(:run, :reason)
+    RateLimitSignal = Data.define(:run, :reason, :evidence)
     AuthErrorSignal = Data.define(:evidence)
 
     def open_status(circuit)
@@ -187,7 +190,8 @@ module App
     end
 
     def rate_limited_status(signal)
-      retry_after = (signal.run.finished_at || signal.run.updated_at || now) + ProviderCircuitBreaker::OPEN_FOR
+      observed_at = signal.run ? (signal.run.finished_at || signal.run.updated_at || now) : (signal.evidence&.observed_at || now)
+      retry_after = observed_at + ProviderCircuitBreaker::OPEN_FOR
       {
         provider: provider,
         label: provider_label,
@@ -199,7 +203,7 @@ module App
         reason: signal.reason,
         message: "#{provider_label} is rate-limited. Syrus will treat #{provider_label} as unavailable until a later #{provider_label} run completes without a rate-limit failure.",
         usage: usage_snapshot,
-        evidence: latest_evidence_payload
+        evidence: latest_evidence_payload(primary: signal.evidence&.summary)
       }.merge(pause_metadata)
     end
 
@@ -306,7 +310,7 @@ module App
         next unless usage_limit?(run, text)
         retry_after = ProviderQuotaReset.retry_after_for_run(run, now: now)
         next if retry_after && retry_after <= now
-        model = ProviderUsageLimit.extract_model(text)
+        model = ProviderUsageLimit.extract_model(text, run: run)
         observed_at = run.finished_at || run.updated_at || now
         next if agent_provider_class&.suppress_usage_limit_run?(run, model: model, observed_at: observed_at)
 
@@ -392,20 +396,47 @@ module App
       "Provider usage limit exhausted (#{source})."
     end
 
+    def current_rate_limit_signal
+      current_rate_limit_evidence&.then do |evidence|
+        RateLimitSignal.new(
+          run: evidence.run,
+          reason: "Latest #{provider_label} invocation hit a rate limit.",
+          evidence: evidence
+        )
+      end
+    end
+
+    def current_rate_limit_evidence
+      ProviderAvailabilityEvidence
+        .where(user: user, provider: provider, status: "rate_limited")
+        .unrepaired_for_circuit
+        .where("observed_at >= ?", now - ProviderCircuitBreaker::WINDOW)
+        .recent
+        .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+        .detect do |evidence|
+          !ProviderAvailabilityEvidence.latest_positive_after?(
+            user: user,
+            provider: provider,
+            account_id: evidence.account_id,
+            model: evidence.model,
+            observed_at: evidence.observed_at
+          )
+        end
+    end
+
     def latest_provider_run_signal
       run = latest_terminal_provider_run
       return unless run&.failed?
       return if run.run_failure_classification&.repaired_for_circuit?
 
-      text = diagnostic_text(run)
-      return unless rate_limited?(run, text)
+      return unless rate_limited?(run)
 
-      RateLimitSignal.new(run: run, reason: "Latest #{provider_label} run hit a rate limit.")
+      RateLimitSignal.new(run: run, reason: "Latest #{provider_label} run hit a rate limit.", evidence: nil)
     end
 
     def latest_terminal_provider_run
       run = provider_run_scope_for_latest
-        .select(:id, :state, :finished_at, :updated_at)
+        .select(:id, :state, :finished_at, :updated_at, :model)
         .where(state: %w[succeeded failed])
         .where.not(finished_at: nil)
         .order(finished_at: :desc, updated_at: :desc, id: :desc)
@@ -417,11 +448,16 @@ module App
     end
 
     def usage_limit_failed_runs
-      provider_run_scope.left_outer_joins(:run_diagnostic, :run_failure_classification)
-         .select(:id, :job_id, :step_id, :user_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at)
+      provider_run_scope.left_outer_joins(:run_failure_classification)
+         .select(:id, :job_id, :step_id, :user_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at, :model)
          .includes(:run_diagnostic, :run_failure_classification, :step)
          .where(state: "failed")
          .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
+         .where(
+           "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
+           ProviderUsageLimit::OUTCOME,
+           ProviderUsageLimit::CLASSIFICATION
+         )
          .order(finished_at: :desc, updated_at: :desc)
          .limit(50)
     end
@@ -443,20 +479,16 @@ module App
       return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
       return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
 
-      (
-        run.run_failure_classification&.classification == ProviderUsageLimit::CLASSIFICATION ||
-        ProviderUsageLimit.detect?(text)
-      )
+      run.run_failure_classification&.classification == ProviderUsageLimit::CLASSIFICATION
     end
 
-    def rate_limited?(run, text)
+    def rate_limited?(run)
       return true if ProviderRateLimitEvidence::OUTCOMES.include?(run.agent_outcome.to_s)
       if run.run_failure_classification&.classification == "rate_limited"
-        return true if ProviderRateLimitEvidence.direct?(run, text: text, include_logs: false, provider_only: true)
         return true if classified_from_rate_limited_log?(run)
       end
 
-      ProviderRateLimitEvidence.direct?(run, text: text, include_logs: false, provider_only: true)
+      false
     end
 
     def classified_from_rate_limited_log?(run)

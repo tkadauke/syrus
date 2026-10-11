@@ -5,6 +5,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     available
     exhausted
     warning
+    rate_limited
     probe_inconclusive
     probe_unavailable
     auth_error
@@ -12,7 +13,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   ].freeze
 
   POSITIVE_STATUSES = %w[available].freeze
-  NEGATIVE_STATUSES = %w[exhausted warning auth_error].freeze
+  NEGATIVE_STATUSES = %w[exhausted warning rate_limited auth_error].freeze
   PROBE_SOURCES = %w[usage_probe].freeze
 
   belongs_to :user
@@ -123,7 +124,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     return unless run&.user
 
     provider = run.agent_provider.to_s
-    normalized_model = model.presence || ProviderUsageLimit.extract_model(message)
+    normalized_model = ProviderUsageLimit.extract_model(message, fallback: model, run: run)
     status = "probe_inconclusive" if provider == "codex" && false_positive_codex_usage_limit?(message, model: normalized_model)
 
     evidence = create!(
@@ -135,6 +136,31 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       status: status,
       source: "#{provider}_invocation_failure",
       observed_at: observed_at,
+      details: sanitized_details(
+        run_id: run.id,
+        agent_outcome: run.agent_outcome,
+        failure_classification: run.run_failure_classification&.classification,
+        message: message
+      )
+    )
+    App::ProviderAvailability.clear_cache!(user: run.user, provider: provider)
+    evidence
+  end
+
+  def self.record_invocation_rate_limit!(run:, message: nil, http_status: nil, observed_at: Time.current)
+    return unless run&.user && run.agent_provider.present?
+
+    provider = run.agent_provider.to_s
+    evidence = create!(
+      user: run.user,
+      run: run,
+      provider: provider,
+      account_id: invocation_account_id(run),
+      model: run.model.presence,
+      status: "rate_limited",
+      source: "#{provider}_invocation_rate_limit",
+      observed_at: observed_at,
+      http_status: http_status,
       details: sanitized_details(
         run_id: run.id,
         agent_outcome: run.agent_outcome,

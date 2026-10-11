@@ -13,7 +13,7 @@ RSpec.describe App::ProviderAvailability do
     Current.provider_availability_cache = nil
   end
 
-  def failed_run(provider:, owner: user, outcome: "provider_usage_limit", message: "model gpt-5.5 weekly usage limit exhausted", step_kind: nil, classification: nil)
+  def failed_run(provider:, owner: user, outcome: "provider_usage_limit", message: "model gpt-5.5 weekly usage limit exhausted", step_kind: nil, classification: nil, model: nil)
     job = Factories.job(repository: Factories.repository(user: owner), user: owner, agent_provider: provider)
     step = if outcome == "rate_limited" && step_kind.blank?
       nil
@@ -31,6 +31,7 @@ RSpec.describe App::ProviderAvailability do
       state: "failed",
       agent_provider: provider,
       agent_outcome: outcome,
+      model: model || ("gpt-5.5" if message.to_s.include?("gpt-5.5")),
       finished_at: now - 1.minute
     )
     RunDiagnostic.create!(run: run, error_class: "ProviderError", error_message: message)
@@ -330,6 +331,7 @@ RSpec.describe App::ProviderAvailability do
   it "does not extract generic prose words as exhausted Codex models" do
     expect(ProviderUsageLimit.extract_model("invoking agent for direct job failed")).to be_nil
     expect(ProviderUsageLimit.extract_model("provider usage limit exhausted for model for")).to be_nil
+    expect(ProviderUsageLimit.extract_model("provider usage limit exhausted for model gpt-5.5", legacy: true)).to eq("gpt-5.5")
   end
 
   it "does not show exhausted Codex availability for model metadata decode failures" do
@@ -576,7 +578,7 @@ RSpec.describe App::ProviderAvailability do
     expect(described_class.for_user(user, "codex", now: now)).to be_nil
   end
 
-  it "shows rate-limited availability for direct provider 429 diagnostics" do
+  it "does not show rate-limited availability for diagnostic prose without explicit provider outcome" do
     failed_run(
       provider: "codex",
       outcome: "turn_failed",
@@ -585,7 +587,40 @@ RSpec.describe App::ProviderAvailability do
       step_kind: "implement"
     )
 
+    expect(described_class.for_user(user, "codex", now: now)).to be_nil
+  end
+
+  it "shows rate-limited availability for explicit provider rate-limit outcomes" do
+    failed_run(
+      provider: "codex",
+      outcome: "rate_limited",
+      classification: "rate_limited",
+      message: "provider invocation returned a rate-limit outcome",
+      step_kind: "implement"
+    )
+
     expect(described_class.for_user(user, "codex", now: now)).to include(
+      provider: "codex",
+      state: "rate_limited",
+      usage_exhausted: false
+    )
+  end
+
+  it "shows rate-limited availability from explicit invocation evidence" do
+    run = failed_run(
+      provider: "codex",
+      outcome: "turn_failed",
+      classification: nil,
+      message: "provider invocation failed",
+      step_kind: "implement"
+    )
+    ProviderAvailabilityEvidence.record_invocation_rate_limit!(
+      run: run,
+      message: "provider returned a structured rate-limit outcome",
+      observed_at: now - 1.minute
+    )
+
+    expect(described_class.for_user(user, "codex", now: now, cached: false)).to include(
       provider: "codex",
       state: "rate_limited",
       usage_exhausted: false

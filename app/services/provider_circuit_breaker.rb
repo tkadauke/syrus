@@ -9,21 +9,6 @@ class ProviderCircuitBreaker
   MIN_FAILURES = 5
   MIN_UNRELATED_JOBS = 3
   REPEAT_SIGNATURE_THRESHOLD = 3
-  USAGE_LIMIT_SQL_PATTERNS = [
-    "%usage%limit%",
-    "%insufficient%quota%",
-    "%quota%exhaust%",
-    "%quota%deplet%",
-    "%quota%exceed%",
-    "%quota%insufficient%",
-    "%credit%exhaust%",
-    "%credit%deplet%",
-    "%credit%exceed%",
-    "%billing%",
-    "%balance%exhaust%",
-    "%balance%deplet%",
-    "%out of%usage%"
-  ].freeze
   @read_cache_mutex = Mutex.new
   @read_cache = {}
 
@@ -35,9 +20,6 @@ class ProviderCircuitBreaker
 
   TRANSIENT_PATTERNS = [
     /provider[_ -]?transient/i,
-    /\brate[ -](?:limit(?:ed|ing)?|limited?)\b/i,
-    /too many requests/i,
-    /\b429\b/,
     /temporar(?:y|ily)/i,
     /overloaded/i,
     /service unavailable/i,
@@ -200,7 +182,7 @@ class ProviderCircuitBreaker
 
   def recent_failed_runs
     Run
-       .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :agent_summary, :agent_pr_title, :agent_pr_body, :state, :finished_at, :updated_at)
+       .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
        .includes(:run_diagnostic, :run_failure_classification)
        .where(state: "failed", agent_provider: provider)
        .where("runs.finished_at >= ?", now - WINDOW)
@@ -225,7 +207,7 @@ class ProviderCircuitBreaker
       next unless usage_limit?(run, text)
       retry_after = ProviderQuotaReset.retry_after_for_run(run, now: now)
       next if retry_after && retry_after <= now
-      model = ProviderUsageLimit.extract_model(text)
+      model = ProviderUsageLimit.extract_model(text, run: run)
       next if agent_provider_class&.suppress_usage_limit_run?(run, model: model, observed_at: run.finished_at || run.updated_at || now)
 
       UsageLimitSignal.new(
@@ -263,32 +245,20 @@ class ProviderCircuitBreaker
 
   def usage_limit_failed_runs
     relation = Run
-      .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :agent_summary, :agent_pr_title, :agent_pr_body, :state, :finished_at, :updated_at)
+      .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
       .where(state: "failed", agent_provider: provider)
       .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
 
-    relation = restrict_to_usage_limit_candidates(relation) unless include_logs?
-
     relation
       .includes(:run_diagnostic, :run_failure_classification, :step)
+      .left_joins(:run_failure_classification)
+      .where(
+        "runs.agent_outcome = ? OR run_failure_classifications.classification = ?",
+        ProviderUsageLimit::OUTCOME,
+        ProviderUsageLimit::CLASSIFICATION
+      )
       .order(finished_at: :desc, updated_at: :desc)
       .limit(USAGE_LIMIT_FAILED_RUN_SCAN_LIMIT)
-  end
-
-  def restrict_to_usage_limit_candidates(relation)
-    diagnostic_clauses = USAGE_LIMIT_SQL_PATTERNS.map { "LOWER(run_diagnostics.error_message) LIKE ?" }
-    relation
-      .left_joins(:run_failure_classification, :run_diagnostic)
-      .where(
-        [
-          "runs.agent_outcome = ?",
-          "run_failure_classifications.classification = ?",
-          *diagnostic_clauses
-        ].join(" OR "),
-        ProviderUsageLimit::OUTCOME,
-        ProviderUsageLimit::CLASSIFICATION,
-        *USAGE_LIMIT_SQL_PATTERNS
-      )
   end
 
   def usage_limit?(run, text)
@@ -304,11 +274,9 @@ class ProviderCircuitBreaker
     if run.run_failure_classification&.classification == "rate_limited"
       return true if ProviderRateLimitEvidence.direct?(run, include_logs: include_logs?, provider_only: true)
     end
+    return true if ProviderRateLimitEvidence.direct?(run, include_logs: include_logs?, provider_only: true)
 
     return true if transient_text?(diagnostic_text(run))
-    return false unless include_logs?
-
-    return true if ProviderRateLimitEvidence.direct?(run, text: "", include_logs: true, provider_only: true)
 
     false
   end
