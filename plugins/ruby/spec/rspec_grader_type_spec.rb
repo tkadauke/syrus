@@ -18,6 +18,7 @@ RSpec.describe Ruby::RspecGraderType do
       BASH
       File.write(File.join(bin_dir, "parallel_rspec"), <<~BASH)
         #!/usr/bin/env bash
+        printf '%s\n' "$*" > parallel_rspec_args.txt
         exit "${FAKE_PARALLEL_RSPEC_STATUS:-0}"
       BASH
       File.write(File.join(bin_dir, "rspec"), <<~BASH)
@@ -36,7 +37,10 @@ RSpec.describe Ruby::RspecGraderType do
         "RUBYLIB" => nil,
         "RUBYOPT" => nil
       }
-      Open3.capture3(env, "bash", "-c", command, chdir: dir)
+      yield dir if block_given?
+      stdout, stderr, status = Open3.capture3(env, "bash", "-c", command, chdir: dir)
+      parallel_args = File.exist?(File.join(dir, "parallel_rspec_args.txt")) ? File.read(File.join(dir, "parallel_rspec_args.txt")) : ""
+      [ stdout, stderr, status, parallel_args ]
     end
   end
 
@@ -301,6 +305,9 @@ RSpec.describe Ruby::RspecGraderType do
           "enabled" => true,
           "rspec_modes" => [ "full", "focused" ],
           "processes" => "4",
+          "group_by" => "runtime",
+          "allowed_missing" => "100",
+          "unknown_runtime" => "0.1",
           "exec_args" => "bin/rspec-worker",
           "prepare_command" => "bundle exec rake parallel:prepare"
         }
@@ -310,16 +317,65 @@ RSpec.describe Ruby::RspecGraderType do
 
     expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')
     expect(steps.first.run).to include('RSPEC_PARALLEL_PROCESSES=4')
-    expect(steps.first.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
+    expect(steps.first.run).to include('bundle exec parallel_rspec $parallel_runtime_args -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
+    expect(steps.first.run).to include("--group-by\\ runtime")
+    expect(steps.first.run).to include("--allowed-missing\\ 100")
+    expect(steps.first.run).to include("--unknown-runtime\\ 0.1")
+    expect(steps.first.run).to include("--runtime-log\\ .syrus/parallel_runtime_rspec.log")
+    expect(steps.first.run).to include("falling back to parallel_tests default grouping")
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
     expect(steps.first.run).to include("RSPEC_OUTPUT_PREFIX=rspec")
+    expect(steps.first.metadata["runtime_profile_destination"]).to eq(".syrus/parallel_runtime_rspec.log")
     expect(steps.first.run).to include("parallel-rspec-junit")
-    expect(steps.second.run).to include('bundle exec parallel_rspec -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
+    expect(steps.second.run).to include('bundle exec parallel_rspec $parallel_runtime_args -n "$RSPEC_PARALLEL_PROCESSES" --quiet')
     expect(steps.second.run).to include("--exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)")
     expect(steps.third.run).to include("bundle exec rspec")
     expect(steps.third.run).not_to include("parallel_rspec")
+  end
+
+  it "falls back to default parallel_rspec grouping when no runtime profile was materialized" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "group_by" => "runtime",
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    stdout, stderr, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 0)
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("falling back to parallel_tests default grouping")
+    expect(parallel_args).not_to include("--group-by runtime")
+  end
+
+  it "uses runtime grouping when the runtime profile was materialized" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "group_by" => "runtime",
+          "exec_args" => "bin/rspec-worker"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    _stdout, stderr, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 0) do |dir|
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+      File.write(File.join(dir, ".syrus/parallel_runtime_rspec.log"), "spec/models/widget_spec.rb:1.23\n")
+    end
+
+    expect(status).to be_success, stderr
+    expect(parallel_args).to include("--group-by runtime")
+    expect(parallel_args).to include("--runtime-log .syrus/parallel_runtime_rspec.log")
   end
 
   it "splits CI into a parallel fast pass plus configured serial tag pass" do

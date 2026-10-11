@@ -392,6 +392,9 @@ grade:
     parallel_rspec:
       enabled: true
       rspec_modes: [full, focused, ci]
+      group_by: runtime
+      allowed_missing: 100
+      unknown_runtime: 0.1
       exec_args: bin/rspec-worker
       prepare_command: bundle exec rake parallel:prepare
     when_files_changed:
