@@ -15,6 +15,7 @@ import { TonePill } from "./StatusPill"
 type StartBlockedReason =
   | "admission_control"
   | "provider_availability"
+  | "agent_cannot_proceed"
   | "manual_pause"
   | "main_branch_health"
   | "dependency_failed"
@@ -38,6 +39,7 @@ type StartBlockedReason =
 const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   admission_control: "amber",
   provider_availability: "amber",
+  agent_cannot_proceed: "amber",
   manual_pause: "gray",
   main_branch_health: "red",
   dependency_failed: "red",

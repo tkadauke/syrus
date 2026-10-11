@@ -273,6 +273,7 @@
     "load_error_instance": "Diese Syrus-Instanz konnte nicht geladen werden."
   },
   "start_blocked_reasons": {
+    "agent_cannot_proceed": "Agent kann nicht fortfahren",
     "dependency_failed": "Abhängigkeit fehlgeschlagen",
     "dependency_approval_withdrawn": "Abhängigkeitsfreigabe zurückgezogen",
     "stack_dependencies_not_ready": "Wartet auf Abhängigkeit",
@@ -296,6 +297,7 @@
     "landing_paused": "Landing pausiert"
   },
   "start_blocked_reason_tooltips": {
+    "agent_cannot_proceed": "Der Agent hat gemeldet, dass er nicht sicher fortfahren kann. Prüfe die Warnung und versuche es nach Behebung des Blockers erneut.",
     "dependency_failed": "Eine erforderliche Job- oder Epic-Abhängigkeit endete ohne erfolgreiche Auflösung. Überschreibe oder entferne die Abhängigkeit, um fortzufahren.",
     "dependency_approval_withdrawn": "Ein vorgelagerter Job wurde freigegeben und diese Freigabe später zurückgezogen. Gib den vorgelagerten Job erneut frei, um fortzufahren.",
     "stack_dependencies_not_ready": "Eine erforderliche Job- oder Epic-Abhängigkeit ist noch nicht erfolgreich abgeschlossen.",

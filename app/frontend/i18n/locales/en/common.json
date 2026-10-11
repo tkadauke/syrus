@@ -273,6 +273,7 @@
     "load_error_instance": "Unable to load this Syrus instance."
   },
   "start_blocked_reasons": {
+    "agent_cannot_proceed": "Agent cannot proceed",
     "dependency_failed": "Dependency failed",
     "stack_dependencies_not_ready": "Waiting on dependency",
     "stack_fan_in_base_unavailable": "Fan-in base unavailable",
@@ -296,6 +297,7 @@
     "landing_paused": "Landing paused"
   },
   "start_blocked_reason_tooltips": {
+    "agent_cannot_proceed": "The agent reported that it cannot safely continue. Review the warning and retry after addressing the blocker.",
     "dependency_failed": "A required job or Epic dependency ended without a successful resolution. Override or remove the dependency to continue.",
     "stack_dependencies_not_ready": "A required job or Epic dependency has not finished successfully yet.",
     "stack_fan_in_base_unavailable": "Multiple dependency PR branches are ready, but Syrus could not prepare a combined execution base.",
