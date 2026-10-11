@@ -286,7 +286,7 @@ describe("mergeContextIntoLines", () => {
     expect(merged.find((line) => line.code === "line 2")).toMatchObject({ hunkId: 0, newLine: 2, oldLine: 2 })
   })
 
-  it("places above-next-hunk context immediately before that hunk and assigns it to the next hunk for highlighting", () => {
+  it("places above-next-hunk context after that hunk header and assigns it to the next hunk for highlighting", () => {
     const twoHunkPatch = [
       "diff --git a/f b/f",
       "--- a/f",
@@ -307,9 +307,9 @@ describe("mergeContextIntoLines", () => {
       "+++ b/f",
       "@@ -1,1 +1,1 @@",
       "first",
+      "@@ -6,1 +6,1 @@",
       "line 4",
       "line 5",
-      "@@ -6,1 +6,1 @@",
       "second"
     ])
     expect(merged.find((line) => line.code === "line 5")).toMatchObject({ hunkId: 1, newLine: 5, oldLine: 5 })
