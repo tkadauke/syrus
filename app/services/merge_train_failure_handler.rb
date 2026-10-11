@@ -19,6 +19,7 @@ class MergeTrainFailureHandler
     return if preserve_train_for_failure_policy?
 
     reason = failure_reason
+    return if preserve_train_for_terminal_multisect_result?
     return if !@cancelled && start_multisect_rung!(train)
 
     unless train.terminal?
@@ -262,6 +263,20 @@ class MergeTrainFailureHandler
     return false unless AppSetting.merge_train_keeps_assembly_on_failure?
 
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def preserve_train_for_terminal_multisect_result?
+    return false if @cancelled
+
+    result = @workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).to_h
+    return false unless result["status"].in?(%w[attributed aborted])
+
+    job_log(
+      @workflow.job,
+      "merge_train: focused multisect recorded #{result['reason']}; preserving the train for the next rung or operator review.",
+      kind: "system"
+    )
+    true
   end
 
   def start_multisect_rung!(train)
