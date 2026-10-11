@@ -232,7 +232,8 @@ describe("SearchRoute results", () => {
     const filterBar = screen.getByTestId("search-filter-bar")
     const filterRow = filterBar.firstElementChild
 
-    expect(tabs.closest("header")?.nextElementSibling).toBe(filterBar)
+    expect(tabs.closest("header")).toHaveAttribute("data-page-header-layout", "stacked")
+    expect(tabs.nextElementSibling).toBe(filterBar)
     expect(filterRow?.querySelector("button")).toHaveTextContent("+ Add filter")
     expect(filterRow?.tagName.toLowerCase()).toBe("div")
   })
