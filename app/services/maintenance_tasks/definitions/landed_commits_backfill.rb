@@ -125,7 +125,15 @@ module MaintenanceTasks
           task.checkpoint_will_change!
           task.checkpoint[UNRESOLVED_REPOSITORIES] = []
           task.checkpoint.delete(RETRY_UNRESOLVED_REPOSITORY_IDS)
-          return Result.new(done: true, processed: 0, failed: 0, message: "Landed commit backfill is complete.", level: "info")
+          return Result.new(
+            done: true,
+            processed: 0,
+            failed: 0,
+            message: "Landed commit backfill is complete.",
+            level: "info",
+            non_blocking_failures: true,
+            clear_failed_units: true
+          )
         end
 
         task.checkpoint_will_change!
