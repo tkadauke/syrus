@@ -13,6 +13,11 @@ RSpec.describe MergeTrainDispatcher do
     )
   end
 
+  def stub_merge_train_failure_ladder(rungs)
+    content = "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n"
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => content })
+  end
+
   before do
     AppSetting.current.update!(merge_train_enabled: true)
     epic.update_columns(state: "in_progress")
@@ -41,6 +46,39 @@ RSpec.describe MergeTrainDispatcher do
 
   it "carries a keep_fixes source artifact from a failed stale-base train with the same members" do
     AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: failed_train, job: job, position: i, state: "failed") }
+    Workflow.create!(
+      job: b,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" }
+      },
+      failure_reason: failed_train.failure_reason
+    )
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to eq(failed_train.id)
+  end
+
+  it "carries a keep_fixes source artifact from the repository ladder when the instance default restarts" do
+    AppSetting.current.update!(merge_train_failure_policy: "restart")
+    stub_merge_train_failure_ladder([ "keep_fixes" ])
     a = approved_child(1)
     b = approved_child(2)
     failed_train = MergeTrain.create!(

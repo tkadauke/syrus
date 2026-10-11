@@ -413,6 +413,29 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload.state).to eq("failed")
     end
 
+    it "uses the repository keep_fixes ladder when deciding whether to preserve the old integration branch" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      stub_merge_train_failure_ladder([ "keep_fixes" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(
+        train,
+        a,
+        failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
+      )
+      workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(a.reload.state).to eq("approved")
+      expect(train.reload.state).to eq("failed")
+    end
+
     it "does not keep fixes for a non-retryable failure" do
       AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
       a = member_job(issue_number: 1)
