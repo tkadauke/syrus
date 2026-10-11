@@ -22,7 +22,6 @@ import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { UiEngagementTelemetry } from "../lib/uiEngagement"
 
 const AccountProfileRoute = lazy(() => import("./Profile").then((module) => ({ default: module.AccountProfileRoute })))
-const AdminAttentionItems = lazy(() => import("./AdminAttentionItems").then((module) => ({ default: module.AdminAttentionItems })))
 const AdminBackendExceptions = lazy(() => import("./AdminBackendExceptions").then((module) => ({ default: module.AdminBackendExceptions })))
 const AdminBrowserErrors = lazy(() => import("./AdminBrowserErrors").then((module) => ({ default: module.AdminBrowserErrors })))
 const AdminConsole = lazy(() => import("./AdminConsole").then((module) => ({ default: module.AdminConsole })))
