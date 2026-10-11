@@ -81,7 +81,7 @@ export function SearchRoute() {
           <PageHeading>{t("search.heading")}</PageHeading>
           <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
         </div>
-        <div className="space-y-3">
+        <div>
           <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
             {filters.map((filter) => (
               <Link className={filterChipClass(activeFilter === filter.type)} key={filter.type} to={filterPath(location.pathname, location.search, filter.type)}>
@@ -89,19 +89,21 @@ export function SearchRoute() {
               </Link>
             ))}
           </nav>
-          {search.data ? (
-            <FilterBar
-              buildLink={searchFilterLink}
-              className="space-y-2"
-              filter={search.data.filter}
-              filterSchema={search.data.controls.filter_schema}
-              pathname={location.pathname}
-              search={location.search}
-              suggestionSearch={suggestionSearchForFilter(activeFilter)}
-            />
-          ) : null}
         </div>
       </Page.Header>
+      {search.data ? (
+        <Page.Nav data-testid="search-filter-bar">
+          <FilterBar
+            buildLink={searchFilterLink}
+            className="space-y-2"
+            filter={search.data.filter}
+            filterSchema={search.data.controls.filter_schema}
+            pathname={location.pathname}
+            search={location.search}
+            suggestionSearch={suggestionSearchForFilter(activeFilter)}
+          />
+        </Page.Nav>
+      ) : null}
 
       {query.length === 0 ? (
         <Notice>{t("search.use_sidebar")}</Notice>
