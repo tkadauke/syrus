@@ -67,7 +67,7 @@ module Mcp::Tools
         )
         Mcp::Tools.write_log(run, "[mcp] submit_visual_review received: #{normalized_verdict}")
 
-        MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
+        MCP::Tool::Response.new([ { type: "text", text: response_message(normalized_verdict, artifact_evidence) } ])
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitVisualReviewTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
@@ -96,6 +96,16 @@ module Mcp::Tools
             "created_at" => entry["created_at"]
           }.compact
         end
+      end
+
+      private
+
+      def response_message(verdict, artifact_evidence)
+        return "Saved." if verdict == "skipped" || artifact_evidence.any?
+
+        "Saved. Warning: no visual_review_screenshot artifacts were submitted for this run. " \
+          "Capture visual evidence first with submit_visual_artifact(capture_current_browser: true, ...), " \
+          "or omit image inputs so submit_visual_artifact captures the current browser."
       end
     end
   end

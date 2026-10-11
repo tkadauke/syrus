@@ -227,6 +227,25 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     expect(artifact).to include("verdict" => "skipped")
   end
 
+  it "warns when a non-skipped visual review has no screenshot artifacts for the run" do
+    response = call(critique: "No visual issues found.", verdict: "approved")
+
+    expect(response).not_to be_error
+    expect(response.content.first[:text]).to include("Warning: no visual_review_screenshot artifacts")
+    expect(response.content.first[:text]).to include("capture_current_browser: true")
+    expect(run.workflow.reload.artifact("visual_review_iterations").last).to include(
+      "verdict" => "approved",
+      "artifacts" => []
+    )
+  end
+
+  it "does not warn when a visual review is skipped without screenshots" do
+    response = call(critique: "This change is not visually testable.", verdict: "skipped")
+
+    expect(response).not_to be_error
+    expect(response.content.first[:text]).to eq("Saved.")
+  end
+
   it "normalizes binary-tagged UTF-8 and strips whitespace" do
     call(critique: "  Check ● banner.  ".b, verdict: " approved ".b)
 
