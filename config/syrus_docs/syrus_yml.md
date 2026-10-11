@@ -863,7 +863,10 @@ The multisect section width is instance-wide:
 walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
 spend more concurrent focused grades per round to reduce wall-clock rounds, so
 raise the setting only when the instance's worker/build capacity can absorb the
-extra subset builds.
+extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
+inside the failed merge-train workflow; with distributed workflow DAG execution
+enabled for the repository, each focused section evaluation gets its own
+immutable-source workspace and Run.
 
 ## formatters
 
