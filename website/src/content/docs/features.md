@@ -1256,10 +1256,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
   process-local material, redaction, cleanup, and access audit events.
-- **Agent Settings** stores the default agent provider, max-turn setting,
-  auto-approval fallback, and "My default routing" rules. Repository settings
-  can layer repository-specific routing on top, and Job detail can add
-  job-specific routing overrides.
+- **Agent Settings and Credentials** store the default agent provider,
+  max-turn setting, auto-approval fallback, credentials, and "My default
+  routing" rules. Repository settings can layer repository-specific routing
+  on top, and Job detail can add job-specific routing overrides.
 - **Preferences** stores account-level toggles such as scheduling pause and the optional mobile chat focus mode that auto-hides the top app header while scrolling down in a chat.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).
 - **Theme** — light, dark, or system (matches the OS color-scheme preference and updates live if it changes) is picked from the account area. The choice applies before the page finishes loading, so there's no flash of the wrong theme, and it's respected by the desktop tray app too.
