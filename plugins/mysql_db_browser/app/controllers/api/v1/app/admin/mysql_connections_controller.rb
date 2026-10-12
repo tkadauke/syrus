@@ -64,7 +64,12 @@ module Api
             override_password = params.dig(:mysql_connection, :password).presence
             return test_connection_params(connection, override_password) if override_password
 
-            ::MysqlDbBrowser::CredentialMaterial.with_password(connection, context: admin_credential_context, purpose: "test MySQL connection") do |password, _metadata|
+            ::MysqlDbBrowser::CredentialMaterial.with_password(
+              connection,
+              context: admin_credential_context,
+              purpose: "test MySQL connection",
+              tool_name: ::MysqlDbBrowser::CredentialMaterial::ADMIN_TOOL_NAME
+            ) do |password, _metadata|
               test_connection_params(connection, password)
             end
           rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable, CredentialStore::Broker::Error => e

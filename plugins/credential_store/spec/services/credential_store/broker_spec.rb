@@ -122,6 +122,29 @@ RSpec.describe CredentialStore::Broker do
     expect(event.attributes.values.compact.join(" ")).not_to include(secret)
   end
 
+  it "requires raw materialization tools to be explicitly allowed" do
+    credential = create_credential(allowed_tools: [])
+
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: credential.id,
+        type: "credential_store.url_token",
+        env_key: "DEPLOY_TOKEN",
+        purpose: "deploy",
+        tool_name: "credential.exec",
+        target: { host: "api.example.com", url: "https://api.example.com/releases" }
+      ) { |env, _metadata| env }
+    }.to raise_error(CredentialStore::Broker::Denied, /tool not allowed/)
+
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "tool not allowed",
+      tool_name: "credential.exec"
+    )
+  end
+
   it "denies revoked credentials" do
     credential = create_credential(revoked_at: Time.current)
 

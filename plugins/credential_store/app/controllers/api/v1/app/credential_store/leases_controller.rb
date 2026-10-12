@@ -42,7 +42,7 @@ module Api
               type: ::CredentialStore::SshExec::SSH_PRIVATE_KEY_TYPE,
               env_key: "SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD",
               purpose: ssh_agent_attrs[:purpose].presence || "ssh-agent command",
-              tool_name: ssh_agent_attrs[:tool_name].presence || "credential.ssh-agent",
+              tool_name: "credential.ssh-agent",
               target: ssh_agent_attrs[:target],
               expires_in: expires_in_for(ssh_agent_attrs[:expires_in])
             ) do |credential_env, lease_metadata|
@@ -77,7 +77,7 @@ module Api
               type: exec_material_attrs.fetch(:type),
               env_key: "SYRUS_CREDENTIAL_STORE_EXEC_PAYLOAD",
               purpose: exec_material_attrs[:purpose].presence || "credential exec command",
-              tool_name: exec_material_attrs[:tool_name].presence || "credential.exec",
+              tool_name: "credential.exec",
               target: exec_material_attrs[:target],
               expires_in: expires_in_for(exec_material_attrs[:expires_in])
             ) do |credential_env, lease_metadata|

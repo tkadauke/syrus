@@ -127,11 +127,19 @@ module Api
           end
 
           def executor
-            @executor ||= ::MysqlDbBrowser::QueryExecutor.new(@connection, context: admin_credential_context)
+            @executor ||= ::MysqlDbBrowser::QueryExecutor.new(
+              @connection,
+              context: admin_credential_context,
+              tool_name: ::MysqlDbBrowser::CredentialMaterial::ADMIN_TOOL_NAME
+            )
           end
 
           def schema_inspector
-            @schema_inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection, context: admin_credential_context)
+            @schema_inspector ||= ::MysqlDbBrowser::SchemaInspector.new(
+              @connection,
+              context: admin_credential_context,
+              tool_name: ::MysqlDbBrowser::CredentialMaterial::ADMIN_TOOL_NAME
+            )
           end
 
           def admin_credential_context
