@@ -57,6 +57,57 @@ RSpec.describe Execution::Router do
     expect(described_class.new(local: local).run(request)).to eq(:local_result)
   end
 
+  it "uses only the requested execution backend provider when configured" do
+    local = instance_double(Execution::Local, run: :local_result)
+    unrequested = Class.new do
+      include Syrus::Plugin::ExecutionBackend
+
+      def self.available_for?(_request) = true
+      def run(_request) = raise("should not run")
+    end
+    requested = Class.new do
+      include Syrus::Plugin::ExecutionBackend
+
+      def self.name = "ContainerExecution::Backend"
+      def self.available_for?(_request) = true
+      def run(_request) = :container_result
+    end
+    Syrus::PluginRegistry.register(
+      name: "declining_execution_backend",
+      version: "1.0.0",
+      provides: { execution_backend: unrequested }
+    )
+    Syrus::PluginRegistry.register(
+      name: "accepting_execution_backend",
+      version: "1.0.0",
+      provides: { execution_backend: requested }
+    )
+
+    result = described_class.new(local: local).run(request(execution_backend: "container_execution"))
+
+    expect(result).to eq(:container_result)
+  end
+
+  it "falls back to local when the requested execution backend is unavailable" do
+    local = instance_double(Execution::Local, run: :local_result)
+    backend = Class.new do
+      include Syrus::Plugin::ExecutionBackend
+
+      def self.name = "ContainerExecution::Backend"
+      def self.available_for?(_request) = false
+      def run(_request) = raise("should not run")
+    end
+    Syrus::PluginRegistry.register(
+      name: "accepting_execution_backend",
+      version: "1.0.0",
+      provides: { execution_backend: backend }
+    )
+
+    result = described_class.new(local: local).run(request(execution_backend: "container_execution"))
+
+    expect(result).to eq(:local_result)
+  end
+
   it "supports directly registered provider instances" do
     backend = Class.new do
       include Syrus::Plugin::ExecutionBackend
@@ -70,7 +121,7 @@ RSpec.describe Execution::Router do
     expect(described_class.new.run(request)).to eq(:direct_result)
   end
 
-  def request
+  def request(overrides = {})
     Execution::Request.new(
       env: {},
       command: [ "true" ],
@@ -95,7 +146,8 @@ RSpec.describe Execution::Router do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      execution_backend: nil,
       local_runner: nil
-    )
+    ).with(**overrides)
   end
 end
