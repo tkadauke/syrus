@@ -135,9 +135,11 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(response).to have_http_status(:ok)
     job_body = parse_body
     expect(job_body.fetch("provider_routing_rules")).to include(include("id" => job_rule.id))
-    expect(job_body.fetch("inherited_provider_routing_context")).to include(
-      include("scope_type" => "user", "scope_id" => user.id, "rules" => include(include("id" => user_rule.id))),
-      include("scope_type" => "repository", "scope_id" => repository.id, "rules" => include(include("id" => repository_rule.id)))
+    expect(job_body.fetch("inherited_provider_routing_context")).to match(
+      [
+        include("scope_type" => "repository", "scope_id" => repository.id, "rules" => include(include("id" => repository_rule.id))),
+        include("scope_type" => "user", "scope_id" => user.id, "rules" => include(include("id" => user_rule.id)))
+      ]
     )
   end
 
