@@ -4,9 +4,9 @@ class ExtendProviderRoutingRulesForOrderedScopedRules < ActiveRecord::Migration[
   end
 
   def up
-    add_column :provider_routing_rules, :user_id, :integer unless column_exists?(:provider_routing_rules, :user_id)
-    add_column :provider_routing_rules, :repository_id, :integer unless column_exists?(:provider_routing_rules, :repository_id)
-    add_column :provider_routing_rules, :job_id, :integer unless column_exists?(:provider_routing_rules, :job_id)
+    add_column :provider_routing_rules, :user_id, :bigint unless column_exists?(:provider_routing_rules, :user_id)
+    add_column :provider_routing_rules, :repository_id, :bigint unless column_exists?(:provider_routing_rules, :repository_id)
+    add_column :provider_routing_rules, :job_id, :bigint unless column_exists?(:provider_routing_rules, :job_id)
     add_column :provider_routing_rules, :position, :integer unless column_exists?(:provider_routing_rules, :position)
     add_column :provider_routing_rules, :trigger, :json unless column_exists?(:provider_routing_rules, :trigger)
     add_column :provider_routing_rules, :conditions, :json unless column_exists?(:provider_routing_rules, :conditions)
@@ -24,9 +24,11 @@ class ExtendProviderRoutingRulesForOrderedScopedRules < ActiveRecord::Migration[
       remove_index :provider_routing_rules, name: "idx_provider_routing_rules_scope_task_key_unique"
     end
 
-    add_index :provider_routing_rules, [ :scope_type, :scope_id, :position ],
-              unique: true,
-              name: "idx_provider_routing_rules_scope_position_unique" unless index_exists?(:provider_routing_rules, [ :scope_type, :scope_id, :position ], name: "idx_provider_routing_rules_scope_position_unique")
+    unless index_exists?(:provider_routing_rules, [ :scope_type, :scope_id, :position ], name: "idx_provider_routing_rules_scope_position_unique")
+      add_index :provider_routing_rules, [ :scope_type, :scope_id, :position ],
+                unique: true,
+                name: "idx_provider_routing_rules_scope_position_unique"
+    end
     add_index :provider_routing_rules, :user_id unless index_exists?(:provider_routing_rules, :user_id)
     add_index :provider_routing_rules, :repository_id unless index_exists?(:provider_routing_rules, :repository_id)
     add_index :provider_routing_rules, :job_id unless index_exists?(:provider_routing_rules, :job_id)
@@ -38,9 +40,11 @@ class ExtendProviderRoutingRulesForOrderedScopedRules < ActiveRecord::Migration[
     remove_index :provider_routing_rules, :repository_id if index_exists?(:provider_routing_rules, :repository_id)
     remove_index :provider_routing_rules, :job_id if index_exists?(:provider_routing_rules, :job_id)
 
-    add_index :provider_routing_rules, [ :scope_type, :scope_id, :task_key ],
-              unique: true,
-              name: "idx_provider_routing_rules_scope_task_key_unique" unless index_exists?(:provider_routing_rules, [ :scope_type, :scope_id, :task_key ], name: "idx_provider_routing_rules_scope_task_key_unique")
+    unless index_exists?(:provider_routing_rules, [ :scope_type, :scope_id, :task_key ], name: "idx_provider_routing_rules_scope_task_key_unique")
+      add_index :provider_routing_rules, [ :scope_type, :scope_id, :task_key ],
+                unique: true,
+                name: "idx_provider_routing_rules_scope_task_key_unique"
+    end
 
     remove_column :provider_routing_rules, :action if column_exists?(:provider_routing_rules, :action)
     remove_column :provider_routing_rules, :conditions if column_exists?(:provider_routing_rules, :conditions)
@@ -76,7 +80,7 @@ class ExtendProviderRoutingRulesForOrderedScopedRules < ActiveRecord::Migration[
       { user_id: rule.scope_id }
     when "repository"
       repository = connection.select_one(sanitize_sql([ "SELECT user_id FROM repositories WHERE id = ?", rule.scope_id ]))
-      { user_id: repository&.fetch("user_id"), repository_id: rule.scope_id }
+      { user_id: repository&.fetch("user_id") || repository_member_user_id(rule.scope_id) || first_user_id, repository_id: rule.scope_id }
     when "job"
       job = connection.select_one(sanitize_sql([ "SELECT COALESCE(owner_user_id, user_id) AS user_id, repository_id FROM jobs WHERE id = ?", rule.scope_id ]))
       { user_id: job&.fetch("user_id"), repository_id: job&.fetch("repository_id"), job_id: rule.scope_id }
@@ -87,6 +91,18 @@ class ExtendProviderRoutingRulesForOrderedScopedRules < ActiveRecord::Migration[
 
   def legacy_trigger_for(task_key)
     task_key == "default" ? { type: "default" } : { type: "legacy_task", task_key: task_key }
+  end
+
+  def repository_member_user_id(repository_id)
+    row = connection.select_one(sanitize_sql([
+      "SELECT user_id FROM repository_memberships WHERE repository_id = ? ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'write' THEN 1 ELSE 2 END, id LIMIT 1",
+      repository_id
+    ]))
+    row&.fetch("user_id")
+  end
+
+  def first_user_id
+    connection.select_value("SELECT id FROM users ORDER BY id LIMIT 1")
   end
 
   def sanitize_sql(array)

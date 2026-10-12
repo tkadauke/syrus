@@ -29,14 +29,16 @@ class ProviderAvailabilityPause
     end
   end
 
-  def self.call(workflow:, now: Time.current, task_key: nil, candidate: nil)
-    new(workflow: workflow, now: now, task_key: task_key, candidate: candidate).call
+  def self.call(workflow:, now: Time.current, task_key: nil, trigger: nil, workflow_trigger_kind: nil, candidate: nil)
+    new(workflow: workflow, now: now, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, candidate: candidate).call
   end
 
-  def initialize(workflow:, now: Time.current, task_key: nil, candidate: nil)
+  def initialize(workflow:, now: Time.current, task_key: nil, trigger: nil, workflow_trigger_kind: nil, candidate: nil)
     @workflow = workflow
     @now = now
     @task_key = task_key || workflow.trigger_kind
+    @trigger = trigger
+    @workflow_trigger_kind = workflow_trigger_kind || workflow.trigger_kind
     @candidate = candidate
   end
 
@@ -65,7 +67,7 @@ class ProviderAvailabilityPause
 
   private
 
-  attr_reader :workflow, :now, :task_key, :candidate
+  attr_reader :workflow, :now, :task_key, :trigger, :workflow_trigger_kind, :candidate
 
   def user = workflow.user
   def provider = current_candidate.provider
@@ -105,11 +107,18 @@ class ProviderAvailabilityPause
 
   def decide_unavailable(reason, availability)
     return pause(reason, availability) if workflow_started? && task_key.to_s == workflow.trigger_kind.to_s
-    return pause(reason, availability) unless ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: task_key)
+    return pause(reason, availability) unless ProviderRouting::Resolver.rule_configured?(
+      job: workflow.job,
+      task_key: task_key,
+      trigger: trigger,
+      workflow_trigger_kind: workflow_trigger_kind
+    )
 
     failover = ProviderRouting::AvailabilitySelector.call(
       job: workflow.job,
       task_key: task_key,
+      trigger: trigger,
+      workflow_trigger_kind: workflow_trigger_kind,
       original_candidate: current_candidate,
       reason: reason,
       availability: availability,
