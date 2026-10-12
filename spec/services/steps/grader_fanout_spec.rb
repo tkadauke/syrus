@@ -184,6 +184,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       grade:
         - name: rspec
           run: bin/rspec
+          execution_backend: container_execution
     YAML
     stub_changed_files("app/models/user.rb")
 
@@ -192,6 +193,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     grader_steps = workflow.steps.where(kind: "grader")
     expect(grader_steps.count).to eq(1)
     expect(grader_steps.first.details["name"]).to eq("rspec")
+    expect(grader_steps.first.details["execution_backend"]).to eq("container_execution")
   end
 
   it "records target selection inputs for initial workflows so later CI repair can diagnose skipped targets" do

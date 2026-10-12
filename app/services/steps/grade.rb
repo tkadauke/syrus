@@ -75,6 +75,7 @@ module Steps
           kind: "grader",
           run: run,
           workflow: workflow,
+          execution_backend: grader.execution_backend,
           on_output_chunk: ->(chunk) do
             file.write(chunk)
             file.flush

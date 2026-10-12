@@ -690,6 +690,7 @@ module Steps
         "result_outputs" => grader.metadata["result_outputs"],
         "artifact_outputs" => grader.metadata["artifact_outputs"],
         "filter_capabilities" => grader.metadata["filter_capabilities"],
+        "execution_backend" => grader.execution_backend,
         "capabilities" => target_capabilities_for(grader),
         "required_capabilities" => target_capabilities_for(grader),
         "description" => grader.description,

@@ -23,9 +23,9 @@ class RepoGradePlan
   # `SyrusYml::GradeStep`); nil means "no explicit or type-generated label --
   # fall back to a humanized `name`," which downstream display code (the
   # workflow serializer) already handles.
-  Grader = Data.define(:name, :display_name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities) do
-    def initialize(display_name: nil, capabilities: nil, **rest)
-      super(display_name: display_name, capabilities: capabilities, **rest)
+  Grader = Data.define(:name, :display_name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities, :execution_backend) do
+    def initialize(display_name: nil, capabilities: nil, execution_backend: nil, **rest)
+      super(display_name: display_name, capabilities: capabilities, execution_backend: execution_backend, **rest)
     end
   end
   Result = Data.define(:graders, :source, :note, :max_iterations, :rerun_only_failed) do
@@ -51,7 +51,7 @@ class RepoGradePlan
 
     return empty_result(source: ".syrus.yml", note: "no graders configured") unless grade
 
-    graders = expand_graders(grade.steps)
+    graders = expand_graders(grade.steps, default_execution_backend: grade.execution_backend)
     note = graders.empty? ? "no valid graders configured" : nil
     Result.new(graders: graders, source: ".syrus.yml", note: note, max_iterations: grade.max_iterations, rerun_only_failed: grade.rerun_only_failed)
   rescue SyrusYml::ParseError => e
@@ -64,8 +64,8 @@ class RepoGradePlan
     @path.join(CONFIG_FILE).exist?
   end
 
-  def expand_graders(steps)
-    graders = steps.flat_map { |step| graders_for(step) }
+  def expand_graders(steps, default_execution_backend:)
+    graders = steps.flat_map { |step| graders_for(step, default_execution_backend: default_execution_backend) }
     names = graders.map(&:name)
     duplicate = names.find { |name| names.count(name) > 1 }
     raise SyrusYml::ParseError, "grade step #{duplicate.inspect}: legacy ci expansion conflicts with another grader name" if duplicate
@@ -73,17 +73,17 @@ class RepoGradePlan
     graders
   end
 
-  def graders_for(step)
+  def graders_for(step, default_execution_backend:)
     primary_phases = step.ci.present? ? step.phases - [ "ci" ] : step.phases
     graders = []
-    graders << grader_for(step, name: step.name, command: step.run, phases: primary_phases) if primary_phases.any?
+    graders << grader_for(step, name: step.name, command: step.run, phases: primary_phases, default_execution_backend: default_execution_backend) if primary_phases.any?
     if step.ci.present?
-      graders << grader_for(step, name: "#{step.name}-ci", command: step.ci, phases: [ "ci" ], legacy_ci: true)
+      graders << grader_for(step, name: "#{step.name}-ci", command: step.ci, phases: [ "ci" ], legacy_ci: true, default_execution_backend: default_execution_backend)
     end
     graders
   end
 
-  def grader_for(step, name:, command:, phases:, legacy_ci: false)
+  def grader_for(step, name:, command:, phases:, legacy_ci: false, default_execution_backend: nil)
     metadata = step.metadata.to_h
     metadata = metadata.merge("legacy_ci_command" => true, "legacy_source_grader" => step.name) if legacy_ci
 
@@ -101,7 +101,8 @@ class RepoGradePlan
       base_retry: step.base_retry,
       deps: step.deps,
       metadata: metadata,
-      capabilities: step.capabilities
+      capabilities: step.capabilities,
+      execution_backend: step.execution_backend || default_execution_backend
     )
   end
 

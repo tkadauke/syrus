@@ -298,7 +298,14 @@ class TargetGraph
           coverage: nested_config.coverage
         )
 
-        compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+        compile_explicit_targets!(
+          graph,
+          syrus_config: nested_config,
+          package: relative_dir,
+          project_id: project_id,
+          config_path: nested_owner_config_path,
+          inherited_execution_backend: config&.execution&.grader_backend
+        )
         compile_prepare!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_formatters!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_generated!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -308,7 +315,8 @@ class TargetGraph
           syrus_config: nested_config,
           package: relative_dir,
           project_id: project_id,
-          config_path: nested_owner_config_path
+          config_path: nested_owner_config_path,
+          inherited_execution_backend: config&.execution&.grader_backend
         )
       end
     end
@@ -575,7 +583,7 @@ class TargetGraph
       )
     end
 
-    def compile_explicit_targets!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+    def compile_explicit_targets!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path, inherited_execution_backend: nil)
       return unless syrus_config
 
       syrus_config.targets.each do |target|
@@ -593,11 +601,21 @@ class TargetGraph
             timeout_minutes: target.timeout_minutes,
             owner_config_path: config_path,
             capabilities: target.capabilities,
-            metadata: target.metadata.merge(explicit_target_metadata(target))
+            metadata: target.metadata
+              .merge(explicit_grader_execution_backend_metadata(target, syrus_config: syrus_config, inherited_execution_backend: inherited_execution_backend))
+              .merge(explicit_target_metadata(target))
           ),
           declaration: "explicit targets: #{target.name.inspect}"
         )
       end
+    end
+
+    def explicit_grader_execution_backend_metadata(target, syrus_config:, inherited_execution_backend:)
+      return {} unless target.kind == "grader"
+      return {} if target.metadata["execution_backend"].present?
+
+      backend = syrus_config&.execution&.grader_backend || inherited_execution_backend
+      backend.present? ? { "execution_backend" => backend } : {}
     end
 
     def explicit_target_metadata(target)
@@ -649,8 +667,9 @@ class TargetGraph
       end
     end
 
-    def compile_graders!(graph, syrus_workspace_path: workspace_path, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+    def compile_graders!(graph, syrus_workspace_path: workspace_path, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path, inherited_execution_backend: nil)
       RepoGradePlan.for(syrus_workspace_path, project_path: package).graders.each do |grader|
+        execution_backend = grader.execution_backend || syrus_config&.execution&.grader_backend || inherited_execution_backend
         add_target!(
           graph,
           TargetGraph::Target.new(
@@ -674,7 +693,8 @@ class TargetGraph
               "display_name" => grader.display_name,
               "junit_output" => grader.junit_output,
               "failures" => grader.failures,
-              "base_retry" => grader.base_retry&.to_h
+              "base_retry" => grader.base_retry&.to_h,
+              "execution_backend" => execution_backend
             }.merge(grader.metadata).compact
           ),
           declaration: "legacy grade #{grader.name.inspect}"

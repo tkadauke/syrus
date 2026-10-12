@@ -23,6 +23,7 @@ module Execution
     :agent,
     :display_command,
     :on_spawned_process,
+    :execution_backend,
     :local_runner
   )
 end

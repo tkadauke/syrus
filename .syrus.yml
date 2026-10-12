@@ -11,6 +11,12 @@ project:
   label: Syrus App
   kind: rails_app
 
+execution:
+  # Dogfood the bundled container_execution backend for this repository's
+  # grader Runs only. Core still falls back to Local when the plugin is
+  # disabled or the worker lacks a configured Docker launch path.
+  grader_backend: container_execution
+
 prepare: &syrus_prepare
   # Syrus scrubs worker/container Bundler env before running prepare
   # and preview setup. Pin Bundler's install location to the workspace

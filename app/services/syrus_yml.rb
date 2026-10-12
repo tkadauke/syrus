@@ -77,7 +77,7 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :execution)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -150,7 +150,8 @@ class SyrusYml
   MergeTrainConfig = Data.define(:failure_policy, :failure_rungs)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
-  GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
+  GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed, :execution_backend)
+  ExecutionConfig = Data.define(:grader_backend)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
@@ -163,10 +164,10 @@ class SyrusYml
   # (see App::JobDetailPayload::WorkflowSerializers#grader_display_name) is:
   # explicit `display_name` > plugin/type-generated `display_name` >
   # humanized `name` > raw `name`.
-  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities) do
+  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities, :execution_backend) do
     def initialize(
       name:, run:, ci:, phases:, description:, required:, timeout_minutes:,
-      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}, capabilities: nil
+      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}, capabilities: nil, execution_backend: nil
     )
       raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
 
@@ -185,7 +186,8 @@ class SyrusYml
         base_retry: base_retry,
         deps: deps,
         metadata: metadata.deep_stringify_keys,
-        capabilities: capabilities
+        capabilities: capabilities,
+        execution_backend: execution_backend.to_s.strip.presence
       )
     end
   end
@@ -273,10 +275,11 @@ class SyrusYml
     raise ParseError, ".syrus.yml must be a mapping" unless raw.is_a?(Hash)
 
     raw_delivery = parse_delivery(raw["delivery"])
+    execution = parse_execution(raw["execution"])
 
     Config.new(
       prepare: raw["prepare"],
-      grade: parse_grade(raw["grade"]),
+      grade: parse_grade(raw["grade"], default_execution_backend: execution&.grader_backend),
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       review_notes: parse_review_notes(raw["review_notes"]),
@@ -297,7 +300,8 @@ class SyrusYml
       project: parse_project(raw["project"]),
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
-      scripts: parse_scripts(raw["scripts"])
+      scripts: parse_scripts(raw["scripts"]),
+      execution: execution
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -477,7 +481,16 @@ class SyrusYml
     )
   end
 
-  def parse_grade(raw)
+  def parse_execution(raw)
+    return nil if raw.nil?
+    raise ParseError, "execution: must be a mapping" unless raw.is_a?(Hash)
+
+    ExecutionConfig.new(
+      grader_backend: parse_execution_backend(raw["grader_backend"], "execution.grader_backend")
+    )
+  end
+
+  def parse_grade(raw, default_execution_backend: nil)
     return nil if raw.nil?
 
     case raw
@@ -486,15 +499,18 @@ class SyrusYml
         max_iterations: AppSetting.grade_max_iterations,
         failures: DEFAULT_GRADE_FAILURE_POLICY,
         steps: parse_grade_steps(raw),
-        rerun_only_failed: false
+        rerun_only_failed: false,
+        execution_backend: default_execution_backend
       )
     when Hash
       failures = parse_grade_failure_policy(raw.fetch("failures", DEFAULT_GRADE_FAILURE_POLICY), "grade.failures")
+      execution_backend = parse_execution_backend(raw.fetch("execution_backend", default_execution_backend), "grade.execution_backend")
       GradeConfig.new(
         max_iterations: parse_max_iterations(raw.fetch("max_iterations", AppSetting.grade_max_iterations)),
         failures: failures,
         steps: parse_grade_steps(raw["steps"], default_failures: failures),
-        rerun_only_failed: parse_rerun_only_failed(raw.fetch("rerun_only_failed", false))
+        rerun_only_failed: parse_rerun_only_failed(raw.fetch("rerun_only_failed", false)),
+        execution_backend: execution_backend
       )
     else
       raise ParseError, "grade: must be a mapping or an array of steps"
@@ -568,8 +584,21 @@ class SyrusYml
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry") || default_base_retry_for_custom_grader(raw, failures),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
       metadata: parse_grade_metadata(raw, label),
-      capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities")
+      capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities"),
+      execution_backend: parse_execution_backend(raw["execution_backend"], "#{label}.execution_backend")
     )
+  end
+
+  def parse_execution_backend(raw, label)
+    return nil if raw.nil?
+
+    value = raw.to_s.strip
+    raise ParseError, "#{label}: must not be blank" if value.empty?
+    unless value.match?(CREDENTIAL_TYPE_NAME_PATTERN)
+      raise ParseError, "#{label}: must match #{CREDENTIAL_TYPE_NAME_PATTERN.inspect}"
+    end
+
+    value
   end
 
   def expand_plugin_grade_type(type, raw, label, default_failures:)
@@ -875,6 +904,7 @@ class SyrusYml
     ].each do |key|
       metadata[key] = item[key] if item.key?(key)
     end
+    metadata["execution_backend"] = parse_execution_backend(item["execution_backend"], "#{label}.execution_backend") if item.key?("execution_backend")
 
     if item.key?("artifacts")
       metadata["artifacts"] = parse_globs(item["artifacts"], "#{label}.artifacts", required: false)

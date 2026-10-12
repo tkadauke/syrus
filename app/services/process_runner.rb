@@ -372,6 +372,7 @@ class ProcessRunner
                  agent: nil,
                  display_command: nil,
                  on_spawned_process: nil,
+                 execution_backend: nil,
                  backend: self.class.backend)
     @env = env
     @command = command
@@ -397,6 +398,7 @@ class ProcessRunner
     @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
+    @execution_backend = execution_backend.to_s.strip.presence
     @backend = backend
 
     # Idempotent — only the first call in this process spawns the
@@ -440,6 +442,7 @@ class ProcessRunner
       agent: @agent,
       display_command: @display_command,
       on_spawned_process: @on_spawned_process,
+      execution_backend: @execution_backend,
       local_runner: self
     )
   end
