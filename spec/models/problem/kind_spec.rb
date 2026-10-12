@@ -2,23 +2,30 @@ require "rails_helper"
 
 RSpec.describe Problem::Kind do
   describe "the vocabulary is closed" do
+    def emitted_classifications
+      classifier_source = Rails.root.join("app/services/run_failure_classifier.rb").read
+      step_sources = Dir[Rails.root.join("app/services/steps/**/*.rb")] +
+        Dir[Rails.root.join("plugins/*/app/services/steps/**/*.rb")] +
+        Dir[Rails.root.join("plugins/*/lib/**/steps/**/*.rb")]
+
+      classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten +
+        step_sources.flat_map { |path| File.read(path).scan(/(?:fail_with!\(|problem_code )[:\s]*:([a-z0-9_]+)/).flatten } +
+        [ ProviderUsageLimit::CLASSIFICATION ]
+    end
+
     # The registry is only useful if it is exhaustive: an unregistered
     # classification would go back to being a private name nothing checks.
     # Scanned statically rather than asserted at runtime, because the emitters
     # run on the failure path where a new raise would turn a handled failure
     # into a crash.
     it "registers every classification RunFailureClassifier can emit" do
-      source = Rails.root.join("app/services/run_failure_classifier.rb").read
-      emitted = source.scan(/result\(\s*"([a-z_]+)"/).flatten
-      emitted << ProviderUsageLimit::CLASSIFICATION
+      emitted = emitted_classifications
 
       expect(emitted.uniq.sort - described_class.values).to eq([])
     end
 
     it "registers no code the classifier cannot emit" do
-      source = Rails.root.join("app/services/run_failure_classifier.rb").read
-      emitted = source.scan(/result\(\s*"([a-z_]+)"/).flatten
-      emitted << ProviderUsageLimit::CLASSIFICATION
+      emitted = emitted_classifications
 
       expect(described_class.values - emitted.uniq).to eq([])
     end
