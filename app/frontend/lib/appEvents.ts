@@ -3,6 +3,7 @@ import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConvers
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
+import { chatPinsQueryPrefix } from "../routes/chat/pins"
 import { normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
 
@@ -809,7 +810,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     // same "extend the existing chat-payload handling" pattern as the
     // bookmark/header/controls branches above, just invalidate-based since
     // pins live in their own query cache, not on ChatPayload itself.
-    invalidateAppQuery(queryClient, { queryKey: ["chat-pins", String(event.id)], exact: true })
+    invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(event.id) })
     return true
   }
 

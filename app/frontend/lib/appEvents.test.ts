@@ -833,25 +833,32 @@ describe("applyAppEvent", () => {
     ])
   })
 
-  it("invalidates the chat-pins query cache on upsert_pin without touching the chat payload cache", () => {
+  it("invalidates mounted chat-pins query variants on upsert_pin without touching the chat payload cache", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
     queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "10", ""], { pins: [] })
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
-    const handled = applyAppEvent(queryClient, {
+    applyAppEvent(queryClient, {
       ...event("chat", 9),
       changed: [ "pins" ],
       payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
     const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(untouched?.bookmarks).toEqual([])
   })
 
-  it("invalidates the chat-pins query cache on remove_pin", () => {
+  it("invalidates mounted chat-pins query variants on remove_pin", () => {
     const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
     applyAppEvent(queryClient, {
@@ -860,7 +867,9 @@ describe("applyAppEvent", () => {
       payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
   })
 
   it("applies chat agent question payloads directly to cached chat data", () => {
