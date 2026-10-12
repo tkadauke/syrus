@@ -33,11 +33,30 @@ class ProviderRoutingRule < ApplicationRecord
   end
 
   def matches?(invocation:, job: nil, workflow_trigger_kind: nil, now: Time.current)
-    trigger_matches?(invocation.stringify_keys) &&
-      workflow_trigger_condition_matches?(workflow_trigger_kind) &&
-      day_time_condition_matches?(now) &&
-      repository_condition_matches?(job&.repository) &&
-      job_metadata_condition_matches?(job)
+    match_details(invocation: invocation, job: job, workflow_trigger_kind: workflow_trigger_kind, now: now)["matched"]
+  end
+
+  def match_details(invocation:, job: nil, workflow_trigger_kind: nil, now: Time.current)
+    invocation = invocation.stringify_keys
+    condition_results = {
+      "workflow_trigger_kind" => workflow_trigger_condition_result(workflow_trigger_kind),
+      "day_time" => day_time_condition_result(now),
+      "repository" => repository_condition_result(job&.repository),
+      "job_metadata" => job_metadata_condition_result(job),
+      "usage" => passive_condition_result("usage"),
+      "budget" => passive_condition_result("budget")
+    }
+    trigger_result = {
+      "matched" => trigger_matches?(invocation),
+      "expected" => trigger,
+      "actual" => invocation
+    }
+
+    {
+      "matched" => trigger_result["matched"] && condition_results.values.all? { |result| result["matched"] },
+      "trigger" => trigger_result,
+      "conditions" => condition_results
+    }
   end
 
   private
@@ -269,7 +288,7 @@ class ProviderRoutingRule < ApplicationRecord
 
   def workflow_trigger_condition_matches?(workflow_trigger_kind)
     expected = conditions["workflow_trigger_kind"]
-    expected.blank? || Array(expected).include?(workflow_trigger_kind.to_s)
+    expected.blank? || (workflow_trigger_kind.present? && Array(expected).include?(workflow_trigger_kind.to_s))
   end
 
   def day_time_condition_matches?(now)
@@ -308,5 +327,60 @@ class ProviderRoutingRule < ApplicationRecord
     return false if value.key?("investigation") && ActiveModel::Type::Boolean.new.cast(value["investigation"]) != target_job.investigation?
 
     true
+  end
+
+  def workflow_trigger_condition_result(workflow_trigger_kind)
+    expected = conditions["workflow_trigger_kind"]
+    {
+      "configured" => expected.present?,
+      "matched" => workflow_trigger_condition_matches?(workflow_trigger_kind),
+      "expected" => expected,
+      "actual" => workflow_trigger_kind
+    }.compact
+  end
+
+  def day_time_condition_result(now)
+    {
+      "configured" => conditions["day_time"].present?,
+      "matched" => day_time_condition_matches?(now),
+      "expected" => conditions["day_time"],
+      "actual" => now.iso8601
+    }.compact
+  end
+
+  def repository_condition_result(target_repository)
+    actual = if target_repository
+      { "id" => target_repository.id, "owner" => target_repository.owner, "name" => target_repository.name }
+    end
+
+    {
+      "configured" => conditions["repository"].present?,
+      "matched" => repository_condition_matches?(target_repository),
+      "expected" => conditions["repository"],
+      "actual" => actual
+    }.compact
+  end
+
+  def job_metadata_condition_result(target_job)
+    actual = if target_job
+      { "kind" => target_job.kind, "priority" => target_job.priority, "investigation" => target_job.investigation? }
+    end
+
+    {
+      "configured" => conditions["job_metadata"].present?,
+      "matched" => job_metadata_condition_matches?(target_job),
+      "expected" => conditions["job_metadata"],
+      "actual" => actual
+    }.compact
+  end
+
+  def passive_condition_result(key)
+    value = conditions[key]
+    {
+      "configured" => value.present?,
+      "matched" => true,
+      "expected" => value,
+      "reason" => value.present? ? "condition_not_evaluated_by_provider_routing" : nil
+    }.compact
   end
 end
