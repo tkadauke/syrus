@@ -520,6 +520,12 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   end
 
   it "restarts a direct investigation job preserving investigation routing, planned execution, and dependencies" do
+    planned_capabilities = {
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    }
     direct = Job.create!(
       user: user,
       repository: repo,
@@ -536,11 +542,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       delivery_track: "native",
       planned_execution_project_label: "iOS",
       planned_execution_target_label: "//ios:smoke",
-      planned_execution_capabilities: {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode", "ios-simulator" ]
-      },
+      planned_execution_capabilities: planned_capabilities,
       planned_execution_source: "explicit"
     )
     dependent = Factories.job(repository: repo, issue_number: 43)
@@ -556,11 +558,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expected_requirement = {
       "project_label" => "iOS",
       "target_label" => "//ios:smoke",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode", "ios-simulator" ]
-      },
+      "capabilities" => planned_capabilities,
       "source" => "explicit"
     }
 
@@ -573,10 +571,20 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(new_job.job_provider_setting).to eq("codex")
     expect(new_job.model).to eq("gpt-5-codex")
     expect(new_job.effort_level).to eq("high")
+    expect(new_job.issue_title).to eq("Investigate the native smoke test")
+    expect(new_job.issue_body).to eq("Find out why the native smoke test failed.")
     expect(new_job.target_branch).to eq("native-smoke")
     expect(new_job.delivery_track).to eq("native")
+    expect(new_job.planned_execution_project_label).to eq("iOS")
+    expect(new_job.planned_execution_target_label).to eq("//ios:smoke")
+    expect(new_job.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(new_job.planned_execution_source).to eq("explicit")
     expect(new_job.planned_execution_json).to eq(expected_requirement)
     expect(workflow.trigger_kind).to eq("investigation")
+    expect(workflow.planned_execution_project_label).to eq("iOS")
+    expect(workflow.planned_execution_target_label).to eq("//ios:smoke")
+    expect(workflow.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(workflow.planned_execution_source).to eq("explicit")
     expect(workflow.planned_execution_json).to eq(expected_requirement)
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare investigate submit_report])
     expect(workflow.steps.pluck(:kind)).not_to include("implement")
