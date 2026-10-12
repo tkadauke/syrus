@@ -10,12 +10,16 @@ module Api
 
         def show
           repository = find_repository
+          return unless repository
+
           env = repository.preview_environments.order(created_at: :desc).first
           render json: { preview: env ? preview_json(env) : nil }
         end
 
         def logs
           repository = find_repository
+          return unless repository
+
           env = repository.preview_environments.order(created_at: :desc).first
           unless env
             render_error("not_found", I18n.t("api.repository_preview.not_found"), status: :not_found)
@@ -37,6 +41,8 @@ module Api
 
         def create
           repository = find_repository
+          return unless repository
+
           if repository.archived?
             render_error("validation_failed", I18n.t("api.repository_preview.archived"), status: :unprocessable_content)
             return
@@ -61,6 +67,8 @@ module Api
 
         def destroy
           repository = find_repository
+          return unless repository
+
           env = repository.preview_environments.active.first
           unless env
             render_error("not_found", I18n.t("api.repository_preview.active_not_found"), status: :not_found)
@@ -74,7 +82,10 @@ module Api
         private
 
         def find_repository
-          Current.user.repositories.find(params[:repository_id])
+          repository = find_readable_repository
+          return repository if %w[show logs].include?(action_name)
+
+          find_writable_repository(repository.id)
         end
 
         def preview_json(env)

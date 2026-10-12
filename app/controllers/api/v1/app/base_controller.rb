@@ -214,6 +214,25 @@ module Api
           false
         end
 
+        def readable_repository_scope
+          invocation_scoped_repository_scope(Repository.accessible_to(Current.user))
+        end
+
+        def find_readable_repository(id = params[:repository_id])
+          readable_repository_scope.find(id)
+        end
+
+        def find_writable_repository(id = params[:repository_id])
+          repository = find_readable_repository(id)
+          return repository if authorize_repository_write!(repository)
+
+          nil
+        end
+
+        def writable_repository?(repository)
+          RepositoryPolicy.new(Current.user, repository).write?
+        end
+
         def authorize_repository_admin!(repository)
           return true if RepositoryPolicy.new(Current.user, repository).admin?
 

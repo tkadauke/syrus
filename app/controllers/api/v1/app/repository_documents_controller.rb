@@ -9,7 +9,9 @@ module Api
         end
 
         def create
-          repository = find_repository
+          repository = find_writable_repository
+          return unless repository
+
           document = repository.repository_documents.new(document_params)
           document.user = Current.user
 
@@ -24,6 +26,8 @@ module Api
         def destroy
           document = find_document
           repository = document.attachable
+          return unless authorize_repository_write!(repository)
+
           document.file.purge if document.file.attached?
           document.destroy!
 
@@ -81,11 +85,11 @@ module Api
         end
 
         def find_repository
-          Repository.accessible_to(Current.user).find(params[:repository_id])
+          find_readable_repository
         end
 
         def find_document
-          Document.where(attachable_type: "Repository", attachable_id: Current.user.repositories.select(:id))
+          Document.where(attachable_type: "Repository", attachable_id: readable_repository_scope.select(:id))
             .find(params[:id])
         end
 
