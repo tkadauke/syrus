@@ -403,6 +403,13 @@ planned for macOS, which no worker advertises, so each blocked on
 is also no "mutually incompatible hosts" case to resolve: a request naming
 several platforms is ordinary work on the declared or default host.
 
+Workflow agents also receive read-only lookup tools that are useful for
+duplicate checks and local context gathering: `search_jobs`, `list_jobs`,
+`list_open_prs`, `read_pr`, and `list_open_issues`. In workflow context these
+tools are scoped to the current Run's repository through the Run context's
+allowed repository IDs. They do not expose Jobs or GitHub data from other
+repositories and do not add write capability.
+
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
 usage instead of relying solely on reactive error-text classification. It makes a
@@ -478,13 +485,6 @@ before anything starts. The tool is available only on `investigate` and
 `submit_report` steps, caps one investigation workflow at ten proposals, and
 requires explicit `planned_execution.capabilities` using the same placement
 rule as chat proposals.
-
-The same two investigation steps also get read-only lookup tools for
-deduplication before proposing follow-up work: `search_jobs`, `list_jobs`,
-`list_open_prs`, `read_pr`, and `list_open_issues`. In workflow context these
-tools are scoped to the current run's repository and intersected with the Job
-user's repository access; they do not expose Jobs from other repositories or
-add any write capability.
 
 ### submit_report
 
