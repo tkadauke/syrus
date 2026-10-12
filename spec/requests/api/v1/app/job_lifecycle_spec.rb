@@ -519,14 +519,20 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(new_job.issue_number).to be_nil
   end
 
-  it "restarts a direct investigation job preserving investigation routing, planned execution, and dependencies" do
+  it "restarts a direct investigation job preserving investigation routing, workflow placement, and dependencies" do
+    planned_capabilities = {
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    }
     direct = Job.create!(
       user: user,
       repository: repo,
       kind: "direct",
       issue_number: nil,
-      issue_title: "Investigate the native smoke test",
-      issue_body: "Find out why the native smoke test failed.",
+      issue_title: "Investigate iOS preview failures",
+      issue_body: "Find why previews fail on simulator.",
       investigation: true,
       agent_provider: "codex",
       job_provider_setting: "codex",
@@ -534,13 +540,9 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       effort_level: "high",
       target_branch: "native-smoke",
       delivery_track: "native",
-      planned_execution_project_label: "iOS",
-      planned_execution_target_label: "//ios:smoke",
-      planned_execution_capabilities: {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode", "ios-simulator" ]
-      },
+      planned_execution_project_label: "iOS App",
+      planned_execution_target_label: "//ios:preview",
+      planned_execution_capabilities: planned_capabilities,
       planned_execution_source: "explicit"
     )
     dependent = Factories.job(repository: repo, issue_number: 43)
@@ -551,23 +553,22 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       post app_job_path(direct, "restart"), as: :json
     }.to change(Job, :count).by(1)
 
-    new_job = Job.order(:created_at).last
-    workflow = new_job.workflows.order(:created_at).last
     expected_requirement = {
-      "project_label" => "iOS",
-      "target_label" => "//ios:smoke",
-      "capabilities" => {
-        "os" => [ "macos" ],
-        "arch" => [ "arm64" ],
-        "toolchain" => [ "xcode", "ios-simulator" ]
-      },
+      "project_label" => "iOS App",
+      "target_label" => "//ios:preview",
+      "capabilities" => planned_capabilities,
       "source" => "explicit"
     }
 
     expect(response).to have_http_status(:created)
     expect(direct.reload).to be_closed
     expect(direct.closure_reason).to eq("replaced")
+
+    new_job = Job.order(:created_at).last
     expect(new_job.id).not_to eq(original_id)
+    expect(new_job.kind).to eq("direct")
+    expect(new_job.issue_title).to eq("Investigate iOS preview failures")
+    expect(new_job.issue_body).to eq("Find why previews fail on simulator.")
     expect(new_job).to be_investigation
     expect(new_job.agent_provider).to eq("codex")
     expect(new_job.job_provider_setting).to eq("codex")
@@ -576,11 +577,21 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(new_job.target_branch).to eq("native-smoke")
     expect(new_job.delivery_track).to eq("native")
     expect(new_job.planned_execution_json).to eq(expected_requirement)
+    expect(new_job.planned_execution_project_label).to eq("iOS App")
+    expect(new_job.planned_execution_target_label).to eq("//ios:preview")
+    expect(new_job.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(new_job.planned_execution_source).to eq("explicit")
+    expect(dependency.reload.depends_on_job_id).to eq(new_job.id)
+
+    workflow = new_job.workflows.order(:created_at).last
     expect(workflow.trigger_kind).to eq("investigation")
     expect(workflow.planned_execution_json).to eq(expected_requirement)
+    expect(workflow.planned_execution_project_label).to eq("iOS App")
+    expect(workflow.planned_execution_target_label).to eq("//ios:preview")
+    expect(workflow.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(workflow.planned_execution_source).to eq("explicit")
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare investigate submit_report])
     expect(workflow.steps.pluck(:kind)).not_to include("implement")
-    expect(dependency.reload.depends_on_job_id).to eq(new_job.id)
   end
 
   it "preserves epic membership when restarting an issue-kind job that belongs to an epic" do
