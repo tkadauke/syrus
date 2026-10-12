@@ -528,6 +528,12 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       issue_title: "Investigate the native smoke test",
       issue_body: "Find out why the native smoke test failed.",
       investigation: true,
+      agent_provider: "codex",
+      job_provider_setting: "codex",
+      model: "gpt-5-codex",
+      effort_level: "high",
+      target_branch: "native-smoke",
+      delivery_track: "native",
       planned_execution_project_label: "iOS",
       planned_execution_target_label: "//ios:smoke",
       planned_execution_capabilities: {
@@ -563,6 +569,12 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(direct.closure_reason).to eq("replaced")
     expect(new_job.id).not_to eq(original_id)
     expect(new_job).to be_investigation
+    expect(new_job.agent_provider).to eq("codex")
+    expect(new_job.job_provider_setting).to eq("codex")
+    expect(new_job.model).to eq("gpt-5-codex")
+    expect(new_job.effort_level).to eq("high")
+    expect(new_job.target_branch).to eq("native-smoke")
+    expect(new_job.delivery_track).to eq("native")
     expect(new_job.planned_execution_json).to eq(expected_requirement)
     expect(workflow.trigger_kind).to eq("investigation")
     expect(workflow.planned_execution_json).to eq(expected_requirement)
