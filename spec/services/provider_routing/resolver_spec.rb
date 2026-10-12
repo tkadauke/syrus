@@ -60,15 +60,16 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "2. repository rule, exact task_key" do
-    it "wins over the repository's default-task rule and every user-scoped rule" do
+    it "wins over a later repository default-task rule and every user-scoped rule" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
-      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, position: 2, task_key: "default", candidates: [ { "provider" => "codex" } ])
       ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
       ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "agy" } ])
       ProviderRoutingRule.create!(
         scope_type: "repository",
         scope_id: repository.id,
+        position: 1,
         task_key: "ci_failure",
         candidates: [ { "provider" => "claude", "model" => "sonnet" }, { "provider" => "codex" } ]
       )
@@ -139,6 +140,27 @@ RSpec.describe ProviderRouting::Resolver do
         workflow_trigger_kind: "initial"
       )).to eq([ candidate(provider: "codex") ])
     end
+
+    it "lets an earlier default rule beat a later exact rule within the same scope" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 1,
+        trigger: { type: "default" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 2,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "claude" } ] }
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
+    end
   end
 
   describe "3. repository rule, default task_key" do
@@ -157,8 +179,8 @@ RSpec.describe ProviderRouting::Resolver do
     it "is used when neither repository rule exists, and wins over the user's default-task rule" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, position: 2, task_key: "default", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, position: 1, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
 
       expect(resolve(job)).to eq([ candidate(provider: "agy") ])
     end

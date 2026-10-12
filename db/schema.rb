@@ -2611,9 +2611,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_235013) do
     t.string "scope_type", limit: 32, null: false
     t.string "task_key", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.integer "repository_id"
-    t.integer "job_id"
+    t.bigint "user_id", null: false
+    t.bigint "repository_id"
+    t.bigint "job_id"
     t.integer "position", null: false
     t.json "trigger", null: false
     t.json "conditions", null: false
