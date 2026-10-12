@@ -118,7 +118,8 @@ module Workflows
           availability: nil,
           candidate_availability: nil,
           decided_at: Time.current,
-          exhausted: false
+          exhausted: false,
+          routing_resolution: nil
         )
       else
         ProviderRouting::AvailabilitySelector.call(

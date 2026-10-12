@@ -81,7 +81,8 @@ RSpec.describe "WorkUnit runtime gates" do
         availability: { state: "open", evidence: { current: { observed_at: 1.minute.ago.iso8601 } } },
         candidate_availability: nil,
         decided_at: Time.current,
-        exhausted: false
+        exhausted: false,
+        routing_resolution: nil
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
@@ -115,7 +116,8 @@ RSpec.describe "WorkUnit runtime gates" do
         availability: { state: "open" },
         candidate_availability: nil,
         decided_at: Time.current,
-        exhausted: false
+        exhausted: false,
+        routing_resolution: nil
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
