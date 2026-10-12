@@ -10,7 +10,12 @@ module MysqlDbBrowser
     class_attribute :client_factory, default: ->(options) { Mysql2::Client.new(**options) }
 
     def self.test(connection, context: nil)
-      CredentialMaterial.with_password(connection, context: context, purpose: "test MySQL connection") do |password, _metadata|
+      CredentialMaterial.with_password(
+        connection,
+        context: context,
+        purpose: "test MySQL connection",
+        tool_name: CredentialMaterial::ADMIN_TOOL_NAME
+      ) do |password, _metadata|
         new.test(
           host: connection.host,
           port: connection.port,

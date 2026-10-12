@@ -7,8 +7,37 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
   def parse_body = JSON.parse(response.body)
 
+  def stub_admin_resource_service(service_class, service)
+    allow(service_class).to receive(:new).with(
+      cluster,
+      context: instance_of(McpToolContext),
+      tool_name: K8sCluster::ClusterCredential::ADMIN_TOOL_NAME
+    ).and_return(service)
+  end
+
   def enable_plugin!
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
+  end
+
+  def token_kubeconfig(token: "abc123", server: "https://k8s.example.com:6443")
+    <<~YAML
+      apiVersion: v1
+      kind: Config
+      current-context: default
+      clusters:
+      - name: prod
+        cluster:
+          server: #{server}
+      contexts:
+      - name: default
+        context:
+          cluster: prod
+          user: deploy
+      users:
+      - name: deploy
+        user:
+          token: #{token}
+    YAML
   end
 
   it "is disabled by default (plugin disabled)" do
@@ -43,7 +72,8 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
     end
 
     it "lists namespaces" do
-      allow(K8sCluster::Namespaces).to receive(:new).with(cluster).and_return(
+      stub_admin_resource_service(
+        K8sCluster::Namespaces,
         instance_double(K8sCluster::Namespaces, list: { available: true, generated_at: "2026-09-05T00:00:00Z", namespaces: [ { name: "default" } ] })
       )
 
@@ -53,9 +83,53 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("namespaces", 0, "name")).to eq("default")
     end
 
+    it "lists namespaces for a credential-store-backed cluster through the admin tool policy" do
+      credential = CredentialStore::Credential.create!(
+        name: "admin-browser-kubeconfig",
+        credential_type: K8sCluster::ClusterCredential::CREDENTIAL_TYPE,
+        scope_type: "instance",
+        created_by: admin,
+        owner_user: admin,
+        payload: token_kubeconfig(token: "broker-token"),
+        safe_metadata: { "cluster" => "prod", "context" => "default", "host" => "k8s.example.com" },
+        target_constraints: {},
+        allowed_surfaces: %w[admin workflow chat],
+        allowed_tools: K8sCluster::ClusterCredential::ALLOWED_TOOLS,
+        last_rotated_at: 1.hour.ago
+      )
+      cluster.update!(credential_store_credential_id: credential.id, api_server_url: "https://k8s.example.com:6443")
+      original_factory = K8sCluster::ApiClient.client_factory
+      fake_client = double(
+        "Kubeclient::Client",
+        get_namespaces: {
+          "items" => [
+            {
+              "metadata" => { "name" => "default", "creationTimestamp" => "2026-09-05T00:00:00Z" },
+              "status" => { "phase" => "Active" }
+            }
+          ]
+        }
+      )
+      K8sCluster::ApiClient.client_factory = ->(*) { fake_client }
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/namespaces"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("namespaces", 0, "name")).to eq("default")
+      expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+        credential: credential,
+        user: admin,
+        surface: "admin",
+        tool_name: K8sCluster::ClusterCredential::ADMIN_TOOL_NAME,
+        result: "allowed"
+      )
+    ensure
+      K8sCluster::ApiClient.client_factory = original_factory if original_factory
+    end
+
     it "describes a namespace when name is given" do
       inspector = instance_double(K8sCluster::Namespaces)
-      allow(K8sCluster::Namespaces).to receive(:new).with(cluster).and_return(inspector)
+      stub_admin_resource_service(K8sCluster::Namespaces, inspector)
       allow(inspector).to receive(:describe).with("default").and_return(available: true, namespace: { "metadata" => { "name" => "default" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/namespaces", params: { name: "default" }
@@ -65,7 +139,8 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
     end
 
     it "reports a bad gateway when the cluster is unavailable" do
-      allow(K8sCluster::Namespaces).to receive(:new).with(cluster).and_return(
+      stub_admin_resource_service(
+        K8sCluster::Namespaces,
         instance_double(K8sCluster::Namespaces).tap do |inspector|
           allow(inspector).to receive(:list).and_raise(K8sCluster::ResourceService::Unavailable, "connection refused")
         end
@@ -79,7 +154,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists pods scoped to a namespace" do
       pods = instance_double(K8sCluster::Pods)
-      allow(K8sCluster::Pods).to receive(:new).with(cluster).and_return(pods)
+      stub_admin_resource_service(K8sCluster::Pods, pods)
       allow(pods).to receive(:list).with(namespace: "default").and_return(available: true, pods: [ { name: "web-1" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods", params: { namespace: "default" }
@@ -97,7 +172,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "describes a pod when both name and namespace are given" do
       pods = instance_double(K8sCluster::Pods)
-      allow(K8sCluster::Pods).to receive(:new).with(cluster).and_return(pods)
+      stub_admin_resource_service(K8sCluster::Pods, pods)
       allow(pods).to receive(:describe).with("web-1", namespace: "default").and_return(available: true, pod: { "metadata" => { "name" => "web-1" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods", params: { name: "web-1", namespace: "default" }
@@ -108,7 +183,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "returns pod logs" do
       pods = instance_double(K8sCluster::Pods)
-      allow(K8sCluster::Pods).to receive(:new).with(cluster).and_return(pods)
+      stub_admin_resource_service(K8sCluster::Pods, pods)
       allow(pods).to receive(:logs).with("web-1", namespace: "default", container: nil, tail_lines: 200, previous: false, timestamps: false)
         .and_return(available: true, log: "log output\n")
 
@@ -127,7 +202,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists deployments" do
       deployments = instance_double(K8sCluster::Deployments)
-      allow(K8sCluster::Deployments).to receive(:new).with(cluster).and_return(deployments)
+      stub_admin_resource_service(K8sCluster::Deployments, deployments)
       allow(deployments).to receive(:list).with(namespace: nil).and_return(available: true, deployments: [ { name: "web" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/deployments"
@@ -138,7 +213,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists services" do
       services = instance_double(K8sCluster::Services)
-      allow(K8sCluster::Services).to receive(:new).with(cluster).and_return(services)
+      stub_admin_resource_service(K8sCluster::Services, services)
       allow(services).to receive(:list).with(namespace: nil).and_return(available: true, services: [ { name: "web" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/services"
@@ -149,7 +224,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists configmaps" do
       config_maps = instance_double(K8sCluster::ConfigMaps)
-      allow(K8sCluster::ConfigMaps).to receive(:new).with(cluster).and_return(config_maps)
+      stub_admin_resource_service(K8sCluster::ConfigMaps, config_maps)
       allow(config_maps).to receive(:list).with(namespace: nil).and_return(available: true, config_maps: [ { name: "app-settings" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/configmaps"
@@ -167,7 +242,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists secrets" do
       secrets = instance_double(K8sCluster::Secrets)
-      allow(K8sCluster::Secrets).to receive(:new).with(cluster).and_return(secrets)
+      stub_admin_resource_service(K8sCluster::Secrets, secrets)
       allow(secrets).to receive(:list).with(namespace: nil).and_return(available: true, secrets: [ { name: "db-credentials" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/secrets"
@@ -185,7 +260,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists ingresses" do
       ingresses = instance_double(K8sCluster::Ingresses)
-      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      stub_admin_resource_service(K8sCluster::Ingresses, ingresses)
       allow(ingresses).to receive(:list).with(namespace: nil).and_return(available: true, ingresses: [ { name: "web" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses"
@@ -203,7 +278,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "describes an ingress when both name and namespace are given" do
       ingresses = instance_double(K8sCluster::Ingresses)
-      allow(K8sCluster::Ingresses).to receive(:new).with(cluster).and_return(ingresses)
+      stub_admin_resource_service(K8sCluster::Ingresses, ingresses)
       allow(ingresses).to receive(:describe).with("web", namespace: "default").and_return(available: true, ingress: { "metadata" => { "name" => "web" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/ingresses", params: { name: "web", namespace: "default" }
@@ -214,7 +289,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists endpoints" do
       endpoints = instance_double(K8sCluster::Endpoints)
-      allow(K8sCluster::Endpoints).to receive(:new).with(cluster).and_return(endpoints)
+      stub_admin_resource_service(K8sCluster::Endpoints, endpoints)
       allow(endpoints).to receive(:list).with(namespace: nil).and_return(available: true, endpoints: [ { name: "web", ready_addresses: 2 } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/endpoints"
@@ -225,7 +300,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists events" do
       events = instance_double(K8sCluster::Events)
-      allow(K8sCluster::Events).to receive(:new).with(cluster).and_return(events)
+      stub_admin_resource_service(K8sCluster::Events, events)
       allow(events).to receive(:list).with(namespace: nil).and_return(available: true, events: [ { reason: "Scheduled" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/events"
@@ -236,7 +311,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists PVCs" do
       pvcs = instance_double(K8sCluster::PersistentVolumeClaims)
-      allow(K8sCluster::PersistentVolumeClaims).to receive(:new).with(cluster).and_return(pvcs)
+      stub_admin_resource_service(K8sCluster::PersistentVolumeClaims, pvcs)
       allow(pvcs).to receive(:list).with(namespace: nil).and_return(available: true, persistent_volume_claims: [ { name: "data" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pvcs"
@@ -247,7 +322,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists nodes" do
       nodes = instance_double(K8sCluster::Nodes)
-      allow(K8sCluster::Nodes).to receive(:new).with(cluster).and_return(nodes)
+      stub_admin_resource_service(K8sCluster::Nodes, nodes)
       allow(nodes).to receive(:list).and_return(available: true, nodes: [ { name: "node-1" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/nodes"
@@ -258,7 +333,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists cronjobs" do
       cron_jobs = instance_double(K8sCluster::CronJobs)
-      allow(K8sCluster::CronJobs).to receive(:new).with(cluster).and_return(cron_jobs)
+      stub_admin_resource_service(K8sCluster::CronJobs, cron_jobs)
       allow(cron_jobs).to receive(:list).with(namespace: nil).and_return(available: true, cron_jobs: [ { name: "nightly" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/cronjobs"
@@ -269,7 +344,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists statefulsets" do
       stateful_sets = instance_double(K8sCluster::StatefulSets)
-      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      stub_admin_resource_service(K8sCluster::StatefulSets, stateful_sets)
       allow(stateful_sets).to receive(:list).with(namespace: nil).and_return(available: true, stateful_sets: [ { name: "db" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets"
@@ -288,7 +363,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "describes a statefulset when both name and namespace are given" do
       stateful_sets = instance_double(K8sCluster::StatefulSets)
-      allow(K8sCluster::StatefulSets).to receive(:new).with(cluster).and_return(stateful_sets)
+      stub_admin_resource_service(K8sCluster::StatefulSets, stateful_sets)
       allow(stateful_sets).to receive(:describe).with("db", namespace: "default").and_return(available: true, stateful_set: { "metadata" => { "name" => "db" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/statefulsets", params: { name: "db", namespace: "default" }
@@ -299,7 +374,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists daemonsets" do
       daemon_sets = instance_double(K8sCluster::DaemonSets)
-      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      stub_admin_resource_service(K8sCluster::DaemonSets, daemon_sets)
       allow(daemon_sets).to receive(:list).with(namespace: nil).and_return(available: true, daemon_sets: [ { name: "monitoring" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets"
@@ -318,7 +393,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "describes a daemonset when both name and namespace are given" do
       daemon_sets = instance_double(K8sCluster::DaemonSets)
-      allow(K8sCluster::DaemonSets).to receive(:new).with(cluster).and_return(daemon_sets)
+      stub_admin_resource_service(K8sCluster::DaemonSets, daemon_sets)
       allow(daemon_sets).to receive(:describe).with("monitoring", namespace: "default").and_return(available: true, daemon_set: { "metadata" => { "name" => "monitoring" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/daemonsets", params: { name: "monitoring", namespace: "default" }
@@ -329,7 +404,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "lists jobs" do
       jobs = instance_double(K8sCluster::Jobs)
-      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      stub_admin_resource_service(K8sCluster::Jobs, jobs)
       allow(jobs).to receive(:list).with(namespace: nil).and_return(available: true, jobs: [ { name: "migrate" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs"
@@ -347,7 +422,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "describes a job when both name and namespace are given" do
       jobs = instance_double(K8sCluster::Jobs)
-      allow(K8sCluster::Jobs).to receive(:new).with(cluster).and_return(jobs)
+      stub_admin_resource_service(K8sCluster::Jobs, jobs)
       allow(jobs).to receive(:describe).with("migrate", namespace: "default").and_return(available: true, job: { "metadata" => { "name" => "migrate" } })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/jobs", params: { name: "migrate", namespace: "default" }
@@ -358,7 +433,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
 
     it "returns the cluster overview" do
       overview = instance_double(K8sCluster::Overview)
-      allow(K8sCluster::Overview).to receive(:new).with(cluster).and_return(overview)
+      stub_admin_resource_service(K8sCluster::Overview, overview)
       allow(overview).to receive(:call).and_return(nodes: { available: false, reason: "metrics_unavailable" }, pods: { available: false, reason: "metrics_unavailable" })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/overview"

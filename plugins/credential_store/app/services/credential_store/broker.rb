@@ -4,6 +4,7 @@ module CredentialStore
   class Broker
     DEFAULT_LEASE_TTL = 2.minutes
     FILE_PREFIX = "syrus-credential-".freeze
+    RAW_MATERIALIZATION_TOOLS = %w[credential.exec credential.ssh-agent].freeze
 
     class Error < StandardError; end
     class NotFound < Error; end
@@ -114,6 +115,8 @@ module CredentialStore
 
     def tool_allowed?(credential)
       allowed = Array(credential.allowed_tools).map(&:to_s)
+      return false if RAW_MATERIALIZATION_TOOLS.include?(tool_name) && allowed.exclude?(tool_name)
+
       allowed.empty? || (tool_name.present? && allowed.include?(tool_name))
     end
 
