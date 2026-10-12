@@ -10,6 +10,10 @@ export function chatPinsQueryKey(chatId: number | string, search: string) {
   return ["chat-pins", String(chatId), search] as const
 }
 
+export function chatPinsQueryPrefix(chatId: number | string) {
+  return ["chat-pins", String(chatId)] as const
+}
+
 export function chatPinsPath(chatId: number | string) {
   return `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/pins`
 }
