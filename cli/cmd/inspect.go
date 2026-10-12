@@ -469,7 +469,7 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	jobs := make([]api.JobItem, 0, len(list.Jobs))
 	jobs = append(jobs, list.Jobs...)
 	if jsonOut {
-		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.JobList{Count: len(jobs), Jobs: jobs})
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(list)
 	}
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	color := supportsColor(cmd.OutOrStdout())
@@ -503,7 +503,7 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 	epics := make([]api.EpicItem, 0, len(list.Epics))
 	epics = append(epics, list.Epics...)
 	if jsonOut {
-		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.EpicList{Count: len(epics), Epics: epics})
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(list)
 	}
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	color := supportsColor(cmd.OutOrStdout())
