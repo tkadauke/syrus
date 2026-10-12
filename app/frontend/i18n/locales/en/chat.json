@@ -128,6 +128,7 @@
   "enqueue_message": "Enqueue message",
   "add_attachment": "Add attachment",
   "dictation_start": "Start dictation",
+  "dictation_retry": "Retry dictation",
   "dictation_stop": "Stop dictation",
   "dictation_requesting": "Requesting microphone…",
   "dictation_recording_batch": "Recording dictation…",

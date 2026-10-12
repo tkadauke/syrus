@@ -1979,6 +1979,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             <DictationButton
               disabled={send.isPending || systemAction.isPending}
               labels={{
+                error: t("dictation_retry"),
                 idle: t("dictation_start"),
                 requesting: t("dictation_requesting"),
                 recording: t("dictation_stop"),
@@ -2124,6 +2125,7 @@ function useChatDictation({
   const stoppingRef = useRef(false)
   const fallbackAfterStopRef = useRef(false)
   const discardOnStopRef = useRef(false)
+  const browserRecognitionTerminalErrorRef = useRef(false)
 
   const browserRecognitionAvailable = () => Boolean(speechRecognitionConstructor())
   const available = capability.enabled && (
@@ -2160,6 +2162,7 @@ function useChatDictation({
     setMessageTone("status")
     stoppingRef.current = false
     fallbackAfterStopRef.current = false
+    browserRecognitionTerminalErrorRef.current = false
 
     if (capability.modes.backend_streaming.available && paths.stream) {
       await startBackendStream()
@@ -2253,6 +2256,7 @@ function useChatDictation({
     }
     recognition.onerror = (event: { error?: string }) => {
       if (event.error === "not-allowed") {
+        browserRecognitionTerminalErrorRef.current = true
         setPhase("error")
         setMessageTone("error")
         setMessage(t("dictation_permission_denied"))
@@ -2260,18 +2264,23 @@ function useChatDictation({
       }
 
       if (event.error === "no-speech" || (event.error === "aborted" && stoppingRef.current)) {
+        browserRecognitionTerminalErrorRef.current = false
         setPhase("idle")
         setMessageTone("status")
         setMessage(event.error === "no-speech" ? t("dictation_no_speech") : null)
         return
       }
 
+      browserRecognitionTerminalErrorRef.current = true
       setPhase("error")
       setMessageTone("error")
       setMessage(t("dictation_error"))
     }
     recognition.onend = () => {
-      if (phase !== "error") setPhase("idle")
+      setPhase((currentPhase) => {
+        if (browserRecognitionTerminalErrorRef.current || currentPhase === "error") return currentPhase
+        return "idle"
+      })
     }
     recognition.start()
     browserRecognitionRef.current = recognition
@@ -2417,12 +2426,13 @@ function DictationButton({
   phase
 }: {
   disabled: boolean
-  labels: Record<"idle" | "requesting" | "recording" | "transcribing" | "unavailable", string>
+  labels: Record<"error" | "idle" | "requesting" | "recording" | "transcribing" | "unavailable", string>
   onClick: () => void
   phase: DictationPhase
 }) {
-  const active = phase === "recording" || phase === "requesting" || phase === "transcribing"
-  const label = phase === "requesting" ? labels.requesting
+  const active = phase === "error" || phase === "recording" || phase === "requesting" || phase === "transcribing"
+  const label = phase === "error" ? labels.error
+    : phase === "requesting" ? labels.requesting
     : phase === "recording" ? labels.recording
       : phase === "transcribing" ? labels.transcribing
         : phase === "unavailable" ? labels.unavailable

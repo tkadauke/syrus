@@ -1248,6 +1248,24 @@ describe("chat composer dictation", () => {
     await waitFor(() => expect(textarea).toHaveValue("Please summarize this"))
   })
 
+  it("keeps browser speech recognition permission errors visible after recognition ends", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await act(async () => {
+      recognition.lastInstance?.onerror?.({ error: "not-allowed" })
+      recognition.lastInstance?.onend?.()
+    })
+
+    expect(await screen.findByText("Microphone permission was denied.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry dictation" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Start dictation" })).not.toBeInTheDocument()
+  })
+
   it("shows a permission-denied error when microphone access is rejected", async () => {
     installMediaRecorderMock()
     mockAudioPermission(() => Promise.reject(new DOMException("denied", "NotAllowedError")))
