@@ -81,6 +81,20 @@ const inheritedContext: ProviderRoutingInheritedContext[] = [
   }
 ]
 
+const legacyRules: ProviderRoutingRule[] = [
+  {
+    id: 31,
+    scope_type: "user",
+    scope_id: 3,
+    position: 1,
+    task_key: "ci_failure",
+    trigger: { type: "legacy_task", task_key: "ci_failure" },
+    conditions: {},
+    action: { strategy: "fallback_order", name: "Legacy CI fallback", candidates: [{ provider: "codex" }] },
+    candidates: [{ provider: "codex" }]
+  }
+]
+
 describe("ProviderRoutingRulesEditor", () => {
   it("renders ordered first-match rules with read-only inherited rows", () => {
     renderEditor({ inheritedContext, rules })
@@ -145,6 +159,32 @@ describe("ProviderRoutingRulesEditor", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/reorder", expect.objectContaining({ method: "PATCH" })))
     const reorderBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))
     expect(reorderBody.provider_routing_rule_ids).toEqual([12, 11])
+  })
+
+  it("preserves legacy task-key triggers when editing existing rules", async () => {
+    const fetchMock = vi.fn(async (_path: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response(JSON.stringify({ provider_routing_rules: legacyRules, provider_routing_options: options }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    renderEditor({ rules: legacyRules })
+
+    expect(screen.getByText("Legacy task: ci_failure")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const editDialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(editDialog).getByLabelText(/Trigger/)).toHaveValue("legacy_task:ci_failure")
+
+    fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Still CI failure" } })
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/31", expect.objectContaining({ method: "PATCH" })))
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).provider_routing_rule).toMatchObject({
+      task_key: "ci_failure",
+      trigger: { type: "legacy_task", task_key: "ci_failure" },
+      action: { name: "Still CI failure" }
+    })
   })
 })
 
