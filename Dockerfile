@@ -37,8 +37,8 @@ WORKDIR /rails
 #     (PreparedWorkspaceArchive); it falls back to plain `gzip -1` when
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
-ARG CLAUDE_CODE_VERSION=2.1.289
-ARG CODEX_CLI_VERSION=0.160.0
+ARG CLAUDE_CODE_VERSION=2.1.296
+ARG CODEX_CLI_VERSION=0.162.1
 ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
@@ -523,8 +523,8 @@ ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platf
 # needs (nss, libatk, libgtk, etc.); `@playwright/mcp` is Microsoft's own
 # MCP server, bundled as a stdio subprocess rather than hand-rolled —
 # SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
-ARG PLAYWRIGHT_VERSION=1.57.0
-ARG PLAYWRIGHT_MCP_VERSION=0.0.79
+ARG PLAYWRIGHT_VERSION=1.64.0
+ARG PLAYWRIGHT_MCP_VERSION=0.0.83
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # Do not use BuildKit apt cache mounts here. Playwright's `install --with-deps`
 # drives apt internally, and a full/stale cache mount makes apt fail with
