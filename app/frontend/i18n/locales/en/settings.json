@@ -1204,8 +1204,10 @@
   },
   "provider_routing": {
     "title": "Provider routing rules",
+    "account_title": "My default routing",
+    "repository_title": "My routing for this repository",
     "account_description": "Choose ordered first-match routing rules for work that uses your account defaults.",
-    "repository_description": "Repository-scoped rules run before inherited user defaults for this repository.",
+    "repository_description": "Repository rules run before your inherited defaults for this repository.",
     "updated_notice": "Provider routing rules updated.",
     "empty": "No routing rules yet.",
     "empty_description": "Create a rule to choose providers for a trigger and optional conditions.",

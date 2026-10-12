@@ -7,6 +7,7 @@ module App
     include DependencySerializers
     include LandingQueue
     include AgentProviderCatalogOptions
+    include ProviderRoutingRuleSerialization
 
     def self.build(job:, user:, params: {}, client: nil)
       new(job: job, user: user, params: params, client: client).payload
@@ -216,7 +217,16 @@ module App
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
-        provider_routing_options: agent_provider_catalog_options(@user),
+        provider_routing_options: provider_routing_options_json(@user),
+        provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
+        inherited_provider_routing_context: provider_routing_inherited_context_json(
+          scope_type: "job",
+          scope_id: @job.id,
+          job_id: @job.id,
+          repository_id: @job.repository_id,
+          user_id: @job.effective_owner_id
+        ),
+        provider_routing_resolution: provider_routing_resolution_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -299,6 +309,16 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
+    end
+
+    def provider_routing_resolution_json
+      workflow = @job.latest_workflow
+      task_key = workflow&.trigger_kind.presence || "initial"
+      workflow_trigger_kind = workflow&.trigger_kind.presence || task_key
+
+      ProviderRouting::Resolver
+        .resolve(job: @job, task_key: task_key, workflow_trigger_kind: workflow_trigger_kind)
+        .explanation
     end
 
     def latest_run_for_retry_state
