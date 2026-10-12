@@ -35,6 +35,24 @@ type DraftRule = {
 
 type DraftErrors = Partial<Record<"name" | "trigger" | "candidates", string>>
 
+export type RoutingRulesPanelProps = {
+  description: string
+  destroyError?: unknown
+  destroyPending?: boolean
+  inheritedContext?: ProviderRoutingInheritedContext[]
+  onCreateRule: (input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
+  onDeleteRule: (rule: ProviderRoutingRule) => void
+  onReorderRules: (ids: number[]) => void
+  onUpdateRule: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
+  options?: ProviderRoutingOptions
+  reorderError?: unknown
+  reorderPending?: boolean
+  rules?: ProviderRoutingRule[]
+  saveError?: unknown
+  saving?: boolean
+  title: string
+}
+
 const EMPTY_OPTIONS: ProviderRoutingOptions = {
   agent_providers: [],
   effort_levels: [],
@@ -63,28 +81,18 @@ export function ProviderRoutingRulesEditor({
   options?: ProviderRoutingOptions
   onSaved?: (payload: ProviderRoutingRulesPayload) => void
 }) {
-  const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const routingOptions = normalizeOptions(options)
-  const routingRules = rules || []
-  const inheritedRows = (inheritedContext || []).filter((context) => context.rules.length > 0)
-  const [draft, setDraft] = useState<DraftRule | null>(null)
-  const [draftErrors, setDraftErrors] = useState<DraftErrors>({})
 
   const save = useMutation({
-    mutationFn: (currentDraft: DraftRule) => {
-      const payload = draftToInput(currentDraft)
-      if (currentDraft.id) return updateProviderRoutingRule(`${basePath}/${currentDraft.id}`, payload)
-      return createProviderRoutingRule(basePath, payload)
-    },
+    mutationFn: ({ rule, input }: { rule?: ProviderRoutingRule; input: ProviderRoutingRuleInput }) =>
+      rule ? updateProviderRoutingRule(`${basePath}/${rule.id}`, input) : createProviderRoutingRule(basePath, input),
     onSuccess: (payload) => {
       onSaved?.(payload)
       void queryClient.invalidateQueries({ queryKey })
-      closeEditor()
     }
   })
   const destroy = useMutation({
-    mutationFn: (id: number) => deleteProviderRoutingRule(`${basePath}/${id}`),
+    mutationFn: (rule: ProviderRoutingRule) => deleteProviderRoutingRule(`${basePath}/${rule.id}`),
     onSuccess: (payload) => {
       onSaved?.(payload)
       void queryClient.invalidateQueries({ queryKey })
@@ -97,6 +105,51 @@ export function ProviderRoutingRulesEditor({
       void queryClient.invalidateQueries({ queryKey })
     }
   })
+
+  return (
+    <RoutingRulesPanel
+      description={description}
+      destroyError={destroy.error}
+      destroyPending={destroy.isPending}
+      inheritedContext={inheritedContext}
+      onCreateRule={(input) => save.mutateAsync({ input })}
+      onDeleteRule={(rule) => destroy.mutate(rule)}
+      onReorderRules={(ids) => reorder.mutate(ids)}
+      onUpdateRule={(rule, input) => save.mutateAsync({ rule, input })}
+      options={options}
+      reorderError={reorder.error}
+      reorderPending={reorder.isPending}
+      rules={rules}
+      saveError={save.error}
+      saving={save.isPending}
+      title={title}
+    />
+  )
+}
+
+export function RoutingRulesPanel({
+  description,
+  destroyError,
+  destroyPending = false,
+  inheritedContext,
+  onCreateRule,
+  onDeleteRule,
+  onReorderRules,
+  onUpdateRule,
+  options,
+  reorderError,
+  reorderPending = false,
+  rules,
+  saveError,
+  saving = false,
+  title
+}: RoutingRulesPanelProps) {
+  const { t } = useT("settings")
+  const routingOptions = normalizeOptions(options)
+  const routingRules = rules || []
+  const inheritedRows = (inheritedContext || []).filter((context) => context.rules.length > 0)
+  const [draft, setDraft] = useState<DraftRule | null>(null)
+  const [draftErrors, setDraftErrors] = useState<DraftErrors>({})
 
   function openNewRule() {
     setDraft(emptyDraft(routingOptions))
@@ -119,14 +172,25 @@ export function ProviderRoutingRulesEditor({
     setDraftErrors({})
   }
 
-  function submitDraft() {
+  async function submitDraft() {
     if (!draft) return
 
     const nextErrors = validateDraft(draft, t)
     setDraftErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
-    save.mutate(draft)
+    const input = draftToInput(draft)
+    try {
+      if (draft.id) {
+        const rule = routingRules.find((candidate) => candidate.id === draft.id)
+        if (rule) await onUpdateRule(rule, input)
+      } else {
+        await onCreateRule(input)
+      }
+    } catch {
+      return
+    }
+    closeEditor()
   }
 
   function move(rule: ProviderRoutingRule, direction: -1 | 1) {
@@ -137,7 +201,7 @@ export function ProviderRoutingRulesEditor({
     const ids = routingRules.map((candidate) => candidate.id)
     const [id] = ids.splice(index, 1)
     ids.splice(nextIndex, 0, id)
-    reorder.mutate(ids)
+    onReorderRules(ids)
   }
 
   return (
@@ -154,13 +218,13 @@ export function ProviderRoutingRulesEditor({
       {routingRules.length > 0 || inheritedRows.length > 0 ? (
         <div className="space-y-3">
           <RulesTable
-            destroyPending={destroy.isPending}
-            onDelete={(rule) => destroy.mutate(rule.id)}
+            destroyPending={destroyPending}
+            onDelete={onDeleteRule}
             onDuplicate={duplicate}
             onEdit={edit}
             onMove={move}
             options={routingOptions}
-            reorderPending={reorder.isPending}
+            reorderPending={reorderPending}
             rules={routingRules}
             t={t}
           />
@@ -182,9 +246,9 @@ export function ProviderRoutingRulesEditor({
         </Surface>
       )}
 
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("provider_routing.save_error"))}</PanelMessage> : null}
-      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("provider_routing.delete_error"))}</PanelMessage> : null}
-      {reorder.isError ? <PanelMessage tone="error">{errorMessage(reorder.error, t("provider_routing.reorder_error"))}</PanelMessage> : null}
+      {saveError ? <PanelMessage tone="error">{errorMessage(saveError, t("provider_routing.save_error"))}</PanelMessage> : null}
+      {destroyError ? <PanelMessage tone="error">{errorMessage(destroyError, t("provider_routing.delete_error"))}</PanelMessage> : null}
+      {reorderError ? <PanelMessage tone="error">{errorMessage(reorderError, t("provider_routing.reorder_error"))}</PanelMessage> : null}
 
       <RuleEditorModal
         draft={draft}
@@ -196,7 +260,7 @@ export function ProviderRoutingRulesEditor({
           setDraftErrors({})
         }}
         options={routingOptions}
-        saving={save.isPending}
+        saving={saving}
         t={t}
       />
     </section>
