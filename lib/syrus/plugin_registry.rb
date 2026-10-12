@@ -51,6 +51,7 @@ module Syrus
       build_system_graph_provider
       retention_policy
       repository_content_provider
+      execution_backend
       speech_to_text_provider
       purge_contributor
       workspace_git_transport
@@ -109,6 +110,7 @@ module Syrus
       build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider },
       retention_policy:        -> { Syrus::Plugin::RetentionPolicy },
       repository_content_provider: -> { Syrus::Plugin::RepositoryContentProvider },
+      execution_backend:      -> { Syrus::Plugin::ExecutionBackend },
       speech_to_text_provider:  -> { Syrus::Plugin::SpeechToTextProvider },
       purge_contributor:       -> { Syrus::Plugin::PurgeContributor },
       workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport },
