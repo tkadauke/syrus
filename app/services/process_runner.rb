@@ -11,7 +11,7 @@ require "tempfile"
 # SpawnedProcess registration + heartbeats + the operator kill switch, and
 # a common result shape.
 class ProcessRunner
-  class_attribute :backend, default: Execution::Local.new
+  class_attribute :backend, default: Execution::Router.new
 
   class WorkspaceAttributionError < StandardError; end
   class MountAssertionError < StandardError; end
