@@ -11,6 +11,8 @@ require "tempfile"
 # SpawnedProcess registration + heartbeats + the operator kill switch, and
 # a common result shape.
 class ProcessRunner
+  class_attribute :backend, default: Execution::Local.new
+
   class WorkspaceAttributionError < StandardError; end
   class MountAssertionError < StandardError; end
   class NetworkAssertionError < StandardError; end
@@ -356,6 +358,7 @@ class ProcessRunner
   # agent invocations where continuous output is the norm.
   def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
+                 resource_limits: nil,
                  stop_requested: -> { false },
                  on_output_chunk: nil,
                  on_output_line: nil,
@@ -368,16 +371,19 @@ class ProcessRunner
                  chat_session: nil,
                  agent: nil,
                  display_command: nil,
-                 on_spawned_process: nil)
+                 on_spawned_process: nil,
+                 backend: self.class.backend)
     @env = env
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
+    @network_name = network.to_s
     @network = NetworkProfile.for(network)
     @chdir = @mounts.workdir
     @timeout = timeout
     @stdin_data = stdin_data
     @unsetenv_others = unsetenv_others
     @pgroup = pgroup
+    @resource_limits = resource_limits
     @stop_requested = stop_requested
     @on_output_chunk = on_output_chunk
     @on_output_line = on_output_line
@@ -391,6 +397,7 @@ class ProcessRunner
     @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
+    @backend = backend
 
     # Idempotent — only the first call in this process spawns the
     # supervisor thread. Web pods never reach this code path so they
@@ -399,10 +406,43 @@ class ProcessRunner
   end
 
   def run
+    @backend.run(execution_request)
+  end
+
+  def run_with_local_backend
     with_workspace_lock { run_process }
   end
 
   private
+
+  def execution_request
+    Execution::Request.new(
+      env: @env,
+      command: @command,
+      chdir: @chdir,
+      mounts: @mounts,
+      network: @network_name,
+      resource_limits: @resource_limits,
+      timeout: @timeout,
+      stdin_data: @stdin_data,
+      unsetenv_others: @unsetenv_others,
+      pgroup: @pgroup,
+      stop_requested: @stop_requested,
+      on_output_chunk: @on_output_chunk,
+      on_output_line: @on_output_line,
+      kill_grace_seconds: @kill_grace_seconds,
+      silent_timeout: @silent_timeout,
+      kind: @kind,
+      run: @run,
+      workflow: @workflow,
+      job: @job,
+      chat_session: @chat_session,
+      agent: @agent,
+      display_command: @display_command,
+      on_spawned_process: @on_spawned_process,
+      local_runner: self
+    )
+  end
 
   # Held for the lifetime of the spawned subprocess so
   # WorkflowWorkspace.cleanup_for's non-blocking exclusive flock on the
