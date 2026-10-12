@@ -10,13 +10,24 @@ RSpec.describe JobTag, type: :model do
   end
 
   it "is invalid when tag belongs to a different user" do
-    other_user = Factories.user
+    other_user = Factories.user(global_role: "user")
+    other_user.update!(global_role: "user")
     other_tag = Factories.tag(user: other_user)
 
     record = described_class.new(job: job, tag: other_tag)
 
     expect(record).not_to be_valid
     expect(record.errors[:tag]).to include("must belong to the job owner")
+  end
+
+  it "is valid when the tag owner can write to the job repository" do
+    collaborator = Factories.user
+    job.repository.repository_memberships.create!(user: collaborator, role: "write")
+    collaborator_tag = Factories.tag(user: collaborator)
+
+    record = described_class.new(job: job, tag: collaborator_tag)
+
+    expect(record).to be_valid
   end
 
   it "enforces uniqueness of tag per job" do

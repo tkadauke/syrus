@@ -204,6 +204,19 @@ module Api
           false
         end
 
+        def find_readable_job_by_ref(param = params[:job_id], includes: nil)
+          scope = policy_scope(Job)
+          scope = includes.is_a?(Array) ? scope.includes(*includes) : scope.includes(includes) if includes
+          find_job_by_ref(scope, param)
+        end
+
+        def find_mutable_job_by_ref(param = params[:job_id], includes: nil)
+          job = find_readable_job_by_ref(param, includes: includes)
+          return job if authorize_job_mutation!(job)
+
+          nil
+        end
+
         # Same write-tier gate as JobPolicy#write?'s repository half, for
         # actions (like Coding Mode's `!` shell command execution) that act
         # directly on a repository checkout rather than an existing Job.

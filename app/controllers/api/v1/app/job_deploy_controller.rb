@@ -3,13 +3,14 @@ module Api
     module App
       class JobDeployController < BaseController
         def show
-          job = find_job
+          job = find_readable_job
           workflow = latest_deploy_workflow(job)
           render json: { deploy: workflow ? deploy_json(workflow) : nil }
         end
 
         def create
-          job = find_job
+          return unless job = find_mutable_job
+
           unless job.deployable?
             render_error("validation_failed", "Deploy is only available for implemented, approved, or landing jobs, or landed jobs.", status: :unprocessable_content)
             return
@@ -35,8 +36,12 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
+        def find_readable_job
+          find_readable_job_by_ref(includes: :repository)
+        end
+
+        def find_mutable_job
+          find_mutable_job_by_ref(includes: :repository)
         end
 
         def latest_deploy_workflow(job)

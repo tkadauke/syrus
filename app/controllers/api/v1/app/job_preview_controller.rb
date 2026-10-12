@@ -5,13 +5,13 @@ module Api
         PREVIEW_BASE_DOMAIN = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
 
         def show
-          job = find_job
+          job = find_readable_job
           env = job.preview_environments.order(created_at: :desc).first
           render json: { preview: env ? preview_json(env) : nil, preview_projects: preview_projects(job).to_a, unavailable_reason: preview_projects(job).unavailable_reason }
         end
 
         def logs
-          job = find_job
+          job = find_readable_job
           env = job.preview_environments.order(created_at: :desc).first
           unless env
             render_error("not_found", I18n.t("api.job_preview.not_found"), status: :not_found)
@@ -32,7 +32,8 @@ module Api
         end
 
         def create
-          job = find_job
+          return unless job = find_mutable_job
+
           unless job.previewable?
             render_error("validation_failed", I18n.t("api.job_preview.not_previewable"), status: :unprocessable_content)
             return
@@ -67,7 +68,8 @@ module Api
         end
 
         def destroy
-          job = find_job
+          return unless job = find_mutable_job
+
           env = job.preview_environments.active.first
           unless env
             render_error("not_found", I18n.t("api.job_preview.active_not_found"), status: :not_found)
@@ -80,8 +82,12 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :preview_environments), params[:job_id])
+        def find_readable_job
+          find_readable_job_by_ref(includes: [ :repository, :preview_environments ])
+        end
+
+        def find_mutable_job
+          find_mutable_job_by_ref(includes: [ :repository, :preview_environments ])
         end
 
         def preview_json(env, project: nil)

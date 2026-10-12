@@ -68,6 +68,24 @@ RSpec.describe "App API job metadata commands", type: :request do
     expect(parse_body).to include("message" => "Dependency removed.", "dependencies" => [])
   end
 
+  it "allows repository write collaborators to add visible job and epic dependencies" do
+    writer = Factories.user
+    repo.repository_memberships.create!(user: writer, role: "write")
+    target = Factories.job_record(repository: repo, issue_number: 41, issue_title: "Prepare marble")
+    epic = Factories.epic(user: user, repository: repo, title: "Platform migration")
+    sign_in_as(writer)
+
+    post app_job_path("/dependencies"), params: { dependency_target: "job:#{target.id}" }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.dependencies.map(&:depends_on_job_id)).to include(target.id)
+
+    post app_job_path("/epic_dependencies"), params: { depends_on_epic_id: epic.id }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.dependencies.map(&:depends_on_epic_id)).to include(epic.id)
+  end
+
   it "does not allow removing parsed dependencies" do
     target = Factories.job_record(repository: repo, issue_number: 41)
     dependency = job.dependencies.create!(depends_on_job: target, source: "parsed")
