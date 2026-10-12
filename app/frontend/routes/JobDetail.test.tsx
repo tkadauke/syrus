@@ -112,6 +112,63 @@ describe("JobDetailView", () => {
     expect(container.querySelectorAll("section.bg-surface").length).toBeGreaterThanOrEqual(2)
   })
 
+  it("shows job routing rules with inherited context and the resolved provider explanation", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          provider_routing_rules: [
+            {
+              id: 11,
+              scope_type: "job",
+              scope_id: 1,
+              position: 1,
+              task_key: "implement",
+              trigger: { type: "step", kind: "implement" },
+              conditions: { workflow_trigger_kind: ["initial"] },
+              action: { strategy: "fallback_order", name: "Use Codex here", candidates: [{ provider: "codex", model: "gpt-5.2-codex" }] },
+              candidates: [{ provider: "codex", model: "gpt-5.2-codex" }]
+            }
+          ],
+          inherited_provider_routing_context: [
+            {
+              scope_type: "repository",
+              scope_id: 2,
+              label: "Repository overrides",
+              rules: [
+                {
+                  id: 12,
+                  scope_type: "repository",
+                  scope_id: 2,
+                  position: 1,
+                  task_key: "default",
+                  trigger: { type: "default" },
+                  action: { strategy: "fallback_order", candidates: [{ provider: "claude" }] },
+                  candidates: [{ provider: "claude" }]
+                }
+              ]
+            }
+          ],
+          provider_routing_resolution: {
+            source_scope: "job",
+            source_id: 1,
+            fallback: false,
+            reason: "matched_rule",
+            matched_rule: { id: 11, scope_type: "job", scope_id: 1, position: 1, trigger: { type: "step", kind: "implement" } },
+            condition_results: { matched: true },
+            final_action: { strategy: "fallback_order", candidates: [{ provider: "codex", model: "gpt-5.2-codex" }] }
+          }
+        }
+      })
+    )
+
+    expect(screen.getAllByText("Routing for this job").length).toBeGreaterThan(0)
+    expect(screen.getByText("codex from job routing: matched the first applicable rule.")).toBeInTheDocument()
+    expect(screen.getByText("Matched job routing rule at position 1.")).toBeInTheDocument()
+    expect(screen.getByText("Use Codex here")).toBeInTheDocument()
+    expect(screen.getByText("Repository overrides")).toBeInTheDocument()
+  })
+
   it("shows a red usage-limit warning in the job detail header", () => {
     renderJobDetail(
       jobPayload({
@@ -2081,9 +2138,12 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/start_chat", expect.objectContaining({
-        method: "POST"
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/start_chat",
+        expect.objectContaining({
+          method: "POST"
+        })
+      )
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/9")
     })
   })
@@ -3638,7 +3698,6 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText(/custom_key/)).toBeInTheDocument()
     expect(screen.getByText(/custom_value/)).toBeInTheDocument()
   })
-
 })
 
 describe("Job detail tabs", () => {
@@ -5019,6 +5078,45 @@ function baseJob(): JobDetailPayload["job"] {
     validity: "valid",
     credential_mode: "app",
     agent_provider: "codex",
+    job_provider_setting: "default",
+    job_provider_setting_options: [
+      { value: "default", label: "Default", configured: true, models: [] },
+      { value: "codex", label: "Codex", configured: true, models: [{ id: "gpt-5.2-codex", label: "GPT-5.2 Codex" }] },
+      { value: "claude", label: "Claude", configured: true, models: [{ id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" }] }
+    ],
+    model: null,
+    effort_level: null,
+    provider_routing_options: {
+      agent_providers: [
+        { value: "codex", label: "Codex", configured: true, models: [{ id: "gpt-5.2-codex", label: "GPT-5.2 Codex" }] },
+        { value: "claude", label: "Claude", configured: true, models: [{ id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" }] }
+      ],
+      effort_levels: [
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium" },
+        { value: "high", label: "High" }
+      ],
+      triggers: {
+        step_kinds: [{ value: "implement", label: "Implement" }],
+        chat_roles: [{ value: "chat:coding", label: "Coding" }]
+      },
+      conditions: {
+        workflow_trigger_kinds: [{ value: "initial", label: "Initial" }]
+      },
+      action_strategies: [{ value: "fallback_order", label: "Fallback order" }],
+      condition_keys: []
+    },
+    provider_routing_rules: [],
+    inherited_provider_routing_context: [],
+    provider_routing_resolution: {
+      source_scope: "user_default_provider",
+      source_id: 1,
+      fallback: true,
+      reason: "user_default_provider",
+      matched_rule: null,
+      condition_results: null,
+      final_action: { strategy: "fallback_order", candidates: [{ provider: "codex" }] }
+    },
     provider_failover: undefined,
     stack_base: "auto",
     issue_number: null,

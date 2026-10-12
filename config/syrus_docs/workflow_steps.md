@@ -209,6 +209,11 @@ plugin-registered agent provider such as `claude`, `codex`, `muse`, or `agy`.
 `default` resolves the current repository/user default at workflow creation
 time; explicit values pin newly-created workflows for that Job to the selected
 provider.
+Operators can also manage ordered routing rules from the app surfaces that own
+each scope: Agent Settings shows "My default routing", repository settings show
+"My routing for this repository" with inherited user rules, and Job detail shows
+"Routing for this job" with inherited repository/user rules plus the resolver
+explanation for the provider that would be chosen for future work.
 
 `agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
 `SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as
@@ -347,6 +352,9 @@ provider outright, the same as before. Workflow creation records the chosen
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+Job detail serializes the same resolver explanation so operators can see which
+scope or rule selected the currently resolved provider without opening a run
+artifact.
 Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
 that ordered candidate list and chooses the first one that is not exhausted,
 rate-limited, in an auth-error state, or manually overridden -- this basic

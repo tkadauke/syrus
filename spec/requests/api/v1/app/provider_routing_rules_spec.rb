@@ -164,6 +164,54 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(second.reload.position).to eq(1)
   end
 
+  it "applies ordered user rules, repository overrides, and job overrides to the job detail routing resolution" do
+    post "/api/v1/app/credentials/provider_routing_rules",
+      params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "My Claude default", candidates: [ { provider: "claude" } ] } } },
+      as: :json
+    expect(response).to have_http_status(:created)
+    user_default_rule = ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).detect { |rule| rule.action["name"] == "My Claude default" }
+
+    post "/api/v1/app/credentials/provider_routing_rules",
+      params: { provider_routing_rule: { trigger: { type: "step", kind: "implement" }, action: { strategy: "fallback_order", name: "My Codex implementation", candidates: [ { provider: "codex" } ] } } },
+      as: :json
+    expect(response).to have_http_status(:created)
+    user_implement_rule = ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).detect { |rule| rule.action["name"] == "My Codex implementation" }
+
+    patch "/api/v1/app/credentials/provider_routing_rules/reorder",
+      params: { provider_routing_rule_ids: [ user_implement_rule.id, user_default_rule.id ] },
+      as: :json
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("provider_routing_rules").map { |rule| rule.fetch("id") }).to eq([ user_implement_rule.id, user_default_rule.id ])
+
+    post "/api/v1/app/repositories/#{repository.id}/provider_routing_rules",
+      params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "Repository Claude override", candidates: [ { provider: "claude" } ] } } },
+      as: :json
+    expect(response).to have_http_status(:created)
+    repository_rule = ProviderRoutingRule.find_by!(scope_type: "repository", scope_id: repository.id)
+
+    post "/api/v1/app/jobs/#{job.id}/provider_routing_rules",
+      params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "Job Codex override", candidates: [ { provider: "codex", effort_level: "high" } ] } } },
+      as: :json
+    expect(response).to have_http_status(:created)
+    job_rule = ProviderRoutingRule.find_by!(scope_type: "job", scope_id: job.id)
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("job", "provider_routing_rules")).to include(include("id" => job_rule.id, "scope_type" => "job"))
+    expect(body.dig("job", "inherited_provider_routing_context")).to include(
+      include("scope_type" => "user", "rules" => include(include("id" => user_implement_rule.id))),
+      include("scope_type" => "repository", "rules" => include(include("id" => repository_rule.id)))
+    )
+    expect(body.dig("job", "provider_routing_resolution")).to include(
+      "source_scope" => "job",
+      "reason" => "matched_rule",
+      "matched_rule" => include("id" => job_rule.id),
+      "final_action" => include("candidates" => [ include("provider" => "codex", "effort_level" => "high") ])
+    )
+  end
+
   it "returns validation failures for unknown triggers and providers" do
     post "/api/v1/app/credentials/provider_routing_rules",
       params: {

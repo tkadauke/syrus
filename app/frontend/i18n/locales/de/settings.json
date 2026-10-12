@@ -1191,8 +1191,10 @@
   },
   "provider_routing": {
     "title": "Anbieter-Routing-Regeln",
+    "account_title": "Mein Standard-Routing",
+    "repository_title": "Mein Routing für dieses Repository",
     "account_description": "Wählen Sie geordnete First-Match-Regeln für Arbeit, die Ihre Kontostandards verwendet.",
-    "repository_description": "Repository-spezifische Regeln laufen vor geerbten Benutzerstandards für dieses Repository.",
+    "repository_description": "Repository-Regeln laufen vor Ihren geerbten Standards für dieses Repository.",
     "updated_notice": "Anbieter-Routing-Regeln aktualisiert.",
     "empty": "Noch keine Routing-Regeln.",
     "empty_description": "Erstellen Sie eine Regel, um Anbieter für einen Trigger und optionale Bedingungen auszuwählen.",

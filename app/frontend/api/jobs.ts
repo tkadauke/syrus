@@ -2,7 +2,13 @@ import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
-import type { ProviderRoutingOptions } from "./providerRoutingRules"
+import type {
+  ProviderRoutingCandidate,
+  ProviderRoutingConditions,
+  ProviderRoutingInheritedContext,
+  ProviderRoutingOptions,
+  ProviderRoutingRule
+} from "./providerRoutingRules"
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
@@ -90,6 +96,9 @@ export type JobRecord = {
   model?: string | null
   effort_level?: string | null
   provider_routing_options?: ProviderRoutingOptions
+  provider_routing_rules?: ProviderRoutingRule[]
+  inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
+  provider_routing_resolution?: ProviderRoutingResolution | null
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
@@ -169,6 +178,27 @@ export type JobRecord = {
   start_blocked_details: StartBlockedDetails | null
   start_blocked_breakdown: AdmissionBreakdown | null
   deployment_stages?: JobDeploymentStage[]
+}
+
+export type ProviderRoutingResolution = {
+  source_scope?: string | null
+  source_id?: number | null
+  fallback?: boolean
+  reason?: string | null
+  matched_rule?: {
+    id?: number
+    scope_type?: string
+    scope_id?: number
+    position?: number
+    trigger?: Record<string, unknown>
+    conditions?: ProviderRoutingConditions
+  } | null
+  condition_results?: Record<string, unknown> | null
+  final_action?: {
+    strategy?: string
+    candidates?: ProviderRoutingCandidate[]
+    [key: string]: unknown
+  } | null
 }
 
 export type JobClassificationAttempt = {

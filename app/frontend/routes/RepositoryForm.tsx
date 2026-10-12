@@ -438,7 +438,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               inheritedContext={payload.inherited_provider_routing_context}
               queryKey={["repositories", mode, String(payload.repository.id)]}
               rules={payload.provider_routing_rules}
-              title={t("provider_routing.title")}
+              title={t("provider_routing.repository_title")}
             />
           ) : null}
 

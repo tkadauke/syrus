@@ -52,6 +52,7 @@ import {
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
 import { ProviderAvailabilityWarning, providerFailoverTooltip } from "../components/ProviderAvailabilityWarning"
+import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
@@ -948,6 +949,8 @@ function SummaryTab({
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </Section.Root>
 
+          <JobRoutingPanel payload={payload} queryKey={queryKey} />
+
           <ApprovalStatusPanel payload={payload} prefix={prefix} />
           {deliveryPanelRelevant(payload) ? <DeliveryPanel payload={payload} /> : null}
           <DependenciesPanel command={command} payload={payload} />
@@ -1151,6 +1154,71 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
       {showConfirm ? <UrgentConfirmDialog onCancel={handleCancel} onConfirm={handleConfirm} /> : null}
     </span>
   )
+}
+
+function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey }) {
+  const { t } = useT("jobs")
+  const resolution = payload.job.provider_routing_resolution
+  const candidates = resolution?.final_action?.candidates || []
+  const matchedRule = resolution?.matched_rule
+
+  return (
+    <Section.Root className="min-w-0 overflow-x-auto text-sm">
+      <div className="space-y-1">
+        <SectionHeading>{t("routing_job_title")}</SectionHeading>
+        <p className="text-xs text-text-secondary">{t("routing_job_description")}</p>
+      </div>
+      <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("routing_resolved_heading")}</p>
+        <p className="mt-1 text-sm text-text-primary">{routingResolutionSummary(payload, t)}</p>
+        {matchedRule ? (
+          <p className="mt-1 text-xs text-text-secondary">
+            {t("routing_matched_rule", {
+              scope: routingScopeLabel(matchedRule.scope_type || resolution?.source_scope, t),
+              position: matchedRule.position ?? "-"
+            })}
+          </p>
+        ) : null}
+        {candidates.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {candidates.map((candidate, index) => (
+              <SmallPill key={`${candidate.provider}-${candidate.model || ""}-${candidate.effort_level || ""}-${index}`}>
+                {agentProviderLabel(payload, candidate.provider)}
+                {candidate.model ? ` · ${candidate.model}` : ""}
+                {candidate.effort_level ? ` · ${candidate.effort_level}` : ""}
+              </SmallPill>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <ProviderRoutingRulesEditor
+        basePath={`/api/v1/app/jobs/${payload.job.id}/provider_routing_rules`}
+        description={t("routing_job_panel_description")}
+        inheritedContext={payload.job.inherited_provider_routing_context}
+        options={payload.job.provider_routing_options}
+        queryKey={queryKey}
+        rules={payload.job.provider_routing_rules}
+        title={t("routing_job_panel_title")}
+      />
+    </Section.Root>
+  )
+}
+
+function routingResolutionSummary(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]) {
+  const resolution = payload.job.provider_routing_resolution
+  if (!resolution) return t("routing_resolution_unknown")
+
+  const resolvedProvider = resolution.final_action?.candidates?.[0]?.provider || payload.job.agent_provider
+  const provider = resolvedProvider ? agentProviderLabel(payload, resolvedProvider) : t("provider_setting_default")
+  const source = routingScopeLabel(resolution.source_scope, t)
+  const reason = resolution.reason ? t(`routing_reason_${resolution.reason}`, { defaultValue: resolution.reason.replace(/_/g, " ") }) : t("routing_reason_unknown")
+  return t("routing_resolution_summary", { provider, source, reason })
+}
+
+function routingScopeLabel(scope: string | null | undefined, t: ReturnType<typeof useT>["t"]) {
+  if (!scope) return t("routing_scope_unknown")
+
+  return t(`routing_scope_${scope}`, { defaultValue: scope.replace(/_/g, " ") })
 }
 
 function JobProviderSelector({ payload, providerPath, queryKey }: { payload: JobDetailPayload; providerPath: string; queryKey: JobDetailQueryKey }) {

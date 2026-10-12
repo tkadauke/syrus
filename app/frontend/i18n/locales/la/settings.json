@@ -1191,8 +1191,10 @@
   },
   "provider_routing": {
     "title": "Regulae itineris praebitorum",
+    "account_title": "Meum iter defectum",
+    "repository_title": "Meum iter pro hoc repositorio",
     "account_description": "Regulas ordinatas primi congruentis elige pro opere quod defectibus rationis tuae utitur.",
-    "repository_description": "Regulae receptaculi ante defectus usoris hereditos currunt.",
+    "repository_description": "Regulae repositorii ante defectus tuos hereditos pro hoc repositorio currunt.",
     "updated_notice": "Regulae itineris praebitorum renovatae sunt.",
     "empty": "Nullae regulae itineris adhuc sunt.",
     "empty_description": "Regulam crea ut praebitores pro signo et condicionibus optionalibus eligas.",
