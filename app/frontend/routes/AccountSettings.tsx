@@ -353,7 +353,7 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
             options={payload.options.provider_routing_options}
             queryKey={queryKey}
             rules={payload.provider_routing_rules}
-            title={t("provider_routing.title")}
+            title={t("provider_routing.account_title")}
           />
         ) : null}
 
