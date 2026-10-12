@@ -161,12 +161,18 @@ manual diagnosis. The admin Work Units surface repeats the owning user's
 provider state on units blocked for `provider_availability`, so the block cause
 is visible without joining evidence rows by hand.
 
-Provider routing rules now define workflow admission fallback chains. A
-user-scoped `ProviderRoutingRule` with `task_key: "default"` supplies an ordered
-candidate list for ordinary work, and more specific repository/task rules can
-override it. The resolver records `agent_provider_routing_decision` when it
-chooses the initial Workflow provider/model/effort candidate; provider
-availability can then skip unavailable candidates before the first Run starts.
+Provider routing rules define ordered workflow admission fallback chains.
+Within each scope, the resolver evaluates rules by ascending `position` and
+uses the first rule whose invocation trigger and conditions match. Job-scoped
+rules are considered before repository-scoped rules, which are considered
+before user-scoped defaults. Triggers describe actual invocation surfaces
+(`chat_role` roles and agentic `step` kinds, including plugin-provided step
+kinds); workflow trigger kind is a condition on an existing workflow context.
+The resolver records `agent_provider_routing_decision` with a
+`routing_resolution` explanation showing the matched scope, rule, condition
+results, and final candidate action when it chooses the initial Workflow
+provider/model/effort candidate; provider availability can then skip
+unavailable candidates before the first Run starts.
 If an unstarted workflow automatically moves from one candidate to another, it
 also records `provider_failover_decision`. Dashboard rows, Job detail,
 repository Job rows, and Workflow cards show the original unavailable provider
