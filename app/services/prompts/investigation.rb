@@ -4,7 +4,7 @@ module Prompts
   # issue body) with the same safety/context blocks Prompts::Implement and
   # Prompts::Skill use, plus a phased-execution note explaining that a
   # separate submit_report step -- not this one -- is where findings get
-  # written up.
+  # written up. Follow-up work proposals belong in this investigate step.
   # GitHub-sourced content trust boundary
   class Investigation
     include GithubContentTrust
@@ -49,6 +49,11 @@ module Prompts
         artifact `type` each call reports back; the follow-up report step
         can point at that evidence by `type`, in the order that best
         supports your narrative.
+
+        If your investigation uncovers concrete follow-up work, call
+        `propose_job` during this investigate step with the evidence and
+        implementation scope. Do this before and separately from the later
+        `submit_report` step, which is only for the final narrative report.
 
         Investigation request:
 
