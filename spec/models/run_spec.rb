@@ -910,6 +910,41 @@ RSpec.describe Run, :ci_only do
       )
     end
 
+    it "routes macOS work using fresh worker health sample capabilities when process metadata has none" do
+      workflow.update!(
+        planned_execution_capabilities: { "os" => [ "macos" ] },
+        planned_execution_source: "operator"
+      )
+      live_worker_queue!("runs-macos-arm64", hostname: "mac-mini-a")
+      WorkerHostHealthSample.create!(
+        hostname: "mac-mini-a",
+        worker_storage_key: "storage-mac",
+        role: "worker",
+        version: "abc123",
+        observed_at: Time.current,
+        cpu_used_percent: 20,
+        capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+        capability_diagnostics: { "xcode" => true }
+      )
+
+      clear_enqueued_jobs
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs-macos-arm64")
+      expect(workflow.reload.artifact("run_queue_decisions").last).to include(
+        "queue_name" => "runs-macos-arm64",
+        "requirements" => { "os" => [ "macos" ] },
+        "blocked" => false,
+        "live_workers" => contain_exactly(
+          include(
+            "hostname" => "mac-mini-a",
+            "selected_queue" => true,
+            "worker_storage_key" => "storage-mac",
+            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+            "capability_diagnostics" => { "xcode" => true }
+          )
+        )
+      )
+    end
+
     it "requires live workers to satisfy iOS toolchain and runtime requirements" do
       requirements = {
         "os" => [ "macos" ],
