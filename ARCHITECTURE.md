@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-10-05._
+_Last reviewed: 2026-10-12._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -197,7 +197,7 @@ determining whether the Job is ready to merge.
 
 States and transitions:
 
-```ruby
+```text
 state :triaging, initial: true
 state :blocked_by_epic, :queued, :running, :implemented, :failed
 state :no_change_needed  # agent ran correctly but found nothing to change; semi-terminal
@@ -246,9 +246,15 @@ operator's chat flow. Parsed issue-body dependencies set `source` to
 `"success"` (default) — the dependency is satisfied only by successful
 closure states (`pr_merged`, `external_pr_merged`, `pr_approved`,
 `no_changes`); `"closed"` — any terminal closure counts, including
-`pr_closed` and `too_many_failures`. The `add_job_dependency` chat MCP
-tool accepts a `satisfaction_mode` parameter so operators can set closed-
-mode dependencies for optional or "at least attempted" relationships.
+`pr_closed` and `too_many_failures`; `"deployment_stage"` — a successful
+upstream Job must also have reached a configured
+`required_deployment_stage_name`, as recorded by
+`PollAllDeploymentStagesJob`/`DeploymentStageDetector`. The
+`add_job_dependency` chat MCP tool accepts a `satisfaction_mode`
+parameter so operators can set closed-mode dependencies for optional or
+"at least attempted" relationships, or deployment-stage dependencies for
+work that must wait until an upstream landed change is present in a
+named environment/tag.
 
 Pending references are first-class rather than lossy. A `Depends-on:
 owner/repo#123` line can sit unresolved until the matching Job exists,
@@ -292,16 +298,22 @@ Step execution.
 | `parent_session_id` | prior session id used for supported same-workflow continuations such as summarize/amend and loop iterations |
 | `last_heartbeat_at` | bumped on every `JobLog` write; used by `ReapStaleRunsJob` |
 
-Workflows, Steps, and Runs use the same terminal-state shape:
+Workflow, Step, and Run states share the same execution spine, with a
+few Step/Run-only terminal states:
 
-```ruby
-state :queued, initial: true
-state :running, :succeeded, :failed, :cancelled
+```text
+Workflow: state :queued, initial: true
+Workflow: state :running, :succeeded, :failed, :cancelled, :blocked
+
+Step/Run: state :queued, initial: true
+Step/Run: state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
 
 event :start    { from: :queued,           to: :running   }
 event :succeed  { from: :running,          to: :succeeded }
 event :fail     { from: [:queued, :running], to: :failed  }
 event :cancel   { from: [:queued, :running], to: :cancelled }
+event :skip     { from: [:queued, :running], to: :skipped } # Step/Run
+event :block    { from: [:queued, :running], to: :blocked }
 ```
 
 `cancelled` is reached three ways: the operator clicks Cancel/Restart
@@ -538,10 +550,10 @@ deliberately includes preempted Jobs.
 
 ## Access control
 
-Landed as Epic #257 (`global_role` enum, `RepositoryMembership` tiers,
-`Team`, Pundit policies, GitHub/Syrus permission-mismatch surfacing).
-Two previously-informal notions — "is this user an admin" and "can this
-user act on this repository" — are now explicit, separate axes.
+The access-control work made two previously-informal notions — "is this
+user an admin" and "can this user act on this repository" — explicit,
+separate axes: `global_role`, `RepositoryMembership` tiers, `Team`,
+Pundit policies, and GitHub/Syrus permission-mismatch surfacing.
 
 **`User#global_role`** (`app/models/user.rb`) replaced the old `admin`
 boolean column outright (migrated: backfilled from `admin = TRUE`, then
@@ -1033,13 +1045,16 @@ loop runs the same way
 `RepoAdversarialReviewPlan` resolves the review loop: it reads a
 `visual_review:` block from `.syrus.yml` on the default branch (`enabled`,
 `rounds`, and an optional `when_files_changed` glob pre-filter evaluated
-against the actual diff once the workspace is cloned), falling back to the
-instance-wide `visual_review` Labs feature flag (`Feature.visual_review_enabled?`)
-when the repository leaves `enabled` unset or has no config at all. Like
-`adversarial_review`, this loop is review-first: iteration 1 is
-`visual_review` alone, reviewing whatever `implement`/`respond` step (or the
-tail of a preceding `adversarial_review` loop) already ran before it. That
-reviewer agent calls `start_preview` (an MCP tool
+against the actual diff once the workspace is cloned). Visual review is
+always available by default now; there is no instance-wide
+`visual_review` Feature flag. A repository or nested project can still
+disable it by setting `.syrus.yml` `visual_review.enabled: false`, and
+project-level preview declarations can opt the relevant project back in
+with their own visual-review settings. Like `adversarial_review`, this
+loop is review-first: iteration 1 is `visual_review` alone, reviewing
+whatever `implement`/`respond` step (or the tail of a preceding
+`adversarial_review` loop) already ran before it. That reviewer agent
+calls `start_preview` (an MCP tool
 that resolves a `preview:` command from `.syrus.yml` or a registered
 `:preview_provider` plugin, runs setup/seed commands, spawns the app in the
 workflow runner container, and polls its health-check path) and then drives
@@ -1115,16 +1130,25 @@ disable the feature instance-wide.
 **Execution capability routing** — Workflows record planned execution
 requirements (`planned_execution_project_label`,
 `planned_execution_target_label`, `planned_execution_capabilities`, and
-source) at creation time. `RunQueueResolver` maps each Run to a Solid Queue
-lane from those requirements plus the Step placement policy: mutable
-workflow-workspace Steps prefer the Workflow's planned requirements and sticky
-resume queue, while distributed immutable-source grader Steps use their
-target-level `required_capabilities`. Default work routes to Linux `runs` /
-`merges`; constrained work can route to queues such as `runs-macos-arm64`.
-If no live worker advertises the required capabilities, the WorkUnit is
-blocked with the no-capable-worker vocabulary instead of queueing work that
-cannot be claimed. Worker capability maps come from heartbeat metadata and
-`SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new capacity.
+source) at creation time. Capability dimensions are normalized through
+`TargetGraph::ExecutionCapabilities` (`os`, `arch`, `toolchain`,
+`runtime`); today `os` is intentionally limited to `linux` or `macos`,
+so Android/iOS are modeled as toolchain/runtime requirements layered on
+ordinary Linux or macOS workers rather than as operating systems. Chat
+proposal tools must provide explicit `planned_execution.capabilities`
+for every proposed Job, instead of inferring placement from prose.
+`RunQueueResolver` maps each Run to a Solid Queue lane from those
+requirements plus the Step placement policy: mutable workflow-workspace
+Steps prefer the Workflow's planned requirements and sticky resume queue,
+while distributed immutable-source grader Steps use their target-level
+`required_capabilities`. Default work routes to Linux `runs` / `merges`;
+constrained work can route to queues such as `runs-macos-arm64`. If no
+live worker advertises the required capabilities, the WorkUnit is
+blocked with the no-capable-worker vocabulary instead of queueing work
+that cannot be claimed. Worker capability maps come from heartbeat
+metadata, local probes (for example Xcode, iOS simulators, and Docker),
+and `SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new
+capacity.
 
 ### Cleanup and error handling
 
@@ -1133,6 +1157,13 @@ cannot be claimed. Worker capability maps come from heartbeat metadata and
   workspaces.
 - On exception: AASM `fail!`; record `agent_outcome`; `Job#record_run_failure!`
   for non-rebase Runs (rebase failures don't bump `failure_count`).
+- On a concrete environment blocker: workflow agents can call the
+  `report_cannot_proceed` MCP tool. The tool stores a `cannot_proceed`
+  Workflow artifact, blocks the active Run/Step/Workflow, marks the Job
+  `needs_attention` with
+  `needs_attention_reason: "agent_cannot_proceed"`, and lets the
+  normal state machine stop the Workflow as blocked rather than
+  pretending the agent implementation failed.
 - On SIGTERM: Solid Queue's graceful-shutdown timeout lets the current
   Run finish if it can. If the worker is killed mid-flight (K8s deploys,
   OOM), `ReapStaleRunsJob` uses Solid Queue prune evidence, orphaned
@@ -1476,7 +1507,8 @@ points declared by plugin hosts (for example `global_search:source` and
 | `:repository_recommendation` | Suggest plugin enablement from repository signals |
 | `:memory_store` | Back durable agent memory reads/writes |
 | `:test_evidence` | Add plugin-owned test evidence to workflow context |
-| `:runtime_session_provider` | Provide chat RuntimeSession adapters for coding-mode tools |
+| `:runtime_session_provider` | Provide provider-neutral RuntimeSession adapters for chat/workflow visual frames, input, terminal, and emulator-style tools |
+| `:speech_to_text_provider` | Provide backend transcription for chat microphone input |
 | `:build_system_graph_provider` | Supply build-system target graph data |
 | `:retention_policy` | Contribute plugin-owned data retention policy |
 | `:repository_content_provider` | Read repository trees/files/diffs without cloning, with fallthrough across providers |
@@ -1497,10 +1529,13 @@ called out only where they explain an architectural dependency.
 | `agent_insights` | `plugins/agent_insights` | `:workflow_kinds`, `:domain_subscriber` | disabled by default |
 | `agent_memory` | `plugins/agent_memory` | `:memory_store` | enabled |
 | `agy_agent` | `plugins/agy_agent` | `:agent_provider` | disabled by default |
+| `alertmanager_investigations` | `plugins/alertmanager_investigations` | `:callbacks` | disabled by default |
+| `android` | `plugins/android` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider`, `:step_environment`, `:runtime_session_provider`, `:grader_type` | beta-gated default-on |
 | `browser` | `plugins/browser` | `:mcp_tool_set`, `:artifact_renderer`, `:runtime_session_provider`, `"plugin_runtime:service"` | enabled |
 | `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
 | `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `cognitive_review` | `plugins/cognitive_review` | `:post_implementation_review_provider`, `:diff_review_annotation_provider`, `:mcp_tool_set` | disabled by default |
 | `credential_store` | `plugins/credential_store` | `:admin_page`, `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set`, credential type declarations | enabled |
 | `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set`, `:domain_subscriber`, `"global_search:source"` | enabled |
 | `discord` | `plugins/discord` | `:platform_delivery` | disabled by default |
@@ -1511,7 +1546,10 @@ called out only where they explain an architectural dependency.
 | `muse_agent` | `plugins/muse_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `github_source` | `plugins/github_source` | `:input_source`, `:source_control_provider` | enabled, non-disableable |
 | `global_search` | `plugins/global_search` | `:sidebar_page`, `:domain_subscriber`, `"global_search:source"` host and built-ins | enabled |
+| `ios` | `plugins/ios` | `:prepare_detector`, `:grader_type` | enabled |
+| `java` | `plugins/java` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider`, `:grader_type` | beta-gated default-on |
 | `k8s_cluster` | `plugins/k8s_cluster` | `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set` | disabled by default |
+| `kotlin` | `plugins/kotlin` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider` | beta-gated default-on |
 | `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
 | `ruby` | `plugins/ruby` | `:prepare_detector`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:coverage_analyzer`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer`, `:focused_test_command`, `"test_insights:parser"` | enabled |
 | `javascript` | `plugins/javascript` | `:prepare_detector`, `:preview_provider`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:focused_test_command` | enabled |
@@ -1534,6 +1572,7 @@ called out only where they explain an architectural dependency.
 | `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | disabled by default |
 | `throughput` | `plugins/throughput` | `:repo_page_tab` | enabled |
 | `video_walkthroughs` | `plugins/video_walkthroughs` | `:chat_mcp_tool_set`, `:chat_media_source`, `:chat_turn_orientation` | disabled by default |
+| `whisper_stt` | `plugins/whisper_stt` | `:speech_to_text_provider`, `"plugin_runtime:service"` | disabled by default |
 | `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set`, `:workspace_tab`, `:chat_payload_contributor`, `:chat_media_source`, `:chat_prompt_injector` | enabled |
 | `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |
 
@@ -1546,6 +1585,14 @@ restart. Non-disableable plugins (currently `github_source`) cannot be
 disabled through the API. The `Admin::PluginDisableGuard` checks for
 active usage blockers (open Jobs, configured users, active workflows)
 before allowing disable.
+
+Manifests can mark a plugin `experimental true`. Experimental plugins
+and experimental feature flags are visible in admin surfaces but cannot
+be enabled until the instance-level `AppSetting.beta_mode_enabled` gate
+is on. Beta mode is only a capability gate: turning it on does not
+enable any plugin or feature by itself, and turning it off hides/blocks
+new experimental enablement without rewriting already-persisted plugin
+data.
 
 Admin operators manage plugins at **`/admin/plugins`**. APIs:
 `GET /api/v1/app/admin/plugins`, `POST .../plugins/:name/enable`,
@@ -1636,6 +1683,12 @@ agent at it over stdio. Today's tool surface:
   making operational claims. In chat contexts this related state can
   include attached sessions, pending chat action counts, turn-in-flight
   status, stop requests, and recent message snippets.
+- `report_cannot_proceed(reason:, details:)` — available to workflow
+  agent roles for concrete environment/capability blockers. It records a
+  `cannot_proceed` Workflow artifact, blocks the current
+  Run/Step/Workflow after the provider turn exits, and flags the Job for
+  operator attention instead of treating the situation as an ordinary
+  implementation failure.
 - `submit_summary(pr_title:, pr_body:, summary:)` — records
   agent-authored PR copy on Workflow artifacts and appends an audit
   `JobLog` line. Read tier-1 by `pr_open`/`push`/summary promotion
@@ -1696,6 +1749,15 @@ agent at it over stdio. Today's tool surface:
   migration_diff, data_table, before_after_diff); unregistered types fall
   back to a raw JSON display. The Job detail page surfaces typed artifacts
   in an Artifacts panel.
+- `submit_visual_artifact(...)`, `list_artifacts(...)`, and
+  `read_artifact(type:)` — store and retrieve image-backed Workflow
+  artifacts such as visual-review screenshots and before/after visual
+  diffs. `submit_visual_artifact` can accept explicit image data or
+  capture from the current browser session, stores the binary as a
+  Workflow visual artifact, and writes typed-artifact metadata with
+  provenance so later reports can reference it. `read_artifact` returns
+  image content rather than forcing agents or the UI to parse raw JSON or
+  base64.
 - `submit_insight(...)` — available only to `agent_insight_run` roles
   while the `agent_insights` feature is enabled; creates one structured
   `InsightSuggestion` for operator review.
@@ -1794,6 +1856,28 @@ work originates from a chat session:
   connection state, heartbeat, and the repo/branch the daemon has
   checked out. The `open_in_local_mode` chat MCP tool lets the agent take
   over an existing implemented/approved Job for local-mode editing.
+
+Runtime sessions are the provider-neutral bridge for interactive
+tool/runtime surfaces inside chat and, where attached, workflow Runs.
+`RuntimeSession` rows belong to a repository and may also point at a
+chat session, Job, Workflow, or Run. A session records the selected
+provider (`provider_key` from the `:runtime_session_provider` registry),
+workspace reference, capabilities, current state, and provider metadata.
+The app API exposes session listing, logs, visual frames, snapshots,
+build/reload/lifecycle commands, and input delivery under the chat's
+runtime-session routes. Browser, Android emulator, and Runtime Terminal
+providers all use this common model instead of inventing separate UI
+contracts.
+
+`RuntimeControlLease` serializes control over a runtime session. The
+operator can always observe, but input requires an active `input` lease;
+build and lifecycle commands share a separate `build_lifecycle` group.
+Leases are short-lived, renewable, and enforced with a database unique
+key so two actors cannot concurrently hold the same serialization group.
+Input events without an active lease are rejected and audited; sessions
+attached to a Run write lease/input audit lines to `JobLog`, while
+chat-only sessions rely on the lease rows plus Action Cable broadcasts
+for live visibility.
 
 `ChatSession` carries two optional fields that enable additional sharing
 features. `share_token` (unique, nullable) enables read-only access for
