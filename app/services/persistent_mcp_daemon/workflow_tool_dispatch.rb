@@ -11,7 +11,7 @@ module PersistentMcpDaemon::WorkflowToolDispatch
   module Dispatch
     def call(*args, server_context: nil, **kwargs, &block)
       daemon_identity = server_context&.[](:identity)
-      return super(*args, server_context: server_context, **kwargs, &block) if daemon_identity.blank?
+      return super(*args, server_context: server_context, **kwargs, &block) if daemon_identity.blank? || server_context&.[](:workflow_role).blank?
 
       begin
         resolved = PersistentMcpDaemon::WorkflowContextResolver.resolve(server_context)
