@@ -1683,6 +1683,8 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     # Step kinds no default workflow template materializes statically:
     # compatibility shims, plugin-provider gated hooks, and kinds only a
     # fanout creates at runtime.
+    # Merge-train agent and multisect steps are inserted by failure handlers
+    # after a train attempt fails rather than by the base train template.
     # auto_close is only used by the agent_insights plugin's Workflow
     # (disabled by default, so not in this spec's registered set) --
     # Workflows::Investigation no longer auto-closes (investigation Jobs
@@ -1693,6 +1695,10 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       "auto_close",
       "grade",
       "grader",
+      "merge_train_agent",
+      "merge_train_multisect_collect",
+      "merge_train_multisect_evaluate",
+      "merge_train_multisect_prepare",
       "post_implementation_review",
       "preflight_grader",
       "review_plan"
