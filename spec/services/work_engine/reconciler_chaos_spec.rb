@@ -307,6 +307,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       [ workflow, step, run ]
     end
 
+    def stale_auto_retry_run!(workflow)
+      run = StepDispatcher.create_run_and_enqueue(workflow.first_step, workflow, check_phase_admission: false)
+      run || workflow.first_step.runs.first || raise("expected #{workflow.slug} to have a first run")
+    end
+
     def materialized_random_workflow(entry)
       AppSetting.current.update!(
         adversarial_review_rounds: random.rand(0..2),
@@ -957,8 +962,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         agent_provider: job.agent_provider
       )
       stale.update_columns(created_at: 2.minutes.ago, updated_at: 2.minutes.ago)
-      StepDispatcher.start_workflow(stale)
-      stale_run = stale.first_step.runs.first
+      stale_run = stale_auto_retry_run!(stale)
       stale_run.update_columns(created_at: old_active_age.ago, updated_at: old_active_age.ago)
       trace << "workflow=#{stale.id}:stale_auto_retry run=#{stale_run.id}:old_queued"
 
@@ -1107,8 +1111,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         agent_provider: job.agent_provider
       )
       stale.update_columns(created_at: 2.minutes.ago, updated_at: 2.minutes.ago)
-      StepDispatcher.start_workflow(stale)
-      stale_run = stale.first_step.runs.first
+      stale_run = stale_auto_retry_run!(stale)
       stale_run.update_columns(created_at: old_active_age.ago, updated_at: old_active_age.ago)
       trace << "workflow=#{stale.id}:stale_auto_retry_after_branch_recovery run=#{stale_run.id}:old_queued"
 
