@@ -13,6 +13,11 @@ RSpec.describe MergeTrainDispatcher do
     )
   end
 
+  def stub_merge_train_failure_ladder(rungs)
+    content = "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n"
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => content })
+  end
+
   before do
     AppSetting.current.update!(merge_train_enabled: true)
     epic.update_columns(state: "in_progress")
@@ -69,6 +74,118 @@ RSpec.describe MergeTrainDispatcher do
     workflow = described_class.try_dispatch!(epic)
 
     expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to eq(failed_train.id)
+  end
+
+  it "carries a keep_fixes source artifact when the repository ladder selects keep_fixes" do
+    AppSetting.current.update!(merge_train_failure_policy: "restart")
+    stub_merge_train_failure_ladder([ "keep_fixes" ])
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: failed_train, job: job, position: i, state: "failed") }
+    Workflow.create!(
+      job: b,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" }
+      },
+      failure_reason: failed_train.failure_reason
+    )
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to eq(failed_train.id)
+  end
+
+  it "uses the failed workflow's recorded rung when carrying a keep_fixes source artifact" do
+    stub_merge_train_failure_ladder([ "keep_fixes", "restart" ])
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: failed_train, job: job, position: i, state: "failed") }
+    failed_workflow = Workflow.create!(
+      job: b,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" },
+        MergeTrainFailurePolicy::SELECTED_RUNG_ARTIFACT => "keep_fixes"
+      },
+      failure_reason: failed_train.failure_reason
+    )
+    failed_step = Step.create!(workflow: failed_workflow, kind: "merge_train_land", state: "failed", position: 1)
+    failed_run = Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed", agent_provider: b.agent_provider)
+    create_retry_attempt = AutoRetryAttempt.create!(
+      job: b,
+      workflow: failed_workflow,
+      run: failed_run,
+      agent_provider: failed_run.agent_provider,
+      failure_classification: "merge_train_base_moved",
+      retry_kind: "retry_workflow",
+      attempt_number: 1,
+      scheduled_at: Time.current
+    )
+    expect(create_retry_attempt).to be_persisted
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to eq(failed_train.id)
+  end
+
+  it "does not carry a keep_fixes source artifact when the repository ladder selects restart" do
+    AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+    stub_merge_train_failure_ladder([ "restart" ])
+    a = approved_child(1)
+    b = approved_child(2)
+    failed_train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-old",
+      integration_sha: "oldint999",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+      finished_at: Time.current
+    )
+    [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: failed_train, job: job, position: i, state: "failed") }
+    Workflow.create!(
+      job: b,
+      trigger_kind: "merge_train",
+      state: "failed",
+      artifacts: {
+        "merge_train_id" => failed_train.id,
+        "merge_train_base_sha" => "oldbase123",
+        "merge_train_stale_base" => { "reason" => "base_moved" }
+      },
+      failure_reason: failed_train.failure_reason
+    )
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT)).to be_nil
   end
 
   it "does not carry a keep_fixes source artifact when the failed train's members changed" do

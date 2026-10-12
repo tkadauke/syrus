@@ -413,6 +413,52 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload.state).to eq("failed")
     end
 
+    it "keeps the old integration branch when the repository ladder selects keep_fixes" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      stub_merge_train_failure_ladder([ "keep_fixes" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(
+        train,
+        a,
+        failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
+      )
+      workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(workflow.reload.artifact(MergeTrainFailurePolicy::SELECTED_RUNG_ARTIFACT)).to eq("keep_fixes")
+      expect(train.reload.state).to eq("failed")
+    end
+
+    it "does not keep the old integration branch when the repository ladder selects restart" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      stub_merge_train_failure_ladder([ "restart" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(
+        train,
+        a,
+        failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
+      )
+      workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
+      expect(workflow.reload.artifact(MergeTrainFailurePolicy::SELECTED_RUNG_ARTIFACT)).to eq("restart")
+      expect(train.reload.state).to eq("failed")
+    end
+
     it "does not keep fixes for a non-retryable failure" do
       AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
       a = member_job(issue_number: 1)
