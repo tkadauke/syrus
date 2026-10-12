@@ -83,6 +83,7 @@ RSpec.describe Mcp::Sidecar do
         *%w[read_live_state read_run_worker_health get_coverage_report report_cannot_proceed report_main_concern record_isolated_repro
             start_preview stop_preview read_preview_log
             submit_summary submit_test_plan submit_artifact run_target_prepare patch_workflow submit_visual_artifact
+            search_jobs list_jobs list_open_prs read_pr list_open_issues
             list_artifacts read_artifact]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
