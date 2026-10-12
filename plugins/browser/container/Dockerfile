@@ -21,8 +21,8 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 FROM docker.io/library/debian:bookworm-slim
 
 ARG NODE_MAJOR=22
-ARG PLAYWRIGHT_VERSION=1.57.0
-ARG PLAYWRIGHT_MCP_VERSION=0.0.79
+ARG PLAYWRIGHT_VERSION=1.64.0
+ARG PLAYWRIGHT_MCP_VERSION=0.0.83
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 # Do not use BuildKit apt cache mounts here. Playwright's `install --with-deps`
