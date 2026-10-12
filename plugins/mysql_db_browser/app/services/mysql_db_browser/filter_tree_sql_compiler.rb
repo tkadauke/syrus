@@ -18,7 +18,7 @@ module MysqlDbBrowser
     }.freeze
 
     def initialize(client:, filter_schema:)
-      @client = client
+      @context = CompilationContext.new(client)
       @fields = filter_schema.index_by { |field| field[:field].to_s }
     end
 
@@ -35,7 +35,7 @@ module MysqlDbBrowser
 
     private
 
-    attr_reader :client, :fields
+    attr_reader :context, :fields
 
     def compile_node(node)
       case node
@@ -63,23 +63,17 @@ module MysqlDbBrowser
     def compile_chip(chip)
       field = fields[chip.field.to_s] or raise UnknownField, chip.field
       raise UnsupportedOperator, chip.op unless field[:operators].include?(chip.op.to_s)
-      return nil if value_required?(field[:bucket], chip.op) && blank_filter_value?(chip.value)
+      bucket = bucket_for(field[:bucket])
+      return nil if bucket.value_required?(chip.op) && blank_filter_value?(chip.value)
 
       column = quote_identifier(field[:field])
-      case field[:bucket]
-      when "string" then compile_string(column, chip.op, chip.value)
-      when "number" then compile_number(column, chip.op, chip.value)
-      when "boolean" then compile_boolean(column, chip.op)
-      when "date" then compile_date(column, chip.op, chip.value)
-      when "enum" then compile_enum(column, chip.op, chip.value)
-      else raise UnsupportedOperator, "unknown bucket #{field[:bucket]}"
-      end
+      bucket.new(context: context, column: column).compile(chip.op, chip.value)
     end
 
-    def value_required?(bucket, op)
-      return false if op.to_s.in?(%w[is_set is_unset is_true is_false])
-
-      bucket.to_s.in?(%w[string number date enum])
+    def bucket_for(name)
+      FilterBucket.for_name(name)
+    rescue FilterBucket::UnknownBucket => e
+      raise UnsupportedOperator, e.message
     end
 
     def blank_filter_value?(value)
@@ -93,101 +87,46 @@ module MysqlDbBrowser
       end
     end
 
-    def compile_string(column, op, value)
-      case op
-      when "contains"            then like(column, "%%%s%%", value)
-      when "does_not_contain"    then "NOT #{like(column, '%%%s%%', value)}"
-      when "starts_with"         then like(column, "%s%%", value)
-      when "does_not_start_with" then "NOT #{like(column, '%s%%', value)}"
-      when "ends_with"           then like(column, "%%%s", value)
-      when "does_not_end_with"   then "NOT #{like(column, '%%%s', value)}"
-      when "equals"              then "#{column} = #{quote(value)}"
-      when "not_equals"          then "(#{column} IS NULL OR #{column} <> #{quote(value)})"
-      when "is_set"              then "(#{column} IS NOT NULL AND #{column} <> '')"
-      when "is_unset"            then "(#{column} IS NULL OR #{column} = '')"
-      end
-    end
-
-    def compile_number(column, op, value)
-      case op
-      when "equals"       then "#{column} = #{quote_number(value)}"
-      when "not_equals"   then "(#{column} IS NULL OR #{column} <> #{quote_number(value)})"
-      when "greater_than" then "#{column} > #{quote_number(value)}"
-      when "less_than"    then "#{column} < #{quote_number(value)}"
-      when "between"
-        low, high = Array(value)
-        "#{column} BETWEEN #{quote_number(low)} AND #{quote_number(high)}"
-      when "is_set"   then "#{column} IS NOT NULL"
-      when "is_unset" then "#{column} IS NULL"
-      end
-    end
-
-    def compile_boolean(column, op)
-      case op
-      when "is_true"  then "#{column} = 1"
-      when "is_false" then "#{column} = 0"
-      end
-    end
-
-    def compile_date(column, op, value)
-      case op
-      when "before" then "#{column} < #{quote_time(value)}"
-      when "after"  then "#{column} > #{quote_time(value)}"
-      when "between"
-        low, high = Array(value)
-        "#{column} BETWEEN #{quote_time(low)} AND #{quote_time(high)}"
-      when "within_last"
-        "#{column} >= #{quote_time(duration_ago(value))}"
-      when "more_than_ago"
-        "#{column} < #{quote_time(duration_ago(value))}"
-      when "is_set"   then "#{column} IS NOT NULL"
-      when "is_unset" then "#{column} IS NULL"
-      end
-    end
-
-    def compile_enum(column, op, value)
-      case op
-      when "is"          then "#{column} = #{quote(value)}"
-      when "is_not"      then "(#{column} IS NULL OR #{column} <> #{quote(value)})"
-      when "is_one_of"   then "#{column} IN (#{quote_list(value)})"
-      when "is_none_of"  then "(#{column} IS NULL OR #{column} NOT IN (#{quote_list(value)}))"
-      end
-    end
-
-    def like(column, template, value)
-      escaped = value.to_s.gsub(/[%_\\]/) { |char| "\\#{char}" }
-      "#{column} LIKE #{quote(format(template, escaped))}"
-    end
-
-    def duration_ago(value)
-      spec = value.is_a?(Hash) ? value : {}
-      n = Integer(spec["n"] || spec[:n] || 0)
-      unit = (spec["unit"] || spec[:unit]).to_s
-      seconds = DURATION_SECONDS[unit] or raise ArgumentError, "unknown duration unit: #{unit.inspect}"
-      Time.current - (seconds * n)
-    end
-
-    def quote_number(value)
-      Float(value)
-    rescue TypeError, ArgumentError
-      "NULL"
-    end
-
-    def quote_time(value)
-      time = value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone) ? value : Time.zone.parse(value.to_s)
-      quote(time.strftime("%Y-%m-%d %H:%M:%S"))
-    end
-
-    def quote_list(value)
-      Array(value).map { |item| quote(item) }.join(", ")
-    end
-
-    def quote(value)
-      "'#{client.escape(value.to_s)}'"
-    end
-
     def quote_identifier(name)
       SqlIdentifier.quote(name)
+    end
+
+    class CompilationContext
+      def initialize(client)
+        @client = client
+      end
+
+      def like(column, template, value)
+        escaped = value.to_s.gsub(/[%_\\]/) { |char| "\\#{char}" }
+        "#{column} LIKE #{quote(format(template, escaped))}"
+      end
+
+      def duration_ago(value)
+        spec = value.is_a?(Hash) ? value : {}
+        n = Integer(spec["n"] || spec[:n] || 0)
+        unit = (spec["unit"] || spec[:unit]).to_s
+        seconds = DURATION_SECONDS[unit] or raise ArgumentError, "unknown duration unit: #{unit.inspect}"
+        Time.current - (seconds * n)
+      end
+
+      def quote_number(value)
+        Float(value)
+      rescue TypeError, ArgumentError
+        "NULL"
+      end
+
+      def quote_time(value)
+        time = value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone) ? value : Time.zone.parse(value.to_s)
+        quote(time.strftime("%Y-%m-%d %H:%M:%S"))
+      end
+
+      def quote_list(value)
+        Array(value).map { |item| quote(item) }.join(", ")
+      end
+
+      def quote(value)
+        "'#{@client.escape(value.to_s)}'"
+      end
     end
   end
 end
