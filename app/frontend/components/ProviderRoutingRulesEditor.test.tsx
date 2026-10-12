@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { ProviderRoutingRulesEditor } from "./ProviderRoutingRulesEditor"
-import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule } from "../api/providerRoutingRules"
+import { ProviderRoutingRulesEditor, RoutingRulesPanel } from "./ProviderRoutingRulesEditor"
+import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
 
 const options: ProviderRoutingOptions = {
   agent_providers: [
@@ -111,7 +111,7 @@ const emptyWorkflowConditionRules: ProviderRoutingRule[] = [
 
 describe("ProviderRoutingRulesEditor", () => {
   it("renders ordered first-match rules with read-only inherited rows", () => {
-    renderEditor({ inheritedContext, rules })
+    renderPanel({ inheritedContext, rules })
 
     expect(screen.getByText("Rules are evaluated from top to bottom; the first matching rule wins.")).toBeInTheDocument()
     expect(screen.getByText("CI fast path")).toBeInTheDocument()
@@ -124,7 +124,7 @@ describe("ProviderRoutingRulesEditor", () => {
   })
 
   it("opens and closes the modal and displays validation errors", () => {
-    renderEditor({ rules: [] })
+    renderPanel({ rules: [] })
 
     expect(screen.getByText("No routing rules yet.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "New rule" }))
@@ -137,15 +137,55 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
   })
 
+  it("displays mutation error states", () => {
+    renderPanel({ rules, saveError: new Error("Provider is unavailable") })
+
+    expect(screen.getByText("Unable to save routing rule.")).toBeInTheDocument()
+  })
+
   it("does not render a blank workflow condition pill for empty workflow conditions", () => {
-    renderEditor({ rules: emptyWorkflowConditionRules })
+    renderPanel({ rules: emptyWorkflowConditionRules })
 
     expect(screen.getByText("Any workflow")).toBeInTheDocument()
     expect(screen.getByText("Any agent invocation")).toBeInTheDocument()
     expect(screen.queryByText(/^Workflow:/)).not.toBeInTheDocument()
   })
 
-  it("edits, duplicates, deletes, and reorders rules through the API", async () => {
+  it("edits, duplicates, deletes, and reorders rules through panel callbacks", async () => {
+    const onCreateRule = vi.fn()
+    const onUpdateRule = vi.fn()
+    const onDeleteRule = vi.fn()
+    const onReorderRules = vi.fn()
+    renderPanel({ onCreateRule, onDeleteRule, onReorderRules, onUpdateRule, rules })
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    const editDialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Rebase lane" } })
+    fireEvent.change(within(editDialog).getByLabelText(/Trigger/), { target: { value: "step:rebase" } })
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(rules[0], expect.objectContaining({
+      action: expect.objectContaining({ name: "Rebase lane", strategy: "fallback_order" }),
+      task_key: "rebase",
+      trigger: { type: "step", kind: "rebase" }
+    })))
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Duplicate" })[0])
+    const duplicateDialog = screen.getByRole("dialog", { name: "New routing rule" })
+    expect(within(duplicateDialog).getByLabelText(/Rule name/)).toHaveValue("CI fast path copy")
+    fireEvent.click(within(duplicateDialog).getByRole("button", { name: "Create rule" }))
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({
+      action: expect.objectContaining({ name: "CI fast path copy" })
+    })))
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    expect(onDeleteRule).toHaveBeenCalledWith(rules[0])
+
+    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+  })
+
+  it("wires edits, creates, deletes, and reorders through the API adapter", async () => {
     const fetchMock = vi.fn(async (path: RequestInfo | URL, init?: RequestInit) => {
       return new Response(JSON.stringify({ provider_routing_rules: rules, provider_routing_options: options }), {
         status: String(init?.method) === "POST" ? 201 : 200,
@@ -184,14 +224,8 @@ describe("ProviderRoutingRulesEditor", () => {
   })
 
   it("preserves legacy task-key triggers when editing existing rules", async () => {
-    const fetchMock = vi.fn(async (_path: RequestInfo | URL, _init?: RequestInit) => {
-      return new Response(JSON.stringify({ provider_routing_rules: legacyRules, provider_routing_options: options }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      })
-    })
-    vi.stubGlobal("fetch", fetchMock)
-    renderEditor({ rules: legacyRules })
+    const onUpdateRule = vi.fn()
+    renderPanel({ onUpdateRule, rules: legacyRules })
 
     expect(screen.getByText("Legacy task: ci_failure")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Edit" }))
@@ -201,12 +235,11 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Still CI failure" } })
     fireEvent.click(within(editDialog).getByRole("button", { name: "Save rule" }))
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/31", expect.objectContaining({ method: "PATCH" })))
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).provider_routing_rule).toMatchObject({
+    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(legacyRules[0], expect.objectContaining({
+      action: expect.objectContaining({ name: "Still CI failure" }),
       task_key: "ci_failure",
-      trigger: { type: "legacy_task", task_key: "ci_failure" },
-      action: { name: "Still CI failure" }
-    })
+      trigger: { type: "legacy_task", task_key: "ci_failure" }
+    })))
   })
 })
 
@@ -230,5 +263,38 @@ function renderEditor({
         title="Provider routing rules"
       />
     </QueryClientProvider>
+  )
+}
+
+function renderPanel({
+  inheritedContext,
+  onCreateRule = vi.fn(),
+  onDeleteRule = vi.fn(),
+  onReorderRules = vi.fn(),
+  onUpdateRule = vi.fn(),
+  saveError,
+  rules
+}: {
+  inheritedContext?: ProviderRoutingInheritedContext[]
+  onCreateRule?: (input: ProviderRoutingRuleInput) => unknown
+  onDeleteRule?: (rule: ProviderRoutingRule) => unknown
+  onReorderRules?: (ids: number[]) => unknown
+  onUpdateRule?: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => unknown
+  saveError?: unknown
+  rules: ProviderRoutingRule[]
+}) {
+  return render(
+    <RoutingRulesPanel
+      description="Choose providers."
+      inheritedContext={inheritedContext}
+      onCreateRule={onCreateRule}
+      onDeleteRule={onDeleteRule}
+      onReorderRules={onReorderRules}
+      onUpdateRule={onUpdateRule}
+      options={options}
+      rules={rules}
+      saveError={saveError}
+      title="Provider routing rules"
+    />
   )
 }
