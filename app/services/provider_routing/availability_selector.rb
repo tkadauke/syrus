@@ -73,10 +73,12 @@ module ProviderRouting
       end
     end
 
-    def self.call(job:, task_key:, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
       new(
         job: job,
         task_key: task_key,
+        trigger: trigger,
+        workflow_trigger_kind: workflow_trigger_kind,
         original_candidate: original_candidate,
         reason: reason,
         availability: availability,
@@ -88,9 +90,11 @@ module ProviderRouting
       ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level)
     end
 
-    def initialize(job:, task_key:, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
       @job = job
       @task_key = task_key
+      @trigger = trigger
+      @workflow_trigger_kind = workflow_trigger_kind
       @original_candidate = original_candidate
       @reason = reason
       @availability = availability
@@ -128,10 +132,10 @@ module ProviderRouting
 
     private
 
-    attr_reader :job, :task_key, :original_candidate, :reason, :availability, :now
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :original_candidate, :reason, :availability, :now
 
     def candidates
-      @candidates ||= ProviderRouting::Resolver.call(job: job, task_key: task_key).presence ||
+      @candidates ||= ProviderRouting::Resolver.call(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).presence ||
         ProviderRouting::Resolver::HARDCODED_FALLBACK
     end
 

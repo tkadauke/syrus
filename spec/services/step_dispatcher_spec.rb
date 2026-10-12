@@ -313,8 +313,12 @@ RSpec.describe StepDispatcher, :ci_only do
       ProviderRoutingRule.create!(
         scope_type: "repository",
         scope_id: handoff_job.repository_id,
-        task_key: "adversarial_review",
-        candidates: [ { "provider" => "codex", "model" => "review-model", "effort_level" => "high" } ]
+        trigger: { type: "step", kind: "adversarial_review" },
+        conditions: { workflow_trigger_kind: [ "coding_handoff" ] },
+        action: {
+          strategy: "fallback_order",
+          candidates: [ { "provider" => "codex", "model" => "review-model", "effort_level" => "high" } ]
+        }
       )
 
       described_class.start_workflow(handoff_workflow)
