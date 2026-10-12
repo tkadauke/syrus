@@ -1,6 +1,6 @@
 module github.com/tkadauke/syrus/cli
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/tkadauke/syrus/plugins/credential_store/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/design_docs/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/global_search/cli v0.0.0
@@ -16,7 +17,7 @@ require (
 	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/spending_insights/cli v0.0.0
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/term v0.45.0
+	golang.org/x/term v0.47.0
 )
 
 require (
@@ -45,12 +46,11 @@ require (
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yuin/goldmark v1.8.6 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
 
