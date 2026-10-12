@@ -68,10 +68,35 @@ RSpec.describe "App API job metadata commands", type: :request do
     expect(parse_body).to include("message" => "Dependency removed.", "dependencies" => [])
   end
 
-  it "allows repository write collaborators to add visible job and epic dependencies" do
+  it "allows repository collaborators to see dependency options" do
+    writer = Factories.user
+    reader = Factories.user
+    repo.repository_memberships.create!(user: writer, role: "write")
+    repo.repository_memberships.create!(user: reader, role: "read")
+    issue_target = Factories.job_record(repository: repo, issue_number: 41, issue_title: "Prepare marble")
+    direct_target = Factories.job_record(repository: repo, kind: "direct", issue_number: nil, issue_title: "One-off cleanup")
+    epic = Factories.epic(user: user, repository: repo, title: "Platform migration")
+
+    [ writer, reader ].each do |actor|
+      sign_in_as(actor)
+
+      get app_job_path("/dependency_options"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["dependency_target_options"]).to include(
+        include("value" => "issue:#{repo.id}:#{issue_target.issue_number}"),
+        include("value" => "job:#{direct_target.id}")
+      )
+      expect(body["epic_dependency_target_options"]).to include(include("value" => epic.id))
+    end
+  end
+
+  it "allows repository write collaborators to add visible job, issue, and epic dependencies" do
     writer = Factories.user
     repo.repository_memberships.create!(user: writer, role: "write")
     target = Factories.job_record(repository: repo, issue_number: 41, issue_title: "Prepare marble")
+    issue_target = Factories.job_record(repository: repo, issue_number: 40, issue_title: "Survey the hill")
     epic = Factories.epic(user: user, repository: repo, title: "Platform migration")
     sign_in_as(writer)
 
@@ -79,6 +104,11 @@ RSpec.describe "App API job metadata commands", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.dependencies.map(&:depends_on_job_id)).to include(target.id)
+
+    post app_job_path("/dependencies"), params: { dependency_target: "issue:#{repo.id}:#{issue_target.issue_number}" }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.dependencies.map(&:depends_on_job_id)).to include(issue_target.id)
 
     post app_job_path("/epic_dependencies"), params: { depends_on_epic_id: epic.id }, as: :json
 
