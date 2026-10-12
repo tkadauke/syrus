@@ -761,6 +761,76 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         )
       end
 
+      it "ignores credential helper diagnostics when an unpublished direct branch is missing" do
+        stale_branch = "syrus/direct-stale"
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "failed",
+          branch_name: stale_branch
+        )
+        retry_workflow = Workflow.create!(job: direct_job, trigger_kind: "retry")
+        diagnostic = <<~TEXT
+          warning: failed to save credentials to the store: No such keychain
+          fatal: could not write credentials to keychain
+        TEXT
+
+        ws = described_class.new(
+          retry_workflow,
+          git: git_with_ls_remote_stubs("refs/heads/#{stale_branch}" => diagnostic)
+        )
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-#{direct_job.id}")
+        expect(retry_workflow.reload.artifact("missing_branch_recovery")).to include(
+          "kind" => "missing_work_branch",
+          "missing_branch" => stale_branch,
+          "fallback_branch" => "syrus/direct-#{direct_job.id}"
+        )
+      end
+
+      it "accepts a valid ls-remote branch line mixed with credential helper diagnostics" do
+        branch = "syrus/issue-7-#{job.id}"
+        seed_remote_branch(branch, "prior workflow")
+        remote_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse #{branch}").strip
+        job.update!(branch_name: branch)
+        followup = Workflow.create!(job: job, trigger_kind: "pr_comment")
+        diagnostic = <<~TEXT
+          warning: failed to save credentials to the store: No such keychain
+          #{remote_sha}\trefs/heads/#{branch}
+          warning: credential helper could not persist credentials
+        TEXT
+
+        ws = described_class.new(
+          followup,
+          git: git_with_ls_remote_stubs("refs/heads/#{branch}" => diagnostic)
+        )
+
+        expect { ws.setup }.not_to raise_error
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(remote_sha)
+        expect(ws.path.join("integration.txt").read).to eq("prior workflow")
+      end
+
+      it "keeps a nonzero ls-remote failure as a workspace setup failure" do
+        branch = "syrus/issue-7-#{job.id}"
+        job.update!(branch_name: branch)
+        followup = Workflow.create!(job: job, trigger_kind: "pr_comment")
+        failure = GitRunner::GitError.new(
+          [ "ls-remote", "--heads", "origin", "refs/heads/#{branch}" ],
+          128,
+          "fatal: unable to access remote"
+        )
+
+        ws = described_class.new(
+          followup,
+          git: git_with_ls_remote_stubs("refs/heads/#{branch}" => failure)
+        )
+
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /unable to access remote/)
+      end
+
       it "fails loudly when a published PR job points at a missing base branch" do
         parent = Factories.job_record(
           user: user,
@@ -1478,6 +1548,30 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       sh("git -C #{work} add integration.txt")
       sh("git -C #{work} commit -q -m '#{message}'")
       sh("git -C #{work} push -q origin #{branch}")
+    end
+  end
+
+  def git_with_ls_remote_stubs(stubs)
+    real_git = GitRunner.new
+    Object.new.tap do |git|
+      git.define_singleton_method(:run) { |*args, **kwargs| real_git.run(*args, **kwargs) }
+      git.define_singleton_method(:configure_author) { |identity, chdir:| real_git.configure_author(identity, chdir: chdir) }
+
+      allow(git).to receive(:run) do |*args, **kwargs|
+        if args.first == "ls-remote"
+          ref = args.find { |arg| arg.to_s.start_with?("refs/") }
+          if stubs.key?(ref)
+            stubbed = stubs.fetch(ref)
+            raise stubbed if stubbed.is_a?(Exception)
+
+            stubbed
+          else
+            real_git.run(*args, **kwargs)
+          end
+        else
+          real_git.run(*args, **kwargs)
+        end
+      end
     end
   end
 
