@@ -181,9 +181,10 @@ fails and nothing lands. The repository can declare an ordered
 confirmed absent, Syrus uses the instance compatibility default. If the config
 cannot be parsed or read, Syrus takes the conservative `restart` path. The
 implemented rungs are `restart`, which tears the failed assembly down and
-returns members through normal landing-failure handling, and `keep_assembly`,
-which preserves a retryable failed train for the next attempt. Epic children
-land only via the train, never individually.
+returns members through normal landing-failure handling; `keep_assembly`, which
+preserves a retryable failed train for the next attempt; and `keep_fixes`,
+which also preserves repair commits for stale-base rebuilds. Epic children land
+only via the train, never individually.
 
 Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
 When a train's required graders fail, Syrus can validate that the focused

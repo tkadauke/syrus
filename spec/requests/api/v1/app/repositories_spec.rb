@@ -831,6 +831,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         failure_policy:
           - restart
           - keep_assembly
+          - keep_fixes
     YAML
     loaded = RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
     allow(RepoDefaultBranchSyrusYml).to receive(:new).and_return(instance_double(RepoDefaultBranchSyrusYml, resolve: loaded))
@@ -850,7 +851,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "adversarial_review_rounds" => 2,
       "coverage_configured" => true,
       "delivery_tracks_count" => 2,
-      "merge_train_failure_policy" => %w[restart keep_assembly]
+      "merge_train_failure_policy" => %w[restart keep_assembly keep_fixes]
     )
   end
 

@@ -119,6 +119,9 @@ Currently implemented rungs:
   landing-failure handling.
 - `keep_assembly` preserves the existing train and integration branch when the
   failed run is classified as retryable.
+- `keep_fixes` preserves retryable failures like `keep_assembly`; for
+  rebuild-required stale-base failures, it leaves the failed integration branch
+  available so the replacement train can replay repair commits.
 
 When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
 instance `AppSetting.merge_train_failure_policy` compatibility default. If

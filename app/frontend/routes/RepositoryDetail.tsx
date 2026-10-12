@@ -37,7 +37,8 @@ import { errorMessage } from "../lib/errorMessage"
 
 const MERGE_TRAIN_FAILURE_RUNGS = [
   { value: "restart", labelKey: "repository.syrus_yml_merge_train_rung_restart" },
-  { value: "keep_assembly", labelKey: "repository.syrus_yml_merge_train_rung_keep_assembly" }
+  { value: "keep_assembly", labelKey: "repository.syrus_yml_merge_train_rung_keep_assembly" },
+  { value: "keep_fixes", labelKey: "repository.syrus_yml_merge_train_rung_keep_fixes" }
 ] as const
 
 export function RepositoryDetailRoute() {

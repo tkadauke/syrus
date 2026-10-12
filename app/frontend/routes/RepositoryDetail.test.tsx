@@ -343,11 +343,11 @@ describe("RepositoryDetailRoute .syrus.yml merge-train ladder", () => {
     renderRoute({
       syrus_yml: {
         ...repositoryDetailPayload().syrus_yml,
-        merge_train_failure_policy: ["restart", "keep_assembly"]
+        merge_train_failure_policy: ["restart", "keep_assembly", "keep_fixes"]
       }
     })
 
-    expect(await screen.findByText("restart -> keep_assembly")).toBeInTheDocument()
+    expect(await screen.findByText("restart -> keep_assembly -> keep_fixes")).toBeInTheDocument()
 
     const button = screen.getByRole("button", { name: "Ladder" })
     expect(button).toHaveClass("w-full", "sm:w-auto")
@@ -356,6 +356,7 @@ describe("RepositoryDetailRoute .syrus.yml merge-train ladder", () => {
 
     expect(screen.getByLabelText("restart")).toBeChecked()
     expect(screen.getByLabelText("keep_assembly")).toBeChecked()
+    expect(screen.getByLabelText("keep_fixes")).toBeChecked()
     expect(screen.getByText(/merge_train:/)).toBeInTheDocument()
   })
 

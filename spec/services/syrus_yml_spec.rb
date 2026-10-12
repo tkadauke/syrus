@@ -19,10 +19,11 @@ RSpec.describe SyrusYml do
       merge_train:
         failure_policy:
           - keep_assembly
+          - keep_fixes
           - restart
     YAML
 
-    expect(config.merge_train.failure_policy).to eq([ "keep_assembly", "restart" ])
+    expect(config.merge_train.failure_policy).to eq([ "keep_assembly", "keep_fixes", "restart" ])
   end
 
   it "rejects malformed merge train configuration" do

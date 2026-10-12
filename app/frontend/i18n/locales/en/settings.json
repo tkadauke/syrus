@@ -663,6 +663,7 @@
     "syrus_yml_merge_train_button": "Ladder",
     "syrus_yml_merge_train_rung_restart": "restart",
     "syrus_yml_merge_train_rung_keep_assembly": "keep_assembly",
+    "syrus_yml_merge_train_rung_keep_fixes": "keep_fixes",
     "syrus_yml_merge_train_up": "Up",
     "syrus_yml_merge_train_down": "Down",
     "syrus_yml_merge_train_move_up": "Move {{rung}} up",
