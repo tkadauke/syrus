@@ -478,6 +478,13 @@ before anything starts. The tool is available only on `investigate` and
 requires explicit `planned_execution.capabilities` using the same placement
 rule as chat proposals.
 
+The same two investigation steps also get read-only lookup tools for
+deduplication before proposing follow-up work: `search_jobs`, `list_jobs`,
+`list_open_prs`, `read_pr`, and `list_open_issues`. In workflow context these
+tools are scoped to the current run's repository and intersected with the Job
+user's repository access; they do not expose Jobs from other repositories or
+add any write capability.
+
 ### submit_report
 
 Agentic. Follows `investigate` in `investigation` workflows. Resumes the
