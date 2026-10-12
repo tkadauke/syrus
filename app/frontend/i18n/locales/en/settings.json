@@ -1221,6 +1221,7 @@
     "trigger_default": "Any agent invocation",
     "trigger_step": "Step: {{label}}",
     "trigger_chat_role": "Chat: {{label}}",
+    "trigger_legacy_task": "Legacy task: {{taskKey}}",
     "workflow_conditions": "Workflow trigger conditions",
     "workflow_conditions_help": "Optional. Leave empty to match any workflow trigger kind.",
     "workflow_condition_pill": "Workflow: {{label}}",

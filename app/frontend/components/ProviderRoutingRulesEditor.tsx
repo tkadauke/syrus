@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
 import { ChevronIcon } from "./ChevronIcon"
@@ -345,9 +345,9 @@ function RuleEditorModal({
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const titleId = "provider-routing-rule-editor-title"
-  const triggerOptions = useMemo(() => triggerSelectOptions(options, t), [options, t])
   if (!draft) return null
   const currentDraft = draft
+  const triggerOptions = triggerSelectOptions(options, t, currentDraft.triggerKey)
 
   function updateCandidate(index: number, candidate: ProviderRoutingCandidate) {
     onUpdate({
@@ -542,12 +542,18 @@ function draftToInput(draft: DraftRule): ProviderRoutingRuleInput {
   }
 }
 
-function triggerSelectOptions(options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
-  return [
+function triggerSelectOptions(options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string, selectedKey?: string) {
+  const registryOptions = [
     { value: "default", label: t("provider_routing.trigger_default") },
     ...(options.triggers?.step_kinds || []).map((option) => ({ value: `step:${option.value}`, label: t("provider_routing.trigger_step", { label: option.label }) })),
     ...(options.triggers?.chat_roles || []).map((option) => ({ value: `chat_role:${option.value}`, label: t("provider_routing.trigger_chat_role", { label: option.label }) }))
   ]
+  if (selectedKey?.startsWith("legacy_task:") && !registryOptions.some((option) => option.value === selectedKey)) {
+    const taskKey = selectedKey.slice("legacy_task:".length)
+    return [...registryOptions, { value: selectedKey, label: t("provider_routing.trigger_legacy_task", { taskKey }) }]
+  }
+
+  return registryOptions
 }
 
 function actionStrategyOptions(options: ProviderRoutingOptions) {
@@ -560,12 +566,14 @@ function actionStrategyOptions(options: ProviderRoutingOptions) {
 function keyToTrigger(key: string): ProviderRoutingTrigger {
   if (key.startsWith("step:")) return { type: "step", kind: key.slice("step:".length) }
   if (key.startsWith("chat_role:")) return { type: "chat_role", role: key.slice("chat_role:".length) }
+  if (key.startsWith("legacy_task:")) return { type: "legacy_task", task_key: key.slice("legacy_task:".length) }
   return { type: "default" }
 }
 
 function triggerToKey(trigger?: ProviderRoutingTrigger) {
   if (trigger?.type === "step") return `step:${trigger.kind}`
   if (trigger?.type === "chat_role") return `chat_role:${trigger.role}`
+  if (trigger?.type === "legacy_task") return `legacy_task:${trigger.task_key}`
   return "default"
 }
 
@@ -600,7 +608,7 @@ function taskKeyLabel(taskKey: string, t: (key: string, options?: Record<string,
 function triggerLabel(trigger: ProviderRoutingTrigger | undefined, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
   if (trigger?.type === "step") return t("provider_routing.trigger_step", { label: optionLabel(options.triggers?.step_kinds, trigger.kind) || trigger.kind })
   if (trigger?.type === "chat_role") return t("provider_routing.trigger_chat_role", { label: optionLabel(options.triggers?.chat_roles, trigger.role) || trigger.role })
-  if (trigger?.type === "legacy_task") return trigger.task_key
+  if (trigger?.type === "legacy_task") return t("provider_routing.trigger_legacy_task", { taskKey: trigger.task_key })
   return t("provider_routing.trigger_default")
 }
 
