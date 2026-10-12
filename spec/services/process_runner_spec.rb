@@ -142,7 +142,6 @@ RSpec.describe ProcessRunner, :ci_only do
 
     expect(result).to be_success
   end
-
   it "returns a failed result for nonzero exit" do
     result = run_command(ruby, "-e", "exit 7")
 
