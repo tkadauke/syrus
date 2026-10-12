@@ -394,6 +394,7 @@
   "proposal_investigation_value": "Nur lesend, kein PR erwartet",
   "proposal_provider": "Provider",
   "proposal_provider_default": "Standard",
+  "proposal_capabilities": "Fähigkeiten",
   "aria_confirm_proposal_to_backlog": "Vorschlag für Backlog bestätigen",
   "aria_confirm_proposal_and_implement": "Vorschlag bestätigen und implementieren",
   "aria_confirm_proposal_and_investigate": "Vorschlag bestätigen und untersuchen",

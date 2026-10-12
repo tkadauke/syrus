@@ -176,6 +176,7 @@ export type ChatProposal = {
   route_label?: string
   investigation?: boolean
   provider_setting?: string | null
+  planned_execution?: PlannedExecution | null
   app_update_path: string
   app_confirm_path: string
   app_reject_path: string
@@ -223,11 +224,19 @@ export type ChatProposalChild = {
   dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   provider_setting?: string | null
+  planned_execution?: PlannedExecution | null
   goal_provenance?: GoalProvenance | null
   media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string
   app_reject_path: string
+}
+
+export type PlannedExecution = {
+  project_label?: string | null
+  target_label?: string | null
+  capabilities?: Record<string, string[] | null | undefined> | null
+  source?: string | null
 }
 
 export type GoalProvenance = {
