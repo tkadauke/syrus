@@ -38,9 +38,9 @@ RSpec.describe ProcessRunner, :ci_only do
       end
     end.new
     stop_requested = -> { false }
-    on_output_chunk = ->(_chunk) {}
-    on_output_line = ->(_line) {}
-    on_spawned_process = ->(_process) {}
+    on_output_chunk = ->(_chunk) { }
+    on_output_line = ->(_line) { }
+    on_spawned_process = ->(_process) { }
     resource_limits = Execution::ResourceLimits.new(
       memory_max: "268435456",
       cpu_max: "100000 100000",
