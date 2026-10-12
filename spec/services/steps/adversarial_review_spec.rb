@@ -186,7 +186,7 @@ RSpec.describe Steps::AdversarialReview do
         adversarial_review: SyrusYml::AdversarialReviewConfig.new(rounds: 1, criteria: [], required: true),
         review_notes: nil, agent_insight: nil, coverage: nil, formatters: [], generated: [],
         deployment_stages: [], preview: nil, visual_review: nil, review_plan: false, deploy: nil,
-        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [],
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [],
         target_graph: nil, scripts: {}
       )
     )
