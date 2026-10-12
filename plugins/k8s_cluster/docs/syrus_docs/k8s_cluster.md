@@ -318,8 +318,9 @@ streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 `port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
 `delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and
 similar), and Secret-value exposure patterns such as `get secrets -o yaml`,
-`get secrets -o=jsonpath=...`, or `describe secret` unless explicit allowance
-is supplied on a non-chat surface. Chat calls cannot self-authorize those
+`get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
+API paths whose segments target `secrets`, unless explicit allowance is
+supplied on a non-chat surface. Chat calls cannot self-authorize those
 high-risk allowances. The local runner also enforces a timeout so a missed
 policy case cannot keep the temporary kubeconfig materialized indefinitely.
 

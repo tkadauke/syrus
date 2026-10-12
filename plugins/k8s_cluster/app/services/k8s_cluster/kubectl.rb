@@ -1,3 +1,5 @@
+require "cgi"
+
 module K8sCluster
   class Kubectl
     CREDENTIAL_TYPE = "k8s_cluster.kubeconfig".freeze
@@ -226,6 +228,7 @@ module K8sCluster
 
     def secret_output_command?
       return false unless %w[get describe].include?(command)
+      return true if command == "get" && raw_secret_api_path?
       return false unless secret_resource?
       return true if command == "describe"
 
@@ -234,6 +237,30 @@ module K8sCluster
 
     def secret_resource?
       normalized_args.any? { |arg| %w[secret secrets secret.v1 secrets.v1].include?(arg) }
+    end
+
+    def raw_secret_api_path?
+      raw_api_paths.any? do |path|
+        path_segments(path).any? { |segment| segment == "secrets" }
+      end
+    end
+
+    def raw_api_paths
+      normalized_args.each_with_index.filter_map do |arg, index|
+        if arg.start_with?("--raw=")
+          arg.split("=", 2).last
+        elsif arg == "--raw"
+          normalized_args[index + 1].to_s
+        end
+      end
+    end
+
+    def path_segments(path)
+      path.to_s.split(/[?#]/, 2).first.to_s.split("/").filter_map do |segment|
+        CGI.unescape(segment).presence
+      rescue ArgumentError
+        segment.presence
+      end
     end
 
     def output_format
