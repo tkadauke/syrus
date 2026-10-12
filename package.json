@@ -2,7 +2,8 @@
   "name": "syrus",
   "private": true,
   "scripts": {
-    "build": "vite build",
+    "build": "node bin/clean-spa-build && vite build && bin/check-spa-entry-budget",
+    "build:watch": "node bin/clean-spa-build && vite build --watch",
     "desktop:build": "npm --prefix desktop run build",
     "desktop:dev": "npm --prefix desktop run dev",
     "typecheck": "tsc --noEmit",

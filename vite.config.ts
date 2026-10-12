@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
   const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
 
   return {
+    base: "/assets/",
     plugins: [react()],
     resolve: {
       alias: {
@@ -26,10 +27,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: "app/frontend/main.tsx",
         output: {
-          entryFileNames: "spa.js",
-          chunkFileNames: "spa-[name].js",
-          assetFileNames: "spa-[name][extname]",
-          codeSplitting: false
+          entryFileNames: "spa-entry-[hash].digested.js",
+          chunkFileNames: "spa-[name]-[hash].digested.js",
+          assetFileNames: "spa-[name]-[hash].digested[extname]"
         }
       }
     },

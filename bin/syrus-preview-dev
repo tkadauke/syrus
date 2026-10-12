@@ -2,7 +2,8 @@
 set -euo pipefail
 
 mkdir -p app/assets/builds log tmp/pids
-rm -f app/assets/builds/spa.js app/assets/builds/tailwind.css
+node bin/clean-spa-build
+rm -f app/assets/builds/tailwind.css
 
 pids=()
 rails_pid=""
@@ -30,7 +31,7 @@ bin/rails tailwindcss:build > log/tailwind.log 2>&1
 bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
 pids+=("$!")
 
-npm run build -- --watch > log/vite.log 2>&1 &
+npm run build:watch > log/vite.log 2>&1 &
 pids+=("$!")
 
 wait_for_file() {
@@ -38,7 +39,7 @@ wait_for_file() {
   local log_path="$2"
   local deadline=$((SECONDS + 120))
 
-  until [ -f "$path" ]; do
+  until compgen -G "$path" > /dev/null; do
     if [ "$SECONDS" -ge "$deadline" ]; then
       echo "timed out waiting for $path; see $log_path" >&2
       exit 1
@@ -47,7 +48,7 @@ wait_for_file() {
   done
 }
 
-wait_for_file app/assets/builds/spa.js log/vite.log
+wait_for_file 'app/assets/builds/spa-entry-*.digested.js' log/vite.log
 wait_for_file app/assets/builds/tailwind.css log/tailwind.log
 
 bin/rails server -p "${PORT:-3000}" -b 0.0.0.0 -e development > log/development.log 2>&1 &
