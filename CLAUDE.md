@@ -42,7 +42,7 @@ comment half of this mechanically; the docs half is on you.
 
 ## Stack
 
-Rails 8.1.3 · Ruby 3.4.10 · SQLite (dev/test) / MySQL (prod) ·
+Rails 8.1.4 · Ruby 3.4.10 · SQLite (dev/test) / MySQL (prod) ·
 Solid Queue + Solid Cache + Solid Cable · React + TypeScript via Vite ·
 TanStack Query · Tailwind via `tailwindcss-rails` · Go CLI under `cli/` ·
 Electron desktop under `desktop/` · Android operator app under `android/` ·
