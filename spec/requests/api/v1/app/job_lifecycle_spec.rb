@@ -519,6 +519,58 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(new_job.issue_number).to be_nil
   end
 
+  it "restarts a direct investigation with its workflow mode and planned execution requirement" do
+    planned_capabilities = {
+      "os" => [ "macos" ],
+      "arch" => [ "arm64" ],
+      "toolchain" => [ "xcode" ],
+      "runtime" => [ "ios_simulator" ]
+    }
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Investigate iOS preview failures",
+      issue_body: "Find why previews fail on simulator.",
+      investigation: true,
+      planned_execution_project_label: "iOS App",
+      planned_execution_target_label: "//ios:preview",
+      planned_execution_capabilities: planned_capabilities,
+      planned_execution_source: "explicit"
+    )
+    dependent = Factories.job(repository: repo, issue_number: 43)
+    dependency = dependent.dependencies.create!(depends_on_job: direct, source: "manual")
+
+    expect {
+      post app_job_path(direct, "restart"), as: :json
+    }.to change(Job, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    expect(direct.reload).to be_closed
+    expect(direct.closure_reason).to eq("replaced")
+
+    new_job = Job.order(:created_at).last
+    expect(new_job.kind).to eq("direct")
+    expect(new_job.issue_title).to eq("Investigate iOS preview failures")
+    expect(new_job.issue_body).to eq("Find why previews fail on simulator.")
+    expect(new_job.investigation).to be(true)
+    expect(new_job.planned_execution_project_label).to eq("iOS App")
+    expect(new_job.planned_execution_target_label).to eq("//ios:preview")
+    expect(new_job.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(new_job.planned_execution_source).to eq("explicit")
+    expect(dependency.reload.depends_on_job_id).to eq(new_job.id)
+
+    workflow = new_job.workflows.first
+    expect(workflow.trigger_kind).to eq("investigation")
+    expect(workflow.steps.map(&:kind)).to eq(%w[prepare investigate submit_report])
+    expect(workflow.steps.map(&:kind)).not_to include("implement")
+    expect(workflow.planned_execution_project_label).to eq("iOS App")
+    expect(workflow.planned_execution_target_label).to eq("//ios:preview")
+    expect(workflow.planned_execution_capabilities).to eq(planned_capabilities)
+    expect(workflow.planned_execution_source).to eq("explicit")
+  end
+
   it "preserves epic membership when restarting an issue-kind job that belongs to an epic" do
     epic = Factories.epic(user: user, repository: repo)
     job.update!(epic: epic)

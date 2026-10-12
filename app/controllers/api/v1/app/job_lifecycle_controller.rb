@@ -146,8 +146,18 @@ module Api
               issue_number: job.issue_number,
               skip_prepare: skip_prepare,
               kind: job.kind,
+              investigation: job.investigation,
+              skill_name: job.skill_name,
+              skill_args: job.skill_args,
+              system_kind: job.system_kind,
               agent_provider: job.workflow_agent_provider,
               job_provider_setting: job.job_provider_setting,
+              model: job.model,
+              effort_level: job.effort_level,
+              planned_execution_project_label: job.planned_execution_project_label,
+              planned_execution_target_label: job.planned_execution_target_label,
+              planned_execution_capabilities: job.planned_execution_capabilities,
+              planned_execution_source: job.planned_execution_source,
               epic: job.epic
             }
 
