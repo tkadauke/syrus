@@ -1,5 +1,3 @@
-require "net/http"
-
 # Decides which MCP transport a workflow agent invocation should use: the
 # persistent worker-local daemon (PersistentMcpDaemon) when the
 # `persistent_mcp_sidecar` feature is on, the daemon answers a healthy
@@ -13,46 +11,19 @@ require "net/http"
 # response is role-scoped instead of a daemon-wide workflow superset.
 # Providers whose CLIs cannot speak HTTP MCP directly use bin/syrus-mcp-proxy
 # as a secret-free stdio bridge to the daemon.
-class WorkflowMcpTransportSelector
+class WorkflowMcpTransportSelector < PersistentMcpTransportSelector
   Decision = Struct.new(:transport, :reason, :daemon_identity, :mcp_path, keyword_init: true) do
     def persistent? = transport == :persistent
     def stdio? = transport == :stdio
   end
-
-  OPEN_TIMEOUT = 1
-  READ_TIMEOUT = 1.5
-
-  CONNECTION_ERRORS = [
-    Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EHOSTUNREACH,
-    Net::OpenTimeout, Net::ReadTimeout, SocketError, IOError
-  ].freeze
 
   def self.select(host: PersistentMcpDaemon.host, port: PersistentMcpDaemon.port, role: AgentRole::WORKFLOW_IMPLEMENT)
     new(host: host, port: port, role: role).select
   end
 
   def initialize(host:, port:, role:)
-    @host = host
-    @port = port
+    super(host: host, port: port)
     @role = role.to_s
-  end
-
-  def select
-    return stdio_decision("feature_disabled") unless Feature.persistent_mcp_sidecar_enabled?
-
-    PersistentMcpDaemon.ensure_started
-    health = fetch_health
-    return stdio_decision(health[:reason]) unless health[:ok]
-    return stdio_decision(incompatibility_reason(health[:body])) unless workflow_tools_supported?(health[:body])
-
-    Decision.new(
-      transport: :persistent,
-      reason: nil,
-      daemon_identity: health[:body]["identity"],
-      mcp_path: PersistentMcpDaemon.workflow_role_path(@role)
-    )
-  rescue StandardError => e
-    stdio_decision("selector_error: #{e.class}: #{e.message}")
   end
 
   private
@@ -61,32 +32,16 @@ class WorkflowMcpTransportSelector
     Decision.new(transport: :stdio, reason: reason, daemon_identity: nil, mcp_path: nil)
   end
 
-  def workflow_tools_supported?(body)
-    Array(body["capabilities"]).include?(PersistentMcpDaemon::WORKFLOW_TOOLS_CAPABILITY)
+  def persistent_decision(body)
+    Decision.new(
+      transport: :persistent,
+      reason: nil,
+      daemon_identity: body["identity"],
+      mcp_path: PersistentMcpDaemon.workflow_role_path(@role)
+    )
   end
 
-  def incompatibility_reason(body)
-    capabilities = Array(body["capabilities"]).join(",").presence || "none"
-    "daemon_incompatible: missing workflow_tools capability (capabilities=#{capabilities})"
-  end
-
-  def fetch_health
-    response = Net::HTTP.start(@host, @port, open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|
-      http.get(PersistentMcpDaemon::HEALTH_PATH)
-    end
-    parse_health(response)
-  rescue *CONNECTION_ERRORS => e
-    { ok: false, reason: "daemon_unreachable: #{e.class}: #{e.message}" }
-  end
-
-  def parse_health(response)
-    return { ok: false, reason: "daemon_unhealthy: HTTP #{response.code}" } unless response.is_a?(Net::HTTPSuccess)
-
-    body = JSON.parse(response.body)
-    return { ok: false, reason: "daemon_unhealthy: status=#{body['status'].inspect}" } unless body["status"] == "ok"
-
-    { ok: true, body: body }
-  rescue JSON::ParserError => e
-    { ok: false, reason: "daemon_unhealthy: invalid health response (#{e.message})" }
+  def required_capability
+    PersistentMcpDaemon::WORKFLOW_TOOLS_CAPABILITY
   end
 end
