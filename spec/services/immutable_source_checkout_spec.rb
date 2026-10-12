@@ -157,6 +157,144 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "mounts an overlay workspace from a prepared cache when the grader fan-out overlay flag is enabled" do
+    enable_grader_fanout_overlay!
+    described_class.new(step).setup
+    first_cache_details = step.reload.details.fetch("prepare_cache")
+
+    second_checkout = described_class.new(second_step)
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount) do |lower_path:, mount_path:, log:|
+      copy_tree(lower_path, mount_path)
+      log.call("[immutable_source_checkout] overlay workspace mounted in spec")
+      ImmutableSourceCheckoutOverlay::Result.new(
+        true,
+        nil,
+        lower_path.to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "upper").to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "work").to_s,
+        mount_path.to_s
+      )
+    end
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    expect(ImmutableSourceCheckoutOverlay).to have_received(:mount).with(
+      lower_path: Pathname.new(first_cache_details.fetch("cache_path")),
+      mount_path: second_checkout.path,
+      log: anything
+    )
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_step.reload.details.fetch("immutable_source_workspace")).to include(
+      "strategy" => "overlay",
+      "lower_path" => first_cache_details.fetch("cache_path"),
+      "mount_path" => second_checkout.path.to_s
+    )
+    expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "hit")
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "falls back to the byte-identical full copy and records the overlay reason when mounting is unavailable" do
+    described_class.new(step).setup
+    cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+
+    copy_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 3,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "source_snapshot_id" => snapshot.id }
+    )
+    copy_checkout = described_class.new(copy_step)
+    copy_checkout.setup
+    expected_manifest = checkout_manifest(copy_checkout.path)
+
+    enable_grader_fanout_overlay!
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount).and_return(
+      ImmutableSourceCheckoutOverlay::Result.new(
+        false,
+        "overlayfs is not listed in /proc/filesystems",
+        cache_path.to_s,
+        nil,
+        nil,
+        described_class.path_for(second_step).to_s
+      )
+    )
+
+    fallback_checkout = described_class.new(second_step)
+    fallback_checkout.setup
+
+    expect(fallback_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(checkout_manifest(fallback_checkout.path)).to eq(expected_manifest)
+    expect(second_step.reload.details.fetch("immutable_source_workspace")).to include(
+      "strategy" => "copy",
+      "fallback_reason" => "overlayfs is not listed in /proc/filesystems",
+      "lower_path" => cache_path.to_s,
+      "mount_path" => fallback_checkout.path.to_s
+    )
+  end
+
+  it "keeps overlay materialization diagnostics scoped to each grader Run across retries" do
+    described_class.new(step).setup
+    cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    enable_grader_fanout_overlay!
+    retry_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 3,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "source_snapshot_id" => snapshot.id }
+    )
+
+    first_run = retry_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount) do |lower_path:, mount_path:, log:|
+      copy_tree(lower_path, mount_path)
+      log.call("[immutable_source_checkout] overlay workspace mounted in spec")
+      ImmutableSourceCheckoutOverlay::Result.new(
+        true,
+        nil,
+        lower_path.to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "upper").to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "work").to_s,
+        mount_path.to_s
+      )
+    end
+
+    first_checkout = described_class.new(retry_step, run: first_run)
+    first_checkout.setup
+
+    FileUtils.rm_rf(first_checkout.path)
+    second_run = retry_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount).and_return(
+      ImmutableSourceCheckoutOverlay::Result.new(
+        false,
+        "overlayfs is not listed in /proc/filesystems",
+        cache_path.to_s,
+        nil,
+        nil,
+        described_class.path_for(retry_step).to_s
+      )
+    )
+
+    described_class.new(retry_step, run: second_run).setup
+
+    first_log = materialization_log_for(first_run)
+    second_log = materialization_log_for(second_run)
+    expect(JSON.parse(first_log.delete_prefix("[immutable_source_workspace] "))).to include(
+      "strategy" => "overlay",
+      "lower_path" => cache_path.to_s
+    )
+    expect(JSON.parse(second_log.delete_prefix("[immutable_source_workspace] "))).to include(
+      "strategy" => "copy",
+      "fallback_reason" => "overlayfs is not listed in /proc/filesystems",
+      "lower_path" => cache_path.to_s
+    )
+    expect(retry_step.reload.details.fetch("immutable_source_workspace")).to include(
+      "strategy" => "copy",
+      "fallback_reason" => "overlayfs is not listed in /proc/filesystems"
+    )
+  end
+
   it "preserves root symlinks when restoring a local prepare cache" do
     first_checkout = described_class.new(step)
     first_checkout.setup
@@ -342,6 +480,43 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(refreshed.fetch("environment_fingerprint")).to match(/\A[0-9a-f]{64}\z/)
   end
 
+  it "uses an overlay lower restored from the prepared archive on a fresh worker when enabled" do
+    described_class.new(step).setup
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    enable_grader_fanout_overlay!
+    allow(GithubAuthenticatedGit).to receive(:run).and_raise("unexpected remote fetch")
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount) do |lower_path:, mount_path:, log:|
+      copy_tree(lower_path, mount_path)
+      log.call("[immutable_source_checkout] overlay workspace mounted in spec")
+      ImmutableSourceCheckoutOverlay::Result.new(
+        true,
+        nil,
+        lower_path.to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "upper").to_s,
+        mount_path.dirname.join(".#{mount_path.basename}.overlay", "work").to_s,
+        mount_path.to_s
+      )
+    end
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    workspace_details = second_step.reload.details.fetch("immutable_source_workspace")
+    expect(workspace_details).to include(
+      "strategy" => "overlay",
+      "mount_path" => second_checkout.path.to_s
+    )
+    expect(workspace_details.fetch("lower_path")).to include("/prepared-archive-restores/storage-b/")
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "archive_hit",
+      "worker_storage_key" => "storage-b",
+      "source_snapshot_sha" => main_sha
+    )
+  end
+
   it "skips prepared archive upload when the archive exceeds the size cap" do
     stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)
@@ -483,6 +658,51 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       source_sha: main_sha,
       tree_sha: main_tree_sha
     )
+  end
+
+  def enable_grader_fanout_overlay!
+    Feature.find_or_initialize_by(slug: "grader_fanout_overlay").tap do |feature|
+      feature.category = "Operations"
+      feature.name = "Grader fan-out overlay"
+      feature.enabled = true
+      feature.save!
+    end
+  end
+
+  def copy_tree(source, destination)
+    FileUtils.mkdir_p(destination)
+    FileUtils.cp_r(
+      Pathname.new(source).children.map(&:to_s),
+      destination.to_s,
+      preserve: true,
+      dereference_root: false
+    )
+  end
+
+  def checkout_manifest(root)
+    root = Pathname.new(root)
+    Dir.chdir(root) do
+      Dir.glob("**/*", File::FNM_DOTMATCH)
+        .reject { |path| path == "." || path.start_with?(".git/") }
+        .sort
+        .to_h do |relative_path|
+          path = root.join(relative_path)
+          payload = if path.symlink?
+            "symlink:#{path.readlink}"
+          elsif path.file?
+            "file:#{Digest::SHA256.file(path).hexdigest}"
+          elsif path.directory?
+            "dir"
+          else
+            "other"
+          end
+          [ relative_path, payload ]
+        end
+    end
+  end
+
+  def materialization_log_for(run)
+    run.job_logs.where(kind: "system").pluck(:chunk).find { |chunk| chunk.start_with?("[immutable_source_workspace]") }
   end
 
   def sh(cmd)
