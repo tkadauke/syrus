@@ -77,7 +77,7 @@ module Mcp::Tools
     def target_epic_for(chat_session, repository, epic_id)
       return if epic_id.blank?
 
-      chat_session.user.epics.where(repository: repository).find_by(id: epic_id)
+      Epic.accessible_to(chat_session.user).where(repository: repository).find_by(id: epic_id)
     end
 
     def unique_slug(chat_session, title, prefix:)

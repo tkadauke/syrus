@@ -54,8 +54,7 @@ class ChatAttachment < ApplicationRecord
     # Repositories are globally unique and access-controlled via memberships;
     # a user may attach any repository where they are a member.
     if attachable.is_a?(Repository)
-      return if attachable.repository_memberships.exists?(user_id: chat_session.user_id)
-      return if attachable.user_id == chat_session.user_id
+      return if Repository.accessible_to(chat_session.user).where(id: attachable.id).exists?
       return if bug_report_repository?(attachable)
     end
 
