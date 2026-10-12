@@ -2,7 +2,7 @@ import { ApiError, getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
-import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
+import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
 import type { AdminSmartFolder } from "./adminSmartFolders"
 import type { FilterSchemaField } from "../components/filterBar/types"
 
@@ -123,6 +123,7 @@ export type RepositoryFormPayload = {
   configured_agent_providers: RepositoryProviderOption[]
   user_agent_provider_label: string
   provider_routing_rules: ProviderRoutingRule[]
+  inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
   provider_routing_options: ProviderRoutingOptions
   input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
