@@ -45,6 +45,7 @@ comment half of this mechanically; the docs half is on you.
 Rails 8.1.3 · Ruby 3.4.10 · SQLite (dev/test) / MySQL (prod) ·
 Solid Queue + Solid Cache + Solid Cable · React + TypeScript via Vite ·
 TanStack Query · Tailwind via `tailwindcss-rails` · Go CLI under `cli/` ·
+Electron desktop under `desktop/` · Android operator app under `android/` ·
 Octokit for GitHub.
 
 ## Architecture in 60 seconds
@@ -61,10 +62,10 @@ filed PRs as reviewable `external_pr` Jobs.
 The state machines (AASM):
 
 ```
-Job (one per issue):       open ⇄ closed
-Workflow (one per attempt): queued → running → succeeded | failed | cancelled
-Step (one per step):        queued → running → succeeded | failed | cancelled
-Run (one per step):         queued → running → succeeded | failed | cancelled
+Job (one per issue):       triaging/backlog/queued → running → implemented/approved/landing → closed
+Workflow (one per attempt): queued → running → succeeded | failed | cancelled | blocked
+Step (one per step):        queued → running → succeeded | failed | cancelled | skipped | blocked
+Run (one per step):         queued → running → succeeded | failed | cancelled | skipped | blocked
 ```
 
 `Job` carries the GitHub identifiers (issue + PR numbers, branch name) and
@@ -102,11 +103,14 @@ first. Admin surface: `/admin/work_units`, with normal Job-page WorkUnit
 internals gated by `AppSetting.show_work_unit_debug?`.
 
 Jobs and Workflows also carry a `PlannedExecutionRequirement`
-(project/target/capabilities/source), defaulting to Linux but overridable from
-prompt analysis or `.syrus.yml` target/grade capability metadata. Workers
-advertise capabilities via `SYRUS_WORKER_CAPABILITIES` plus local probes, and
-`RunQueueResolver` routes or blocks starts (`no_capable_worker`) when a live
-worker cannot satisfy the requirement.
+(project/target/capabilities/source), defaulting to Linux. Proposal tools must
+declare explicit `planned_execution.capabilities`; Syrus does not infer
+placement from proposal prose. `.syrus.yml` project/target/grader capability
+metadata can narrow where specific targets run. Supported capability dimensions
+are `os`, `arch`, `toolchain`, and `runtime`; `os` is limited to `linux` or
+`macos`. Workers advertise capabilities via `SYRUS_WORKER_CAPABILITIES` plus
+local probes, and `RunQueueResolver` routes or blocks starts
+(`no_capable_worker`) when a live worker cannot satisfy the requirement.
 
 **Repository content** (`app/services/repository_content.rb`) is how Syrus
 reads a repository without cloning it: the pre-workflow `.syrus.yml` read,
