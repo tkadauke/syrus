@@ -26,6 +26,7 @@ Plugins can contribute:
 - CI log parsers,
 - dependency-audit commands,
 - affected-test analyzers,
+- execution backends for constrained process runs,
 - source integrations such as GitHub or Linear,
 - speech-to-text backends for chat dictation.
 

@@ -11,7 +11,7 @@ require "tempfile"
 # SpawnedProcess registration + heartbeats + the operator kill switch, and
 # a common result shape.
 class ProcessRunner
-  class_attribute :backend, default: Execution::Local.new
+  class_attribute :backend, default: Execution::Router.new
 
   # Output collected by #capture. Buffers are capped independently so a noisy
   # child cannot grow the worker heap without bound; callers can distinguish a
