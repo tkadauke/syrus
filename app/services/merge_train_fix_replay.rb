@@ -15,11 +15,11 @@ class MergeTrainFixReplay
   end
 
   def self.eligible_source?(train)
-    return false unless AppSetting.merge_train_keeps_fixes_on_failure?
     return false unless train
     return false if train.integration_branch.blank? || train.integration_sha.blank?
 
     latest_workflow = workflow_for(train)
+    return false unless keep_fixes_selected?(latest_workflow)
     return true if stale_base_rebuild_required?(latest_workflow)
 
     failed_run_for(latest_workflow)&.run_failure_classification&.retryable == true
@@ -29,6 +29,13 @@ class MergeTrainFixReplay
     Workflow.where(trigger_kind: "merge_train").order(id: :desc).detect do |workflow|
       workflow.artifact("merge_train_id").to_i == train.id
     end
+  end
+
+  def self.keep_fixes_selected?(workflow)
+    selected = MergeTrainFailurePolicy.selected_rung_for_workflow(workflow)
+    return selected == MergeTrainFailurePolicy::Rungs::KeepFixes.name if selected
+
+    MergeTrainFailurePolicy.resolve_for_workflow(workflow).is_a?(MergeTrainFailurePolicy::Rungs::KeepFixes)
   end
 
   def self.failed_run_for(workflow)
