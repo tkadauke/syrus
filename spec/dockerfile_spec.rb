@@ -58,7 +58,7 @@ RSpec.describe "Dockerfile" do
   end
 
   it "pins a Codex CLI version with current model metadata support" do
-    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.160.0")
+    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.162.1")
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 

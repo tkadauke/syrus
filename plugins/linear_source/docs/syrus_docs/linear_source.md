@@ -2,9 +2,9 @@
 
 The `linear_source` plugin (`plugins/linear_source/`) adds Linear as an
 `InputSource`: it polls a configured Linear team for open issues and creates
-Syrus `Job`s (or `Epic`s, via the same `Epic:`/`Epic: #N` body-marker
-convention GitHub issues use) from them, so Linear can stay the planning
-system of record while Syrus still implements against a GitHub repository.
+Syrus `Job`s (or `Epic`s, via the same explicit `syrus-epic` body-marker
+comment GitHub issues use) from them, so Linear can stay the planning system
+of record while Syrus still implements against a GitHub repository.
 It is a self-contained Rails engine plugin, installed but disabled by
 default (`default_enabled: false`, `disableable: true`, category
 `input_source`).
@@ -44,13 +44,16 @@ For issues that pass the policy:
   #external_ref`); an issue that already has an open Syrus Job for this
   input source is skipped rather than re-ingested.
 - **Epic markers** — the issue's `description` is parsed with the same
-  `EpicMarkerParser` GitHub Source uses. A standalone `Epic: <name>` line
-  creates/finds an `Epic`; a standalone `Epic: #<number>` (or
-  `owner/repo#<number>`) line creates a Job as a child of that Epic (or, if
-  the referenced Epic doesn't exist yet locally, files the Job as
+  `EpicMarkerParser` GitHub Source uses. An explicit
+  `<!-- syrus-epic: <name> -->` comment creates/finds an `Epic`; an explicit
+  `<!-- syrus-epic: #<number> -->` (or `owner/repo#<number>`) comment creates
+  a Job as a child of that Epic (or, if the referenced Epic doesn't exist yet
+  locally, files the Job as
   `triaging_reason: "pending_epic_ref"` the same way an out-of-order GitHub
-  child issue would). Because a Linear issue has no natural GitHub URL to
-  dedup an Epic on, Linear-declared Epics are keyed on a synthetic
+  child issue would). Visible prose such as `Epic: #123` is ignored for
+  routing. To migrate an older template, wrap the old line in a marker block:
+  `<!-- syrus-epic\nEpic: #123\n-->`. Because a Linear issue has no natural
+  GitHub URL to dedup an Epic on, Linear-declared Epics are keyed on a synthetic
   `linear:issue:<id>` value in `Epic#github_issue_url` instead of a real,
   clickable URL — deliberately not shaped like a GitHub link so it can't be
   mistaken for one.

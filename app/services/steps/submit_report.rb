@@ -41,7 +41,8 @@ module Steps
     def verify_report!
       if workflow.artifact("investigation_report").blank?
         capture_mcp_sidecar_stderr
-        raise StepFailed, "agent didn't call submit_report"
+        fail_with!(:missing_required_tool_call, "agent didn't call submit_report",
+                   evidence: { tool: "submit_report" })
       end
     end
 

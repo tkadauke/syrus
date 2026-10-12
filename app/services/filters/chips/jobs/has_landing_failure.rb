@@ -9,7 +9,11 @@ module Filters
 
         def self.failed_landing_scope(base = Job.open_threads)
           base.where.not(landing_failure_reason: nil)
-              .where.not("landing_failure_reason LIKE ?", "#{LandingQueueReentry::START_BLOCKER_PREFIX}%")
+              .where(
+                "landing_failure_code IS NULL AND landing_failure_reason NOT LIKE ? OR landing_failure_code != ?",
+                "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
+                LandingFailureCode::LANDING_START_BLOCKED
+              )
         end
 
         def apply

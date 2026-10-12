@@ -444,13 +444,20 @@ module Admin
       end
 
       def process_capabilities(process)
-        WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+        WorkerCapabilities.normalize(
+          process.metadata&.dig("capabilities").presence ||
+            instance_for_process(process)&.capabilities ||
+            latest_sample_by_hostname[process.hostname]&.capabilities
+        )
       rescue ArgumentError
         {}
       end
 
       def process_capability_diagnostics(process)
-        process.metadata&.dig("capability_diagnostics").presence || instance_for_process(process)&.capability_diagnostics || {}
+        process.metadata&.dig("capability_diagnostics").presence ||
+          instance_for_process(process)&.capability_diagnostics ||
+          latest_sample_by_hostname[process.hostname]&.capability_diagnostics ||
+          {}
       end
 
       def drain_payload(process)
@@ -463,7 +470,12 @@ module Admin
       end
 
       def latest_sample_by_hostname
-        @latest_sample_by_hostname ||= WorkerHostHealthSample.worker_role.order(observed_at: :desc).to_a.index_by(&:hostname)
+        @latest_sample_by_hostname ||= WorkerHostHealthSample
+          .worker_role
+          .where("observed_at >= ?", PROCESS_STALE_THRESHOLD.ago)
+          .order(observed_at: :desc)
+          .to_a
+          .index_by(&:hostname)
       end
 
       def drains_by_identity

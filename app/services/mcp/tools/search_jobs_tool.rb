@@ -19,22 +19,36 @@ module Mcp::Tools
       include McpToolPayloads::JobPayload
 
       def call(server_context:, query:, state: nil, limit: 20)
-        chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
         query = query.to_s.strip
         return Mcp::Tools.invalid("query must be at least 2 characters") if query.length < 2
 
-        scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
+        scope = job_scope(context)
         scope = scope.where(state: state.to_s) if state.to_s.strip.present?
         scope = apply_search(scope, query)
         total = scope.count
 
         Mcp::Tools.success(
           total: total,
-          results: scope.order(updated_at: :desc, id: :desc).limit(normalize_limit(limit)).map { |job| job_search_payload(job) }
+          results: scope
+            .order(updated_at: :desc, id: :desc)
+            .limit(normalize_limit(limit))
+            .preload(:repository)
+            .map { |job| job_search_payload(job) }
         )
       end
 
       private
+
+      def job_scope(context)
+        if context.run?
+          Job.accessible_to(context.user).where(repository_id: context.allowed_repository_ids)
+        elsif context.user.admin?
+          Job.all
+        else
+          context.user.jobs
+        end
+      end
 
       def normalize_limit(value)
         value.to_i.clamp(1, 100)

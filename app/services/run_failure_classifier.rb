@@ -84,6 +84,9 @@ class RunFailureClassifier
       result("database_lock", 0.85, true, "The run failed because another test run was already active in the same checkout; retry when the checkout is free.")
     when provider_auth_expired?
       result("provider_auth_expired", 0.95, false, "The provider authentication token expired and needs operator reauthorization.")
+    # Legacy/external text fallback: new Syrus-owned agent invocation failures
+    # declare Problems in Steps::Base#run_agent, but old RunDiagnostic rows and
+    # third-party provider text still reach this classifier with prose only.
     when mcp_sidecar?
       result("mcp_sidecar_failure", 0.75, true, "The agent sidecar failed or disconnected.")
     when grader_failure?
@@ -100,6 +103,9 @@ class RunFailureClassifier
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
       result("agent_resume_unavailable", 0.90, true, "The provider resume session was unavailable; retry without provider resume.")
+    # Legacy/external text fallback: PR-open and merge-train steps now declare
+    # these Problems at the raise site; these branches keep historical rows and
+    # raw GitHub/git messages classifiable.
     when branch_diverged?
       result("branch_diverged", 0.95, false, "The PR branch changed before Syrus could push this workflow.")
     when merge_train_rebase_conflict?
@@ -129,6 +135,9 @@ class RunFailureClassifier
       result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
     when provider_transient?
       result("provider_transient", 0.75, true, "The provider failed transiently.")
+    # Legacy/external text fallback: Prepare/Grader raise disk_full when their
+    # captured output identifies local capacity exhaustion; this remains for
+    # lower-level exceptions and rows created before Problems were recorded.
     when disk_full?
       result("disk_full", 0.90, true, "The run failed because the worker disk was full (e.g. Errno::ENOSPC); this is transient infrastructure capacity, not a code defect.")
     when database_capacity?
@@ -170,7 +179,7 @@ class RunFailureClassifier
   end
 
   def rate_limited?
-    ProviderRateLimitEvidence.direct?(run, text: rate_limit_searchable_text)
+    ProviderRateLimitEvidence.direct?(run, text: provider_terminal_log_text)
   end
 
   def command_span_sequence_collision?
@@ -179,11 +188,13 @@ class RunFailureClassifier
   end
 
   def provider_usage_limit?
-    return false if ProviderUsageLimit.inconclusive?(searchable_text)
     return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
     return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
 
-    ProviderUsageLimit.detect?(searchable_text)
+    text = provider_terminal_log_text
+    return false if text.blank? || ProviderUsageLimit.inconclusive?(text)
+
+    ProviderUsageLimit::LegacyText.detect?(text)
   end
 
   def timeout?
@@ -247,7 +258,7 @@ class RunFailureClassifier
   def provider_auth_expired?
     return false if run.agent_provider.blank?
 
-    ProviderAuthFailure.detect?(searchable_text)
+    ProviderAuthFailure.detect?(provider_failure_text)
   end
 
   def process_died?
@@ -548,14 +559,25 @@ class RunFailureClassifier
   end
 
   def rate_limit_searchable_text
+    provider_terminal_log_text
+  end
+
+  def provider_failure_text
     [
-      run.agent_summary,
-      run.agent_pr_title,
-      run.agent_pr_body,
+      run.agent_outcome,
       diagnostic&.error_class,
       diagnostic&.error_message,
-      diagnostic&.error_backtrace
-    ].compact.join("\n")
+      diagnostic&.error_backtrace,
+      recent_logs.map(&:chunk)
+    ].flatten.compact.join("\n")
+  end
+
+  def provider_terminal_log_text
+    provider_terminal_log_chunks.join("\n")
+  end
+
+  def provider_terminal_log_chunks
+    recent_logs.map(&:chunk).select { |chunk| ProviderUsageLimit::LegacyText.provider_terminal_text?(chunk) }
   end
 
   def diagnostic_summary

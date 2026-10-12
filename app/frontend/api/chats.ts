@@ -47,6 +47,7 @@ export type ChatRecord = {
   repository: ChatRepository | null
   turn_in_flight?: boolean
   agent_busy?: boolean
+  agent_activity?: ChatAgentActivity | null
   turn_retry_state?: ChatTurnRetryState | null
   stop_requested_at: string | null
   suggested_next_step?: string | null
@@ -66,6 +67,15 @@ export type ChatRecord = {
   coding_checkout_branch?: string | null
   runtime_session_count?: number
   chat_effort?: string | null
+}
+
+export type ChatAgentActivity = {
+  label: string
+  raw_name: string | null
+  in_flight: boolean
+  elapsed_seconds: number | null
+  idle_seconds: number | null
+  transcript_bytes: number | null
 }
 
 export type ChatTurnRetryState = {
@@ -128,6 +138,7 @@ export type ChatSystemMessage = {
   tone: "success" | "warning" | "error" | "neutral"
   label: string
   body: string
+  body_format?: "plain" | "markdown"
   prominent?: boolean
   cta?: {
     label: string
@@ -165,6 +176,7 @@ export type ChatProposal = {
   route_label?: string
   investigation?: boolean
   provider_setting?: string | null
+  planned_execution?: PlannedExecution | null
   app_update_path: string
   app_confirm_path: string
   app_reject_path: string
@@ -212,11 +224,19 @@ export type ChatProposalChild = {
   dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   provider_setting?: string | null
+  planned_execution?: PlannedExecution | null
   goal_provenance?: GoalProvenance | null
   media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string
   app_reject_path: string
+}
+
+export type PlannedExecution = {
+  project_label?: string | null
+  target_label?: string | null
+  capabilities?: Record<string, string[] | null | undefined> | null
+  source?: string | null
 }
 
 export type GoalProvenance = {
@@ -650,9 +670,14 @@ export type ChatGroupRecord = {
 }
 
 export type ChatSidebarStatus = "active" | "hidden" | "all"
-export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type"
+export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type" | "agent"
 export type ChatSidebarSortBy = "name" | "date_created" | "last_activity"
 export type ChatSidebarPerGroup = 5 | 10 | 15 | 20
+
+export type ChatSidebarAgentOption = {
+  value: string
+  label: string
+}
 
 export type ChatSidebarSettings = {
   status: ChatSidebarStatus
@@ -677,6 +702,7 @@ export type ChatsIndexPayload = {
   groups_has_more?: boolean
   groups_next_offset?: number | null
   available_chat_types?: ChatType[]
+  available_agents?: ChatSidebarAgentOption[]
   repositories: ChatRepository[]
 }
 
@@ -823,6 +849,7 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
+  agent_activity?: ChatAgentActivity | null
   turn_retry_state?: ChatTurnRetryState | null
   // Coding Mode only (the chat shell-command cancellation feature): the chat session's currently-running `!`
   // command, if any, so the composer can rehydrate its command-mode stop

@@ -4,7 +4,7 @@ module Mcp::Tools
   class ReadPrTool < MCP::Tool
     tool_name "read_pr"
 
-    description "Read a GitHub pull request title, body, and capped diff for this chat session's repository."
+    description "Read a GitHub pull request title, body, and capped diff for this context's repository."
 
     input_schema(
       properties: {
@@ -15,16 +15,18 @@ module Mcp::Tools
 
     class << self
       def call(pr_number:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
-        repository = chat_session.repository
+        context = McpToolContext.from_server_context(server_context)
+        repository = repository_for(context)
+        return repository if repository.is_a?(MCP::Tool::Response)
+
         pr_number = pr_number.to_i
         return Mcp::Tools.invalid("pr_number must be positive") unless pr_number.positive?
 
-        # GitHub reads use the chat user's credentials for this repository, not
-        # a shared token, so private PR access follows the same user boundary.
-        client = GithubClient.for(repository: repository, user: chat_session.user)
+        # GitHub reads use the context user's credentials for this repository,
+        # not a shared token, so private PR access follows the same boundary.
+        client = GithubClient.for(repository: repository, user: context.user)
         pr = client.pull_request(repository.slug, pr_number)
-        diff = content_diff(repository, chat_session.user, pr) || client.pull_request_diff(repository.slug, pr_number)
+        diff = content_diff(repository, context.user, pr) || client.pull_request_diff(repository.slug, pr_number)
 
         Mcp::Tools.success(
           pr: {
@@ -43,6 +45,15 @@ module Mcp::Tools
       end
 
       private
+
+      def repository_for(context)
+        repository = context.repository
+        return Mcp::Tools.invalid("repository context is required") unless repository
+        return repository unless context.run?
+        return repository if context.allowed_repository_ids.include?(repository.id)
+
+        Mcp::Tools.not_authorized
+      end
 
       # The PR's diff from repository content -- the git mirror when it has
       # both commits -- as unified diff text. nil when it cannot be read in

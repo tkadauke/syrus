@@ -24,7 +24,12 @@ class MergeTrainFailureHandler
     return if !@cancelled && start_multisect_rung!(train)
 
     unless train.terminal?
-      train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+      train.update!(
+        state: @cancelled ? "cancelled" : "failed",
+        failure_reason: reason.truncate(500),
+        failure_code: failure_code.code,
+        finished_at: Time.current
+      )
     end
 
     delete_integration_branch(train) unless preserve_branch_for_fix_replay?(train)
@@ -58,7 +63,7 @@ class MergeTrainFailureHandler
       # blockers defer_landing (stay approved, auto-retry), genuine
       # failures fail_landing (-> implemented, approval cleared, requires
       # operator re-approval).
-      LandingFailureHandler.call(job: job, reason: reason, run: failed_run) if job.landing?
+      LandingFailureHandler.call(job: job, reason: reason, run: failed_run, problem: failure_problem) if job.landing?
       member.update!(state: "failed", reason: reason.truncate(500))
     end
   end
@@ -218,6 +223,20 @@ class MergeTrainFailureHandler
   # workflow.failure_reason nor any workflow artifact carries the reason.
   def failed_run_error_message
     failed_run&.run_diagnostic&.error_message.presence
+  end
+
+  def failure_problem
+    return @failure_problem if defined?(@failure_problem)
+
+    code = failed_run&.run_diagnostic&.problem_code.presence ||
+      failed_run&.run_failure_classification&.classification.presence
+    @failure_problem = Problem.resolve(code) if code.present?
+  end
+
+  def failure_code
+    @failure_code ||= LandingFailureCode.from_problem(failure_problem) ||
+      LandingFailureCode.legacy_from_reason(failure_reason) ||
+      LandingFailureCode.fetch(LandingFailureCode::ATTRIBUTABLE_FAILURE)
   end
 
   # A run whose worker died leaves no diagnostic -- CaptureRunDiagnostic runs

@@ -23,8 +23,9 @@ Check these in order:
 4. The issue has the repository's trigger label. The default is `syrus`,
    but each repo can use a different label.
 5. The issue does not have `syrus-skip`.
-6. If the issue uses `epic:` or `depends on:` / `blocked by:` markers,
-   references include `#` (`epic: #123`, not `epic: 123`).
+6. If the issue should attach to an Epic, it uses the explicit
+   `<!-- syrus-epic: #123 -->` marker comment. Visible `Epic: #123` prose is
+   ignored for routing.
 7. The user's GitHub token is present and can read the repository.
 8. The GitHub credential is not currently rate-limited. Syrus delays
    autonomous repository polls until GitHub's reset time when quota is

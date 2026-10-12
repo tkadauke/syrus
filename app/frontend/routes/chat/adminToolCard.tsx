@@ -68,10 +68,9 @@ export type WorkerHealthCounts = { total: number; worst: HealthLevel; byLevel: R
 
 const HEALTH_RANK: Record<HealthLevel, number> = { ok: 0, unknown: 1, warning: 2, critical: 3 }
 
-// Shared across admin_overview and admin_version, which both echo a
-// `worker_health.current` array (Admin::WorkerHealthPayload#as_json) but
-// only need the aggregate red/yellow/green rollup, not the full per-host
-// history read_worker_health renders.
+// Shared by compact cards that need an aggregate red/yellow/green rollup from
+// Admin::WorkerHealthPayload#as_json without rendering the full per-host
+// history read_worker_health shows.
 export function parseWorkerHealthCounts(value: unknown): WorkerHealthCounts | null {
   if (!isRecord(value) || !Array.isArray(value.current)) return null
 

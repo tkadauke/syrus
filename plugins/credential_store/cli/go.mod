@@ -1,6 +1,6 @@
 module github.com/tkadauke/syrus/plugins/credential_store/cli
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/spf13/cobra v1.10.2
@@ -24,7 +24,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )
 
 // The CLI module is never published, so `require` alone sends Go looking for a

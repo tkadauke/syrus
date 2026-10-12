@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
-import type { ChatTurnRetryState } from "../../api/chats"
+import type { ChatAgentActivity, ChatTurnRetryState } from "../../api/chats"
 import { classes } from "../../components/ui/classes"
 import { TONE_CHIP_CLASSES, type SemanticTone } from "../../components/ui"
 import { useT } from "../../hooks/useT"
@@ -88,15 +88,23 @@ export function getStartingPhrase() {
   return { latin: "Accingitur", english: "girding itself" }
 }
 
-export function AgentActivityIndicator({ running }: { running: boolean }) {
+export function AgentActivityIndicator({ running, activity }: { running: boolean; activity?: ChatAgentActivity | null }) {
+  const { t } = useT("chat")
   const workingPhrase = useMemo(
     () => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)],
     []
   )
   const phrase = running ? workingPhrase : getStartingPhrase()
+  const activityLabel = activity
+    ? t("agent_activity_aria", {
+      label: activity.label,
+      elapsed: activity.elapsed_seconds == null ? t("agent_activity_elapsed_unknown") : formatElapsed(activity.elapsed_seconds)
+    })
+    : null
+  const ariaLabel = activityLabel ? `${phrase.english}; ${activityLabel}` : phrase.english
 
   return (
-    <div aria-label={phrase.english} aria-live="polite" className="flex justify-start" role="status">
+    <div aria-label={ariaLabel} aria-live="polite" className="flex justify-start" role="status">
       <div className="inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1.5 text-xs font-medium text-info shadow-sm dark:border-info/30 dark:bg-info/10 dark:text-info">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
@@ -108,6 +116,15 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
           ))}
         </span>
         <span title={phrase.english}>{phrase.latin}</span>
+        {activity ? (
+          <>
+            <span aria-hidden="true" className="text-info/45">·</span>
+            <span title={activityLabel || undefined}>{activity.label}</span>
+          </>
+        ) : null}
+        {activity?.elapsed_seconds != null ? (
+          <span className="text-info/70" title={t("agent_activity_elapsed_title")}>{formatElapsed(activity.elapsed_seconds)}</span>
+        ) : null}
       </div>
     </div>
   )
@@ -214,6 +231,16 @@ function formatRetryCountdown(date: Date, now: number) {
   if (remainingSeconds === 0) return `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}`
 
   return `in ${minutes} ${minutes === 1 ? "minute" : "minutes"} ${remainingSeconds} ${remainingSeconds === 1 ? "second" : "seconds"}`
+}
+
+function formatElapsed(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  if (safeSeconds < 60) return `${safeSeconds}s`
+
+  const minutes = Math.floor(safeSeconds / 60)
+  if (minutes < 60) return `${minutes}m`
+
+  return `${Math.floor(minutes / 60)}h`
 }
 
 export function SwitchingProviderIndicator({ provider, providerLabel: labelOverride }: { provider: string; providerLabel?: string }) {

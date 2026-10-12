@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_190916) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1755,6 +1755,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
     t.json "planned_execution_capabilities"
     t.string "planned_execution_source"
     t.datetime "approval_withdrawn_at"
+    t.string "landing_failure_code"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -1771,6 +1772,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
     t.index ["input_source_id"], name: "index_jobs_on_input_source_id"
     t.index ["landing_blocker_override_key"], name: "index_jobs_on_landing_blocker_override_key"
     t.index ["landing_blocker_override_requested_by_user_id"], name: "index_jobs_on_landing_blocker_override_requested_by_user_id"
+    t.index ["landing_failure_code"], name: "index_jobs_on_landing_failure_code"
     t.index ["landing_queue_cached_at", "state"], name: "index_jobs_on_landing_queue_cached_at_and_state"
     t.index ["landing_queue_entry_key"], name: "index_jobs_on_landing_queue_entry_key"
     t.index ["linked_chat_id"], name: "index_jobs_on_linked_chat_id"
@@ -2094,7 +2096,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_231353) do
     t.integer "repository_id", null: false
     t.string "state", default: "building", null: false
     t.datetime "updated_at", null: false
+    t.string "failure_code"
     t.index ["epic_id"], name: "index_merge_trains_on_epic_id"
+    t.index ["failure_code"], name: "index_merge_trains_on_failure_code"
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"

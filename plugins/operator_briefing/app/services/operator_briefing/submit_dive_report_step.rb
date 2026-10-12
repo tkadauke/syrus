@@ -62,7 +62,8 @@ module OperatorBriefing
       return if workflow.artifact("briefing_dive_report").present?
 
       capture_mcp_sidecar_stderr
-      raise StepFailed, "agent didn't call submit_dive_report"
+      fail_with!(:missing_required_tool_call, "agent didn't call submit_dive_report",
+                 evidence: { tool: "submit_dive_report" })
     end
   end
 end

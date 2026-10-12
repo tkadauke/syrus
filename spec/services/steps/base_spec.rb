@@ -313,7 +313,9 @@ RSpec.describe Steps::Base, :ci_only do
 
       expect {
         handler.send(:run_agent, prompt: "summarize")
-      }.to raise_error(Steps::Base::StepFailed, "agent reported mcp_sidecar_failed")
+      }.to raise_error(Steps::Base::StepFailed, "agent reported mcp_sidecar_failed") { |error|
+        expect(error.problem.code).to eq("mcp_sidecar_failure")
+      }
 
       log = run.job_logs.order(:sequence).last
       expect(log.kind).to eq("system")
@@ -383,10 +385,36 @@ RSpec.describe Steps::Base, :ci_only do
           required_mcp_tools: %w[submit_review_notes],
           enforce_required_mcp_tools: true
         )
-      }.to raise_error(Steps::Base::StepFailed, "required MCP tool(s) were not called: submit_review_notes")
+      }.to raise_error(Steps::Base::StepFailed, "required MCP tool(s) were not called: submit_review_notes") { |error|
+        expect(error.problem.code).to eq("missing_required_tool_call")
+        expect(error.problem.evidence).to eq(tools: [ "submit_review_notes" ])
+      }
 
       chunks = run.job_logs.order(:sequence).pluck(:chunk)
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
+    end
+
+    it "declares unavailable provider resume as a retryable problem" do
+      result = AgentInvocation::Result.new(
+        turns: 0,
+        exit_status: 1,
+        timed_out: false,
+        is_error: true,
+        outcome: "error",
+        final_text: "resume session is stale and unavailable",
+        session_id: nil
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!).and_return(result)
+
+      expect {
+        handler.send(:run_agent, prompt: "continue")
+      }.to raise_error(Steps::Base::StepFailed) { |error|
+        expect(error.problem.code).to eq("agent_resume_unavailable")
+        expect(error.problem.retryable?).to be(true)
+      }
     end
 
     it "logs required MCP tool health as ok when Codex only records completed tool_result items" do

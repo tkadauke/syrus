@@ -52,6 +52,10 @@ posted, and the section updates live as proposals are created, confirmed,
 rejected, or withdrawn, so a proposal that scrolled out of view in a long
 chat is never effectively lost. The tab itself appears as soon as a chat has
 a pending proposal, even before anything is confirmed.
+While a chat agent is running, the message stream shows a compact activity
+indicator such as "running commands" or "searching code" when Syrus can derive
+that from the provider transcript, falling back to a generic working state
+when the provider format is unavailable or has drifted.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
@@ -630,8 +634,10 @@ paginated chat transcripts, inspect Solid Queue health, update the chat's
 pinned context for future turns, and create proposal cards for the operator
 to confirm. New chats use a short interpreted title from the first prompt,
 with the repository name as the fallback. The app sidebar groups recent chats
-by repository, and each repository group can be collapsed when the operator
-wants to fold that section away. Individual chats can be pinned or unpinned
+by repository by default, with sidebar settings for grouping by date, status,
+mode, chat type, or chat agent when those distinctions are available; each
+group can be collapsed when the operator wants to fold that section away.
+Individual chats can be pinned or unpinned
 from the sidebar actions menu, renamed through the same menu (or the
 `/rename` slash command), hidden from the sidebar and chat search, then
 restored from the Hidden chats section in user settings. The sidebar actions

@@ -39,6 +39,11 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::ReadPreviewLogTool,
         Mcp::Tools::SubmitSummaryTool,
         Mcp::Tools::SubmitTestPlanTool,
+        Mcp::Tools::SearchJobsTool,
+        Mcp::Tools::ListJobsTool,
+        Mcp::Tools::ListOpenPrsTool,
+        Mcp::Tools::ReadPrTool,
+        Mcp::Tools::ListOpenIssuesTool,
         SyrusMcp::SubmitArtifactTool,
         SyrusMcp::RunTargetPrepareTool,
         SyrusMcp::SubmitVisualArtifactTool,
@@ -53,7 +58,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(17)
+      expect(tools.size).to eq(22)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -63,10 +68,15 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(
         Mcp::Tools::ReadLiveStateTool,
         Mcp::Tools::ReadRunWorkerHealthTool,
+        Mcp::Tools::SearchJobsTool,
+        Mcp::Tools::ListJobsTool,
+        Mcp::Tools::ListOpenPrsTool,
+        Mcp::Tools::ReadPrTool,
+        Mcp::Tools::ListOpenIssuesTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
-      expect(tools.size).to eq(7)
+      expect(tools.size).to eq(12)
     end
 
     it "excludes report_main_concern from the adversarial_reviewer role" do
@@ -84,6 +94,11 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::ReadLiveStateTool,
         Mcp::Tools::StartPreviewTool,
         Mcp::Tools::StopPreviewTool,
+        Mcp::Tools::SearchJobsTool,
+        Mcp::Tools::ListJobsTool,
+        Mcp::Tools::ListOpenPrsTool,
+        Mcp::Tools::ReadPrTool,
+        Mcp::Tools::ListOpenIssuesTool,
         Mcp::Tools::SubmitVisualReviewTool,
         SyrusMcp::SubmitVisualArtifactTool,
         SyrusMcp::ListArtifactsTool,
@@ -95,7 +110,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitArtifactTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools.size).to eq(10)
+      expect(tools.size).to eq(15)
     end
 
     it "excludes report_main_concern from the visual_reviewer role" do

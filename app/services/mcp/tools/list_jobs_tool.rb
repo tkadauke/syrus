@@ -18,23 +18,34 @@ module Mcp::Tools
       include McpToolPayloads::JobPayload
 
       def call(server_context:, state: "open", label: nil, limit: 20)
-        chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
         state = state.to_s.presence || "open"
         return Mcp::Tools.invalid("state must be open or closed") unless %w[open closed].include?(state)
 
-        limit = normalize_limit(limit)
-        base_scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
-        scope = base_scope.order(created_at: :desc, id: :desc)
+        scope = job_scope(context).order(created_at: :desc, id: :desc)
         scope = state == "open" ? scope.open_threads : scope.closed_threads
         scope = apply_label_filter(scope, label)
         return scope if scope.is_a?(MCP::Tool::Response)
 
         Mcp::Tools.success(
-          jobs: scope.limit(limit).map { |job| job_list_payload(job) }
+          jobs: scope
+            .limit(normalize_limit(limit))
+            .preload(:repository)
+            .map { |job| job_list_payload(job) }
         )
       end
 
       private
+
+      def job_scope(context)
+        if context.run?
+          Job.accessible_to(context.user).where(repository_id: context.allowed_repository_ids)
+        elsif context.user.admin?
+          Job.all
+        else
+          context.user.jobs
+        end
+      end
 
       def normalize_limit(value)
         value.to_i.clamp(1, 100)

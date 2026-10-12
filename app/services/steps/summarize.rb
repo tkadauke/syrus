@@ -117,7 +117,8 @@ module Steps
       source = from || run
       if source.agent_pr_title.blank?
         capture_mcp_sidecar_stderr
-        raise StepFailed, "agent didn't call submit_summary"
+        fail_with!(:missing_required_tool_call, "agent didn't call submit_summary",
+                   evidence: { tool: "submit_summary" })
       end
 
       workflow.set_artifact!("pr_title", utf8(source.agent_pr_title))

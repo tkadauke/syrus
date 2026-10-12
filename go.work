@@ -1,4 +1,4 @@
-go 1.25.0
+go 1.26.0
 
 // The CLI and the command sets that bundled plugins contribute to it.
 //
@@ -14,11 +14,17 @@ go 1.25.0
 // instance. Go allows that; only the *package* graph has to be acyclic, and
 // it is.
 use ./cli
+
 use ./plugins/scheduled_tasks/cli
+
 use ./plugins/k8s_cluster/cli
+
 use ./plugins/credential_store/cli
+
 use ./plugins/global_search/cli
+
 use ./plugins/design_docs/cli
+
 use ./plugins/spending_insights/cli
 
 // Container sources a plugin owns. `plugins/*/container` is the service image
@@ -27,6 +33,9 @@ use ./plugins/spending_insights/cli
 // the plugin deletes the container with it. Listed so the repo-wide
 // `go test $(go list -m -f '{{.Dir}}/...')` covers them.
 use ./plugins/plugin_runtime/container
+
 use ./plugins/git_mirror/container
+
 use ./plugins/browser/container
+
 use ./plugins/tailscale/container

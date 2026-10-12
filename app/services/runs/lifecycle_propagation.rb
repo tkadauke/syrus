@@ -187,19 +187,25 @@ module Runs
         return
       end
 
-      return if ProviderUsageLimit.inconclusive?(text)
-      return unless agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||
-        failure_classification_record&.classification == ProviderUsageLimit::CLASSIFICATION ||
-        ProviderUsageLimit.detect?(text)
+      if agent_outcome.to_s.in?(ProviderRateLimitEvidence::OUTCOMES) || explicit_rate_limited_classification?
+        ProviderAvailabilityEvidence.record_invocation_rate_limit!(
+          run: run,
+          message: text,
+          observed_at: finished_at || Time.current
+        )
+        return
+      end
+
+      return unless ProviderUsageLimit.for_run?(run, text)
 
       ProviderAvailabilityEvidence.record_invocation_usage_limit!(
         run: run,
-        model: ProviderUsageLimit.extract_model(text),
+        model: ProviderUsageLimit.extract_model(text, run: run),
         message: text,
         observed_at: finished_at || Time.current
       )
     rescue StandardError => e
-      Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record provider usage failure for Run ##{run.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record provider failure for Run ##{run.id}: #{e.class}: #{e.message}")
       nil
     end
 
@@ -252,6 +258,12 @@ module Runs
 
     def failure_classification_record
       @failure_classification_record || run_failure_classification
+    end
+
+    def explicit_rate_limited_classification?
+      return false unless failure_classification_record&.classification == "rate_limited"
+
+      Array(failure_classification_record.classifier_inputs&.fetch("job_log_kinds", [])).include?("rate_limited")
     end
 
     def wake_workflow_admission_after_completion!

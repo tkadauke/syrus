@@ -362,15 +362,19 @@
 - **GitHub issue actions** — Repository pages can list GitHub issues and
   comment, close, delegate (add the trigger label), or bulk delegate/close
   them through `GithubClient`. Keep single and bulk paths in sync.
-- **Syrus Epic issue markers are body-only.** `PollRepositoryJob` parses
-  `Epic:` markers from the GitHub issue body, not from the title. When filing
-  a GitHub issue that should become a Syrus Epic, put a standalone
-  `Epic: <epic name>` line near the top of the body. A title like
-  `Epic: ...` is only display text and will be ingested as a normal Job. Child
-  Jobs under an Epic need a standalone `Epic: #<issue-number>` body line. When
-  filing child issues immediately after an Epic issue, first verify the Epic
-  exists through the admin API or create the Epic via the admin API; otherwise
-  the children remain in `pending_epic_ref`.
+- **Syrus Epic issue markers are explicit machine markers.**
+  `PollRepositoryJob` parses only Syrus-owned HTML comments from the GitHub
+  issue body, not the title or natural-language prose. When filing a GitHub
+  issue that should become a Syrus Epic, put `<!-- syrus-epic: <epic name> -->`
+  near the top of the body. Child Jobs under an Epic need
+  `<!-- syrus-epic: #<issue-number> -->`; use `owner/repo#<issue-number>` for
+  cross-repository Epic references. A visible line such as `Epic: ...` is only
+  issue text and will be ingested as a normal Job. Existing templates can
+  migrate by wrapping the old line in a block comment:
+  `<!-- syrus-epic\nEpic: #123\n-->`. When filing child issues immediately
+  after an Epic issue, first verify the Epic exists through the admin API or
+  create the Epic via the admin API; otherwise the children remain in
+  `pending_epic_ref`.
 - **GitHub identifiers are links.** Whenever the UI renders a GitHub issue
   or pull request identifier (`#123`, `PR #123`, `owner/repo#123`), make it
   clickable to the matching GitHub page when a URL can be derived. Plain

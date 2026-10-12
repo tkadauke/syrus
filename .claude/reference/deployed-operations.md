@@ -13,20 +13,22 @@ gh issue create -R "$SYRUS_TEST_REPO" --label syrus \
   --title "..." --body "..."
 ```
 
-For Syrus Epics, the body must contain the marker line. The title alone is not
-enough:
+For Syrus Epics, the body must contain the explicit Syrus marker comment. The
+title alone is not enough:
 
 ```
-Epic: <epic name>
+<!-- syrus-epic: <epic name> -->
 
 ## Goal
 ...
 ```
 
-Child issues that belong to that Epic use `Epic: #<epic-issue-number>` in
-their body. If you create the Epic and child issues in one batch, verify the
-Epic record exists in Syrus before filing children, or create the Epic through
-the admin API first.
+Child issues that belong to that Epic use
+`<!-- syrus-epic: #<epic-issue-number> -->` in their body. If an existing
+template already has an `Epic: ...` line, wrap it in a marker block:
+`<!-- syrus-epic\nEpic: #123\n-->`. If you create the Epic and child issues in
+one batch, verify the Epic record exists in Syrus before filing children, or
+create the Epic through the admin API first.
 
 For production Syrus inspection or operations, prefer the bearer-token admin API
 before shelling into Kubernetes or running Rails console commands. Local admin

@@ -507,6 +507,54 @@ describe("ProposalCard layout", () => {
 
     expect(screen.getByText("mode: deployment stage · stage: staging")).toBeInTheDocument()
   })
+
+  it("shows planned execution capabilities on Job proposal metadata", () => {
+    renderProposalCard(proposal({
+      kind: "job",
+      kind_label: "Job",
+      planned_execution: {
+        capabilities: { os: ["linux"], arch: ["x86_64"] },
+        source: "operator"
+      }
+    }))
+
+    expect(screen.getByText("Capabilities")).toBeInTheDocument()
+    expect(screen.getByText("os: linux · arch: x86_64")).toBeInTheDocument()
+  })
+
+  it("shows planned execution capabilities on Epic child proposals", () => {
+    renderProposalCard(proposal({
+      kind: "epic",
+      kind_label: "Epic",
+      epic_bundle: true,
+      children: [{
+        id: 18,
+        title: "Child",
+        slug: "child",
+        body: "Build it.",
+        state: "proposed",
+        state_label: "Proposed",
+        proposed: true,
+        repository_slug: "tkadauke/syrus",
+        dependencies: [],
+        depends_on_job_ids: [],
+        dependency_requirements: [],
+        depends_on_epic_ids: [],
+        media_ids: [],
+        dependency_details: [],
+        planned_execution: {
+          capabilities: { os: ["macos"], runtime: ["ios_simulator"] },
+          source: "operator"
+        },
+        app_update_path: "/api/v1/app/chats/122/proposals/18",
+        app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
+      }]
+    }))
+
+    fireEvent.click(screen.getByText("Child"))
+
+    expect(screen.getByText("Capabilities: os: macos · runtime: ios_simulator")).toBeInTheDocument()
+  })
 })
 
 describe("ProposalCard media", () => {

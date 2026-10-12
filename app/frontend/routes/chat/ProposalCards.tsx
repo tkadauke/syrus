@@ -48,6 +48,7 @@ import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
+import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { appendSearch, jobsTabVisible, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
 import {
   pendingActionBadgeLabel,
@@ -77,6 +78,19 @@ function PillList({ values }: { values: string[] }) {
       ))}
     </div>
   )
+}
+
+function plannedExecutionCapabilitiesText(plannedExecution: ChatProposal["planned_execution"]) {
+  const entries = workerCapabilityEntries(plannedExecution?.capabilities)
+  if (entries.length === 0) return null
+
+  const byDimension = new Map<string, string[]>()
+  entries.forEach((entry) => {
+    byDimension.set(entry.dimension, [...(byDimension.get(entry.dimension) || []), entry.value])
+  })
+  return Array.from(byDimension.entries())
+    .map(([dimension, values]) => `${dimension}: ${values.join(", ")}`)
+    .join(" · ")
 }
 
 export function ProposalEditModal({
@@ -1467,6 +1481,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   const { t } = useT("chat")
   const routeLabel = proposal.route_to_backlog ? t("proposal_route_backlog") : t("proposal_route_start_normally")
   const dependencyLabels = proposalDependencyLabels(proposal)
+  const capabilitiesText = plannedExecutionCapabilitiesText(proposal.planned_execution)
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
       <div>
@@ -1489,6 +1504,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
         <div>
           <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_provider")}</dt>
           <dd>{proposal.provider_setting}</dd>
+        </div>
+      ) : null}
+      {capabilitiesText ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_capabilities")}</dt>
+          <dd>{capabilitiesText}</dd>
         </div>
       ) : null}
       <div>
@@ -1630,10 +1651,15 @@ function ProposalChildren({
                   {t("proposal_provider")}: {child.provider_setting}
                 </span>
               ) : null}
+              {plannedExecutionCapabilitiesText(child.planned_execution) ? (
+                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  {t("proposal_capabilities")}: {plannedExecutionCapabilitiesText(child.planned_execution)}
+                </span>
+              ) : null}
             </div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
             {child.goal_provenance ? (
-              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>
+              <div className="mt-2 text-xs text-text-secondary" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>
                 {t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}
               </div>
             ) : null}

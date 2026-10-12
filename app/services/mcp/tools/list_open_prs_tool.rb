@@ -22,14 +22,16 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, state: "open", limit: DEFAULT_LIMIT)
-        chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        repository = repository_for(context)
+        return repository if repository.is_a?(MCP::Tool::Response)
         state = state.to_s.presence || "open"
         return Mcp::Tools.invalid("state must be open, closed, or merged") unless %w[open closed merged].include?(state)
 
         pull_requests = GithubClient
-          .for(repository: chat_session.repository, user: chat_session.user)
+          .for(repository: repository, user: context.user)
           .list_pull_requests_for_triage(
-            chat_session.repository.slug,
+            repository.slug,
             state: state,
             limit: normalize_limit(limit)
           )
@@ -42,6 +44,15 @@ module Mcp::Tools
       end
 
       private
+
+      def repository_for(context)
+        repository = context.repository
+        return Mcp::Tools.invalid("repository context is required") unless repository
+        return repository unless context.run?
+        return repository if context.allowed_repository_ids.include?(repository.id)
+
+        Mcp::Tools.not_authorized
+      end
 
       def normalize_limit(value)
         limit = value.to_i

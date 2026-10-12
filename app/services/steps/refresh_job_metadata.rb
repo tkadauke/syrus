@@ -14,7 +14,10 @@ module Steps
         required_mcp_tools: %w[submit_job_metadata]
       )
 
-      raise StepFailed, "agent didn't call submit_job_metadata" unless workflow.reload.artifact("job_metadata").is_a?(Hash)
+      return if workflow.reload.artifact("job_metadata").is_a?(Hash)
+
+      fail_with!(:missing_required_tool_call, "agent didn't call submit_job_metadata",
+                 evidence: { tool: "submit_job_metadata" })
     end
 
     private

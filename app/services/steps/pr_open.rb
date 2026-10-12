@@ -122,6 +122,8 @@ module Steps
       record_local_pr_link!(pr_number: pr_number, target_repository: upstream)
       transition_job_to_implemented!
       refresh_stack_footer
+    rescue Octokit::UnprocessableEntity => e
+      raise_pr_open_unprocessable!(e)
     end
 
     # Opens a staging review PR on the fork (feature branch → fork default branch).
@@ -151,6 +153,8 @@ module Steps
         branch_name: workspace.branch_name
       )
       transition_job_to_implemented!
+    rescue Octokit::UnprocessableEntity => e
+      raise_pr_open_unprocessable!(e)
     end
 
     # Opens a PR on the job's effective target repository (non-fork path).
@@ -177,6 +181,8 @@ module Steps
       record_local_pr_link!(pr_number: pr_number, target_repository: target_repo)
       transition_job_to_implemented!
       refresh_stack_footer
+    rescue Octokit::UnprocessableEntity => e
+      raise_pr_open_unprocessable!(e)
     end
 
     # Additive write alongside the legacy pr_number/pr_repository_id columns
@@ -195,6 +201,20 @@ module Steps
         target_repository_id: target_repository.id,
         target_ref: pr_base_branch,
         pr_number: pr_number
+      )
+    end
+
+    def raise_pr_open_unprocessable!(error)
+      raise error unless error.message.to_s.match?(/No commits between/i)
+
+      fail_with!(
+        :pr_open_no_commits_between,
+        "pr_open: GitHub rejected PR creation because the publication branch has no commits against base",
+        evidence: {
+          branch: workspace.branch_name,
+          base: pr_base_branch,
+          github_error: error.message.to_s.truncate(500)
+        }
       )
     end
 

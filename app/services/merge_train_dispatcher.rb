@@ -43,6 +43,7 @@ class MergeTrainDispatcher
 
       members.each_with_index do |job, index|
         job.landing_failure_reason = nil
+        job.landing_failure_code = nil
         job.start_landing!
         job.save!
         MergeTrainMember.create!(merge_train: train, job: job, position: index)
@@ -114,23 +115,20 @@ class MergeTrainDispatcher
   end
 
   def cooling_down_failure
-    excluded_failure_patterns = [
-      "merge_train: base moved%",
-      "merge_train: missing built base SHA%",
-      "merge_train: members not in :landing%",
-      "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
-      "#{MergeTrain::STALE_RUNTIME_FAILURE_REASON}%"
-    ]
-
     MergeTrain
       .where(epic_id: @epic.id, state: "failed")
-      .where(
-        "failure_reason IS NULL OR (#{excluded_failure_patterns.map { "failure_reason NOT LIKE ?" }.join(" AND ")})",
-        *excluded_failure_patterns
-      )
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)
-      .first
+      .find { |train| !skip_cooldown_failure?(train) }
+  end
+
+  def skip_cooldown_failure?(train)
+    if train.failure_code.present?
+      return LandingFailureCode.resolve(train.failure_code)&.skip_merge_train_cooldown? || false
+    end
+
+    # Compatibility for MergeTrain rows written before failure_code existed.
+    LandingFailureCode.legacy_from_reason(train.failure_reason)&.skip_merge_train_cooldown? || false
   end
 
   def fix_replay_artifacts_for(members)

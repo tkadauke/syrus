@@ -1500,16 +1500,51 @@ RSpec.describe "Mcp::Tools admin tools" do
     payload = payload_for(response)
 
     expect(payload).to include(:request_handler, :instances)
-    expect(payload).to include(:worker_health)
+    expect(payload).not_to have_key(:worker_health)
     expect(payload.fetch(:instances).first).to include(
       id: instance.id,
       hostname: "syrus-worker-a",
       role: "worker",
       version: "abc123",
       started_at: instance.started_at.iso8601,
-      capabilities: { os: [ "linux" ] },
-      capability_diagnostics: { docker: true }
+      last_heartbeat_at: instance.last_heartbeat_at.iso8601,
+      data_root_usage: nil
     )
+    expect(payload.fetch(:instances).first).not_to have_key(:capabilities)
+    expect(payload.fetch(:instances).first).not_to have_key(:capability_diagnostics)
+  end
+
+  it "keeps admin_version compact even when health and capability diagnostics are large" do
+    12.times do |i|
+      hostname = "syrus-worker-#{i}"
+      InstanceVersion.create!(
+        hostname: hostname,
+        role: "worker",
+        version: "abc123",
+        started_at: 5.minutes.ago,
+        last_heartbeat_at: 10.seconds.ago,
+        capabilities: { "os" => [ "linux" ], "large" => Array.new(50) { |j| "capability-#{i}-#{j}" } },
+        capability_diagnostics: { "probe_output" => "x" * 4_000 }
+      )
+      WorkerHostHealthSample.create!(
+        hostname: hostname,
+        role: "worker",
+        version: "abc123",
+        observed_at: 1.minute.ago,
+        cpu_used_percent: 25,
+        memory_used_percent: 40,
+        data_root_used_percent: 50,
+        capabilities: { "large" => Array.new(50) { |j| "sample-capability-#{i}-#{j}" } },
+        capability_diagnostics: { "sample_probe_output" => "y" * 4_000 }
+      )
+    end
+
+    response = call_tool(admin_session, "admin_version")
+    payload = payload_for(response)
+
+    expect(payload).not_to have_key(:worker_health)
+    expect(payload.fetch(:instances).size).to eq(12)
+    expect(JSON.generate(payload).bytesize).to be < 12.kilobytes
   end
 
   it "returns worker health for admins with hostname filtering" do

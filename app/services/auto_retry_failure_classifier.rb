@@ -44,6 +44,10 @@ class AutoRetryFailureClassifier
   # site over adding a pattern here; a pattern cannot be checked against the
   # code it describes, which is how the merge-train entries below drifted out
   # of sync with the messages those steps actually raise.
+  #
+  # Keep these patterns to legacy rows and external tool/provider prose only.
+  # New Syrus-owned operational raise sites should use `fail_with!` or an
+  # exception class `problem_code` so the diagnostic carries the decision.
   NON_RETRYABLE_MESSAGE_PATTERNS = [
     /agent produced no changes/i,
     /agent didn't call submit_summary/i,
@@ -128,21 +132,20 @@ class AutoRetryFailureClassifier
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, "provider authentication token expired")
     end
 
+    diagnostic = run.run_diagnostic
+    # New Syrus-owned operational failures declare a Problem on the captured
+    # diagnostic. Read that before agent-outcome compatibility shims so outcome
+    # names such as `mcp_sidecar_failed` do not mask the canonical Problem code.
+    if diagnostic && (declared = declared_problem(diagnostic))
+      return declared.retryable? ? retryable(declared.code, "the step reported a retryable problem") \
+                                 : non_retryable(declared.code, "the step reported a non-retryable problem")
+    end
+
     outcome = run.agent_outcome.to_s.presence
     return non_retryable(outcome, NON_RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if NON_RETRYABLE_AGENT_OUTCOMES.key?(outcome)
     return retryable(outcome, RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if RETRYABLE_AGENT_OUTCOMES.key?(outcome)
 
-    diagnostic = run.run_diagnostic
     if diagnostic
-      # A step that declared its Problem already answered this question:
-      # Problem::Kind carries `retryable` per code. Consulted ahead of the
-      # message patterns below, which are a fourth private copy of the same
-      # judgement and were missing most of the merge-train failures they name.
-      if (declared = declared_problem(diagnostic))
-        return declared.retryable? ? retryable(declared.code, "the step reported a retryable problem") \
-                                   : non_retryable(declared.code, "the step reported a non-retryable problem")
-      end
-
       message = [ diagnostic.error_message, diagnostic.error_class ].compact.join(" ")
       return non_retryable("non_retryable_failure", "known user/code/config failure") if self.class.non_retryable_message?(message)
       return retryable(diagnostic.error_class, "retryable exception class") if retryable_error_class?(diagnostic.error_class)
@@ -190,9 +193,6 @@ class AutoRetryFailureClassifier
     diagnostic = run.run_diagnostic
     text = [
       run.agent_outcome,
-      run.agent_summary,
-      run.agent_pr_title,
-      run.agent_pr_body,
       diagnostic&.error_class,
       diagnostic&.error_message,
       diagnostic&.error_backtrace,
