@@ -90,7 +90,44 @@ the rest of the tree.
 | `hooks.post_checkout:` | Always runs after `syrus checkout`. | Runs when the checked-out diff touches the project, or as a fallback when the CLI cannot compute the diff. |
 | `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
 | `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
+| `merge_train:` | Repository merge-train escalation semantics. | Parsed as ordinary config, but merge trains are repository-level; keep escalation policy in the root file. |
 | `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
+
+### merge_train
+
+`merge_train.failure_policy` is an ordered escalation ladder for failed merge
+trains. It belongs in `.syrus.yml` because the rung order expresses repository
+workflow semantics: which recovery strategies are acceptable, and in what
+order Syrus should try them.
+
+```yaml
+merge_train:
+  failure_policy:
+    - keep_assembly
+    - restart
+```
+
+Attempt 1 starts at the first rung, attempt 2 at the second rung, and attempts
+past the end of the list fall back to `restart`. Unknown rung names are
+skipped, so a repository can commit a future ladder before every named rung is
+implemented by the running Syrus instance. The walk is bounded by the same
+automatic retry budget used for workflow repairs.
+
+Currently implemented rungs:
+
+- `restart` tears down the failed assembly and returns members through normal
+  landing-failure handling.
+- `keep_assembly` preserves the existing train and integration branch when the
+  failed run is classified as retryable.
+- `keep_fixes` preserves retryable failures like `keep_assembly`; for
+  rebuild-required stale-base failures, it leaves the failed integration branch
+  available so the replacement train can replay repair commits.
+
+When `merge_train.failure_policy` is confirmed absent, Syrus falls back to the
+instance `AppSetting.merge_train_failure_policy` compatibility default. If
+Syrus cannot parse or read the repository's default-branch `.syrus.yml`, it
+uses the conservative `restart` behavior instead of applying the instance
+default.
 
 ### capabilities
 
@@ -845,6 +882,29 @@ Optional graders are never carried forward by this setting; they run again when 
 The lookback is exactly one iteration: a grader that is itself carried forward (skipped, no Step of its own) on iteration N gets treated as needing a fresh run again on iteration N+1 rather than staying carried forward indefinitely. This is a self-correcting fallback, not a bug — it just means a long grade loop occasionally reruns a still-green grader instead of skipping it every single time.
 
 Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
+
+## merge_train
+
+Configures repository-local merge-train failure handling.
+
+```yaml
+merge_train:
+  failure_rungs: [multisect]
+```
+
+`failure_rungs` is an ordered list of enabled failure-response rungs. Today the
+supported repository-configured rung is `multisect`.
+
+The multisect section width is instance-wide:
+`AppSetting.merge_train_multisect_section_width` controls how many sections the
+walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
+spend more concurrent focused grades per round to reduce wall-clock rounds, so
+raise the setting only when the instance's worker/build capacity can absorb the
+extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
+inside the failed merge-train workflow; with distributed workflow DAG execution
+enabled for the repository, each focused section evaluation gets its own
+immutable-source workspace and Run. Terminal multisect results are record-only
+and preserve the train for the next rung or operator review.
 
 ## formatters
 

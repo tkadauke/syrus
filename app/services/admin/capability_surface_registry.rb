@@ -101,6 +101,8 @@ module Admin
 
     WORKFLOW_MCP_CAPABILITIES = %w[
       patch_workflow
+      propose_job
+      report_cannot_proceed
       run_target_prepare
       submit_adversarial_review
       submit_artifact

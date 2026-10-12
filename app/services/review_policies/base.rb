@@ -31,19 +31,36 @@ module ReviewPolicies
       ids = Array(user_ids).compact
       return false if ids.empty?
 
-      if @preloaded_approvals
-        @preloaded_approvals.any? { |approval| ids.include?(approval.user_id) }
+      if preloaded_approvals?
+        active_preloaded_approvals.any? { |approval| ids.include?(approval.user_id) }
       else
-        @job.job_approvals.where(user_id: ids).exists?
+        active_approval_scope.where(user_id: ids).exists?
       end
     end
 
     def approval_from_non_owner?
-      if @preloaded_approvals
-        @preloaded_approvals.any? { |approval| approval.user_id != effective_owner_id }
+      if preloaded_approvals?
+        active_preloaded_approvals.any? { |approval| approval.user_id != effective_owner_id }
       else
-        @job.job_approvals.where.not(user_id: effective_owner_id).exists?
+        active_approval_scope.where.not(user_id: effective_owner_id).exists?
       end
+    end
+
+    def preloaded_approvals?
+      !@preloaded_approvals.nil?
+    end
+
+    def active_approval_scope
+      scope = @job.job_approvals
+      return scope unless @job.approval_withdrawn_at.present?
+
+      scope.where("approved_at > ?", @job.approval_withdrawn_at)
+    end
+
+    def active_preloaded_approvals
+      return @preloaded_approvals unless @job.approval_withdrawn_at.present?
+
+      @preloaded_approvals.select { |approval| approval.approved_at > @job.approval_withdrawn_at }
     end
   end
 end

@@ -3,6 +3,8 @@
 # transient blockers auto-retry and genuine failures require operator
 # re-approval. See docs/plans/landing-merge-train.md.
 class MergeTrainFailureHandler
+  class_attribute :multisect_evaluator, default: nil
+
   def self.call(workflow:, cancelled: false) = new(workflow: workflow, cancelled: cancelled).call
 
   def initialize(workflow:, cancelled: false)
@@ -13,15 +15,19 @@ class MergeTrainFailureHandler
   def call
     train = merge_train
     return unless train
+    return handle_agent_withdrawal!(train) if agent_withdrawn_job_id.present?
     return if preserve_train_for_continuation_retry?
     return if preserve_train_for_failure_policy?
 
     reason = failure_reason
+    return if preserve_train_for_terminal_multisect_result?
+    return if !@cancelled && start_multisect_rung!(train)
+
     unless train.terminal?
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
 
-    delete_integration_branch(train)
+    delete_integration_branch(train) unless preserve_branch_for_fix_replay?(train)
 
     train.members.each do |member|
       next if member.state == "merged"
@@ -245,9 +251,12 @@ class MergeTrainFailureHandler
 
   # `restart` (the default) tears the assembly down and hands every member
   # back individually, so the next attempt rebuilds membership from the
-  # approved pool and regrades from scratch. Under `keep_assembly` an
-  # infrastructure failure leaves the train and its integration branch
-  # intact instead, so the retry reuses what was already assembled.
+  # approved pool and regrades from scratch. Under `keep_assembly`, or the
+  # first rung of `keep_fixes`, an infrastructure failure leaves the train
+  # and its integration branch intact instead, so the retry reuses what was
+  # already assembled. Rebuild-required failures are excluded because the
+  # assembly is known stale; `keep_fixes` can still preserve its branch for
+  # repair replay after the train is terminalized.
   #
   # Only retryable failures qualify. A member whose own code broke the train
   # must still fail out; preserving the assembly around it would wedge the
@@ -255,9 +264,147 @@ class MergeTrainFailureHandler
   # treated as attributable, which keeps the default conservative.
   def preserve_train_for_failure_policy?
     return false if @cancelled
-    return false unless AppSetting.merge_train_keeps_assembly_on_failure?
+    return false if MergeTrainFixReplay.stale_base_rebuild_required?(@workflow)
 
+    resolved_failure_policy.preserve_train?(retryable_failure: retryable_failure?)
+  end
+
+  def retryable_failure?
     failed_run&.run_failure_classification&.retryable == true
+  end
+
+  def preserve_train_for_terminal_multisect_result?
+    return false if @cancelled
+
+    result = @workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).to_h
+    return false unless result["status"].in?(%w[attributed aborted])
+
+    job_log(
+      @workflow.job,
+      "merge_train: focused multisect recorded #{result['reason']}; preserving the train for the next rung or operator review.",
+      kind: "system"
+    )
+    true
+  end
+
+  def handle_agent_withdrawal!(train)
+    reason = failure_reason
+    unless train.terminal?
+      train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+    end
+    delete_integration_branch(train)
+
+    train.members.includes(:job).each do |member|
+      job = member.job
+      if member.job_id == agent_withdrawn_job_id
+        LandingFailureHandler.call(job: job, reason: reason, run: nil) if job&.landing?
+      elsif job&.landing? && job.may_defer_landing?
+        job.landing_failure_reason = "merge_train_agent withdrew another member; rederive train without it"
+        job.defer_landing!
+        job.save! if job.changed?
+      end
+      member.update!(state: "failed", reason: reason.truncate(500)) unless member.state == "merged"
+    end
+  end
+
+  def agent_withdrawn_job_id
+    return @agent_withdrawn_job_id if defined?(@agent_withdrawn_job_id)
+
+    id = @workflow.artifact(Steps::MergeTrainAgent::WITHDRAWN_JOB_ID_ARTIFACT).to_i
+    @agent_withdrawn_job_id = id.positive? ? id : nil
+  end
+
+  def start_multisect_rung!(train)
+    config = merge_train_config
+    return false unless config&.failure_rungs&.include?("multisect")
+    return false if @workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY).present?
+    return false if @workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).present?
+
+    failed_step = failed_run&.step || @workflow.steps.where(state: "failed").order(:position).last
+    return false unless failed_step
+    return false unless @workflow.may_reopen?
+
+    prepare_step = nil
+    Step.transaction do
+      continuation = failed_step.next_step
+      insertion_position = failed_step.position + 1
+      @workflow.steps.where("position >= ?", insertion_position).update_all([ "position = position + ?", 2 ])
+      prepare_step = Step.create!(
+        workflow: @workflow,
+        kind: "merge_train_multisect_prepare",
+        position: insertion_position,
+        placement_policy: Step::Kind.fetch("merge_train_multisect_prepare").placement_policy_for(@workflow.job.repository),
+        depends_on_ids: [ failed_step.id ],
+        details: {
+          "selected_rung" => "multisect",
+          "merge_train_id" => train.id,
+          "failed_step_id" => failed_step.id,
+          "failed_step_kind" => failed_step.kind
+        }
+      )
+      collect_step = Step.create!(
+        workflow: @workflow,
+        kind: "merge_train_multisect_collect",
+        position: insertion_position + 1,
+        placement_policy: Step::Kind.fetch("merge_train_multisect_collect").placement_policy_for(@workflow.job.repository),
+        depends_on_ids: [ prepare_step.id ],
+        details: { "round" => 0, "phase" => "prepare" }
+      )
+
+      failed_step.update!(next_step_id: prepare_step.id)
+      prepare_step.update!(next_step_id: collect_step.id)
+      collect_step.update!(next_step_id: continuation&.id)
+      continuation&.update!(depends_on_ids: [ collect_step.id ])
+      @workflow.artifacts = @workflow.artifacts.to_h.merge(
+        Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY => Time.current.iso8601,
+        "merge_train_multisect_selected_rung" => "multisect"
+      )
+      @workflow.reopen!
+      @workflow.save!
+    end
+
+    job_log(@workflow.job, "merge_train: starting visible focused multisect attribution rung", kind: "system")
+    StepDispatcher.create_run_and_enqueue(prepare_step, @workflow)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] merge_train_multisect failed: #{e.class}: #{e.message}")
+    false
+  end
+
+  def merge_train_config
+    loaded = RepoDefaultBranchSyrusYml.for_job(@workflow.job)
+    return nil unless loaded.loaded?
+
+    loaded.config&.merge_train
+  end
+
+  def preserve_branch_for_fix_replay?(train)
+    return false if @cancelled
+
+    MergeTrainFixReplay.eligible_source?(train)
+  end
+
+  def resolved_failure_policy
+    MergeTrainFailurePolicy.resolve(
+      repository: @workflow.job&.repository,
+      attempt_number: failure_policy_attempt_number,
+      retry_classification: failure_policy_retry_classification
+    )
+  end
+
+  def failure_policy_attempt_number
+    run = failed_run
+    return 1 unless run
+
+    AutoRetryAttempt.budget_scope_for(
+      job: run.job,
+      agent_provider: run.agent_provider.presence || run.workflow&.agent_provider,
+      failure_classification: failure_policy_retry_classification
+    ).count + 1
+  end
+
+  def failure_policy_retry_classification
+    failed_run&.run_failure_classification&.classification || failed_run&.agent_outcome.to_s.presence || "unknown"
   end
 
   def merge_train

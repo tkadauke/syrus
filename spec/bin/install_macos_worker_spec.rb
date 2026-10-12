@@ -31,9 +31,18 @@ RSpec.describe "macOS worker installer" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")
       File.write(env_file, "SYRUS_DATA_ROOT=/tmp/syrus\napp_settings loaded\n")
+      shim_dir = File.join(dir, "bin")
+      Dir.mkdir(shim_dir)
+      uname = File.join(shim_dir, "uname")
+      File.write(uname, "#!/usr/bin/env sh\nprintf 'Darwin\\n'\n")
+      File.chmod(0o755, uname)
 
       stdout, stderr, status = Open3.capture3(
-        { "SUDO_USER" => ENV.fetch("USER"), "USER" => "root" },
+        {
+          "PATH" => "#{shim_dir}:/usr/bin:/bin",
+          "SUDO_USER" => ENV.fetch("USER", "syrus-test"),
+          "USER" => "root"
+        },
         "bash", script, "--dry-run", "--env-file", env_file,
         unsetenv_others: true
       )

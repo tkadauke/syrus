@@ -14,6 +14,24 @@ RSpec.describe SyrusYml do
     File.write(File.join(@dir, ".syrus.yml"), contents)
   end
 
+  it "parses merge train failure policy rungs" do
+    config = parse(<<~YAML)
+      merge_train:
+        failure_policy:
+          - keep_assembly
+          - keep_fixes
+          - restart
+    YAML
+
+    expect(config.merge_train.failure_policy).to eq([ "keep_assembly", "keep_fixes", "restart" ])
+  end
+
+  it "rejects malformed merge train configuration" do
+    expect {
+      parse("merge_train:\n  failure_policy: keep_assembly\n")
+    }.to raise_error(SyrusYml::ParseError, /merge_train\.failure_policy/)
+  end
+
   it "parses the full grade form" do
     config = parse(<<~YAML)
       grade:
@@ -2671,6 +2689,37 @@ RSpec.describe SyrusYml do
       expect {
         parse("target_graph:\n  imports:\n    - provider: bazel\n      config: nope\n")
       }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.config/)
+    end
+  end
+
+  describe "merge_train" do
+    it "parses the multisect failure rung" do
+      config = parse(<<~YAML)
+        merge_train:
+          failure_rungs: [multisect]
+      YAML
+
+      expect(config.merge_train.failure_rungs).to eq([ "multisect" ])
+    end
+
+    it "ignores legacy multisect section width config" do
+      config = parse(<<~YAML)
+        merge_train:
+          failure_rungs: [multisect]
+          multisect:
+            section_width: 1
+      YAML
+
+      expect(config.merge_train.failure_rungs).to eq([ "multisect" ])
+    end
+
+    it "rejects invalid failure rungs" do
+      expect {
+        parse(<<~YAML)
+          merge_train:
+            failure_rungs: [unknown]
+        YAML
+      }.to raise_error(SyrusYml::ParseError, /merge_train\.failure_rungs/)
     end
   end
 end

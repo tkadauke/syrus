@@ -176,9 +176,30 @@ The guarantee is **Epic consistency**: an Epic advances as a whole,
 green, dependency-closed set or not at all — there are never half-merged
 Epics on the base branch. If the grade-and-fix loop can't make the
 integrated tree green (or a child won't integrate), the whole attempt
-fails and nothing lands; the children revert to needing re-approval, and
-re-approving them re-dispatches a fresh train. Epic children land only via
-the train, never individually.
+fails and nothing lands. The repository can declare an ordered
+`merge_train.failure_policy` ladder in `.syrus.yml`; when that config is
+confirmed absent, Syrus uses the instance compatibility default. If the config
+cannot be parsed or read, Syrus takes the conservative `restart` path. The
+implemented rungs are `restart`, which tears the failed assembly down and
+returns members through normal landing-failure handling; `keep_assembly`, which
+preserves a retryable failed train for the next attempt; and `keep_fixes`,
+which also preserves repair commits for stale-base rebuilds. Epic children land
+only via the train, never individually.
+
+Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
+When a train's required graders fail, Syrus can validate that the focused
+selector reproduces on the full assembly, confirm the failure is not already
+known flaky or inherited from the base revision, and then section the train's
+members to attribute a single culprit. The rung is visible in the merge-train
+workflow as prepare, section-evaluation, and collect/narrow Steps. Section
+evaluations are separate Runs, and repositories with distributed workflow DAG
+execution enabled can run a round's focused subset checks across immutable
+worker workspaces. Before narrowing to a reproducing section, Syrus also
+confirms the omitted section so interaction failures are escalated instead of
+misattributed. A terminal multisect result is record-only: it preserves the
+train for the next rung or operator review instead of withdrawing members. The
+section width is an instance setting because wider rounds trade more concurrent
+focused grades for fewer wall-clock rounds.
 
 ### Manual
 

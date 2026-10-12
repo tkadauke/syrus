@@ -47,7 +47,18 @@ Branch refs are fetched through the repository's authenticated GitHub URL so pri
 
 Once the integration branch is assembled, `merge_train_build` immediately pushes it to the repository and records it as the workflow's required workspace branch. Workflow workspaces live on each worker's local disk, but every Run is picked up by whichever worker is free, so a train routinely continues on a machine that has no copy of the workspace and re-clones. Publishing the branch means that re-clone can check out the branch the train is actually about to land; recording it means `WorkflowWorkspace` refuses to substitute anything else. Without both, the re-clone fell back to a single member's branch, and every later step — graders, `landing_fix`, and finally the land push — silently operated on that member branch while reporting on the train.
 
-The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
+When `merge_train_failure_policy` is `keep_fixes`, a rebuilt train may carry a
+`merge_train_keep_fixes_source_train_id` artifact from a previous failed train.
+After member branches have been rebuilt on the current base, `merge_train_build`
+checks that the source and replacement trains have the same ordered member set.
+It then treats the source integration branch's commits minus the recorded member
+`LandedCommit` rows as repair commits and cherry-picks those repairs onto the
+rebuilt assembly before publishing. If the member set changed, the source branch
+is missing, or a repair cherry-pick conflicts, replay is skipped or aborted and
+the branch is reset to the rebuilt member-only tip before the workflow
+continues.
+
+The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too unless `keep_fixes` leaves a stale failed branch available for the replacement train. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
 
 Because the branch now exists on the remote before landing, `merge_train_land` states its `--force-with-lease` value explicitly (`--force-with-lease=refs/heads/<branch>:<remote tip from ls-remote>`). A bare `--force-with-lease` leases against the remote-tracking ref, and Syrus pushes to an authenticated URL rather than a named remote, so git has no tracking namespace to read and rejects the push with `stale info`. That only ever worked because the branch did not exist remotely until the landing push itself — with no ref to protect, git allowed it.
 
@@ -93,6 +104,27 @@ Three cases are handled before they can fail at all:
   Nothing has been published at that point, so this asks for a rebuild rather
   than failing the train and clearing every other member's approval.
 
+Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
+appears as visible `merge_train_multisect_prepare`,
+`merge_train_multisect_evaluate`, and `merge_train_multisect_collect` Steps in
+the failed merge-train workflow. Prepare records the selected rung, candidate
+members, focused selector, base/integration SHAs, section width, planned first
+sections, and oracle eligibility. Evaluation Steps run the focused subset
+checks; when distributed workflow DAG execution is enabled for the repository,
+those section evaluations use immutable-source workspaces so a round's
+`AppSetting.merge_train_multisect_section_width - 1` focused grades can fan out
+across workers. Collect validates that the full assembly oracle reproduced,
+checks the existing flaky/inherited-failure gates, narrows to the reproducing
+section, and schedules the next round or omitted-section confirmation.
+
+When one graded section reproduces, Syrus also confirms the omitted section
+before narrowing so an interaction with the omitted section cannot be
+misreported as a single culprit. Multiple reproducing sections abort as an
+interaction failure; an empty selector or a non-reproducing oracle aborts
+without attribution. On success Syrus records a `merge_train_multisect` workflow
+artifact naming the attributed member and preserves the train for the next rung
+or operator review. Automatic member withdrawal is not part of this rung.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
@@ -107,6 +139,19 @@ Operator-facing states:
 ## Grader validation
 
 Syrus then runs the required grader suite on the integration branch (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). Merge-train validation is pass/fail only and does not run `coverage_analyze`. If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
+
+If that normal bounded repair loop exhausts, merge trains get one additional
+bounded agent rung, `merge_train_agent`. This agent receives the assembled
+integration branch, the latest recorded failing set, and the train membership.
+It may make a focused repair on the integration branch or withdraw one
+evidence-backed culprit. A repair is not a merge decision: Syrus publishes the
+repaired integration branch, runs prepare and the normal landing graders again,
+and only then can `merge_train_land` run. A withdrawal stops the current train,
+routes the culprit through `LandingFailureHandler` so its approval is cleared
+and it returns to `implemented`, and defers the other members back to
+`approved` so the landing queue can rederive a train without the withdrawn
+member. The agent writes a durable `merge_train_agent` workflow artifact
+recording the action, evidence, and repair diff metadata or withdrawn member.
 
 ## Land phase
 

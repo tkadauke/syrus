@@ -25,7 +25,44 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
                       failure_reason: failure_reason)
   end
 
+  def record_retryable_failure!(workflow, job, classification: "worker_died")
+    step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+    run = Run.create!(job: job, step: step, trigger_kind: "merge_train", state: "failed")
+    RunFailureClassification.create!(
+      run: run, classification: classification, retryable: true, confidence: 0.95,
+      reason: "The failure can be retried automatically.",
+      classified_at: Time.current
+    )
+    run
+  end
+
+  def create_auto_retry_attempt!(workflow:, run:, classification:, attempt_number:, retry_kind: "retry_workflow")
+    AutoRetryAttempt.create!(
+      job: run.job,
+      workflow: workflow,
+      run: run,
+      agent_provider: run.agent_provider,
+      failure_classification: classification,
+      retry_kind: retry_kind,
+      attempt_number: attempt_number,
+      scheduled_at: Time.current
+    )
+  end
+
+  def stub_merge_train_failure_ladder(rungs)
+    content = "merge_train:\n  failure_policy:\n#{rungs.map { |rung| "    - #{rung}" }.join("\n")}\n"
+    stub_repository_content(repository, files: { SyrusYml::CONFIG_FILE => content })
+  end
+
   describe "#call" do
+    around do |example|
+      previous = described_class.multisect_evaluator
+      described_class.multisect_evaluator = nil
+      example.run
+    ensure
+      described_class.multisect_evaluator = previous
+    end
+
     # merge_train_build publishes the integration branch so the rest of the
     # chain is worker-independent. The landing path already deletes it on the
     # way out; a train that never lands has to as well, or every failed train
@@ -118,19 +155,98 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = build_workflow(train, a)
-      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
-      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
-      RunFailureClassification.create!(
-        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
-        reason: "The worker or agent process disappeared while the run was active.",
-        classified_at: Time.current
-      )
+      record_retryable_failure!(workflow, a)
 
       described_class.call(workflow: workflow)
 
       expect(train.reload).not_to be_terminal
       expect(train.members.first.reload.state).not_to eq("failed")
       expect(a.reload).to be_landing
+    end
+
+    it "lets the repository .syrus.yml ladder override the instance default" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_retryable_failure!(workflow, a)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "keeps using the instance default on later attempts when the repository has no ladder" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "maps the retry attempt to the repository .syrus.yml ladder rung" do
+      stub_merge_train_failure_ladder([ "restart", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "falls back to restart when the retry attempt is past the repository .syrus.yml ladder" do
+      stub_merge_train_failure_ladder([ "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a)
+      create_auto_retry_attempt!(workflow: workflow, run: run, classification: "worker_died", attempt_number: 1)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "skips unknown repository .syrus.yml ladder rungs" do
+      stub_merge_train_failure_ladder([ "future_rung", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      record_retryable_failure!(workflow, a)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
+    it "stops the repository .syrus.yml ladder at the automatic retry budget" do
+      stub_merge_train_failure_ladder([ "future_1", "future_2", "future_3", "keep_assembly" ])
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      run = record_retryable_failure!(workflow, a, classification: "rate_limited")
+      AutoRetryAttempt::MAX_ATTEMPTS.times do |index|
+        create_auto_retry_attempt!(workflow: workflow, run: run, classification: "rate_limited", attempt_number: index + 1, retry_kind: "failed_step")
+      end
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
     end
 
     it "still tears the train down under keep_assembly when the failure is not retryable" do
@@ -147,6 +263,175 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
 
       described_class.call(workflow: workflow)
 
+      expect(train.reload).to be_terminal
+      expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "withdraws only the agent-attributed culprit and defers the other members for a rederived train" do
+      culprit = member_job(issue_number: 1)
+      other = member_job(issue_number: 2)
+      culprit.update!(approved_at: 1.hour.ago, approved_via: "operator")
+      other.update!(approved_at: 1.hour.ago, approved_via: "operator")
+      train = build_train([ culprit, other ])
+      workflow = build_workflow(train, culprit, failure_reason: "merge_train_agent withdrew #{culprit.slug}")
+      workflow.set_artifact!(Steps::MergeTrainAgent::WITHDRAWN_JOB_ID_ARTIFACT, culprit.id)
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_agent", state: "failed", position: 5)
+      failed_run = Run.create!(job: culprit, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      RunDiagnostic.create!(
+        run: failed_run,
+        error_class: "Steps::Base::StepFailed",
+        error_message: "merge_train_agent withdrew #{culprit.slug}",
+        problem_code: "merge_train_rebuild_required"
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).to be_terminal
+      expect(culprit.reload).to be_implemented
+      expect(culprit.approved_at).to be_nil
+      expect(other.reload).to be_approved
+      expect(train.members.map(&:reload).map(&:state)).to all(eq("failed"))
+    end
+
+    it "starts the configured multisect rung as visible workflow steps" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(
+        train,
+        b,
+        failure_reason: "required graders failed",
+      )
+      workflow.update!(artifacts: workflow.artifacts.merge(
+        GraderLoopProgress::ARTIFACT_KEY => [
+          { "iteration" => 1, "failing_set" => [ "spec/a_spec.rb\u0000fails" ] }
+        ]
+      ))
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
+      config = SyrusYml::Config.new(
+        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
+        coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil,
+        merge_train: SyrusYml::MergeTrainConfig.new(failure_policy: nil, failure_rungs: [ "multisect" ]),
+        project: nil, targets: [], target_graph: nil, scripts: {}, visual_review: nil
+      )
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(b).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil, outcome: :loaded)
+      )
+      described_class.multisect_evaluator = ->(**) { raise "multisect should run through workflow steps" }
+      AppSetting.current.update!(merge_train_multisect_section_width: 2)
+
+      described_class.call(workflow: workflow)
+
+      workflow.reload
+      expect(workflow).to be_running
+      expect(workflow.steps.order(:position).pluck(:kind)).to include(
+        "merge_train_multisect_prepare",
+        "merge_train_multisect_collect"
+      )
+      expect(workflow.artifact(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY)).to be_present
+      expect(workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY)).to be_nil
+      expect(train.reload).not_to be_terminal
+    end
+
+    it "preserves members after multisect records an attributed member" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      workflow = build_workflow(train, b, failure_reason: "merge_train_multisect: attributed failure to #{a.slug}")
+      failed_step = Step.create!(workflow: workflow, kind: "merge_train_multisect_collect", state: "failed", position: 1)
+      Run.create!(job: b, step: failed_step, trigger_kind: "merge_train", state: "failed")
+      workflow.update_columns(state: "failed")
+      workflow.set_artifact!(Steps::MergeTrainMultisectStep::STARTED_ARTIFACT_KEY, Time.current.iso8601)
+      workflow.set_artifact!(
+        MergeTrainMultisect::ARTIFACT_KEY,
+        {
+          "status" => "attributed",
+          "reason" => "isolated_member",
+          "attributed_member" => MergeTrainMultisect.member_payload(train.members.find_by!(job: a))
+        }
+      )
+      expect(LandingFailureHandler).not_to receive(:call)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      expect(client).not_to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload).not_to be_terminal
+      expect(train.members.reload.map(&:state)).not_to include("failed")
+      expect(a.reload).to be_landing
+      expect(b.reload).to be_landing
+    end
+
+    it "tries the cheaper keep_assembly rung before keep_fixes on a retryable non-stale failure" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(train.reload).not_to be_terminal
+      expect(train.members.first.reload.state).not_to eq("failed")
+      expect(a.reload).to be_landing
+    end
+
+    it "keeps the old integration branch available for keep_fixes after a stale-base failure" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(
+        train,
+        a,
+        failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
+      )
+      workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(a.reload.state).to eq("approved")
+      expect(train.reload.state).to eq("failed")
+    end
+
+    it "does not keep fixes for a non-retryable failure" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "oldint123")
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "grader_failure", retryable: false, confidence: 0.9,
+        reason: "required graders failed", classified_at: Time.current
+      )
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
       expect(train.reload).to be_terminal
       expect(train.members.first.reload.state).to eq("failed")
     end

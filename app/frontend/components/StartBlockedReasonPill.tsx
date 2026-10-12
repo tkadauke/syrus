@@ -18,6 +18,7 @@ type StartBlockedReason =
   | "manual_pause"
   | "main_branch_health"
   | "dependency_failed"
+  | "dependency_approval_withdrawn"
   | "stack_dependencies_not_ready"
   | "stack_fan_in_base_unavailable"
   | "job_not_ready_for_execution"
@@ -26,6 +27,7 @@ type StartBlockedReason =
   | "resource_safety"
   | "ci_repair_safety"
   | "active_work_lock"
+  | "agent_cannot_proceed"
   | "auto_retry_backoff"
   | "no_capable_worker"
   | "visual_diff_obsolete"
@@ -40,6 +42,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   manual_pause: "gray",
   main_branch_health: "red",
   dependency_failed: "red",
+  dependency_approval_withdrawn: "amber",
   stack_dependencies_not_ready: "amber",
   stack_fan_in_base_unavailable: "amber",
   job_not_ready_for_execution: "amber",
@@ -48,6 +51,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   resource_safety: "amber",
   ci_repair_safety: "amber",
   active_work_lock: "gray",
+  agent_cannot_proceed: "red",
   auto_retry_backoff: "amber",
   no_capable_worker: "amber",
   visual_diff_obsolete: "gray",

@@ -228,11 +228,7 @@ module WorkEngine
         end
 
         def retry_budget_limit(retry_classification)
-          if retry_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-            AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS
-          else
-            AutoRetryAttempt::MAX_ATTEMPTS
-          end
+          AutoRetryAttempt.retry_budget_limit_for(retry_classification)
         end
 
         def retry_whole_workflow_safe?
@@ -1020,7 +1016,7 @@ module WorkEngine
             execution_steps: [ "StepDispatcher.clear_start_blocked!", "WorkUnits::Launcher.start!" ],
             preconditions: {
               workflow_state: "queued",
-              start_blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
+              start_blocked_reason: issue.evidence["start_blocked_reason"],
               unsatisfied_dependencies: []
             }
           )
