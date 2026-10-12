@@ -1208,6 +1208,7 @@
     "trigger_default": "Quaelibet invocatio agentis",
     "trigger_step": "Gradus: {{label}}",
     "trigger_chat_role": "Colloquium: {{label}}",
+    "trigger_legacy_task": "Munus pristinum: {{taskKey}}",
     "workflow_conditions": "Condiciones signi fluxus",
     "workflow_conditions_help": "Optionales. Vacuum relinque ut quodlibet genus signi fluxus conveniat.",
     "workflow_condition_pill": "Fluxus: {{label}}",

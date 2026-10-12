@@ -1208,6 +1208,7 @@
     "trigger_default": "Jeder Agentenaufruf",
     "trigger_step": "Step: {{label}}",
     "trigger_chat_role": "Chat: {{label}}",
+    "trigger_legacy_task": "Legacy-Aufgabe: {{taskKey}}",
     "workflow_conditions": "Workflow-Trigger-Bedingungen",
     "workflow_conditions_help": "Optional. Leer lassen, um jeden Workflow-Trigger-Typ zu treffen.",
     "workflow_condition_pill": "Workflow: {{label}}",
