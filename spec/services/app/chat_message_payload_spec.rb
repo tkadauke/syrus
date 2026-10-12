@@ -184,6 +184,25 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes planned execution requirements on proposal cards" do
+    proposal = chat.proposals.create!(
+      slug: "fix-xcode",
+      title: "Fix Xcode project",
+      body: "Repair the build.",
+      kind: "job",
+      planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      planned_execution_source: "operator"
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:proposal, :planned_execution)).to include(
+      "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      "source" => "operator"
+    )
+  end
+
   it "returns materialized job details for a confirmed job proposal" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Add inspection tools", state: "open")
     proposal = chat.proposals.create!(
