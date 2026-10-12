@@ -95,6 +95,20 @@ const legacyRules: ProviderRoutingRule[] = [
   }
 ]
 
+const emptyWorkflowConditionRules: ProviderRoutingRule[] = [
+  {
+    id: 41,
+    scope_type: "user",
+    scope_id: 3,
+    position: 1,
+    task_key: "default",
+    trigger: { type: "default" },
+    conditions: { workflow_trigger_kind: [] },
+    action: { strategy: "fallback_order", name: "Any workflow", candidates: [{ provider: "codex" }] },
+    candidates: [{ provider: "codex" }]
+  }
+]
+
 describe("ProviderRoutingRulesEditor", () => {
   it("renders ordered first-match rules with read-only inherited rows", () => {
     renderEditor({ inheritedContext, rules })
@@ -121,6 +135,14 @@ describe("ProviderRoutingRulesEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
     expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
+  })
+
+  it("does not render a blank workflow condition pill for empty workflow conditions", () => {
+    renderEditor({ rules: emptyWorkflowConditionRules })
+
+    expect(screen.getByText("Any workflow")).toBeInTheDocument()
+    expect(screen.getByText("Any agent invocation")).toBeInTheDocument()
+    expect(screen.queryByText(/^Workflow:/)).not.toBeInTheDocument()
   })
 
   it("edits, duplicates, deletes, and reorders rules through the API", async () => {
