@@ -218,6 +218,26 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(Job.order(:id).last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
   end
 
+  it "allows team-granted write collaborators to create direct jobs" do
+    repository
+    collaborator = Factories.user(email_address: "direct-job-team-writer@example.com", admin: false)
+    team = Team.create!(name: "Direct Job Writers")
+    team.team_memberships.create!(user: collaborator, role: "member")
+    team.team_repositories.create!(repository: repository, role: "write")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Team shared repo job",
+        prompt: "Work on the team-granted repository."
+      }
+    }.to change(Job, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    expect(Job.order(:id).last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
+  end
+
   it "forbids read-tier collaborators from creating direct jobs" do
     repository
     collaborator = Factories.user(email_address: "direct-job-reader@example.com", admin: false)

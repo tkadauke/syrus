@@ -148,6 +148,11 @@ module Mcp::Tools
 
         return Mcp::Tools.invalid("repo is required") if repo.to_s.strip.empty?
         return Mcp::Tools.invalid("repository not found") unless repository
+        unless RepositoryPolicy.new(chat_session.user, repository).write?
+          return Mcp::Tools.invalid(
+            "Only a repository member with write access, or an admin, can propose a Job for #{repository.slug}."
+          )
+        end
         return Mcp::Tools.invalid("title is required") if title.empty?
         return Mcp::Tools.invalid("description is required") if description.empty?
         provider_setting, provider_error = normalize_provider_setting(provider)

@@ -90,6 +90,27 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "refuses to file direct Job proposals for read-tier collaborators" do
+      repository
+      collaborator = Factories.user(email_address: "filer-reader@example.com", admin: false)
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      collaborator_session = ChatSession.create!(repository: repository, user: collaborator)
+      job_proposal = ChatProposal.create!(
+        chat_session: collaborator_session,
+        repository: repository,
+        slug: "read-only-job",
+        title: "Read-only Job",
+        body: "This should not be filed.",
+        kind: "job"
+      )
+      job_count = Job.count
+
+      expect {
+        described_class.new(user: collaborator, repository: repository).file!([ job_proposal ])
+      }.to raise_error(ArgumentError, /write access/)
+      expect(Job.count).to eq(job_count)
+    end
+
     it "wires Job proposal dependencies on existing Jobs" do
       prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
       job_proposal = proposal(

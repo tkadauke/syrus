@@ -139,8 +139,7 @@ class Repository < ApplicationRecord
   scope :active,   -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :accessible_to, ->(user) {
-    member_repo_ids = RepositoryMembership.where(user: user).select(:repository_id)
-    where(user_id: user.id).or(where(id: member_repo_ids))
+    where(id: accessible_repository_ids_for(user))
   }
 
   def archived?
