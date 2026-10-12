@@ -29,6 +29,8 @@ function makePayload(overrides: {
   chat_provider_labels?: Record<string, string>
   admin?: boolean
   codex_auth_mode?: string
+  provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
+  provider_routing_options?: CredentialsPayload["options"]["provider_routing_options"]
 } = {}): CredentialsPayload {
   return {
     user: {
@@ -69,7 +71,7 @@ function makePayload(overrides: {
     },
     github_rate_limit: null,
     provider_availability: {},
-    provider_routing_rules: [],
+    provider_routing_rules: overrides.provider_routing_rules ?? [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: overrides.agent_providers ?? ["agy", "claude", "codex"],
@@ -82,7 +84,7 @@ function makePayload(overrides: {
       recent_chats_group_size: { min: 1, max: 50 },
       clearable_credentials: [],
       auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }],
-      provider_routing_options: { agent_providers: [], effort_levels: [] }
+      provider_routing_options: overrides.provider_routing_options ?? { agent_providers: [], effort_levels: [] }
     }
   }
 }
@@ -177,6 +179,39 @@ describe("CredentialsRoute (provider cards)", () => {
     // and Agy both read the same gemini_api_key flag, so both show Connected.
     expect(screen.getAllByText("Connected")).toHaveLength(6)
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+  })
+
+  it("shows user default routing rules on the credentials page", async () => {
+    mockRoutes(makePayload({
+      provider_routing_rules: [
+        {
+          id: 41,
+          scope_type: "user",
+          scope_id: 1,
+          user_id: 1,
+          repository_id: null,
+          job_id: null,
+          position: 1,
+          task_key: "default",
+          trigger: { type: "default" },
+          conditions: {},
+          action: {
+            strategy: "fallback_order",
+            name: "Visual user default",
+            candidates: [{ provider: "codex" }]
+          },
+          candidates: [{ provider: "codex" }]
+        }
+      ],
+      provider_routing_options: {
+        agent_providers: [{ value: "codex", label: "Codex", configured: true, models: [] }],
+        effort_levels: []
+      }
+    }))
+    renderCredentials()
+
+    expect(await screen.findByRole("heading", { name: "My default routing" })).toBeInTheDocument()
+    expect(screen.getByText("Visual user default")).toBeInTheDocument()
   })
 
   it("renders a card error inside the failing card, not as a page-top banner stack", async () => {
