@@ -168,8 +168,11 @@ module Api
           when "job"
             policy_scope(Job).where.not(id: job.id).find_by(id: first)
           when "issue"
-            repository = policy_scope(Repository).find_by(id: first)
-            repository&.jobs&.where(kind: "issue", issue_number: second)&.where.not(id: job.id)&.order(created_at: :desc, id: :desc)&.first
+            policy_scope(Job)
+              .where(repository_id: first, kind: "issue", issue_number: second)
+              .where.not(id: job.id)
+              .order(created_at: :desc, id: :desc)
+              .first
           end
         end
 
