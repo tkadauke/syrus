@@ -121,7 +121,12 @@ module Workflows
           exhausted: false
         )
       else
-        ProviderRouting::AvailabilitySelector.call(job: job, task_key: trigger_kind, original_candidate: explicit_candidate)
+        ProviderRouting::AvailabilitySelector.call(
+          job: job,
+          task_key: trigger_kind,
+          workflow_trigger_kind: trigger_kind,
+          original_candidate: explicit_candidate
+        )
       end
       resolved_candidate = routed_selection.candidate
       model_selection = model.present? ? "explicit" : "default"

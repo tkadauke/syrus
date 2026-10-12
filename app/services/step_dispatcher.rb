@@ -602,6 +602,7 @@ class StepDispatcher
       ProviderRouting::AvailabilitySelector.call(
         job: workflow.job,
         task_key: task_key,
+        workflow_trigger_kind: workflow.trigger_kind,
         original_candidate: current_candidate
       )
     end
@@ -642,6 +643,8 @@ class StepDispatcher
     ProviderRouting::AvailabilitySelector.call(
       job: workflow.job,
       task_key: step.kind,
+      trigger: provider_invocation_for(step),
+      workflow_trigger_kind: workflow.trigger_kind,
       original_candidate: current_candidate
     ).candidate
   end
@@ -654,7 +657,19 @@ class StepDispatcher
     return false if step.blank?
     return false unless Step::AGENTIC_KINDS.include?(step.kind)
 
-    ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: step.kind, include_default: false)
+    ProviderRouting::Resolver.rule_configured?(
+      job: workflow.job,
+      task_key: step.kind,
+      trigger: provider_invocation_for(step),
+      workflow_trigger_kind: workflow.trigger_kind,
+      include_default: false
+    )
+  end
+
+  def self.provider_invocation_for(step)
+    return nil if step.blank?
+
+    { type: "step", kind: step.kind }
   end
 
   def self.workflow_has_agentic_run?(workflow)
@@ -671,7 +686,13 @@ class StepDispatcher
   def self.provider_availability_deferred?(step, workflow, candidate: nil)
     return false if step.runs.any?
 
-    provider_pause = ProviderAvailabilityPause.call(workflow: workflow, task_key: provider_task_key_for(step, workflow), candidate: candidate)
+    provider_pause = ProviderAvailabilityPause.call(
+      workflow: workflow,
+      task_key: provider_task_key_for(step, workflow),
+      trigger: step_specific_provider_task_key?(step, workflow) ? provider_invocation_for(step) : nil,
+      workflow_trigger_kind: workflow.trigger_kind,
+      candidate: candidate
+    )
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(step, workflow)
     unless provider_pause.pause?
       clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)

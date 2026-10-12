@@ -90,6 +90,28 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
     end
 
+    it "passes structured step triggers to the resolver" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )
+
+      expect(decision.candidate.provider).to eq("codex")
+    end
+
     it "marks an uncredentialed sole candidate exhausted with auth-error availability" do
       user.update!(codex_api_key: nil, agent_provider: "codex", provider_availability_pause_thresholds: { "codex" => 0 })
       allow(App::ProviderAvailability).to receive(:for_user)

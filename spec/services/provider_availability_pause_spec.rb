@@ -133,6 +133,44 @@ RSpec.describe ProviderAvailabilityPause do
       )
     end
 
+    it "uses structured step triggers when selecting failover" do
+      workflow.runs.delete_all
+      user.update!(
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test",
+        provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
+      )
+      allow(AgentProviders::Codex).to receive(:configured_for_user?).with(user).and_return(true)
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ workflow.trigger_kind ] },
+        action: {
+          strategy: "fallback_order",
+          candidates: [
+            { "provider" => "claude" },
+            { "provider" => "codex" }
+          ]
+        }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+        { state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
+
+      decision = described_class.call(
+        workflow: workflow,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: workflow.trigger_kind
+      )
+
+      expect(decision).not_to be_pause
+      expect(decision).to be_failover
+      expect(decision.failover.selected_provider).to eq("codex")
+    end
+
     it "does not select failover for a workflow that already has runs" do
       user.update!(
         codex_auth_mode: "api_key",

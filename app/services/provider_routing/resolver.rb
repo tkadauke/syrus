@@ -16,8 +16,8 @@ module ProviderRouting
       new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).call
     end
 
-    def self.rule_configured?(job:, task_key:, include_default: true)
-      new(job: job, task_key: task_key).send(:rule_configured?, include_default: include_default)
+    def self.rule_configured?(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, include_default: true)
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).send(:rule_configured?, include_default: include_default)
     end
 
     def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
@@ -136,12 +136,9 @@ module ProviderRouting
     end
 
     def matching_rule_from(rules)
-      invocations.each do |candidate_invocation|
-        matched = rules.detect { |rule| rule.matches?(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind || task_key) }
-        return matched if matched
+      rules.detect do |rule|
+        invocations.any? { |candidate_invocation| rule.matches?(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind || task_key) }
       end
-
-      nil
     end
 
     def invocations
