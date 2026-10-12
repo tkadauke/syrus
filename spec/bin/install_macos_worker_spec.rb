@@ -12,8 +12,8 @@ RSpec.describe "macOS worker installer" do
     source = File.read(script)
 
     expect(source).to include("ruby@3.4 node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go")
-    expect(source).to include('CLAUDE_CODE_VERSION="2.1.289"')
-    expect(source).to include('CODEX_CLI_VERSION="0.160.0"')
+    expect(source).to include('CLAUDE_CODE_VERSION="2.1.296"')
+    expect(source).to include('CODEX_CLI_VERSION="0.162.1"')
     expect(source).to include('git config --global credential.helper ""')
   end
 
