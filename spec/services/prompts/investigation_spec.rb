@@ -45,6 +45,14 @@ RSpec.describe Prompts::Investigation do
     expect(text).to match(/DO NOT call `submit_report` here/)
   end
 
+  it "instructs the agent to propose concrete follow-up work during the investigation step" do
+    text = build
+
+    expect(text).to include("`propose_job`")
+    expect(text).to match(/during this investigate step/)
+    expect(text).to match(/before and separately from the later\s+`submit_report` step/)
+  end
+
   it "includes epic context when present" do
     epic = Factories.epic(user: Factories.user)
     text = build(epic: epic)
