@@ -459,6 +459,30 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "shows process capabilities from fresh worker health samples when metadata and instance records omit them" do
+    sign_in_as(admin)
+    solid_queue_process(hostname: "mac-mini-a", pid: 101, metadata: { "queues" => "runs-macos-arm64" })
+    WorkerHostHealthSample.create!(
+      hostname: "mac-mini-a",
+      role: "worker",
+      version: "abc123",
+      worker_storage_key: "storage-mac",
+      observed_at: Time.current,
+      cpu_used_percent: 20,
+      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      capability_diagnostics: { "xcode" => true }
+    )
+
+    get "/api/v1/app/admin/queue/workers"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workers"].first).to include(
+      "hostname" => "mac-mini-a",
+      "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      "capability_diagnostics" => { "xcode" => true }
+    )
+  end
+
   it "passes explicit worker health time ranges through the workers payload" do
     sign_in_as(admin)
     travel_to Time.zone.parse("2026-07-31 12:30:30 UTC") do
