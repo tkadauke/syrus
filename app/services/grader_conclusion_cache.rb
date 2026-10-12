@@ -310,7 +310,8 @@ class GraderConclusionCache
         "required" => !!details["required"],
         "timeout_minutes" => details["timeout_minutes"].to_i,
         "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort,
-        "phase" => details["phase"].to_s
+        "phase" => details["phase"].to_s,
+        "execution_backend" => details["execution_backend"].to_s
       )
   end
   private_class_method :command_fingerprint_for

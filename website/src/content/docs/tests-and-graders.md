@@ -117,6 +117,22 @@ feels interactive, then run heavier checks at landing or during CI repair.
 Typed graders can generate those variants from one declaration; custom graders
 use `phases` directly.
 
+## Execution Backend
+
+Graders run with the core `Local` execution backend unless a repository opts
+into another backend. A repository-wide default applies to root and nested
+grader declarations:
+
+```yaml
+execution:
+  grader_backend: container_execution
+```
+
+Individual graders can override the repository default with
+`execution_backend`. `local` forces host execution; plugin backend names such
+as `container_execution` are used only when the plugin is enabled and
+available, otherwise Syrus falls back to `Local`.
+
 ## Required and Optional Checks
 
 Graders are required by default. Optional graders still run and appear in the
