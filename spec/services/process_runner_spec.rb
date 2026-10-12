@@ -123,6 +123,27 @@ RSpec.describe ProcessRunner, :ci_only do
     expect { Execution::Backend.new.run(request) }.to raise_error(NotImplementedError)
   end
 
+  it "falls back to the local backend when no enabled execution backend applies" do
+    backend = Class.new(Execution::Backend) do
+      include Syrus::Plugin::ExecutionBackend
+
+      def self.available_for?(_request) = false
+
+      def run(_request)
+        raise "should not be called"
+      end
+    end
+    Syrus::PluginRegistry.register(
+      name: "declining_execution_backend",
+      version: "1.0.0",
+      provides: { execution_backend: backend }
+    )
+
+    result = run_command(ruby, "-e", "exit 0")
+
+    expect(result).to be_success
+  end
+
   it "returns a failed result for nonzero exit" do
     result = run_command(ruby, "-e", "exit 7")
 
