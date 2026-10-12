@@ -23,11 +23,57 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, state: "open", label: nil, limit: DEFAULT_LIMIT)
-        lookup = Mcp::ReadOnlyRepositoryLookup.from_server_context(server_context)
-        denied = lookup.ensure_investigation_lookup_permitted
-        return denied if denied
+        context = McpToolContext.from_server_context(server_context)
+        repository = repository_for(context)
+        return repository if repository.is_a?(MCP::Tool::Response)
+        state = state.to_s.presence || "open"
+        return Mcp::Tools.invalid("state must be open or closed") unless %w[open closed].include?(state)
 
-        lookup.list_issues(state: state, label: label, limit: limit)
+        issues = GithubClient
+          .for(repository: repository, user: context.user)
+          .list_issues_for_triage(
+            repository.slug,
+            state: state,
+            label: label.to_s.presence,
+            limit: normalize_limit(limit)
+          )
+
+        Mcp::Tools.success(
+          issues: issues.map { |issue| issue_payload(issue) }
+        )
+      rescue ArgumentError, Octokit::Error => e
+        Mcp::Tools.invalid(e.message)
+      end
+
+      private
+
+      def repository_for(context)
+        repository = context.repository
+        return Mcp::Tools.invalid("repository context is required") unless repository
+        return repository unless context.run?
+        return repository if context.allowed_repository_ids.include?(repository.id)
+
+        Mcp::Tools.not_authorized
+      end
+
+      def normalize_limit(value)
+        limit = value.to_i
+        limit = DEFAULT_LIMIT unless limit.positive?
+        [ limit, MAX_LIMIT ].min
+      end
+
+      def issue_payload(issue)
+        {
+          number: issue.number,
+          title: issue.title,
+          labels: Array(issue.labels).map { |label| label.respond_to?(:name) ? label.name : label.to_s },
+          state: issue.respond_to?(:state) ? issue.state : nil,
+          author: issue.user&.login,
+          created_at: issue.created_at&.iso8601,
+          updated_at: issue.respond_to?(:updated_at) ? issue.updated_at&.iso8601 : nil,
+          url: issue.respond_to?(:html_url) ? issue.html_url : nil,
+          body_excerpt: issue.body.to_s.first(BODY_EXCERPT_LENGTH)
+        }
       end
     end
   end

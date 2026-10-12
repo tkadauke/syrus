@@ -15,12 +15,48 @@ module Mcp::Tools
     )
 
     class << self
-      def call(server_context:, state: "open", label: nil, limit: 20)
-        lookup = Mcp::ReadOnlyRepositoryLookup.from_server_context(server_context)
-        denied = lookup.ensure_investigation_lookup_permitted
-        return denied if denied
+      include McpToolPayloads::JobPayload
 
-        lookup.list_jobs(state: state, label: label, limit: limit)
+      def call(server_context:, state: "open", label: nil, limit: 20)
+        context = McpToolContext.from_server_context(server_context)
+        state = state.to_s.presence || "open"
+        return Mcp::Tools.invalid("state must be open or closed") unless %w[open closed].include?(state)
+
+        scope = job_scope(context).order(created_at: :desc, id: :desc)
+        scope = state == "open" ? scope.open_threads : scope.closed_threads
+        scope = apply_label_filter(scope, label)
+        return scope if scope.is_a?(MCP::Tool::Response)
+
+        Mcp::Tools.success(
+          jobs: scope
+            .limit(normalize_limit(limit))
+            .preload(:repository)
+            .map { |job| job_list_payload(job) }
+        )
+      end
+
+      private
+
+      def job_scope(context)
+        if context.run?
+          Job.accessible_to(context.user).where(repository_id: context.allowed_repository_ids)
+        elsif context.user.admin?
+          Job.all
+        else
+          context.user.jobs
+        end
+      end
+
+      def normalize_limit(value)
+        value.to_i.clamp(1, 100)
+      end
+
+      def apply_label_filter(scope, label)
+        label = label.to_s.strip
+        return scope if label.empty?
+        return scope.where(skip_prepare: true) if label == Job::PREPARE_SKIP_LABEL
+
+        Mcp::Tools.invalid("label filtering only supports #{Job::PREPARE_SKIP_LABEL.inspect} across user scope")
       end
     end
   end
