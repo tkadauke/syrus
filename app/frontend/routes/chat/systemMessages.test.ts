@@ -160,6 +160,7 @@ describe("crossChatBridgeSystemMessage", () => {
       tone: "neutral",
       label: "Cross-chat",
       body: "Sent to chat #42: check on JOB-1",
+      body_format: "markdown",
       cta: { label: "via Chat #42: Debugging session", path: "/chats/42" }
     })
   })
@@ -182,7 +183,8 @@ describe("crossChatBridgeSystemMessage", () => {
     expect(result).toEqual({
       tone: "warning",
       label: "Cross-chat",
-      body: "Cross-chat thread #7 reached its hop limit (6) and has been closed."
+      body: "Cross-chat thread #7 reached its hop limit (6) and has been closed.",
+      body_format: "markdown"
     })
   })
 

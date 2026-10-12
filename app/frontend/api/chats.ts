@@ -138,6 +138,7 @@ export type ChatSystemMessage = {
   tone: "success" | "warning" | "error" | "neutral"
   label: string
   body: string
+  body_format?: "plain" | "markdown"
   prominent?: boolean
   cta?: {
     label: string
