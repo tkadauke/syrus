@@ -92,13 +92,14 @@ export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: str
   if (!bridge || bridge.direction === "inbound") return null
 
   if (bridge.direction === "closed") {
-    return { tone: "warning", label: "Cross-chat", body: text }
+    return { tone: "warning", label: "Cross-chat", body: text, body_format: "markdown" }
   }
 
   return {
     tone: "neutral",
     label: "Cross-chat",
     body: text,
+    body_format: "markdown",
     cta: { label: crossChatBridgeLinkLabel(bridge), path: `/chats/${bridge.counterpart_chat_session_id}` }
   }
 }

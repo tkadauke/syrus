@@ -919,7 +919,11 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
       </div>
       {expanded ? (
         <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} data-testid="system-message-details">
-          <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
+          {item.body_format === "markdown" ? (
+            <Markdown className="break-words leading-relaxed" text={item.body} linkifyUrls />
+          ) : (
+            <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
+          )}
         </div>
       ) : null}
     </div>
