@@ -23,46 +23,11 @@ module Mcp::Tools
 
     class << self
       def call(server_context:, state: "open", label: nil, limit: DEFAULT_LIMIT)
-        chat_session = server_context.fetch(:chat_session)
-        state = state.to_s.presence || "open"
-        return Mcp::Tools.invalid("state must be open or closed") unless %w[open closed].include?(state)
+        lookup = Mcp::ReadOnlyRepositoryLookup.from_server_context(server_context)
+        denied = lookup.ensure_investigation_lookup_permitted
+        return denied if denied
 
-        issues = GithubClient
-          .for(repository: chat_session.repository, user: chat_session.user)
-          .list_issues_for_triage(
-            chat_session.repository.slug,
-            state: state,
-            label: label.to_s.presence,
-            limit: normalize_limit(limit)
-          )
-
-        Mcp::Tools.success(
-          issues: issues.map { |issue| issue_payload(issue) }
-        )
-      rescue ArgumentError, Octokit::Error => e
-        Mcp::Tools.invalid(e.message)
-      end
-
-      private
-
-      def normalize_limit(value)
-        limit = value.to_i
-        limit = DEFAULT_LIMIT unless limit.positive?
-        [ limit, MAX_LIMIT ].min
-      end
-
-      def issue_payload(issue)
-        {
-          number: issue.number,
-          title: issue.title,
-          labels: Array(issue.labels).map { |label| label.respond_to?(:name) ? label.name : label.to_s },
-          state: issue.respond_to?(:state) ? issue.state : nil,
-          author: issue.user&.login,
-          created_at: issue.created_at&.iso8601,
-          updated_at: issue.respond_to?(:updated_at) ? issue.updated_at&.iso8601 : nil,
-          url: issue.respond_to?(:html_url) ? issue.html_url : nil,
-          body_excerpt: issue.body.to_s.first(BODY_EXCERPT_LENGTH)
-        }
+        lookup.list_issues(state: state, label: label, limit: limit)
       end
     end
   end
