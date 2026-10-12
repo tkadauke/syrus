@@ -384,6 +384,26 @@ class McpToolRegistry
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
         ], step_kinds: %w[investigate submit_report], mutation: true),
+        workflow(Mcp::Tools::SearchJobsTool, capability: :investigation_lookup, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report]),
+        workflow(Mcp::Tools::ListJobsTool, capability: :investigation_lookup, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report]),
+        workflow(Mcp::Tools::ListOpenPrsTool, capability: :investigation_lookup, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report]),
+        workflow(Mcp::Tools::ReadPrTool, capability: :investigation_lookup, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report]),
+        workflow(Mcp::Tools::ListOpenIssuesTool, capability: :investigation_lookup, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
+        ], step_kinds: %w[investigate submit_report]),
         workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
         workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and
