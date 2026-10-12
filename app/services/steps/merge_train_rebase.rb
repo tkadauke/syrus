@@ -66,6 +66,7 @@ module Steps
       )
       unless source.reusable?
         log("merge_train_rebase: did not carry green grade across clean rebase - #{source.reason}", kind: "system")
+        log_carry_forward_decline!(grader_fingerprint, changed_files_fingerprint)
         return
       end
 
@@ -104,6 +105,24 @@ module Steps
     # reported as "required grader configuration changed" when the grader
     # configuration was identical. A clean rebase of an already-green
     # assembly regraded from scratch every time.
+    # The decline reason on its own is not diagnosable: "required grader
+    # configuration changed" reads identically whether the configuration truly
+    # changed or the two fingerprints were simply built different ways. That
+    # ambiguity cost four wrong diagnoses here, and a fix that matched the
+    # fingerprints by hand and passed its specs still declined in production.
+    # Record both sides so one log line settles it next time.
+    def log_carry_forward_decline!(grader_fingerprint, changed_files_fingerprint)
+      candidates = LandingValidationCache.carry_forward_candidates(job)
+      log(
+        "merge_train_rebase: carry-forward compared grader_fingerprint=#{grader_fingerprint.to_s.first(12).presence || '(none)'} " \
+        "changed_files_fingerprint=#{changed_files_fingerprint.to_s.first(12).presence || '(none)'} " \
+        "against #{candidates.size} candidate validation(s): #{candidates.to_json}",
+        kind: "system"
+      )
+    rescue StandardError => e
+      log("merge_train_rebase: could not describe carry-forward candidates: #{e.class}: #{e.message}", kind: "system")
+    end
+
     def current_landing_grader_fingerprint
       graph = TargetGraph::Compiler.compile(workspace.path)
       plan = LandingGraderPlan.landing(TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: graph))

@@ -143,6 +143,25 @@ class LandingValidationCache
   end
   private_class_method :recorded_workflows
 
+  # What a declined carry-forward actually compared. The reason alone --
+  # "required grader configuration changed" -- cannot tell a genuine config
+  # change apart from the two fingerprints being *built* differently, and that
+  # ambiguity survived four wrong diagnoses and a fix that passed its specs
+  # while still declining in production. Log the computed fingerprint beside
+  # every candidate's so the next decline is readable from one line.
+  def self.carry_forward_candidates(job)
+    validation_artifacts(job).map do |entry|
+      artifact = entry.fetch(:artifact)
+      {
+        "workflow_id" => entry.fetch(:workflow)&.id,
+        "grader_fingerprint" => artifact["grader_fingerprint"].to_s.first(12).presence,
+        "base_ref" => artifact["base_ref"].to_s.presence,
+        "validation_source" => artifact["validation_source"].to_s.presence,
+        "checked_at" => artifact["checked_at"].to_s.presence
+      }.compact
+    end
+  end
+
   def self.validation_artifacts(job)
     recorded_workflows(job).filter_map do |workflow|
       artifact = workflow.artifact(ARTIFACT_KEY)

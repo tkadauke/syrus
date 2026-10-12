@@ -497,4 +497,41 @@ RSpec.describe LandingValidationCache do
       expect(decision.reason).to eq("base ref changed from release to main")
     end
   end
+  describe ".carry_forward_candidates" do
+    # A declined carry-forward reports only a reason, and "required grader
+    # configuration changed" cannot distinguish a real config change from the
+    # two fingerprints being built differently. These descriptors are what
+    # makes the next decline readable without a fresh investigation.
+    it "describes each recorded validation it would compare against" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Factories.job_record(user: user, repository: repository)
+      workflow = Workflow.create!(job: job, trigger_kind: "merge_train")
+      described_class.record!(
+        workflow: workflow,
+        head_sha: "headsha1",
+        base_sha: "basesha1",
+        base_ref: "main",
+        grader_fingerprint: "abcdef0123456789",
+        changed_files_fingerprint: "ffff1111"
+      )
+
+      candidates = described_class.carry_forward_candidates(job.reload)
+
+      expect(candidates.size).to eq(1)
+      expect(candidates.first).to include(
+        "workflow_id" => workflow.id,
+        "grader_fingerprint" => "abcdef012345",
+        "base_ref" => "main"
+      )
+    end
+
+    it "is empty when the job has no recorded validation" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Factories.job_record(user: user, repository: repository)
+
+      expect(described_class.carry_forward_candidates(job)).to eq([])
+    end
+  end
 end
