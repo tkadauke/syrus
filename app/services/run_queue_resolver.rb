@@ -245,7 +245,11 @@ class RunQueueResolver
   end
 
   def capabilities_for_process(process)
-    WorkerCapabilities.normalize(process.metadata&.dig("capabilities").presence || instance_for_process(process)&.capabilities)
+    WorkerCapabilities.normalize(
+      process.metadata&.dig("capabilities").presence ||
+        instance_for_process(process)&.capabilities ||
+        latest_sample_for(process)&.capabilities
+    )
   end
 
   def capability_diagnostics_for_process(process)

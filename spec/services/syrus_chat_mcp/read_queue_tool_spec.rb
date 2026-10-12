@@ -85,6 +85,28 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
     expect(payload.fetch(:paused_queues)).to eq([ "control_plane" ])
   end
 
+  it "reports process capabilities from fresh worker health samples when metadata and instance records omit them" do
+    solid_queue_process(hostname: "mac-mini-a", pid: 101, metadata: { "queues" => "runs-macos-arm64" })
+    WorkerHostHealthSample.create!(
+      hostname: "mac-mini-a",
+      worker_storage_key: "storage-mac",
+      role: "worker",
+      version: "abc123",
+      observed_at: Time.current,
+      cpu_used_percent: 20,
+      capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+      capability_diagnostics: { "xcode" => true }
+    )
+
+    payload = response_payload(call_tool)
+
+    expect(payload.dig(:active_workers, :workers).first).to include(
+      hostname: "mac-mini-a",
+      capabilities: { os: [ "macos" ], arch: [ "arm64" ] },
+      capability_diagnostics: { xcode: true }
+    )
+  end
+
   def solid_queue_job(class_name:, queue_name:)
     SolidQueue::Job.create!(
       class_name: class_name,
