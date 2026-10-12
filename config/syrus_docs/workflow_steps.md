@@ -376,13 +376,14 @@ pins remain the most specific resolver input, so they are not overridden by
 user/repository routing rules. Chat providers are not switched by workflow
 routing or by `SwitchChatProviderJob`.
 
-Operators edit routing rules from the Agent section of account settings and
-from the Automation section of repository settings. Account rules apply to Jobs
-that use the user's defaults; repository rules override matching account rules
-for that repository and are gated by the same repository-admin permissions as
-other repository automation settings. Job detail surfaces can also edit
-Job-scoped overrides, gated by the same write permission used for Job mutation
-actions. The app API exposes scoped collections at
+Operators edit default routing rules from the credentials/account settings
+surfaces and repository-specific rules from the Automation section of repository
+settings. Account rules apply to Jobs that use the user's defaults; repository
+rules override matching account rules for that repository and are gated by the
+same repository-admin permissions as other repository automation settings. Job
+detail surfaces can also edit Job-scoped overrides, gated by the same write
+permission used for Job mutation actions. The app API exposes scoped
+collections at
 `/api/v1/app/credentials/provider_routing_rules`,
 `/api/v1/app/repositories/:repository_id/provider_routing_rules`, and
 `/api/v1/app/jobs/:job_id/provider_routing_rules`; each collection supports
