@@ -158,7 +158,9 @@ else
   fail "iOS simulator runtimes: simctl list failed"
 fi
 
-if [[ -d "$ROOT/.git" ]]; then
+if [[ -n "${GIT_SHA:-}" ]]; then
+  ok "release revision: $GIT_SHA"
+elif [[ -d "$ROOT/.git" ]]; then
   ok "release checkout: $ROOT"
 else
   warn "release checkout: $ROOT has no .git directory; set GIT_SHA explicitly"

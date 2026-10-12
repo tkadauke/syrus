@@ -128,7 +128,7 @@ RSpec.describe "native macOS worker scripts" do
   it "validates a macOS/Xcode host and production credentials without booting Rails" do
     Dir.mktmpdir do |dir|
       env_file = File.join(dir, "worker.env")
-      write_env(env_file)
+      write_env(env_file, "GIT_SHA" => "abc123")
       bin_dir = with_stubbed_host_bin(dir)
 
       stdout, stderr, status = Open3.capture3(
@@ -144,6 +144,8 @@ RSpec.describe "native macOS worker scripts" do
       expect(stdout).to include("OK   host os: Darwin")
       expect(stdout).to include("OK   full Xcode selected")
       expect(stdout).to include("OK   iOS simulator runtimes: at least one available runtime")
+      expect(stdout).to include("OK   release revision: abc123")
+      expect(stdout).not_to include("has no .git directory")
       expect(stdout).to include("OK   SOLID_QUEUE_CONFIG=config/queue.compute.yml")
       expect(stdout).to include("macos-worker-check: ok")
     end
