@@ -372,21 +372,36 @@ Operators edit routing rules from the Agent section of account settings and
 from the Automation section of repository settings. Account rules apply to Jobs
 that use the user's defaults; repository rules override matching account rules
 for that repository and are gated by the same repository-admin permissions as
-other repository automation settings. Rules are owned by a user even when they
-are scoped to a repository or a Job. Within each user, repository, or Job scope
-they have an explicit `position`; the resolver walks rules in order and uses
-the first matching rule, with Job-scoped rules before repository-scoped rules
-and repository-scoped rules before user-scoped rules. Existing `task_key` rows
-continue to work through a legacy trigger shape, but new rules store a
-structured `trigger` for actual agent invocations: agentic `Step::Kind` values
-or chat `AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget
-predicates, day/time windows, repository predicates, and Job metadata
-predicates live in the structured `conditions` payload. Provider selection
-lives in the structured `action` payload, which currently supports ordered
-fallback provider triples and reserves a weighted strategy for future load
-balancing. Candidate providers come from the enabled agent-provider plugin
-catalog, model choices come from that provider's `.available_models`, and
-`effort_level` can be left blank to use the provider default.
+other repository automation settings. Job detail surfaces can also edit
+Job-scoped overrides, gated by the same write permission used for Job mutation
+actions. The app API exposes scoped collections at
+`/api/v1/app/credentials/provider_routing_rules`,
+`/api/v1/app/repositories/:repository_id/provider_routing_rules`, and
+`/api/v1/app/jobs/:job_id/provider_routing_rules`; each collection supports
+CRUD plus a `PATCH .../reorder` action that updates every position in that
+one scope atomically. Repository and Job payloads include inherited rule
+context so an editor can show the account defaults, and for Jobs the
+repository overrides, that would apply underneath the current scope.
+
+Rules are owned by a user even when they are scoped to a repository or a Job.
+Within each user, repository, or Job scope they have an explicit `position`;
+the resolver walks rules in order and uses the first matching rule, with
+Job-scoped rules before repository-scoped rules and repository-scoped rules
+before user-scoped rules. Existing `task_key` rows continue to work through a
+legacy trigger shape, but new rules store a structured `trigger` for actual
+agent invocations: agentic `Step::Kind` values or chat
+`AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget predicates,
+day/time windows, repository predicates, and Job metadata predicates live in
+the structured `conditions` payload. Provider selection lives in the
+structured `action` payload, which currently supports ordered fallback
+provider triples and reserves a weighted strategy for future load balancing.
+Candidate providers come from the enabled agent-provider plugin catalog,
+model choices come from that provider's `.available_models`, and
+`effort_level` can be left blank to use the provider default. Editor options
+come from the same live registries: chat roles from `AgentRole`, agentic step
+kinds from `Step::Kind` including plugin-provided entries, workflow trigger
+conditions from `Workflow::TriggerKind`, and provider/model/effort data from
+the provider catalog.
 
 Direct Job creation and Job detail both expose the deeper job-level override.
 Choosing a provider there writes the Job's `job_provider_setting`,
