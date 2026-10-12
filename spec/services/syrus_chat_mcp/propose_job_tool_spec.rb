@@ -5,12 +5,16 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
-  def server
+  def server_for(session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [ described_class ],
-      server_context: { chat_session: chat_session }
+      server_context: { chat_session: session }
     )
+  end
+
+  def server
+    server_for(chat_session)
   end
 
   def call_tool(arguments)
@@ -264,6 +268,64 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       target_epic: epic
     )
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
+  end
+
+  it "rejects Job proposals for read-tier repository collaborators" do
+    repository
+    collaborator = Factories.user(email_address: "proposal-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
+    collaborator_server = server_for(collaborator_chat)
+
+    raw = collaborator_server.handle_json({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "propose_job",
+        arguments: {
+          repo: repository.slug,
+          title: "Read-only proposal",
+          description: "This should not create a proposal.",
+          planned_execution: default_planned_execution
+        }
+      }
+    }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("write access")
+    expect(collaborator_chat.proposals.find_by(title: "Read-only proposal")).to be_nil
+  end
+
+  it "creates Job proposals for team-granted write collaborators" do
+    repository
+    collaborator = Factories.user(email_address: "proposal-team-writer@example.com", admin: false)
+    team = Team.create!(name: "Proposal Writers")
+    team.team_memberships.create!(user: collaborator, role: "member")
+    team.team_repositories.create!(repository: repository, role: "write")
+    collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
+    collaborator_server = server_for(collaborator_chat)
+
+    raw = collaborator_server.handle_json({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "propose_job",
+        arguments: {
+          repo: repository.slug,
+          title: "Team proposal",
+          description: "This should create a proposal.",
+          planned_execution: default_planned_execution
+        }
+      }
+    }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = collaborator_chat.proposals.find_by!(title: "Team proposal")
+    expect(proposal.repository).to eq(repository)
   end
 
   it "stores an explicit planned execution override on the proposal and filed Job" do
