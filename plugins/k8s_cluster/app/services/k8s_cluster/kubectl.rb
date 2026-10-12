@@ -35,6 +35,7 @@ module K8sCluster
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
     FORBIDDEN_CONTEXT_PREFIXES = %w[--context= --namespace=].freeze
+    FORBIDDEN_NAMESPACE_PREFIXES = %w[--namespace= -n].freeze
 
     class Error < StandardError; end
     class InvalidCommand < Error; end
@@ -199,7 +200,7 @@ module K8sCluster
     end
 
     def contains_namespace_flag?
-      normalized_args.any? { |arg| arg == "--namespace" || arg == "-n" || arg.start_with?("--namespace=") }
+      normalized_args.any? { |arg| arg == "--namespace" || FORBIDDEN_NAMESPACE_PREFIXES.any? { |prefix| arg.start_with?(prefix) } }
     end
 
     def contains_forbidden_credential_flag?
