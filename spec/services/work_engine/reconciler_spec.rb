@@ -3236,6 +3236,28 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "does not repair a detached Run whose heartbeat is still fresh" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 30.seconds.ago
+    )
+    step.update_columns(kind: "prepare", state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "capture_diagnostics"
+    )
+    expect(result.repair_plans.map(&:action)).not_to include("mark_worker_died_and_retry_failed_step")
+    expect(run.reload).to be_running
+  end
+
   it "does not treat a live sibling Run queue execution as evidence for a detached Run" do
     ensure_solid_queue_test_tables!
     heartbeat_at = 4.minutes.ago

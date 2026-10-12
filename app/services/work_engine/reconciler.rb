@@ -798,16 +798,18 @@ module WorkEngine
         terminal_orphan_process = orphaned_terminal_process(terminal_process)
         terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process)
         heartbeat_stale = run_stale?(run)
+        heartbeat_fresh = fresh_activity?(run.last_heartbeat_at)
         queue_execution_live = solid_queue_execution_live?(run)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
         non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
         non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
-        repair_ready = terminal_orphan_ready ||
+        repair_ready = terminal_orphan_ready || (!heartbeat_fresh && (
           (heartbeat_stale && !live_process && !queue_execution_live) ||
           detached_ready ||
           (non_agentic_no_process_ready && !queue_execution_live)
+        ))
         next if !repair_ready && !detached && !terminal_orphan_process && !non_agentic_no_process && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)

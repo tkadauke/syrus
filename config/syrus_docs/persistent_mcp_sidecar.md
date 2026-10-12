@@ -40,8 +40,10 @@ bin/syrus-mcp-daemon
 This boots Rails once (same boot path as `bin/jobs`), then starts a
 [Puma::Server](https://github.com/puma/puma) bound to
 `SYRUS_PERSISTENT_MCP_HOST` (default `127.0.0.1`, loopback-only) and
-`SYRUS_PERSISTENT_MCP_PORT` (default `4805`). Worker processes lazy-start
-the daemon the first time a selector needs it; set
+`SYRUS_PERSISTENT_MCP_PORT` (default `4805`). Worker processes start and
+prewarm the daemon while booting, before Solid Queue advertises them for agent
+work. The transport selector still lazy-starts it as a recovery path if boot
+prewarming failed. Set
 `SYRUS_MCP_DAEMON_AUTO_START=0` to require an explicit `bin/syrus-mcp-daemon`
 process instead. `SIGTERM`/`SIGINT` stop the explicit daemon process
 gracefully.

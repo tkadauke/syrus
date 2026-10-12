@@ -225,7 +225,7 @@ class RunQueueResolver
   end
 
   def instance_for_process(process)
-    hostname = process.metadata&.dig("hostname")
+    hostname = process.metadata&.dig("hostname").presence || process.hostname
     return nil if hostname.blank?
 
     InstanceVersion.fresh.where(hostname: hostname, role: "worker").first
