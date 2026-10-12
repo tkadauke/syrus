@@ -25,15 +25,16 @@ RSpec.describe Admin::StuckItemsCache do
       )
       allow(described_class).to receive(:read).and_return(cached)
       allow(Rails.cache).to receive(:write).and_call_original
+      refreshed_at = 1.minute.from_now.change(usec: 0)
 
       snapshot = described_class.write(
         items: [ { "kind" => "stuck" } ],
-        captured_at: 1.minute.from_now,
+        captured_at: refreshed_at,
         force: true
       )
 
       expect(Rails.cache).to have_received(:write).once
-      expect(snapshot.captured_at).to be_within(1.second).of(1.minute.from_now)
+      expect(snapshot.captured_at).to eq(refreshed_at)
     end
   end
 end
