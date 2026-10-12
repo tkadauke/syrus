@@ -1821,7 +1821,7 @@ module WorkEngine
             train.update!(
               state: "failed",
               failure_reason: reason,
-              failure_code: LandingFailureCode::TRANSIENT_BLOCKER,
+              failure_code: LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED,
               finished_at: now
             )
             train.members.each do |member|
