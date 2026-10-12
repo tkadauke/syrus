@@ -73,7 +73,7 @@ module App
       end
 
       def dependency_target_options
-        rows = @user.jobs
+        rows = Job.accessible_to(@user)
                     .joins(:repository)
                     .where.not(id: @job.id)
                     .order("jobs.created_at DESC", "jobs.id DESC")
@@ -146,7 +146,7 @@ module App
       end
 
       def epic_dependency_target_options
-        @user.epics
+        Epic.accessible_to(@user)
              .where(repository: @job.repository)
              .order(created_at: :desc, id: :desc)
              .map { |epic| { label: "#{epic.slug} — #{epic.title}", value: epic.id } }
