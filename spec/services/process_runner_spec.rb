@@ -335,7 +335,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent"
     ).run
@@ -365,7 +366,8 @@ RSpec.describe ProcessRunner, :ci_only do
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
-      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
       timeout: 5,
       kind: "agent"
     ).run
@@ -405,7 +407,8 @@ RSpec.describe ProcessRunner, :ci_only do
       described_class.new(
         env: {},
         command: [ ruby, "-e", "STDOUT.close; STDERR.close; sleep 0.4" ],
-        chdir: @dir,
+        mounts: described_class.mounts(@dir),
+        network: "grader",
         timeout: 5,
         kind: "agent"
       ).run
