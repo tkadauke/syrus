@@ -184,6 +184,8 @@ RSpec.describe K8sCluster::Kubectl do
       [ "get", "secrets", "-o=jsonpath={.data.token}" ],
       [ "get", "secrets", "--output=jsonpath={.data.token}" ],
       [ "get", "secrets", "-oyaml" ],
+      [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
+      [ "get", "--raw=/api/v1/namespaces/default/secrets/prod-token?watch=false" ],
       [ "describe", "secret", "prod-token" ]
     ].each do |args|
       expect {
@@ -191,6 +193,22 @@ RSpec.describe K8sCluster::Kubectl do
       }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /expose secret values/)
     end
     expect(runner).not_to have_received(:call)
+  end
+
+  it "allows raw secret API paths only with workflow secret-output allowance" do
+    credential = create_credential
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "secret\n", stderr: "", status: 0))
+
+    result = described_class.call(
+      context: context,
+      credential: credential.id,
+      kube_context: "prod",
+      args: [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
+      allow_secret_output: true
+    )
+
+    expect(result[:ok]).to be(true)
+    expect(runner).to have_received(:call).with(hash_including(argv: [ "kubectl", "--context", "prod", "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ]))
   end
 
   it "does not let leading global flags bypass command policy" do
@@ -264,6 +282,16 @@ RSpec.describe K8sCluster::Kubectl do
         credential: credential.id,
         kube_context: "prod",
         args: [ "get", "secrets", "-o", "yaml" ],
+        allow_secret_output: true
+      )
+    }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
+
+    expect {
+      described_class.call(
+        context: chat_context,
+        credential: credential.id,
+        kube_context: "prod",
+        args: [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
         allow_secret_output: true
       )
     }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
