@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "investigation workflow lookup tools" do
+RSpec.describe "workflow lookup tools" do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository_owner) { Factories.user }
   let(:repository) { Factories.repository(user: repository_owner, owner: "acme", name: "widgets") }
@@ -50,7 +50,7 @@ RSpec.describe "investigation workflow lookup tools" do
     queries
   end
 
-  it "advertises read-only lookup tools for investigate and submit_report steps" do
+  it "advertises read-only lookup tools for workflow steps" do
     server = server_for(run)
 
     response = jsonrpc(server, "tools/list")
@@ -61,8 +61,12 @@ RSpec.describe "investigation workflow lookup tools" do
     lookup_names.each do |name|
       entry = McpToolRegistry.entries(surface: :workflow).find { |candidate| candidate.tool_name == name }
       expect(entry).to be_read_only
-      expect(entry.capability).to eq(:investigation_lookup)
+      expect(entry.capability).to be_nil
     end
+
+    implement_run = Factories.job.initial_run
+    implement_tools = jsonrpc(server_for(implement_run), "tools/list").dig(:result, :tools).map { |tool| tool[:name] }
+    expect(implement_tools).to include(*lookup_names)
 
     submit_report_step = workflow.steps.find_by!(kind: "submit_report")
     submit_report_run = submit_report_step.runs.create!(
@@ -71,20 +75,7 @@ RSpec.describe "investigation workflow lookup tools" do
       agent_provider: workflow.agent_provider
     )
     submit_report_tools = jsonrpc(server_for(submit_report_run), "tools/list").dig(:result, :tools).map { |tool| tool[:name] }
-    expect(submit_report_tools).to include("search_jobs", "list_open_prs", "read_pr", "list_open_issues")
-  end
-
-  it "does not advertise investigation lookup tools for a normal implement step" do
-    implement_run = Factories.job.initial_run
-    response = jsonrpc(server_for(implement_run), "tools/list")
-
-    expect(response.dig(:result, :tools).map { |tool| tool[:name] }).not_to include(
-      "search_jobs",
-      "list_jobs",
-      "list_open_prs",
-      "read_pr",
-      "list_open_issues"
-    )
+    expect(submit_report_tools).to include(*lookup_names)
   end
 
   it "searches only Jobs in the run repository that the Job user can access" do
@@ -119,6 +110,40 @@ RSpec.describe "investigation workflow lookup tools" do
 
     expect(response[:result][:isError]).to be_falsey
     expect(results.map { |job| job[:id] }).to eq([ matching.id ])
+  end
+
+  it "keeps admin workflow runs scoped to the run repository" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin, owner: "acme", name: "admin-widgets")
+    admin_job = Factories.job_record(user: admin, repository: admin_repository, issue_number: nil, kind: "direct")
+    admin_workflow = Workflows::Initial.instantiate(job: admin_job)
+    admin_run = admin_workflow.steps.find_by!(kind: "implement").runs.create!(
+      job: admin_job,
+      trigger_kind: admin_workflow.trigger_kind,
+      agent_provider: admin_workflow.agent_provider
+    )
+    matching = Factories.job_record(
+      user: admin,
+      repository: admin_repository,
+      issue_title: "Admin marker in run repo",
+      issue_number: nil,
+      kind: "direct"
+    )
+    Factories.job_record(
+      repository: Factories.repository,
+      issue_title: "Admin marker in other repo",
+      issue_number: nil,
+      kind: "direct"
+    )
+
+    response = Mcp::Tools::SearchJobsTool.call(
+      server_context: { run: admin_run },
+      query: "Admin marker"
+    )
+    payload = JSON.parse(response.content.first[:text], symbolize_names: true)
+
+    expect(response).not_to be_error
+    expect(payload.fetch(:results).map { |job| job[:id] }).to eq([ matching.id ])
   end
 
   it "preloads repositories when mapping job search payloads" do
@@ -195,15 +220,30 @@ RSpec.describe "investigation workflow lookup tools" do
     ])
   end
 
-  it "rejects direct lookup tool calls from a non-investigation workflow step" do
+  it "allows direct lookup tool calls from a normal implement step" do
     implement_run = Factories.job.initial_run
+    matching = Factories.job_record(
+      user: implement_run.job.user,
+      repository: implement_run.job.repository,
+      issue_title: "Implement marker already tracked",
+      issue_number: nil,
+      kind: "direct"
+    )
+    Factories.job_record(
+      user: implement_run.job.user,
+      repository: repository,
+      issue_title: "Implement marker in another repo",
+      issue_number: nil,
+      kind: "direct"
+    )
 
     response = Mcp::Tools::SearchJobsTool.call(
       server_context: { run: implement_run },
-      query: "widget"
+      query: "Implement marker"
     )
+    payload = JSON.parse(response.content.first[:text], symbolize_names: true)
 
-    expect(response).to be_error
-    expect(response.content.first[:text]).to include("not_authorized")
+    expect(response).not_to be_error
+    expect(payload.fetch(:results).map { |job| job[:id] }).to eq([ matching.id ])
   end
 end
