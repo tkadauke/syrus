@@ -16,17 +16,17 @@ module Api
           DEFAULT_TAIL_LINES = 200
 
           def namespaces
-            render_cluster_scoped(::K8sCluster::Namespaces.new(@cluster))
+            render_cluster_scoped(resource_service(::K8sCluster::Namespaces))
           end
 
           def pods
-            render_namespace_scoped(::K8sCluster::Pods.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Pods))
           end
 
           def pod_logs
             return unless (namespace = require_namespace!)
 
-            render json: ::K8sCluster::Pods.new(@cluster).logs(
+            render json: resource_service(::K8sCluster::Pods).logs(
               params[:name],
               namespace: namespace,
               container: params[:container].presence,
@@ -41,66 +41,78 @@ module Api
           end
 
           def deployments
-            render_namespace_scoped(::K8sCluster::Deployments.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Deployments))
           end
 
           def statefulsets
-            render_namespace_scoped(::K8sCluster::StatefulSets.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::StatefulSets))
           end
 
           def daemonsets
-            render_namespace_scoped(::K8sCluster::DaemonSets.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::DaemonSets))
           end
 
           def jobs
-            render_namespace_scoped(::K8sCluster::Jobs.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Jobs))
           end
 
           def services
-            render_namespace_scoped(::K8sCluster::Services.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Services))
           end
 
           def ingresses
-            render_namespace_scoped(::K8sCluster::Ingresses.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Ingresses))
           end
 
           def configmaps
-            render_namespace_scoped(::K8sCluster::ConfigMaps.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::ConfigMaps))
           end
 
           def secrets
-            render_namespace_scoped(::K8sCluster::Secrets.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Secrets))
           end
 
           def endpoints
-            render_namespace_scoped(::K8sCluster::Endpoints.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::Endpoints))
           end
 
           def events
-            render json: ::K8sCluster::Events.new(@cluster).list(namespace: params[:namespace])
+            render json: resource_service(::K8sCluster::Events).list(namespace: params[:namespace])
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           end
 
           def pvcs
-            render_namespace_scoped(::K8sCluster::PersistentVolumeClaims.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::PersistentVolumeClaims))
           end
 
           def nodes
-            render_cluster_scoped(::K8sCluster::Nodes.new(@cluster))
+            render_cluster_scoped(resource_service(::K8sCluster::Nodes))
           end
 
           def cronjobs
-            render_namespace_scoped(::K8sCluster::CronJobs.new(@cluster))
+            render_namespace_scoped(resource_service(::K8sCluster::CronJobs))
           end
 
           def overview
-            render json: ::K8sCluster::Overview.new(@cluster).call
+            render json: resource_service(::K8sCluster::Overview).call
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           end
 
           private
+
+          def resource_service(service_class)
+            service_class.new(
+              @cluster,
+              context: admin_credential_context,
+              tool_name: ::K8sCluster::ClusterCredential::ADMIN_TOOL_NAME
+            )
+          end
+
+          def admin_credential_context
+            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+          end
 
           # Cluster-scoped kinds (Namespace, Node): `name` alone selects
           # describe over list.

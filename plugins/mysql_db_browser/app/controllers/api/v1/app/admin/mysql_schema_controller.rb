@@ -29,7 +29,11 @@ module Api
           private
 
           def inspector
-            @inspector ||= ::MysqlDbBrowser::SchemaInspector.new(@connection, context: admin_credential_context)
+            @inspector ||= ::MysqlDbBrowser::SchemaInspector.new(
+              @connection,
+              context: admin_credential_context,
+              tool_name: ::MysqlDbBrowser::CredentialMaterial::ADMIN_TOOL_NAME
+            )
           end
 
           def admin_credential_context

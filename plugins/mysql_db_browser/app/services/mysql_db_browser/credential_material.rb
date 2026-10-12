@@ -3,6 +3,14 @@ module MysqlDbBrowser
     CREDENTIAL_TYPE = "mysql_db_browser.connection".freeze
     CREDENTIAL_ENV_KEY = "MYSQL_DB_BROWSER_PASSWORD".freeze
     LEGACY_CREDENTIAL_TYPE = "legacy_mysql_connection_credentials".freeze
+    ADMIN_TOOL_NAME = "mysql_db_browser_admin".freeze
+    ALLOWED_TOOLS = %w[
+      mysql_db_browser_admin
+      mysql_db_browser_list_databases
+      mysql_db_browser_list_tables
+      mysql_db_browser_describe_table
+      mysql_db_browser_execute_query
+    ].freeze
 
     class CredentialStoreUnavailable < StandardError; end
 
@@ -81,7 +89,7 @@ module MysqlDbBrowser
             "allowed_hosts" => [ connection.host ]
           },
           allowed_surfaces: %w[admin workflow chat],
-          allowed_tools: []
+          allowed_tools: ALLOWED_TOOLS
         }
       end
 

@@ -4,6 +4,31 @@ module K8sCluster
   class ClusterCredential
     CREDENTIAL_TYPE = "k8s_cluster.kubeconfig".freeze
     PURPOSE = "kubernetes cluster connection".freeze
+    ADMIN_TOOL_NAME = "k8s_cluster_admin".freeze
+    ALLOWED_TOOLS = %w[
+      k8s_cluster_admin
+      k8s_cluster_namespaces
+      k8s_cluster_nodes
+      k8s_cluster_pods
+      k8s_cluster_pod_logs
+      k8s_cluster_deployments
+      k8s_cluster_statefulsets
+      k8s_cluster_daemonsets
+      k8s_cluster_jobs
+      k8s_cluster_services
+      k8s_cluster_ingresses
+      k8s_cluster_configmaps
+      k8s_cluster_secrets
+      k8s_cluster_events
+      k8s_cluster_pvcs
+      k8s_cluster_cronjobs
+      k8s_cluster_overview
+      k8s_cluster_restart_rollout
+      k8s_cluster_scale_deployment
+      k8s_cluster_delete_pod
+      k8s_cluster_set_node_cordon
+      k8s_cluster_kubectl
+    ].freeze
 
     class DependencyDisabled < StandardError; end
     class MissingCredential < StandardError; end
@@ -28,7 +53,7 @@ module K8sCluster
           safe_metadata: safe_metadata_for(parsed),
           target_constraints: {},
           allowed_surfaces: %w[admin workflow chat],
-          allowed_tools: [],
+          allowed_tools: ALLOWED_TOOLS,
           last_rotated_at: Time.current,
           revoked_at: nil
         )
