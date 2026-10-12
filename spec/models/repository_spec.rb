@@ -472,6 +472,17 @@ RSpec.describe Repository do
       expect(Repository.accessible_to(collaborator)).to include(shared_repo)
     end
 
+    it "includes repositories granted through a team" do
+      owner = Factories.user(email_address: "team-owner@example.com")
+      collaborator = Factories.user(email_address: "team-collaborator@example.com")
+      shared_repo = Factories.repository(user: owner)
+      team = Team.create!(name: "Repository Readers")
+      team.team_memberships.create!(user: collaborator, role: "member")
+      team.team_repositories.create!(repository: shared_repo, role: "read")
+
+      expect(Repository.accessible_to(collaborator)).to include(shared_repo)
+    end
+
     it "excludes repositories the user neither owns nor is a member of" do
       owner = Factories.user(email_address: "owner2@example.com")
       unrelated_user = Factories.user(email_address: "unrelated@example.com")
