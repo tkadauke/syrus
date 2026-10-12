@@ -157,6 +157,7 @@ RSpec.describe ContainerExecution::Backend do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      execution_backend: nil,
       local_runner: nil
     }
     Execution::Request.new(**defaults.merge(overrides))
