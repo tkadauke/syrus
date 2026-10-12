@@ -237,6 +237,72 @@ RSpec.describe CredentialStore::SshExec do
     expect(result[:ok]).to be(true)
   end
 
+  it "refuses risky rm flag variants before invoking the runner" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      "rm -fr /tmp/app",
+      "rm -r -f /tmp/app",
+      "rm --recursive --force /tmp/app",
+      "sudo rm --force --recursive /tmp/app",
+      "cd /tmp && rm -Rf app"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "refuses recursive chmod and chown flag-order variants before invoking the runner" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      "chmod -f -R 777 /tmp/app",
+      "chmod --recursive 777 /tmp/app",
+      "chown -fR deploy:deploy /tmp/app",
+      "chown --recursive deploy:deploy /tmp/app"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "refuses chat-surface risky command variants before invoking the runner" do
+    credential = create_credential(allowed_surfaces: [ "chat" ])
+    allow(runner).to receive(:call)
+
+    [
+      "rm -fr /tmp/app",
+      "rm -r -f /tmp/app",
+      "rm --recursive --force /tmp/app",
+      "chmod -f -R 777 /tmp/app"
+    ].each do |command|
+      expect {
+        described_class.call(context: chat_context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "treats unparseable command strings as risky before invoking the runner" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "echo 'unterminated")
+    }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+
+    expect(runner).not_to have_received(:call)
+  end
+
   it "redacts stdout and stderr returned by the runner" do
     credential = create_credential
     allow(runner).to receive(:call).and_return(
