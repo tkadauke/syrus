@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="/etc/syrus/worker.env"
+INSTALL_ROOT="/opt/syrus"
+DATA_ROOT="/var/lib/syrus"
+LOG_ROOT="/var/log/syrus"
+SERVICE_USER="syrus-worker"
+SERVICE_GROUP="syrus-worker"
+DRY_RUN=0
+SKIP_DEPENDENCIES=0
+SKIP_SERVICES=0
+
+BREW_FORMULAE=(ruby@3.4 node@22 mysql-client pkg-config vips openssl@3 readline libyaml mise go)
+CLAUDE_CODE_VERSION="2.1.289"
+CODEX_CLI_VERSION="0.160.0"
+
+usage() {
+  cat <<'USAGE'
+Usage: sudo bin/install-macos-worker [options]
+
+Prepares a native macOS Syrus compute worker. The current checkout or unpacked
+worker release becomes /opt/syrus/current; deployment credentials must already
+exist in the env file.
+
+Options:
+  --env-file PATH          Worker env file (default: /etc/syrus/worker.env)
+  --install-root PATH      Release root (default: /opt/syrus)
+  --data-root PATH         Persistent worker data (default: /var/lib/syrus)
+  --service-user NAME      launchd worker user (default: syrus-worker)
+  --skip-dependencies      Do not install Homebrew formulae or agent CLIs
+  --skip-services          Prepare the host but do not load launchd services
+  --dry-run                Print mutating commands without running them
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file) ENV_FILE="${2:?--env-file requires a path}"; shift 2 ;;
+    --install-root) INSTALL_ROOT="${2:?--install-root requires a path}"; shift 2 ;;
+    --data-root) DATA_ROOT="${2:?--data-root requires a path}"; shift 2 ;;
+    --service-user) SERVICE_USER="${2:?--service-user requires a name}"; SERVICE_GROUP="$SERVICE_USER"; shift 2 ;;
+    --skip-dependencies) SKIP_DEPENDENCIES=1; shift ;;
+    --skip-services) SKIP_SERVICES=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "install-macos-worker: unknown argument $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+say() { printf '==> %s\n' "$*"; }
+run() {
+  printf '+ '
+  printf '%q ' "$@"
+  printf '\n'
+  [[ "$DRY_RUN" == "1" ]] || "$@"
+}
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "install-macos-worker: this installer requires macOS" >&2
+  exit 1
+fi
+if [[ "$EUID" -ne 0 && "$DRY_RUN" != "1" ]]; then
+  echo "install-macos-worker: run with sudo" >&2
+  exit 1
+fi
+
+ADMIN_USER="${SUDO_USER:-${USER:-}}"
+if [[ -z "$ADMIN_USER" || "$ADMIN_USER" == "root" ]]; then
+  echo "install-macos-worker: run with sudo from the admin account that owns Homebrew" >&2
+  exit 1
+fi
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "install-macos-worker: create $ENV_FILE before installing the worker" >&2
+  exit 1
+fi
+if grep -Ev '^[[:space:]]*(#|$|[A-Za-z_][A-Za-z0-9_]*=)' "$ENV_FILE" | grep -q .; then
+  echo "install-macos-worker: $ENV_FILE contains lines that are not dotenv assignments" >&2
+  exit 1
+fi
+
+if [[ "$SKIP_DEPENDENCIES" != "1" ]]; then
+  BREW="/opt/homebrew/bin/brew"
+  if [[ ! -x "$BREW" ]]; then
+    echo "install-macos-worker: Homebrew must be installed for the admin account first" >&2
+    exit 1
+  fi
+  say "Installing host dependencies"
+  run sudo -H -u "$ADMIN_USER" "$BREW" install "${BREW_FORMULAE[@]}"
+  run sudo -H -u "$ADMIN_USER" env PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/bin:/bin" \
+    /opt/homebrew/opt/node@22/bin/npm install -g \
+    "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_CLI_VERSION"
+fi
+
+say "Preparing the service account and filesystem"
+if dscl . -read "/Groups/$SERVICE_GROUP" >/dev/null 2>&1; then
+  SERVICE_ID="$(dscl . -read "/Groups/$SERVICE_GROUP" PrimaryGroupID | awk '{print $2}')"
+else
+  SERVICE_ID="$(dscl . -list /Groups PrimaryGroupID | awk '$2 >= 400 && $2 < 500 { used[$2]=1 } END { for (id=450; id<500; id++) if (!used[id]) { print id; exit } }')"
+  [[ -n "$SERVICE_ID" ]] || { echo "install-macos-worker: no free service uid/gid in 450-499" >&2; exit 1; }
+  run dscl . -create "/Groups/$SERVICE_GROUP"
+  run dscl . -create "/Groups/$SERVICE_GROUP" PrimaryGroupID "$SERVICE_ID"
+fi
+if ! dscl . -read "/Users/$SERVICE_USER" >/dev/null 2>&1; then
+  run dscl . -create "/Users/$SERVICE_USER"
+  run dscl . -create "/Users/$SERVICE_USER" UniqueID "$SERVICE_ID"
+  run dscl . -create "/Users/$SERVICE_USER" PrimaryGroupID "$SERVICE_ID"
+  run dscl . -create "/Users/$SERVICE_USER" UserShell /usr/bin/false
+  run dscl . -create "/Users/$SERVICE_USER" NFSHomeDirectory "$DATA_ROOT"
+fi
+
+run mkdir -p "$INSTALL_ROOT/releases" "$INSTALL_ROOT/shared" "$DATA_ROOT" "$LOG_ROOT" "$(dirname "$ENV_FILE")"
+run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_ROOT" "$DATA_ROOT" "$LOG_ROOT"
+run chmod 750 "$DATA_ROOT" "$LOG_ROOT"
+run chown "root:$SERVICE_GROUP" "$ENV_FILE"
+run chmod 640 "$ENV_FILE"
+
+RELEASE_SHA="$(head -n 1 "$ROOT/GIT_SHA" 2>/dev/null || git -C "$ROOT" rev-parse --short=10 HEAD 2>/dev/null || true)"
+[[ -n "$RELEASE_SHA" ]] || { echo "install-macos-worker: cannot determine release revision" >&2; exit 1; }
+RELEASE_PATH="$INSTALL_ROOT/releases/$RELEASE_SHA"
+if [[ "$ROOT" != "$RELEASE_PATH" ]]; then
+  run mkdir -p "$RELEASE_PATH"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "+ ditto $ROOT $RELEASE_PATH"
+  else
+    ditto "$ROOT" "$RELEASE_PATH"
+  fi
+fi
+run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$RELEASE_PATH" "$INSTALL_ROOT/shared"
+
+say "Preparing release dependencies"
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "+ (cd $RELEASE_PATH && bundle install && npm ci)"
+else
+  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
+    PATH="/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
+    BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$INSTALL_ROOT/shared/bundle" \
+    bash -c 'cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && npm ci' bash "$RELEASE_PATH"
+fi
+
+say "Disabling interactive Git credential helpers for the service account"
+run sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" /bin/sh -c 'cd / && exec /usr/bin/git config --global credential.helper ""'
+
+say "Validating the worker"
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "+ $INSTALL_ROOT/current/bin/macos-worker-check --env-file $ENV_FILE"
+else
+  sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
+    PATH="/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    "$RELEASE_PATH/bin/macos-worker-check" --env-file "$ENV_FILE"
+fi
+
+say "Activating release $RELEASE_SHA"
+run ln -sfn "$RELEASE_PATH" "$INSTALL_ROOT/current.next"
+run mv -f "$INSTALL_ROOT/current.next" "$INSTALL_ROOT/current"
+
+if [[ "$SKIP_SERVICES" != "1" ]]; then
+  say "Installing launchd services"
+  for label in worker updater; do
+    plist="com.syrus.$label.plist"
+    run cp "$INSTALL_ROOT/current/config/launchd/$plist" "/Library/LaunchDaemons/$plist"
+    run chown root:wheel "/Library/LaunchDaemons/$plist"
+    run chmod 644 "/Library/LaunchDaemons/$plist"
+    launchctl bootout system "/Library/LaunchDaemons/$plist" >/dev/null 2>&1 || true
+    run launchctl bootstrap system "/Library/LaunchDaemons/$plist"
+    run launchctl kickstart -k "system/com.syrus.$label"
+  done
+fi
+
+say "macOS worker installation complete"

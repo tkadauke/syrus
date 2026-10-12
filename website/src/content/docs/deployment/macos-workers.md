@@ -30,6 +30,22 @@ The expected Mac worker entrypoint is:
 /opt/syrus/current/bin/macos-worker --env-file /etc/syrus/worker.env
 ```
 
+After installing full Xcode and at least one iOS simulator runtime, use the
+worker artifact's installer to establish the rest of the host contract:
+
+```bash
+sudo /path/to/unpacked-worker/bin/install-macos-worker \
+  --env-file /etc/syrus/worker.env
+```
+
+The installer is idempotent. It installs the supported Homebrew runtimes and
+native build libraries, `mise`, Go, and the pinned Claude Code and Codex CLIs;
+creates the unprivileged service account and persistent directories; disables
+interactive Git credential helpers for that account; prepares the release;
+validates the worker; and loads the worker and updater LaunchDaemons. Homebrew
+itself, Xcode, simulator runtimes, deployment credentials, network tunnels,
+and Apple signing identities remain operator-managed prerequisites.
+
 The wrapper forces the host into compute-worker mode with
 `SYRUS_ROLE=worker`, `SOLID_QUEUE_CONFIG=config/queue.compute.yml`, and
 `SOLID_QUEUE_SKIP_RECURRING=1`. A typical env file includes:
@@ -100,13 +116,13 @@ Before loading or reloading the worker, run:
 /opt/syrus/current/bin/macos-worker-check --env-file /etc/syrus/worker.env
 ```
 
-The check validates Ruby/Bundler, Node/npm, Git, Xcode Command Line Tools, full
-Xcode selection, iOS simulator runtimes, required env, and production
-credentials without starting Solid Queue. The continuous worker readiness
-probes use the same read-only posture: Syrus records version and listing facts
-from `sw_vers`, `xcode-select`, `xcodebuild -version`, `xcrun --find
-xcodebuild`, and `xcrun simctl list`, but does not mutate keychains, signing
-state, simulator contents, or selected devices.
+The check validates Ruby/Bundler, Node/npm, Git, `mise`, the Claude and Codex
+CLIs, Xcode Command Line Tools, full Xcode selection, iOS simulator runtimes,
+required env, and production credentials without starting Solid Queue. The
+continuous worker readiness probes use the same read-only posture: Syrus
+records version and listing facts from `sw_vers`, `xcode-select`, `xcodebuild
+-version`, `xcrun --find xcodebuild`, and `xcrun simctl list`, but does not
+mutate keychains, signing state, simulator contents, or selected devices.
 
 ## Pull-Based Updates
 
@@ -182,6 +198,8 @@ drain/update state still report normally.
 | Missing simulators | Install the required iOS runtime in Xcode and run `bin/macos-worker-check`; simulator availability is reported in diagnostics and advertised as `runtime:ios_simulator` when available. |
 | Keychain or signing failures | Verify the launchd user can access the signing keychain, certificates, provisioning profiles, and any private signing/notarization services. |
 | Package installs fail only on Macs | Check outbound registry access, host-local dependency caches, Xcode/SDK compatibility, and target-repo private registry credentials. |
+| Prepare reports `mise` missing | Re-run `bin/install-macos-worker`; repository version files are resolved through the baseline `mise` installation. |
+| An agent executable is missing | Re-run the installer to restore the pinned Claude Code and Codex CLIs used by native worker Runs. |
 
 ## Why Pull Instead Of SSH
 

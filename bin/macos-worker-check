@@ -130,6 +130,9 @@ require_command bundle Bundler
 require_command node Node
 require_command npm NPM
 require_command git Git
+require_command mise Mise
+require_command codex Codex
+require_command claude Claude
 
 if xcode_select_path="$(xcode-select -p 2>/dev/null)"; then
   ok "Xcode command line tools: $xcode_select_path"

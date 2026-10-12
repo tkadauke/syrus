@@ -53,6 +53,7 @@ RSpec.describe "native macOS worker release artifact" do
     entries = tar_output("-tzf", artifact_path).lines.map(&:strip)
     root_entry = "syrus-worker-macos-arm64-#{short_sha}"
     expect(entries).to include("#{root_entry}/bin/macos-worker")
+    expect(entries).to include("#{root_entry}/bin/install-macos-worker")
     expect(entries).to include("#{root_entry}/bin/syrus-macos-updater")
     expect(entries).to include("#{root_entry}/bin/macos-worker-check")
     expect(entries).to include("#{root_entry}/config/launchd/com.syrus.worker.plist")
@@ -80,6 +81,7 @@ RSpec.describe "native macOS worker release artifact" do
       "full_git_sha" => full_sha,
       "built_at" => "2026-10-03T12:34:56Z",
       "entrypoint" => "bin/macos-worker",
+      "installer" => "bin/install-macos-worker",
       "updater" => "bin/syrus-macos-updater",
       "health_check" => "bin/macos-worker-check",
       "launchd_plist" => "config/launchd/com.syrus.worker.plist",

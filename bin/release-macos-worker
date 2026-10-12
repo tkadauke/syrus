@@ -82,6 +82,7 @@ cat > "$MANIFEST" <<JSON
   "full_git_sha": "$FULL_GIT_SHA",
   "built_at": "$BUILT_AT",
   "entrypoint": "bin/macos-worker",
+  "installer": "bin/install-macos-worker",
   "updater": "bin/syrus-macos-updater",
   "health_check": "bin/macos-worker-check",
   "launchd_plist": "config/launchd/com.syrus.worker.plist",
@@ -95,6 +96,7 @@ printf '%s\n' "$GIT_SHA" > "$STAGING/GIT_SHA"
 printf '%s\n' "$(syrus_release_semver "$VERSION")" > "$STAGING/SYRUS_VERSION"
 
 test -x "$STAGING/bin/macos-worker"
+test -x "$STAGING/bin/install-macos-worker"
 test -x "$STAGING/bin/syrus-macos-updater"
 test -x "$STAGING/bin/macos-worker-check"
 test -f "$STAGING/config/launchd/com.syrus.worker.plist"

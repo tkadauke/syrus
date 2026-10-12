@@ -22,6 +22,9 @@ Before filing iOS work, confirm all of these are true:
   `runs-macos-arm64` and `merges-macos-arm64`.
 - `bin/macos-worker-check --env-file /etc/syrus/worker.env` passes on each Mac
   host that should receive iOS work.
+- The host was prepared with `bin/install-macos-worker`, which installs the
+  supported runtimes, native build dependencies, `mise`, and pinned agent CLIs
+  before loading the launchd worker.
 - The launchd worker user can access any signing keychain, certificates,
   provisioning profiles, package registries, internal services, and artifact
   storage the target repository needs.
@@ -158,6 +161,19 @@ Mac workers should start through:
 ```bash
 /opt/syrus/current/bin/macos-worker --env-file /etc/syrus/worker.env
 ```
+
+For a fresh host, first install Homebrew and full Xcode with an iOS simulator
+runtime, create `/etc/syrus/worker.env`, and run the release's idempotent
+installer:
+
+```bash
+sudo /path/to/unpacked-worker/bin/install-macos-worker \
+  --env-file /etc/syrus/worker.env
+```
+
+The installer owns the repeatable host baseline and launchd setup. Deployment
+network tunnels, secrets, signing identities, Xcode, and simulator runtime
+downloads remain explicit operator responsibilities.
 
 The env file should force compute-only behavior and advertise the host's
 capabilities:
