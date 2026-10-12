@@ -46,6 +46,8 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(response).to have_http_status(:ok)
     expect(rule.reload.task_key).to eq("default")
     expect(rule.candidates).to eq([ { "provider" => "codex" } ])
+    expect(rule.trigger).to eq("type" => "default")
+    expect(rule.action).to eq("strategy" => "fallback_order", "candidates" => [ { "provider" => "codex" } ])
 
     delete "/api/v1/app/credentials/provider_routing_rules/#{rule.id}"
 
