@@ -23,7 +23,13 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PKG_CONFIG_PATH</key>
+    <string>/opt/homebrew/opt/mysql-client/lib/pkgconfig</string>
+    <key>LDFLAGS</key>
+    <string>-L/opt/homebrew/opt/mysql-client/lib</string>
+    <key>CPPFLAGS</key>
+    <string>-I/opt/homebrew/opt/mysql-client/include</string>
     <key>BUNDLE_APP_CONFIG</key>
     <string>/opt/syrus/shared/bundle-config</string>
     <key>BUNDLE_PATH</key>

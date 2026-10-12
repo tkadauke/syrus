@@ -9,6 +9,18 @@ RSpec.describe "native macOS worker scripts" do
   let(:entrypoint) { File.join(root, "bin/macos-worker") }
   let(:check) { File.join(root, "bin/macos-worker-check") }
 
+  it "gives worker and updater services the supported Homebrew runtimes and native build paths" do
+    %w[com.syrus.worker.plist com.syrus.updater.plist].each do |name|
+      plist = File.read(File.join(root, "config/launchd", name))
+
+      expect(plist).to include("/opt/homebrew/opt/ruby@3.4/bin")
+      expect(plist).to include("/opt/homebrew/opt/node@22/bin")
+      expect(plist).to include("/opt/homebrew/opt/mysql-client/bin")
+      expect(plist).to include("/opt/homebrew/opt/mysql-client/lib/pkgconfig")
+      expect(plist).to include("-I/opt/homebrew/opt/mysql-client/include")
+    end
+  end
+
   def write_stub(path, body)
     File.write(path, body)
     File.chmod(0o755, path)
