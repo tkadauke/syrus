@@ -341,16 +341,16 @@ class ChatProposal < ApplicationRecord
 
   def repository_belongs_to_chat_user
     return unless repository && chat_session
-    return if repository.user_id == chat_session.user_id
+    return if Repository.accessible_to(chat_session.user).where(id: repository.id).exists?
 
-    errors.add(:repository, "must belong to the chat user")
+    errors.add(:repository, "must be accessible to the chat user")
   end
 
   def target_epic_matches_repository
     return unless target_epic
 
-    if chat_session && target_epic.user_id != chat_session.user_id
-      errors.add(:target_epic, "must belong to the chat user")
+    if chat_session && !Epic.accessible_to(chat_session.user).where(id: target_epic.id).exists?
+      errors.add(:target_epic, "must be accessible to the chat user")
     end
 
     repo = effective_repository

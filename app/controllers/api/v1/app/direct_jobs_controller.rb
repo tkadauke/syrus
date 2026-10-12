@@ -10,6 +10,8 @@ module Api
 
         def create
           repository = find_repository_for_create
+          return if performed?
+
           unless repository
             render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content)
             return
@@ -42,7 +44,7 @@ module Api
             end
           end
 
-          planned_execution_attrs = planned_execution_attributes
+          planned_execution_attrs = planned_execution_attributes(repository)
           job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner, planned_execution_attrs: planned_execution_attrs)
           unless job
             render_error("validation_failed", @create_direct_job_error || "Job could not be created.", status: :unprocessable_content)
@@ -77,7 +79,7 @@ module Api
           epic = selected_epic(repository)
 
           {
-            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
+            repositories: writable_repositories.map { |repository| repository_json(repository) },
             configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             provider_routing_options: agent_provider_catalog_options(Current.user),
             selected_repository_id: params[:repository_id].to_s.presence,
@@ -96,7 +98,13 @@ module Api
         end
 
         def find_repository_for_create
-          return Current.user.repositories.active.find_by(id: params[:repository_id]) if params[:repository_id].present?
+          if params[:repository_id].present?
+            repository = readable_repository_scope.active.find_by(id: params[:repository_id])
+            return unless repository
+            return repository if authorize_repository_write!(repository)
+
+            return nil
+          end
 
           slug = params[:repository].presence || params[:repo].presence
           return if slug.blank?
@@ -104,13 +112,22 @@ module Api
           owner, name = slug.to_s.split("/", 2)
           return if owner.blank? || name.blank?
 
-          Current.user.repositories.active.find_by(owner: owner, name: name)
+          repository = readable_repository_scope.active.find_by(owner: owner, name: name)
+          return unless repository
+          return repository if authorize_repository_write!(repository)
+
+          nil
         end
 
         def selected_repository
           return nil if params[:repository_id].blank?
 
-          Current.user.repositories.active.find_by(id: params[:repository_id])
+          repository = readable_repository_scope.active.find_by(id: params[:repository_id])
+          repository if repository && writable_repository?(repository)
+        end
+
+        def writable_repositories
+          readable_repository_scope.active.order(:owner, :name).select { |repository| writable_repository?(repository) }
         end
 
         # Scoped to the target repository when one is already selected (the
@@ -180,12 +197,12 @@ module Api
           end
         end
 
-        def planned_execution_attributes
+        def planned_execution_attributes(repository)
           explicit = PlannedExecutionParams.from_params(params.to_unsafe_h)
           return explicit if explicit.present?
 
           probe = Current.user.jobs.new(
-            repository: selected_repository || Current.user.repositories.active.find_by(id: params[:repository_id]),
+            repository: repository,
             issue_title: params[:title].to_s.strip.presence || GenerateJobTitleJob::PENDING_TITLE,
             issue_body: params[:prompt].to_s.strip
           )

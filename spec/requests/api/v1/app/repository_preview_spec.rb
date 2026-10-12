@@ -72,6 +72,19 @@ RSpec.describe "App API repository preview", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "returns preview state to a read-tier collaborator" do
+      repo
+      collaborator = Factories.user(email_address: "preview-reader@example.com", admin: false)
+      repo.repository_memberships.create!(user: collaborator, role: "read")
+      env = create_preview_env(repo, state: "running", expires_at: 10.minutes.from_now)
+      sign_in_as(collaborator)
+
+      get preview_path(repo), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["preview"]).to include("id" => env.id, "state" => "running")
+    end
   end
 
   describe "POST /api/v1/app/repositories/:repository_id/preview" do
@@ -157,6 +170,33 @@ RSpec.describe "App API repository preview", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "allows write-tier collaborators to create previews" do
+      repo
+      collaborator = Factories.user(email_address: "preview-writer@example.com", admin: false)
+      repo.repository_memberships.create!(user: collaborator, role: "write")
+      sign_in_as(collaborator)
+
+      expect {
+        post preview_path(repo), as: :json
+      }.to change { repo.preview_environments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "forbids read-tier collaborators from creating previews" do
+      repo
+      collaborator = Factories.user(email_address: "preview-read-only@example.com", admin: false)
+      repo.repository_memberships.create!(user: collaborator, role: "read")
+      sign_in_as(collaborator)
+
+      expect {
+        post preview_path(repo), as: :json
+      }.not_to change { repo.preview_environments.count }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/preview/logs" do
@@ -217,6 +257,32 @@ RSpec.describe "App API repository preview", type: :request do
       delete preview_path(other_repo), as: :json
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "allows write-tier collaborators to stop previews" do
+      repo
+      collaborator = Factories.user(email_address: "preview-stop-writer@example.com", admin: false)
+      repo.repository_memberships.create!(user: collaborator, role: "write")
+      env = create_preview_env(repo, state: "running", expires_at: 10.minutes.from_now)
+      sign_in_as(collaborator)
+
+      delete preview_path(repo), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(env.reload.state).to eq("stopping")
+    end
+
+    it "forbids read-tier collaborators from stopping previews" do
+      repo
+      collaborator = Factories.user(email_address: "preview-stop-reader@example.com", admin: false)
+      repo.repository_memberships.create!(user: collaborator, role: "read")
+      env = create_preview_env(repo, state: "running", expires_at: 10.minutes.from_now)
+      sign_in_as(collaborator)
+
+      delete preview_path(repo), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(env.reload.state).to eq("running")
     end
   end
 end

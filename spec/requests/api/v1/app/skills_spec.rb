@@ -95,6 +95,20 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "lists skills for a read-tier collaborator" do
+      repository
+      collaborator = Factories.user(email_address: "skill-reader@example.com", admin: false)
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      allow(Skills).to receive(:all_for).and_return([ resolution(name: "investigate", source: :built_in, klass: Skills::Investigate) ])
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/repositories/#{repository.id}/skills"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["skills"]).to contain_exactly(include("name" => "investigate"))
+      expect(Skills).to have_received(:all_for).with(repository: repository, user: collaborator)
+    end
   end
 
   describe "POST create" do
@@ -169,6 +183,40 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
 
       expect(response).to have_http_status(:created)
       expect(Job.last.delivery_track).to eq("hotfix")
+    end
+
+    it "allows write-tier collaborators to launch skills" do
+      stub_repo_local_tree([])
+      repository
+      collaborator = Factories.user(email_address: "skill-writer@example.com", admin: false)
+      repository.repository_memberships.create!(user: collaborator, role: "write")
+      sign_in_as(collaborator)
+
+      expect {
+        post "/api/v1/app/repositories/#{repository.id}/skills",
+             params: { name: "investigate", args: { question: "What changed?" } },
+             as: :json
+      }.to change(Job, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(Job.last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
+    end
+
+    it "forbids read-tier collaborators from launching skills" do
+      stub_repo_local_tree([])
+      repository
+      collaborator = Factories.user(email_address: "skill-read-only@example.com", admin: false)
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      sign_in_as(collaborator)
+
+      expect {
+        post "/api/v1/app/repositories/#{repository.id}/skills",
+             params: { name: "investigate", args: { question: "What changed?" } },
+             as: :json
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
     end
 
     it "rejects an agent provider the user hasn't configured" do
