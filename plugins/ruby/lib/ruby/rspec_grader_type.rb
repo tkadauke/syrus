@@ -357,6 +357,7 @@ module Ruby
       end
 
       command = <<~BASH.squish
+        #{previous_failure_gate}
         mkdir -p #{junit_dir} #{json_dir} #{shard_junit_dir} &&
         rm -f #{junit} #{json} #{shard_junit_dir}/#{junit_prefix}-*.xml #{json_dir}/#{output_prefix}-*.json &&
         #{database_prepare_command}
@@ -467,6 +468,30 @@ module Ruby
       return true if value.to_s == "auto"
 
       ActiveModel::Type::Boolean.new.cast(value)
+    end
+
+    # Fail-fast gate for repair loops. Steps::Grader exports
+    # SYRUS_PREVIOUS_FAILED_SPECS with the spec files this grader failed on the
+    # previous iteration; run just those first and exit immediately if they are
+    # still red. A repair that did not work is then rejected in seconds rather
+    # than after a full suite -- ~38 minutes on this repository, paid three
+    # times by a single production train.
+    #
+    # Passing the gate proves nothing, so it never short-circuits to success:
+    # the full command still runs behind it and still decides the verdict. The
+    # gate is skipped entirely when the variable is empty, which is every
+    # first iteration and any grader with no recorded failures.
+    def previous_failure_gate
+      <<~BASH.squish
+        if [ -n "${SYRUS_PREVIOUS_FAILED_SPECS:-}" ]; then
+          echo "[rspec] gate: re-running $(echo $SYRUS_PREVIOUS_FAILED_SPECS | wc -w) previously failing file(s) before the full suite";
+          if ! bundle exec rspec --format progress $SYRUS_PREVIOUS_FAILED_SPECS; then
+            echo "[rspec] gate: previously failing examples still fail; skipping the full suite";
+            exit 1;
+          fi;
+          echo "[rspec] gate: passed, running the full suite";
+        fi;
+      BASH
     end
 
     def setup_prefix

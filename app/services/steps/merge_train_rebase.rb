@@ -95,10 +95,19 @@ module Steps
       skip_revalidated_grade_steps!(head_sha, source)
     end
 
+    # Must build the plan exactly the way the fingerprint was written, or the
+    # comparison can never succeed. Steps::GraderFanout fingerprints
+    # TargetGraph::GradePlan -- every project's graders, 116 of them on this
+    # repository. Reading it back through RepoGradePlan.for covers only the
+    # root .syrus.yml, 14 graders, so the digests differed on every single
+    # rebase regardless of what had changed: 79 declines, zero carries, all
+    # reported as "required grader configuration changed" when the grader
+    # configuration was identical. A clean rebase of an already-green
+    # assembly regraded from scratch every time.
     def current_landing_grader_fingerprint
-      plan = RepoGradePlan.for(workspace.path)
-      plan = LandingGraderPlan.landing(plan)
-      GraderConclusionCache.fingerprint_for_plan(plan, target_graph: TargetGraph::Compiler.compile(workspace.path))
+      graph = TargetGraph::Compiler.compile(workspace.path)
+      plan = LandingGraderPlan.landing(TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: graph))
+      GraderConclusionCache.fingerprint_for_plan(plan, target_graph: graph)
     rescue StandardError => e
       log("merge_train_rebase: could not fingerprint current landing graders for carry-forward: #{e.message}", kind: "system")
       nil

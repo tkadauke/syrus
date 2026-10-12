@@ -294,6 +294,93 @@ RSpec.describe Ruby::RspecGraderType do
     expect(script).to include("exit 0 unless base\nscope =")
   end
 
+  # The gate exists so a repair that did not work is rejected in seconds
+  # instead of after a full suite. It must never decide success on its own:
+  # a narrowed pass proves nothing, so the full command still runs behind it.
+  describe "previous-failure fail-fast gate" do
+    def gate_command
+      described_class.grade_steps(
+        config: {
+          "parallel_rspec" => {
+            "enabled" => true,
+            "rspec_modes" => [ "full" ],
+            "processes" => "2",
+            "exec_args" => "bin/rspec-worker"
+          }
+        },
+        default_failures: "strict"
+      ).first.run
+    end
+
+    def run_gate(command, previous_specs:, gate_status: 0, parallel_status: 0)
+      Dir.mktmpdir("rspec-grader-gate") do |dir|
+        bin_dir = File.join(dir, "bin")
+        FileUtils.mkdir_p(bin_dir)
+        File.write(File.join(bin_dir, "bundle"), <<~BASH)
+          #!/usr/bin/env bash
+          case "$1" in
+            check|install) exit 0 ;;
+            exec)
+              shift
+              if [ "$1" = "rspec" ]; then echo "GATE_RAN" >> "$TRACE"; exit "${FAKE_GATE_STATUS:-0}"; fi
+              "$@"; exit $? ;;
+            *) exit 64 ;;
+          esac
+        BASH
+        File.write(File.join(bin_dir, "parallel_rspec"), <<~BASH)
+          #!/usr/bin/env bash
+          echo "FULL_RAN" >> "$TRACE"
+          exit "${FAKE_PARALLEL_RSPEC_STATUS:-0}"
+        BASH
+        File.write(File.join(bin_dir, "ruby"), "#!/usr/bin/env bash\nexit 0\n")
+        FileUtils.chmod("+x", Dir[File.join(bin_dir, "*")])
+        trace = File.join(dir, "trace")
+
+        env = {
+          "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
+          "TRACE" => trace,
+          "SYRUS_PREVIOUS_FAILED_SPECS" => previous_specs,
+          "FAKE_GATE_STATUS" => gate_status.to_s,
+          "FAKE_PARALLEL_RSPEC_STATUS" => parallel_status.to_s,
+          "BUNDLE_GEMFILE" => nil, "GEM_HOME" => nil, "GEM_PATH" => nil,
+          "RUBYLIB" => nil, "RUBYOPT" => nil
+        }
+        _o, _e, status = Open3.capture3(env, "bash", "-c", command, chdir: dir)
+        [ status.exitstatus, (File.read(trace) rescue "") ]
+      end
+    end
+
+    it "skips the full suite when the previously failing files still fail" do
+      exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_status: 1)
+
+      expect(exitstatus).to eq(1)
+      expect(trace).to include("GATE_RAN")
+      expect(trace).not_to include("FULL_RAN")
+    end
+
+    it "still runs the full suite when the gate passes" do
+      exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_status: 0)
+
+      expect(exitstatus).to eq(0)
+      expect(trace).to include("GATE_RAN")
+      expect(trace).to include("FULL_RAN")
+    end
+
+    it "does not let a passing gate hide a failing suite" do
+      exitstatus, _trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_status: 0, parallel_status: 1)
+
+      expect(exitstatus).to eq(1)
+    end
+
+    it "is skipped entirely with no recorded failures" do
+      exitstatus, trace = run_gate(gate_command, previous_specs: "")
+
+      expect(exitstatus).to eq(0)
+      expect(trace).not_to include("GATE_RAN")
+      expect(trace).to include("FULL_RAN")
+    end
+  end
+
   # Regression: the shard-JUnit merge ran after `set -e`, so when it failed
   # the shell aborted before the status check and the grader reported the
   # merge's error instead of the test outcome -- with no evidence attached. A

@@ -503,8 +503,24 @@ module Steps
         Prepare.prep_env_forward,
         extra: workspace_dependency_env.merge(extra_env).merge(
           "SYRUS_PROCESS_PARALLELISM" => RunProcessParallelism.for(run: run).to_s
-        )
+        ).merge(previous_failure_env)
       )
+    end
+
+    # Spec files that failed this same grader on the previous loop iteration.
+    # A grader command may use these to check the known-bad set first and bail
+    # out before the full suite: a repair that did not work is then rejected in
+    # seconds instead of after a full run. This is a fail-fast gate only --
+    # passing it proves nothing, so the full suite still runs behind it and
+    # still decides the verdict.
+    def previous_failure_env
+      paths = PreviousGraderFailures.spec_paths_for(step)
+      return {} if paths.empty?
+
+      { "SYRUS_PREVIOUS_FAILED_SPECS" => paths.join(" ") }
+    rescue StandardError => e
+      Rails.logger.warn("[Grader] previous failure lookup failed for Step ##{step.id}: #{e.class}: #{e.message}")
+      {}
     end
   end
 end
