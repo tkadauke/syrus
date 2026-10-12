@@ -688,14 +688,14 @@ class TargetGraph
             timeout_minutes: positive_timeout(grader.timeout_minutes),
             owner_config_path: config_path,
             capabilities: grader.capabilities,
-            metadata: {
+            metadata: grader.metadata.merge(
               "description" => grader.description,
               "display_name" => grader.display_name,
               "junit_output" => grader.junit_output,
               "failures" => grader.failures,
               "base_retry" => grader.base_retry&.to_h,
               "execution_backend" => execution_backend
-            }.merge(grader.metadata).compact
+            ).compact
           ),
           declaration: "legacy grade #{grader.name.inspect}"
         )
