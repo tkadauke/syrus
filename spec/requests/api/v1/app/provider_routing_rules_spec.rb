@@ -276,6 +276,9 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("provider_routing_rules")).to include(include("task_key" => "ci_failure"))
+    expect(parse_body.fetch("inherited_provider_routing_context")).to include(
+      include("scope_type" => "user", "label" => "User defaults", "rules" => include(include("task_key" => "default")))
+    )
     expect(parse_body.dig("provider_routing_options", "agent_providers")).to include(
       include("value" => "claude", "models" => include(include("id" => "claude-sonnet-4-6")))
     )
