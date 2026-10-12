@@ -12,6 +12,7 @@ class RetryWorkflowEnqueuer
   # job lifecycle and have their own retry paths (LandingRetrier), so they
   # are not in scope here.
   SELF_RETRYING_TRIGGER_KINDS = %w[ rebase stack_rebase main_branch_repair ].freeze
+  ACTIVE_RETRY_MESSAGE = "A retry workflow is already queued or running for this Job.".freeze
 
   Result = Data.define(:workflow, :error, :circuit) do
     def success? = workflow.present?
@@ -74,6 +75,7 @@ class RetryWorkflowEnqueuer
   def call
     return failure("Runaway protection active — clear by retrying manually.") if automatic? && job.runaway_protection.present?
 
+    original_job_state = job.reload.state
     eligibility = RetryWorkflowEligibility.call(job: job)
     reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
@@ -103,9 +105,10 @@ class RetryWorkflowEnqueuer
     return failure_result if failure_result
 
     WorkUnits::Launcher.start!(workflow)
+    restore_non_failed_retry_state!(original_job_state)
     Result.new(workflow: workflow, error: nil, circuit: nil)
   rescue WorkUnits::Launcher::LockConflict
-    failure("a workflow is already queued or running for this job")
+    failure(ACTIVE_RETRY_MESSAGE)
   end
 
   private
@@ -194,6 +197,13 @@ class RetryWorkflowEnqueuer
     return checkpoint_resume.workflow if checkpoint_resume.success?
 
     WorkUnits::Launcher.instantiate(kind: retry_kind, job: job, artifacts: artifacts, agent_provider: agent_provider)
+  end
+
+  def restore_non_failed_retry_state!(original_state)
+    return unless original_state == "implemented"
+    return if job.reload.implemented?
+
+    job.update_columns(state: original_state, updated_at: Time.current)
   end
 
   # The kind of the most recent failed workflow, when re-running it is the right
