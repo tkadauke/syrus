@@ -97,7 +97,9 @@ Rails.application.routes.draw do
             member { get :file }
           end
         end
+        get "credentials/provider_routing_rules", to: "provider_routing_rules#index"
         post "credentials/provider_routing_rules", to: "provider_routing_rules#create"
+        patch "credentials/provider_routing_rules/reorder", to: "provider_routing_rules#reorder"
         patch "credentials/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { id: /\d+/ }
         delete "credentials/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { id: /\d+/ }
         get "jobs/new", to: "direct_jobs#new"
@@ -108,6 +110,11 @@ Rails.application.routes.draw do
         get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_image", to: "jobs#source_image", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/target_graph", to: "target_graphs#job", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:job_id/provider_routing_rules", to: "provider_routing_rules#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/provider_routing_rules", to: "provider_routing_rules#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        patch "jobs/:job_id/provider_routing_rules/reorder", to: "provider_routing_rules#reorder", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        patch "jobs/:job_id/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        delete "jobs/:job_id/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         get "jobs/:job_id/diff_review_versions", to: "diff_review_versions#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/diff_review_versions/:id", to: "diff_review_versions#show", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /[a-zA-Z0-9_-]+/ }
@@ -344,7 +351,9 @@ Rails.application.routes.draw do
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
           resources :final_approvers, controller: "repository_final_approvers", only: %i[ index create destroy ]
-          resources :provider_routing_rules, controller: "provider_routing_rules", only: %i[ create update destroy ]
+          resources :provider_routing_rules, controller: "provider_routing_rules", only: %i[ index create update destroy ] do
+            collection { patch :reorder }
+          end
         end
         resources :teams, only: %i[ index show create update destroy ] do
           resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]
