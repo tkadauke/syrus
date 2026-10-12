@@ -5,7 +5,15 @@ module ContainerExecution
     MCP_SOCKET_CONTAINER_PATH = "/run/syrus/mcp.sock".freeze
 
     def self.available_for?(request)
-      request.kind.to_s == "grader" && Configuration.image.present?
+      new.available_for?(request)
+    end
+
+    def available_for?(request)
+      request.kind.to_s == "grader" &&
+        Configuration.image.present? &&
+        Configuration.docker_command_path.present? &&
+        Configuration.docker_transport_available? &&
+        all_mounts_host_visible?(request)
     end
 
     def run(request)
@@ -40,7 +48,7 @@ module ContainerExecution
 
     def docker_command(request)
       [
-        Configuration.docker_command,
+        Configuration.docker_command_path,
         "run",
         "--rm",
         "--network",
@@ -71,7 +79,7 @@ module ContainerExecution
     def bind_mount_args(mount, readonly:)
       options = [
         "type=bind",
-        "src=#{mount.host_path}",
+        "src=#{Configuration.host_path_for(mount.host_path)}",
         "dst=#{mount.mount_path}"
       ]
       options << "readonly" if readonly
@@ -82,7 +90,7 @@ module ContainerExecution
       socket_path = Configuration.mcp_socket_path
       return [] if socket_path.blank?
 
-      [ "--mount", "type=bind,src=#{socket_path},dst=#{MCP_SOCKET_CONTAINER_PATH},readonly" ]
+      [ "--mount", "type=bind,src=#{Configuration.host_path_for(socket_path)},dst=#{MCP_SOCKET_CONTAINER_PATH},readonly" ]
     end
 
     def env_args(request)
@@ -128,6 +136,16 @@ module ContainerExecution
         .relative_path_from(Pathname.new(matching_mount.host_path).expand_path)
         .to_s
       relative == "." ? matching_mount.mount_path : File.join(matching_mount.mount_path, relative)
+    end
+
+    def all_mounts_host_visible?(request)
+      request.mounts.declared_mounts.all? { |mount| Configuration.host_path_for(mount.host_path).present? } &&
+        mcp_socket_host_visible?
+    end
+
+    def mcp_socket_host_visible?
+      socket_path = Configuration.mcp_socket_path
+      socket_path.blank? || Configuration.host_path_for(socket_path).present?
     end
   end
 end
