@@ -1,11 +1,18 @@
 require "rails_helper"
 
 RSpec.describe ProviderRoutingRule do
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:job) { Factories.job(repository: repository, user: user, owner_user: user, job_provider_setting: "default") }
+
   def rule(**attrs)
     described_class.new({
       scope_type: "repository",
-      scope_id: 1,
+      scope_id: repository.id,
+      user_id: user.id,
+      repository_id: repository.id,
       task_key: "default",
+      position: 1,
       candidates: [ { "provider" => "claude" } ]
     }.merge(attrs))
   end
@@ -15,7 +22,11 @@ RSpec.describe ProviderRoutingRule do
   end
 
   it "is valid with a well-formed user-scoped rule" do
-    expect(rule(scope_type: "user")).to be_valid
+    expect(rule(scope_type: "user", scope_id: user.id, user_id: user.id, repository_id: nil)).to be_valid
+  end
+
+  it "is valid with a well-formed job-scoped rule" do
+    expect(rule(scope_type: "job", scope_id: job.id, job_id: job.id, repository_id: repository.id)).to be_valid
   end
 
   it "requires a known scope_type" do
@@ -32,34 +43,35 @@ RSpec.describe ProviderRoutingRule do
     expect(record.errors[:scope_id]).to be_present
   end
 
-  it "requires task_key" do
-    record = rule(task_key: nil)
+  it "requires consistent user ownership" do
+    record = rule(user_id: user.id + 1000)
 
     expect(record).not_to be_valid
-    expect(record.errors[:task_key]).to be_present
+    expect(record.errors[:user_id]).to be_present
   end
 
-  it "enforces uniqueness on (scope_type, scope_id, task_key)" do
-    rule(scope_type: "repository", scope_id: 7, task_key: "ci_failure").save!
+  it "enforces uniqueness on (scope_type, scope_id, position)" do
+    rule(task_key: "ci_failure").save!
 
-    duplicate = rule(scope_type: "repository", scope_id: 7, task_key: "ci_failure")
+    duplicate = rule(task_key: "default")
 
     expect(duplicate).not_to be_valid
-    expect(duplicate.errors[:task_key]).to be_present
+    expect(duplicate.errors[:position]).to be_present
   end
 
-  it "allows the same task_key across different scope types or ids" do
-    rule(scope_type: "repository", scope_id: 7, task_key: "ci_failure").save!
+  it "allows the same trigger across different ordered rules in one scope" do
+    rule(task_key: "ci_failure", position: 1).save!
 
-    expect(rule(scope_type: "repository", scope_id: 8, task_key: "ci_failure")).to be_valid
-    expect(rule(scope_type: "user", scope_id: 7, task_key: "ci_failure")).to be_valid
+    expect(rule(task_key: "ci_failure", position: 2)).to be_valid
   end
 
-  it "defaults candidates to an empty array" do
-    record = described_class.new(scope_type: "repository", scope_id: 1, task_key: "default")
+  it "defaults payloads from legacy task_key and candidates" do
+    record = described_class.new(scope_type: "repository", scope_id: repository.id, user_id: user.id, repository_id: repository.id, task_key: "initial")
 
     expect(record).to be_valid
     expect(record.candidates).to eq([])
+    expect(record.trigger).to eq("type" => "legacy_task", "task_key" => "initial")
+    expect(record.action).to eq("strategy" => "fallback_order", "candidates" => [])
   end
 
   it "rejects a candidates value that is not an array" do
@@ -88,6 +100,82 @@ RSpec.describe ProviderRoutingRule do
 
     expect(record).not_to be_valid
     expect(record.errors[:candidates]).to be_present
+  end
+
+  it "accepts actual invocation triggers for agentic step kinds and chat roles" do
+    step_rule = rule(trigger: { type: "step", kind: "implement" })
+    chat_rule = rule(position: 2, trigger: { type: "chat_role", role: AgentRole::CHAT_PLANNER })
+
+    expect(step_rule).to be_valid
+    expect(chat_rule).to be_valid
+  end
+
+  it "rejects trigger shapes that do not represent agent invocations" do
+    non_agentic = rule(trigger: { type: "step", kind: "prepare" })
+    unknown_chat_role = rule(trigger: { type: "chat_role", role: "chat:not-real" })
+
+    expect(non_agentic).not_to be_valid
+    expect(non_agentic.errors[:trigger]).to be_present
+    expect(unknown_chat_role).not_to be_valid
+    expect(unknown_chat_role.errors[:trigger]).to be_present
+  end
+
+  it "rejects malformed condition payloads" do
+    record = rule(conditions: {
+      "workflow_trigger_kind" => "not-real",
+      "day_time" => { "days" => [ "nonday" ], "start" => "9am" },
+      "repository" => { "ids" => "not-array" },
+      "job_metadata" => "not-object"
+    })
+
+    expect(record).not_to be_valid
+    expect(record.errors[:conditions]).to be_present
+  end
+
+  it "accepts structured conditions for workflow, budget, day, repository, and job metadata predicates" do
+    record = rule(conditions: {
+      workflow_trigger_kind: [ "initial" ],
+      usage: { "max_daily_cost_usd" => 10 },
+      budget: { "remaining_percent_greater_than" => 20 },
+      day_time: { "days" => [ "monday" ], "start" => "09:00", "end" => "17:00" },
+      repository: { "ids" => [ repository.id ], "owners" => [ repository.owner ], "names" => [ repository.name ] },
+      job_metadata: { "kinds" => [ "issue" ], "priorities" => [ "medium" ] }
+    })
+
+    expect(record).to be_valid
+  end
+
+  it "rejects malformed action payloads" do
+    missing_candidates = rule(action: { strategy: "fallback_order" })
+    unknown_strategy = rule(action: { strategy: "round_robin", candidates: [ { provider: "claude" } ] })
+
+    expect(missing_candidates).not_to be_valid
+    expect(missing_candidates.errors[:action]).to be_present
+    expect(unknown_strategy).not_to be_valid
+    expect(unknown_strategy.errors[:action]).to be_present
+  end
+
+  it "accepts weighted action payloads for future load balancing" do
+    record = rule(action: {
+      strategy: "weighted",
+      candidates: [
+        { provider: "claude", weight: 75 },
+        { provider: "codex", weight: 25 }
+      ]
+    })
+
+    expect(record).to be_valid
+  end
+
+  it "validates repository and job scoped rule ownership" do
+    other_user = Factories.user
+    repository_rule = rule(user_id: other_user.id)
+    job_rule = rule(scope_type: "job", scope_id: job.id, job_id: job.id, user_id: other_user.id)
+
+    expect(repository_rule).not_to be_valid
+    expect(repository_rule.errors[:user_id]).to be_present
+    expect(job_rule).not_to be_valid
+    expect(job_rule.errors[:user_id]).to be_present
   end
 
   it "accepts an ordered multi-candidate fallback chain across known providers" do
