@@ -142,7 +142,7 @@ RSpec.describe Steps::AdversarialReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
   end
 
-  it "skips review when the provider rejects the prompt as too long" do
+  it "skips review and records a warning when the provider rejects the prompt as too long" do
     allow(handler).to receive(:run_agent).and_raise(StandardError, "Claude API error: Prompt is too long")
     expect(ReviewFindingEvents).to receive(:record).with(
       workflow: workflow,
@@ -156,7 +156,9 @@ RSpec.describe Steps::AdversarialReview do
       skip_reason: include("Prompt is too long")
     )
 
-    expect { handler.call }.not_to raise_error
+    expect {
+      handler.call
+    }.to raise_error(Steps::Base::StepSkipped, /Prompt is too long/)
 
     iteration = workflow.reload.artifact("adversarial_review_iterations").last
     expect(iteration).to include(
@@ -165,6 +167,37 @@ RSpec.describe Steps::AdversarialReview do
     )
     expect(iteration["skip_reason"]).to include("Prompt is too long")
     expect(review_step.reload.details).to include("adversarial_review_skipped" => true)
+    expect(workflow.workflow_warnings.sole).to have_attributes(
+      kind: "review_execution_skipped",
+      step: review_step,
+      title: include("Adversarial review skipped")
+    )
+    expect(workflow.workflow_warnings.sole.evidence).to include(
+      "review_kind" => "adversarial_review",
+      "run_id" => run.id,
+      "step_id" => review_step.id
+    )
+  end
+
+  it "fails instead of skipping when adversarial_review.required is true and execution cannot proceed" do
+    allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+      SyrusYml::Config.new(
+        prepare: nil, grade: nil, hooks: nil,
+        adversarial_review: SyrusYml::AdversarialReviewConfig.new(rounds: 1, criteria: [], required: true),
+        review_notes: nil, agent_insight: nil, coverage: nil, formatters: [], generated: [],
+        deployment_stages: [], preview: nil, visual_review: nil, review_plan: false, deploy: nil,
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [],
+        target_graph: nil, scripts: {}
+      )
+    )
+    allow(handler).to receive(:run_agent).and_raise(StandardError, "Claude API error: Prompt is too long")
+    allow(ReviewFindingEvents).to receive(:record)
+
+    expect {
+      handler.call
+    }.to raise_error(Steps::Base::StepFailed, /adversarial_review review could not execute/)
+
+    expect(workflow.reload.workflow_warnings).to be_empty
   end
 
   it "skips review after repeated failed reviewer attempts of the same kind" do
@@ -185,7 +218,9 @@ RSpec.describe Steps::AdversarialReview do
       skip_reason: include("did not call submit_adversarial_review")
     )
 
-    expect { handler.call }.not_to raise_error
+    expect {
+      handler.call
+    }.to raise_error(Steps::Base::StepSkipped, /did not call submit_adversarial_review/)
 
     iteration = workflow.reload.artifact("adversarial_review_iterations").last
     expect(iteration).to include(

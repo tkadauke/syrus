@@ -120,6 +120,9 @@ class Problem
       # -- The work itself ----------------------------------------------------
       Entry.new(code: "grader_failure", scope: :step, retryable: false,
                 default_remediation: :repair_with),
+      Entry.new(code: "review_execution_unavailable", scope: :run, retryable: false,
+                default_remediation: :escalate,
+                label: "Review execution unavailable"),
       Entry.new(code: "validation_or_user_error", scope: :run, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "application_error", scope: :run, retryable: false,

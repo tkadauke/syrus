@@ -43,6 +43,13 @@ RSpec.describe Steps::Grader, :ci_only do
     # earlier example in the same process.
     @ws_path = WorkflowWorkspace.path_for(workflow)
     FileUtils.mkdir_p(@ws_path)
+    git_opts = { chdir: @ws_path.to_s, exception: true }
+    system("git", "init", "--quiet", **git_opts)
+    system("git", "config", "user.email", "test@example.com", **git_opts)
+    system("git", "config", "user.name", "Test", **git_opts)
+    File.write(@ws_path.join("README.md"), "hello\n")
+    system("git", "add", "README.md", **git_opts)
+    system("git", "commit", "--quiet", "-m", "init", **git_opts)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
@@ -249,6 +256,30 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(error.problem).to be_retryable
   end
 
+  it "fails before running a grader when the checkout is missing a tracked file" do
+    FileUtils.rm_f(@ws_path.join("README.md"))
+    expect(ProcessRunner).not_to receive(:new)
+
+    error = nil
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
+
+    expect(error.message).to include("checkout is missing tracked file: README.md")
+    expect(error.problem.code).to eq("workspace_checkout_invalid")
+    expect(error.problem).to be_retryable
+  end
+
+  it "does not treat tracked submodule gitlinks as missing files" do
+    git_opts = { chdir: @ws_path.to_s, exception: true }
+    system(
+      "git", "update-index", "--add", "--cacheinfo",
+      "160000,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,vendor/plugin",
+      **git_opts
+    )
+
+    expect { handler.call }.not_to raise_error
+    expect(step.reload.details["exit_code"]).to eq(0)
+  end
+
   it "treats an unexplained missing grader exit status as retryable worker loss" do
     fake_result = ProcessRunner::Result.new(
       exit_status: nil, timed_out: false, stopped: false,
@@ -424,6 +455,44 @@ RSpec.describe Steps::Grader, :ci_only do
     ])
   end
 
+  it "materializes grader inputs after prepare targets and before the grader command" do
+    step.update!(details: step.details.merge(
+      "command" => "bin/rspec",
+      "runtime_profile_destination" => ".syrus/parallel_runtime_tests.log",
+      "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
+    ))
+    events = []
+    provider = Class.new do
+      class << self
+        attr_accessor :events
+
+        def materialize_grader_inputs(context)
+          events << "materialize:#{context.destination_path}"
+        end
+      end
+    end
+    provider.events = events
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_input_materializer).and_return([ provider ])
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      events << kwargs[:command].last
+      instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false,
+        silent_timed_out: false, operator_killed: false,
+        aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+      ))
+    end
+
+    handler.call
+
+    expect(events).to eq([
+      "npm ci",
+      "materialize:.syrus/parallel_runtime_tests.log",
+      "bin/rspec"
+    ])
+  end
+
   it "runs nested prepare targets from their project directory" do
     FileUtils.mkdir_p(@ws_path.join("cli"))
     step.update!(details: step.details.merge(
@@ -585,17 +654,6 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   describe "grader side-effect detection" do
-    before do
-      FileUtils.mkdir_p(@ws_path)
-      git_opts = { chdir: @ws_path.to_s, exception: true }
-      system("git", "init", "--quiet", **git_opts)
-      system("git", "config", "user.email", "test@example.com", **git_opts)
-      system("git", "config", "user.name", "Test", **git_opts)
-      File.write(@ws_path.join("README.md"), "hello\n")
-      system("git", "add", ".", **git_opts)
-      system("git", "commit", "--quiet", "-m", "init", **git_opts)
-    end
-
     it "records a grader_side_effect warning when the command leaves uncommitted changes, without affecting grader pass/fail" do
       step.update!(details: step.details.merge("command" => "touch dirty.txt"))
 
@@ -629,15 +687,6 @@ RSpec.describe Steps::Grader, :ci_only do
 
   describe "prepare target side-effect detection" do
     before do
-      FileUtils.mkdir_p(@ws_path)
-      git_opts = { chdir: @ws_path.to_s, exception: true }
-      system("git", "init", "--quiet", **git_opts)
-      system("git", "config", "user.email", "test@example.com", **git_opts)
-      system("git", "config", "user.name", "Test", **git_opts)
-      File.write(@ws_path.join("README.md"), "hello\n")
-      system("git", "add", ".", **git_opts)
-      system("git", "commit", "--quiet", "-m", "init", **git_opts)
-
       step.update!(details: step.details.merge(
         "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "touch dirty.txt" ] } ]
       ))

@@ -851,6 +851,7 @@ module WorkEngine
         step_runs = runs_for_step_reconciliation(step)
         next if step_runs.empty?
         next if step_runs.any? { |run| run.queued? || run.running? }
+        next if pending_worker_died_step_retry?(step)
         next unless step_runs.all?(&:terminal?)
 
         projection = Steps::StateProjection.for(step, runs: step_runs)
@@ -1727,17 +1728,27 @@ module WorkEngine
 
     def classify_closed_jobs_with_active_runtime_work
       jobs.select(&:closed?).flat_map do |job|
-        active_work_unit_owned_workflows_for_job(job)
-          .map do |workflow|
+        active = active_work_unit_owned_workflows_for_job(job).map { |workflow| [ workflow, nil ] }
+        terminal_owned = WorkUnits::TerminalWorkflowSync
+          .terminal_work_unit_owned_active_workflows_for_job(job)
+          .map { |ownership| [ ownership.workflow, ownership.work_unit ] }
+
+        (active + terminal_owned).uniq { |workflow, _unit| workflow.id }
+          .map do |workflow, terminal_unit|
             issue(
               kind: :closed_job_active_runtime_work,
               severity: :critical,
-              affected_ids: ids_for(workflow).merge(job_ids: [ job.id ]),
+              affected_ids: ids_for(workflow).merge(
+                job_ids: [ job.id ],
+                work_unit_ids: [ terminal_unit&.id, workflow.work_unit&.id ].compact.uniq
+              ),
               safe_to_auto_repair: workflow.may_cancel?,
               recommended_repair_action: "cancel_workflow_for_closed_job",
               evidence: workflow_evidence(workflow).merge(
                 job_finished_at: job.finished_at&.iso8601,
                 job_closure_reason: job.closure_reason,
+                terminal_work_unit_id: terminal_unit&.id,
+                terminal_work_unit_state: terminal_unit&.state,
                 active_step_states: workflow.steps.where(state: %w[queued running]).pluck(:id, :kind, :state)
               ),
               explanation: "Closed #{job_label(job)} still has active WorkUnit-owned Workflow ##{workflow.id}; that work should be cancelled."
@@ -3293,9 +3304,20 @@ module WorkEngine
 
     def step_needs_terminal_run_reconciliation?(step)
       return false unless step&.running? || (step&.queued? && step.workflow&.running?)
+      return false if pending_worker_died_step_retry?(step)
 
       step_runs = runs.select { |run| run.step_id == step.id }
       step_runs.any? && step_runs.all?(&:terminal?)
+    end
+
+    def pending_worker_died_step_retry?(step)
+      return false unless step
+
+      AutoRetryAttempt.pending.where(
+        run_id: step.runs.select(:id),
+        retry_kind: "failed_step",
+        failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+      ).exists?
     end
 
     def review_gate_for_step(step)

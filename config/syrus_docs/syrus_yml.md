@@ -690,9 +690,23 @@ grade:
     parallel_rspec:
       enabled: true
       rspec_modes: [full, focused, ci]
+      group_by: runtime
+      allowed_missing: 100
+      unknown_runtime: 0.1
       exec_args: bin/rspec-worker
       prepare_command: bundle exec rake parallel:prepare
 ```
+
+`parallel_rspec.group_by` passes `--group-by` through to `parallel_rspec`.
+Use `runtime` when large suites have uneven spec-file costs. Syrus asks enabled
+grader input materializers to write a `parallel_tests` runtime log into the
+grader workspace before the command starts; if none is produced, the Ruby
+grader logs a fallback note and runs without runtime grouping. Runtime logs use
+the `path/to/spec.rb:seconds` format that `parallel_tests` writes. When the log
+is partial, `parallel_rspec.allowed_missing` and
+`parallel_rspec.unknown_runtime` pass through to `parallel_tests` so known
+expensive files can still drive the split while unmeasured files get a
+conservative default.
 
 Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
 at all — declaring it in `.syrus.yml` has no effect and is not parsed into
@@ -971,12 +985,20 @@ Enables an independent reviewer agent that critiques the implementation before g
 ```yaml
 adversarial_review:
   rounds: 2
+  required: false
   criteria:
     - Verify all new endpoints enforce authentication
     - Check that database queries use parameterized inputs
 ```
 
 `rounds` bounds the review loop. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable. In every workflow that has this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`), `implement`/`respond` always runs once as a bare top-level step regardless of this setting; `rounds` then controls how many review opinions the loop that follows seeks (and, on each `needs_work` verdict, reacts to with a repair) — see [`adversarial_review.md`](adversarial_review.md) for the exact iteration shape.
+
+`required` controls what happens when the review step cannot execute at all
+(for example, a reviewer prompt that cannot fit in the provider context
+window). The default is `false`: Syrus records a skipped review and a
+WorkflowWarning, then continues. Set `required: true` to fail the workflow
+instead. This does not change genuine review findings: a reviewer that runs
+and returns `needs_work` still triggers the normal repair loop.
 
 `criteria` is an optional array of strings directing the reviewer toward repository- or project-specific concerns. Root `.syrus.yml` criteria apply repo-wide by declaration scope, preserving legacy root-only behavior. Nested `.syrus.yml` files may also declare `adversarial_review.criteria`; Syrus adds those project criteria only when the diff under review touches that project directory. The reviewer prompt receives affected project metadata plus the de-duplicated union of relevant root and project criteria. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 
@@ -988,6 +1010,7 @@ Configures the visual_review Labs feature: a headless-browser QA pass the worker
 visual_review:
   enabled: true
   rounds: 2
+  required: false
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
@@ -997,6 +1020,13 @@ visual_review:
 `enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the always-on instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the always-on default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without an omitted `enabled` forcing the feature off. See [`visual_review.md`](visual_review.md) for the full feature reference.
 
 `rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
+
+`required` controls what happens when visual review cannot execute at all
+(for example, preview preparation or preview seeding fails). The default is
+`false`: Syrus records the review as skipped, raises a WorkflowWarning, and
+continues. Set `required: true` to fail the workflow instead. This does not
+change genuine `needs_work` visual findings, which still trigger the normal
+repair loop.
 
 `when_files_changed` is an optional array of glob patterns; when present, visual review only runs when at least one changed file (relative to the default branch) matches one of the patterns. Uses the same glob semantics as a grader's `when_files_changed`. Omitting it runs visual review regardless of which files changed.
 

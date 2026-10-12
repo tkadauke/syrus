@@ -290,7 +290,10 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_failed_step(attempt)
+    return retry_running_worker_died_step(attempt) if running_worker_died_step_retry?(attempt)
+
     if attempt.workflow.retry_available?
+      clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
       RetryFailedStepEnqueuer.call(
         workflow: attempt.workflow,
         agent_provider: attempt.agent_provider,
@@ -301,6 +304,36 @@ class AutoRetryJob < ApplicationJob
     else
       retry_workflow(attempt)
     end
+  end
+
+  def running_worker_died_step_retry?(attempt)
+    return false unless attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+
+    step = attempt.run&.step
+    step&.running? && attempt.workflow&.running?
+  end
+
+  def retry_running_worker_died_step(attempt)
+    step = attempt.run.step
+    clear_failed_worker_affinity!(attempt)
+    replacement = StepDispatcher.create_run_and_enqueue(step, attempt.workflow)
+
+    RetryFailedStepEnqueuer::Result.new(
+      run: replacement,
+      workflow: attempt.workflow,
+      step: step,
+      error: replacement ? nil : "replacement run could not be queued"
+    )
+  end
+
+  def clear_failed_worker_affinity!(attempt)
+    workflow = attempt.workflow
+    return unless workflow
+    return unless workflow.worker_hostname.present? || workflow.worker_storage_key.present?
+
+    workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+    workflow.reload
+    attempt.run&.association(:step)&.reset
   end
 
   def retry_workflow(attempt)

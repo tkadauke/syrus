@@ -25,6 +25,7 @@ class AutoRetryFailureClassifier
   RETRYABLE_ERROR_CLASSES = %w[
     ActiveRecord::ConnectionNotEstablished
     ActiveRecord::ConnectionTimeoutError
+    ActiveModel::MissingAttributeError
     Timeout::Error
     Net::OpenTimeout
     Net::ReadTimeout
@@ -89,6 +90,22 @@ class AutoRetryFailureClassifier
     NON_RETRYABLE_MESSAGE_PATTERNS.any? { |pattern| message.to_s.match?(pattern) }
   end
 
+  def self.retryable_exception?(exception)
+    retryable_error_class?(exception.class.name) ||
+      retryable_message?("#{exception.class}: #{exception.message}")
+  end
+
+  def self.retryable_error_class?(error_class)
+    RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
+      error_class.to_s.end_with?("TimeoutError", "Timeout")
+  end
+
+  def self.retryable_message?(message)
+    text = message.to_s
+    !non_retryable_message?(text) &&
+      RETRYABLE_MESSAGE_PATTERNS.any? { |pattern| text.match?(pattern) }
+  end
+
   def initialize(workflow:)
     @workflow = workflow
   end
@@ -101,6 +118,11 @@ class AutoRetryFailureClassifier
     end
     if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, run.run_failure_classification.reason.presence || "provider authentication token expired")
+    end
+    if authoritative_run_failure_classification?(run.run_failure_classification)
+      classification = run.run_failure_classification
+      reason = classification.reason.presence || "run failure classifier marked #{classification.classification}"
+      return classification.retryable? ? retryable(classification.classification, reason) : non_retryable(classification.classification, reason)
     end
     if provider_auth_failure?(run)
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, "provider authentication token expired")
@@ -134,6 +156,17 @@ class AutoRetryFailureClassifier
 
   attr_reader :workflow
 
+  AUTHORITATIVE_RUN_FAILURE_CLASSIFICATIONS = %w[
+    disk_full
+    grader_failure
+    worker_died
+    worker_died_under_resource_pressure
+  ].freeze
+
+  def authoritative_run_failure_classification?(classification)
+    classification&.classification.in?(AUTHORITATIVE_RUN_FAILURE_CLASSIFICATIONS)
+  end
+
   # Resolved through the registry rather than trusted verbatim, so a code that
   # no longer exists falls back to the patterns instead of raising.
   def declared_problem(diagnostic)
@@ -148,8 +181,7 @@ class AutoRetryFailureClassifier
   end
 
   def retryable_error_class?(error_class)
-    RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
-      error_class.to_s.end_with?("TimeoutError", "Timeout")
+    self.class.retryable_error_class?(error_class)
   end
 
   def provider_auth_failure?(run)

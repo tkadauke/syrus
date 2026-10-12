@@ -945,6 +945,74 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload).to be_cancelled
   end
 
+  it "cancels queued workflows on closed jobs after their WorkUnit was already cancelled" do
+    workflow.update_columns(state: "queued", started_at: nil)
+    step.update_columns(state: "queued", started_at: nil)
+    run.update_columns(state: "queued", started_at: nil)
+    unit = workflow.work_unit
+    unit.mark_terminal!("cancelled")
+    job.update_columns(state: "closed", finished_at: 30.minutes.ago, closure_reason: "operator_cancelled")
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :closed_job_active_runtime_work)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_workflow_for_closed_job"
+    )
+    expect(kind(result, :closed_job_active_runtime_work).affected_ids.fetch(:work_unit_ids)).to include(unit.id)
+    expect(kind(result, :closed_job_active_runtime_work).evidence).to include(
+      "terminal_work_unit_id" => unit.id,
+      "terminal_work_unit_state" => "cancelled"
+    )
+    expect(plan(result, :cancel_workflow_for_closed_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: workflow.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{workflow.slug} because #{job.slug} is closed")
+    expect(workflow.reload).to be_cancelled
+    expect(step.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+  end
+
+  it "does not cancel a workflow handed from a terminal WorkUnit to an active replacement" do
+    workflow.update_columns(state: "running", started_at: 45.minutes.ago)
+    step.update_columns(state: "running", started_at: 45.minutes.ago)
+    run.update_columns(state: "running", started_at: 45.minutes.ago, last_heartbeat_at: 40.minutes.ago)
+    stale_unit = workflow.work_unit
+    stale_unit.mark_terminal!("cancelled")
+    stale_unit.work_intent.cancel!
+    replacement_intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    replacement = WorkUnit.new(
+      work_intent: replacement_intent,
+      kind: "initial",
+      state: "running",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    replacement.save!(validate: false)
+    job.update_columns(state: "closed", finished_at: 30.minutes.ago, closure_reason: "operator_cancelled")
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :closed_job_active_runtime_work)).to be_nil
+    expect(plan(result, :cancel_workflow_for_closed_job)).to be_nil
+    expect(result.repair_executions).to be_empty
+    expect(workflow.reload).to be_running
+    expect(replacement.reload).to be_running
+  end
+
   it "cancels child workflows on closed jobs" do
     ensure_solid_queue_test_tables!
     visual_diff = Workflow.create!(
@@ -4342,10 +4410,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not schedule a second failed_step retry for repeated reconciler passes over the same worker-died grader_fanout Run" do
-    # A grader Step normally self-heals a worker_died failure in place
-    # (Runs::LifecyclePropagation#retried_in_place_after_worker_died?, up to
-    # Run::WORKER_DIED_STEP_MAX_RETRIES), bypassing AutoRetryAttempt entirely.
-    # Exhaust that budget first so this Run's failure escalates to the same
+    # A grader Step normally schedules bounded worker_died replacement retries
+    # through Runs::LifecyclePropagation. Exhaust that budget first so this
+    # Run's failure escalates to the same
     # reconciler-driven mark_worker_died_and_retry_failed_step path an
     # agentic Run would use.
     step.update_columns(kind: "grader", next_step_id: nil)

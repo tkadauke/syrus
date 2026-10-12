@@ -26,6 +26,54 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     path
   end
 
+  def stub_current_browser_capture(target_run: run, encoded_png: png_base64, page: {})
+    page = {
+      url: "http://127.0.0.1:3000/credential_store",
+      path: "/credential_store",
+      title: "Credential store",
+      viewport: { width: 1440, height: 900, deviceScaleFactor: 1 }
+    }.merge(page)
+    fake_tool_set = Class.new do
+      define_singleton_method(:available_for?) { |_repository| true }
+      define_singleton_method(:tool_definitions) do
+        [
+          { name: "browser_screenshot", description: "Screenshot", input_schema: {} },
+          { name: "browser_evaluate", description: "Evaluate", input_schema: {} }
+        ]
+      end
+
+      define_method(:handle) do |tool_name, params, server_context|
+        raise "wrong run context" unless server_context[:run] == target_run
+
+        case tool_name
+        when "browser_screenshot"
+          MCP::Tool::Response.new([ { type: "image", data: encoded_png, mimeType: "image/png" } ])
+        when "browser_evaluate"
+          raise "wrong evaluate function" unless params.fetch("function").include?("window.location.href")
+
+          MCP::Tool::Response.new([
+            {
+              type: "text",
+              text: <<~TEXT
+                ### Result
+                #{page.to_json}
+                ### Ran Playwright code
+                ```js
+                () => ({ url: window.location.href })
+                ```
+              TEXT
+            }
+          ])
+        else
+          MCP::Tool::Response.new([ { type: "text", text: "Error: unexpected tool" } ], error: true)
+        end
+      end
+    end
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+  end
+
   it "accepts a run_id-only sidecar context" do
     described_class.call(
       type: "visual_review_screenshot",
@@ -207,52 +255,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   end
 
   it "captures the current MCP browser directly and stores page provenance" do
-    current_run = run
-    encoded_png = png_base64
-    fake_tool_set = Class.new do
-      define_singleton_method(:available_for?) { |_repository| true }
-      define_singleton_method(:tool_definitions) do
-        [
-          { name: "browser_screenshot", description: "Screenshot", input_schema: {} },
-          { name: "browser_evaluate", description: "Evaluate", input_schema: {} }
-        ]
-      end
-
-      define_method(:handle) do |tool_name, params, server_context|
-        raise "wrong run context" unless server_context[:run] == current_run
-
-        case tool_name
-        when "browser_screenshot"
-          MCP::Tool::Response.new([ { type: "image", data: encoded_png, mimeType: "image/png" } ])
-        when "browser_evaluate"
-          raise "wrong evaluate function" unless params.fetch("function").include?("window.location.href")
-
-          result_json = {
-            url: "http://127.0.0.1:3000/credential_store",
-            path: "/credential_store",
-            title: "Credential store",
-            viewport: { width: 1440, height: 900, deviceScaleFactor: 1 }
-          }.to_json
-          MCP::Tool::Response.new([
-            {
-              type: "text",
-              text: <<~TEXT
-                ### Result
-                #{result_json}
-                ### Ran Playwright code
-                ```js
-                () => ({ url: window.location.href })
-                ```
-              TEXT
-            }
-          ])
-        else
-          MCP::Tool::Response.new([ { type: "text", text: "Error: unexpected tool" } ], error: true)
-        end
-      end
-    end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+    stub_current_browser_capture
 
     response = described_class.call(
       type: "visual_review_screenshot",
@@ -281,6 +284,40 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(run.workflow.visual_artifact_for(stored_type).download).to eq(png_bytes)
   end
 
+  it "defaults omitted image inputs to current-browser capture and stores provenance" do
+    stub_current_browser_capture(
+      page: {
+        url: "http://127.0.0.1:3000/jobs/42",
+        path: "/jobs/42",
+        title: "Job detail",
+        viewport: { width: 390, height: 844, deviceScaleFactor: 3 }
+      }
+    )
+
+    response = described_class.call(
+      type: "visual_review_screenshot",
+      title: "Job detail mobile",
+      server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    entry = run.workflow.reload.artifact("typed_artifacts").first
+    expect(entry["payload"]).to include(
+      "source" => "current_browser",
+      "page" => {
+        "url" => "http://127.0.0.1:3000/jobs/42",
+        "path" => "/jobs/42",
+        "title" => "Job detail"
+      },
+      "viewport" => {
+        "width" => 390,
+        "height" => 844,
+        "device_scale_factor" => 3
+      }
+    )
+    expect(run.workflow.visual_artifact_for(entry.fetch("type")).download).to eq(png_bytes)
+  end
+
   it "rejects current-browser capture when another image source is also provided" do
     response = call(capture_current_browser: true)
 
@@ -298,6 +335,8 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     expect(response).to be_error
     expect(response.content.first[:text]).to include("inside the workflow workspace")
+    expect(response.content.first[:text]).to include("capture_current_browser: true")
+    expect(response.content.first[:text]).to include("omit image_path and image_base64")
   end
 
   it "rejects an image exceeding the maximum size" do
@@ -358,5 +397,8 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   it "exposes the expected tool name and required schema fields" do
     expect(described_class.tool_name).to eq("submit_visual_artifact")
     expect(described_class.input_schema_value.to_h[:required]).to contain_exactly("type", "title")
+    expect(described_class.description).to include("prefer capture_current_browser: true")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :image_path, :description)).to include("Reserve this for files you know are workflow-local")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :capture_current_browser, :description)).to include("Prefer this for visual-review screenshots")
   end
 end

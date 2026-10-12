@@ -221,6 +221,42 @@ RSpec.describe TestInsights::Ingester do
     expect(truncated_case.test_identity.name.bytesize).to be <= 255
   end
 
+  it "truncates oversized failure details before inserting test cases" do
+    long_failure_message = ("expected snowman ☃ " * 5_000) + "tail"
+    long_failure_backtrace = ("spec/example_spec.rb:1:in `block' ☃\n" * 3_000)
+    long_output = ("stdout line ☃\n" * 6_000)
+
+    parsed = JunitXmlParser::ParsedRun.new(
+      total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0,
+      duration_ms: 100,
+      cases: [
+        JunitXmlParser::ParsedCase.new(
+          name: "fails with a huge matcher diff",
+          suite_name: "HugeFailureSpec",
+          file_path: nil,
+          status: "failed",
+          duration_ms: 100,
+          output: long_output,
+          failure_message: long_failure_message,
+          failure_backtrace: long_failure_backtrace
+        )
+      ]
+    )
+    ingester = described_class.new(run: run, grader_name: "rspec", parsed_run: parsed)
+
+    expect { ingester.ingest! }.to change(TestInsights::TestCase, :count).by(1)
+
+    test_case = TestInsights::TestCase.find_by!(name: "fails with a huge matcher diff")
+    max_bytes = TestInsights::TestCase::MAX_TEXT_COLUMN_BYTES
+    expect(test_case.failure_message.bytesize).to be <= max_bytes
+    expect(test_case.failure_backtrace.bytesize).to be <= max_bytes
+    expect(test_case.output.bytesize).to be <= max_bytes
+    expect(test_case.failure_message).to eq(long_failure_message.safe_byteslice(0, max_bytes))
+    expect(test_case.failure_message).to be_valid_encoding
+    expect(test_case.failure_backtrace).to be_valid_encoding
+    expect(test_case.output).to be_valid_encoding
+  end
+
   it "keys identities off the untruncated name so two long names sharing a 255-byte prefix stay distinct" do
     shared_prefix = "a" * 260
     name_a = "#{shared_prefix}-first"

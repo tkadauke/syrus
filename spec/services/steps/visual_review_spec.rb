@@ -123,7 +123,7 @@ RSpec.describe Steps::VisualReview do
     )
   end
 
-  it "records a structured infrastructure skip without invoking the reviewer when preview preparation fails" do
+  it "records a structured infrastructure skip and warning without invoking the reviewer when preview preparation fails" do
     failure = PreviewPreparation::Error.new(
       "preview seed failed (timed out): bin/seed",
       details: { "reason" => "preview_seed_failed", "phase" => "seed", "timed_out" => true }
@@ -142,7 +142,9 @@ RSpec.describe Steps::VisualReview do
       skip_reason: "preview_seed_failed"
     )
 
-    handler.call
+    expect {
+      handler.call
+    }.to raise_error(Steps::Base::StepSkipped, /preview preparation unavailable/)
 
     expect(workflow.reload.artifact("visual_review_preview_preparation_failure")).to include(
       "reason" => "preview_seed_failed",
@@ -152,6 +154,44 @@ RSpec.describe Steps::VisualReview do
       "verdict" => "skipped",
       "critique" => include("Visual review infrastructure could not prepare the preview")
     )
+    expect(workflow.workflow_warnings.sole).to have_attributes(
+      kind: "review_execution_skipped",
+      step: review_step,
+      title: include("Visual review skipped")
+    )
+    expect(workflow.workflow_warnings.sole.evidence).to include(
+      "review_kind" => "visual_review",
+      "reason" => "preview_seed_failed",
+      "run_id" => run.id,
+      "step_id" => review_step.id
+    )
+  end
+
+  it "fails instead of skipping when visual_review.required is true and preview preparation fails" do
+    allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+      SyrusYml::Config.new(
+        prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, review_notes: nil, agent_insight: nil,
+        coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+        delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [], target_graph: nil, scripts: {},
+        visual_review: SyrusYml::VisualReviewConfig.new(
+          enabled: true, rounds: 1, when_files_changed: nil,
+          seed_notes: nil, required: true
+        )
+      )
+    )
+    allow_any_instance_of(PreviewPreparation).to receive(:call).and_raise(
+      PreviewPreparation::Error.new(
+        "preview seed failed",
+        details: { "reason" => "preview_seed_failed", "phase" => "seed" }
+      )
+    )
+    allow(ReviewFindingEvents).to receive(:record)
+
+    expect {
+      handler.call
+    }.to raise_error(Steps::Base::StepFailed, /visual_review review could not execute/)
+
+    expect(workflow.reload.workflow_warnings).to be_empty
   end
 
   it "raises StepFailed when the reviewer does not submit findings" do
@@ -284,7 +324,7 @@ RSpec.describe Steps::VisualReview do
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: nil,
-            seed_notes: "Log in as demo@example.com / password."
+            seed_notes: "Log in as demo@example.com / password.", required: false
           )
         )
       )
@@ -419,7 +459,7 @@ RSpec.describe Steps::VisualReview do
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/frontend/**/*" ],
-            seed_notes: nil
+            seed_notes: nil, required: false
           )
         )
       )
@@ -468,7 +508,7 @@ RSpec.describe Steps::VisualReview do
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1, when_files_changed: [ "app/views/**/*" ],
-            seed_notes: nil
+            seed_notes: nil, required: false
           )
         )
       )
@@ -499,7 +539,7 @@ RSpec.describe Steps::VisualReview do
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
-            seed_notes: nil
+            seed_notes: nil, required: false
           )
         )
       )
@@ -544,7 +584,7 @@ RSpec.describe Steps::VisualReview do
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
-            seed_notes: nil
+            seed_notes: nil, required: false
           )
         )
       )
@@ -604,7 +644,7 @@ RSpec.describe Steps::VisualReview do
               "plugins/**/app/frontend/**/*",
               "plugins/**/app/views/**/*"
             ],
-            seed_notes: nil
+            seed_notes: nil, required: false
           )
         )
       )

@@ -76,7 +76,7 @@ export function SearchRoute() {
 
   return (
     <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]" gutter="responsive">
-      <Page.Header className="space-y-4">
+      <Page.Header layout="stacked">
         <div>
           <PageHeading>{t("search.heading")}</PageHeading>
           <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
@@ -90,15 +90,17 @@ export function SearchRoute() {
             ))}
           </nav>
           {search.data ? (
-            <FilterBar
-              buildLink={searchFilterLink}
-              className="space-y-2"
-              filter={search.data.filter}
-              filterSchema={search.data.controls.filter_schema}
-              pathname={location.pathname}
-              search={location.search}
-              suggestionSearch={suggestionSearchForFilter(activeFilter)}
-            />
+            <div data-testid="search-filter-bar">
+              <FilterBar
+                buildLink={searchFilterLink}
+                className="space-y-2"
+                filter={search.data.filter}
+                filterSchema={search.data.controls.filter_schema}
+                pathname={location.pathname}
+                search={location.search}
+                suggestionSearch={suggestionSearchForFilter(activeFilter)}
+              />
+            </div>
           ) : null}
         </div>
       </Page.Header>

@@ -121,7 +121,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   })
   const versions = sourceDiff.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
-  const defaultVersionId = preferredReviewVersionId(sourceDiff.data?.version ?? null, versions)
+  const defaultVersionId = preferredReviewVersionId(sourceDiff.data ?? null, versions)
   const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""
   const rangeDiff = useQuery({
     enabled: sourceDiff.isSuccess && Boolean(selectedRange),
@@ -750,9 +750,13 @@ function staleRangeErrorMessage(error: unknown, t: (key: string, options?: Recor
   return t("source_diff_stale_ref_error", { ref: staleRef })
 }
 
-function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
+function preferredReviewVersionId(payload: { base_sha?: string | null; head_sha?: string | null; version?: DiffReviewVersion | null } | null, versions: DiffReviewVersion[]) {
+  const payloadVersion = payload?.version ?? null
   const canonicalVersions = canonicalReviewVersions(versions)
   const allChangesVersion = canonicalVersions.find(isAllChangesVersion)
+  if (payloadVersion && payloadVersion.base_sha === payload?.base_sha && payloadVersion.head_sha === payload?.head_sha) {
+    return payloadVersion.id
+  }
   return allChangesVersion?.id ?? payloadVersion?.id ?? canonicalVersions[0]?.id ?? versions[versions.length - 1]?.id ?? null
 }
 

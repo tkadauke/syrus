@@ -783,7 +783,7 @@ module WorkEngine
         return if attempts.empty?
 
         next_attempt = attempts.min_by { |attempt| [ attempt.scheduled_at || Time.current, attempt.id ] }
-        if next_attempt.scheduled_at&.future? && no_active_runs?
+        if next_attempt.scheduled_at&.future? && fast_forward_auto_retry_attempt?(next_attempt)
           next_attempt.update!(scheduled_at: Time.current)
           events << "tick #{tick}: fast-forward auto retry #{next_attempt.id}"
         end
@@ -1332,6 +1332,20 @@ module WorkEngine
 
       def no_active_runs?
         active_runs.empty?
+      end
+
+      def fast_forward_auto_retry_attempt?(attempt)
+        return true if no_active_runs?
+
+        worker_died_step_retry_waiting_on_replacement_run?(attempt)
+      end
+
+      def worker_died_step_retry_waiting_on_replacement_run?(attempt)
+        return false unless attempt.retry_kind == "failed_step"
+        return false unless attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+
+        step = attempt.run&.step
+        step&.running? && attempt.workflow&.running?
       end
 
       def active_runs

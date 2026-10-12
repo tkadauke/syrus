@@ -21,11 +21,16 @@ prepare_search_database() {
   fi
 }
 
+check_pending_migrations() {
+  ./bin/rails db:abort_if_pending_migrations
+}
+
 # If running the rails server then create or migrate existing databases.
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
   prepare_search_database
 elif [ "${@: -1:1}" == "./bin/jobs" ] || [ "${@: -1:1}" == "bin/jobs" ]; then
+  check_pending_migrations
   prepare_search_database
 fi
 

@@ -2121,6 +2121,57 @@ describe("ReviewWorkspace", () => {
     expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 
+  it("defaults to the live payload version when a stale All changes row has a different range", async () => {
+    const staleAllChanges = version({
+      id: 3750,
+      version_index: 3,
+      base_sha: "old-base",
+      head_sha: "old-head",
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { range_kind: "all_changes" },
+      files_count: 11
+    })
+    const currentVersion = version({
+      id: 3795,
+      version_index: 11,
+      base_sha: "current-base",
+      head_sha: "current-head",
+      label: "Rebase",
+      reason: "rebase",
+      metadata: {},
+      files_count: 26
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        base_sha: "current-base",
+        head_sha: "current-head",
+        version: currentVersion,
+        versions: [staleAllChanges, currentVersion],
+        files: [
+          {
+            additions: 1,
+            deletions: 0,
+            path: "app/services/current_rebase.rb",
+            status: "modified",
+            patch: "@@ -1 +1 @@\n+current"
+          }
+        ]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 3795))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    expect(selector).toHaveTextContent("Rebase")
+    expect(screen.getByTitle("app/services/current_rebase.rb")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).not.toHaveBeenCalledWith(42, 3750)
+
+    fireEvent.click(selector)
+    expect(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v11 Rebase" })).toBeInTheDocument()
+  })
+
   it("loads stored-version annotation context from the snapshot head SHA instead of a stale branch ref", async () => {
     const latest = sourceDiffPayload({
       version: version({

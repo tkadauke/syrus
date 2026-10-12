@@ -104,8 +104,9 @@ RSpec.describe Mcp::Sidecar do
 
       expect(tool.dig(:inputSchema, :properties, :capture_current_browser)).to include(
         type: "boolean",
-        description: a_string_including("current authenticated MCP browser")
+        description: a_string_including("Prefer this for visual-review screenshots")
       )
+      expect(tool.dig(:inputSchema, :properties, :image_path, :description)).to include("Reserve this for files you know are workflow-local")
       expect(tool.dig(:inputSchema, :required)).to contain_exactly("type", "title")
     end
   end

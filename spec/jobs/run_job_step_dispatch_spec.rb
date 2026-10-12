@@ -113,6 +113,23 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_summarize.reload).to be_cancelled
   end
 
+  it "marks a step-skipped handler outcome skipped and advances the workflow" do
+    skipped_handler = Class.new(Steps::Base) do
+      def call
+        raise Steps::Base::StepSkipped.new("preview preparation unavailable: seed failed", reason: "preview_seed_failed")
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(skipped_handler)
+    run = StepDispatcher.start_workflow(workflow)
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_skipped
+    expect(s_implement.reload).to be_skipped
+    expect(s_implement.details).to include("skipped" => true, "skip_reason" => "preview_seed_failed")
+    expect(s_summarize.reload.runs.count).to eq(1)
+  end
+
   it "captures and clears the Solid Queue role on workflow activity events" do
     run = StepDispatcher.start_workflow(workflow)
 
