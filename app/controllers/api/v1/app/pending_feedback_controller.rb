@@ -3,7 +3,7 @@ module Api
     module App
       class PendingFeedbackController < BaseController
         def index
-          job = find_job
+          job = find_readable_job
           comments = pending_comments(job)
           render json: {
             job_id: job.id,
@@ -13,7 +13,8 @@ module Api
         end
 
         def apply
-          job = find_job
+          return unless job = find_mutable_job
+
           comment = find_pending_comment(job)
           return unless comment
 
@@ -38,7 +39,8 @@ module Api
         end
 
         def ignore
-          job = find_job
+          return unless job = find_mutable_job
+
           comment = find_pending_comment(job)
           return unless comment
 
@@ -47,7 +49,8 @@ module Api
         end
 
         def replace
-          job = find_job
+          return unless job = find_mutable_job
+
           comment = find_pending_comment(job)
           return unless comment
 
@@ -78,7 +81,8 @@ module Api
         end
 
         def retry
-          job = find_job
+          return unless job = find_mutable_job
+
           comment = pending_comments(job).detect { |candidate| candidate.id == params[:id].to_i }
           unless comment&.retryable_handling?
             render_error("not_found", "Comment not found or not retryable.", status: :not_found)
@@ -106,8 +110,12 @@ module Api
 
         private
 
-        def find_job
-          Current.user.jobs.find(params[:job_id])
+        def find_readable_job
+          find_readable_job_by_ref
+        end
+
+        def find_mutable_job
+          find_mutable_job_by_ref
         end
 
         def find_pending_comment(job)

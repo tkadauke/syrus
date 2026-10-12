@@ -3,7 +3,7 @@ module Api
     module App
       class JobAttachmentsController < BaseController
         def show
-          job = find_job
+          job = find_readable_job
           attachment = job.job_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
 
@@ -21,7 +21,7 @@ module Api
         # without a second round trip; binary files and oversized files are
         # flagged instead of downloaded, matching ChatWorkspace#file_content.
         def content
-          job = find_job
+          job = find_readable_job
           attachment = job.job_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
 
@@ -29,7 +29,8 @@ module Api
         end
 
         def create
-          job = find_job
+          return unless job = find_mutable_job
+
           created, errors = create_attachments(job)
 
           if created.any?
@@ -50,7 +51,8 @@ module Api
         end
 
         def destroy
-          job = find_job
+          return unless job = find_mutable_job
+
           attachment = job.job_attachments.find(params[:id])
           attachment.destroy!
           broadcast_attachment_change(job.reload)
@@ -60,8 +62,12 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs, params[:job_id])
+        def find_readable_job
+          find_readable_job_by_ref
+        end
+
+        def find_mutable_job
+          find_mutable_job_by_ref
         end
 
         def create_attachments(job)
