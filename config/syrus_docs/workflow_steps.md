@@ -327,21 +327,27 @@ timeout.
 
 **Provider routing and availability failover:** `ProviderRouting::Resolver`
 chooses ordered provider/model/effort candidates for a Workflow from explicit
-Job pins, repository routing rules, an explicit repository/membership
-provider (`Repository#agent_provider` or a write/admin member's override,
-via `Repository#explicit_agent_provider`), user routing rules, the user's own
-default provider, and the hardcoded fallback, in that order. A repository (or
-write/admin membership) provider outranks user-scoped routing rules even when
-no repository routing rule exists for the task -- a repository pinned to a
-specific provider is not silently routed to a user's personal default-routing
-rule. It does not foreclose failover, though: the repository provider is
-prepended to the user-scoped candidate chain rather than replacing it, so a
-real outage still fails over into the user's rules/default (deduplicated by
-provider), and the failover artifact still records the repository provider as
-the original choice. A repository-scoped routing rule (task-specific or
-default-task) still overrides the repository's explicit provider outright,
-the same as before. Workflow creation records the chosen candidate in
-`agent_provider_routing_decision`.
+Job pins, job-scoped routing rules, repository routing rules, an explicit
+repository/membership provider (`Repository#agent_provider` or a write/admin
+member's override, via `Repository#explicit_agent_provider`), user routing
+rules, the user's own default provider, and the hardcoded fallback, in that
+order. Within a rule scope it evaluates rules by ascending `position` and stops
+at the first match. Rule triggers are actual invocation kinds: chat roles and
+agentic `Step::Kind` values, including plugin-provided step kinds. Workflow
+trigger kind is evaluated as a condition only when workflow context is present.
+A repository (or write/admin membership) provider outranks user-scoped routing
+rules even when no repository routing rule exists for the task -- a repository
+pinned to a specific provider is not silently routed to a user's personal
+default-routing rule. It does not foreclose failover, though: the repository
+provider is prepended to the user-scoped candidate chain rather than replacing
+it, so a real outage still fails over into the user's rules/default
+(deduplicated by provider), and the failover artifact still records the
+repository provider as the original choice. A repository-scoped routing rule
+(task-specific or default-task) still overrides the repository's explicit
+provider outright, the same as before. Workflow creation records the chosen
+candidate in `agent_provider_routing_decision`, including a
+`routing_resolution` payload with the matched rule, source scope, condition
+results, and final action.
 Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
 that ordered candidate list and chooses the first one that is not exhausted,
 rate-limited, in an auth-error state, or manually overridden -- this basic
