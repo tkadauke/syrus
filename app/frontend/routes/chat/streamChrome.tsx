@@ -95,13 +95,13 @@ export function AgentActivityIndicator({ running, activity }: { running: boolean
     []
   )
   const phrase = running ? workingPhrase : getStartingPhrase()
-  const label = activity?.label || phrase.latin
-  const ariaLabel = activity
+  const activityLabel = activity
     ? t("agent_activity_aria", {
       label: activity.label,
       elapsed: activity.elapsed_seconds == null ? t("agent_activity_elapsed_unknown") : formatElapsed(activity.elapsed_seconds)
     })
-    : phrase.english
+    : null
+  const ariaLabel = activityLabel ? `${phrase.english}; ${activityLabel}` : phrase.english
 
   return (
     <div aria-label={ariaLabel} aria-live="polite" className="flex justify-start" role="status">
@@ -115,7 +115,13 @@ export function AgentActivityIndicator({ running, activity }: { running: boolean
             />
           ))}
         </span>
-        <span title={ariaLabel}>{label}</span>
+        <span title={phrase.english}>{phrase.latin}</span>
+        {activity ? (
+          <>
+            <span aria-hidden="true" className="text-info/45">·</span>
+            <span title={activityLabel || undefined}>{activity.label}</span>
+          </>
+        ) : null}
         {activity?.elapsed_seconds != null ? (
           <span className="text-info/70" title={t("agent_activity_elapsed_title")}>{formatElapsed(activity.elapsed_seconds)}</span>
         ) : null}

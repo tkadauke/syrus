@@ -13392,7 +13392,18 @@ describe("App", () => {
   it("shows an animated chat agent activity indicator", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0)
     vi.spyOn(window, "fetch").mockImplementation(async () =>
-      new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false })), { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify(chatPayload({
+        agentBusy: true,
+        turnInFlight: false,
+        agentActivity: {
+          label: "running commands",
+          raw_name: "exec_command",
+          in_flight: true,
+          elapsed_seconds: 83,
+          idle_seconds: 12,
+          transcript_bytes: 4096
+        }
+      })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
     render(
@@ -13403,9 +13414,12 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const status = await screen.findByRole("status", { name: "thinking it through" })
+    const status = await screen.findByRole("status", { name: "thinking it through; running commands for 1m" })
     expect(status).toHaveTextContent("Cogitans")
+    expect(status).toHaveTextContent("running commands")
+    expect(status).toHaveTextContent("1m")
     expect(screen.getByTitle("thinking it through")).toHaveTextContent("Cogitans")
+    expect(screen.getByTitle("running commands for 1m")).toHaveTextContent("running commands")
   })
 
   it("enqueues and edits follow-up messages while the agent is busy", async () => {
@@ -17529,6 +17543,14 @@ function chatPayload(overrides: {
   cumulativeCostUsd?: number
   turnInFlight?: boolean
   agentBusy?: boolean
+  agentActivity?: {
+    label: string
+    raw_name: string | null
+    in_flight: boolean
+    elapsed_seconds: number | null
+    idle_seconds: number | null
+    transcript_bytes: number | null
+  } | null
   hasMoreOlder?: boolean
   pinned?: boolean
   stopRequestedAt?: string | null
@@ -17553,6 +17575,7 @@ function chatPayload(overrides: {
       chat_provider_options: overrides.chatProviderOptions || [],
       chat_path: overrides.chatPath ?? "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
+      agent_activity: overrides.agentActivity ?? null,
       stop_requested_at: overrides.stopRequestedAt ?? null,
       cumulative_input_tokens: overrides.cumulativeInputTokens ?? 12400,
       cumulative_output_tokens: overrides.cumulativeOutputTokens ?? 3200,
@@ -17562,6 +17585,7 @@ function chatPayload(overrides: {
     chat_available: true,
     turn_in_flight: overrides.turnInFlight ?? false,
     agent_busy: overrides.agentBusy ?? false,
+    agent_activity: overrides.agentActivity ?? null,
     has_more_older: overrides.hasMoreOlder ?? false,
     messages: overrides.messages || [
       {
