@@ -137,6 +137,71 @@ RSpec.describe ChatEpicProposalMaterializer do
     )
   end
 
+  it "preserves explicit child planned execution on the materialized Job and initial Workflow" do
+    target_epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic, title: target_epic.title)
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "ios-simulator-child",
+      title: "iOS simulator child",
+      body: "Build the iOS simulator slice.",
+      repository: repository,
+      planned_execution_project_label: "iOS App",
+      planned_execution_target_label: "//ios:app",
+      planned_execution_capabilities: {
+        os: [ "macos" ],
+        arch: [ "arm64" ],
+        toolchain: [ "xcode" ],
+        runtime: [ "ios_simulator" ]
+      },
+      planned_execution_source: "explicit"
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expected = {
+      "project_label" => "iOS App",
+      "target_label" => "//ios:app",
+      "capabilities" => {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode" ],
+        "runtime" => [ "ios_simulator" ]
+      },
+      "source" => "explicit"
+    }
+    job = child.reload.job
+    expect(job).to eq(result.jobs.sole)
+    expect(job.planned_execution_json).to eq(expected)
+    expect(job.workflows.sole.planned_execution_json).to eq(expected)
+  end
+
+  it "keeps Linux as the default when an Epic child proposal omits planned execution" do
+    target_epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic, title: target_epic.title)
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "default-placement-child",
+      title: "Default placement child",
+      body: "Build the backend slice.",
+      repository: repository
+    )
+
+    described_class.new(user: user).file!(proposal)
+
+    expected = {
+      "project_label" => nil,
+      "target_label" => nil,
+      "capabilities" => { "os" => [ "linux" ] },
+      "source" => "defaulted"
+    }
+    job = child.reload.job
+    expect(job.planned_execution_json).to eq(expected)
+    expect(job.workflows.sole.planned_execution_json).to eq(expected)
+  end
+
   it "copies goal provenance to a bundled Epic and its child Jobs" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
