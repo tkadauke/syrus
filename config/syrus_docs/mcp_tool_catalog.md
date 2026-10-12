@@ -171,14 +171,21 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
+| `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `investigation_lookup` | - |
+| `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `investigation_lookup` | - |
+| `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `investigation_lookup` | - |
 | `patch_workflow` | workflow | - | write | no | `workflow:implement`, `workflow:manual` | - | `patch_workflow` | - |
+| `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `propose_job` | - |
 | `read_artifact` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
 | `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `investigation_lookup` | - |
 | `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `record_isolated_repro` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
+| `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - |
 | `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
 | `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - |
+| `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `investigation_lookup` | - |
 | `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `submit_adversarial_review` | workflow | - | write | no | `workflow:adversarial_reviewer`, `workflow:manual` | - | `submit_adversarial_review` | - |
