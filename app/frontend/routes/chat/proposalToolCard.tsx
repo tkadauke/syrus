@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
@@ -25,7 +26,22 @@ export type ProposalOutcome = {
   targetEpicId: string | null
   targetEpicLabel: string | null
   providerSetting: string | null
+  capabilitiesText: string | null
   materialized: MaterializedOutcome
+}
+
+function plannedExecutionCapabilitiesText(plannedExecution: unknown) {
+  if (!isPlainObject(plannedExecution)) return null
+  const entries = workerCapabilityEntries(plannedExecution.capabilities)
+  if (entries.length === 0) return null
+
+  const byDimension = new Map<string, string[]>()
+  entries.forEach((entry) => {
+    byDimension.set(entry.dimension, [...(byDimension.get(entry.dimension) || []), entry.value])
+  })
+  return Array.from(byDimension.entries())
+    .map(([dimension, values]) => `${dimension}: ${values.join(", ")}`)
+    .join(" · ")
 }
 
 function parseMaterialized(value: unknown): MaterializedOutcome {
@@ -68,6 +84,7 @@ export function parseProposalOutcome(value: unknown): ProposalOutcome | null {
     targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : null,
     targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
     providerSetting: displayValue(value.provider_setting),
+    capabilitiesText: plannedExecutionCapabilitiesText(value.planned_execution),
     materialized: parseMaterialized(value.materialized)
   }
 }
@@ -127,7 +144,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         <EntityReference kind="proposal" slug={proposal.slug} />
       </div>
       {proposal.title ? <div className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
-      {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") ? (
+      {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") || proposal.capabilitiesText ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {proposal.repository ? <DetailValue label="Repository"><EntityReference kind="repository" slug={proposal.repository} /></DetailValue> : null}
           {proposal.targetEpicLabel ? (
@@ -137,6 +154,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
           ) : null}
           {proposal.dependencyCount > 0 ? <DetailValue label="Dependencies">{proposal.dependencyCount}</DetailValue> : null}
           {proposal.providerSetting && proposal.providerSetting !== "default" ? <DetailValue label="Provider">{proposal.providerSetting}</DetailValue> : null}
+          {proposal.capabilitiesText ? <DetailValue label="Capabilities">{proposal.capabilitiesText}</DetailValue> : null}
         </dl>
       ) : null}
       <MaterializedOutcomeDetail materialized={proposal.materialized} />
