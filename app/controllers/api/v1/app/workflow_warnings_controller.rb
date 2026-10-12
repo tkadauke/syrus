@@ -3,7 +3,8 @@ module Api
     module App
       class WorkflowWarningsController < BaseController
         def file_job
-          job = find_job
+          return unless job = find_mutable_job
+
           warning = find_warning(job)
           return unless warning
 
@@ -21,7 +22,8 @@ module Api
         end
 
         def dismiss
-          job = find_job
+          return unless job = find_mutable_job
+
           warning = find_warning(job)
           return unless warning
 
@@ -38,8 +40,8 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs, params[:job_id])
+        def find_mutable_job
+          find_mutable_job_by_ref
         end
 
         def find_warning(job)

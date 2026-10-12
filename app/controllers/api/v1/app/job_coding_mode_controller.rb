@@ -8,7 +8,8 @@ module Api
             return
           end
 
-          job = find_job
+          return unless job = find_mutable_job
+
           result = JobCodingMode::Takeover.call(job: job, user: Current.user, initial_prompt: params[:feedback])
 
           render json: {
@@ -25,8 +26,8 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
+        def find_mutable_job
+          find_mutable_job_by_ref(includes: :repository)
         end
       end
     end

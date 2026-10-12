@@ -10,6 +10,7 @@ class JobPin < ApplicationRecord
   def job_belongs_to_user
     return if user_id.blank? || job.blank?
     return if job.user_id == user_id
+    return if Job.accessible_to(user).exists?(id: job.id)
 
     errors.add(:job, "must belong to the user")
   end
