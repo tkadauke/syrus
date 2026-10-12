@@ -360,7 +360,7 @@ module Api
               { value: value, label: label }
             end,
             auto_approve_modes: AutoApproveModes.options
-          }.merge(provider_routing_options: agent_provider_catalog_options(user))
+          }.merge(provider_routing_options: provider_routing_options_json(user))
         end
 
         def testable_credentials
