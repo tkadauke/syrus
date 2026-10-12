@@ -427,6 +427,26 @@ describe("cross-chat bridge rendering", () => {
     expect(cta.className).toContain("max-w-[45%]")
     expect(cta.className).not.toContain("shrink-0")
   })
+
+  it("renders expanded outbound bridge text as markdown while keeping the summary compact", () => {
+    renderChatMessageItem(
+      systemMessageItem({
+        tone: "neutral",
+        label: "Cross-chat",
+        body: "Sent to chat #568: done\n\n- Follow-up result: use `SyrusBrowser::LoopbackGuard` for JOB-42",
+        body_format: "markdown",
+        cta: { label: "via Chat #568: Parallel bug-hunting investigation jobs", path: "/chats/568" }
+      })
+    )
+
+    expect(screen.getByTestId("system-message-summary")).toHaveTextContent("Sent to chat #568: done")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show system message details" }))
+
+    const details = screen.getByTestId("system-message-details")
+    expect(within(details).getByRole("listitem")).toHaveTextContent("Follow-up result: use SyrusBrowser::LoopbackGuard for JOB-42")
+    expect(within(details).getByText("SyrusBrowser::LoopbackGuard").closest("code")).toBeInTheDocument()
+  })
 })
 
 describe("shell command rendering", () => {
