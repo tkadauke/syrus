@@ -507,12 +507,11 @@ function emptyDraft(options: ProviderRoutingOptions): DraftRule {
 }
 
 function draftFromRule(rule: ProviderRoutingRule, options: ProviderRoutingOptions): DraftRule {
-  const workflowTriggerKinds = rule.conditions?.workflow_trigger_kind
   return {
     id: rule.id,
     name: ruleName(rule, () => "Default routing"),
     triggerKey: triggerToKey(rule.trigger),
-    workflowTriggerKinds: Array.isArray(workflowTriggerKinds) ? workflowTriggerKinds.map(String) : workflowTriggerKinds ? [String(workflowTriggerKinds)] : [],
+    workflowTriggerKinds: stringList(rule.conditions?.workflow_trigger_kind),
     actionStrategy: actionStrategy(rule),
     candidates: ruleCandidates(rule).length > 0 ? ruleCandidates(rule) : [emptyCandidate(options)]
   }
@@ -614,10 +613,16 @@ function triggerLabel(trigger: ProviderRoutingTrigger | undefined, options: Prov
 
 function conditionPills(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
   const labels: string[] = []
-  const workflowKinds = Array(rule.conditions?.workflow_trigger_kind || [])
+  const workflowKinds = stringList(rule.conditions?.workflow_trigger_kind)
   workflowKinds.forEach((kind) => labels.push(t("provider_routing.workflow_condition_pill", { label: optionLabel(options.conditions?.workflow_trigger_kinds, String(kind)) || String(kind) })))
   Object.keys(rule.conditions || {}).filter((key) => key !== "workflow_trigger_kind").forEach((key) => labels.push(key))
   return labels
+}
+
+function stringList(value: unknown) {
+  return (Array.isArray(value) ? value : value == null ? [] : [value])
+    .map((entry) => String(entry).trim())
+    .filter(Boolean)
 }
 
 function optionLabel(options: Array<{ value: string; label: string }> | undefined, value: string) {
