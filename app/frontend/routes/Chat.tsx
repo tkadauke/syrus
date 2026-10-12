@@ -194,7 +194,12 @@ export function ChatRoute() {
       return merged
     },
     enabled: id.length > 0,
-    refetchInterval: () => (isDisconnected && document.visibilityState === "visible" ? 30_000 : false),
+    refetchInterval: (query) => {
+      if (document.visibilityState !== "visible") return false
+      const data = query.state.data as ChatPayload | undefined
+      if (data && isAgentActive(data)) return 3_000
+      return isDisconnected ? 30_000 : false
+    },
     placeholderData: (previousData, previousQuery) => (
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
     )
@@ -961,7 +966,7 @@ function ChatTurnIndicator({
   const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
   if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
   if (payload.switching_provider) return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
-  if (agentActive) return <AgentActivityIndicator running={payload.agent_busy} />
+  if (agentActive) return <AgentActivityIndicator activity={payload.agent_activity ?? payload.chat.agent_activity ?? null} running={payload.agent_busy} />
 
   return null
 }

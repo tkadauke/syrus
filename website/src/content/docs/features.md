@@ -52,6 +52,10 @@ posted, and the section updates live as proposals are created, confirmed,
 rejected, or withdrawn, so a proposal that scrolled out of view in a long
 chat is never effectively lost. The tab itself appears as soon as a chat has
 a pending proposal, even before anything is confirmed.
+While a chat agent is running, the message stream shows a compact activity
+indicator such as "running commands" or "searching code" when Syrus can derive
+that from the provider transcript, falling back to a generic working state
+when the provider format is unavailable or has drifted.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with

@@ -47,6 +47,7 @@ export type ChatRecord = {
   repository: ChatRepository | null
   turn_in_flight?: boolean
   agent_busy?: boolean
+  agent_activity?: ChatAgentActivity | null
   turn_retry_state?: ChatTurnRetryState | null
   stop_requested_at: string | null
   suggested_next_step?: string | null
@@ -66,6 +67,15 @@ export type ChatRecord = {
   coding_checkout_branch?: string | null
   runtime_session_count?: number
   chat_effort?: string | null
+}
+
+export type ChatAgentActivity = {
+  label: string
+  raw_name: string | null
+  in_flight: boolean
+  elapsed_seconds: number | null
+  idle_seconds: number | null
+  transcript_bytes: number | null
 }
 
 export type ChatTurnRetryState = {
@@ -829,6 +839,7 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
+  agent_activity?: ChatAgentActivity | null
   turn_retry_state?: ChatTurnRetryState | null
   // Coding Mode only (the chat shell-command cancellation feature): the chat session's currently-running `!`
   // command, if any, so the composer can rehydrate its command-mode stop
