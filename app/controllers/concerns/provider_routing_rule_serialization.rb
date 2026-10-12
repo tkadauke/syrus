@@ -22,11 +22,11 @@ module ProviderRoutingRuleSerialization
 
   def provider_routing_inherited_context_json(scope)
     inherited = []
-    if scope[:scope_type] != "user" && scope[:user_id].present?
-      inherited << provider_routing_scope_context_json("user", scope[:user_id], "User defaults")
-    end
     if scope[:scope_type] == "job" && scope[:repository_id].present?
       inherited << provider_routing_scope_context_json("repository", scope[:repository_id], "Repository overrides")
+    end
+    if scope[:scope_type] != "user" && scope[:user_id].present?
+      inherited << provider_routing_scope_context_json("user", scope[:user_id], "User defaults")
     end
     inherited.compact
   end
