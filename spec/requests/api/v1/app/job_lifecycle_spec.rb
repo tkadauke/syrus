@@ -519,6 +519,58 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(new_job.issue_number).to be_nil
   end
 
+  it "restarts a direct investigation job preserving investigation routing, planned execution, and dependencies" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Investigate the native smoke test",
+      issue_body: "Find out why the native smoke test failed.",
+      investigation: true,
+      planned_execution_project_label: "iOS",
+      planned_execution_target_label: "//ios:smoke",
+      planned_execution_capabilities: {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode", "ios-simulator" ]
+      },
+      planned_execution_source: "explicit"
+    )
+    dependent = Factories.job(repository: repo, issue_number: 43)
+    dependency = dependent.dependencies.create!(depends_on_job: direct, source: "manual")
+    original_id = direct.id
+
+    expect {
+      post app_job_path(direct, "restart"), as: :json
+    }.to change(Job, :count).by(1)
+
+    new_job = Job.order(:created_at).last
+    workflow = new_job.workflows.order(:created_at).last
+    expected_requirement = {
+      "project_label" => "iOS",
+      "target_label" => "//ios:smoke",
+      "capabilities" => {
+        "os" => [ "macos" ],
+        "arch" => [ "arm64" ],
+        "toolchain" => [ "xcode", "ios-simulator" ]
+      },
+      "source" => "explicit"
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(direct.reload).to be_closed
+    expect(direct.closure_reason).to eq("replaced")
+    expect(new_job.id).not_to eq(original_id)
+    expect(new_job).to be_investigation
+    expect(new_job.planned_execution_json).to eq(expected_requirement)
+    expect(workflow.trigger_kind).to eq("investigation")
+    expect(workflow.planned_execution_json).to eq(expected_requirement)
+    expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare investigate submit_report])
+    expect(workflow.steps.pluck(:kind)).not_to include("implement")
+    expect(dependency.reload.depends_on_job_id).to eq(new_job.id)
+  end
+
   it "preserves epic membership when restarting an issue-kind job that belongs to an epic" do
     epic = Factories.epic(user: user, repository: repo)
     job.update!(epic: epic)
