@@ -398,6 +398,14 @@ grade:
       - "app/**/*.rb"
       - "lib/**/*.rb"
       - "spec/**/*.rb"
+      # Generated catalogs are inputs to the suite, not just output of it:
+      # spec/docs/surface_catalogs_spec.rb and spec/docs/metrics_catalog_spec.rb
+      # read these files and fail on drift. Without them here a docs-only diff
+      # skips the only specs that validate docs -- including the docs-only fix
+      # for a catalog-drift failure, which would then land unverified.
+      - "config/syrus_docs/**/*.md"
+      - "website/src/content/docs/generated/**/*.md"
+      - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
     ci_timeout_minutes: 60

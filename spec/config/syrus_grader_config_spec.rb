@@ -219,8 +219,16 @@ RSpec.describe "Syrus grader configuration" do
     rspec_focused = config.grade.steps.find { |step| step.name == "rspec-focused" }
     grader = config.grade.steps.find { |step| step.name == "react-tests-focused" }
 
-    expect(rspec.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb])
-    expect(rspec_focused.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb])
+    # The generated catalogs are inputs to the suite, not only its output:
+    # spec/docs/surface_catalogs_spec.rb and spec/docs/metrics_catalog_spec.rb
+    # read them and fail on drift, so a docs-only diff must not skip rspec.
+    catalog_scope = %w[
+      config/syrus_docs/**/*.md
+      website/src/content/docs/generated/**/*.md
+      docs/metrics-catalog.md
+    ]
+    expect(rspec.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
+    expect(rspec_focused.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
     expect(grader.when_files_changed).to eq([
       "app/frontend/**/*.js",
       "app/frontend/**/*.jsx",

@@ -367,7 +367,7 @@ module Ruby
         parallel_status="$?";
         #{extra_serial_command}
         set -e;
-        #{merge_junit_command(shard_junit_dir, junit)};
+        #{merge_junit_command(shard_junit_dir, junit)} || true;
         #{status_checks}
       BASH
       skip_setup ? command : "#{setup_prefix} && #{command}"
@@ -418,6 +418,14 @@ module Ruby
       "set +e; #{serial}; serial_status=\"$?\";"
     end
 
+    # Merging shard JUnit must never decide the grader's verdict. It runs after
+    # `set -e`, so a failure here -- REXML choking on a truncated shard file, a
+    # missing directory -- aborted the whole command before `status_checks`,
+    # and the grader reported the merge error instead of the test outcome with
+    # no evidence attached. A production repair loop lost its failing-test list
+    # that way and fell back to naming the grader's own shell command, which
+    # left the next repair iteration with nothing to act on. Hence `|| true`
+    # at the call site: a failed merge costs evidence, never the result.
     def merge_junit_command(shard_junit_dir, junit)
       encoded_script = Base64.strict_encode64(<<~'RUBY')
         dir, out = ARGV

@@ -294,6 +294,75 @@ RSpec.describe Ruby::RspecGraderType do
     expect(script).to include("exit 0 unless base\nscope =")
   end
 
+  # Regression: the shard-JUnit merge ran after `set -e`, so when it failed
+  # the shell aborted before the status check and the grader reported the
+  # merge's error instead of the test outcome -- with no evidence attached. A
+  # production repair loop lost its failing-test list that way and fell back
+  # to naming the grader's own shell command, leaving the next iteration with
+  # nothing to act on. A failed merge may cost evidence, never the verdict.
+  describe "shard JUnit merge failures" do
+    def run_with_failing_merge(command, parallel_status:)
+      Dir.mktmpdir("rspec-grader-merge") do |dir|
+        bin_dir = File.join(dir, "bin")
+        FileUtils.mkdir_p(bin_dir)
+        File.write(File.join(bin_dir, "bundle"), <<~BASH)
+          #!/usr/bin/env bash
+          case "$1" in
+            check|install) exit 0 ;;
+            exec) shift; "$@"; exit $? ;;
+            *) exit 64 ;;
+          esac
+        BASH
+        File.write(File.join(bin_dir, "parallel_rspec"), <<~BASH)
+          #!/usr/bin/env bash
+          exit "${FAKE_PARALLEL_RSPEC_STATUS:-0}"
+        BASH
+        # Only the merge step shells out to `ruby`, so failing it here fails
+        # exactly the merge and nothing else in the generated command.
+        File.write(File.join(bin_dir, "ruby"), <<~BASH)
+          #!/usr/bin/env bash
+          echo "merge blew up" >&2
+          exit 1
+        BASH
+        FileUtils.chmod("+x", Dir[File.join(bin_dir, "*")])
+
+        env = {
+          "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
+          "FAKE_PARALLEL_RSPEC_STATUS" => parallel_status.to_s,
+          "BUNDLE_GEMFILE" => nil, "GEM_HOME" => nil, "GEM_PATH" => nil,
+          "RUBYLIB" => nil, "RUBYOPT" => nil
+        }
+        Open3.capture3(env, "bash", "-c", command, chdir: dir)
+      end
+    end
+
+    let(:parallel_command) do
+      described_class.grade_steps(
+        config: {
+          "parallel_rspec" => {
+            "enabled" => true,
+            "rspec_modes" => [ "full" ],
+            "processes" => "2",
+            "exec_args" => "bin/rspec-worker"
+          }
+        },
+        default_failures: "strict"
+      ).first.run
+    end
+
+    it "still reports success when the merge fails but the tests passed" do
+      _out, _err, status = run_with_failing_merge(parallel_command, parallel_status: 0)
+
+      expect(status.exitstatus).to eq(0)
+    end
+
+    it "still reports the test failure rather than the merge error" do
+      _out, _err, status = run_with_failing_merge(parallel_command, parallel_status: 1)
+
+      expect(status.exitstatus).to eq(1)
+    end
+  end
+
   it "uses configured parallel_rspec for fast and focused modes" do
     steps = described_class.grade_steps(
       config: {

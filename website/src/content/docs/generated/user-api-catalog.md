@@ -289,6 +289,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PUT | `/api/v1/app/repositories/:id` | `api/v1/app/repositories#update` |
 | core | POST | `/api/v1/app/repositories/:id/archive` | `api/v1/app/repositories#archive` |
 | core | POST | `/api/v1/app/repositories/:id/check_ci_now` | `api/v1/app/repositories#check_ci_now` |
+| core | GET | `/api/v1/app/repositories/:id/cognitive_debt` | `api/v1/app/repositories#cognitive_debt` |
 | core | GET | `/api/v1/app/repositories/:id/coverage_trend` | `api/v1/app/repositories#coverage_trend` |
 | core | GET | `/api/v1/app/repositories/:id/edit` | `api/v1/app/repositories#edit` |
 | core | POST | `/api/v1/app/repositories/:id/poll` | `api/v1/app/repositories#poll` |
