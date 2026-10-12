@@ -60,6 +60,19 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     expect(described_class.coverage_gaps).to eq([])
   end
 
+  it "records workflow-only decisions for agent handoff capabilities" do
+    capabilities = described_class.capabilities.index_by(&:key)
+
+    %w[propose_job report_cannot_proceed].each do |key|
+      capability = capabilities.fetch(key)
+
+      expect(capability.decision_for(:mcp)).to be_exposed
+      expect(capability.decision_for(:user_api).reason).to eq(described_class::WORKFLOW_MCP_REASON)
+      expect(capability.decision_for(:admin_api).reason).to eq(described_class::WORKFLOW_MCP_REASON)
+      expect(capability.decision_for(:cli).reason).to eq(described_class::WORKFLOW_MCP_REASON)
+    end
+  end
+
   it "fails when an allowlist entry for an open gap is removed" do
     decisions = {
       gap_action: {
