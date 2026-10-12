@@ -131,6 +131,7 @@
   "enqueue_message": "Nachricht einreihen",
   "add_attachment": "Anhang hinzufügen",
   "dictation_start": "Diktat starten",
+  "dictation_retry": "Diktat erneut versuchen",
   "dictation_stop": "Diktat stoppen",
   "dictation_requesting": "Mikrofon wird angefragt…",
   "dictation_recording_batch": "Diktat wird aufgenommen…",
