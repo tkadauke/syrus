@@ -39,6 +39,21 @@ describe("propose_job tool card", () => {
     expect(screen.getByRole("link", { name: "the pending-action tool-card work" })).toHaveAttribute("href", "/epics/12")
   })
 
+  it("renders planned execution capabilities", () => {
+    const parsedResult = {
+      slug: "fix-output",
+      title: "Fix output",
+      kind: "job",
+      state: "proposed",
+      planned_execution: { capabilities: { os: ["linux"], arch: ["x86_64"] }, source: "operator" }
+    }
+
+    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("Capabilities")).toBeInTheDocument()
+    expect(screen.getByText("os: linux · arch: x86_64")).toBeInTheDocument()
+  })
+
   it("wraps long proposal titles inside the card instead of expanding the chat viewport", () => {
     const parsedResult = {
       slug: "job-ha-webhook-now-playing-updates",
