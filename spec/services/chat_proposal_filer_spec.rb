@@ -206,6 +206,55 @@ RSpec.describe ChatProposalFiler do
       expect(job.agent_provider).to eq(repository.effective_agent_provider)
     end
 
+    it "preserves explicit planned execution on the filed Job and initial Workflow" do
+      job_proposal = proposal(
+        slug: "ios-simulator-job",
+        title: "iOS simulator job",
+        planned_execution_project_label: "iOS App",
+        planned_execution_target_label: "//ios:app",
+        planned_execution_capabilities: {
+          os: [ "macos" ],
+          arch: [ "arm64" ],
+          toolchain: [ "xcode" ],
+          runtime: [ "ios_simulator" ]
+        },
+        planned_execution_source: "explicit"
+      )
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expected = {
+        "project_label" => "iOS App",
+        "target_label" => "//ios:app",
+        "capabilities" => {
+          "os" => [ "macos" ],
+          "arch" => [ "arm64" ],
+          "toolchain" => [ "xcode" ],
+          "runtime" => [ "ios_simulator" ]
+        },
+        "source" => "explicit"
+      }
+      job = job_proposal.reload.job
+      expect(job.planned_execution_json).to eq(expected)
+      expect(job.workflows.sole.planned_execution_json).to eq(expected)
+    end
+
+    it "keeps Linux as the default when a Job proposal omits planned execution" do
+      job_proposal = proposal(slug: "default-placement-job", title: "Default placement job")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expected = {
+        "project_label" => nil,
+        "target_label" => nil,
+        "capabilities" => { "os" => [ "linux" ] },
+        "source" => "defaulted"
+      }
+      job = job_proposal.reload.job
+      expect(job.planned_execution_json).to eq(expected)
+      expect(job.workflows.sole.planned_execution_json).to eq(expected)
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)
