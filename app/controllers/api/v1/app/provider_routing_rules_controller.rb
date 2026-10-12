@@ -43,9 +43,9 @@ module Api
             repository = policy_scope(Repository).find(params[:repository_id])
             return unless RepositoryPolicy.new(Current.user, repository).update?
 
-            { scope_type: "repository", scope_id: repository.id }
+            { scope_type: "repository", scope_id: repository.id, repository_id: repository.id, user_id: repository.user_id || Current.user.id }
           else
-            { scope_type: "user", scope_id: Current.user.id }
+            { scope_type: "user", scope_id: Current.user.id, user_id: Current.user.id }
           end
         end
 

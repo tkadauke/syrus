@@ -12,30 +12,32 @@ module ProviderRouting
 
     HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
 
-    def self.call(job:, task_key:)
-      new(job: job, task_key: task_key).call
+    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).call
     end
 
     def self.rule_configured?(job:, task_key:, include_default: true)
       new(job: job, task_key: task_key).send(:rule_configured?, include_default: include_default)
     end
 
-    def initialize(job:, task_key:)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
       @job = job
       @task_key = task_key.to_s
+      @trigger = trigger
+      @workflow_trigger_kind = workflow_trigger_kind
     end
 
     def call
       job_override_candidates ||
-        rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: task_key) ||
-        rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
+        rule_candidates(scope_type: "job", scope_id: job.id) ||
+        rule_candidates(scope_type: "repository", scope_id: repository_id) ||
         repository_and_user_candidates.presence ||
         HARDCODED_FALLBACK
     end
 
     private
 
-    attr_reader :job, :task_key
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind
 
     def job_override_candidates
       return nil if job.job_provider_setting_default?
@@ -71,8 +73,7 @@ module ProviderRouting
     end
 
     def user_scoped_candidates
-      rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
-        rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
+      rule_candidates(scope_type: "user", scope_id: effective_user&.id) ||
         default_provider_candidates
     end
 
@@ -87,13 +88,16 @@ module ProviderRouting
       [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
     end
 
-    def rule_candidates(scope_type:, scope_id:, task_key:)
+    def rule_candidates(scope_type:, scope_id:)
       return nil if scope_id.blank?
 
-      rule = ProviderRoutingRule.find_by(scope_type: scope_type, scope_id: scope_id, task_key: task_key)
-      return nil if rule.nil? || rule.candidates.blank?
+      rule = ProviderRoutingRule
+        .where(scope_type: scope_type, scope_id: scope_id)
+        .order(:position, :id)
+        .then { |rules| matching_rule_from(rules) }
+      return nil if rule.nil? || rule.action_candidates.blank?
 
-      rule.candidates.map { |candidate| candidate_from_hash(candidate) }
+      rule.action_candidates.map { |candidate| candidate_from_hash(candidate) }
     end
 
     def candidate_from_hash(hash)
@@ -110,10 +114,45 @@ module ProviderRouting
     end
 
     def rule_configured?(include_default:)
-      keys = [ task_key ]
-      keys << ProviderRoutingRule::DEFAULT_TASK_KEY if include_default
-      ProviderRoutingRule.where(scope_type: "repository", scope_id: repository_id, task_key: keys).exists? ||
-        ProviderRoutingRule.where(scope_type: "user", scope_id: effective_user&.id, task_key: keys).exists?
+      scopes = [
+        [ "job", job.id ],
+        [ "repository", repository_id ],
+        [ "user", effective_user&.id ]
+      ].select { |_scope_type, scope_id| scope_id.present? }
+
+      scopes.any? do |scope_type, scope_id|
+        ProviderRoutingRule
+          .where(scope_type: scope_type, scope_id: scope_id)
+          .any? do |rule|
+            next false if !include_default && rule.trigger.to_h["type"] == "default"
+
+            invocations.any? { |candidate_invocation| rule.matches?(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind || task_key) }
+          end
+      end
+    end
+
+    def invocation
+      @invocation ||= (trigger.presence || legacy_invocation).stringify_keys
+    end
+
+    def matching_rule_from(rules)
+      invocations.each do |candidate_invocation|
+        matched = rules.detect { |rule| rule.matches?(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind || task_key) }
+        return matched if matched
+      end
+
+      nil
+    end
+
+    def invocations
+      @invocations ||= [
+        invocation,
+        { "type" => "default" }
+      ].uniq
+    end
+
+    def legacy_invocation
+      { type: "legacy_task", task_key: task_key, kind: task_key }
     end
   end
 end

@@ -365,8 +365,19 @@ Operators edit routing rules from the Agent section of account settings and
 from the Automation section of repository settings. Account rules apply to Jobs
 that use the user's defaults; repository rules override matching account rules
 for that repository and are gated by the same repository-admin permissions as
-other repository automation settings. Each rule has a `task_key` and an ordered
-candidate list. Candidate providers come from the enabled agent-provider plugin
+other repository automation settings. Rules are owned by a user even when they
+are scoped to a repository or a Job. Within each user, repository, or Job scope
+they have an explicit `position`; the resolver walks rules in order and uses
+the first matching rule, with Job-scoped rules before repository-scoped rules
+and repository-scoped rules before user-scoped rules. Existing `task_key` rows
+continue to work through a legacy trigger shape, but new rules store a
+structured `trigger` for actual agent invocations: agentic `Step::Kind` values
+or chat `AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget
+predicates, day/time windows, repository predicates, and Job metadata
+predicates live in the structured `conditions` payload. Provider selection
+lives in the structured `action` payload, which currently supports ordered
+fallback provider triples and reserves a weighted strategy for future load
+balancing. Candidate providers come from the enabled agent-provider plugin
 catalog, model choices come from that provider's `.available_models`, and
 `effort_level` can be left blank to use the provider default.
 

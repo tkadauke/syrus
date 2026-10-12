@@ -80,6 +80,67 @@ RSpec.describe ProviderRouting::Resolver do
     end
   end
 
+  describe "ordered scoped rules" do
+    it "uses the first matching repository-scoped rule by position" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 2,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "claude" } ] }
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 1,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        conditions: { job_metadata: { priorities: [ "medium" ] } },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "lets job-scoped rules override repository and user rules" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "claude" } ])
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "ci_failure", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(
+        scope_type: "job",
+        scope_id: job.id,
+        job_id: job.id,
+        repository_id: repository.id,
+        user_id: user.id,
+        task_key: "ci_failure",
+        candidates: [ { "provider" => "agy" } ]
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "agy") ])
+    end
+
+    it "matches structured step triggers and workflow trigger conditions" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(described_class.call(
+        job: job,
+        task_key: "initial",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )).to eq([ candidate(provider: "codex") ])
+    end
+  end
+
   describe "3. repository rule, default task_key" do
     it "is used when no exact-task_key repository rule exists, and wins over user-scoped rules" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
