@@ -1,3 +1,4 @@
+require "shellwords"
 require "tempfile"
 
 module CredentialStore
@@ -5,7 +6,6 @@ module CredentialStore
     SSH_PRIVATE_KEY_TYPE = "ssh_private_key".freeze
     TOOL_NAME = "credential_store_ssh_exec".freeze
     MAX_OUTPUT_BYTES = 64.kilobytes
-    RISKY_COMMAND_PATTERN = /(?:\brm\s+-rf\b|\bdd\b|\bmkfs\b|\bshutdown\b|\breboot\b|\biptables\b|\bnft\b|\bchmod\s+-R\b|\bchown\s+-R\b)/i
 
     class Error < StandardError; end
     class InvalidTarget < Error; end
@@ -213,7 +213,106 @@ module CredentialStore
     end
 
     def risky_command?
-      command.match?(RISKY_COMMAND_PATTERN)
+      RiskyCommandClassifier.risky?(command)
+    end
+
+    class RiskyCommandClassifier
+      RISKY_COMMANDS = %w[dd shutdown reboot nft].freeze
+      COMMAND_SEPARATORS = %w[; & |].freeze
+      ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
+      SHELL_EVALUATION_PATTERN = /(?:\$\(|`|\A\()/.freeze
+
+      class << self
+        def risky?(command)
+          tokens = Shellwords.split(command.to_s.gsub(/([;&|])/, ' \1 '))
+          return true if tokens.empty?
+          return true if tokens.any? { |token| shell_evaluation_token?(token) }
+          return true if tokens.any? { |token| nested_command_fragment?(token) }
+
+          command_segments(tokens).any? { |segment| risky_segment?(segment) }
+        rescue ArgumentError
+          true
+        end
+
+        private
+
+        def command_segments(tokens)
+          tokens.each_with_object([ [] ]) do |token, segments|
+            if COMMAND_SEPARATORS.include?(token)
+              segments << []
+            else
+              segments.last << token
+            end
+          end.reject(&:empty?)
+        end
+
+        def risky_segment?(segment)
+          segment.each_with_index.any? do |word, index|
+            next false if word.match?(ASSIGNMENT_PATTERN) || flag?(word)
+
+            risky_invocation?(command_name(word), segment[(index + 1)..])
+          end
+        end
+
+        def shell_evaluation_token?(token)
+          token.match?(SHELL_EVALUATION_PATTERN)
+        end
+
+        def nested_command_fragment?(token)
+          token.match?(/\s/) && risky?(token)
+        end
+
+        def risky_invocation?(executable, arguments)
+          return false unless executable
+          return true if risky_command_name?(executable)
+
+          flags = Array(arguments).select { |word| flag?(word) }
+          case executable
+          when "rm"
+            rm_force?(flags) && rm_recursive?(flags)
+          when "chmod", "chown"
+            recursive?(flags)
+          else
+            false
+          end
+        end
+
+        def risky_command_name?(executable)
+          RISKY_COMMANDS.include?(executable) ||
+            executable == "mkfs" ||
+            executable.start_with?("mkfs.") ||
+            executable == "iptables" ||
+            executable.start_with?("iptables-")
+        end
+
+        def command_name(word)
+          File.basename(word.to_s).downcase.presence
+        end
+
+        def flag?(word)
+          word.to_s.start_with?("-") && word != "-"
+        end
+
+        def rm_force?(flags)
+          flags.any? { |flag| long_flag?(flag, "force") || short_flag?(flag, "f") }
+        end
+
+        def rm_recursive?(flags)
+          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "r") || short_flag?(flag, "R") }
+        end
+
+        def recursive?(flags)
+          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "R") }
+        end
+
+        def long_flag?(flag, name)
+          flag == "--#{name}" || flag.start_with?("--#{name}=")
+        end
+
+        def short_flag?(flag, letter)
+          flag.start_with?("-") && !flag.start_with?("--") && flag.delete_prefix("-").include?(letter)
+        end
+      end
     end
 
     def normalized_port(value)
