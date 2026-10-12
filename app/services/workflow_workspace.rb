@@ -37,6 +37,7 @@ class WorkflowWorkspace
   LOCK_SENTINEL = ".workspace.lock".freeze
   # Sibling directory holding the per-workflow lock files.
   LOCK_DIR = ".locks".freeze
+  LS_REMOTE_OBJECT_ID_PATTERN = /\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/.freeze
 
   # A branch that an earlier Step built *inside* this workspace and that the
   # rest of the Workflow must operate on. A merge train's integration branch
@@ -463,32 +464,32 @@ class WorkflowWorkspace
       return
     end
 
-    remote_ref = ""
+    remote_sha = nil
     unless skip_existing_branch_checkout?
       # Check whether the target branch already exists on origin
       # (follow-up Workflows on a Job that already has a branch from
       # a prior Initial). Use the authenticated URL — ls-remote
       # against origin's name would fall back to anonymous after
       # the scrub below.
-      remote_ref = authenticated_git("git_workflow_ls_remote") do |url|
+      remote_output = authenticated_git("git_workflow_ls_remote") do |url|
         @git.run(
           "ls-remote", "--heads", url,
           "refs/heads/#{@branch_name}",
           chdir: path.to_s, env: @env
         )
       end
+      remote_sha = ls_remote_ref_sha(remote_output, "refs/heads/#{@branch_name}")
     end
 
-    recover_unpublished_direct_branch_if_missing!(remote_ref)
+    recover_unpublished_direct_branch_if_missing!(remote_sha)
 
-    if remote_ref.strip.present?
-      # remote_ref is "<sha>\trefs/heads/<branch>" from the authoritative
-      # GitHub read above; pass it as verify_sha so a mirror that hasn't
-      # caught up to the branch's latest push falls back instead of silently
-      # reusing an older commit here.
-      wanted_sha = remote_ref.strip.split(/\s+/).first
+    if remote_sha.present?
+      # remote_sha comes from a structurally valid ls-remote ref line from the
+      # authoritative GitHub read above; pass it as verify_sha so a mirror that
+      # hasn't caught up to the branch's latest push falls back instead of
+      # silently reusing an older commit here.
       fetch_via_transport!(
-        repository: @repository, user: @job.user, verify_sha: wanted_sha,
+        repository: @repository, user: @job.user, verify_sha: remote_sha,
         refspec: "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env
       ) do
         authenticated_git("git_workflow_fetch_branch") do |url|
@@ -541,7 +542,7 @@ class WorkflowWorkspace
         chdir: path.dirname.to_s, env: @env
       )
     end
-    refs.strip.present?
+    ls_remote_ref_sha(refs, "refs/heads/#{branch}").present?
   end
 
   def recoverable_missing_direct_base_branch?(branch)
@@ -564,8 +565,8 @@ class WorkflowWorkspace
     notify("missing base branch #{branch.inspect} for unpublished #{@job.slug}; retrying from #{fallback.inspect}")
   end
 
-  def recover_unpublished_direct_branch_if_missing!(remote_ref)
-    return if remote_ref.strip.present?
+  def recover_unpublished_direct_branch_if_missing!(remote_sha)
+    return if remote_sha.present?
     return unless direct_retry_workspace?
     return unless unpublished_direct_job?
     return if @branch_name == initial_branch_name
@@ -627,7 +628,7 @@ class WorkflowWorkspace
     refs = authenticated_git("git_workflow_check_empty_remote") do |url|
       @git.run("ls-remote", "--heads", url, chdir: path.dirname.to_s, env: @env)
     end
-    refs.strip.empty?
+    refs.to_s.lines.none? { |line| parse_ls_remote_ref_line(line, head_ref_only: true) }
   rescue GitRunner::GitError
     false
   end
@@ -850,7 +851,28 @@ class WorkflowWorkspace
     output = authenticated_git("git_workflow_ls_remote_ref") do |url|
       @git.run("ls-remote", url, ref, chdir: path.dirname.to_s, env: @env)
     end
-    output.to_s.lines.first.to_s.split(/\s+/).first.presence
+    ls_remote_ref_sha(output, ref)
+  end
+
+  def ls_remote_ref_sha(output, ref)
+    output.to_s.each_line do |line|
+      parsed = parse_ls_remote_ref_line(line, ref: ref)
+      return parsed.fetch(:sha) if parsed
+    end
+
+    nil
+  end
+
+  def parse_ls_remote_ref_line(line, ref: nil, head_ref_only: false)
+    fields = line.to_s.strip.split(/\s+/)
+    return nil unless fields.length == 2
+
+    sha, line_ref = fields
+    return nil unless sha.match?(LS_REMOTE_OBJECT_ID_PATTERN)
+    return nil if ref.present? && line_ref != ref
+    return nil if head_ref_only && !line_ref.start_with?("refs/heads/")
+
+    { sha: sha, ref: line_ref }
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was
