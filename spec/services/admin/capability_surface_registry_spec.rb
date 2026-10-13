@@ -33,7 +33,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     capabilities = described_class.capabilities
     keys = capabilities.map(&:key)
 
-    expect(keys).to include("submit_summary", "cancel_job")
+    expect(keys).to include("submit_summary", "cancel_job", "personal_api_token")
     expect(keys).to eq(keys.uniq)
     expect(capabilities).to all(have_attributes(decisions: include(*described_class::SURFACES)))
 
@@ -106,7 +106,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
       }
     )
 
-    capability = registry.capabilities.fetch(0)
+    capability = registry.capabilities.find { |candidate| candidate.key == "shared_capability" }
 
     expect(capability.key).to eq("shared_capability")
     expect(capability.decision_for(:mcp)).to be_exposed
@@ -148,7 +148,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
       }
     )
 
-    capability = registry.capabilities.fetch(0)
+    capability = registry.capabilities.find { |candidate| candidate.key == "retry_job" }
 
     expect(capability.key).to eq("retry_job")
     expect(capability.decision_for(:admin_api)).to be_exposed
@@ -196,6 +196,22 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     expect(capability.key).to eq("admin_maintenance_task")
     expect(capability.decision_for(:mcp)).to be_exposed
     expect(capability.decision_for(:mcp).sources).to contain_exactly(include(source: "mcp", name: "admin_maintenance_tasks", admin_only: true))
+  end
+
+  it "records personal API tokens as a user API and CLI capability" do
+    capability = described_class.capabilities.find { |candidate| candidate.key == "personal_api_token" }
+
+    expect(capability.decision_for(:user_api)).to be_exposed
+    expect(capability.decision_for(:user_api).sources).to include(
+      include(source: "user_api", name: "POST /api/v1/app/credentials/rotate_api_token"),
+      include(source: "user_api", name: "DELETE /api/v1/app/credentials/revoke_api_token")
+    )
+    expect(capability.decision_for(:cli)).to be_exposed
+    expect(capability.decision_for(:cli).sources).to contain_exactly(
+      include(source: "cli", name: "Authorization: Bearer <api_token>")
+    )
+    expect(capability.decision_for(:admin_api).reason).to include("user API")
+    expect(capability.decision_for(:mcp).reason).to include("scoped invocation credentials")
   end
 end
 
