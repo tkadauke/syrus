@@ -35,6 +35,28 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(old_failure.runs).to be_empty
   end
 
+  it "does not create a duplicate run when two retry callers loaded the same failed step" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    failed_step = Step.create!(workflow: workflow, kind: "implement", position: 1)
+    failed_step.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
+
+    first_workflow_snapshot = Workflow.find(workflow.id)
+    second_workflow_snapshot = Workflow.find(workflow.id)
+    first_step_snapshot = Step.find(failed_step.id)
+    second_step_snapshot = Step.find(failed_step.id)
+
+    first_result = described_class.call(workflow: first_workflow_snapshot, failed_step: first_step_snapshot)
+    second_result = described_class.call(workflow: second_workflow_snapshot, failed_step: second_step_snapshot)
+
+    expect(first_result).to be_success
+    expect(second_result).not_to be_success
+    expect(second_result.error).to eq("Workflow is not in a failed state.")
+    expect(failed_step.runs.count).to eq(1)
+    expect(failed_step.runs.sole).to eq(first_result.run)
+  end
+
   it "does not retry a tail step in place across a failed retry-until barrier" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
