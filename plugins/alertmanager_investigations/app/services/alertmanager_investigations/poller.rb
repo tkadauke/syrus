@@ -19,6 +19,7 @@ module AlertmanagerInvestigations
     private
 
     def process(alert)
+      return unless alert.actionable?
       return if alert.runbook_url.blank?
       return if alert.host.blank?
       return if Investigation.recent_for_fingerprint(alert.fingerprint, since: @now - @configuration.rate_limit_window).exists?

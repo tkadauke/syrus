@@ -29,6 +29,14 @@ RSpec.describe AlertmanagerInvestigations::Poller do
     expect { described_class.new(client: client, configuration: configuration).call }.not_to change(Job, :count)
   end
 
+  it "creates no Job for a suppressed alert even when Alertmanager returns it" do
+    alerts.first["status"] = { "state" => "suppressed" }
+
+    expect {
+      described_class.new(client: client, configuration: configuration).call
+    }.not_to change(Job, :count)
+  end
+
   it "creates exactly one investigation Job with the alert payload and runbook in the prompt" do
     expect {
       described_class.new(client: client, configuration: configuration).call
@@ -40,6 +48,8 @@ RSpec.describe AlertmanagerInvestigations::Poller do
     expect(job.issue_body).to include("DiskMissing")
     expect(job.issue_body).to include('"fingerprint": "abc123"')
     expect(job.issue_body).to include("Check the node and collect disk state.")
+    expect(job.issue_body).to include("escalation_reason")
+    expect(job.issue_body).to include("unsafe_to_proceed")
 
     investigation = AlertmanagerInvestigations::Investigation.sole
     expect(investigation.job).to eq(job)

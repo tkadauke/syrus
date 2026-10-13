@@ -8,10 +8,12 @@ Enable the plugin from Admin > Plugins and configure either `ALERTMANAGER_URL`
 or the plugin's Alertmanager URL setting. If Alertmanager requires bearer auth,
 set `ALERTMANAGER_BEARER_TOKEN` in the process environment.
 
-The plugin reads `/api/v2/alerts` with active alerts only. It does not poll raw
-Prometheus and it does not create a Job for each poll. A Job is created only
-when a firing alert has a `runbook_url`, `runbook`, or `runbookURL` annotation
-that resolves to a file in a registered GitHub repository URL:
+The plugin reads `/api/v2/alerts` with active, unsilenced, uninhibited alerts
+only, and it still ignores any returned alert whose Alertmanager status is not
+active. It does not poll raw Prometheus and it does not create a Job for each
+poll. A Job is created only when a firing alert has a `runbook_url`, `runbook`,
+or `runbookURL` annotation that resolves to a file in a registered GitHub
+repository URL:
 
 - `https://github.com/OWNER/REPO/blob/REF/path/to/runbook.md`
 - `https://raw.githubusercontent.com/OWNER/REPO/REF/path/to/runbook.md`
@@ -22,7 +24,11 @@ property: adding autonomy for an alert requires adding a reviewed runbook link.
 
 The prompt sent to `InvestigationJobs::Creator` contains the full alert payload
 and the resolved runbook. The resulting Job is a `direct` investigation Job, so
-it produces a narrative report instead of a pull request.
+it produces a narrative report instead of a pull request. Alert investigations
+are read-only: if a runbook reaches a decision or remediation point, the report
+should escalate with one of the core reason codes (`needs_human_decision`,
+`lacks_authority`, `remediation_failed`, or `unsafe_to_proceed`) rather than
+performing the action.
 
 Two code-level guards limit noise and unsafe duplication:
 
