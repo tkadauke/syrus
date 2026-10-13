@@ -195,6 +195,20 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(AppSetting.current.reload.max_concurrent_agent_runs).to eq(4)
   end
 
+  it "exposes and updates the repository full-poll interval" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/settings"
+    expect(parse_body.dig("settings", "repository_full_poll_interval_hours")).to eq(24)
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { repository_full_poll_interval_hours: 12 }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.repository_full_poll_interval_hours).to eq(12)
+  end
+
   it "rejects a destructive video_retention_days of 0 without persisting it" do
     sign_in_as(admin)
     AppSetting.current.update!(video_retention_days: 7)

@@ -1118,13 +1118,14 @@ RSpec.describe PollRepositoryJob, :ci_only do
         repository.reload
         expect(repository.last_poll_status).to eq("ok")
         expect(repository.last_poll_started_at).to eq(Time.current)
+        expect(repository.last_full_poll_at).to eq(Time.current)
         expect(repository.last_poll_error).to be_nil
       end
     end
 
     it "uses the previous poll start time for recurring incremental polls" do
       since = Time.zone.parse("2026-07-15 12:00:00 UTC")
-      repository.update_columns(last_poll_started_at: since)
+      repository.update_columns(last_poll_started_at: since, last_full_poll_at: 1.hour.ago)
       calls = []
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, slug, label, **kwargs|
         calls << [ slug, label, kwargs ]
@@ -1139,7 +1140,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
 
     it "does a full reconciliation poll when force is true" do
       since = Time.zone.parse("2026-07-15 12:00:00 UTC")
-      repository.update_columns(last_poll_started_at: since)
+      repository.update_columns(last_poll_started_at: since, last_full_poll_at: 1.hour.ago)
       calls = []
       allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, slug, label, **kwargs|
         calls << [ slug, label, kwargs ]
@@ -1151,11 +1152,81 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(calls).to include([ repository.slug, repository.trigger_label, { state: "open" } ])
       expect(calls).to include([ repository.slug, repository.trigger_label, { state: "closed" } ])
       expect(calls.any? { |_slug, _label, kwargs| kwargs.key?(:since) }).to be(false)
+      expect(repository.reload.last_full_poll_at).to be_within(1.second).of(Time.current)
+    end
+
+    it "bounds the incremental polling blind spot with a periodic full reconciliation" do
+      issue_labeled_during_gap = issue(number: 42, updated_at: 2.days.ago)
+      cursor = 1.day.ago
+      repository.update_columns(
+        last_poll_started_at: cursor,
+        last_full_poll_at: 1.hour.ago,
+        untagged_open_issues_checked_at: Time.current
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", since: nil|
+        next [] if state == "closed"
+
+        since.present? && issue_labeled_during_gap.updated_at <= since ? [] : [ issue_labeled_during_gap ]
+      end
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change { Job.where(repository: repository, issue_number: 42).count }
+
+      repository.update_columns(last_full_poll_at: 2.days.ago)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change { Job.where(repository: repository, issue_number: 42).count }.from(0).to(1)
+    end
+
+    it "does not create duplicate Jobs during a periodic full reconciliation" do
+      repository.update_columns(last_poll_started_at: 1.hour.ago, last_full_poll_at: 2.days.ago)
+      existing = Factories.job(user: user, repository: repository, issue_number: 42)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", **|
+        state == "closed" ? [] : [ issue(number: 42, updated_at: 3.days.ago) ]
+      end
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change { Job.where(repository: repository, issue_number: 42).count }
+
+      expect(Job.where(repository: repository, issue_number: 42)).to contain_exactly(existing)
+      expect(repository.reload.last_full_poll_at).to be_present
+    end
+
+    it "keeps the linked-PR lookup budget during a periodic full reconciliation" do
+      previous_watermark = 1.hour.ago
+      previous_full_poll = 2.days.ago
+      repository.update_columns(
+        last_poll_started_at: previous_watermark,
+        last_full_poll_at: previous_full_poll,
+        untagged_open_issues_checked_at: Time.current
+      )
+      github_issues = (1..60).map { |number| issue(number: number, updated_at: 3.days.ago) }
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open", since: nil|
+        next [] if state == "closed"
+
+        since.present? ? [] : github_issues
+      end
+
+      expect_any_instance_of(GithubClient).to receive(:linked_open_prs_for_issues)
+        .with(repository.slug, (1..50).to_a)
+        .once
+        .and_return({})
+
+      described_class.perform_now(repository.id)
+
+      expect(Job.where(repository: repository).pluck(:issue_number)).to match_array((1..50).to_a)
+      repository.reload
+      expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
+      expect(repository.last_full_poll_at.to_i).to eq(previous_full_poll.to_i)
     end
 
     it "sets last_poll_status to 'failed' without advancing the watermark when GitHub raises" do
       previous_watermark = 2.hours.ago
-      repository.update_columns(last_poll_started_at: previous_watermark)
+      previous_full_poll = 3.hours.ago
+      repository.update_columns(last_poll_started_at: previous_watermark, last_full_poll_at: previous_full_poll)
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_raise(RuntimeError, "401 Bad credentials")
 
@@ -1167,6 +1238,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(repository.last_poll_status).to eq("failed")
       expect(repository.last_poll_error).to eq("401 Bad credentials")
       expect(repository.last_poll_started_at.to_i).to eq(previous_watermark.to_i)
+      expect(repository.last_full_poll_at.to_i).to eq(previous_full_poll.to_i)
     end
 
     it "backs off autonomous polls when GitHub rate limits mid-poll without advancing the watermark" do
