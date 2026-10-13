@@ -60,6 +60,36 @@ RSpec.describe WorkflowPatch do
     expect(original_continuation.reload.depends_on_step_ids).to eq([ inserted.second.id ])
   end
 
+  it "starts the inserted step when the anchor already finished and the continuation has not started" do
+    implement_step = workflow.steps.find_by!(kind: "implement")
+    implement_step.update_columns(state: "succeeded")
+
+    result = patch(nodes: [ "adversarial_review" ], after_kind: "implement")
+
+    expect(result).to be_applied
+    inserted = workflow.steps.find_by!(kind: "adversarial_review")
+    expect(inserted.runs.count).to eq(1)
+    expect(inserted.runs.last).to be_queued
+  end
+
+  it "reports not applied when inserting after a terminal anchor whose continuation already started" do
+    implement_step = workflow.steps.find_by!(kind: "implement")
+    original_continuation = implement_step.next_step
+    implement_step.update_columns(state: "succeeded")
+    original_continuation.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      iteration: original_continuation.iteration
+    )
+
+    result = patch(nodes: [ "adversarial_review" ], after_kind: "implement")
+
+    expect(result).not_to be_applied
+    expect(result.reason).to match(/continuation already started/)
+    expect(workflow.steps.where(kind: "adversarial_review")).to be_empty
+  end
+
   it "records who patched, why, and what was added" do
     patch(nodes: [ "adversarial_review" ], reason: "UI change needs a reviewer")
 
