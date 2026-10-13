@@ -51,6 +51,39 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
     )
   end
 
+  it "returns the existing job when the same browser error is filed twice" do
+    Factories.repository(user: user, owner: "operator", name: "syrus")
+    event = BrowserErrorEvent.record!(
+      user: user,
+      payload: { "fingerprint" => "double-click", "message" => "boom", "path" => "/jobs/3188" }
+    )
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/event_actions/file_job", params: { event_type: "browser_error", event_id: event.id }
+      first_job_id = parse_body.fetch("job_id")
+
+      post "/api/v1/app/event_actions/file_job", params: { event_type: "browser_error", event_id: event.id }
+
+      expect(parse_body).to include("message" => "Job filed.", "job_id" => first_job_id)
+      expect(response).to have_http_status(:created)
+    }.to change(Job, :count).by(1)
+      .and change(ObservabilityEventFiling, :count).by(1)
+  end
+
+  it "files distinct jobs for distinct browser errors" do
+    Factories.repository(user: user, owner: "operator", name: "syrus")
+    first = BrowserErrorEvent.record!(user: user, payload: { "fingerprint" => "first", "message" => "first boom" })
+    second = BrowserErrorEvent.record!(user: user, payload: { "fingerprint" => "second", "message" => "second boom" })
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/event_actions/file_job", params: { event_type: "browser_error", event_id: first.id }
+      post "/api/v1/app/event_actions/file_job", params: { event_type: "browser_error", event_id: second.id }
+    }.to change(Job, :count).by(2)
+      .and change(ObservabilityEventFiling, :count).by(2)
+  end
+
   it "prevents users from filing jobs for another user's browser error" do
     owner = Factories.user
     event = BrowserErrorEvent.record!(user: owner, payload: { "fingerprint" => "other", "message" => "boom" })
