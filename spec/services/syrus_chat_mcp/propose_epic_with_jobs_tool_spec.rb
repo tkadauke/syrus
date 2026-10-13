@@ -351,6 +351,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   it "rejects bundled Epic proposals for read-tier repository collaborators" do
+    repository
     collaborator = Factories.user(email_address: "epic-proposal-reader@example.com", admin: false)
     repository.repository_memberships.create!(user: collaborator, role: "read")
     collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
