@@ -252,8 +252,9 @@ created but never runs, check that a worker is running the `runs` queue.
 
 Repo-level dollar budgets are not shipped yet. Syrus does ship an optional
 per-user daily spend cap: `AppSetting.user_daily_spend_budget_usd` defaults
-to `0` (unlimited), and Syrus defers new work for that user until the next
-day when provider-reported workflow and chat spend reaches a positive cap.
+to `20` dollars per user per day. Set it to `0` for unlimited provider-reported
+spend. Syrus defers new work for that user until the next day when
+provider-reported workflow and chat spend reaches a positive cap.
 Subscription-based or token-only providers may not support reliable USD
 budget enforcement unless they report dollar costs directly.
 

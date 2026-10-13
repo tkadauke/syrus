@@ -55,7 +55,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
       include(
         "key" => "user_daily_spend_budget_usd",
         "type" => "integer",
-        "default" => 0,
+        "default" => 20,
         "category" => "Instance operations",
         "min" => 0,
         "zero_means" => a_string_including("No per-user USD spend budget")

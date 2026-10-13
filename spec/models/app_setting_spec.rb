@@ -112,7 +112,7 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     setting = AppSetting.current
 
     expect(setting.max_concurrent_agent_runs).to eq(3)
-    expect(setting.user_daily_spend_budget_usd).to eq(0)
+    expect(setting.user_daily_spend_budget_usd).to eq(20)
   end
 
   it ".grade_max_iterations defaults to 5 and reflects the setting" do
