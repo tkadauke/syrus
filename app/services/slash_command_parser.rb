@@ -23,16 +23,11 @@ class SlashCommandParser
     in_fence = false
 
     @body.each_line do |line|
-      scan = line.dup
-      if scan.include?("```")
-        before, _sep, after = scan.partition("```")
-        last = command_for(before) || last unless in_fence
-        in_fence = !in_fence
-        scan = after
+      segments = line.split("```", -1)
+      segments.each_with_index do |segment, index|
+        last = command_for(strip_inline_code(segment)) || last if index.zero? && !in_fence
+        in_fence = !in_fence if index < segments.length - 1
       end
-      next if in_fence
-
-      last = command_for(strip_inline_code(scan)) || last
     end
 
     last
