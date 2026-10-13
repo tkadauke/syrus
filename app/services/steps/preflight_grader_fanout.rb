@@ -35,7 +35,7 @@ module Steps
       log("[preflight_grader_fanout] note: #{plan.note}") if plan.note
 
       if plan.graders.empty?
-        log("[preflight_grader_fanout] no graders configured — collect step will pass through")
+        log("[preflight_grader_fanout] no graders configured — collect step will proceed to implement")
         return
       end
 
