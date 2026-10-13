@@ -3,7 +3,7 @@ module PlatformDelivery
     TELEGRAM_MAX_CHARS = 4096
 
     def deliver(message:, platform_identity:)
-      text = extract_text(message.content)
+      text = message.extract_text_from_content
       return if text.blank?
 
       split_for_telegram(text).each do |chunk|
@@ -17,12 +17,6 @@ module PlatformDelivery
     end
 
     private
-
-    def extract_text(content)
-      return content.to_s if content.is_a?(String)
-      return "" unless content.is_a?(Hash)
-      content["text"].to_s
-    end
 
     def split_for_telegram(text)
       return [text] if text.length <= TELEGRAM_MAX_CHARS
