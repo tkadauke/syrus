@@ -54,6 +54,73 @@ RSpec.describe "Mcp::Tools access control" do
     expect(chat_session.attached_repositories).not_to include(other_repository)
   end
 
+  context "when the current user is a repository member" do
+    let(:owner) { Factories.user }
+    let(:shared_repository) { Factories.repository(user: owner, owner: "shared", name: "repo") }
+    let(:member) { Factories.user(admin: false) }
+    let(:chat_session) { ChatSession.create!(user: member, repository: shared_repository) }
+
+    before do
+      shared_repository.repository_memberships.create!(user: member, role: "read")
+    end
+
+    it "can attach the shared repository" do
+      allow(ChatWorkspace).to receive(:attach_repository!)
+        .with(chat_session, shared_repository)
+        .and_return(Pathname.new("/tmp/chat-workspace/shared/repo"))
+
+      response = call_tool(Mcp::Tools::AttachRepositoryTool, "attach_repository", slug: shared_repository.slug)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(payload(response)[:repository]).to include(id: shared_repository.id, slug: shared_repository.slug)
+    end
+
+    it "lists the shared repository" do
+      response = call_tool(Mcp::Tools::ListRepositoriesTool, "list_repositories")
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      listed_ids = payload(response)[:repositories].map { |repo| repo[:id] }
+      expect(listed_ids).to include(shared_repository.id)
+    end
+
+    it "lists and searches Jobs on the shared repository" do
+      job = Factories.job(repository: shared_repository, issue_title: "Shared planning work")
+
+      list_response = call_tool(Mcp::Tools::ListJobsTool, "list_jobs")
+      search_response = call_tool(Mcp::Tools::SearchJobsTool, "search_jobs", query: "Shared planning")
+
+      expect(list_response.dig(:result, :isError)).to be_falsey
+      expect(payload(list_response)[:jobs].map { |item| item[:id] }).to include(job.id)
+      expect(search_response.dig(:result, :isError)).to be_falsey
+      expect(payload(search_response)[:results].map { |item| item[:id] }).to include(job.id)
+    end
+
+    it "lists and reads Epics on the shared repository" do
+      epic = Factories.epic(user: owner, repository: shared_repository)
+
+      list_response = call_tool(Mcp::Tools::ListEpicsTool, "list_epics")
+      read_response = call_tool(Mcp::Tools::ReadEpicTool, "read_epic", id: epic.id)
+
+      expect(list_response.dig(:result, :isError)).to be_falsey
+      expect(payload(list_response)[:epics].map { |item| item[:id] }).to include(epic.id)
+      expect(read_response.dig(:result, :isError)).to be_falsey
+      expect(payload(read_response)[:epic]).to include(id: epic.id)
+    end
+
+    it "reads Job, Workflow, and Run resources on the shared repository" do
+      job = Factories.job(repository: shared_repository)
+
+      job_response = call_tool(Mcp::Tools::ReadJobTool, "read_job", job_id: job.id)
+      workflow_response = call_tool(Mcp::Tools::ReadWorkflowTool, "read_workflow", workflow_id: job.latest_workflow.id)
+      run_response = call_tool(Mcp::Tools::ReadRunTranscriptTool, "read_run_transcript", run_id: job.initial_run.id)
+
+      expect(job_response.dig(:result, :isError)).to be_falsey
+      expect(payload(job_response)[:job]).to include(id: job.id)
+      expect(workflow_response.dig(:result, :isError)).to be_falsey
+      expect(run_response.dig(:result, :isError)).to be_falsey
+    end
+  end
+
   it "cannot detach a repository attached only to another chat session" do
     unattached_repository = Factories.repository(user: user, owner: "acme", name: "gizmos")
     other_chat_session = ChatSession.create!(user: user)

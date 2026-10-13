@@ -176,11 +176,11 @@ module Mcp::Tools
         return Mcp::Tools.invalid(dependency_error) if dependency_error
         unknown_epic_ids = unknown_epic_dependency_ids(chat_session, depends_on_epic_ids)
         return Mcp::Tools.invalid("unknown depends_on_epic_ids: #{unknown_epic_ids.join(', ')}") if unknown_epic_ids.any?
-        dependency_error = dependency_target_error(chat_session.user.epics, depends_on_epic_ids)
+        dependency_error = dependency_target_error(Epic.accessible_to(chat_session.user), depends_on_epic_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
         unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)
         return Mcp::Tools.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
-        dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
+        dependency_error = dependency_target_error(Job.accessible_to(chat_session.user), depends_on_job_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
         ProposalJobDependencyRequirements.validate!(user: chat_session.user, requirements: dependency_requirements)
         if target_epic && target_epic.jobs.exists?

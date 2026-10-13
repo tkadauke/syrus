@@ -43,7 +43,7 @@ class ProposalJobDependencyRequirements
   def validate!(user:, requirements:, target_job: nil)
     normalized = Array(requirements)
     job_ids = normalized.filter_map { |requirement| requirement["job_id"] }
-    jobs_by_id = user.jobs.where(id: job_ids).index_by(&:id)
+    jobs_by_id = Job.accessible_to(user).where(id: job_ids).index_by(&:id)
     missing_job_id = job_ids.find { |job_id| !jobs_by_id.key?(job_id) }
     raise ArgumentError, "unknown job depends_on_job_ids: #{missing_job_id}" if missing_job_id
 
