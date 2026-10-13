@@ -25,7 +25,7 @@ export function ProductMedia() {
       <div className="wrap">
         <SectionHeader
           eyebrow="Product demo"
-          title="A screen recording can become the next reviewed PR."
+          title="A narrated screen recording can become the next reviewed PR."
           subtitle="The launch walkthrough centers on the video-to-Job flow, then follows that work through tracked execution, review queues, and cost visibility."
         />
 

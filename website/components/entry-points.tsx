@@ -8,9 +8,9 @@ export function EntryPoints() {
     <section id="entry-points" className="relative py-24 sm:py-32">
       <div className="wrap">
         <SectionHeader
-          eyebrow="Six ways in, one execution model"
+          eyebrow="Seven ways in, one execution model"
           title="However work starts, it's tracked the same way."
-          subtitle="A ticket, a review comment, a failing check, a scheduled chore — each becomes, or updates, the same tracked job, with every attempt on one timeline. Nothing happens off the books."
+          subtitle="A ticket, a narrated screen recording, a review comment, a failing check, a scheduled chore — each becomes, or updates, the same tracked job, with every attempt on one timeline. Nothing happens off the books."
         />
 
         <RevealGroup
