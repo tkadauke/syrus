@@ -193,4 +193,53 @@ RSpec.describe "API: /api/v1/admin/mcp_tool_usage", type: :request do
       [ [ "submit_test_plan", "syrus-mcp-sidecar" ] ]
     )
   end
+
+  it "filters API usage by persistent daemon worker id" do
+    repository = Factories.repository(user: admin)
+    run = Factories.job(user: admin, repository: repository).initial_run
+
+    McpToolUsage.create!(
+      surface: "workflow",
+      raw_tool_name: "syrus-mcp-sidecar.submit_summary",
+      server_name: "syrus-mcp-sidecar",
+      tool_name: "submit_summary",
+      normalized_tool_name: "submit_summary",
+      status: "completed",
+      error: false,
+      provider: "codex",
+      sidecar_mode: "persistent",
+      daemon_worker_id: "worker-api-a",
+      repository: repository,
+      user: admin,
+      job: run.job,
+      workflow: run.workflow,
+      run: run
+    )
+    McpToolUsage.create!(
+      surface: "workflow",
+      raw_tool_name: "syrus-mcp-sidecar.submit_summary",
+      server_name: "syrus-mcp-sidecar",
+      tool_name: "submit_summary",
+      normalized_tool_name: "submit_summary",
+      status: "completed",
+      error: false,
+      provider: "codex",
+      sidecar_mode: "persistent",
+      daemon_worker_id: "worker-api-b"
+    )
+
+    get "/api/v1/admin/mcp_tool_usage", headers: auth, params: { daemon_worker_id: "worker-api-a" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filters"]).to eq("daemon_worker_id" => "worker-api-a")
+    expect(body["totals"]).to include("calls" => 1)
+    expect(body["recent_calls"]).to contain_exactly(
+      include(
+        "tool_name" => "submit_summary",
+        "daemon_worker_id" => "worker-api-a",
+        "run_id" => run.id
+      )
+    )
+  end
 end

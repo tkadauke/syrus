@@ -202,6 +202,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       error: false,
       provider: "codex",
       sidecar_mode: "persistent",
+      daemon_worker_id: "worker-a",
       authority: "workspace",
       repository: repository,
       user: admin,
@@ -236,6 +237,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     get "/api/v1/app/admin/mcp_tool_usage", params: {
       provider: "codex",
       sidecar_mode: "persistent",
+      daemon_worker_id: "worker-a",
       status: "completed",
       repository_id: repository.id,
       user_id: admin.id,
@@ -255,6 +257,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     expect(body["recent_calls"].first).to include(
       "provider" => "codex",
       "sidecar_mode" => "persistent",
+      "daemon_worker_id" => "worker-a",
       "authority" => "workspace",
       "input_bytes" => 512,
       "result_bytes" => 2048,
@@ -305,6 +308,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
         "tool_name" => "write_file",
         "authority" => "operator_host",
         "sidecar_mode" => "persistent",
+        "daemon_worker_id" => "local-worker",
         "chat_session_id" => local_chat.id
       )
     )

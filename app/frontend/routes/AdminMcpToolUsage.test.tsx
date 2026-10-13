@@ -84,6 +84,7 @@ function payload() {
         error_class: null,
         error_message_summary: null,
         sidecar_mode: "stdio",
+        daemon_worker_id: null,
         authority: "workspace",
         job_id: 42,
         job_path: "/jobs/42",
@@ -170,5 +171,15 @@ describe("AdminMcpToolUsage", () => {
     expect(screen.getByRole("button", { name: "Server is syrus-mcp-sidecar" })).toBeInTheDocument()
     expect(String(fetchSpy.mock.calls[0][0])).toContain("tool_name=browser_navigate")
     expect(String(fetchSpy.mock.calls[0][0])).toContain("server_name=syrus-mcp-sidecar")
+  })
+
+  it("reads the daemon worker filter from shared FilterBar URL params", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute("/admin/mcp_tool_usage?daemon_worker_id=worker-a")
+    await screen.findByRole("heading", { name: "MCP tool usage" })
+
+    expect(screen.getByRole("button", { name: "Daemon worker is worker-a" })).toBeInTheDocument()
+    expect(String(fetchSpy.mock.calls[0][0])).toContain("daemon_worker_id=worker-a")
   })
 })
