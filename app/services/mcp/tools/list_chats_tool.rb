@@ -23,10 +23,10 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         page = normalize_page(page)
         per_page = normalize_per_page(per_page)
-        scope = ChatSession
-          .where(user: chat_session.user)
+        scope = chat_session.user.accessible_chat_sessions
           .visible
           .active
+          .distinct
           .order(updated_at: :desc)
         scope = apply_mode_filter(scope, mode)
         return scope if scope.is_a?(MCP::Tool::Response)
