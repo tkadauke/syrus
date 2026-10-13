@@ -27,9 +27,16 @@ export default defineConfig(({ mode }) => {
         input: "app/frontend/main.tsx",
         output: {
           entryFileNames: "spa.js",
-          chunkFileNames: "spa-[name].js",
+          chunkFileNames: "spa-[name]-[hash].js",
           assetFileNames: "spa-[name][extname]",
-          codeSplitting: false
+          manualChunks(id) {
+            if (!id.includes("/node_modules/")) return undefined
+            if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router/") || id.includes("/react-router-dom/"))
+              return "vendor-react"
+            if (id.includes("/@tanstack/")) return "vendor-query"
+            if (id.includes("/d3") || id.includes("/mermaid/") || id.includes("/cytoscape")) return "vendor-visualization"
+            return "vendor"
+          }
         }
       }
     },
