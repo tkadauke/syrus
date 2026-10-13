@@ -173,7 +173,7 @@ module Api
 
         def repository_scheduled_tasks_payload(repository)
           tasks = ScheduledTasks::Task
-            .where(repository_id: repository.id)
+            .where(repository_id: repository.id, user: Current.user)
             .alive
             .includes(:repository)
             .order(Arel.sql("CASE state WHEN 'scheduled' THEN 0 ELSE 1 END"), created_at: :desc)
@@ -365,7 +365,7 @@ module Api
         end
 
         def find_repository_task(repository)
-          ScheduledTasks::Task.where(repository_id: repository.id).find(params[:id])
+          ScheduledTasks::Task.where(repository_id: repository.id, user: Current.user).find(params[:id])
         end
 
         def scheduled_task_params

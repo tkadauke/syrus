@@ -225,6 +225,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     archived.soft_delete!
     other_repo = Factories.repository(user: user, name: "other")
     ScheduledTasks::Task.create!(repository: other_repo, user: user, **valid_cron_attrs.merge(name: "Other repo"))
+    ScheduledTasks::Task.create!(repository: repository, user: other_user, **valid_cron_attrs.merge(name: "Other user's private task"))
 
     get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
 
@@ -239,16 +240,21 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     )
     expect(response.body).not_to include("Archived")
     expect(response.body).not_to include("Other repo")
+    expect(response.body).not_to include("Other user's private task")
   end
 
-  it "allows a RepositoryMembership collaborator to view repository-scoped scheduled tasks" do
+  it "allows a RepositoryMembership collaborator to view the repository tab without leaking another user's tasks" do
     collaborator = Factories.user(email_address: "collaborator@example.com")
     repository.repository_memberships.create!(user: collaborator, role: "read")
+    ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs.merge(name: "Owner private task"))
+    collaborator_task = ScheduledTasks::Task.create!(repository: repository, user: collaborator, **valid_cron_attrs.merge(name: "Collaborator task"))
     sign_in_as(collaborator)
 
     get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["tasks"]).to contain_exactly(include("id" => collaborator_task.id, "name" => "Collaborator task"))
+    expect(response.body).not_to include("Owner private task")
   end
 
   it "404s viewing repository-scoped scheduled tasks for a user who is neither the owner nor a member" do
@@ -275,6 +281,18 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["message"]).to eq("Scheduled task enabled.")
   end
 
+  it "does not allow repository-scoped pause or resume of another user's task" do
+    repository.repository_memberships.create!(user: other_user, role: "read")
+    task = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs)
+    sign_in_as(other_user)
+
+    patch "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/#{task.id}", params: { enabled: "false" }
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+    expect(task.reload.state).to eq("scheduled")
+  end
+
   it "archives repository-scoped tasks" do
     sign_in_as(user)
     task = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs)
@@ -285,6 +303,18 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.reload.archived?).to be true
     expect(parse_body["message"]).to eq("Scheduled task deleted.")
     expect(parse_body["tasks"]).to be_empty
+  end
+
+  it "does not allow repository-scoped deletion of another user's task" do
+    repository.repository_memberships.create!(user: other_user, role: "read")
+    task = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs)
+    sign_in_as(other_user)
+
+    delete "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/#{task.id}"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+    expect(task.reload.archived?).to be false
   end
 
   it "creates a cron task for a repository" do
