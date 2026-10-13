@@ -325,7 +325,7 @@ RUN /usr/local/bin/mise reshim && \
 # ============================================================================
 # Worker deps stage — generalist tooling so the in-pod claude-code agent
 # can verify its changes against arbitrary external repos (run tests,
-# build assets, etc). Companion to greenacres#16; only the worker pod
+# build assets, etc). Only the worker pod
 # uses this variant. Web pod stays on the lean `app` stage.
 #
 # Critically, this stage is `FROM base`, NOT `FROM app`. The heavy apt
@@ -355,7 +355,7 @@ ENV ANDROID_SDK_ROOT=/opt/android-sdk \
     ANDROID_AVD_HOME=/home/rails/.android/avd
 
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
-# justified in greenacres#16 / syrus#114; ripgrep+fd in particular speed
+# justified by agent use; ripgrep+fd in particular speed
 # up the agent dramatically when exploring code. The lib*-dev deps are
 # kept here too (not just runtime-cache) so on-demand `mise install`
 # of a non-default version inside the worker pod still has them.
@@ -589,5 +589,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD if [ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]; then exit 0; fi; curl -fsS http://127.0.0.1/readyz >/dev/null || exit 1
 
 # Inherits app's posture (thrust+rails server) by default; the worker
-# pod's Deployment overrides command to `bin/jobs` per greenacres#16.
+# pod's Deployment overrides the command to `bin/jobs`.
 CMD ["./bin/thrust", "./bin/rails", "server"]

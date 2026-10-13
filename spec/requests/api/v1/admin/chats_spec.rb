@@ -5,7 +5,7 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
   let(:non_admin) { admin; Factories.user }
   let(:admin_token) { admin.generate_api_token! }
   let(:non_admin_token) { non_admin.generate_api_token! }
-  let(:repository) { Factories.repository(user: admin, owner: "tkadauke", name: "syrus-test") }
+  let(:repository) { Factories.repository(user: admin, owner: "acme", name: "widgets") }
 
   def auth(token) = { "Authorization" => "Bearer #{token}" }
   def parse_body = JSON.parse(response.body)
@@ -61,19 +61,19 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
         "cumulative_cost_usd" => 0.123456
       )
       expect(row.dig("user", "email_address")).to eq(admin.email_address)
-      expect(row["repositories"]).to contain_exactly(include("slug" => "tkadauke/syrus-test"))
+      expect(row["repositories"]).to contain_exactly(include("slug" => "acme/widgets"))
     end
 
     it "filters by repository and user email substring" do
       other_user = Factories.user(email_address: "someone@example.com")
-      other_repo = Factories.repository(user: admin, owner: "tkadauke", name: "other")
-      other_user_repo = Factories.repository(user: other_user, owner: "tkadauke", name: "someone-fork")
+      other_repo = Factories.repository(user: admin, owner: "acme", name: "other")
+      other_user_repo = Factories.repository(user: other_user, owner: "acme", name: "someone-fork")
       matching = ChatSession.create!(user: admin, repository: repository, title: "Matching")
       ChatSession.create!(user: admin, repository: other_repo, title: "Wrong repo")
       ChatSession.create!(user: other_user, repository: other_user_repo, title: "Wrong user")
 
       get "/api/v1/admin/chats",
-          params: { repo: "tkadauke/syrus-test", user: "user-" },
+          params: { repo: "acme/widgets", user: "user-" },
           headers: auth(admin_token)
 
       expect(response).to have_http_status(:ok)
@@ -116,7 +116,7 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
         "title" => "Whiteboard help"
       )
       expect(body).not_to have_key("messages_count")
-      expect(body["attachments"]).to contain_exactly(include("type" => "Repository", "label" => "tkadauke/syrus-test"))
+      expect(body["attachments"]).to contain_exactly(include("type" => "Repository", "label" => "acme/widgets"))
       expect(body["bookmarks"]).to contain_exactly(include(
         "id" => bookmark.id,
         "label" => "Whiteboard check",
@@ -127,7 +127,7 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
         "id" => proposal.id,
         "slug" => "fix-whiteboard",
         "kind" => "job",
-        "repository" => "tkadauke/syrus-test"
+        "repository" => "acme/widgets"
       ))
       expect(body["messages_page"]).to include(
         "before" => nil,
