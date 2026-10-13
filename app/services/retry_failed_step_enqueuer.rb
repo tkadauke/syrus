@@ -147,6 +147,22 @@ class RetryFailedStepEnqueuer
   end
 
   def call
+    workflow.job.with_lock do
+      workflow.reload
+      @failed_step = Step.find(failed_step.id) if failed_step
+
+      call_with_locked_job
+    end
+  rescue WorkUnits::Launcher::LockConflict => e
+    failure("#{ACTIVE_WORK_LOCK_ERROR}: active WorkUnit ##{e.work_unit.id} already owns #{e.lock_key}")
+  end
+
+  private
+
+  attr_reader :workflow, :parent_session_id, :prompt, :agent_provider, :disable_session_resume,
+    :restart_grade_loop, :failed_step
+
+  def call_with_locked_job
     return failure("Workflow is not in a failed state.") unless workflow.failed?
     return failure(WORKSPACE_CLEANED_UP_MESSAGE) unless workflow.retry_available?
 
@@ -195,14 +211,7 @@ class RetryFailedStepEnqueuer
     sibling_graders.each { |sibling| create_run_for!(sibling) }
 
     Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
-  rescue WorkUnits::Launcher::LockConflict => e
-    failure("#{ACTIVE_WORK_LOCK_ERROR}: active WorkUnit ##{e.work_unit.id} already owns #{e.lock_key}")
   end
-
-  private
-
-  attr_reader :workflow, :parent_session_id, :prompt, :agent_provider, :disable_session_resume,
-    :restart_grade_loop, :failed_step
 
   def targeted_failed_step
     return unless failed_step
