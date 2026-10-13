@@ -17,6 +17,11 @@ require "ipaddr"
 # known-internal hostname directly into markdown — without adding a
 # network dependency to the check itself.
 class SsrfGuard
+  INVALID_IP_LITERAL = Object.new.freeze
+  IPV4_NUMERIC_COMPONENT = /(?:0x[0-9a-f]+|[0-9]+)/
+  IPV4_NUMERIC_LITERAL = /\A#{IPV4_NUMERIC_COMPONENT}(?:\.#{IPV4_NUMERIC_COMPONENT}){0,3}\z/
+  private_constant :INVALID_IP_LITERAL, :IPV4_NUMERIC_COMPONENT, :IPV4_NUMERIC_LITERAL
+
   BLOCKED_HOSTNAMES = %w[
     localhost
     metadata.google.internal
@@ -56,6 +61,7 @@ class SsrfGuard
 
     ip = parse_ip(normalized)
     return true unless ip
+    return false if ip == INVALID_IP_LITERAL
 
     blocked_ranges_for(ip).none? { |range| range.include?(ip) }
   end
@@ -63,9 +69,67 @@ class SsrfGuard
   def self.parse_ip(normalized)
     IPAddr.new(normalized)
   rescue IPAddr::Error
-    nil
+    parse_noncanonical_ipv4(normalized)
   end
   private_class_method :parse_ip
+
+  def self.parse_noncanonical_ipv4(normalized)
+    return nil unless IPV4_NUMERIC_LITERAL.match?(normalized)
+
+    parts = normalized.split(".").map { |part| parse_ipv4_numeric_component(part) }
+    return INVALID_IP_LITERAL if parts.any?(&:nil?)
+
+    address = ipv4_address_from_parts(parts)
+    return INVALID_IP_LITERAL unless address
+
+    IPAddr.new(
+      [
+        (address >> 24) & 0xff,
+        (address >> 16) & 0xff,
+        (address >> 8) & 0xff,
+        address & 0xff
+      ].join(".")
+    )
+  end
+  private_class_method :parse_noncanonical_ipv4
+
+  def self.parse_ipv4_numeric_component(part)
+    if part.start_with?("0x")
+      Integer(part[2..], 16)
+    elsif part.length > 1 && part.start_with?("0")
+      Integer(part, 8)
+    else
+      Integer(part, 10)
+    end
+  rescue ArgumentError
+    nil
+  end
+  private_class_method :parse_ipv4_numeric_component
+
+  def self.ipv4_address_from_parts(parts)
+    case parts.length
+    when 1
+      value = parts[0]
+      return nil unless value <= 0xffffffff
+
+      value
+    when 2
+      first, rest = parts
+      return nil unless first <= 0xff && rest <= 0xffffff
+
+      (first << 24) | rest
+    when 3
+      first, second, rest = parts
+      return nil unless first <= 0xff && second <= 0xff && rest <= 0xffff
+
+      (first << 24) | (second << 16) | rest
+    when 4
+      return nil unless parts.all? { |part| part <= 0xff }
+
+      parts.reduce(0) { |address, part| (address << 8) | part }
+    end
+  end
+  private_class_method :ipv4_address_from_parts
 
   def self.blocked_ranges_for(ip)
     ip.ipv4? ? BLOCKED_IPV4_RANGES : BLOCKED_IPV6_RANGES
