@@ -140,7 +140,12 @@ class ChatEpicProposalMaterializer
     )
     job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
     job.save!
+    attach_media_to_job!(proposal, job)
     job
+  end
+
+  def attach_media_to_job!(proposal, job)
+    ChatMediaAttacher.new(chat_session: proposal.chat_session, job: job).attach!(proposal.media_ids)
   end
 
   def wire_sibling_dependencies(job_proposals, job_by_proposal_id)
