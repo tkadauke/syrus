@@ -13,7 +13,15 @@ module OperatorBriefing
         settings = BriefingSettings.for_user(user)
         next unless settings.due?(now: now)
 
-        settings.enabled_subscriptions.includes(:repository).find_each do |subscription|
+        accessible_repository_ids = Repository.accessible_repository_ids_for(user)
+        settings.enabled_subscriptions.where.not(repository_id: accessible_repository_ids).find_each do |subscription|
+          subscription.update!(enabled: false)
+        end
+
+        settings.enabled_subscriptions
+          .where(repository_id: accessible_repository_ids)
+          .includes(:repository)
+          .find_each do |subscription|
           repository = subscription.repository
           next if repository.archived?
 
