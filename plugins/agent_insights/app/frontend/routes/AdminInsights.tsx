@@ -414,7 +414,7 @@ function SuggestionActions({ suggestion, prefix }: { suggestion: AdminInsightSug
         </Link>
         {suggestion.has_memory_suggestion ? (
           <Button disabled={promoteMutation.isPending} onClick={() => promoteMutation.mutate()} size="sm" variant="secondary">
-            {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
+            {promoteMutation.isPending ? t("promoting") : t("promote_to_repository")}
           </Button>
         ) : null}
         {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" ? (
