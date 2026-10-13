@@ -126,7 +126,10 @@ RSpec.describe "Docker image scripts" do
     expect(publish_image.index('syrus_worker_native_build_smoke "$TEST_TAG"')).to be < publish_image.index("if [ \"$SKIP_TESTS\" = 1 ]; then")
     expect(deploy.index('syrus_worker_native_build_smoke "${WORKER_DEV_REGISTRY}:${SHA}"')).to be < deploy.index("docker push \"${WORKER_DEV_REGISTRY}:${SHA}\"")
 
-    expect(deploy).to include("WORKER_WORKLOADS=(deployment/syrus-worker-home daemonset/syrus-worker-compute)")
+    # The list is env-overridable, so assert the default rather than the
+    # literal array: both worker workloads must still be smoke-checked when
+    # the operator has not narrowed the set.
+    expect(deploy).to include("SYRUS_WORKER_WORKLOADS:-deployment/syrus-worker-home daemonset/syrus-worker-compute")
     expect(deploy).to include('verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"')
     expect(deploy.index('verify_sha "$label" "$kubeconfig" "$namespace"')).to be < deploy.index('verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"')
 

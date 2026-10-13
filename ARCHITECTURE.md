@@ -2444,8 +2444,13 @@ session outcome.
   on graceful exit or by `ReapStaleInstanceVersionsJob`. The admin
   version endpoint shows the request handler plus fresh instances, which
   makes rolling deploy state visible.
-- Two clusters: staging (default kubeconfig) and production
-  (`~/.kube/config-production`). Diagnostic recipes are in `CLAUDE.md`
+- `bin/deploy` supports a two-cluster split: staging on the default
+  kubeconfig and production on an explicit one, so the two cannot race
+  each other through context switches. Both kubeconfigs, the namespaces,
+  and the workload names are environment variables with defaults
+  (`SYRUS_PRODUCTION_KUBECONFIG`, `SYRUS_NAMESPACE_PRODUCTION`,
+  `SYRUS_DEPLOYMENTS`, ...); a single-cluster deployment overrides them
+  rather than editing the script. Diagnostic recipes are in `CLAUDE.md`
   under "Debugging staging / production via kubectl".
 - Kubernetes deploys use `bin/deploy` to build and push the web and
   worker images for the configured cluster architecture. That path uses

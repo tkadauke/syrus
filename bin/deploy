@@ -34,23 +34,26 @@ WORKER_DEV_REGISTRY="ghcr.io/tkadauke/syrus-worker-dev"
 PLUGIN_BUILD_DIRS=()
 PLUGIN_REGISTRIES=()
 GHCR_USER="${GHCR_USER:-tkadauke}"
-TOKEN_FILE="${HOME}/.config/syrus/ghcr-token"
+TOKEN_FILE="${SYRUS_GHCR_TOKEN_FILE:-${HOME}/.config/syrus/ghcr-token}"
 
 # Where each cluster's kubeconfig lives. Staging uses the default
 # context (whatever kubectl points at out of the box); production
-# uses an explicit file. Keeps the two clusters from racing each
-# other through context switches.
-STAGING_KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
-PRODUCTION_KUBECONFIG="$HOME/.kube/config-production"
+# uses an explicit file, which keeps the two clusters from racing each
+# other through context switches. Both are overridable: a deployment
+# with one cluster, different file names, or a single merged kubeconfig
+# sets these rather than editing the script.
+STAGING_KUBECONFIG="${SYRUS_STAGING_KUBECONFIG:-${KUBECONFIG:-$HOME/.kube/config}}"
+PRODUCTION_KUBECONFIG="${SYRUS_PRODUCTION_KUBECONFIG:-$HOME/.kube/config-production}"
 
-NAMESPACE_STAGING="syrus-staging"
-NAMESPACE_PRODUCTION="syrus-production"
+NAMESPACE_STAGING="${SYRUS_NAMESPACE_STAGING:-syrus-staging}"
+NAMESPACE_PRODUCTION="${SYRUS_NAMESPACE_PRODUCTION:-syrus-production}"
 # Rollout targets across the multi-worker split: web + the single home worker
 # (Deployment) + the per-node compute workers (DaemonSet). Each entry carries
 # its resource type so `kubectl rollout status` works for Deployments and the
-# DaemonSet alike.
-DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute deployment/syrus-preview)
-WORKER_WORKLOADS=(deployment/syrus-worker-home daemonset/syrus-worker-compute)
+# DaemonSet alike. Override as a space-separated list when your workloads are
+# named differently or you run a subset.
+read -r -a DEPLOYMENTS <<<"${SYRUS_DEPLOYMENTS:-deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute deployment/syrus-preview}"
+read -r -a WORKER_WORKLOADS <<<"${SYRUS_WORKER_WORKLOADS:-deployment/syrus-worker-home daemonset/syrus-worker-compute}"
 
 # --- argv parsing ----------------------------------------------------
 DEPLOY_STAGING=true
@@ -227,7 +230,7 @@ ROLLOUT_STALL_DIAGNOSE_INTERVAL="${ROLLOUT_STALL_DIAGNOSE_INTERVAL:-90s}"
 # already has).
 PREPULL="${PREPULL:-1}"
 PREPULL_TIMEOUT="${PREPULL_TIMEOUT:-12m}"
-PREPULL_DAEMONSET="syrus-image-prepull"
+PREPULL_DAEMONSET="${SYRUS_PREPULL_DAEMONSET:-syrus-image-prepull}"
 DB_PREPARE_TIMEOUT="${DB_PREPARE_TIMEOUT:-10m}"
 ROLLOUT_VERBOSE_DIAGNOSTICS="${ROLLOUT_VERBOSE_DIAGNOSTICS:-false}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
@@ -323,13 +326,13 @@ rollout() {
 # Pods on nodes that already had the layers were Ready in 6 seconds.
 #
 # Placement is copied from the live compute DaemonSet rather than written out
-# here, because the two environments genuinely differ: staging keeps the
-# anti-master nodeAffinity from apps/syrus.py, while production strips it (its
-# masters absorbed the worker role after the fleet consolidation). Hardcoding
-# either rule warms the wrong nodes in the other environment -- and in staging
-# that is not merely wasteful, since those nodes have ~20GB disks and this
-# image is multi-gigabyte. jsonpath emits JSON, which is valid YAML, so the
-# live values drop straight into the manifest.
+# here, because environments genuinely differ in which nodes run workers: one
+# cluster may keep an anti-control-plane nodeAffinity while another lets its
+# control-plane nodes carry the worker role too. Hardcoding either rule warms
+# the wrong nodes in the other environment -- and warming a node that will
+# never run the workload is worse than wasteful when that node has a small
+# disk and this image is multi-gigabyte. jsonpath emits JSON, which is valid
+# YAML, so the live values drop straight into the manifest.
 #
 # Failing to pre-pull is not a deploy failure. The rollout that follows pulls
 # the image itself, exactly as it did before this existed -- so a timeout here
