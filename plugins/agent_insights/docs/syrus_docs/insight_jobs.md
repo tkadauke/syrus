@@ -120,11 +120,12 @@ The memory becomes available to future agents working on the same repository.
 `/admin/insights` shows a paginated, state-filterable cross-repository table of all suggestions (requires admin role and the plugin enabled). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
 
 Admins can expand rows to see the full suggested prompt, memory suggestion, and
-stale-memory removal evidence. They can **Promote to instance memory** for
-memory suggestions — this creates a `AgentMemory::Entry` with `scope: "instance"` rather
-than `scope: "repository"`, making it visible to all agents across all
-repositories. For `remove_memory` suggestions, admins can accept the removal
-from the table.
+stale-memory removal evidence. They can **Promote to repository memory** for
+memory suggestions — this creates a published `AgentMemory::Entry` with
+`scope: "repository"` for the suggestion repository, making it visible to future
+agents working in that repository and to users who can read published
+repository memories. For `remove_memory` suggestions, admins can accept the
+removal from the table.
 
 ## Concurrent Insight Jobs
 
