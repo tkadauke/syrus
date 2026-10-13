@@ -1,10 +1,13 @@
 class MergeabilityRecorder
   def self.record_github!(job:, pr:, checked_at: Time.current)
+    github_mergeable = mergeable(pr)
+    github_mergeable_state = mergeable_state(pr)
+
     attrs = {
-      pr_mergeable: mergeable(pr),
+      pr_mergeable: github_mergeable.nil? ? job.pr_mergeable : github_mergeable,
       pr_mergeable_checked_at: checked_at,
-      github_mergeable: mergeable(pr),
-      github_mergeable_state: mergeable_state(pr),
+      github_mergeable: github_mergeable.nil? ? job.github_mergeable : github_mergeable,
+      github_mergeable_state: github_mergeable_state.nil? ? job.github_mergeable_state : github_mergeable_state,
       mergeability_head_sha: pr_head_sha(pr),
       mergeability_base_sha: pr_base_sha(pr),
       mergeability_base_ref: pr_base_ref(pr),
