@@ -51,10 +51,9 @@ module Api
         # the persisted note rides along; if the Gemini analysis already
         # succeeded, the job skips Gemini and just re-delivers the turn.
         def retry
-          walkthrough = VideoWalkthroughs::Walkthrough.joins(:chat_session)
-                                            .joins(chat_session: :chat_participants)
-                                            .where(chat_participants: { user_id: Current.user.id })
-                                            .find(params[:id])
+          walkthrough = VideoWalkthroughs::Walkthrough
+            .where(chat_session_id: Current.user.accessible_chat_sessions.select(:id), user_id: Current.user.id)
+            .find(params[:id])
           unless walkthrough.failed?
             render_error("not_retryable", "Only failed analyses can be retried.", status: :unprocessable_content)
             return
