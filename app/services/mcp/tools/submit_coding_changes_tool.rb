@@ -101,7 +101,7 @@ module Mcp::Tools
 
       def resolve_repository(chat_session, repository_id)
         if repository_id.present?
-          chat_session.user.repositories.active.find_by(id: repository_id)
+          Repository.accessible_to(chat_session.user).active.find_by(id: repository_id)
         else
           chat_session.repository
         end

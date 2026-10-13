@@ -20,8 +20,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("slug must be owner/name") unless owner && name
 
         # Attachment is user-gated here: the slug must resolve inside the
-        # current user's active repositories before ChatWorkspace can clone it.
-        repository = chat_session.user.repositories.active.find_by("LOWER(owner) = ? AND LOWER(name) = ?", owner.downcase, name.downcase)
+        # current user's active, membership-visible repositories before ChatWorkspace can clone it.
+        repository = Repository.accessible_to(chat_session.user).active.find_by("LOWER(owner) = ? AND LOWER(name) = ?", owner.downcase, name.downcase)
         return Mcp::Tools.invalid("repository #{owner}/#{name} is not configured for this user") unless repository
 
         path = ChatWorkspace.attach_repository!(chat_session, repository)
