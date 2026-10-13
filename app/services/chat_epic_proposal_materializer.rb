@@ -19,6 +19,7 @@ class ChatEpicProposalMaterializer
     validate_child_count!(epic_proposal, job_proposals)
     validate_child_dependency_policy!(epic_proposal, job_proposals)
     ensure_active_repositories!([ epic_proposal ] + job_proposals)
+    ensure_repository_write!(epic_proposal, job_proposals)
     jobs = []
     epic = nil
 
@@ -66,6 +67,16 @@ class ChatEpicProposalMaterializer
   def ensure_active_repositories!(proposals)
     archived = proposals.map(&:effective_repository).compact.find(&:archived?)
     raise ArgumentError, "repository #{archived.slug} is archived" if archived
+  end
+
+  def ensure_repository_write!(epic_proposal, job_proposals)
+    parent_repository = epic_proposal.target_epic&.repository || epic_proposal.effective_repository
+    repositories = [ parent_repository, *job_proposals.map { |proposal| proposal.repository || parent_repository } ].compact.uniq
+    unauthorized = repositories.find { |repository| !RepositoryPolicy.new(user, repository).write? }
+    return unless unauthorized
+
+    raise ArgumentError,
+          "Only a repository member with write access, or an admin, can file work for #{unauthorized.slug}."
   end
 
   def proposed_children_for(epic_proposal)
