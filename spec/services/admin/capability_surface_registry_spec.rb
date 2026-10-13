@@ -196,7 +196,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
       }
     )
 
-    capability = registry.capabilities.fetch(0)
+    capability = registry.capabilities.find { |candidate| candidate.key == "submit_coding_changes" }
 
     expect(capability.key).to eq("submit_coding_changes")
     expect(capability.decision_for(:admin_api)).not_to be_exposed
