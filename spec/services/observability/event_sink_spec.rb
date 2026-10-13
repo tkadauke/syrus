@@ -190,6 +190,83 @@ RSpec.describe Observability::EventSink do
     expect(described_class.recent(kind: :operational, limit: 10).size).to eq(1)
   end
 
+  it "keeps durable spool files until persistence succeeds" do
+    stream = Observability::EventStream.fetch(:operational)
+    described_class.append(kind: :operational, event: {
+      "occurred_at" => Time.current.iso8601(6),
+      "level" => "error",
+      "role" => "worker",
+      "hostname" => "host-a",
+      "source" => "spec",
+      "message" => "survives failed flush",
+      "context" => {}
+    }, durable: true)
+    allow(stream).to receive(:persist!).and_raise(RuntimeError, "db unavailable")
+
+    described_class.flush!(kinds: [ :operational ])
+
+    expect(OperationalLogEvent.count).to eq(0)
+    expect(Dir.glob(File.join(ENV.fetch("SYRUS_OBSERVABILITY_SPOOL_ROOT"), "**", "*.claiming"))).not_to be_empty
+
+    allow(stream).to receive(:persist!).and_call_original
+
+    expect {
+      described_class.flush!(kinds: [ :operational ])
+    }.to change(OperationalLogEvent, :count).by(1)
+    expect(Dir.glob(File.join(ENV.fetch("SYRUS_OBSERVABILITY_SPOOL_ROOT"), "**", "*.claiming"))).to be_empty
+  end
+
+  it "counts restored events dropped by the memory cap after a failed flush" do
+    stream = Observability::EventStream.fetch(:performance)
+    3.times do |index|
+      described_class.append(kind: :performance, event: {
+        "event" => PerformanceLogging::SLOW_PHASE_EVENT,
+        "occurred_at" => Time.current.iso8601(6),
+        "phase" => "restore-cap-#{index}"
+      })
+    end
+    stub_const("Observability::EventSink::PERFORMANCE_MEMORY_LIMIT", 1)
+    allow(stream).to receive(:persist!).and_raise(RuntimeError, "db unavailable")
+
+    described_class.flush!(kinds: [ :performance ])
+
+    expect(described_class.stats[:buffered][:performance]).to eq(1)
+    expect(described_class.stats[:dropped][:performance]).to eq(2)
+  end
+
+  it "recovers stranded claiming spool files from dead processes" do
+    dir = described_class.send(:spool_dir, :operational)
+    FileUtils.mkdir_p(dir)
+    claimed = dir.join("orphan.jsonl.12345.claiming")
+    claimed.write(JSON.generate({
+      "occurred_at" => Time.current.iso8601(6),
+      "level" => "warn",
+      "role" => "worker",
+      "hostname" => "host-a",
+      "source" => "spec",
+      "message" => "recovered claimed spool",
+      "context" => {}
+    }))
+    allow(described_class).to receive(:process_alive?).with(12_345).and_return(false)
+
+    expect {
+      described_class.flush!(kinds: [ :operational ])
+    }.to change(OperationalLogEvent, :count).by(1)
+    expect(claimed).not_to exist
+  end
+
+  it "deletes successfully read spool claims with no parseable events" do
+    dir = described_class.send(:spool_dir, :operational)
+    FileUtils.mkdir_p(dir)
+    dir.join("invalid.jsonl").write("{not-json}\n")
+
+    expect {
+      described_class.flush!(kinds: [ :operational ])
+    }.not_to change(OperationalLogEvent, :count)
+    expect(Dir.glob(File.join(ENV.fetch("SYRUS_OBSERVABILITY_SPOOL_ROOT"), "**", "*.claiming"))).to be_empty
+    expect(Dir.glob(File.join(ENV.fetch("SYRUS_OBSERVABILITY_SPOOL_ROOT"), "**", "*.jsonl"))).to be_empty
+  end
+
   it "persists heterogeneous insert_all rows for optional event fields" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "codex")
