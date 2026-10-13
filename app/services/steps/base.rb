@@ -615,12 +615,12 @@ module Steps
     # data that already lives in Run#agent_diff. Mirror the same
     # capture-only pattern head_sha uses below.
     def diff_against_default
-      GitRunner.new.run("diff", "#{default_branch_ref}...HEAD",
+      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{default_branch_ref}...HEAD",
                        chdir: workspace.path.to_s)
     end
 
     def diff_against_sha(sha)
-      GitRunner.new.run("diff", "#{sha}...HEAD", chdir: workspace.path.to_s)
+      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{sha}...HEAD", chdir: workspace.path.to_s)
     end
 
     def default_branch_ref
