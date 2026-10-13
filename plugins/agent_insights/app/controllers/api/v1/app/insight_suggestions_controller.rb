@@ -19,22 +19,10 @@ module Api
 
           repository = find_repository
 
-          if repository.jobs.where(kind: "agent_insight").where.not(state: "closed").exists?
+          job = AgentInsights::Scheduler.enqueue_if_idle!(repository, user: Current.user)
+          unless job
             render json: { message: "An insight analysis job is already running for #{repository.slug}.", started: false }
             return
-          end
-
-          user = Current.user
-          job = Job.transaction do
-            j = user.jobs.create!(
-              repository: repository,
-              kind: "agent_insight",
-              issue_number: nil,
-              issue_title: "Insight analysis: #{repository.slug}",
-              owner_user: user
-            )
-            WorkUnits::Launcher.create_and_start!(kind: "agent_insight", job: j)
-            j
           end
 
           render json: { message: "Insight analysis started for #{repository.slug}.", started: true, job_id: job.id }
