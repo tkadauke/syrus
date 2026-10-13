@@ -1279,6 +1279,31 @@ describe("applyAppEvent revisioned event patches", () => {
     })
   })
 
+  it("does not let stale scoped resource events move active job workflow query payloads backward", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["jobs", "42", "detail", ""], jobWorkflowPayload())
+
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 8,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+    })
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 7,
+      payload: { fields: { state: "running", finished_at: null } }
+    })
+
+    const detail = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "detail", ""])
+    expect(detail?.workflows[0].steps[0].runs[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:01:00.000Z",
+      entity_revision: 8
+    })
+  })
+
   it("patches nested work-unit workflow payloads from scoped resource events", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["jobs", "42", "detail", ""], {

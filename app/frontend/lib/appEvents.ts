@@ -5,7 +5,7 @@ import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRec
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
 import { chatPinsQueryPrefix } from "../routes/chat/pins"
-import { normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
+import { compareRevision, normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
 
 // A proposal card can live in a chat view's paginated-older-history state,
@@ -199,7 +199,7 @@ function patchWorkflows(workflows: JobWorkflow[], event: AppEvent, fields: Recor
 
 function patchWorkflow(workflow: JobWorkflow, event: AppEvent, id: string, fields: Record<string, unknown>): JobWorkflow {
   if (event.resource === "workflow") {
-    return String(workflow.id) === id ? { ...workflow, ...fields } : workflow
+    return String(workflow.id) === id && freshEnoughForCachePatch(event, workflow.entity_revision) ? { ...workflow, ...fields } : workflow
   }
 
   let patched = false
@@ -213,7 +213,7 @@ function patchWorkflow(workflow: JobWorkflow, event: AppEvent, id: string, field
 
 function patchStep(step: JobStep, event: AppEvent, id: string, fields: Record<string, unknown>): JobStep {
   if (event.resource === "step") {
-    return String(step.id) === id ? { ...step, ...fields } : step
+    return String(step.id) === id && freshEnoughForCachePatch(event, step.entity_revision) ? { ...step, ...fields } : step
   }
 
   let patched = false
@@ -227,7 +227,11 @@ function patchStep(step: JobStep, event: AppEvent, id: string, fields: Record<st
 
 function patchRun(run: JobRun, event: AppEvent, id: string, fields: Record<string, unknown>): JobRun {
   if (event.resource !== "run") return run
-  return String(run.id) === id ? { ...run, ...fields } : run
+  return String(run.id) === id && freshEnoughForCachePatch(event, run.entity_revision) ? { ...run, ...fields } : run
+}
+
+function freshEnoughForCachePatch(event: AppEvent, currentRevision: EntityRevision | undefined) {
+  return event.revision == null || compareRevision(event.revision, currentRevision ?? null) >= 0
 }
 
 type NotificationsCache = {
