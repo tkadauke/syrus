@@ -118,6 +118,7 @@ class WorkflowPatch
   def materialize_live_steps!
     previous = live_anchor_step
     continuation = previous&.next_step
+    ensure_live_insertion_possible!(previous: previous, continuation: continuation)
     insertion_position = previous ? previous.position + 1 : next_position
 
     @workflow.steps.where("position >= ?", insertion_position).update_all(
@@ -141,6 +142,15 @@ class WorkflowPatch
     end
     new_steps.last.update!(next_step_id: continuation&.id)
     wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+    enqueue_ready_inserted_step!(new_steps.first)
+  end
+
+  def ensure_live_insertion_possible!(previous:, continuation:)
+    raise Rejected, "workflow is not active" unless @workflow.queued? || @workflow.running?
+    return unless previous&.terminal?
+    return unless continuation&.runs&.exists?
+
+    raise Rejected, "cannot insert after terminal step #{previous.kind.inspect}; its continuation already started"
   end
 
   def live_anchor_step
@@ -172,6 +182,14 @@ class WorkflowPatch
     elsif previous && ids.include?(previous.id)
       continuation.update!(depends_on_ids: ids.map { |id| id == previous.id ? new_steps.last.id : id })
     end
+  end
+
+  def enqueue_ready_inserted_step!(step)
+    return unless step&.queued?
+    return if step.runs.exists?
+    return unless step.dependencies_settled?
+
+    StepDispatcher.create_run_and_enqueue(step, @workflow)
   end
 
   def record
