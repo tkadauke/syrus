@@ -202,6 +202,14 @@ RSpec.describe Workflows::MainBranchRepair do
 
       prepare_step.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 90.seconds.ago)
       fanout_step.update_columns(state: "succeeded", started_at: 90.seconds.ago, finished_at: 60.seconds.ago)
+      Step.create!(
+        workflow: workflow,
+        kind: "preflight_grader",
+        position: fanout_step.position + 1,
+        iteration: 1,
+        state: "succeeded",
+        details: { "name" => "rspec-ci", "required" => true }
+      )
 
       run = collect_step.runs.create!(
         job: job,
@@ -230,6 +238,26 @@ RSpec.describe Workflows::MainBranchRepair do
       expect(job.reload.state).to eq("closed")
       expect(job.reload.closure_reason).to eq("preflight_passed")
       expect(repository.reload.grader_health).to eq("healthy")
+    end
+
+    it "does not mark main healthy or skip repair when no preflight graders ran" do
+      workflow = described_class.instantiate(job: job)
+      collect_step = workflow.steps.find_by!(kind: "preflight_grader_collect")
+      implement_step = workflow.steps.find_by!(kind: "implement")
+      run = collect_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "running",
+        iteration: collect_step.iteration
+      )
+
+      Steps::PreflightGraderCollect.new(run).call
+      described_class.after_success(workflow)
+
+      expect(workflow.reload.artifact("preflight_passed")).to be_nil
+      expect(implement_step.reload.state).to eq("queued")
+      expect(repository.reload.grader_health).to eq("broken")
+      expect(job.reload).not_to be_closed
     end
   end
 
