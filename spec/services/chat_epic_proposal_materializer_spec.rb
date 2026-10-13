@@ -36,6 +36,16 @@ RSpec.describe ChatEpicProposalMaterializer do
     )
   end
 
+  def whiteboard_snapshot(chat_session:)
+    Whiteboard::Snapshot.create!(
+      chat_session: chat_session,
+      name: "Child mockup",
+      scene_json: { "elements" => [{ "id" => "mockup-element" }], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 1
+    )
+  end
+
   it "materializes the Epic, child Jobs, and sibling Job dependencies in one transaction" do
     proposal = epic_proposal
     prerequisite_epic = Factories.epic(user: user, repository: repository)
@@ -106,6 +116,32 @@ RSpec.describe ChatEpicProposalMaterializer do
 
     expect(child.reload.job).to eq(result.jobs.sole)
     expect(child.job.investigation?).to eq(true)
+  end
+
+  it "attaches child proposal media to materialized child Jobs" do
+    proposal = epic_proposal
+    snapshot = whiteboard_snapshot(chat_session: chat_session)
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "mockup-backed-child",
+      title: "Mockup backed child",
+      body: "Build it from the whiteboard reference.",
+      repository: repository,
+      media_ids: ["snapshot:#{snapshot.id}"]
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    job = child.reload.job
+    expect(job).to eq(result.jobs.sole)
+    expect(job.job_attachments.count).to eq(1)
+    attachment = job.job_attachments.first
+    expect(attachment).to have_attributes(
+      kind: "pending_snapshot",
+      title: "Child mockup",
+      source_url: "snapshot:#{snapshot.id}"
+    )
+    expect(attachment.content_cache).to include("mockup-element")
   end
 
   it "applies per-child provider overrides onto the materialized Jobs" do
