@@ -199,14 +199,14 @@ RSpec.describe RepoGradePlan do
       expect(described_class.for(@dir).max_iterations).to eq(2)
     end
 
-    it "defaults rerun_only_failed to false" do
+    it "defaults rerun_only_failed to true" do
       write(".syrus.yml", <<~YAML)
         grade:
           - name: tests
             run: bin/rspec
       YAML
 
-      expect(described_class.for(@dir).rerun_only_failed?).to be(false)
+      expect(described_class.for(@dir).rerun_only_failed?).to be(true)
     end
 
     it "exposes rerun_only_failed when configured" do

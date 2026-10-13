@@ -155,7 +155,7 @@ RSpec.describe SyrusYml do
     }.to raise_error(described_class::ParseError, /unknown grader type "missing"/)
   end
 
-  it "defaults grade.rerun_only_failed to false in the full form" do
+  it "defaults grade.rerun_only_failed to true in the full form" do
     config = parse(<<~YAML)
       grade:
         steps:
@@ -163,17 +163,17 @@ RSpec.describe SyrusYml do
             run: bin/rspec
     YAML
 
-    expect(config.grade.rerun_only_failed).to eq(false)
+    expect(config.grade.rerun_only_failed).to eq(true)
   end
 
-  it "defaults grade.rerun_only_failed to false in the bare array form" do
+  it "defaults grade.rerun_only_failed to true in the bare array form" do
     config = parse(<<~YAML)
       grade:
         - name: tests
           run: bin/rspec
     YAML
 
-    expect(config.grade.rerun_only_failed).to eq(false)
+    expect(config.grade.rerun_only_failed).to eq(true)
   end
 
   it "parses grade.rerun_only_failed: true" do

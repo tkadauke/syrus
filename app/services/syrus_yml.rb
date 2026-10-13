@@ -485,6 +485,26 @@ class SyrusYml
     )
   end
 
+  # Re-running a grader that already passed, on inputs that did not change,
+  # is never useful. It costs a full grader execution to re-derive a result
+  # already on record, and it makes the loop's failing-set comparison noisier
+  # -- which matters, because that comparison is what decides whether a loop
+  # is making progress or should be abandoned.
+  #
+  # This defaulted to false, so the carry-forward path below was dead for any
+  # repository that had not opted in. Measured over 24 hours of production:
+  # 151 already-passing graders re-ran on iteration 2 against 47 that had
+  # genuinely failed, i.e. three quarters of second-iteration grader work
+  # re-confirmed what was already known.
+  #
+  # Carrying forward is safe because it is gated on TargetHealthReuse, which
+  # recomputes the target's input/command/environment fingerprints from the
+  # current workspace and requires both a matching passing health record and
+  # healthy dependencies. A grader whose inputs changed cannot match, so it
+  # re-runs. A repository that wants the old behavior sets
+  # `grade.rerun_only_failed: false` explicitly.
+  DEFAULT_RERUN_ONLY_FAILED = true
+
   def parse_grade(raw)
     return nil if raw.nil?
 
@@ -494,7 +514,7 @@ class SyrusYml
         max_iterations: AppSetting.grade_max_iterations,
         failures: DEFAULT_GRADE_FAILURE_POLICY,
         steps: parse_grade_steps(raw),
-        rerun_only_failed: false
+        rerun_only_failed: DEFAULT_RERUN_ONLY_FAILED
       )
     when Hash
       failures = parse_grade_failure_policy(raw.fetch("failures", DEFAULT_GRADE_FAILURE_POLICY), "grade.failures")
@@ -502,7 +522,7 @@ class SyrusYml
         max_iterations: parse_max_iterations(raw.fetch("max_iterations", AppSetting.grade_max_iterations)),
         failures: failures,
         steps: parse_grade_steps(raw["steps"], default_failures: failures),
-        rerun_only_failed: parse_rerun_only_failed(raw.fetch("rerun_only_failed", false))
+        rerun_only_failed: parse_rerun_only_failed(raw.fetch("rerun_only_failed", DEFAULT_RERUN_ONLY_FAILED))
       )
     else
       raise ParseError, "grade: must be a mapping or an array of steps"
