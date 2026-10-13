@@ -114,13 +114,16 @@ module SyrusBrowser
     def logs(session_id, cursor, _options)
       runtime_session = find_runtime_session(session_id)
       log_path = resolved_log_path(runtime_session.workspace_ref)
-      return { entries: [], cursor: cursor.to_i } unless log_path && File.exist?(log_path)
+      log_path = readable_log_path(log_path, runtime_session.workspace_ref)
+      return { entries: [], cursor: cursor.to_i } unless log_path
 
       lines = File.readlines(log_path, chomp: true)
       start_index = cursor.to_i.clamp(0, lines.size)
       entries = lines[start_index..] || []
 
       { entries: entries, cursor: start_index + entries.size }
+    rescue Errno::ENOENT
+      { entries: [], cursor: cursor.to_i }
     end
 
     def stop_session(session_id)
@@ -168,9 +171,25 @@ module SyrusBrowser
     def resolved_log_path(workspace_path)
       source = PreviewCommandSource.new(workspace_path).resolve
       raw_path = source&.log_paths&.first
-      return nil if raw_path.blank?
+      return nil if raw_path.blank? || workspace_path.blank?
 
-      Pathname.new(raw_path).absolute? ? raw_path : File.expand_path(raw_path, workspace_path)
+      absolute = Pathname.new(raw_path).absolute? ? File.expand_path(raw_path) : File.expand_path(raw_path, workspace_path)
+      workspace_root = File.expand_path(workspace_path)
+      return unless absolute == workspace_root || absolute.start_with?("#{workspace_root}/")
+
+      absolute
+    end
+
+    def readable_log_path(log_path, workspace_path)
+      return if log_path.blank? || workspace_path.blank?
+
+      real_path = File.realpath(log_path)
+      real_workspace = File.realpath(workspace_path)
+      return unless real_path == real_workspace || real_path.start_with?("#{real_workspace}/")
+
+      real_path
+    rescue Errno::ENOENT, Errno::EACCES, Errno::ELOOP
+      nil
     end
   end
 end
