@@ -39,10 +39,12 @@ class JobBundleDispatcher
       raise ActiveRecord::Rollback if active_member_lock?(members)
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
+      base_branch = landing_branch_result_for(members).base_branch
+      raise ActiveRecord::Rollback if base_branch.blank?
 
       train = MergeTrain.create!(
         repository: @repository,
-        base_branch: @repository.default_branch,
+        base_branch: base_branch,
         priority: result.priority
       )
 
@@ -107,6 +109,8 @@ class JobBundleDispatcher
     return candidate_exclusion_reason || readiness.reason unless readiness.ready?
 
     return "landing queue is paused" if landing_queue_paused?(readiness.members)
+    landing_branch_result = landing_branch_result_for(readiness.members)
+    return landing_branch_result.reason unless landing_branch_result.ok?
 
     if (active_work = active_member_work(readiness.members))
       return active_member_work_reason(active_work)
@@ -246,6 +250,10 @@ class JobBundleDispatcher
     return active_member_work_reason(workflow) if workflow
 
     "active work unit WU-#{unit.id} must finish before the job bundle starts"
+  end
+
+  def landing_branch_result_for(members)
+    MergeTrains::LandingBranchResolver.call(repository: @repository, members: members)
   end
 
   # Mirrors MergeTrainDispatcher#cooling_down_failure: transient
