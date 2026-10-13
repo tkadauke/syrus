@@ -1,6 +1,6 @@
 class AddUserDailySpendBudgetToAppSettings < ActiveRecord::Migration[8.1]
-  # workflow-engine-v3 C1: resource isolation between users. Zero keeps
-  # today's behavior exactly -- no per-user budget, only the global controls.
+  # Add the column in its original unlimited state; later migrations may tighten
+  # the fresh-instance default without rewriting explicit operator choices.
   def up
     return if column_exists?(:app_settings, :user_daily_spend_budget_usd)
 
