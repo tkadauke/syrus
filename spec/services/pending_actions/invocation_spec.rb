@@ -97,4 +97,12 @@ RSpec.describe PendingActions::Invocation do
       PendingActions::LocalToolCall.new(invocation).execute
     }.to raise_error(ArgumentError, /requires a ChatSession/)
   end
+
+  it "declares admin API eligibility from action metadata" do
+    expect(PendingActions::ReenqueueWork).to be_api_invokable
+    expect(PendingActions::LocalToolCall).not_to be_api_invokable
+    expect(PendingActions::LocalToolCall.api_invocation_blocked_reason).to eq("requires a chat session")
+    expect(PendingActions::SubmitCodingChanges).not_to be_api_invokable
+    expect(PendingActions::SubmitCodingChanges.api_invocation_blocked_reason).to eq("requires a persisted chat pending action")
+  end
 end
