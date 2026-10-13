@@ -521,14 +521,14 @@ module Mcp::Tools
         return nil if owner.blank? || name.blank?
 
         # Cross-repo Epic proposals are allowed only within the current user's
-        # active repository scope.
-        user.repositories.active.find_by(owner: owner, name: name)
+        # active, membership-visible repository scope.
+        Repository.accessible_to(user).active.find_by(owner: owner, name: name)
       end
 
       def target_epic_for(user, epic_id)
         return unless epic_id
 
-        user.epics.includes(:repository).find_by(id: epic_id)
+        Epic.accessible_to(user).includes(:repository).find_by(id: epic_id)
       end
 
       def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs)

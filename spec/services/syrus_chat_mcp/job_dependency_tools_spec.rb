@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Mcp::Tools job dependency tools" do
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -284,6 +286,33 @@ RSpec.describe "Mcp::Tools job dependency tools" do
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual", created_by_user: user)
 
       response = call_tool("remove_job_dependency", job_id: job.id, depends_on_job_id: prerequisite.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(payload(response)).to include(job_id: job.id, depends_on_job_ids: [], depends_on_epic_ids: [])
+      expect(job.reload.depends_on_jobs).to be_empty
+    end
+
+    it "destroys an existing JobDependency for a repository member" do
+      owner = Factories.user
+      shared_repository = Factories.repository(user: owner)
+      member = Factories.user(admin: false)
+      shared_repository.repository_memberships.create!(user: member, role: "write")
+      shared_chat = ChatSession.create!(user: member, repository: shared_repository)
+      job = Factories.job_record(user: owner, repository: shared_repository)
+      prerequisite = Factories.job_record(user: owner, repository: shared_repository, issue_number: 43)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual", created_by_user: owner)
+
+      raw = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::RemoveJobDependencyTool ],
+        server_context: { chat_session: shared_chat }
+      ).handle_json({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "remove_job_dependency", arguments: { job_id: job.id, depends_on_job_id: prerequisite.id } }
+      }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)).to include(job_id: job.id, depends_on_job_ids: [], depends_on_epic_ids: [])
