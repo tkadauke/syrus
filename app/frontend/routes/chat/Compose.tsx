@@ -999,6 +999,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       void intakeWalkthroughVideo(file, { knownDuration: durationSeconds })
     }
   })
+  const recorderError = recorder.state.phase === "error" ? recorder.state.message : null
+
+  useEffect(() => {
+    if (recorderError) setAttachmentError(recorderError)
+  }, [recorderError])
 
   function startWalkthroughRecording() {
     setAttachmentPopoverOpen(false)
@@ -1010,6 +1015,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setGeminiSheetOpen(true)
       return
     }
+    setAttachmentError(null)
     void recorder.start()
   }
 
