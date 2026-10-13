@@ -83,6 +83,25 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.map { |row| row[:chat_message_id] }).to eq([ own_message.id ])
   end
 
+  it "can scope results to accessible chat session ids instead of owner user id" do
+    own_message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "participant scoped search" }
+    )
+    other_message = ChatMessage.create!(
+      chat_session: other_session,
+      role: "user",
+      content: { "text" => "participant scoped search" }
+    )
+    described_class.insert(own_message)
+    described_class.insert(other_message)
+
+    results = described_class.search("participant", chat_session_ids: [ other_session.id ])
+
+    expect(results.map { |row| row[:chat_message_id] }).to eq([ other_message.id ])
+  end
+
   it "matches unquoted words as independent AND terms" do
     matching_message = ChatMessage.create!(
       chat_session: session,

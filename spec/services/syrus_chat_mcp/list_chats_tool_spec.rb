@@ -75,6 +75,30 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     )
   end
 
+  it "includes chats where the current user is a participant but not the owner" do
+    owner = Factories.user
+    shared = ChatSession.create!(user: owner, title: "Shared operator room", updated_at: 1.minute.ago)
+    ChatParticipant.create!(chat_session: shared, user: user, role: "member")
+    hidden_shared = ChatSession.create!(user: owner, title: "Hidden shared", hidden_at: Time.current, updated_at: Time.current)
+    ChatParticipant.create!(chat_session: hidden_shared, user: user, role: "member")
+    deleted_shared = ChatSession.create!(user: owner, title: "Deleted shared", updated_at: Time.current)
+    ChatParticipant.create!(chat_session: deleted_shared, user: user, role: "member")
+    deleted_shared.soft_delete_by!(owner)
+    non_participant = ChatSession.create!(user: owner, title: "Private room", updated_at: Time.current)
+
+    add_message(shared)
+
+    payload = response_payload(call_tool)
+    chat_ids = payload.fetch(:chats).map { |chat| chat[:id] }
+
+    expect(chat_ids).to include(shared.id)
+    expect(chat_ids).not_to include(hidden_shared.id, deleted_shared.id, non_participant.id)
+    expect(payload.fetch(:chats).find { |chat| chat[:id] == shared.id }).to include(
+      title: "Shared operator room",
+      message_count: 1
+    )
+  end
+
   it "does not load full message rows to compute compact message counts" do
     50.times { |i| add_message(chat_session, text: "large transcript #{i}") }
 
