@@ -18,11 +18,11 @@ export const site = {
 } as const
 
 export const hero = {
-  eyebrow: "Open-source AI coding workflow infrastructure",
-  titleLead: "Run coding agents on your repos.",
-  titleAccent: "Keep every PR under control.",
+  eyebrow: "Open-source AI coding workflow infrastructure for developers",
+  titleLead: "Show Syrus the work.",
+  titleAccent: "Review the PR it opens.",
   subtitle:
-    "Syrus is an open-source, self-hosted automation harness for GitHub-based AI coding workflows. It turns issues, chats, and video walkthroughs into tracked pull requests while keeping repositories, credentials, checks, transcripts, review policy, and merge flow in infrastructure you control."
+    "Syrus is an open-source, self-hosted automation harness for GitHub-based AI coding workflows. It turns issues, chats, and narrated video walkthroughs into tracked pull requests while keeping repositories, credentials, checks, transcripts, review policy, and merge flow in infrastructure you control."
 } as const
 
 // The human + AI team workflow — who does what, start to finish.
@@ -69,8 +69,8 @@ export const workflowSteps = [
 export const features = [
   {
     id: "walkthrough",
-    title: "Show, don't type",
-    body: "Record a narrated screen walkthrough from chat, or drop in a webm, mp4, or mov. Syrus analyzes the video, extracts the issues and desired behavior, and turns the result into the same proposal-to-Job flow as issues and chat.",
+    title: "Show the bug, don't transcribe it",
+    body: "Record a narrated screen walkthrough from chat, or drop in a webm, mp4, or mov. Syrus analyzes the video, extracts issues, desired behavior, and visual context, then turns the result into the same proposal-to-Job flow as issues and chat.",
     href: "/docs/video-walkthroughs"
   },
   {
@@ -101,7 +101,7 @@ export const features = [
   {
     id: "keys",
     title: "Stay in control, on your terms",
-    body: "Self-hosted on your infrastructure, and your code goes only to the plugin-backed model provider you choose, on your own credentials. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub."
+    body: "Self-hosted on your infrastructure, and your code goes only to the plugin-backed model provider you choose, on your own credentials. The bundled provider adapters are Claude Code, Codex, Antigravity, and Muse Code. Syrus only ever calls out: no inbound webhooks, no public endpoint to expose. Your issues, reviews, and merges stay in GitHub."
   }
 ] as const
 
@@ -110,7 +110,7 @@ export const entryPoints = [
   {
     id: "issue",
     title: "Issue or ticket",
-    body: "A labeled issue becomes a tracked job, a branch, and a pull request."
+    body: "A labeled GitHub issue becomes a tracked Job, a branch, and a pull request on the next repository poll."
   },
   {
     id: "feedback",
@@ -135,7 +135,7 @@ export const entryPoints = [
   {
     id: "scheduled",
     title: "Scheduled task",
-    body: "Cron or one-shot runs for dependency chores, docs sweeps, hygiene."
+    body: "Cron or one-shot runs for dependency chores, docs sweeps, and repository hygiene."
   },
   {
     id: "rebase",

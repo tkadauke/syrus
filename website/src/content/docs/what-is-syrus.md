@@ -30,7 +30,8 @@ retries, rebases, PR creation, follow-up feedback, and cleanup.
 ## The 30-Second Version
 
 You register a GitHub repository in Syrus and choose a trigger label,
-usually `syrus`. Repository polling runs every 5 minutes by default; when
+usually `syrus`. Repository polling runs every 5 minutes by default, as
+declared by `poll_repositories` in `config/recurring.yml`; when
 an issue gets that label, Syrus creates a Job,
 checks out the repo in a worker-managed workspace, runs preparation
 commands, invokes the configured agent, captures the resulting diff, asks
@@ -61,6 +62,11 @@ Chat proposals can materialize direct Jobs, Epics with child Jobs, GitHub
 issues, or scheduled tasks. All of those sources still use the same Job,
 Workflow, Step, and Run records as issue-driven work. The source is different;
 the operational contract is the same.
+
+The poll-driven entries above are all scheduled in `config/recurring.yml`:
+repositories, input sources, pull requests, external PRs, checks/merge state,
+deployment stages, and scheduled-task/plugin ticks are explicit jobs rather
+than inbound GitHub callbacks.
 
 ## What Syrus Owns
 

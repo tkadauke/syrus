@@ -46,7 +46,7 @@ export function Demo() {
                 Run Syrus yourself. <span className="clay-text">Keep the project open.</span>
               </h2>
               <p className="mt-4 text-[1rem] leading-relaxed text-cream-dim">
-                Download the desktop app — it sets up a complete local Syrus (Docker included) or connects to your own instance. The public docs and GitHub repo
+                Download the desktop app: it sets up a complete local Syrus with Docker, or connects to your own instance. The public docs and GitHub repo
                 are the starting point for installation, operations, bug reports, and community contributions.
               </p>
               <p className="mt-3 text-[0.9rem] text-cream-faint">
