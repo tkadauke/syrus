@@ -249,7 +249,7 @@ function freshestRevision(current: EntityRevision, incoming: EntityRevision) {
   return compareRevision(incoming, current) >= 0 ? incoming : current
 }
 
-function compareRevision(left: EntityRevision, right: EntityRevision) {
+export function compareRevision(left: EntityRevision, right: EntityRevision) {
   if (left == null && right == null) return 0
   if (left == null) return 0
   if (right == null) return 1

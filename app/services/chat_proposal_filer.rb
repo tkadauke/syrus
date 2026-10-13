@@ -122,6 +122,7 @@ class ChatProposalFiler
 
   def create_direct_job(proposal)
     target_repository = proposal.effective_repository || repository
+    ensure_repository_write!(target_repository)
     provider_setting = proposal_provider_setting(proposal)
 
     # Don't advance here — the filer's main loop runs
@@ -171,6 +172,8 @@ class ChatProposalFiler
   end
 
   def create_epic(proposal)
+    ensure_repository_write!(proposal.effective_repository || repository)
+
     # Chat-authored Epics are fully-specified by Claude in one shot;
     # land them in :ready (not the default :backlog) so the operator
     # can promote to :in_progress directly. Backlog is meant for
@@ -183,6 +186,13 @@ class ChatProposalFiler
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       state: "ready"
     )
+  end
+
+  def ensure_repository_write!(target_repository)
+    return if RepositoryPolicy.new(user, target_repository).write?
+
+    raise ArgumentError,
+          "Only a repository member with write access, or an admin, can file work for #{target_repository.slug}."
   end
 
   def should_advance_after_triage?(proposal, job)

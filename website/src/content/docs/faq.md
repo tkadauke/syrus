@@ -68,12 +68,12 @@ credentials, data retention, and model choice.
 
 ## How is Syrus different from OpenAI Codex cloud?
 
-[OpenAI describes Codex](https://help.openai.com/en/articles/11390924)
-as a cloud-based software engineering agent that connects to GitHub and
-runs tasks in the cloud. Syrus can use Codex as one provider, but Syrus
-itself is the orchestration layer: it polls issues and PRs, creates Jobs
-and Workflows, owns branches and retries, records transcripts and diffs,
-and can route work to Claude, Codex, Muse, or Antigravity.
+[OpenAI describes Codex Cloud](https://help.openai.com/en/articles/20001545-using-codex-cloud)
+as coding tasks running on OpenAI-managed computers. Syrus can use Codex as
+one provider, but Syrus itself is the orchestration layer: it polls issues and
+PRs, creates Jobs and Workflows, owns branches and retries, records transcripts
+and diffs, and can route work to Claude Code, Codex, Muse Code, or
+Antigravity.
 
 Choose Codex cloud when you want OpenAI to run the agent environment for
 you. Choose Syrus when you want self-hosted control over the workflow
@@ -96,7 +96,7 @@ choice when you specifically want Google's hosted coding-agent workflow.
 
 ## How is Syrus different from Factory Droids?
 
-[Factory describes Droids](https://docs.factory.ai/) as AI assistants and
+[Factory describes Droids](https://docs.factory.com/) as AI assistants and
 cloud sessions for development workflows such as triage, code review, QA,
 documentation, and incident response. Syrus is narrower and more
 infrastructure-shaped: it is an open-source, self-hosted issue-to-PR
@@ -111,12 +111,18 @@ replaceable adapter rather than the platform boundary.
 ## What does Syrus cost?
 
 Syrus itself is free and MIT-licensed. Your real cost is the model bill:
-the provider charges for Claude, Codex, Muse, Antigravity, or whichever
-agent-provider plugin you configure.
+the provider charges for Claude Code, Codex, Muse Code, Antigravity, or
+whichever agent-provider plugin you configure.
 
 You also pay your own infrastructure cost. For a small team, that can be
 a Docker Compose box. For a production deployment, it is your database,
 worker, web process, and persistent clone/workspace storage.
+
+Syrus records provider-reported run cost when the provider returns enough
+usage data to compute a dollar amount. Subscription-based or token-only tools
+may not expose reliable per-run USD cost; those runs still keep their
+transcripts, diffs, provider metadata, and workflow state, but cost charts can
+only show what the provider reports.
 
 ## Is the agent safe to give my repo access?
 
@@ -135,8 +141,8 @@ PRs like you would review work from a human contributor.
 
 ## Can I use a model other than Claude?
 
-Yes. Syrus has plugin-backed provider adapters for Claude, Codex, Muse,
-and Antigravity. Users choose a default provider for Jobs and future
+Yes. Syrus has plugin-backed provider adapters for Claude Code, Codex,
+Muse Code, and Antigravity. Users choose a default provider for Jobs and future
 chats; repositories can override Job provider selection, and retry actions can
 use any provider the user has configured.
 

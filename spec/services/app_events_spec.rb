@@ -81,6 +81,7 @@ RSpec.describe AppEvents do
           "type" => "workflow.updated",
           "resource" => "workflow",
           "id" => 5,
+          "job_id" => 9,
           "changed" => %w[state],
           "occurred_at" => "2026-05-30T12:00:01.123Z",
           "revision" => 3,

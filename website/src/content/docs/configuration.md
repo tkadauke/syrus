@@ -551,16 +551,17 @@ provider failover is out of scope: this policy does not rewrite
 
 Syrus ships with a global concurrency cap for fresh instances:
 `AppSetting.max_concurrent_agent_runs` defaults to `3`, so autonomous agent
-work cannot scale linearly with worker pods. The optional per-user USD budget,
-`AppSetting.user_daily_spend_budget_usd`, defaults to `0` (unlimited). When
-set to a positive value, the gate defers queued work until the next day
-instead of failing Jobs once provider-reported workflow Run costs and chat turn
-costs reach the ceiling. Run accounting uses provider-reported `Run#cost_usd`
-when available and leaves cost unset when a provider reports token usage
-without a dollar cost, so subscription-based or token-only providers may need
-provider-side limits for reliable spend protection. Repo-level and Epic-level
-dollar budgets are still roadmap work; use provider-side limits and the
-per-user max-turns setting as additional safety rails.
+work cannot scale linearly with worker pods. The per-user USD budget,
+`AppSetting.user_daily_spend_budget_usd`, defaults to `20` dollars per user per
+day. Set it to `0` for unlimited provider-reported spend. The gate defers
+queued work until the next day instead of failing Jobs once provider-reported
+workflow Run costs and chat turn costs reach the ceiling. Run accounting uses
+provider-reported `Run#cost_usd` when available and leaves cost unset when a
+provider reports token usage without a dollar cost, so subscription-based or
+token-only providers may need provider-side limits for reliable spend
+protection. Repo-level and Epic-level dollar budgets are still roadmap work;
+use provider-side limits and the per-user max-turns setting as additional
+safety rails.
 
 ## Per-Repository Settings
 
@@ -576,6 +577,14 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | PR cost footer | `true` | Adds or updates a cost footer on PRs when cost data exists |
 | Review policy | `self` | Who must approve before a Job lands; see [Review Policies](#review-policies) below |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
+
+Repository issue polling is normally incremental, using the last successful
+poll start time as GitHub's `since` cursor. Because GitHub applies that cursor
+to issue `updated_at`, Syrus also runs a periodic full reconcile per
+repository. The instance setting `repository_full_poll_interval_hours`
+defaults to `24`; once a repository's last successful full issue poll is older
+than that, the next autonomous issue poll omits the cursor and reconciles open
+trigger-labeled issues without creating duplicate Jobs.
 
 ## Review Policies
 

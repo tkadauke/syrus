@@ -122,6 +122,8 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       expect(credential.safe_metadata).to include("cluster" => "my-cluster", "context" => "default", "host" => "k8s.example.com")
       expect(credential.target_constraints).to eq({})
       expect(credential.allowed_surfaces).to match_array(%w[admin workflow chat])
+      expect(credential.allowed_tools).to match_array(K8sCluster::ClusterCredential::ALLOWED_TOOLS)
+      expect(credential.allowed_tools).not_to include("credential.exec")
     end
 
     it "rejects creation without a kubeconfig" do

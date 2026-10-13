@@ -193,6 +193,71 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
+  it "allows a RepositoryMembership collaborator to fetch repository document files" do
+    repository
+    document = repository.repository_documents.create!(
+      user: user,
+      kind: "file",
+      title: "Notes",
+      file: upload_file(content: "shared notes")
+    )
+    collaborator = Factories.user(email_address: "document-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/repository_documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq("shared notes")
+  end
+
+  it "forbids read-tier collaborators from creating repository documents" do
+    repository
+    collaborator = Factories.user(email_address: "document-read-only@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/documents", params: {
+        repository_document: {
+          kind: "google_doc",
+          title: "Read-only mutation",
+          google_docs_url: "https://docs.google.com/document/d/read-only/edit"
+        }
+      }
+    }.not_to change(Document, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
+  it "allows write-tier collaborators to create and delete repository documents" do
+    repository
+    collaborator = Factories.user(email_address: "document-writer@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/documents", params: {
+        repository_document: {
+          kind: "google_doc",
+          title: "Writer notes",
+          google_docs_url: "https://docs.google.com/document/d/writer/edit"
+        }
+      }
+    }.to change(Document, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    document = repository.repository_documents.last
+    expect(document.user).to eq(collaborator)
+
+    expect {
+      delete "/api/v1/app/repository_documents/#{document.id}"
+    }.to change(Document, :count).by(-1)
+
+    expect(response).to have_http_status(:ok)
+  end
+
   it "404s listing documents for a user who is neither the owner nor a member" do
     unrelated_user = Factories.user(email_address: "unrelated@example.com")
     sign_in_as(unrelated_user)

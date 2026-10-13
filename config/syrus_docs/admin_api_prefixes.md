@@ -45,6 +45,14 @@ The generated endpoint inventory lives in
 `config/syrus_docs/admin_api_catalog.md`; update it with
 `bin/surface-catalogs` after route changes.
 
+Capability-surface review lives in `Admin::CapabilitySurfaceRegistry`. It
+tracks MCP tools, PendingAction-backed operations, and fixed route-backed
+capabilities whose ownership matters even though they are not PendingActions.
+Personal API tokens are one such fixed capability: users mint, rotate, and
+revoke them through the user API, the CLI consumes them as Bearer tokens, the
+admin API does not manage them, and MCP uses scoped invocation credentials
+instead.
+
 The user-facing `/api/v1/app/*` namespace must not grow new inline admin
 refusal checks. If an endpoint is admin-only, put it under one of the admin
 prefixes. The reviewed exceptions are limited to non-migration compatibility

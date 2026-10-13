@@ -67,8 +67,8 @@ module Mcp::Tools
       end
 
       # Proposal targets may name another repo, but only from the current
-      # user's active repository scope.
-      scope = chat_session.user.repositories.active
+      # user's active, membership-visible repository scope.
+      scope = Repository.accessible_to(chat_session.user).active
       scope.find_by(id: Integer(token, exception: false)) ||
         scope.find_by(owner: token.split("/", 2).first, name: token.split("/", 2).second) ||
         scope.find_by(name: token)
@@ -77,7 +77,7 @@ module Mcp::Tools
     def target_epic_for(chat_session, repository, epic_id)
       return if epic_id.blank?
 
-      chat_session.user.epics.where(repository: repository).find_by(id: epic_id)
+      Epic.accessible_to(chat_session.user).where(repository: repository).find_by(id: epic_id)
     end
 
     def unique_slug(chat_session, title, prefix:)

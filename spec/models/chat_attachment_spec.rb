@@ -23,6 +23,19 @@ RSpec.describe ChatAttachment do
     expect(attachment.errors[:attachable]).to include("must belong to the chat session user")
   end
 
+  it "allows repositories granted through a team" do
+    repository
+    collaborator = Factories.user(email_address: "chat-attachment-team@example.com", admin: false)
+    team = Team.create!(name: "Chat Attachments")
+    team.team_memberships.create!(user: collaborator, role: "member")
+    team.team_repositories.create!(repository: repository, role: "read")
+    collaborator_chat = ChatSession.create!(user: collaborator)
+
+    attachment = described_class.new(chat_session: collaborator_chat, attachable: repository)
+
+    expect(attachment).to be_valid
+  end
+
   it "does not duplicate the same attachable on one chat session" do
     described_class.create!(chat_session: chat_session, attachable: repository)
     duplicate = described_class.new(chat_session: chat_session, attachable: repository)

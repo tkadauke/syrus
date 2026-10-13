@@ -131,6 +131,7 @@
   "enqueue_message": "Nuntium in agmen dare",
   "add_attachment": "Additamentum adiungere",
   "dictation_start": "Dictationem incipe",
+  "dictation_retry": "Dictationem iterum tenta",
   "dictation_stop": "Dictationem siste",
   "dictation_requesting": "Microphonum petitur…",
   "dictation_recording_batch": "Dictatio memoratur…",

@@ -440,6 +440,39 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(response.body).not_to include("exec-secret-token")
   end
 
+  it "rejects generic exec material unless the credential explicitly allows credential.exec" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      payload: "exec-secret-token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "git.push" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/exec_material",
+      params: {
+        credential_exec: {
+          credential: credential.name,
+          type: "credential_store.url_token",
+          tool_name: "git.push"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("tool not allowed")
+    expect(response.body).not_to include("exec-secret-token")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "tool not allowed",
+      tool_name: "credential.exec"
+    )
+  end
+
   it "records generic exec completion audits with materialization mode" do
     job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
     credential = create_credential(
@@ -548,6 +581,38 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
     expect(response).to have_http_status(:forbidden)
     expect(parse_body.dig("error", "message")).to include("runtime CLI authentication")
+  end
+
+  it "rejects SSH agent material unless the credential explicitly allows credential.ssh-agent" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "ssh_private_key",
+      payload: "private-key",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "git.push" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/ssh_agent",
+      params: {
+        ssh_agent: {
+          credential: credential.name,
+          tool_name: "git.push"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "message")).to include("tool not allowed")
+    expect(response.body).not_to include("private-key")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "tool not allowed",
+      tool_name: "credential.ssh-agent"
+    )
   end
 
   it "records SSH agent completion audits with exit status and duration metadata" do

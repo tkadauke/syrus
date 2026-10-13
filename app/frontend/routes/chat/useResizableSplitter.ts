@@ -39,6 +39,21 @@ export function useResizableSplitter({
   const [width, setWidth] = useState(initialWidth)
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const draggedRef = useRef(false)
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null)
+  const draggedResetTimerRef = useRef<number | null>(null)
+
+  function clearDraggedResetTimer() {
+    if (draggedResetTimerRef.current === null) return
+
+    window.clearTimeout(draggedResetTimerRef.current)
+    draggedResetTimerRef.current = null
+  }
+
+  function cleanupActiveResize() {
+    activeResizeCleanupRef.current?.()
+    activeResizeCleanupRef.current = null
+    clearDraggedResetTimer()
+  }
 
   useEffect(() => {
     storeWorkspacePreference(widthKey, String(width))
@@ -48,8 +63,19 @@ export function useResizableSplitter({
     storeWorkspacePreference(collapsedKey, String(collapsed))
   }, [collapsedKey, collapsed])
 
+  useEffect(() => () => {
+    activeResizeCleanupRef.current?.()
+    activeResizeCleanupRef.current = null
+    if (draggedResetTimerRef.current !== null) {
+      window.clearTimeout(draggedResetTimerRef.current)
+      draggedResetTimerRef.current = null
+    }
+  }, [])
+
   function beginResize(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault()
+    cleanupActiveResize()
+
     const startX = event.clientX
     const startWidth = collapsed ? 0 : width
     let snappedClosedDuringGesture = collapsed
@@ -77,15 +103,19 @@ export function useResizableSplitter({
     }
 
     function stopResize() {
-      window.removeEventListener("mousemove", resize)
-      window.removeEventListener("mouseup", stopResize)
-      window.setTimeout(() => {
+      cleanupActiveResize()
+      draggedResetTimerRef.current = window.setTimeout(() => {
         draggedRef.current = false
+        draggedResetTimerRef.current = null
       }, 0)
     }
 
     window.addEventListener("mousemove", resize)
     window.addEventListener("mouseup", stopResize)
+    activeResizeCleanupRef.current = () => {
+      window.removeEventListener("mousemove", resize)
+      window.removeEventListener("mouseup", stopResize)
+    }
   }
 
   function toggleCollapsed() {

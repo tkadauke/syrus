@@ -29,6 +29,8 @@ Query parameters:
 - `start` / `end` (aliases `since` / `until`): ISO8601 time window. Defaults to
   the last 7 days and caps at 90 days.
 - `surface`: optional `workflow` or `chat` filter.
+- `daemon_worker_id`: optional persistent-sidecar worker id filter, useful when
+  isolating one worker-local daemon's traffic.
 - `limit`: maximum rows returned for top-tool and error-rate sections, capped at
   100.
 - `recent_limit`: maximum rows returned in `recent_calls`, capped at 100
@@ -44,9 +46,10 @@ bounded list of the most recent individual calls (`recent_calls`) for tracing a
 specific failure back to its origin.
 Each `recent_calls` row carries the linked Job/Workflow/Run/chat ids plus a
 ready-to-use `job_path` / `workflow_path` / `run_path` / `chat_path` (nil when
-not applicable) so the admin UI (and any other consumer) can link straight to
-the originating record without re-deriving routes. Rows never include raw
-tool input/result — only the same bounded, already-truncated
+not applicable) plus `daemon_worker_id` for persistent sidecar calls, so the
+admin UI (and any other consumer) can link straight to the originating record
+and isolate a worker-local daemon without re-deriving routes. Rows never
+include raw tool input/result — only the same bounded, already-truncated
 `error_message_summary` described above.
 
 `custom_card_gaps` is reporting-only. It never creates proposals or mutates
@@ -99,12 +102,12 @@ unused advertised tools, the surface/provider/server/sidecar-mode/authority
 breakdowns, and the recent calls table with links to the originating Job,
 Workflow, Run transcript, or chat. Its filters are rendered through the shared
 FilterBar:
-operators can choose the window preset, surface, tool name, and server name,
-and those chips map back to the API's flat `window_preset`/`since`, `surface`,
-`tool_name`, and `server_name` params. The flat-param adapter deliberately
-preserves the existing filters if a FilterBar chip is transformed into a
-complex shape such as NOT/OR, since this page's backend only accepts the flat
-AND form.
+operators can choose the window preset, surface, tool name, server name,
+provider, sidecar mode, daemon worker id, authority, status, context ids, byte
+bounds, and timestamp bounds. Those chips map back to the API's flat params.
+The flat-param adapter deliberately preserves the existing filters if a
+FilterBar chip is transformed into a complex shape such as NOT/OR, since this
+page's backend only accepts the flat AND form.
 
 The recent calls and custom-card gap ranking tables use the shared admin data
 table controls: sortable headers, dashboard-style sort indicators, a column

@@ -4,6 +4,8 @@ module Api
       class InputSourcesController < BaseController
         def show
           repository = find_repository
+          return unless repository
+
           provider = find_provider
           source = source_for(repository, provider)
 
@@ -12,6 +14,8 @@ module Api
 
         def update
           repository = find_repository
+          return unless repository
+
           provider = find_provider
           source = source_for(repository, provider) ||
                    provider.new(repository: repository, user: Current.user)
@@ -43,7 +47,10 @@ module Api
         private
 
         def find_repository
-          Current.user.repositories.find(params[:repository_id])
+          repository = find_readable_repository
+          return repository if action_name == "show"
+
+          find_writable_repository(repository.id)
         end
 
         def find_provider

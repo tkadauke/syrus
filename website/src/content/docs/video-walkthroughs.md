@@ -105,3 +105,23 @@ sent on its own rather than bundled with image or PDF attachments. Analysis can
 take several minutes for large recordings, and free-tier Gemini quota can delay
 or fail an attempt; failed walkthroughs can be retried while the video blob is
 still available.
+
+## Verified Implementation Points
+
+These public claims are backed by the current source:
+
+- Plugin gate and queue: `plugins/video_walkthroughs/lib/video_walkthroughs.rb`
+  registers the `video_walkthroughs` plugin, its chat tool set, chat payload
+  contributor, turn orientation, routes, and `videos` home queue.
+- Composer recording and upload: `app/frontend/routes/chat/Compose.tsx`
+  exposes **Record a walkthrough** only when walkthroughs are enabled, and
+  `app/frontend/api/videoWalkthroughs.ts` owns the upload helper and client
+  file checks.
+- Upload limits: backend and frontend tests pin 15 minutes and 500 MB in
+  `plugins/video_walkthroughs/spec/models/video_walkthroughs/walkthrough_spec.rb`
+  and `app/frontend/api/videoWalkthroughs.test.ts`.
+- Gemini key validation: `VideoWalkthroughs::CredentialProbe` validates a
+  user's Gemini API key before walkthrough analysis can use it.
+- Retention controls: admin settings expose `video_retention_days` and
+  `video_storage_budget_mb`, while the plugin tick prunes stored video blobs
+  without deleting the extracted report.

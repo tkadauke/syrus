@@ -3,7 +3,8 @@ module Api
     module App
       class JobMetadataController < BaseController
         def add_tag
-          job = find_job
+          return unless job = find_mutable_job
+
           tag = find_or_create_tag_from_params
           return unless tag
 
@@ -14,7 +15,8 @@ module Api
         end
 
         def remove_tag
-          job = find_job
+          return unless job = find_mutable_job
+
           tag = Current.user.tags.find_by(id: params[:tag_id])
           unless tag
             render_error("not_found", "Tag not found.", status: :not_found)
@@ -26,7 +28,8 @@ module Api
         end
 
         def add_dependency
-          job = find_job
+          return unless job = find_mutable_job
+
           target = dependency_target_for(job)
           unless target
             render_error("not_found", "Dependency Job not found.", status: :not_found)
@@ -45,12 +48,13 @@ module Api
         end
 
         def dependency_options
-          job = find_job
+          job = find_readable_job
           render json: ::App::JobDetailPayload.build_dependency_options(job: job, user: Current.user)
         end
 
         def remove_dependency
-          job = find_job
+          return unless job = find_mutable_job
+
           dependency = job.dependencies.find_by(id: params[:dependency_id])
           unless dependency
             render_error("not_found", "Dependency not found.", status: :not_found)
@@ -68,9 +72,10 @@ module Api
         end
 
         def add_epic_dependency
-          job = find_job
+          return unless job = find_mutable_job
+
           epic_id = params[:depends_on_epic_id].to_i
-          epic = Current.user.epics.find_by(id: epic_id)
+          epic = policy_scope(Epic).find_by(id: epic_id)
           unless epic
             render_error("not_found", "Epic not found.", status: :not_found)
             return
@@ -88,7 +93,8 @@ module Api
         end
 
         def remove_epic_dependency
-          job = find_job
+          return unless job = find_mutable_job
+
           dependency = job.dependencies.find_by(depends_on_epic_id: params[:depends_on_epic_id])
           unless dependency
             render_error("not_found", "Epic dependency not found.", status: :not_found)
@@ -106,7 +112,8 @@ module Api
         end
 
         def stack_base
-          job = find_job
+          return unless job = find_mutable_job
+
           value = params[:stack_base].to_s
           unless Job::STACK_BASES.include?(value)
             render_error("validation_failed", "Unknown stack base.", status: :unprocessable_content)
@@ -119,7 +126,8 @@ module Api
         end
 
         def mark_valid
-          job = find_job
+          return unless job = find_mutable_job
+
           unless job.validity_duplicate? || job.validity_already_implemented?
             render_error("validation_failed", "Job is already marked valid.", status: :unprocessable_content)
             return
@@ -131,8 +139,16 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :tags, dependencies: [ :created_by_user, :depends_on_epic, depends_on_job: :repository ]), params[:job_id])
+        def find_readable_job
+          find_readable_job_by_ref(includes: metadata_includes)
+        end
+
+        def find_mutable_job
+          find_mutable_job_by_ref(includes: metadata_includes)
+        end
+
+        def metadata_includes
+          [ :repository, :tags, { dependencies: [ :created_by_user, :depends_on_epic, { depends_on_job: :repository } ] } ]
         end
 
         def find_or_create_tag_from_params
@@ -150,10 +166,13 @@ module Api
 
           case type
           when "job"
-            Current.user.jobs.where.not(id: job.id).find_by(id: first)
+            policy_scope(Job).where.not(id: job.id).find_by(id: first)
           when "issue"
-            repository = Current.user.repositories.find_by(id: first)
-            repository&.jobs&.where(kind: "issue", issue_number: second)&.where.not(id: job.id)&.order(created_at: :desc, id: :desc)&.first
+            policy_scope(Job)
+              .where(repository_id: first, kind: "issue", issue_number: second)
+              .where.not(id: job.id)
+              .order(created_at: :desc, id: :desc)
+              .first
           end
         end
 

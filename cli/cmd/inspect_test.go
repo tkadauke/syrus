@@ -525,7 +525,7 @@ func TestJobListPrintsJSON(t *testing.T) {
 		if r.URL.Path != "/api/v1/app/jobs" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"count":2,"jobs":[{"id":1,"title":"Fix login","state":"running"},{"id":2,"title":"Add logout","state":"queued"}]}`))
+		w.Write([]byte(`{"count":53,"jobs":[{"id":1,"title":"Fix login","state":"running"},{"id":2,"title":"Add logout","state":"queued"}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -548,7 +548,7 @@ func TestJobListPrintsJSON(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
 		t.Fatalf("output is not valid JSON: %v\n%s", err, output.String())
 	}
-	if decoded.Count != 2 || len(decoded.Jobs) != 2 {
+	if decoded.Count != 53 || len(decoded.Jobs) != 2 {
 		t.Fatalf("decoded = %+v", decoded)
 	}
 }
@@ -638,7 +638,7 @@ func TestEpicListPrintsJSON(t *testing.T) {
 		if r.URL.Path != "/api/v1/app/epics" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"count":2,"epics":[{"id":1,"title":"Alpha"},{"id":2,"title":"Beta"}]}`))
+		w.Write([]byte(`{"count":37,"epics":[{"id":1,"title":"Alpha"},{"id":2,"title":"Beta"}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -661,7 +661,7 @@ func TestEpicListPrintsJSON(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
 		t.Fatalf("output is not valid JSON: %v\n%s", err, output.String())
 	}
-	if decoded.Count != 2 || len(decoded.Epics) != 2 {
+	if decoded.Count != 37 || len(decoded.Epics) != 2 {
 		t.Fatalf("decoded = %+v", decoded)
 	}
 }

@@ -24,4 +24,16 @@ RSpec.describe JobPin, type: :model do
     expect(pin).not_to be_valid
     expect(pin.errors[:job]).to include("must belong to the user")
   end
+
+  it "allows repository collaborators to pin visible jobs" do
+    owner = Factories.user
+    collaborator = Factories.user
+    repo = Factories.repository(user: owner)
+    repo.repository_memberships.create!(user: collaborator, role: "read")
+    job = Factories.job(repository: repo)
+
+    pin = described_class.new(user: collaborator, job: job)
+
+    expect(pin).to be_valid
+  end
 end

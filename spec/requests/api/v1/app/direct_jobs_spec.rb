@@ -175,6 +175,87 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(body["accepted_file_content_types"]).to include("application/pdf")
   end
 
+  it "includes writable shared repositories in the direct job form" do
+    repository
+    collaborator = Factories.user(email_address: "direct-writer@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    read_only = Factories.repository(user: user, owner: "acme", name: "read-only-direct")
+    read_only.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(body["selected_repository_id"]).to eq(repository.id.to_s)
+  end
+
+  it "allows write-tier collaborators to create direct jobs by repository id and slug" do
+    repository
+    collaborator = Factories.user(email_address: "direct-job-writer@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    sign_in_as(collaborator)
+
+    job_count = Job.count
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Shared repo job",
+      prompt: "Work on the shared repository."
+    }
+    expect(response).to have_http_status(:created), response.body
+    expect(Job.count).to eq(job_count + 1)
+    expect(Job.order(:id).last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
+
+    job_count = Job.count
+    post "/api/v1/app/jobs", params: {
+      repository: repository.slug,
+      title: "Shared slug job",
+      prompt: "Work on the shared repository by slug."
+    }
+    expect(response).to have_http_status(:created), response.body
+    expect(Job.count).to eq(job_count + 1)
+    expect(Job.order(:id).last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
+  end
+
+  it "allows team-granted write collaborators to create direct jobs" do
+    repository
+    collaborator = Factories.user(email_address: "direct-job-team-writer@example.com", admin: false)
+    team = Team.create!(name: "Direct Job Writers")
+    team.team_memberships.create!(user: collaborator, role: "member")
+    team.team_repositories.create!(repository: repository, role: "write")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Team shared repo job",
+        prompt: "Work on the team-granted repository."
+      }
+    }.to change(Job, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    expect(Job.order(:id).last).to have_attributes(repository_id: repository.id, user_id: collaborator.id)
+  end
+
+  it "forbids read-tier collaborators from creating direct jobs" do
+    repository
+    collaborator = Factories.user(email_address: "direct-job-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        title: "Read-only job",
+        prompt: "This should not be filed."
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
   it "includes the target epic in the new-job form payload when epic_id is provided" do
     sign_in_as(user)
     epic = Factories.epic(repository: repository, user: user)

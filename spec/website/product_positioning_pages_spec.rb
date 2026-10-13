@@ -28,7 +28,7 @@ RSpec.describe "website product positioning pages" do
   it "explains what Syrus is using current product terminology" do
     expect(normalized_copy).to include("epics and tickets")
     expect(normalized_copy).to include("Jobs")
-    expect(normalized_copy).to include("tracked job")
+    expect(normalized_copy).to include("tracked epics and tickets")
     expect(normalized_copy).to include("pull request")
     expect(normalized_copy).to include("landing queue")
     expect(normalized_copy).to include("full transcript, diff, and review")

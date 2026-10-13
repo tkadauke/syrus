@@ -66,8 +66,10 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
         scope_type: "instance",
         payload: "hunter2",
         safe_metadata: include("host" => "db.example.com", "port" => 3306, "username" => "app"),
-        target_constraints: include("allowed_hosts" => [ "db.example.com" ])
+        target_constraints: include("allowed_hosts" => [ "db.example.com" ]),
+        allowed_tools: match_array(MysqlDbBrowser::CredentialMaterial::ALLOWED_TOOLS)
       )
+      expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection).allowed_tools).not_to include("credential.exec")
       expect(connection.agentic_access_enabled).to be false
     end
 

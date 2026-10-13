@@ -22,6 +22,10 @@ module AlertmanagerInvestigations
         ```
 
         Follow the runbook to investigate and report findings. Do not remediate or actuate.
+        If the runbook reaches a point that needs operator action, submit the final
+        report with `escalate: true` and the matching `escalation_reason`:
+        `needs_human_decision`, `lacks_authority`, `remediation_failed`, or
+        `unsafe_to_proceed`.
       PROMPT
     end
   end

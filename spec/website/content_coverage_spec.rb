@@ -24,7 +24,7 @@ RSpec.describe "website content coverage" do
       "src/app/page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
       "src/app/download/page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
       "lib/site.ts" => [
-        "Run coding agents on your repos.",
+        "Show Syrus the work.",
         "Proposes epics & tickets",
         "Run repeatable agent workflows",
         "Approve it — it lands itself",

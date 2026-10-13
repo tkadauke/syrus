@@ -139,8 +139,7 @@ class Repository < ApplicationRecord
   scope :active,   -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :accessible_to, ->(user) {
-    member_repo_ids = RepositoryMembership.where(user: user).select(:repository_id)
-    where(user_id: user.id).or(where(id: member_repo_ids))
+    where(id: accessible_repository_ids_for(user))
   }
 
   def archived?
@@ -160,9 +159,10 @@ class Repository < ApplicationRecord
     assign_attributes(attrs)
   end
 
-  def mark_poll_success!(at: nil, clear_issue_errors: true)
+  def mark_poll_success!(at: nil, full_poll_at: nil, clear_issue_errors: true)
     attrs = { last_poll_status: "ok", last_poll_error: nil }
     attrs[:last_poll_started_at] = at if at
+    attrs[:last_full_poll_at] = full_poll_at if full_poll_at
     attrs[:poll_issue_errors] = [] if clear_issue_errors
     return if attrs.all? { |key, value| self[key] == value }
 

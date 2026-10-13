@@ -298,13 +298,26 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :repository_full_poll_interval_hours,
+      type: :integer,
+      default: 24,
+      min: 1,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Maximum age, in hours, of a repository's last successful full issue poll before the next autonomous issue poll reconciles without a GitHub updated_at cursor.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :user_daily_spend_budget_usd,
       type: :integer,
-      default: 0,
+      default: 20,
       min: 0,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "Optional per-user daily spend ceiling across provider-reported agent Run costs and chat turn costs. Work from a user over budget is deferred to the next day, never failed.",
+      operational_meaning: "Per-user daily spend ceiling across provider-reported agent Run costs and chat turn costs. Work from a user over budget is deferred to the next day, never failed.",
       zero_means: "No per-user USD spend budget. Subscription-based or token-only providers may need provider-side limits for reliable spend protection.",
       admin_editable: true,
       secret: false

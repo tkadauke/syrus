@@ -27,7 +27,13 @@ module AlertmanagerInvestigations
       ) { |http| http.request(request) }
       raise Error, "Alertmanager returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
-      JSON.parse(response.body)
+      payload = JSON.parse(response.body)
+      raise Error, "Alertmanager returned #{payload.class}, expected Array" unless payload.is_a?(Array)
+      unless payload.all? { |entry| entry.is_a?(Hash) }
+        raise Error, "Alertmanager returned an Array with non-object entries"
+      end
+
+      payload
     rescue JSON::ParserError => e
       raise Error, "Alertmanager returned invalid JSON: #{e.message}"
     end

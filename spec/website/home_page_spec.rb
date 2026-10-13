@@ -21,8 +21,8 @@ RSpec.describe "website home page" do
   end
 
   it "explains Syrus as owner-controlled AI work from goal to merged pull request" do
-    expect(site_copy).to include("Run coding agents on your repos.")
-    expect(normalized_copy).to include("turns issues, chats, and video walkthroughs into tracked pull requests")
+    expect(site_copy).to include("Show Syrus the work.")
+    expect(normalized_copy).to include("turns issues, chats, and narrated video walkthroughs into tracked pull requests")
     expect(normalized_copy).to include("review policy")
     expect(normalized_copy).to include("merge flow")
     expect(normalized_copy).to include("Know what every feature cost")

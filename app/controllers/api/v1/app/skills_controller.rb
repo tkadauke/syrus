@@ -8,11 +8,14 @@ module Api
       class SkillsController < BaseController
         def index
           repository = find_repository
+          return unless repository
+
           render json: skills_index_payload(repository)
         end
 
         def create
           repository = find_repository
+          return unless repository
 
           agent_provider = params[:agent_provider].to_s.presence
           if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
@@ -45,7 +48,10 @@ module Api
         private
 
         def find_repository
-          Current.user.repositories.find(params[:repository_id])
+          repository = find_readable_repository
+          return repository if action_name == "index"
+
+          find_writable_repository(repository.id)
         end
 
         def skills_index_payload(repository)

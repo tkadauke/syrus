@@ -5,7 +5,8 @@ description: How Syrus uses its own issue-to-PR loop to build Syrus, with the me
 
 # Dogfooding
 
-95.1% of Syrus's merged pull requests were written by Syrus itself.
+95.1% of Syrus's merged pull requests were written by Syrus itself, as of
+the September 27, 2026 launch audit.
 
 That figure comes from an analysis run on September 27, 2026 across all
 3,867 pull requests in the `tkadauke/syrus` repository. Of the 1,865 merged
@@ -37,15 +38,17 @@ The remaining 92 merged pull requests were:
 
 ## Receipts
 
-Naive git-author counting undercounts Syrus. The operator's Syrus instance
-runs with his GitHub personal access token connected, so some Jobs open pull
-requests as the user and commit as the user. The code paths behind that are
-`app/models/job.rb#bot_authored_pull_request?` and
+Naive git-author counting undercounts Syrus. Syrus supports both GitHub App
+and personal-access-token authorship modes, so some Jobs open pull requests as
+the user and commit as the user. The code paths behind that are
+`Job::CREDENTIAL_MODES` in `app/models/job.rb`,
+`GithubClient.for_authorship(...)` in `app/services/steps/pr_open.rb`, and
 `app/services/bot_identity.rb`.
 
 Syrus's pull requests are therefore identified by body markers its own code
-stamps in `app/services/job_metadata_refresh_applier.rb` and
-`app/services/steps/pr_open.rb`:
+stamps in `app/services/job_metadata_refresh_applier.rb`,
+`app/services/steps/pr_open.rb`, `app/services/pr_cost_footer.rb`, and the
+merge-train step definitions in `app/models/step/kind.rb`:
 
 - the `syrus-cost-footer` HTML comment;
 - `Authored by <provider> (trigger=...). Review carefully.`;
@@ -62,3 +65,7 @@ This is a merged-pull-request claim, not an unqualified repository-wide
 line-churn claim. Line-churn analysis shows roughly 45% Syrus changes and
 roughly 50% direct operator pushes to `main`, mostly through the operator's
 CLI-agent repair channel, which bypasses pull requests by design.
+
+The percentage is a point-in-time launch claim, not a live counter. If the
+repository keeps merging work after September 27, 2026, rerun the audit before
+changing this page or the homepage badge.

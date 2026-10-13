@@ -184,6 +184,8 @@ RSpec.describe K8sCluster::Kubectl do
       [ "get", "secrets", "-o=jsonpath={.data.token}" ],
       [ "get", "secrets", "--output=jsonpath={.data.token}" ],
       [ "get", "secrets", "-oyaml" ],
+      [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
+      [ "get", "--raw=/api/v1/namespaces/default/secrets/prod-token?watch=false" ],
       [ "describe", "secret", "prod-token" ]
     ].each do |args|
       expect {
@@ -191,6 +193,22 @@ RSpec.describe K8sCluster::Kubectl do
       }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /expose secret values/)
     end
     expect(runner).not_to have_received(:call)
+  end
+
+  it "allows raw secret API paths only with workflow secret-output allowance" do
+    credential = create_credential
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "secret\n", stderr: "", status: 0))
+
+    result = described_class.call(
+      context: context,
+      credential: credential.id,
+      kube_context: "prod",
+      args: [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
+      allow_secret_output: true
+    )
+
+    expect(result[:ok]).to be(true)
+    expect(runner).to have_received(:call).with(hash_including(argv: [ "kubectl", "--context", "prod", "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ]))
   end
 
   it "does not let leading global flags bypass command policy" do
@@ -267,10 +285,21 @@ RSpec.describe K8sCluster::Kubectl do
         allow_secret_output: true
       )
     }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
+
+    expect {
+      described_class.call(
+        context: chat_context,
+        credential: credential.id,
+        kube_context: "prod",
+        args: [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
+        allow_secret_output: true
+      )
+    }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
   end
 
   it "rejects kubeconfig, context, and namespace flags in kubectl args" do
     credential = create_credential
+    allow(runner).to receive(:call)
 
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "get", "pods", "--kubeconfig=/tmp/config" ])
@@ -281,6 +310,32 @@ RSpec.describe K8sCluster::Kubectl do
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "get", "pods", "-n", "prod" ])
     }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /namespace/)
+    expect {
+      described_class.call(context: context, credential: credential.id, kube_context: "prod", namespace: "default", args: [ "get", "pods", "-nprod" ])
+    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /namespace/)
+    expect {
+      described_class.call(context: context, credential: credential.id, kube_context: "prod", namespace: "default", args: [ "get", "pods", "-n=prod" ])
+    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /namespace/)
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "rejects attached namespace overrides before requesting credential leases" do
+    credential = create_credential(
+      safe_metadata: { "cluster" => "prod", "context" => "prod", "namespace" => "default" },
+      target_constraints: {
+        "allowed_kube_contexts" => [ "prod" ],
+        "allowed_kube_namespaces" => [ "default" ]
+      }
+    )
+    allow(runner).to receive(:call)
+
+    access_event_count = CredentialStore::CredentialAccessEvent.count
+    expect {
+      described_class.call(context: context, credential: credential.id, kube_context: "prod", namespace: "default", args: [ "get", "pods", "-nprod" ])
+    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /namespace/)
+    expect(CredentialStore::CredentialAccessEvent.count).to eq(access_event_count)
+    expect(runner).not_to have_received(:call)
   end
 
   it "requires enabled k8s_cluster and credential_store plugins" do

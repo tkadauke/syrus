@@ -163,7 +163,6 @@ per-user/private:
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
-  - app/controllers/api/v1/app/job_preview_controller.rb
   - app/controllers/api/v1/app/job_ref_movement_actions_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/job_test_results_controller.rb
@@ -180,7 +179,6 @@ per-user/private:
   - app/controllers/api/v1/app/repository_recommendations_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
-  - app/controllers/api/v1/app/repository_preview_controller.rb
   - app/controllers/api/v1/app/runtime_sessions_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
@@ -266,6 +264,7 @@ admin-only:
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_clusters_controller.rb
+  - plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_resources_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_connections_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb
@@ -414,7 +413,7 @@ instead of broader model scopes.
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
-| `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private | Job-less repository preview show/logs/create/destroy find the repository through `Current.user.repositories`, so only the repository owner can start, inspect, or stop it. |
+| `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private and repository-write affordance | Job-less repository preview show/logs resolve through the readable repository helper; create/destroy then require repository write access. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `plugins/global_search/app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
@@ -493,6 +492,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
 | `plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
 | `plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_clusters_controller.rb` | admin-only | Cluster management and connection testing are gated on admin access; `Current.user` is recorded as the credential-store actor for stored Kubernetes kubeconfigs and admin credential leases. |
+| `plugins/k8s_cluster/app/controllers/api/v1/app/admin/kubernetes_resources_controller.rb` | admin-only | Resource browsing is admin-only; `Current.user` is recorded as the credential-store actor for Kubernetes resource credential leases. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_connections_controller.rb` | admin-only | Connection management and password testing are gated on `Current.user.admin?`; `Current.user` is recorded as the credential-store actor for stored MySQL passwords. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb` | admin-only | Schema browsing is gated on `Current.user.admin?`; `Current.user` is passed to credential-store lease auditing for admin schema reads. |

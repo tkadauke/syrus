@@ -139,6 +139,22 @@ repositories, and an in-flight autonomous repository poll that receives
 `Octokit::TooManyRequests` re-enqueues after GitHub's reset time without
 advancing the repository poll watermark.
 
+### repository_full_poll_interval_hours
+
+**Type:** integer · **Default:** 24
+
+Maximum age, in hours, of a repository's last successful full issue poll.
+Normal repository issue polls use GitHub's `since` cursor for incremental
+reads, but GitHub filters that cursor by issue `updated_at`, not by the time a
+label was applied. When this interval has elapsed, the next autonomous
+repository issue poll omits the cursor and reconciles all open trigger-labeled
+issues. A successful full poll stamps `Repository#last_full_poll_at`.
+
+Full reconciles still use the same linked-PR lookup budget as incremental
+polls. If a large backlog exceeds that per-poll budget, Syrus defers the
+overflow and does not advance either poll watermark; later polls continue the
+reconcile in bounded chunks instead of spending one oversized GitHub burst.
+
 ### runs_paused
 
 **Type:** boolean · **Default:** false
@@ -163,9 +179,9 @@ Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across 
 
 ### user_daily_spend_budget_usd
 
-**Type:** integer · **Default:** 0 · `0` = unlimited
+**Type:** integer · **Default:** 20 · `0` = unlimited
 
-Optional per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage, so subscription-based or token-only providers may not produce reliable USD budget enforcement unless they report dollar costs directly.
+Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. Fresh instances default to a $20/day cap per user; set it to `0` to allow unlimited provider-reported spend. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage, so subscription-based or token-only providers may not produce reliable USD budget enforcement unless they report dollar costs directly.
 
 ## GitHub App
 

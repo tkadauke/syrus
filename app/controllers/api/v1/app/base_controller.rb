@@ -204,6 +204,19 @@ module Api
           false
         end
 
+        def find_readable_job_by_ref(param = params[:job_id], includes: nil)
+          scope = policy_scope(Job)
+          scope = includes.is_a?(Array) ? scope.includes(*includes) : scope.includes(includes) if includes
+          find_job_by_ref(scope, param)
+        end
+
+        def find_mutable_job_by_ref(param = params[:job_id], includes: nil)
+          job = find_readable_job_by_ref(param, includes: includes)
+          return job if authorize_job_mutation!(job)
+
+          nil
+        end
+
         # Same write-tier gate as JobPolicy#write?'s repository half, for
         # actions (like Coding Mode's `!` shell command execution) that act
         # directly on a repository checkout rather than an existing Job.
@@ -212,6 +225,25 @@ module Api
 
           render_error("forbidden", "Only a repository member with write access, or an admin, can perform this action.", status: :forbidden)
           false
+        end
+
+        def readable_repository_scope
+          invocation_scoped_repository_scope(Repository.accessible_to(Current.user))
+        end
+
+        def find_readable_repository(id = params[:repository_id])
+          readable_repository_scope.find(id)
+        end
+
+        def find_writable_repository(id = params[:repository_id])
+          repository = find_readable_repository(id)
+          return repository if authorize_repository_write!(repository)
+
+          nil
+        end
+
+        def writable_repository?(repository)
+          RepositoryPolicy.new(Current.user, repository).write?
         end
 
         def authorize_repository_admin!(repository)

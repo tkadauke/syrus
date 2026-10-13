@@ -1,3 +1,5 @@
+require "cgi"
+
 module K8sCluster
   class Kubectl
     CREDENTIAL_TYPE = "k8s_cluster.kubeconfig".freeze
@@ -35,6 +37,7 @@ module K8sCluster
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
     FORBIDDEN_CONTEXT_PREFIXES = %w[--context= --namespace=].freeze
+    FORBIDDEN_NAMESPACE_PREFIXES = %w[--namespace= -n].freeze
 
     class Error < StandardError; end
     class InvalidCommand < Error; end
@@ -199,7 +202,7 @@ module K8sCluster
     end
 
     def contains_namespace_flag?
-      normalized_args.any? { |arg| arg == "--namespace" || arg == "-n" || arg.start_with?("--namespace=") }
+      normalized_args.any? { |arg| arg == "--namespace" || FORBIDDEN_NAMESPACE_PREFIXES.any? { |prefix| arg.start_with?(prefix) } }
     end
 
     def contains_forbidden_credential_flag?
@@ -225,6 +228,7 @@ module K8sCluster
 
     def secret_output_command?
       return false unless %w[get describe].include?(command)
+      return true if command == "get" && raw_secret_api_path?
       return false unless secret_resource?
       return true if command == "describe"
 
@@ -233,6 +237,30 @@ module K8sCluster
 
     def secret_resource?
       normalized_args.any? { |arg| %w[secret secrets secret.v1 secrets.v1].include?(arg) }
+    end
+
+    def raw_secret_api_path?
+      raw_api_paths.any? do |path|
+        path_segments(path).any? { |segment| segment == "secrets" }
+      end
+    end
+
+    def raw_api_paths
+      normalized_args.each_with_index.filter_map do |arg, index|
+        if arg.start_with?("--raw=")
+          arg.split("=", 2).last
+        elsif arg == "--raw"
+          normalized_args[index + 1].to_s
+        end
+      end
+    end
+
+    def path_segments(path)
+      path.to_s.split(/[?#]/, 2).first.to_s.split("/").filter_map do |segment|
+        CGI.unescape(segment).presence
+      rescue ArgumentError
+        segment.presence
+      end
     end
 
     def output_format

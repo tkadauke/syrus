@@ -40,6 +40,27 @@ The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
 distributed separately.
 
+## Bundled Plugin Directory
+
+The public plugin directory at [/plugins](/plugins) is generated from the
+bundled plugin manifests, so it is the most complete browsable list. This
+snapshot calls out the launch-relevant groups:
+
+| Group | Bundled plugins |
+| --- | --- |
+| Agent providers | Claude Agent, Codex Agent, Antigravity Agent, Muse Agent |
+| Work inputs and planning | Walkthrough Videos, Scheduled Tasks, GitHub Source, Linear Source, Design Docs, Operator Briefing |
+| Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights |
+| Language and platform support | Android, Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
+| Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
+| Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
+| Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
+
+Provider copy on the homepage and FAQ should use the adapter display names
+from `plugins/*/lib/*.rb` and `AgentProviders::*#display_name`, not hand-rolled
+model names. As of this release, the provider adapters are Claude Code, Codex,
+Antigravity, and Muse Code.
+
 ## Installed vs Enabled
 
 Installed means the plugin's code, migrations, translations, and frontend

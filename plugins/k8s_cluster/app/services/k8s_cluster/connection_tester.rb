@@ -18,7 +18,12 @@ module K8sCluster
     }
 
     def self.test(cluster, context: nil)
-      ClusterCredential.with_material(cluster, context: context, purpose: "kubernetes cluster connection test") do |material|
+      ClusterCredential.with_material(
+        cluster,
+        context: context,
+        purpose: "kubernetes cluster connection test",
+        tool_name: ClusterCredential::ADMIN_TOOL_NAME
+      ) do |material|
         new.test(
           api_server_url: cluster.api_server_url,
           token: material.credentials.to_h["token"],

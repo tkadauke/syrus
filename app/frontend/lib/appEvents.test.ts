@@ -833,25 +833,32 @@ describe("applyAppEvent", () => {
     ])
   })
 
-  it("invalidates the chat-pins query cache on upsert_pin without touching the chat payload cache", () => {
+  it("invalidates mounted chat-pins query variants on upsert_pin without touching the chat payload cache", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
     queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "10", ""], { pins: [] })
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
-    const handled = applyAppEvent(queryClient, {
+    applyAppEvent(queryClient, {
       ...event("chat", 9),
       changed: [ "pins" ],
       payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
     const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(untouched?.bookmarks).toEqual([])
   })
 
-  it("invalidates the chat-pins query cache on remove_pin", () => {
+  it("invalidates mounted chat-pins query variants on remove_pin", () => {
     const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
     applyAppEvent(queryClient, {
@@ -860,7 +867,9 @@ describe("applyAppEvent", () => {
       payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
   })
 
   it("applies chat agent question payloads directly to cached chat data", () => {
@@ -1244,6 +1253,80 @@ describe("applyAppEvent revisioned event patches", () => {
     expect(readEntity("jobs", 43)?.fields.state).toBe("running")
   })
 
+  it("patches active job workflow query payloads from scoped resource events", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["jobs", "42", "detail", ""], jobWorkflowPayload())
+    queryClient.setQueryData(["jobs", "42", "workflows", ""], jobWorkflowPayload())
+
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 8,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+    })
+
+    const detail = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "detail", ""])
+    const workflows = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "workflows", ""])
+    expect(detail?.workflows[0].steps[0].runs[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:01:00.000Z",
+      entity_revision: 8
+    })
+    expect(workflows?.workflows[0].steps[0].runs[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:01:00.000Z",
+      entity_revision: 8
+    })
+  })
+
+  it("does not let stale scoped resource events move active job workflow query payloads backward", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["jobs", "42", "detail", ""], jobWorkflowPayload())
+
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 8,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+    })
+    applyAppEvent(queryClient, {
+      ...event("run", 300),
+      job_id: 42,
+      revision: 7,
+      payload: { fields: { state: "running", finished_at: null } }
+    })
+
+    const detail = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "detail", ""])
+    expect(detail?.workflows[0].steps[0].runs[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:01:00.000Z",
+      entity_revision: 8
+    })
+  })
+
+  it("patches nested work-unit workflow payloads from scoped resource events", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["jobs", "42", "detail", ""], {
+      ...jobWorkflowPayload(),
+      workflows: [],
+      work_units: [{ id: 1, workflow: jobWorkflowPayload().workflows[0] }]
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("step", 200),
+      job_id: 42,
+      revision: 5,
+      payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:02:00.000Z" } }
+    })
+
+    const detail = queryClient.getQueryData<{ work_units: Array<{ workflow: ReturnType<typeof jobWorkflowPayload>["workflows"][number] }> }>(["jobs", "42", "detail", ""])
+    expect(detail?.work_units[0].workflow.steps[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:02:00.000Z",
+      entity_revision: 5
+    })
+  })
+
   it("folds chat message tail patches into the common entity-store mechanism", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
@@ -1437,6 +1520,38 @@ function message(id: number, role: "user" | "assistant" | "tool_use" | "tool_res
     text,
     bookmarkable: true,
     ...overrides
+  }
+}
+
+function jobWorkflowPayload() {
+  return {
+    job_id: 42,
+    workflows: [
+      {
+        id: 100,
+        entity_revision: 1,
+        state: "running",
+        steps: [
+          {
+            id: 200,
+            entity_revision: 1,
+            state: "running",
+            finished_at: null,
+            runs: [
+              {
+                id: 300,
+                entity_revision: 1,
+                state: "running",
+                finished_at: null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    workflows_pagination: { page: 1, per_page: 10, total_workflows: 1, total_pages: 1, first_item: 1, last_item: 1, previous_path: null, next_path: null },
+    actions: {},
+    paths: {}
   }
 }
 
