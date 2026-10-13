@@ -1217,6 +1217,16 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
   end
 
+  it "fails when the root grade config is invalid instead of passing through collect" do
+    write_config("grade:\n  - name: tests\n    run: [\n")
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /\.syrus\.yml grade config is invalid: YAML parse error/
+    )
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+  end
+
   it "materializes a nested CLI grader target for core CLI changes" do
     write_config("grade: []\n")
     FileUtils.mkdir_p(@ws_path.join("cli"))
