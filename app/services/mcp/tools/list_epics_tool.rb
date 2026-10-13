@@ -21,16 +21,15 @@ module Mcp::Tools
         state = state.to_s.presence
         return Mcp::Tools.invalid("state must be one of #{Epic::STATES.join(", ")}") if state && !Epic::STATES.include?(state)
 
-        repo_scope = chat_session.user.admin? ? Repository.all : chat_session.user.repositories.active
-        scope = Epic.where(repository: repo_scope)
-                            .left_outer_joins(:jobs)
-                            .select(
-                              "epics.*",
-                              "COUNT(jobs.id) AS child_job_count",
-                              "SUM(CASE WHEN jobs.id IS NOT NULL AND jobs.state != 'closed' THEN 1 ELSE 0 END) AS open_job_count"
-                            )
-                            .group("epics.id")
-                            .order(created_at: :desc, id: :desc)
+        scope = (chat_session.user.admin? ? Epic.all : Epic.accessible_to(chat_session.user))
+          .left_outer_joins(:jobs)
+          .select(
+            "epics.*",
+            "COUNT(jobs.id) AS child_job_count",
+            "SUM(CASE WHEN jobs.id IS NOT NULL AND jobs.state != 'closed' THEN 1 ELSE 0 END) AS open_job_count"
+          )
+          .group("epics.id")
+          .order(created_at: :desc, id: :desc)
         scope = state ? scope.where(state: state) : scope.where.not(state: Epic::ARCHIVED_STATE)
 
         Mcp::Tools.success(

@@ -135,12 +135,12 @@ module Mcp::Tools
 
     def unknown_epic_dependency_ids(chat_session, epic_ids)
       ids = normalize_integer_list(epic_ids)
-      ids - chat_session.user.epics.where(id: ids).pluck(:id)
+      ids - Epic.accessible_to(chat_session.user).where(id: ids).pluck(:id)
     end
 
     def unknown_job_dependency_ids(chat_session, job_ids)
       ids = normalize_integer_list(job_ids)
-      ids - chat_session.user.jobs.where(id: ids).pluck(:id)
+      ids - Job.accessible_to(chat_session.user).where(id: ids).pluck(:id)
     end
 
     def dependency_target_error(scope, ids)

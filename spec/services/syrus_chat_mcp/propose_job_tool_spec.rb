@@ -328,6 +328,36 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.repository).to eq(repository)
   end
 
+  it "accepts existing Job dependencies visible through repository membership" do
+    repository
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 82)
+    collaborator = Factories.user(email_address: "proposal-write-member@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
+    collaborator_server = server_for(collaborator_chat)
+
+    raw = collaborator_server.handle_json({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "propose_job",
+        arguments: {
+          repo: repository.slug,
+          title: "Follow shared dependency",
+          description: "This should depend on an owner-created Job in the shared repository.",
+          depends_on_job_ids: [ prerequisite.id ],
+          planned_execution: default_planned_execution
+        }
+      }
+    }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = collaborator_chat.proposals.find_by!(title: "Follow shared dependency")
+    expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+  end
+
   it "stores an explicit planned execution override on the proposal and filed Job" do
     response = call_tool(
       repo: repository.slug,
