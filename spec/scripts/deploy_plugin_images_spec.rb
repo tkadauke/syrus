@@ -35,6 +35,18 @@ RSpec.describe "bin/deploy plugin service images" do
     expect(deploy).to match(/--skip-build.*?for plugin_registry in .*?verify_pushed "\$\{plugin_registry\}" "\$\{SHA\}"/m)
   end
 
+  it "reuses an unchanged plugin image from the prior deployed revision" do
+    expect(deploy).to include('git diff --quiet "${IMAGE_BASE_SHA}..${SHA}" -- "${PLUGIN_BUILD_DIRS[$i]}"')
+    expect(deploy).to include('reuse_image_from_base "$plugin_registry"')
+
+    reuse = deploy[/^reuse_image_from_base\(\) \{.*?\n\}/m]
+    expect(reuse).to include('docker buildx imagetools create')
+    expect(reuse).to include('--tag "${repo}:${SHA}"')
+    expect(reuse).to include('--tag "${repo}:latest"')
+    expect(reuse).to include('"${repo}:${IMAGE_BASE_SHA}"')
+    expect(reuse).to include('verify_pushed "$repo" "$SHA"')
+  end
+
   it "pins plugin workloads and waits for their image-triggered rollouts" do
     pin_at = deploy.index('pin_live_images "$label"')
     wait_at = deploy.index('echo "→ ${label}: waiting for plugin workload ${dep}"')

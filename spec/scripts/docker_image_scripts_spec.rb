@@ -110,6 +110,16 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\"")
   end
 
+  it "seeds deploy builds from the last published images and exports inline cache metadata" do
+    expect(deploy).to include('pull_build_cache "${REGISTRY}:latest"')
+    expect(deploy).to include('pull_build_cache "${WORKER_DEV_REGISTRY}:latest"')
+    expect(deploy).to include('pull_build_cache "${plugin_registry}:latest"')
+    expect(deploy.scan("--build-arg BUILDKIT_INLINE_CACHE=1").size).to eq(3)
+    expect(deploy).to include('--cache-from "${REGISTRY}:latest"')
+    expect(deploy).to include('--cache-from "${WORKER_DEV_REGISTRY}:latest"')
+    expect(deploy).to include('--cache-from "${plugin_registry}:latest"')
+  end
+
   it "smoke-checks native compilation as the worker UID before publishing and after rollout" do
     smoke = helper[/syrus_worker_native_build_smoke\(\)[\s\S]*?\n}/]
 
