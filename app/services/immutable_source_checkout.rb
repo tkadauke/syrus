@@ -259,6 +259,8 @@ class ImmutableSourceCheckout
     plan = prepare_cache.plan
     log("[immutable_source_checkout] prepare source: #{plan.source}")
     log("[immutable_source_checkout] prepare note: #{plan.note}") if plan.note
+    fail_on_prepare_plan_error!(plan) if plan.error?
+
     if plan.commands.empty?
       record_prepared!(snapshot, plan, prepare_cache)
       prepare_cache.store_from!(path)
@@ -280,6 +282,12 @@ class ImmutableSourceCheckout
     record_prepared!(snapshot, plan, prepare_cache)
     prepare_cache.store_from!(path)
     publish_prepared_archive!(snapshot, prepare_cache)
+  end
+
+  def fail_on_prepare_plan_error!(plan)
+    message = "invalid prepare configuration in #{plan.source} at #{path}: #{plan.error}"
+    log("[immutable_source_checkout] prepare failure: #{message}")
+    raise Steps::Base::StepFailed, message
   end
 
   def record_prepared!(snapshot, plan, prepare_cache)
