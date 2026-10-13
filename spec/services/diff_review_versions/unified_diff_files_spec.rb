@@ -37,4 +37,40 @@ RSpec.describe DiffReviewVersions::UnifiedDiffFiles do
       }
     ])
   end
+
+  it "extracts C-quoted non-ASCII file paths from git diff headers" do
+    diff = <<~'DIFF'
+      diff --git "a/lib/caf\303\251.rb" "b/lib/caf\303\251.rb"
+      index 1111111..2222222 100644
+      --- "a/lib/caf\303\251.rb"
+      +++ "b/lib/caf\303\251.rb"
+      @@ -1 +1,2 @@
+       puts "old"
+      +puts "new"
+    DIFF
+
+    expect(described_class.parse(diff)).to eq([
+      {
+        path: "lib/café.rb",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        patch: "@@ -1 +1,2 @@\n puts \"old\"\n+puts \"new\"\n"
+      }
+    ])
+  end
+
+  it "extracts C-quoted backslash file paths from git diff headers" do
+    diff = <<~'DIFF'
+      diff --git "a/lib/path\\name.rb" "b/lib/path\\name.rb"
+      index 1111111..2222222 100644
+      --- "a/lib/path\\name.rb"
+      +++ "b/lib/path\\name.rb"
+      @@ -1 +1,2 @@
+       puts "old"
+      +puts "new"
+    DIFF
+
+    expect(described_class.parse(diff).first).to include(path: "lib/path\\name.rb")
+  end
 end
