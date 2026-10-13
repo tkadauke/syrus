@@ -418,7 +418,9 @@ Syrus…** in the app menu drives the same teardown — see the
 Compose doesn't own TLS. For a local install you don't need it (plain HTTP on
 `localhost`). To expose it, put Caddy, Traefik, or nginx in front of the web
 service and terminate HTTPS there, and set `SYRUS_APP_HOST` /
-`SYRUS_ASSUME_SSL=true` accordingly.
+`SYRUS_ASSUME_SSL=true` accordingly. If the proxy serves additional hostnames,
+list them in `SYRUS_ALLOWED_HOSTS`; the canonical `SYRUS_APP_HOST` remains
+allowed even when extras are configured.
 
 ## Health Check
 
