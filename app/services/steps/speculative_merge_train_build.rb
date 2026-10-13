@@ -2,6 +2,7 @@ module Steps
   class SpeculativeMergeTrainBuild < Base
     def call
       @source_path = Pathname.new(required_artifact!("prefetch_source_workspace_path"))
+      @source_workflow = source_workflow!
       @source_head = required_artifact!("prefetch_source_head_sha")
       @members = member_jobs
       raise StepFailed, "speculative_merge_train: no members to build" if @members.empty?
@@ -45,8 +46,14 @@ module Steps
       ids.filter_map { |id| jobs[id] }
     end
 
+    def source_workflow!
+      workflow_id = required_artifact!("prefetch_source_workflow_id").to_i
+      Workflow.find_by(id: workflow_id) ||
+        raise(StepFailed, "speculative_merge_train: source workflow #{workflow_id} is missing")
+    end
+
     def verify_source!
-      actual = @git.run("rev-parse", "HEAD", chdir: @source_path.to_s).strip
+      actual = @git.run("rev-parse", "HEAD", chdir: @source_path.to_s, workflow: @source_workflow).strip
       return if actual == @source_head
 
       raise StepFailed, "speculative_merge_train: source workflow moved from #{@source_head.first(7)} to #{actual.first(7)}"
