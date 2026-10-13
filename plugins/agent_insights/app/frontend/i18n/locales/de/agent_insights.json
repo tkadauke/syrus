@@ -89,7 +89,7 @@
   "col_created": "Erstellt",
   "col_actions": "Aktionen",
   "view_job": "Job ansehen",
-  "promote_to_instance": "Zu Instanz-Erinnerung befördern",
+  "promote_to_repository": "Zu Repository-Erinnerung befördern",
   "promoting": "Befördern…",
   "promote_error": "Erinnerung konnte nicht befördert werden.",
   "pagination_showing": "Zeige {{first}}–{{last}} von {{total}}",

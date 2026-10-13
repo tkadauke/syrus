@@ -89,7 +89,7 @@
   "col_created": "Creatum",
   "col_actions": "Actiones",
   "view_job": "Vide officium",
-  "promote_to_instance": "Promove ad memoriam instantiae",
+  "promote_to_repository": "Promove ad memoriam repositorii",
   "promoting": "Promovens…",
   "promote_error": "Memoriam promovere non potuit.",
   "pagination_showing": "Monstrans {{first}}–{{last}} ex {{total}}",
