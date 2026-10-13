@@ -19,6 +19,7 @@ RSpec.describe "Vite build config" do
       console.log(JSON.stringify({
         entryFileNames: output.entryFileNames,
         chunkFileNames: output.chunkFileNames,
+        assetFileNames: output.assetFileNames,
         nonVendor: manualChunks("/repo/app/frontend/main.tsx") ?? null,
         react: manualChunks("/repo/node_modules/react/index.js"),
         tanstack: manualChunks("/repo/node_modules/@tanstack/react-query/build/index.js"),
@@ -42,9 +43,10 @@ RSpec.describe "Vite build config" do
     JSON.parse(stdout)
   end
 
-  it "keeps the Rails SPA entrypoint logical while allowing hashed chunks" do
+  it "keeps the Rails SPA entrypoint logical and marks Vite-hashed dependencies as pre-digested" do
     expect(config.fetch("entryFileNames")).to eq("spa.js")
-    expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].js")
+    expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].digested.js")
+    expect(config.fetch("assetFileNames")).to eq("spa-[name]-[hash].digested[extname]")
   end
 
   it "splits heavyweight dependencies out of the startup bundle" do

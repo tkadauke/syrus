@@ -44,8 +44,11 @@ export default defineConfig(({ mode }) => {
         input: "app/frontend/main.tsx",
         output: {
           entryFileNames: "spa.js",
-          chunkFileNames: "spa-[name]-[hash].js",
-          assetFileNames: "spa-[name][extname]",
+          // Propshaft preserves files carrying its `.digested` marker. Without
+          // it, precompile adds a second digest while Vite's import graph still
+          // points at the original content-hashed filename.
+          chunkFileNames: "spa-[name]-[hash].digested.js",
+          assetFileNames: "spa-[name]-[hash].digested[extname]",
           manualChunks: manualVendorChunk
         }
       }
