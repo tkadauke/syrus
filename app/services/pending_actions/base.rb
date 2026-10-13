@@ -16,6 +16,25 @@ module PendingActions
       @requires_chat_session == true
     end
 
+    def self.requires_persisted_invocation!(reason = "requires a persisted pending action record")
+      @requires_persisted_invocation_reason = reason
+    end
+
+    def self.requires_persisted_invocation?
+      @requires_persisted_invocation_reason.present?
+    end
+
+    def self.api_invokable?
+      !requires_chat_session? && !requires_persisted_invocation?
+    end
+
+    def self.api_invocation_blocked_reason
+      return "requires a chat session" if requires_chat_session?
+      return @requires_persisted_invocation_reason if requires_persisted_invocation?
+
+      nil
+    end
+
     def self.action_key(key = nil)
       if key
         @action_key = key.to_s

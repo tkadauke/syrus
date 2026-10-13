@@ -2,14 +2,6 @@ module PendingActions
   class ApiInvocation
     include ActiveModel::Model
 
-    CHAT_BOUND_ACTIONS = {
-      "complete_implement_step" => "requires a Coding Mode or Local Mode chat session",
-      "emergency_land" => "requires a Coding Mode chat session",
-      "local_tool_call" => "requires a Local Mode chat session",
-      "submit_chat_feedback" => "requires a chat feedback context",
-      "submit_coding_changes" => "requires a persisted chat pending action"
-    }.freeze
-
     attr_reader :action_key, :payload, :reason, :repository, :user, :result, :before_snapshot, :after_snapshot
 
     def initialize(action_key:, payload:, reason:, user:, repository: nil)
@@ -57,6 +49,10 @@ module PendingActions
       true
     end
 
+    def update_column(name, value)
+      update!(name => value)
+    end
+
     def update_confirmation_progress!(status, step)
       @progress << { status: status, step: step, at: Time.current }
       true
@@ -79,7 +75,7 @@ module PendingActions
     end
 
     def unsupported_action_message
-      reason = CHAT_BOUND_ACTIONS[action_key]
+      reason = command_class&.api_invocation_blocked_reason
       return nil unless reason
 
       "#{action_key} #{reason} and cannot be invoked through the admin API"
