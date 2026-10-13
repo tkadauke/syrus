@@ -90,15 +90,17 @@ preview:
     - DATABASE_URL
 ```
 
-`start` may use `$PORT` or `${PORT}`; Syrus replaces it with a dynamically allocated port. `setup` runs first in the fresh preview checkout, then `seed` runs before the server starts. Setup, seed, and server commands receive the same preview environment. Any nonzero setup or seed command fails the preview instead of starting a partially prepared app. `env` sets repository-specific variables and `unset_env` strips inherited variables such as production database URLs. Use these keys for repo-specific preview guardrails rather than hardcoding repository checks into Syrus.
+`start` may use `$PORT` or `${PORT}`; Syrus replaces it with a dynamically allocated port. `setup` runs first in the fresh preview checkout, then `seed` runs before the server starts. Setup, seed, and server commands receive the same preview environment. Each setup and seed command has a 10-minute wall-clock timeout; nonzero exits, timeouts, or operator kills fail or stop the preview before Syrus starts a partially prepared app. `env` sets repository-specific variables and `unset_env` strips inherited variables such as production database URLs. Use these keys for repo-specific preview guardrails rather than hardcoding repository checks into Syrus.
 
 Monorepo repositories can define `preview:` in nested `.syrus.yml` files. A
 nested preview belongs to the project declared by that `.syrus.yml` location,
 and Syrus starts its setup, seed, start, health-check, and log commands from
-that project's directory. Root-only repositories keep the legacy behavior: a
-root `preview:` block starts from the repository root, and plugin-provided
-preview detection is still used only when no explicit `.syrus.yml` preview is
-configured.
+that project's directory. Setup and seed commands still have read/write access
+to the whole fresh checkout, so nested projects can use root lockfiles, shared
+scripts, workspace package-manager state, or root `.syrus/deps` content.
+Root-only repositories keep the legacy behavior: a root `preview:` block starts
+from the repository root, and plugin-provided preview detection is still used
+only when no explicit `.syrus.yml` preview is configured.
 
 For Job previews, Syrus compares the Job branch against its effective base and
 offers only affected projects that have a preview. If exactly one affected
@@ -187,7 +189,7 @@ repository's default branch (always present, non-shallow) and checks out
 `job.landed_sha` directly rather than passing `--branch job.branch_name`. Every
 other previewable state keeps cloning by branch name (`revision: :head`).
 
-Each preview server child process is recorded as a `SpawnedProcess` with `kind=preview`, including `pid`, `pgid`, command, workdir, and preview/job/repository identifiers in `resource_attribution`. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
+Preview setup, seed, and server child processes are recorded as `SpawnedProcess` rows with `kind=preview`, including `pid`, `pgid`, command, workdir, and available job/repository attribution. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
 
 ### Repository-scoped previews ("Preview main")
 
