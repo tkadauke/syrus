@@ -82,6 +82,8 @@ module EmergencyLand
       base = content.resolve(repository.default_branch, max_age: 0)
       head = content.resolve(job.branch_name, max_age: 0)
       content.history(base: base, head: head).commits.present?
+    rescue RepositoryContent::UnknownRevision
+      false
     end
 
     def no_commits_message

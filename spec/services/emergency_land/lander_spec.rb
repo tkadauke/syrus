@@ -157,6 +157,16 @@ RSpec.describe EmergencyLand::Lander do
       expect(result.message).to match(/no pushed commits/i)
     end
 
+    it "refuses when the coding branch has not been pushed yet" do
+      stub_repository_content(repository, ref: "main", files: {})
+      expect(client).not_to receive(:compare_commits)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to match(/no pushed commits/i)
+    end
+
     it "fails instead of treating repository content outages as no commits" do
       stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("mirror and host unavailable"))
       expect(client).not_to receive(:compare_commits)
