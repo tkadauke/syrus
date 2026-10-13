@@ -22,10 +22,12 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     )
   end
 
-  def pending_action_class(action_key, admin_only: false)
+  def pending_action_class(action_key, admin_only: false, requires_chat_session: false, requires_persisted_invocation: nil)
     Class.new(PendingActions::Base) do
       action_key action_key
       admin_only! if admin_only
+      requires_chat_session! if requires_chat_session
+      requires_persisted_invocation!(requires_persisted_invocation) if requires_persisted_invocation
     end
   end
 
@@ -160,7 +162,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
   it "keeps chat-bound pending actions out of the generic admin API exposure" do
     registry = described_class.new(
       mcp_entries: [],
-      pending_action_classes: [ pending_action_class("complete_implement_step") ],
+      pending_action_classes: [ pending_action_class("complete_implement_step", requires_chat_session: true) ],
       explicit_decisions: {
         complete_implement_step: {
           user_api: { status: "not_exposed", reason: "No user API endpoint." },
@@ -176,6 +178,29 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     expect(capability.key).to eq("complete_implement_step")
     expect(capability.decision_for(:admin_api)).not_to be_exposed
     expect(capability.decision_for(:admin_api).reason).to eq("Requires a chat session.")
+  end
+
+  it "keeps persisted-record-only pending actions out of the generic admin API exposure" do
+    registry = described_class.new(
+      mcp_entries: [],
+      pending_action_classes: [
+        pending_action_class("submit_coding_changes", requires_persisted_invocation: "Requires a persisted chat pending action.")
+      ],
+      explicit_decisions: {
+        submit_coding_changes: {
+          user_api: { status: "not_exposed", reason: "No user API endpoint." },
+          admin_api: { status: "not_exposed", reason: "Requires a persisted chat pending action." },
+          cli: { status: "not_exposed", reason: "No CLI command." },
+          mcp: { status: "not_exposed", reason: "No MCP tool." }
+        }
+      }
+    )
+
+    capability = registry.capabilities.find { |candidate| candidate.key == "submit_coding_changes" }
+
+    expect(capability.key).to eq("submit_coding_changes")
+    expect(capability.decision_for(:admin_api)).not_to be_exposed
+    expect(capability.decision_for(:admin_api).reason).to eq("Requires a persisted chat pending action.")
   end
 
   it "maps known MCP tool aliases onto their pending-action capability" do

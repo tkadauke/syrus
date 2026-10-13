@@ -6,6 +6,7 @@ module PendingActions
   # that volume, so running capture! inline here would always fail.
   class SubmitCodingChanges < Base
     action_key "submit_coding_changes"
+    requires_persisted_invocation! "requires a persisted chat pending action"
 
     def execute
       progress!("Verifying repository access...")

@@ -15,6 +15,7 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     spec_action_class
     spec_argument_error_action_class
     spec_admin_only_action_class
+    spec_chat_required_action_class
     example.run
   ensure
     PendingActions::REGISTRY.replace(original_registry)
@@ -52,6 +53,17 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     Class.new(PendingActions::Base) do
       action_key "spec_api_admin_only_action"
       admin_only!
+
+      def perform
+        nil
+      end
+    end
+  end
+
+  let(:spec_chat_required_action_class) do
+    Class.new(PendingActions::Base) do
+      action_key "spec_api_chat_required_action"
+      requires_chat_session!
 
       def perform
         nil
@@ -141,6 +153,44 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     )
   end
 
+  it "invokes close_job_successfully through the admin API and audits the enriched payload" do
+    closeable_job = Factories.job_record(user: admin, repository: job.repository, issue_number: 43, state: "approved")
+
+    expect {
+      post "/api/v1/admin/pending_actions/invoke",
+           params: {
+             action_key: "close_job_successfully",
+             reason: "operator accepted the no-change result",
+             payload: {
+               job_id: closeable_job.id,
+               closure_reason: "no_changes"
+             }
+           },
+           headers: auth(admin_token)
+    }.to change(AdminAction, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(closeable_job.reload).to be_closed
+    expect(closeable_job.closure_reason).to eq("no_changes")
+
+    audit = AdminAction.order(:id).last
+    expect(audit.action).to eq("pending_action_close_job_successfully")
+    expect(audit.params).to include(
+      "source" => "api",
+      "action" => "close_job_successfully",
+      "reason" => "operator accepted the no-change result",
+      "payload" => include(
+        "job_id" => closeable_job.id.to_s,
+        "closure_reason" => "no_changes",
+        "github_result" => include(
+          "status" => "not_applicable",
+          "message" => "Job has no tracked PR."
+        )
+      ),
+      "result" => include("type" => "Job", "id" => closeable_job.id, "slug" => closeable_job.slug)
+    )
+  end
+
   it "returns ArgumentError failures as client errors" do
     post "/api/v1/admin/pending_actions/invoke",
          params: {
@@ -179,5 +229,21 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     expect(ActiveJob::Base.queue_adapter.enqueued_jobs).not_to include(
       include(job: CodingHandoffConfirmJob)
     )
+  end
+
+  it "rejects actions declared as chat-bound without a separate API denylist" do
+    expect {
+      post "/api/v1/admin/pending_actions/invoke",
+           params: {
+             action_key: "spec_api_chat_required_action",
+             reason: "operator requested repair",
+             payload: {}
+           },
+           headers: auth(admin_token)
+    }.not_to change(AdminAction, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_pending_action_payload")
+    expect(parse_body.dig("error", "message")).to include("spec_api_chat_required_action requires a chat session")
   end
 end
