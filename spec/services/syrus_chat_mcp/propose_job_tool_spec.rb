@@ -328,7 +328,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.repository).to eq(repository)
   end
 
-  it "accepts existing Job dependencies visible through repository membership" do
+  it "creates, files, and preserves existing Job dependencies visible through repository membership" do
     repository
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 82)
     collaborator = Factories.user(email_address: "proposal-write-member@example.com", admin: false)
@@ -356,6 +356,10 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(response[:result][:isError]).to be_falsey
     proposal = collaborator_chat.proposals.find_by!(title: "Follow shared dependency")
     expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+    result = ChatProposalFiler.new(user: collaborator, repository: repository).file!([ proposal ])
+
+    expect(result.jobs.sole).to have_attributes(user: collaborator, repository: repository)
+    expect(result.jobs.sole.dependencies.sole.depends_on_job).to eq(prerequisite)
   end
 
   it "stores an explicit planned execution override on the proposal and filed Job" do
