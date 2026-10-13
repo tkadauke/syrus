@@ -1729,6 +1729,14 @@ autonomous polls wait until the reset time instead of advancing the repository
 poll watermark and failing. The unlabeled-issue count is cached rather than
 fully paginated on every tick, and linked-PR discovery is batched with
 per-issue watermarks so unchanged issues do not keep spending GraphQL calls.
+Incremental issue polls are backed by a scheduled full reconcile: by default,
+once a repository has gone 24 hours without a successful full issue poll, the
+next autonomous poll reads open trigger-labeled issues without GitHub's
+`updated_at` cursor. This bounds the case where a label was applied during a
+polling gap but the issue itself was not edited afterward. Admins can tune the
+interval with `repository_full_poll_interval_hours`; the full reconcile keeps
+the same linked-PR lookup budget as normal polls, so large backlogs are worked
+through over multiple ticks.
 
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub

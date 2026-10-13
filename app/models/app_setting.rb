@@ -103,6 +103,10 @@ class AppSetting < ApplicationRecord
     current.max_concurrent_agent_runs
   end
 
+  def self.repository_full_poll_interval_hours
+    current.repository_full_poll_interval_hours
+  end
+
   def self.user_daily_spend_budget_usd
     current.user_daily_spend_budget_usd
   end

@@ -30,7 +30,11 @@ Check these in order:
 8. The GitHub credential is not currently rate-limited. Syrus delays
    autonomous repository polls until GitHub's reset time when quota is
    exhausted.
-9. A worker is running the default queue, where
+9. If the issue was labeled during downtime or another ingestion gap and was
+   not edited afterward, wait for the repository's full reconcile window. The
+   default is 24 hours and admins can tune it with
+   `repository_full_poll_interval_hours`.
+10. A worker is running the default queue, where
    `PollAllRepositoriesJob` and `PollRepositoryJob` run.
 
 To force a quick check from the UI, open the repository in Syrus and use
