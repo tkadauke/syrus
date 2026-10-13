@@ -50,7 +50,7 @@ module Admission
     def window = @now.beginning_of_day..@now.end_of_day
 
     def run_spend
-      ::Run.where(user_id: @user.id, created_at: window).sum(:cost_usd).to_f
+      ::Run.where(user_id: @user.id, finished_at: window).sum(:cost_usd).to_f
     end
 
     def chat_spend
