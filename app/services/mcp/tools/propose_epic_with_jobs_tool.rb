@@ -181,6 +181,11 @@ module Mcp::Tools
 
         epic_repository = target_epic&.repository || repository_for(user, chat_session, normalized_epic[:target_repo])
         return Mcp::Tools.invalid("unknown epic target_repo: #{normalized_epic[:target_repo]}") unless epic_repository
+        unless RepositoryPolicy.new(user, epic_repository).write?
+          return Mcp::Tools.invalid(
+            "Only a repository member with write access, or an admin, can propose an Epic for #{epic_repository.slug}."
+          )
+        end
         if target_epic && normalized_epic[:target_repo].present? && normalized_epic[:target_repo] != epic_repository.slug
           return Mcp::Tools.invalid("epic target_repo must match existing Epic repository")
         end
@@ -404,19 +409,21 @@ module Mcp::Tools
         return "unknown depends_on slug(s): #{unknown.join(', ')}" if unknown.any?
         target_error = invalid_dependency_target_message(known_cross_card_proposals.filter_map(&:job))
         return target_error if target_error
-        unknown_job_ids = epic[:depends_on_job_ids] - user.jobs.where(id: epic[:depends_on_job_ids]).pluck(:id)
+        accessible_jobs = Job.accessible_to(user)
+        accessible_epics = Epic.accessible_to(user)
+        unknown_job_ids = epic[:depends_on_job_ids] - accessible_jobs.where(id: epic[:depends_on_job_ids]).pluck(:id)
         return "unknown epic depends_on_job_ids: #{unknown_job_ids.join(', ')}" if unknown_job_ids.any?
-        target_error = invalid_dependency_target_message(user.jobs.where(id: epic[:depends_on_job_ids]))
+        target_error = invalid_dependency_target_message(accessible_jobs.where(id: epic[:depends_on_job_ids]))
         return target_error if target_error
         unknown_epic_ids = jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq
-        unknown_epic_ids -= user.epics.where(id: unknown_epic_ids).pluck(:id)
+        unknown_epic_ids -= accessible_epics.where(id: unknown_epic_ids).pluck(:id)
         return "unknown job depends_on_epic_ids: #{unknown_epic_ids.join(', ')}" if unknown_epic_ids.any?
-        target_error = invalid_dependency_target_message(user.epics.where(id: jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq))
+        target_error = invalid_dependency_target_message(accessible_epics.where(id: jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq))
         return target_error if target_error
         unknown_job_dep_ids = jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq
-        unknown_job_dep_ids -= user.jobs.where(id: unknown_job_dep_ids).pluck(:id)
+        unknown_job_dep_ids -= accessible_jobs.where(id: unknown_job_dep_ids).pluck(:id)
         return "unknown job depends_on_job_ids: #{unknown_job_dep_ids.join(', ')}" if unknown_job_dep_ids.any?
-        target_error = invalid_dependency_target_message(user.jobs.where(id: jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq))
+        target_error = invalid_dependency_target_message(accessible_jobs.where(id: jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq))
         return target_error if target_error
         return "depends_on would create a cycle" if cyclic?(jobs)
         linear_chain_error = linear_chain_violation_message(jobs, target_epic)
@@ -479,7 +486,7 @@ module Mcp::Tools
         depends_on.each do |token|
           if token.match?(/\Aepic:\d+\z/)
             epic_id = token.split(":", 2).last
-            epic = user.epics.find_by(id: epic_id)
+            epic = Epic.accessible_to(user).find_by(id: epic_id)
             return "unknown depends_on Epic id: #{epic_id}" unless epic
 
             target_error = invalid_dependency_target_message([ epic ])
@@ -520,13 +527,13 @@ module Mcp::Tools
 
         # Cross-repo Epic proposals are allowed only within the current user's
         # active repository scope.
-        user.repositories.active.find_by(owner: owner, name: name)
+        Repository.accessible_to(user).active.find_by(owner: owner, name: name)
       end
 
       def target_epic_for(user, epic_id)
         return unless epic_id
 
-        user.epics.includes(:repository).find_by(id: epic_id)
+        Epic.accessible_to(user).includes(:repository).find_by(id: epic_id)
       end
 
       def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs)
