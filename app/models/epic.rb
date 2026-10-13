@@ -129,6 +129,7 @@ class Epic < ApplicationRecord
       transitions from: :in_progress, to: :done, guards: [ :complete?, :actor_can_advance? ], after: -> {
         stamp_done_at
         notify_epic_completed
+        close_tracking_issue_later
       }
     end
 
@@ -146,6 +147,28 @@ class Epic < ApplicationRecord
   end
 
   alias_method :display_number, :slug
+
+  # The tracking issue's number, or nil when this Epic has no GitHub issue --
+  # one created through `syrus epic create` rather than from an issue marker.
+  def github_issue_number
+    github_issue_url.to_s[%r{/issues/(\d+)\z}, 1]&.to_i
+  end
+
+  # A finished Epic's tracking issue used to stay open and labeled forever,
+  # which left it in the poller's open-issue listing. That is harmless only
+  # while its marker still parses; when the marker contract changed, those
+  # stale issues fell through to ordinary ingestion and each became a work Job
+  # on an Epic whose children had already shipped. Closing the issue takes it
+  # out of the listing entirely, so it cannot be re-ingested however the
+  # marker format evolves later.
+  #
+  # Enqueued rather than called inline: this is an HTTP round trip hanging off
+  # a state transition, and a GitHub hiccup must not fail the completion.
+  def close_tracking_issue_later
+    return if github_issue_number.nil?
+
+    CloseEpicTrackingIssueJob.perform_later(id)
+  end
 
   def notify_epic_completed
     jobs.includes(:owner_user, :user).map { |job| job.owner_user || job.user }.uniq.each do |owner|

@@ -243,6 +243,29 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(job.issue_body).to eq("Epic: Attachments rollout")
     end
 
+    # An Epic tracking issue stays open and labeled after the Epic completes,
+    # so the poller keeps seeing it. When the marker contract moved to an
+    # explicit `<!-- syrus-epic -->` comment, every issue still using the old
+    # leading `Epic:` line stopped parsing and was ingested as ordinary work:
+    # an agent implemented the Epic's own summary as a task, on an Epic whose
+    # children had already shipped. Recognizing the existing Epic record keeps
+    # that idempotent without loosening the parser.
+    it "does not ingest an issue already known as an Epic, even when its marker no longer parses" do
+      Factories.epic(
+        user: user,
+        repository: repository,
+        title: "Attachments rollout",
+        github_issue_url: "https://github.com/#{repository.slug}/issues/77"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(number: 77, body: "Epic: Attachments rollout") ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(0)
+        .and change(Epic, :count).by(0)
+    end
+
     it "parses Epic Depends-on references while ingesting an Epic marker declaration" do
       prerequisite = Factories.epic(
         user: user,

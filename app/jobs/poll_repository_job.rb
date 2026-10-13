@@ -356,6 +356,21 @@ class PollRepositoryJob < ApplicationJob
     marker = EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
     return ingest_epic_marker!(marker, issue, repository) if marker
 
+    # An issue Syrus already knows as an Epic is never work, whatever its body
+    # currently says. Without this, an Epic tracking issue whose marker no
+    # longer parses falls through and is ingested as an ordinary Job: an agent
+    # then implements the Epic's summary as though it were a task, on an Epic
+    # whose children have already shipped, producing vague cleanup PRs. Ten of
+    # those were created in one hour on this repository after the marker
+    # contract moved from a leading `Epic:` line to an explicit
+    # `<!-- syrus-epic -->` comment and the issues already using the old form
+    # were not migrated.
+    #
+    # Checking the Epic record rather than loosening the parser keeps the
+    # explicit-marker contract intact for new issues -- ordinary prose must
+    # still never route -- while making the one case that matters idempotent.
+    return :epic if existing_epic_for_issue?(repository, issue)
+
     prior = prior_jobs_by_issue_number[issue.number]
 
     # Look up linked PRs for any issue we might still act on — i.e.
@@ -455,6 +470,10 @@ class PollRepositoryJob < ApplicationJob
 
   def ingest_epic_marker!(marker, issue, repository)
     send(:"ingest_#{marker[:kind]}!", marker, issue, repository)
+  end
+
+  def existing_epic_for_issue?(repository, issue)
+    Epic.exists?(repository: repository, github_issue_url: issue_url(repository, issue.number))
   end
 
   def ingest_epic_declaration!(marker, issue, repository)
