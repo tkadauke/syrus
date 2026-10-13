@@ -142,7 +142,7 @@ RSpec.describe RepoGradePlan do
       expect(grader.timeout_minutes).to eq(90)
     end
 
-    it "returns an empty parse-error plan for unsafe or duplicate names" do
+    it "raises a parse error for unsafe or duplicate names" do
       write(".syrus.yml", <<~YAML)
         grade:
           steps:
@@ -154,10 +154,7 @@ RSpec.describe RepoGradePlan do
               run: echo duplicate
       YAML
 
-      result = described_class.for(@dir)
-
-      expect(result.graders).to be_empty
-      expect(result.note).to match(/must match/)
+      expect { described_class.for(@dir) }.to raise_error(SyrusYml::ParseError, /must match/)
     end
 
     it "returns an empty plan when grade steps are absent" do
@@ -177,14 +174,35 @@ RSpec.describe RepoGradePlan do
       expect(result.note).to eq("no .syrus.yml")
     end
 
-    it "returns an empty parse-error plan for invalid YAML" do
+    it "raises a parse error for invalid YAML" do
       write(".syrus.yml", "grade:\n  - name: tests\n    run: [\n")
 
-      result = described_class.for(@dir)
+      expect { described_class.for(@dir) }.to raise_error(SyrusYml::ParseError, /YAML parse error/)
+    end
 
-      expect(result.graders).to be_empty
-      expect(result.source).to eq(".syrus.yml")
-      expect(result.note).to match(/YAML parse error/)
+    it "raises a parse error for a malformed grade section" do
+      write(".syrus.yml", "grade: true\n")
+
+      expect { described_class.for(@dir) }.to raise_error(
+        SyrusYml::ParseError,
+        /grade: must be a mapping or an array of steps/
+      )
+    end
+
+    it "raises a parse error when legacy ci expansion collides with another grader name" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            ci: bin/rspec-ci
+          - name: tests-ci
+            run: bin/custom-ci
+      YAML
+
+      expect { described_class.for(@dir) }.to raise_error(
+        SyrusYml::ParseError,
+        /legacy ci expansion conflicts/
+      )
     end
 
     it "exposes normalized max_iterations" do

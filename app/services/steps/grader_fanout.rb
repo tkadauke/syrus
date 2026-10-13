@@ -865,6 +865,8 @@ module Steps
 
     def graph_grade_plan
       TargetGraph::GradePlan.for(workspace_path: workspace.path, graph: target_graph)
+    rescue SyrusYml::ParseError => e
+      raise StepFailed, ".syrus.yml grade config is invalid: #{e.message}"
     end
 
     # One entry per transitive `kind: prepare` dependency target, in
