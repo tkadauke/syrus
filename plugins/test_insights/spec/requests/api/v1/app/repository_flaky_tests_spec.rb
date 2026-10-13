@@ -40,6 +40,36 @@ RSpec.describe "App API repository flaky tests", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "returns flaky tests for a repository collaborator who does not own the repository" do
+      collaborator = Factories.user(email_address: "collaborator@example.com")
+      repo.repository_memberships.create!(user: collaborator, role: "read")
+      tr = make_test_run
+      make_test_case(test_run: tr, name: "shared flaky test", status: "failed")
+      make_test_case(test_run: tr, name: "shared flaky test", status: "passed")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/repositories/#{repo.id}/flaky_tests"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["tests"].map { |test| test["name"] }).to eq([ "shared flaky test" ])
+    end
+
+    it "returns flaky tests for a team-granted repository user who does not own the repository" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      team = Team.create!(name: "Flaky Test Readers")
+      team.team_memberships.create!(user: teammate, role: "member")
+      team.team_repositories.create!(repository: repo, role: "read")
+      tr = make_test_run
+      make_test_case(test_run: tr, name: "team flaky test", status: "failed")
+      make_test_case(test_run: tr, name: "team flaky test", status: "passed")
+      sign_in_as(teammate)
+
+      get "/api/v1/app/repositories/#{repo.id}/flaky_tests"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["tests"].map { |test| test["name"] }).to eq([ "team flaky test" ])
+    end
+
     it "returns empty tests array when no test cases exist" do
       get "/api/v1/app/repositories/#{repo.id}/flaky_tests"
 
