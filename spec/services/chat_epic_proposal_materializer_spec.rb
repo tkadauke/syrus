@@ -83,6 +83,41 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "refuses to materialize pre-existing bundles for read-tier collaborators" do
+    repository
+    collaborator = Factories.user(email_address: "materializer-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    collaborator_session = ChatSession.create!(user: collaborator, repository: repository)
+    proposal = collaborator_session.proposals.create!(
+      slug: "read-only-bundle",
+      title: "Read-only bundle",
+      body: "This proposal is visible but must not be filed.",
+      kind: "epic",
+      repository: repository
+    )
+    proposal.child_proposals.create!(
+      chat_session: collaborator_session,
+      slug: "read-only-child",
+      title: "Read-only child",
+      body: "This should not become a Job.",
+      repository: repository
+    )
+    counts = {
+      epics: Epic.count,
+      jobs: Job.count,
+      proposals_confirmed: ChatProposal.confirmed.count
+    }
+
+    expect {
+      described_class.new(user: collaborator).file!(proposal)
+    }.to raise_error(ArgumentError, /write access/)
+
+    expect(Epic.count).to eq(counts.fetch(:epics))
+    expect(Job.count).to eq(counts.fetch(:jobs))
+    expect(ChatProposal.confirmed.count).to eq(counts.fetch(:proposals_confirmed))
+    expect(proposal.reload).to be_proposed
+  end
+
   it "keeps Epic child Jobs on the current materialization path even when a child proposal carries backlog route metadata" do
     proposal = epic_proposal
     child = proposal.child_proposals.create!(
