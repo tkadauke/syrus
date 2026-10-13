@@ -154,6 +154,65 @@ RSpec.describe "App API job test results", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "returns test results for a repository collaborator who does not own the job" do
+      owner = Factories.user(email_address: "owner@example.com")
+      shared_repo = Factories.repository(user: owner)
+      collaborator = Factories.user(email_address: "collaborator@example.com")
+      shared_repo.repository_memberships.create!(user: collaborator, role: "read")
+      job = Factories.job(user: owner, repository: shared_repo)
+      test_run = TestInsights::TestRun.create!(
+        run: job.initial_run,
+        repository: shared_repo,
+        grader_name: "rspec",
+        total_count: 1,
+        passed_count: 1,
+        failed_count: 0,
+        skipped_count: 0,
+        error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: test_run,
+        repository: shared_repo,
+        name: "works for collaborators",
+        suite_name: "SharedSpec",
+        status: "passed"
+      )
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/jobs/#{job.id}/test_results"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["job_id"]).to eq(job.id)
+      expect(body.dig("test_runs", 0, "suites", 0, "test_cases", 0, "name")).to eq("works for collaborators")
+    end
+
+    it "returns test results for a team-granted repository user who does not own the job" do
+      owner = Factories.user(email_address: "team-owner@example.com")
+      shared_repo = Factories.repository(user: owner)
+      teammate = Factories.user(email_address: "teammate@example.com")
+      team = Team.create!(name: "Test Insights Readers")
+      team.team_memberships.create!(user: teammate, role: "member")
+      team.team_repositories.create!(repository: shared_repo, role: "read")
+      job = Factories.job(user: owner, repository: shared_repo)
+      TestInsights::TestRun.create!(
+        run: job.initial_run,
+        repository: shared_repo,
+        grader_name: "rspec",
+        total_count: 0,
+        passed_count: 0,
+        failed_count: 0,
+        skipped_count: 0,
+        error_count: 0
+      )
+      sign_in_as(teammate)
+
+      get "/api/v1/app/jobs/#{job.id}/test_results"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["job_id"]).to eq(job.id)
+    end
+
     it "returns test cases with all expected fields" do
       job = Factories.job(user: user, repository: repo)
       run = job.initial_run
