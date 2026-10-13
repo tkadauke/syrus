@@ -38,6 +38,25 @@ module Admin
       "admin_maintenance_tasks" => "admin_maintenance_task"
     }.freeze
 
+    STATIC_CAPABILITIES = {
+      personal_api_token: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "POST /api/v1/app/desktop/api_token" },
+            { source: "user_api", name: "POST /api/v1/app/credentials/rotate_api_token" },
+            { source: "user_api", name: "DELETE /api/v1/app/credentials/revoke_api_token" }
+          ],
+          cli: [
+            { source: "cli", name: "Authorization: Bearer <api_token>" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "Personal API token lifecycle belongs to the user API, not the instance-admin API." },
+          mcp: { status: "not_exposed", reason: "MCP uses scoped invocation credentials instead of durable personal API tokens." }
+        }
+      }
+    }.freeze
+
     PENDING_ACTION_CAPABILITIES = %w[
       admin_cleanup_workspace
       admin_clear_github_cache
@@ -133,6 +152,11 @@ module Admin
         end
       end
 
+      STATIC_CAPABILITIES.each do |key, definition|
+        decisions[key.to_s] ||= {}
+        decisions[key.to_s].merge!(definition.fetch(:decisions, {}))
+      end
+
       decisions.transform_values(&:freeze).freeze
     end
 
@@ -149,7 +173,7 @@ module Admin
     def initialize(mcp_entries: McpToolRegistry.entries, pending_action_classes: nil, explicit_decisions: EXPLICIT_SURFACE_DECISIONS)
       @mcp_entries = mcp_entries
       @pending_action_classes = pending_action_classes
-      @explicit_decisions = explicit_decisions.deep_symbolize_keys
+      @explicit_decisions = static_explicit_decisions.deep_merge(explicit_decisions.deep_symbolize_keys)
     end
 
     def capabilities
@@ -182,11 +206,15 @@ module Admin
     attr_reader :mcp_entries, :pending_action_classes, :explicit_decisions
 
     def capability_keys
-      (mcp_capability_sources.keys + pending_action_sources.keys).uniq.sort
+      (static_capability_sources.keys + mcp_capability_sources.keys + pending_action_sources.keys).uniq.sort
     end
 
     def sources_for(key)
-      (mcp_capability_sources.fetch(key, []) + pending_action_sources.fetch(key, [])).sort_by { |source| [ source.fetch(:source), source.fetch(:name) ] }
+      (
+        static_capability_sources.fetch(key, {}).values.flatten +
+          mcp_capability_sources.fetch(key, []) +
+          pending_action_sources.fetch(key, [])
+      ).sort_by { |source| [ source.fetch(:source), source.fetch(:name) ] }
     end
 
     def decisions_for(key)
@@ -201,10 +229,25 @@ module Admin
     end
 
     def exposed_sources_for(key, surface)
+      return static_capability_sources.dig(key, surface) || [] if static_capability_sources.key?(key) && static_capability_sources.dig(key, surface).present?
       return mcp_capability_sources.fetch(key, []) if surface == :mcp
       return admin_api_pending_action_sources_for(key) if surface == :admin_api
 
       []
+    end
+
+    def static_capability_sources
+      @static_capability_sources ||= STATIC_CAPABILITIES.transform_values do |definition|
+        definition.fetch(:sources, {}).transform_keys(&:to_sym).transform_values do |sources|
+          sources.map(&:symbolize_keys)
+        end
+      end.transform_keys(&:to_s)
+    end
+
+    def static_explicit_decisions
+      STATIC_CAPABILITIES.transform_values { |definition| definition.fetch(:decisions, {}) }
+        .transform_keys(&:to_sym)
+        .deep_symbolize_keys
     end
 
     def admin_api_pending_action_sources_for(key)
