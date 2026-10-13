@@ -23,9 +23,7 @@ RSpec.describe EmergencyLand::Lander do
   let(:client) { instance_double(GithubClient) }
 
   def stub_ahead_commits(commits: [ { sha: "abc123" } ])
-    allow(client).to receive(:compare_commits)
-      .with("acme/widgets", "main", "syrus/emergency-1")
-      .and_return(commits: commits, merge_base_sha: "base", status: commits.present? ? "ahead" : nil)
+    stub_repository_history(repository, base: "main", head: "syrus/emergency-1", commits: commits, merge_base_sha: "base")
   end
 
   def stub_open_pr(number: 9)
@@ -55,6 +53,7 @@ RSpec.describe EmergencyLand::Lander do
       stub_open_pr(number: 9)
       stub_mergeable_pr(number: 9)
       stub_merge(number: 9, sha: "mergedsha123")
+      expect(client).not_to receive(:compare_commits)
 
       result = described_class.land(job: job, user: owner, client: client)
 
@@ -156,6 +155,16 @@ RSpec.describe EmergencyLand::Lander do
 
       expect(result).to be_refused
       expect(result.message).to match(/no pushed commits/i)
+    end
+
+    it "fails instead of treating repository content outages as no commits" do
+      stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("mirror and host unavailable"))
+      expect(client).not_to receive(:compare_commits)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_failure
+      expect(result.message).to match(/Repository content error/i)
     end
 
     it "refuses when GitHub reports the PR as not mergeable" do
