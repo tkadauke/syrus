@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
   const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
 
   return {
+    // Rails serves the production bundle through Propshaft's /assets mount.
+    // Vite uses this base for CSS and module dependencies preloaded by lazy
+    // imports, while static chunk imports remain relative to their importer.
+    base: "/assets/",
     plugins: [react()],
     resolve: {
       alias: {

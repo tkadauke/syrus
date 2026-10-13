@@ -17,6 +17,7 @@ RSpec.describe "Vite build config" do
       const manualChunks = output.manualChunks;
 
       console.log(JSON.stringify({
+        base: result.config.base,
         entryFileNames: output.entryFileNames,
         chunkFileNames: output.chunkFileNames,
         assetFileNames: output.assetFileNames,
@@ -44,6 +45,7 @@ RSpec.describe "Vite build config" do
   end
 
   it "keeps the Rails SPA entrypoint logical and marks Vite-hashed dependencies as pre-digested" do
+    expect(config.fetch("base")).to eq("/assets/")
     expect(config.fetch("entryFileNames")).to eq("spa.js")
     expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].digested.js")
     expect(config.fetch("assetFileNames")).to eq("spa-[name]-[hash].digested[extname]")
