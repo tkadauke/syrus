@@ -27,6 +27,15 @@ RSpec.describe Steps::Grade do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("no graders configured")
   end
 
+  it "fails when the grade config is invalid instead of treating it as no graders" do
+    write_config("grade:\n  - name: tests\n    run: [\n")
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /\.syrus\.yml grade config is invalid: YAML parse error/
+    )
+  end
+
   it "runs all graders, writes log files, and records passing artifacts" do
     write_config <<~YAML
       grade:
