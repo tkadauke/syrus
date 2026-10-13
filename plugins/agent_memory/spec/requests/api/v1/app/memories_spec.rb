@@ -126,6 +126,25 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(parse_body["message"]).to eq("Memory created.")
   end
 
+  it "rejects creating a repository memory for a repository not owned by the current user" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/memories", params: {
+        memory: {
+          kind: "project_fact",
+          scope: "repository",
+          scope_id: other_repository.id,
+          content: "Trust this build flag."
+        }
+      }
+    }.not_to change { AgentMemory::Entry.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to eq("Repository must belong to the memory owner.")
+  end
+
   it "updates content and kind" do
     sign_in_as(user)
     memory = memory_for(user, kind: "reference")
@@ -224,6 +243,22 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(memory.reload.published).to be(false)
+  end
+
+  it "rejects publishing repository memories whose repository is not owned by the memory owner" do
+    sign_in_as(user)
+    memory = memory_for(user, scope_id: other_repository.id, published: false)
+
+    post "/api/v1/app/memories/#{memory.id}/publish"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(memory.reload.published).to be(false)
+
+    get "/api/v1/app/memories"
+
+    row = parse_body["memories"].find { |item| item["id"] == memory.id }
+    expect(row.dig("permissions", "can_publish")).to be(false)
   end
 
   it "rejects publishing global memories" do
