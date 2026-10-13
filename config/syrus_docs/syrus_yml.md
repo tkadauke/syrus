@@ -529,6 +529,10 @@ base-revision retry behavior from one declaration. Repository-specific checks
 can still use explicit shell `run:` commands. All required graders must pass
 before the workflow succeeds.
 
+If `.syrus.yml` is absent or has no `grade:` block, grading is a no-op. If a
+`grade:` block is present but malformed, grading fails before running checks
+instead of silently treating the repository as having no graders.
+
 ```yaml
 grade:
   max_iterations: 5
