@@ -2,19 +2,19 @@ module AgentInsights
   class Scheduler
     # Enqueues an agent_insight Job for the given repository if no insight job is
     # currently queued or running. Returns the newly created Job, or nil if skipped.
-    def self.enqueue_if_idle!(repository)
-      return if repository.jobs.where(kind: "agent_insight").where.not(state: "closed").exists?
+    def self.enqueue_if_idle!(repository, user: nil)
+      repository.with_lock do
+        next if repository.jobs.where(kind: "agent_insight").where.not(state: "closed").exists?
 
-      user = repository.user
-      return unless user
+        enqueue_user = user || repository.user
+        next unless enqueue_user
 
-      Job.transaction do
-        j = user.jobs.create!(
+        j = enqueue_user.jobs.create!(
           repository: repository,
           kind: "agent_insight",
           issue_number: nil,
           issue_title: "Insight analysis: #{repository.slug}",
-          owner_user: user
+          owner_user: enqueue_user
         )
         WorkUnits::Launcher.create_and_start!(kind: "agent_insight", job: j)
         j
