@@ -11,6 +11,10 @@ configured. Framework plugins can also provide typed graders that own the
 normal command shape, JSON/JUnit output, and base-revision retry metadata for
 common test frameworks.
 
+When `.syrus.yml` is absent or has no `grade:` block, grading is a no-op.
+When a `grade:` block exists but is malformed, Syrus fails the grading step
+before running checks so a typo cannot silently disable validation.
+
 ## Phases
 
 Each grader can declare the phases where it should run:
