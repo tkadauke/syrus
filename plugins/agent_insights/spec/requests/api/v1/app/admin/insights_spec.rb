@@ -317,7 +317,7 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       sign_in_as(admin)
     end
 
-    it "creates an instance-scoped ::AgentMemory::Entry from the memory_suggestion" do
+    it "creates a published repository-scoped ::AgentMemory::Entry from the memory_suggestion" do
       suggestion = create_suggestion(memory_suggestion: "Always check the logs first")
 
       expect {
@@ -329,12 +329,16 @@ RSpec.describe "Admin API insight suggestions", type: :request do
 
       memory = ::AgentMemory::Entry.last
       expect(memory.kind).to eq("project_fact")
-      expect(memory.scope).to eq("instance")
-      expect(memory.scope_id).to be_nil
+      expect(memory.scope).to eq("repository")
+      expect(memory.scope_id).to eq(repository.id)
+      expect(memory).to be_published
       expect(memory.source_type).to eq("insight")
       expect(memory.source_id).to eq(suggestion.id)
       expect(memory.author).to eq("admin")
       expect(memory.content).to eq("Always check the logs first")
+      expect(::AgentMemory::Entry.visible_to(admin, repository)).to include(memory)
+      expect(::AgentMemory::PromptContext.new(user: other_user, repository_ids: [ repository.id ]).to_s)
+        .to include("- [#{memory.id}] project_fact: Always check the logs first")
     end
 
     it "redacts GitHub credentials before promoting a memory from a suggestion" do
