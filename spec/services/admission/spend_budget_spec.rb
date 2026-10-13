@@ -3,9 +3,9 @@ require "rails_helper"
 RSpec.describe Admission::SpendBudget do
   let(:user) { Factories.user }
 
-  def spend!(amount, at: Time.current)
+  def spend!(amount, at: Time.current, created_at: at)
     job = Factories.job_with_run(user: user)
-    job.runs.first.update!(user: user, cost_usd: amount, created_at: at)
+    job.runs.first.update!(user: user, cost_usd: amount, created_at: created_at, finished_at: at)
   end
 
   it "uses the configured default budget when no explicit budget is supplied" do
@@ -49,6 +49,15 @@ RSpec.describe Admission::SpendBudget do
     expect(described_class.for(user: user, budget_usd: 10)).not_to be_over_budget
   end
 
+  it "counts run spend on the day the cost was written" do
+    spend!(10, created_at: 1.day.ago, at: Time.current)
+
+    result = described_class.for(user: user, budget_usd: 10)
+
+    expect(result).to be_over_budget
+    expect(result.spent_usd).to be_within(0.001).of(10)
+  end
+
   it "reports when the budget resets, since that is when work resumes" do
     spend!(10)
 
@@ -58,7 +67,7 @@ RSpec.describe Admission::SpendBudget do
   it "counts only this user's spend" do
     other = Factories.user
     job = Factories.job_with_run(user: other)
-    job.runs.first.update!(user: other, cost_usd: 100)
+    job.runs.first.update!(user: other, cost_usd: 100, finished_at: Time.current)
 
     expect(described_class.for(user: user, budget_usd: 10)).not_to be_over_budget
   end
