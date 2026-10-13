@@ -216,18 +216,26 @@ RSpec.describe Steps::PreflightGraderCollect do
   end
 
   context "when no preflight grader steps exist (no graders configured)" do
-    it "sets the preflight_passed artifact" do
+    it "does not set the preflight_passed artifact" do
       handler.call
 
-      expect(workflow.reload.artifact("preflight_passed")).to be true
+      expect(workflow.reload.artifact("preflight_passed")).to be_nil
     end
 
-    it "skips downstream steps" do
+    it "does not skip downstream steps" do
       downstream = create_downstream_steps
 
       handler.call
 
-      expect(downstream.map { |s| s.reload.state }).to all(eq("skipped"))
+      expect(downstream.map { |s| s.reload.state }).to all(eq("queued"))
+    end
+
+    it "logs that repair should continue through implement" do
+      handler.call
+
+      log_text = run.reload.job_logs.pluck(:chunk).join
+      expect(log_text).to include("no preflight graders ran")
+      expect(log_text).to include("proceeding to implement")
     end
   end
 
