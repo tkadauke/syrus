@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatJobStatusPayload, ChatJobStatusPendingProposal, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
+import type { JobDetailPayload, JobRun, JobStep, JobWorkflow, JobWorkflowsPayload } from "../api/jobs"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
@@ -52,6 +53,7 @@ export type AppEvent = {
   type: string
   resource?: string
   id?: number | string | null
+  job_id?: number | string | null
   // Per-user, monotonically increasing across every AppEvents.broadcast
   // call regardless of resource -- lets the client detect a dropped
   // delivery (a gap) or a network-level duplicate/replay without relying
@@ -147,6 +149,86 @@ function entityFieldsFromEventPayload(payload: unknown): Record<string, unknown>
   return fields && typeof fields === "object" && !Array.isArray(fields) ? fields as Record<string, unknown> : null
 }
 
+function patchJobResourceQueries(queryClient: QueryClient, event: AppEvent, fields: Record<string, unknown>) {
+  if (event.job_id == null || event.id == null) return
+  if (event.resource !== "workflow" && event.resource !== "step" && event.resource !== "run") return
+
+  const patch = event.revision == null ? fields : { ...fields, entity_revision: event.revision }
+  const jobId = String(event.job_id)
+  queryClient.setQueriesData<JobDetailPayload | JobWorkflowsPayload>(
+    { predicate: (query) => jobWorkflowPayloadQuery(query.queryKey, jobId) },
+    (current) => current ? patchJobWorkflowPayload(current, event, patch) : current
+  )
+}
+
+function jobWorkflowPayloadQuery(queryKey: QueryKey, jobId: string) {
+  return queryKey.length >= 3 &&
+    queryKey[0] === "jobs" &&
+    queryKey[1] === jobId &&
+    (queryKey[2] === "detail" || queryKey[2] === "workflows")
+}
+
+function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayload>(payload: T, event: AppEvent, fields: Record<string, unknown>): T {
+  const workflows = patchWorkflows(payload.workflows, event, fields)
+  let patched = workflows !== payload.workflows
+  const next = { ...payload, workflows }
+  if ("work_units" in payload && Array.isArray(payload.work_units)) {
+    next.work_units = payload.work_units.map((workUnit) => {
+      if (!workUnit.workflow) return workUnit
+
+      const [ workflow ] = patchWorkflows([ workUnit.workflow ], event, fields)
+      if (workflow !== workUnit.workflow) patched = true
+      return workflow === workUnit.workflow ? workUnit : { ...workUnit, workflow }
+    })
+  }
+  if (!patched) return payload
+  return next as T
+}
+
+function patchWorkflows(workflows: JobWorkflow[], event: AppEvent, fields: Record<string, unknown>) {
+  let patched = false
+  const id = String(event.id)
+  const next = workflows.map((workflow) => {
+    const updated = patchWorkflow(workflow, event, id, fields)
+    if (updated !== workflow) patched = true
+    return updated
+  })
+  return patched ? next : workflows
+}
+
+function patchWorkflow(workflow: JobWorkflow, event: AppEvent, id: string, fields: Record<string, unknown>): JobWorkflow {
+  if (event.resource === "workflow") {
+    return String(workflow.id) === id ? { ...workflow, ...fields } : workflow
+  }
+
+  let patched = false
+  const steps = workflow.steps.map((step) => {
+    const updated = patchStep(step, event, id, fields)
+    if (updated !== step) patched = true
+    return updated
+  })
+  return patched ? { ...workflow, steps } : workflow
+}
+
+function patchStep(step: JobStep, event: AppEvent, id: string, fields: Record<string, unknown>): JobStep {
+  if (event.resource === "step") {
+    return String(step.id) === id ? { ...step, ...fields } : step
+  }
+
+  let patched = false
+  const runs = step.runs.map((run) => {
+    const updated = patchRun(run, event, id, fields)
+    if (updated !== run) patched = true
+    return updated
+  })
+  return patched ? { ...step, runs } : step
+}
+
+function patchRun(run: JobRun, event: AppEvent, id: string, fields: Record<string, unknown>): JobRun {
+  if (event.resource !== "run") return run
+  return String(run.id) === id ? { ...run, ...fields } : run
+}
+
 type NotificationsCache = {
   notifications: Array<{ id: number; read_at: string | null }>
   unread_count: number
@@ -177,7 +259,9 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   const sequenceOutcome = trackAppEventSequence(queryClient, event)
   if (sequenceOutcome === "duplicate") return
 
+  const patchedFields = entityFieldsFromEventPayload(event.payload)
   applyAppEventToEntityStore(event)
+  if (patchedFields) patchJobResourceQueries(queryClient, event, patchedFields)
   if (sequenceOutcome === "gap") {
     recordClientMetric("revision_gap_recoveries", resourceTagFor(event.resource))
     recoverEventResourceContinuity(queryClient, event)

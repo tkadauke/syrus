@@ -66,7 +66,7 @@ class AppEvents
   def self.broadcast_job_resource(job_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
     ActionCable.server.broadcast(
       JobChannel.stream_name(job_id),
-      resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
+      resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at).merge("job_id" => job_id)
     )
     record_delivery(resource)
   end
