@@ -623,6 +623,80 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(ui.dependencies.pluck(:slug)).to eq([ "export-schema" ])
   end
 
+  it "creates an Epic proposal for a write-tier repository member using an explicit shared target_repo" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "widgets")
+    member = Factories.user(admin: false)
+    shared_repository.repository_memberships.create!(user: member, role: "write")
+    shared_chat = ChatSession.create!(user: member, repository: shared_repository)
+    shared_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: shared_chat }
+    )
+
+    response = jsonrpc(
+      shared_server,
+      "tools/call",
+      params: {
+        name: "propose_epic_with_jobs",
+        arguments: {
+          epic: { slug: "shared-epic", title: "Shared Epic", description: "Build shared work.", target_repo: shared_repository.slug },
+          jobs: [
+            {
+              slug: "shared-child",
+              target_repo: shared_repository.slug,
+              title: "Shared child",
+              description: "Build it.",
+              planned_execution: default_planned_execution
+            }
+          ]
+        }
+      }
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = shared_chat.proposals.find_by!(slug: "shared-epic")
+    expect(proposal.repository).to eq(shared_repository)
+  end
+
+  it "creates grouped child Job proposals for a write-tier member targeting an existing shared Epic" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "roadmap")
+    target_epic = Factories.epic(user: owner, repository: shared_repository, title: "Shared roadmap", description: "Existing shared work.")
+    member = Factories.user(admin: false)
+    shared_repository.repository_memberships.create!(user: member, role: "write")
+    shared_chat = ChatSession.create!(user: member, repository: shared_repository)
+    shared_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: shared_chat }
+    )
+
+    response = jsonrpc(
+      shared_server,
+      "tools/call",
+      params: {
+        name: "propose_epic_with_jobs",
+        arguments: {
+          epic: { slug: "extend-shared", epic_id: target_epic.id },
+          jobs: [
+            {
+              slug: "shared-followup",
+              title: "Shared followup",
+              description: "Build it.",
+              planned_execution: default_planned_execution
+            }
+          ]
+        }
+      }
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = shared_chat.proposals.find_by!(slug: "extend-shared")
+    expect(proposal).to have_attributes(repository: shared_repository, target_epic: target_epic)
+  end
+
   it "rejects an empty jobs array and creates no proposal" do
     response = call_tool(
       epic: { slug: "no-children", title: "No children", description: "Framing only." },
