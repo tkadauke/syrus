@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_042838) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_221737) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3006,6 +3006,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_042838) do
     t.index ["user_id", "agent_provider", "state", "finished_at", "updated_at", "id"], name: "idx_runs_user_provider_state_recent"
     t.index ["user_id", "agent_provider", "state", "finished_at"], name: "idx_runs_user_provider_state_finished"
     t.index ["user_id", "created_at", "cost_usd"], name: "idx_runs_spending_user_window"
+    t.index ["user_id", "finished_at", "cost_usd"], name: "idx_runs_spending_user_finished_window"
     t.index ["user_id", "state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_user_state_provider_recent"
     t.index ["user_id"], name: "index_runs_on_user_id"
   end
