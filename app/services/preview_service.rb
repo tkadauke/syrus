@@ -128,10 +128,10 @@ class PreviewService
 
     process_env = preview_process_env(source, workdir)
 
-    return unless run_setup_commands(source, workdir, env, process_env)
+    return unless run_setup_commands(source, workdir, workspace_path, env, process_env)
     return if stop_requested?(env)
 
-    return if source.seed_command && !run_seed_command(source, workdir, env, process_env)
+    return if source.seed_command && !run_seed_command(source, workdir, workspace_path, env, process_env)
     return if stop_requested?(env)
 
     child = spawn_app(source.start_command_for.call(port: port), workdir, port, env, process_env)
@@ -140,23 +140,23 @@ class PreviewService
     await_health_check(env, port, source.health_check_path)
   end
 
-  def run_seed_command(source, workspace_path, env, process_env)
-    run_preview_command!("seed", source.seed_command, workspace_path, env, process_env)
+  def run_seed_command(source, workdir, workspace_path, env, process_env)
+    run_preview_command!("seed", source.seed_command, workdir, workspace_path, env, process_env)
   end
 
-  def run_setup_commands(source, workspace_path, env, process_env)
+  def run_setup_commands(source, workdir, workspace_path, env, process_env)
     Array(source.setup_commands).each do |command|
-      return false unless run_preview_command!("setup", command, workspace_path, env, process_env)
+      return false unless run_preview_command!("setup", command, workdir, workspace_path, env, process_env)
     end
     true
   end
 
-  def run_preview_command!(label, command, workspace_path, env, process_env)
+  def run_preview_command!(label, command, workdir, workspace_path, env, process_env)
     Rails.logger.info("[PreviewService] running #{label}: #{command}")
     result = ProcessRunner.new(
       env: process_env,
       command: [ "bash", "-c", command ],
-      mounts: ProcessRunner.mounts(workspace_path),
+      mounts: ProcessRunner.mounts(workdir, read_write: workspace_path),
       network: "prepare",
       timeout: PREVIEW_COMMAND_TIMEOUT_SECONDS,
       kind: "preview",
