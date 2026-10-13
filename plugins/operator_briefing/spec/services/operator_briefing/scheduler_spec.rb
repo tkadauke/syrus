@@ -36,6 +36,23 @@ RSpec.describe OperatorBriefing::Scheduler do
     expect(OperatorBriefing::BriefingSettings.find_by!(user: user).last_scheduled_at).to eq(now)
   end
 
+  it "disables enabled subscriptions for repositories the user can no longer access" do
+    owner = Factories.user
+    revoked_repository = Factories.repository(user: owner)
+    membership = revoked_repository.repository_memberships.create!(user: user, role: "read")
+    subscription = OperatorBriefing::BriefingSubscription.create!(
+      user: user,
+      repository: revoked_repository,
+      enabled: true
+    )
+    membership.destroy!
+
+    described_class.run!(now: now)
+
+    expect(OperatorBriefing::Generator).not_to have_received(:generate!)
+    expect(subscription.reload).not_to be_enabled
+  end
+
   # Regression: the cadence used to be parsed without a timezone, and Fugit
   # resolves an unqualified expression against the process's local zone. The
   # same stored cadence therefore named 09:00 Eastern where TZ was set and
