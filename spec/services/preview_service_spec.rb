@@ -315,7 +315,7 @@ RSpec.describe PreviewService do
       allow(service).to receive(:allocate_port).and_return(28_008)
       allow(ProcessRunner).to receive(:new).with(hash_including(
         command: [ "bash", "-c", "bin/seed" ],
-        mounts: ProcessRunner.mounts(workspace_path),
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path),
         timeout: described_class::PREVIEW_COMMAND_TIMEOUT_SECONDS,
         kind: "preview",
         job: env.job
@@ -342,29 +342,31 @@ RSpec.describe PreviewService do
         unset_env: []
       )
       process_env = { "RAILS_ENV" => "development" }
+      env = create_env(state: "seeding")
 
       runner_double = double("ProcessRunner", run: process_result)
       expect(ProcessRunner).to receive(:new).with(hash_including(
         env: process_env,
         command: [ "bash", "-c", "bundle install" ],
-        mounts: ProcessRunner.mounts(workspace_path),
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path),
         network: "prepare",
         timeout: described_class::PREVIEW_COMMAND_TIMEOUT_SECONDS,
         kind: "preview",
+        job: env.job,
         display_command: "bundle install"
       )).and_return(runner_double)
       expect(ProcessRunner).to receive(:new).with(hash_including(
         env: process_env,
         command: [ "bash", "-c", "npm ci" ],
-        mounts: ProcessRunner.mounts(workspace_path),
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path),
         network: "prepare",
         timeout: described_class::PREVIEW_COMMAND_TIMEOUT_SECONDS,
         kind: "preview",
+        job: env.job,
         display_command: "npm ci"
       )).and_return(runner_double)
 
-      env = create_env(state: "seeding")
-      expect(service.send(:run_setup_commands, source, workspace_path, env, process_env)).to be true
+      expect(service.send(:run_setup_commands, source, workspace_path, workspace_path, env, process_env)).to be true
     end
 
     it "passes preview env to the seed command" do
@@ -379,19 +381,43 @@ RSpec.describe PreviewService do
         unset_env: [ "DATABASE_URL" ]
       )
       process_env = { "DATABASE_URL" => nil, "RAILS_ENV" => "development" }
+      env = create_env(state: "seeding")
 
       expect(ProcessRunner).to receive(:new).with(hash_including(
         env: process_env,
         command: [ "bash", "-c", "bin/seed" ],
-        mounts: ProcessRunner.mounts(workspace_path),
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path),
         network: "prepare",
         timeout: described_class::PREVIEW_COMMAND_TIMEOUT_SECONDS,
         kind: "preview",
+        job: env.job,
         display_command: "bin/seed"
       )).and_return(double(run: process_result))
 
+      expect(service.send(:run_seed_command, source, workspace_path, workspace_path, env, process_env)).to be true
+    end
+
+    it "runs nested project commands from the project directory with the checkout root writable" do
+      service = described_class.new
+      project_path = File.join(workspace_path, "apps/web")
+      FileUtils.mkdir_p(project_path)
+      source = PreviewCommandSource::Config.new(
+        start_command_for: ->(port:) { "bin/server -p #{port}" },
+        setup_commands: [],
+        seed_command: "bin/seed",
+        health_check_path: "/",
+        log_paths: [],
+        env: {},
+        unset_env: []
+      )
       env = create_env(state: "seeding")
-      expect(service.send(:run_seed_command, source, workspace_path, env, process_env)).to be true
+
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        command: [ "bash", "-c", "bin/seed" ],
+        mounts: ProcessRunner.mounts(project_path, read_write: workspace_path)
+      )).and_return(double(run: process_result))
+
+      expect(service.send(:run_seed_command, source, project_path, workspace_path, env, {})).to be true
     end
 
     it "raises when a seed command exits non-zero" do
@@ -409,7 +435,7 @@ RSpec.describe PreviewService do
       allow(ProcessRunner).to receive(:new).and_return(double(run: process_result(exit_status: 1)))
 
       expect {
-        service.send(:run_seed_command, source, workspace_path, create_env(state: "seeding"), {})
+        service.send(:run_seed_command, source, workspace_path, workspace_path, create_env(state: "seeding"), {})
       }.to raise_error(RuntimeError, /preview seed command exited non-zero/)
     end
 
