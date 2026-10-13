@@ -4,7 +4,11 @@ class RunCompletionReconciler
   end
 
   PR_OPENED_PATTERN = /pr_open: opened PR #(?<number>\d+)/.freeze
+  UPSTREAM_PR_OPENED_PATTERN = /pr_open: opened upstream PR \S+#(?<number>\d+)/.freeze
+  FORK_REVIEW_PR_OPENED_PATTERN = /pr_open: opened fork review PR #(?<number>\d+)/.freeze
   EXISTING_PR_PUSHED_PATTERN = /pr_open: branch pushed for existing PR #(?<number>\d+)/.freeze
+  EXISTING_FORK_REVIEW_PR_PUSHED_PATTERN =
+    /pr_open: branch pushed for existing fork review PR #(?<number>\d+)/.freeze
   PR_OPEN_RECOVERY_LOG_LIMIT = 200
   TERMINAL_RECOVERY_STEP_KINDS = %w[
     auto_merge
@@ -115,15 +119,16 @@ class RunCompletionReconciler
     event = pr_open_completion_event
     return unreconciled unless event
 
-    pr_number = event.fetch(:pr_number)
-    if job.pr_number.blank?
+    pr_number = event.fetch(:number)
+    number_attribute = event.fetch(:number_attribute)
+    if job.public_send(number_attribute).blank?
       job.update!(
-        pr_number: pr_number,
+        number_attribute => pr_number,
         branch_name: job.branch_name.presence || WorkflowWorkspace.new(workflow).branch_name
       )
     end
 
-    return unreconciled unless job.reload.pr_number.to_i == pr_number
+    return unreconciled unless job.reload.public_send(number_attribute).to_i == pr_number
 
     if terminal_recovery_required?
       recover_success!(event.fetch(:reason))
@@ -146,15 +151,41 @@ class RunCompletionReconciler
 
       if (match = text.match(PR_OPENED_PATTERN))
         return {
-          pr_number: match[:number].to_i,
+          number: match[:number].to_i,
+          number_attribute: :pr_number,
           reason: "pr_open already opened PR ##{match[:number]}"
+        }
+      end
+
+      if (match = text.match(UPSTREAM_PR_OPENED_PATTERN))
+        return {
+          number: match[:number].to_i,
+          number_attribute: :pr_number,
+          reason: "pr_open already opened upstream PR ##{match[:number]}"
+        }
+      end
+
+      if (match = text.match(FORK_REVIEW_PR_OPENED_PATTERN))
+        return {
+          number: match[:number].to_i,
+          number_attribute: :fork_review_pr_number,
+          reason: "pr_open already opened fork review PR ##{match[:number]}"
         }
       end
 
       if (match = text.match(EXISTING_PR_PUSHED_PATTERN))
         return {
-          pr_number: match[:number].to_i,
+          number: match[:number].to_i,
+          number_attribute: :pr_number,
           reason: "pr_open already pushed existing PR ##{match[:number]}"
+        }
+      end
+
+      if (match = text.match(EXISTING_FORK_REVIEW_PR_PUSHED_PATTERN))
+        return {
+          number: match[:number].to_i,
+          number_attribute: :fork_review_pr_number,
+          reason: "pr_open already pushed existing fork review PR ##{match[:number]}"
         }
       end
     end
