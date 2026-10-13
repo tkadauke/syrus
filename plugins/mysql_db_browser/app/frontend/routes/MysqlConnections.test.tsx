@@ -537,31 +537,31 @@ describe("MysqlConnections", () => {
 
     fireEvent.change(await screen.findByLabelText("Connection URL"), {
       target: {
-        value: "mysql2://root:h01rkman@gymassistant-mysql.gymassistant-production.svc.cluster.local:3306/gymassistant_production"
+        value: "mysql2://root:hunter2@orders-mysql.orders-production.svc.cluster.local:3306/orders_production"
       }
     })
 
     expect(screen.getByLabelText("Connection URL")).toHaveValue("")
-    expect(screen.getByLabelText("Label")).toHaveValue("gymassistant_production")
-    expect(screen.getByLabelText("Host")).toHaveValue("gymassistant-mysql.gymassistant-production.svc.cluster.local")
+    expect(screen.getByLabelText("Label")).toHaveValue("orders_production")
+    expect(screen.getByLabelText("Host")).toHaveValue("orders-mysql.orders-production.svc.cluster.local")
     expect(screen.getByLabelText("Port")).toHaveValue(3306)
     expect(screen.getByLabelText("Username")).toHaveValue("root")
-    expect(screen.getByLabelText("Password")).toHaveValue("h01rkman")
-    expect(screen.getByLabelText("Default database (optional)")).toHaveValue("gymassistant_production")
+    expect(screen.getByLabelText("Password")).toHaveValue("hunter2")
+    expect(screen.getByLabelText("Default database (optional)")).toHaveValue("orders_production")
 
     fireEvent.click(screen.getByRole("button", { name: "Add connection" }))
 
-    expect(await screen.findByText('Connection "gymassistant_production" added.')).toBeInTheDocument()
+    expect(await screen.findByText('Connection "orders_production" added.')).toBeInTheDocument()
     expect(calls.find((call) => call.method === "POST" && call.url === "/api/v1/app/admin/mysql_connections")?.body).toEqual({
       mysql_connection: {
-        label: "gymassistant_production",
-        host: "gymassistant-mysql.gymassistant-production.svc.cluster.local",
+        label: "orders_production",
+        host: "orders-mysql.orders-production.svc.cluster.local",
         port: 3306,
         username: "root",
-        default_database: "gymassistant_production",
+        default_database: "orders_production",
         agentic_access_enabled: false,
         allow_writes: false,
-        password: "h01rkman"
+        password: "hunter2"
       }
     })
   })
