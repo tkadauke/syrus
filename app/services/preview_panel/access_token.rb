@@ -17,8 +17,8 @@ class PreviewPanel::AccessToken
   def self.panel_id_for(token)
     return nil if token.blank?
 
-    verifier.verify(token, purpose: PURPOSE)["panel_id"]
-  rescue ActiveSupport::MessageVerifier::InvalidSignature
+    verifier.verify(token.to_s, purpose: PURPOSE)["panel_id"]
+  rescue ActiveSupport::MessageVerifier::InvalidSignature, TypeError
     nil
   end
 
