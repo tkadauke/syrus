@@ -66,6 +66,32 @@ RSpec.describe WorkEngine::RepairExecutor do
     expect(target.workflows).to be_empty
   end
 
+  it "reports a requested WorkIntent as skipped when launch creates no Run" do
+    target = Factories.job_record(user: job.user, repository: job.repository, state: "backlog", issue_number: 502)
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+
+    result = described_class.call(
+      result: RepairResult.new([
+        repair_plan(action: "launch_requested_work_intent", target: intent)
+      ])
+    )
+
+    expect(result.first).to have_attributes(
+      status: "skipped",
+      message: "#{intent.slug} did not start: #{StepDispatcher::BACKLOG_BLOCK_REASON}"
+    )
+    expect(intent.reload).to be_requested
+    expect(target.workflows.last.first_step.runs).to be_empty
+  end
+
   # Regression: a merge train owns its members through `merge_train_members`,
   # but the train's single WorkUnit is instantiated with only the tip job, so
   # every other member has no WorkUnitMember row. `stranded?` asked the
