@@ -107,6 +107,20 @@ RSpec.describe WorkIntents::Scheduler do
     expect(result.workflow.first_step.runs.last).to be_queued
   end
 
+  it "reports not_started when the launcher creates no run" do
+    job.update!(state: "backlog")
+
+    result = described_class.start_ready!(intent)
+
+    expect(result).to be_not_started
+    expect(result).not_to be_started
+    expect(result.launch_result).to be_not_started
+    expect(result.reason).to eq(StepDispatcher::BACKLOG_BLOCK_REASON)
+    expect(result.workflow.first_step.runs).to be_empty
+    expect(result.work_unit.reload).to be_blocked
+    expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
+  end
+
   it "does not generically launch landing intents that must use the landing dispatcher" do
     job.update!(state: "approved")
     landing_intent = WorkIntent.create!(
