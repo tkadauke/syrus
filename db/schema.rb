@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_190916) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_022517) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2054,6 +2054,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_190916) do
     t.index ["chat_session_id", "tool_use_id"], name: "index_mcp_tool_usages_on_chat_session_id_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_mcp_tool_usages_on_chat_session_id"
     t.index ["created_at"], name: "index_mcp_tool_usages_on_created_at"
+    t.index ["daemon_worker_id", "created_at"], name: "idx_mcp_tool_usages_daemon_worker_window"
     t.index ["error", "started_at"], name: "idx_mcp_tool_usages_error_started_at"
     t.index ["job_id"], name: "index_mcp_tool_usages_on_job_id"
     t.index ["normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_tool_window"

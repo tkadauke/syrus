@@ -29,6 +29,7 @@ type RecentCall = {
   surface: string | null
   provider: string | null
   sidecarMode: string | null
+  daemonWorkerId: string | null
   authority: string | null
   status: string
   error: boolean
@@ -158,6 +159,7 @@ function parseRecentCall(value: unknown, index: number): RecentCall | null {
     surface: displayValue(value.surface),
     provider: displayValue(value.provider),
     sidecarMode: displayValue(value.sidecar_mode),
+    daemonWorkerId: displayValue(value.daemon_worker_id),
     authority: displayValue(value.authority),
     status,
     error: value.error === true,
@@ -373,7 +375,7 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
             <Td mono>{call.occurredAt || "-"}</Td>
             <Td maxWidth title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.authority].filter(Boolean).join(" / ")}</div>
+              <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.daemonWorkerId, call.authority].filter(Boolean).join(" / ")}</div>
             </Td>
             <Td maxWidth title={call.errorSummary || undefined}>
               <StatePill state={call.status} tone={call.error ? "failure" : "success"} />
