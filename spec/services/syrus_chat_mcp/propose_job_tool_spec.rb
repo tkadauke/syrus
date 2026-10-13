@@ -328,10 +328,9 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.repository).to eq(repository)
   end
 
-  it "accepts existing Job dependencies visible through repository membership" do
-    repository
+  it "creates and files Job proposals for direct write collaborators" do
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 82)
-    collaborator = Factories.user(email_address: "proposal-write-member@example.com", admin: false)
+    collaborator = Factories.user(email_address: "proposal-direct-writer@example.com", admin: false)
     repository.repository_memberships.create!(user: collaborator, role: "write")
     collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
     collaborator_server = server_for(collaborator_chat)
@@ -344,8 +343,8 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
         name: "propose_job",
         arguments: {
           repo: repository.slug,
-          title: "Follow shared dependency",
-          description: "This should depend on an owner-created Job in the shared repository.",
+          title: "Direct membership proposal",
+          description: "This should create and file a proposal.",
           depends_on_job_ids: [ prerequisite.id ],
           planned_execution: default_planned_execution
         }
@@ -354,8 +353,12 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     response = JSON.parse(raw, symbolize_names: true)
 
     expect(response[:result][:isError]).to be_falsey
-    proposal = collaborator_chat.proposals.find_by!(title: "Follow shared dependency")
+    proposal = collaborator_chat.proposals.find_by!(title: "Direct membership proposal")
     expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
+    result = ChatProposalFiler.new(user: collaborator, repository: repository).file!([ proposal ])
+
+    expect(result.jobs.sole).to have_attributes(user: collaborator, repository: repository)
+    expect(result.jobs.sole.dependencies.sole.depends_on_job).to eq(prerequisite)
   end
 
   it "stores an explicit planned execution override on the proposal and filed Job" do
