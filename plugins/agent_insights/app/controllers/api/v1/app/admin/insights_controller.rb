@@ -74,17 +74,18 @@ module Api
 
             memory = AgentMemory::Entry.create!(user: suggestion.job.user,
               kind: "project_fact",
-              scope: "instance",
-              scope_id: nil,
+              scope: "repository",
+              scope_id: suggestion.repository_id,
               content: suggestion.redacted_memory_suggestion,
               source_type: "insight",
               source_id: suggestion.id,
               author: "admin",
-              confidence: suggestion.confidence
+              confidence: suggestion.confidence,
+              published: true
             )
 
             render json: {
-              message: "Memory promoted to instance scope.",
+              message: "Memory promoted to repository scope.",
               memory_id: memory.id
             }
           end
