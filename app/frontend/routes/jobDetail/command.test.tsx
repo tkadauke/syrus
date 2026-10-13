@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
-import { useJobCommand } from "./command"
+import { CommandButton, useJobCommand } from "./command"
 import { jsonResponse } from "../../testSupport"
 
 function Probe({ onNotice = () => {} }: { onNotice?: (message: string | null) => void }) {
@@ -242,5 +242,70 @@ describe("useJobCommand cache sync", () => {
       expect(cached?.job.id).toBe(1)
       expect(cached?.job.state).toBe("failed")
     })
+  })
+})
+
+// Every CommandButton shares one mutation object, and mutationFn awaits the
+// confirm dialog, so `isPending` is true for as long as a dialog is open.
+// Disabling on it directly took every other button on the page down with it,
+// which an operator experiences as a working button doing nothing.
+describe("CommandButton pending scope", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function Panel() {
+    const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
+    return (
+      <div>
+        <CommandButton command={command} input={{ method: "post", path: "/retry", body: { a: 1 } }}>retry</CommandButton>
+        <CommandButton command={command} input={{ method: "post", path: "/force_push", confirm: "Replace?" }}>replace</CommandButton>
+        <CommandButton command={command} input={{ method: "post", path: "/discard" }}>discard</CommandButton>
+        {command.dialog}
+      </div>
+    )
+  }
+
+  function renderPanel() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter><Panel /></MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it("leaves other buttons usable while one command's confirm dialog is open", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
+    renderPanel()
+
+    act(() => screen.getByRole("button", { name: "replace" }).click())
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    expect(screen.getByRole("button", { name: "retry" })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: "discard" })).not.toBeDisabled()
+  })
+
+  it("disables the button whose own command is in flight", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
+    renderPanel()
+
+    act(() => screen.getByRole("button", { name: "replace" }).click())
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    expect(screen.getByRole("button", { name: "replace" })).toBeDisabled()
+  })
+
+  // With the scope fixed, a second confirm is reachable. It must settle the
+  // first prompt rather than orphan its promise, or the first mutation hangs
+  // forever and its button never comes back.
+  it("settles a superseded confirm instead of hanging its mutation", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
+    renderPanel()
+
+    act(() => screen.getByRole("button", { name: "replace" }).click())
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    act(() => screen.getByRole("button", { name: "discard" }).click())
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/discard", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.getByRole("button", { name: "replace" })).not.toBeDisabled())
   })
 })

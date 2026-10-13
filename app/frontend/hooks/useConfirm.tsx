@@ -16,9 +16,19 @@ interface ConfirmState {
 export function useConfirm() {
   const [state, setState] = useState<ConfirmState | null>(null)
 
+  // A second confirm while one is already open used to replace the stored
+  // resolver outright, so the first promise could never settle. Whatever
+  // awaited it hung forever -- and an awaited confirm sits inside a mutation,
+  // so the mutation stayed pending and its button stayed disabled for the life
+  // of the page. Settle the outgoing prompt as declined before replacing it:
+  // the operator never answered it, which is a decline, and a decline is the
+  // safe reading for a destructive command.
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
     return new Promise((resolve) => {
-      setState({ options, resolve })
+      setState((previous) => {
+        previous?.resolve(false)
+        return { options, resolve }
+      })
     })
   }, [])
 

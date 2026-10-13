@@ -70,9 +70,23 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
 
 export type JobCommand = ReturnType<typeof useJobCommand>
 
+// Every CommandButton on the Job page shares one mutation, so `command.isPending`
+// is true whenever ANY command is running -- and because mutationFn awaits the
+// confirm dialog, it stays true for as long as a dialog sits open. Disabling on
+// it directly therefore disabled every other button on the page, which presents
+// to an operator as "I clicked it and nothing happened" on a button that is
+// fine. Disable only the button whose own command is in flight, identified by
+// its path, since the in-flight variables are the input we were handed.
+function commandPendingFor(command: JobCommand, input: CommandInput): boolean {
+  if (!command.isPending) return false
+
+  const inFlight = command.variables
+  return inFlight === undefined || inFlight.path === input.path
+}
+
 export function CommandButton({ children, command, input, tone = "primary" }: { children: ReactNode; command: JobCommand; input: CommandInput; tone?: ButtonTone }) {
   return (
-    <button className={buttonClass(tone)} disabled={command.isPending} onClick={() => command.mutate(input)} type="button">
+    <button className={buttonClass(tone)} disabled={commandPendingFor(command, input)} onClick={() => command.mutate(input)} type="button">
       {children}
     </button>
   )
