@@ -18,6 +18,26 @@ RSpec.describe SlashCommandParser do
     expect(result.command).to eq("/lgtm")
   end
 
+  it "does not let same-line fenced spans suppress later commands" do
+    result = described_class.parse("See ``` /approve ``` for syntax\n\n/approve")
+    expect(result).to be_approve
+    expect(result.command).to eq("/approve")
+  end
+
+  it "handles multiple same-line fenced spans before later commands" do
+    result = described_class.parse("Try ``` /approve ``` or ``` /reject ``` here\n\n/unapprove")
+    expect(result).to be_unapprove
+    expect(result.command).to eq("/unapprove")
+  end
+
+  it "does not treat text after a same-line fenced span as the start of the line" do
+    expect(described_class.parse("Try ``` /reject ``` /approve")).to be_nil
+  end
+
+  it "keeps suppressing commands after an unclosed fence" do
+    expect(described_class.parse("```\n/approve")).to be_nil
+  end
+
   it "recognizes reject-family commands without treating them as approval" do
     result = described_class.parse("/rejected")
     expect(result).to be_reject
