@@ -168,9 +168,13 @@ module SyrusBrowser
     def resolved_log_path(workspace_path)
       source = PreviewCommandSource.new(workspace_path).resolve
       raw_path = source&.log_paths&.first
-      return nil if raw_path.blank?
+      return nil if raw_path.blank? || workspace_path.blank?
 
-      Pathname.new(raw_path).absolute? ? raw_path : File.expand_path(raw_path, workspace_path)
+      absolute = Pathname.new(raw_path).absolute? ? File.expand_path(raw_path) : File.expand_path(raw_path, workspace_path)
+      workspace_root = File.expand_path(workspace_path)
+      return unless absolute == workspace_root || absolute.start_with?("#{workspace_root}/")
+
+      absolute
     end
   end
 end
