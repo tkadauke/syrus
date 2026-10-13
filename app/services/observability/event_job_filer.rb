@@ -70,25 +70,31 @@ module Observability
       return failure("not_found", "Event not found") unless event
       return failure("forbidden", "You cannot file a job for this event") unless permitted?(event)
 
-      payload = source.fetch(:payload).call(event)
-      result = BugReports::Router.new(user: user).call(
-        title: truncate_title(source.fetch(:title).call(event)),
-        description: source.fetch(:description).call(event, payload),
-        context: {
-          source: "event_job_filer",
-          event_type: event_type,
-          event_id: event.id,
-          event_payload: payload
-        }
-      )
+      filing = filing_for(event)
+      filing.with_lock do
+        return result_for(filing) if filing.filed?
 
-      Result.new(
-        job: result.job,
-        issue_url: result.issue_url,
-        error_code: result.error_code,
-        error_message: result.error_message,
-        mode: result.mode
-      )
+        payload = source.fetch(:payload).call(event)
+        result = BugReports::Router.new(user: user).call(
+          title: truncate_title(source.fetch(:title).call(event)),
+          description: source.fetch(:description).call(event, payload),
+          context: {
+            source: "event_job_filer",
+            event_type: event_type,
+            event_id: event.id,
+            event_payload: payload
+          }
+        )
+
+        return failure_result_for(result) unless result.success?
+
+        filing.update!(
+          job: result.job,
+          issue_url: result.issue_url,
+          mode: result.mode.to_s
+        )
+        result_for(filing)
+      end
     end
 
     private
@@ -107,6 +113,34 @@ module Observability
 
     def truncate_title(title)
       title.to_s.squish.safe_byteslice(0, 200)
+    end
+
+    def filing_for(event)
+      ObservabilityEventFiling.create_or_find_by!(
+        event_type: event_type,
+        event_id: event.id
+      ) do |filing|
+        filing.user = user
+        filing.mode = BugReports::Router.mode_for(user: user).to_s
+      end
+    rescue ActiveRecord::RecordNotUnique
+      ObservabilityEventFiling.find_by!(event_type: event_type, event_id: event.id)
+    end
+
+    def result_for(filing)
+      Result.new(
+        job: filing.job,
+        issue_url: filing.issue_url,
+        mode: filing.mode&.to_sym
+      )
+    end
+
+    def failure_result_for(result)
+      Result.new(
+        error_code: result.error_code,
+        error_message: result.error_message,
+        mode: result.mode
+      )
     end
 
     def failure(code, message)
