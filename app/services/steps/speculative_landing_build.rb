@@ -2,6 +2,7 @@ module Steps
   class SpeculativeLandingBuild < Base
     def call
       source_path = Pathname.new(required_artifact!("prefetch_source_workspace_path"))
+      source_workflow = source_workflow!
       source_head = required_artifact!("prefetch_source_head_sha")
       candidate_head = workflow.artifact("prefetch_candidate_head_sha").presence
 
@@ -9,7 +10,7 @@ module Steps
 
       workspace.setup
       git = GitRunner.new(log_sink: ->(line) { log(line, kind: "system") })
-      verify_source!(git, source_path, source_head)
+      verify_source!(git, source_path, source_workflow, source_head)
       verify_candidate_head!(git, candidate_head) if candidate_head.present?
 
       git.run("fetch", "--no-tags", source_path.to_s, "HEAD", chdir: workspace.path.to_s)
@@ -39,8 +40,14 @@ module Steps
       value
     end
 
-    def verify_source!(git, source_path, source_head)
-      actual = git.run("rev-parse", "HEAD", chdir: source_path.to_s).strip
+    def source_workflow!
+      workflow_id = required_artifact!("prefetch_source_workflow_id").to_i
+      Workflow.find_by(id: workflow_id) ||
+        raise(StepFailed, "speculative_landing: source workflow #{workflow_id} is missing")
+    end
+
+    def verify_source!(git, source_path, source_workflow, source_head)
+      actual = git.run("rev-parse", "HEAD", chdir: source_path.to_s, workflow: source_workflow).strip
       return if actual == source_head
 
       raise StepFailed, "speculative_landing: source workflow moved from #{source_head.first(7)} to #{actual.first(7)}"
