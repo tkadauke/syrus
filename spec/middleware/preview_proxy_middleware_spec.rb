@@ -585,6 +585,14 @@ RSpec.describe PreviewProxyMiddleware do
       expect(status).to eq(401)
     end
 
+    it "rejects a private panel with a nested token param" do
+      panel = create_panel(visibility: "private")
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token[]=garbage"))
+
+      expect(status).to eq(401)
+    end
+
     it "rejects a token issued for a different panel" do
       panel = create_panel(visibility: "private")
       other_panel = create_panel(visibility: "private")
