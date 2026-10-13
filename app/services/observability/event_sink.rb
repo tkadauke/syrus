@@ -145,13 +145,19 @@ module Observability
 
     def flush_kind!(kind)
       events = []
+      claimed_spool_files = []
       @flush_mutex.synchronize do
         events = drain_memory(kind)
-        events.concat(drain_spool(kind))
+        spool_events, claimed_spool_files = drain_spool(kind)
+        events.concat(spool_events)
         events = events.uniq { |event| event_identity(event) }
-        return if events.empty?
+        if events.empty?
+          delete_spool_claims(claimed_spool_files)
+          return
+        end
 
         Observability::EventStream.fetch(kind).persist!(events, batch_size: FLUSH_BATCH_SIZE)
+        delete_spool_claims(claimed_spool_files)
       end
     rescue StandardError => e
       Rails.logger.error("[Observability::EventSink] flush failed for #{kind}, #{events.size} event(s) restored to buffer: #{e.class}: #{e.message}")
@@ -248,7 +254,10 @@ module Observability
       return if events.blank?
 
       @mutex.synchronize do
-        @buffers[kind] = (events + @buffers[kind]).last(memory_limit(kind))
+        restored = events + @buffers[kind]
+        overflow = restored.size - memory_limit(kind)
+        @dropped[kind] += overflow if overflow.positive?
+        @buffers[kind] = restored.last(memory_limit(kind))
         @buffer_started_at[kind] ||= Time.current
       end
     end
@@ -281,17 +290,59 @@ module Observability
 
     def drain_spool(kind)
       dir = spool_dir(kind)
-      return [] unless dir.exist?
+      return [ [], [] ] unless dir.exist?
 
-      Dir.children(dir).grep(/\.jsonl\z/).flat_map do |filename|
+      events = []
+      claimed_paths = []
+      Dir.children(dir).each do |filename|
         path = dir.join(filename)
-        claimed = dir.join("#{filename}.#{Process.pid}.claiming")
-        File.rename(path, claimed)
-        events = File.readlines(claimed, chomp: true).filter_map { |line| JSON.parse(line) rescue nil }
-        File.delete(claimed)
-        events
+        claimed = claim_spool_file(path)
+        next unless claimed
+
+        lines = File.readlines(claimed, chomp: true)
+        claimed_paths << claimed
+        events.concat(lines.filter_map { |line| JSON.parse(line) rescue nil })
       rescue StandardError
-        []
+        next
+      end
+      [ events, claimed_paths ]
+    end
+
+    def claim_spool_file(path)
+      filename = path.basename.to_s
+      if filename.end_with?(".jsonl")
+        claimed = path.dirname.join("#{filename}.#{Process.pid}.claiming")
+        File.rename(path, claimed)
+        claimed
+      elsif reclaimable_claiming_file?(path)
+        path
+      end
+    end
+
+    def reclaimable_claiming_file?(path)
+      match = path.basename.to_s.match(/\.jsonl\.(\d+)\.claiming\z/)
+      return false unless match
+
+      pid = match[1].to_i
+      return true if pid == Process.pid
+
+      !process_alive?(pid)
+    end
+
+    def process_alive?(pid)
+      Process.kill(0, pid)
+      true
+    rescue Errno::ESRCH
+      false
+    rescue Errno::EPERM
+      true
+    end
+
+    def delete_spool_claims(paths)
+      paths.each do |path|
+        File.delete(path) if path.exist?
+      rescue StandardError
+        nil
       end
     end
 
