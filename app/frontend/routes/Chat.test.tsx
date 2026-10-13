@@ -4202,7 +4202,7 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
     expect(textarea.className).toMatch(/border-red-300/)
   })
 
-  it("rehydrates the stop control from the payload when the composer mounts with a command already running (JOB-607 remount fix)", async () => {
+  it("rehydrates the stop control from the payload when the composer mounts with a command already running (remount fix)", async () => {
     mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
       chat_shell_command_in_flight: {
         id: 501,

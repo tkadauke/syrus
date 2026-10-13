@@ -49,7 +49,7 @@ RSpec.describe CiRepair::ManualRerun do
       .find_each { |unit| unit.mark_terminal!("succeeded") }
   end
 
-  it "reruns CI repair for JOB-765 even when the handled SHA already matches" do
+  it "reruns CI repair even when the handled SHA already matches" do
     result = described_class.call(
       job: job,
       reason: "JOB-765 CI repair left the head unchanged.",

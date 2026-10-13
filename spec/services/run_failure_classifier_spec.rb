@@ -480,7 +480,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
-  it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (JOB-319 regression)" do
+  it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (regression)" do
     run.update!(state: "failed", agent_provider: "claude")
     diagnostic(
       "Errno::E2BIG",
@@ -1037,7 +1037,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
-  it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-330 regression)" do
+  it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (regression)" do
     run.update!(state: "failed")
     # A GitRunner::GitError whose error_class alone would match git_state_corrupt?,
     # but the message is the benign empty-commit case — empty_commit? must win.

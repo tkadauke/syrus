@@ -2584,7 +2584,7 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(chat.reload.stop_requested_at).to be_nil
   end
 
-  describe "persistent MCP transport (EPIC-20 chat routing)" do
+  describe "persistent MCP transport (chat routing)" do
     let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
 
     def mark_agent_busy!(chat_session, workdir: workspace_path)

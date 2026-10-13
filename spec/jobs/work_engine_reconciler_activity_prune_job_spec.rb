@@ -38,7 +38,7 @@ RSpec.describe WorkEngineReconcilerActivityPruneJob do
     expect { described_class.perform_now }.not_to change { WorkEngineReconcilerActivityEvent.count }
   end
 
-  it "does not archive before deleting when archive_before_delete is off (default, matches JOB-5025 behavior)" do
+  it "does not archive before deleting when archive_before_delete is off (default, matching the previous delete-only behavior)" do
     travel_to Time.zone.parse("2026-08-09 12:00:00 UTC") do
       WorkEngineReconcilerActivityEvent.record!(
         event_type: "run_finished",

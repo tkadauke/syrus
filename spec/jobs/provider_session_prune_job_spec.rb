@@ -53,7 +53,7 @@ RSpec.describe ProviderSessionPruneJob do
     expect { described_class.perform_now }.not_to change { ProviderSession.count }
   end
 
-  it "does not archive before deleting when archive_before_delete is off (default, matches JOB-5025 behavior)" do
+  it "does not archive before deleting when archive_before_delete is off (default, matching the previous delete-only behavior)" do
     old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
     old_session = ProviderSession.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
     old_session.update_columns(updated_at: (ProviderSession.retention_window + 1.day).ago)
