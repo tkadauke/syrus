@@ -107,15 +107,15 @@ across workers of different sizes.
 
 ## Increment 2 — enforcement, and one allocator
 
-Memory first, and it is a small change: `SpawnedProcessCgroupBudget` should
-prefer a declared `resources.memory` over its own fair-share estimate, capped
-by the same pod fraction. A grader that has said what it needs should not be
-second-guessed by an estimate — that is the memory half of the two-allocator
-problem. The budget keeps its `Policy` registry, which becomes the source of
-*default requests* for spawn kinds with no `.syrus.yml` to declare one
-(agentic steps, chat agents) rather than a parallel allocator. All of it sits
-behind `per_spawn_resource_limits`, which defaults off: enforcement is wired
-but not enabled.
+Memory is done: `SpawnedProcessCgroupBudget` prefers a declared
+`resources.memory` over its own fair-share estimate, capped by the same pod
+fraction, and reports `source: "declared"`. A grader that has said what it
+needs is no longer second-guessed by an estimate — the memory half of the
+two-allocator problem, closed. The budget keeps its `Policy` registry, which
+becomes the source of *default requests* for spawn kinds with no `.syrus.yml`
+to declare one (agentic steps, chat agents) rather than a parallel allocator.
+All of it sits behind `per_spawn_resource_limits`, which defaults off:
+enforcement is wired but not enabled.
 
 CPU, still outstanding, and blocked on infrastructure rather than code:
 `SpawnedProcessCgroup` writes no `cpu.max` at all today. Worker pods also

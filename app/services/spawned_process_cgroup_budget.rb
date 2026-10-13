@@ -15,7 +15,9 @@ class SpawnedProcessCgroupBudget
   end
 
   def call
-    memory_max = configured_bytes("SYRUS_SPAWN_MEMORY_MAX_BYTES") || adaptive_memory_max_bytes
+    memory_max = configured_bytes("SYRUS_SPAWN_MEMORY_MAX_BYTES") ||
+      declared_memory_max_bytes ||
+      adaptive_memory_max_bytes
     return Result.new(memory_max_bytes: nil, memory_high_bytes: nil, memory_swap_max_bytes: nil, details: details(nil)) unless memory_max&.positive?
 
     memory_high = configured_bytes("SYRUS_SPAWN_MEMORY_HIGH_BYTES") ||
@@ -34,6 +36,22 @@ class SpawnedProcessCgroupBudget
   private
 
   attr_reader :spawned_process
+
+  # A grader that declared `resources.memory` in `.syrus.yml` has said what it
+  # needs, so the fair-share estimate below should not second-guess it -- the
+  # declaration and the ceiling the grader runs under must come from the same
+  # place, or they are two allocators over one resource. Still capped by the
+  # pod fraction: a declaration may not claim more than the pod can deliver.
+  # See docs/plans/grader-resource-grants.md.
+  def declared_memory_max_bytes
+    request = GraderResourceRequest.from_details(spawned_process.run&.step&.details&.dig("resources"))
+    return unless request&.memory_bytes&.positive?
+
+    [ request.memory_bytes, fractional_ceiling_bytes ].compact.min
+  rescue StandardError => e
+    Rails.logger.warn("[SpawnedProcessCgroupBudget] declared memory lookup failed: #{e.class}: #{e.message}")
+    nil
+  end
 
   def adaptive_memory_max_bytes
     return unless effective_memory_limit_bytes&.positive?
@@ -62,7 +80,7 @@ class SpawnedProcessCgroupBudget
   def details(memory_max)
     {
       "version" => VERSION,
-      "source" => configured_bytes("SYRUS_SPAWN_MEMORY_MAX_BYTES") ? "env_override" : "adaptive",
+      "source" => memory_source,
       "run_type" => policy.name,
       "admission_units" => admission_units,
       "concurrent_slots" => concurrent_slots,
@@ -73,6 +91,13 @@ class SpawnedProcessCgroupBudget
       "reservable_memory_bytes" => reservable_memory_bytes,
       "memory_max_bytes" => memory_max
     }.compact
+  end
+
+  def memory_source
+    return "env_override" if configured_bytes("SYRUS_SPAWN_MEMORY_MAX_BYTES")
+    return "declared" if declared_memory_max_bytes
+
+    "adaptive"
   end
 
   def policy
