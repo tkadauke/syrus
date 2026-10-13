@@ -15,6 +15,7 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     spec_action_class
     spec_argument_error_action_class
     spec_admin_only_action_class
+    spec_chat_required_action_class
     example.run
   ensure
     PendingActions::REGISTRY.replace(original_registry)
@@ -52,6 +53,17 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     Class.new(PendingActions::Base) do
       action_key "spec_api_admin_only_action"
       admin_only!
+
+      def perform
+        nil
+      end
+    end
+  end
+
+  let(:spec_chat_required_action_class) do
+    Class.new(PendingActions::Base) do
+      action_key "spec_api_chat_required_action"
+      requires_chat_session!
 
       def perform
         nil
@@ -179,5 +191,21 @@ RSpec.describe "API: /api/v1/admin/pending_actions/invoke", type: :request do
     expect(ActiveJob::Base.queue_adapter.enqueued_jobs).not_to include(
       include(job: CodingHandoffConfirmJob)
     )
+  end
+
+  it "rejects actions declared as chat-bound without a separate API denylist" do
+    expect {
+      post "/api/v1/admin/pending_actions/invoke",
+           params: {
+             action_key: "spec_api_chat_required_action",
+             reason: "operator requested repair",
+             payload: {}
+           },
+           headers: auth(admin_token)
+    }.not_to change(AdminAction, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_pending_action_payload")
+    expect(parse_body.dig("error", "message")).to include("spec_api_chat_required_action requires a chat session")
   end
 end
