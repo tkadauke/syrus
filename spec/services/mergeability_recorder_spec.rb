@@ -90,6 +90,41 @@ RSpec.describe MergeabilityRecorder do
       expect(job.pr_mergeable).to be false
       expect(job.github_mergeable_state).to eq("dirty")
     end
+
+    it "keeps the last known GitHub mergeability when GitHub returns nil while recomputing" do
+      job.update!(
+        pr_mergeable: false,
+        github_mergeable: false,
+        github_mergeable_state: "dirty",
+        mergeability_head_sha: "old-head",
+        mergeability_base_sha: "old-base"
+      )
+      pr = make_pr(mergeable: nil, mergeable_state: nil, head_sha: "new-head", base_sha: "new-base")
+
+      freeze_time do
+        described_class.record_github!(job: job, pr: pr, checked_at: Time.current)
+
+        job.reload
+        expect(job.pr_mergeable).to be false
+        expect(job.github_mergeable).to be false
+        expect(job.github_mergeable_state).to eq("dirty")
+        expect(job.mergeability_head_sha).to eq("new-head")
+        expect(job.mergeability_base_sha).to eq("new-base")
+        expect(job.mergeability_checked_at).to eq(Time.current)
+      end
+    end
+
+    it "adopts fresh GitHub mergeability once GitHub returns a non-nil value" do
+      job.update!(pr_mergeable: nil, github_mergeable: nil, github_mergeable_state: nil)
+      pr = make_pr(mergeable: true, mergeable_state: "clean")
+
+      described_class.record_github!(job: job, pr: pr)
+
+      job.reload
+      expect(job.pr_mergeable).to be true
+      expect(job.github_mergeable).to be true
+      expect(job.github_mergeable_state).to eq("clean")
+    end
   end
 
   describe ".record_local!" do
