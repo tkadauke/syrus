@@ -1,9 +1,9 @@
 module Mcp::Tools
   # Resource scoping convention for chat MCP tools:
-  # - Jobs: scope through current_user.jobs, further restricted by context.allowed_job_ids when set.
-  # - Epics: scope through current_user.epics.
-  # - Workflows and Runs: join through job.repository and require the repository
-  #   to belong to current_user; further restricted by allowed_workflow_ids / allowed_run_ids.
+  # - Jobs: scope through Job.accessible_to(current_user), further restricted by context.allowed_job_ids when set.
+  # - Epics: scope through Epic.accessible_to(current_user).
+  # - Workflows and Runs: join through jobs visible to current_user; further restricted
+  #   by allowed_workflow_ids / allowed_run_ids.
   # - ChatSessions: scoped by user_id, further restricted by allowed_chat_session_ids.
   #   Never broadened to other users' chats even for admins (chat content is
   #   legitimately private) — admin only changes whether a soft-deleted
@@ -57,7 +57,7 @@ module Mcp::Tools
     end
 
     def find_job!(id, includes: nil)
-      scope = admin? ? Job.all : current_user.jobs
+      scope = admin? ? Job.all : Job.accessible_to(current_user)
       scope = scope.where(id: mcp_context.allowed_job_ids) if mcp_context&.allowed_job_ids
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
@@ -66,7 +66,7 @@ module Mcp::Tools
     end
 
     def find_epic!(id, includes: nil)
-      scope = admin? ? Epic.all : current_user.epics
+      scope = admin? ? Epic.all : Epic.accessible_to(current_user)
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
@@ -74,7 +74,7 @@ module Mcp::Tools
     end
 
     def find_workflow!(id, includes: nil)
-      scope = admin? ? Workflow.all : Workflow.joins(job: :repository).where(repositories: { user_id: current_user.id })
+      scope = admin? ? Workflow.all : Workflow.joins(:job).where(jobs: { id: Job.accessible_to(current_user).select(:id) })
       scope = scope.where(id: mcp_context.allowed_workflow_ids) if mcp_context&.allowed_workflow_ids
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
@@ -83,7 +83,7 @@ module Mcp::Tools
     end
 
     def find_run!(id)
-      scope = admin? ? Run.all : Run.joins(step: { workflow: { job: :repository } }).where(repositories: { user_id: current_user.id })
+      scope = admin? ? Run.all : Run.joins(step: { workflow: :job }).where(jobs: { id: Job.accessible_to(current_user).select(:id) })
       scope = scope.where(id: mcp_context.allowed_run_ids) if mcp_context&.allowed_run_ids
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
