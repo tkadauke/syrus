@@ -951,6 +951,18 @@ RSpec.describe Steps::Base, :ci_only do
       expect(diff).to include("feature.rb")
     end
 
+    it "captures non-ASCII paths without git C-quoting them" do
+      File.write(workspace_dir.join("café.rb"), "puts 'coffee'\n")
+      system("git", "-C", workspace_dir.to_s, "add", "café.rb", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "commit", "-m", "non-ascii path",
+             out: File::NULL, err: File::NULL)
+
+      diff = handler.send(:diff_against_default)
+
+      expect(diff).to include("diff --git a/café.rb b/café.rb")
+      expect(diff).not_to include("\\303\\251")
+    end
+
     it "captures only child changes when a stacked-PR child is based on its parent branch" do
       allow(handler).to receive(:workspace).and_return(stacked_fake_ws)
 
