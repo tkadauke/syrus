@@ -85,7 +85,7 @@ class ChatEpicProposalDependencyWirer
 
   def resolve_token(proposal, token)
     if token.to_s.match?(/\Aepic:\d+\z/)
-      user.epics.find_by(id: token.split(":", 2).last)
+      Epic.accessible_to(user).find_by(id: token.split(":", 2).last)
     else
       proposal.chat_session.proposals.confirmed.find_by(slug: token)&.epic
     end

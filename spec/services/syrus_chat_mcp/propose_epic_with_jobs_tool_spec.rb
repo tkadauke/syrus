@@ -6,10 +6,14 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   def server
+    server_for(chat_session)
+  end
+
+  def server_for(session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [ described_class ],
-      server_context: { chat_session: chat_session }
+      server_context: { chat_session: session }
     )
   end
 
@@ -297,6 +301,88 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(ui.depends_on_epic_ids).to eq([ prerequisite_epic.id ])
     expect(ui.dependencies).to contain_exactly(schema)
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
+  end
+
+  it "creates and materializes bundled Epic proposals for direct write collaborators" do
+    prerequisite_epic = Factories.epic(user: user, repository: repository)
+    prerequisite_job = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    collaborator = Factories.user(email_address: "epic-proposal-writer@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
+
+    response = jsonrpc(
+      server_for(collaborator_chat),
+      "tools/call",
+      params: {
+        name: "propose_epic_with_jobs",
+        arguments: {
+          epic: {
+            slug: "membership-bundle",
+            title: "Membership bundle",
+            description: "Let collaborators plan work.",
+            target_repo: repository.slug,
+            depends_on_job_ids: [ prerequisite_job.id ]
+          },
+          jobs: [
+            {
+              slug: "membership-child",
+              target_repo: repository.slug,
+              title: "Membership child",
+              description: "Build the collaborator path.",
+              depends_on_epic_ids: [ prerequisite_epic.id ],
+              planned_execution: default_planned_execution
+            }
+          ]
+        }
+      }
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = collaborator_chat.proposals.find_by!(slug: "membership-bundle")
+    child = collaborator_chat.proposals.find_by!(slug: "membership-child")
+
+    result = ChatEpicProposalMaterializer.new(user: collaborator).file!(proposal)
+
+    expect(proposal.reload).to be_confirmed
+    expect(result.epic).to have_attributes(user: collaborator, repository: repository)
+    expect(result.epic.dependencies.sole.depends_on_job).to eq(prerequisite_job)
+    expect(child.reload.job).to have_attributes(user: collaborator, repository: repository)
+    expect(child.job.dependencies.sole.depends_on_epic).to eq(prerequisite_epic)
+  end
+
+  it "rejects bundled Epic proposals for read-tier repository collaborators" do
+    collaborator = Factories.user(email_address: "epic-proposal-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    collaborator_chat = ChatSession.create!(user: collaborator, repository: repository)
+
+    response = jsonrpc(
+      server_for(collaborator_chat),
+      "tools/call",
+      params: {
+        name: "propose_epic_with_jobs",
+        arguments: {
+          epic: {
+            slug: "read-only-bundle",
+            title: "Read-only bundle",
+            description: "This should not create proposals.",
+            target_repo: repository.slug
+          },
+          jobs: [
+            {
+              slug: "read-only-child",
+              target_repo: repository.slug,
+              title: "Read-only child",
+              description: "No card should exist.",
+              planned_execution: default_planned_execution
+            }
+          ]
+        }
+      }
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include("write access")
+    expect(collaborator_chat.proposals.find_by(slug: "read-only-bundle")).to be_nil
   end
 
   it "defaults omitted sibling dependencies to a straight chain in jobs array order" do

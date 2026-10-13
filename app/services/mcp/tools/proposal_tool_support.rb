@@ -80,6 +80,14 @@ module Mcp::Tools
       Epic.accessible_to(chat_session.user).where(repository: repository).find_by(id: epic_id)
     end
 
+    def accessible_jobs_for(chat_session)
+      Job.accessible_to(chat_session.user)
+    end
+
+    def accessible_epics_for(chat_session)
+      Epic.accessible_to(chat_session.user)
+    end
+
     def unique_slug(chat_session, title, prefix:)
       base = title.to_s.parameterize.presence || prefix
       base = "#{prefix}-#{base}" unless base.start_with?("#{prefix}-")
@@ -135,12 +143,12 @@ module Mcp::Tools
 
     def unknown_epic_dependency_ids(chat_session, epic_ids)
       ids = normalize_integer_list(epic_ids)
-      ids - Epic.accessible_to(chat_session.user).where(id: ids).pluck(:id)
+      ids - accessible_epics_for(chat_session).where(id: ids).pluck(:id)
     end
 
     def unknown_job_dependency_ids(chat_session, job_ids)
       ids = normalize_integer_list(job_ids)
-      ids - Job.accessible_to(chat_session.user).where(id: ids).pluck(:id)
+      ids - accessible_jobs_for(chat_session).where(id: ids).pluck(:id)
     end
 
     def dependency_target_error(scope, ids)
