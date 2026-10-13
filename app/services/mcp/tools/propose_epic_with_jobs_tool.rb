@@ -181,6 +181,11 @@ module Mcp::Tools
 
         epic_repository = target_epic&.repository || repository_for(user, chat_session, normalized_epic[:target_repo])
         return Mcp::Tools.invalid("unknown epic target_repo: #{normalized_epic[:target_repo]}") unless epic_repository
+        unless RepositoryPolicy.new(user, epic_repository).write?
+          return Mcp::Tools.invalid(
+            "Only a repository member with write access, or an admin, can propose an Epic for #{epic_repository.slug}."
+          )
+        end
         if target_epic && normalized_epic[:target_repo].present? && normalized_epic[:target_repo] != epic_repository.slug
           return Mcp::Tools.invalid("epic target_repo must match existing Epic repository")
         end
