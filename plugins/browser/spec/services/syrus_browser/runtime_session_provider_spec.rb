@@ -220,6 +220,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
 
     it "returns lines after the cursor and advances it" do
       Dir.mktmpdir do |dir|
+        runtime_session.update!(workspace_ref: dir)
         log_path = File.join(dir, "development.log")
         File.write(log_path, "line1\nline2\nline3\n")
 
@@ -229,6 +230,51 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
         result = provider.logs(runtime_session.id, 1, {})
 
         expect(result).to eq(entries: %w[line2 line3], cursor: 3)
+      end
+    end
+
+    it "ignores an absolute configured log path outside the workspace" do
+      Dir.mktmpdir do |workspace|
+        runtime_session.update!(workspace_ref: workspace)
+        outside_path = File.join(Dir.tmpdir, "browser-runtime-session-outside.log")
+        File.write(outside_path, "outside\n")
+
+        source = double(log_paths: [ outside_path ])
+        allow(PreviewCommandSource).to receive(:new).with(runtime_session.workspace_ref).and_return(double(resolve: source))
+
+        expect(provider.logs(runtime_session.id, 0, {})).to eq(entries: [], cursor: 0)
+      ensure
+        FileUtils.rm_f(outside_path) if outside_path
+      end
+    end
+
+    it "ignores a configured log path that traverses outside the workspace" do
+      Dir.mktmpdir do |parent|
+        workspace = File.join(parent, "workspace")
+        FileUtils.mkdir_p(workspace)
+        runtime_session.update!(workspace_ref: workspace)
+        File.write(File.join(parent, "outside.log"), "outside\n")
+
+        source = double(log_paths: [ "../outside.log" ])
+        allow(PreviewCommandSource).to receive(:new).with(runtime_session.workspace_ref).and_return(double(resolve: source))
+
+        expect(provider.logs(runtime_session.id, 0, {})).to eq(entries: [], cursor: 0)
+      end
+    end
+
+    it "ignores an in-workspace symlink that resolves outside the workspace" do
+      Dir.mktmpdir do |parent|
+        workspace = File.join(parent, "workspace")
+        FileUtils.mkdir_p(workspace)
+        runtime_session.update!(workspace_ref: workspace)
+        outside_path = File.join(parent, "outside.log")
+        File.write(outside_path, "outside\n")
+        File.symlink(outside_path, File.join(workspace, "leak.log"))
+
+        source = double(log_paths: [ "leak.log" ])
+        allow(PreviewCommandSource).to receive(:new).with(runtime_session.workspace_ref).and_return(double(resolve: source))
+
+        expect(provider.logs(runtime_session.id, 0, {})).to eq(entries: [], cursor: 0)
       end
     end
   end
