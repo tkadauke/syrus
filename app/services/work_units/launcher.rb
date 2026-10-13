@@ -28,6 +28,7 @@ module WorkUnits
     Result = Data.define(:workflow, :run, :intent, :work_unit, :status, :reason, :gate_result) do
       def started? = status == "started"
       def blocked? = status == "blocked"
+      def not_started? = status == "not_started"
     end
 
     def self.instantiate(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
@@ -101,9 +102,16 @@ module WorkUnits
         intent: unit&.work_intent,
         work_unit: unit,
         status: run ? "started" : "not_started",
-        reason: nil,
+        reason: run ? nil : not_started_reason_for(workflow.reload),
         gate_result: nil
       )
+    end
+
+    def self.not_started_reason_for(workflow)
+      start_block = WorkUnits::StartBlock.for(workflow)
+      start_block.data[:reason] ||
+        start_block.reason ||
+        workflow.artifact("start_cancelled_reason").presence
     end
 
     def self.schedule_blocked_recheck!(workflow, gate_result)
