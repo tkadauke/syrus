@@ -88,6 +88,24 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     expect(log).to eq([ :partial, :rolled_back, :good ])
   end
 
+  it "retries a failed install on the next sync without another plugin change" do
+    attempts = 0
+    log = []
+
+    described_class.define("flaky") do |_scope|
+      attempts += 1
+      raise "transient install failure" if attempts == 1
+
+      log << :installed
+    end
+
+    described_class.sync!
+    described_class.sync!
+
+    expect(attempts).to eq(2)
+    expect(log).to eq([ :installed ])
+  end
+
   it "disposes everything on reset!" do
     log = []
     described_class.define("probe") { |scope| scope.effect("x") { -> { log << :disposed } } }
