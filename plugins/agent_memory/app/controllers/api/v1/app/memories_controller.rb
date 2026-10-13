@@ -11,8 +11,10 @@ module Api
         end
 
         def create
-          memory = AgentMemory::Entry.new(create_memory_params)
+          attrs = create_memory_params.to_h.symbolize_keys
+          memory = AgentMemory::Entry.new(attrs)
           memory.user = Current.user
+          return unless ensure_repository_scope_belongs_to_owner(memory, attrs)
 
           if memory.save
             render json: memories_payload.merge(message: "Memory created."), status: :created
@@ -30,9 +32,7 @@ module Api
           if attrs[:scope] == "global"
             attrs.merge!(scope_id: nil, published: false)
           elsif attrs[:scope_id].present?
-            unless memory.user.repositories.exists?(id: attrs[:scope_id])
-              return render_error("validation_failed", "Repository must belong to the memory owner.", status: :unprocessable_content)
-            end
+            return unless ensure_repository_scope_belongs_to_owner(memory, attrs)
           end
 
           if memory.update(attrs)
@@ -56,6 +56,9 @@ module Api
 
           if !memory.repository?
             render_error("validation_failed", "Only repository-scoped memories can be published.",
+                         status: :unprocessable_content)
+          elsif !repository_scope_belongs_to_owner?(memory)
+            render_error("validation_failed", "Repository must belong to the memory owner.",
                          status: :unprocessable_content)
           elsif memory.update(published: true)
             render json: memories_payload.merge(message: "Memory published.")
@@ -155,7 +158,7 @@ module Api
 
         def memory_json(memory, changed: false)
           can_manage = Current.user.admin? || memory.user_id == Current.user.id
-          can_publish = can_manage && memory.repository?
+          can_publish = can_manage && memory.repository? && repository_scope_belongs_to_owner?(memory)
 
           {
             id: memory.id,
@@ -224,6 +227,27 @@ module Api
             id: repository.id,
             name: repository.slug
           }
+        end
+
+        def ensure_repository_scope_belongs_to_owner(memory, attrs)
+          return true if repository_scope_belongs_to_owner?(memory, attrs)
+
+          render_error("validation_failed", "Repository must belong to the memory owner.",
+                       status: :unprocessable_content)
+          false
+        end
+
+        def repository_scope_belongs_to_owner?(memory, attrs = nil)
+          attrs ||= {}
+          scope = attrs.key?(:scope) ? attrs[:scope] : memory.scope
+          scope_id = attrs.key?(:scope_id) ? attrs[:scope_id] : memory.scope_id
+          return true unless scope == "repository" && scope_id.present?
+
+          if memory.repository && memory.scope_id.to_s == scope_id.to_s
+            return memory.repository.user_id == memory.user_id
+          end
+
+          ::Repository.exists?(id: scope_id, user_id: memory.user_id)
         end
 
         def create_memory_params
