@@ -77,8 +77,6 @@ class ChatMessage < ApplicationRecord
     extract_text_from_content.to_s.gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, PREVIEW_TEXT_MAX_BYTES)
   end
 
-  private
-
   def extract_text_from_content
     if content.is_a?(Array)
       content.filter_map { |block| block["text"] if block.is_a?(Hash) && block["type"] == "text" }.join
@@ -88,6 +86,8 @@ class ChatMessage < ApplicationRecord
       content.to_s
     end
   end
+
+  private
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?
