@@ -21,6 +21,9 @@ RSpec.describe "assets:precompile" do
     Rake::Task["assets:precompile"].reenable
     Rake::Task["assets:precompress"].reenable
     allow(Rails.env).to receive(:development?).and_return(false)
+    allow(Syrus::SpaEntrypointPublisher).to receive(:new).and_return(
+      instance_double(Syrus::SpaEntrypointPublisher, call: Rails.application.config.assets.output_path.join("spa.js"))
+    )
   end
 
   it "creates a compressed variant for the fingerprinted SPA entry bundle after the production asset build" do
@@ -34,6 +37,10 @@ RSpec.describe "assets:precompile" do
 
     Rake::Task["assets:precompile"].invoke
 
+    expect(Syrus::SpaEntrypointPublisher).to have_received(:new).with(
+      source_path: Rails.root.join("app/assets/builds/spa.js"),
+      output_path: output_path
+    )
     expect(output_path.join("spa-entry-abc123.js.gz")).to exist
     expect(output_path.join("spa-entry-abc123.js.br")).to exist
   end
