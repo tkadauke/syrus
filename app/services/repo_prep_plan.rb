@@ -21,7 +21,19 @@ require "yaml"
 class RepoPrepPlan
   CONFIG_FILE = ".syrus.yml".freeze
 
-  Result = Data.define(:commands, :source, :note) do
+  Result = Data.define(:commands, :source, :note, :error) do
+    def initialize(commands:, source:, note:, error: nil)
+      super(commands: commands, source: source, note: note, error: error)
+    end
+
+    def self.ok(commands:, source:, note: nil)
+      new(commands: commands, source: source, note: note, error: nil)
+    end
+
+    def self.error(source:, message:)
+      new(commands: [], source: source, note: message, error: message)
+    end
+
     # Auto-detected plans are a *guess* — Syrus inferred the command
     # from a lockfile, the repo never asked for it. Steps::Prepare
     # soft-fails these (warn + hand off to the agent anyway) so a wrong
@@ -30,6 +42,10 @@ class RepoPrepPlan
     # the discriminator: `from_auto_detect` always prefixes "auto-detect".
     def guessed?
       source.to_s.start_with?("auto-detect")
+    end
+
+    def error?
+      error.present?
     end
   end
 
@@ -62,29 +78,28 @@ class RepoPrepPlan
     case raw
     when Array
       commands = raw.map(&:to_s).map(&:strip).reject(&:empty?)
-      Result.new(commands: commands, source: ".syrus.yml",
-                 note: commands.empty? ? "prepare: [] — no commands" : nil)
+      Result.ok(commands: commands, source: ".syrus.yml",
+                note: commands.empty? ? "prepare: [] — no commands" : nil)
     when false, nil
-      Result.new(commands: [], source: ".syrus.yml",
-                 note: "prepare: #{raw.inspect} — opted out")
+      Result.ok(commands: [], source: ".syrus.yml",
+                note: "prepare: #{raw.inspect} — opted out")
     else
-      Result.new(commands: [], source: ".syrus.yml",
-                 note: "prepare: must be an array of strings (got #{raw.class})")
+      Result.error(source: ".syrus.yml",
+                   message: "prepare: must be an array of strings (got #{raw.class})")
     end
   rescue SyrusYml::ParseError => e
-    Result.new(commands: [], source: ".syrus.yml",
-               note: e.message)
+    Result.error(source: ".syrus.yml", message: e.message)
   end
 
   def from_auto_detect
     matches = plugin_detector_matches
 
     if matches.empty?
-      Result.new(commands: [], source: "auto-detect", note: "no recognized signals — skipping")
+      Result.ok(commands: [], source: "auto-detect", note: "no recognized signals — skipping")
     else
       commands = matches.flat_map { |_label, cmds| cmds }.uniq
       labels = matches.map(&:first)
-      Result.new(commands: commands, source: "auto-detect (#{labels.join(', ')})", note: nil)
+      Result.ok(commands: commands, source: "auto-detect (#{labels.join(', ')})", note: nil)
     end
   end
 

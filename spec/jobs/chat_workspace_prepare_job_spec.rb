@@ -67,6 +67,20 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(chat_session.coding_checkout_prepare_finished_at).to be_present
   end
 
+  it "marks checkout prepare failed when explicit prepare config is invalid" do
+    make_checkout_path
+    plan = RepoPrepPlan::Result.error(source: ".syrus.yml", message: "prepare: must be an array of strings (got String)")
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+
+    expect(ProcessRunner).not_to receive(:new)
+    expect(Rails.logger).to receive(:error).with(/invalid prepare configuration/)
+
+    described_class.perform_now(chat_session.id, repository.id)
+
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("failed")
+    expect(chat_session.coding_checkout_prepare_failure).to include("invalid prepare configuration")
+  end
+
   it "refreshes relay credentials after a successful prepare" do
     chat_session.update!(repository: repository)
     make_checkout_path
