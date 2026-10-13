@@ -435,9 +435,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               basePath={`/api/v1/app/repositories/${payload.repository.id}/provider_routing_rules`}
               description={t("provider_routing.repository_description")}
               options={payload.provider_routing_options}
+              inheritedContext={payload.inherited_provider_routing_context}
               queryKey={["repositories", mode, String(payload.repository.id)]}
               rules={payload.provider_routing_rules}
-              title={t("provider_routing.title")}
+              title={t("provider_routing.repository_title")}
             />
           ) : null}
 

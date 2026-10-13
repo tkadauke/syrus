@@ -1,6 +1,6 @@
 module ProviderRouting
   class AvailabilitySelector
-    Decision = Data.define(:candidate, :original_candidate, :reason, :availability, :candidate_availability, :decided_at, :exhausted) do
+    Decision = Data.define(:candidate, :original_candidate, :reason, :availability, :candidate_availability, :decided_at, :exhausted, :routing_resolution) do
       def selected_provider = candidate&.provider
       def failover? = selected_provider.present? && original_candidate&.provider.present? && selected_provider != original_candidate.provider
       def exhausted? = exhausted
@@ -22,6 +22,7 @@ module ProviderRouting
           "automatic_failover" => true,
           "manual_override" => false,
           "exhausted" => exhausted?,
+          "routing_resolution" => routing_resolution&.explanation,
           "unavailable" => unavailable_summary(unavailable_payload)
         }.compact
       end
@@ -73,10 +74,12 @@ module ProviderRouting
       end
     end
 
-    def self.call(job:, task_key:, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
       new(
         job: job,
         task_key: task_key,
+        trigger: trigger,
+        workflow_trigger_kind: workflow_trigger_kind,
         original_candidate: original_candidate,
         reason: reason,
         availability: availability,
@@ -88,9 +91,11 @@ module ProviderRouting
       ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level)
     end
 
-    def initialize(job:, task_key:, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
       @job = job
       @task_key = task_key
+      @trigger = trigger
+      @workflow_trigger_kind = workflow_trigger_kind
       @original_candidate = original_candidate
       @reason = reason
       @availability = availability
@@ -128,11 +133,15 @@ module ProviderRouting
 
     private
 
-    attr_reader :job, :task_key, :original_candidate, :reason, :availability, :now
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :original_candidate, :reason, :availability, :now
 
     def candidates
-      @candidates ||= ProviderRouting::Resolver.call(job: job, task_key: task_key).presence ||
+      @candidates ||= routing_resolution.candidates.presence ||
         ProviderRouting::Resolver::HARDCODED_FALLBACK
+    end
+
+    def routing_resolution
+      @routing_resolution ||= ProviderRouting::Resolver.resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
     end
 
     def user = job.owner_user || job.user
@@ -145,7 +154,8 @@ module ProviderRouting
         availability: availability,
         candidate_availability: candidate_availability,
         decided_at: now,
-        exhausted: exhausted
+        exhausted: exhausted,
+        routing_resolution: routing_resolution
       )
     end
 

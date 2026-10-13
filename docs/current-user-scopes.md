@@ -141,6 +141,7 @@ per-user/private:
   - app/controllers/concerns/performance_logging_context.rb
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/credentials/documents_controller.rb
+  - app/controllers/concerns/provider_routing_rule_serialization.rb
   - app/controllers/api/v1/app/provider_routing_rules_controller.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb

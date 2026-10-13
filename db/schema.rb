@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_190916) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_235013) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2611,7 +2611,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_190916) do
     t.string "scope_type", limit: 32, null: false
     t.string "task_key", null: false
     t.datetime "updated_at", null: false
-    t.index ["scope_type", "scope_id", "task_key"], name: "idx_provider_routing_rules_scope_task_key_unique", unique: true
+    t.bigint "user_id", null: false
+    t.bigint "repository_id"
+    t.bigint "job_id"
+    t.integer "position", null: false
+    t.json "trigger", null: false
+    t.json "conditions", null: false
+    t.json "action", null: false
+    t.index ["job_id"], name: "index_provider_routing_rules_on_job_id"
+    t.index ["repository_id"], name: "index_provider_routing_rules_on_repository_id"
+    t.index ["scope_type", "scope_id", "position"], name: "idx_provider_routing_rules_scope_position_unique", unique: true
+    t.index ["user_id"], name: "index_provider_routing_rules_on_user_id"
   end
 
   create_table "provider_sessions", force: :cascade do |t|

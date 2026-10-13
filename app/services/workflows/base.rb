@@ -118,10 +118,16 @@ module Workflows
           availability: nil,
           candidate_availability: nil,
           decided_at: Time.current,
-          exhausted: false
+          exhausted: false,
+          routing_resolution: nil
         )
       else
-        ProviderRouting::AvailabilitySelector.call(job: job, task_key: trigger_kind, original_candidate: explicit_candidate)
+        ProviderRouting::AvailabilitySelector.call(
+          job: job,
+          task_key: trigger_kind,
+          workflow_trigger_kind: trigger_kind,
+          original_candidate: explicit_candidate
+        )
       end
       resolved_candidate = routed_selection.candidate
       model_selection = model.present? ? "explicit" : "default"

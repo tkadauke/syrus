@@ -9,33 +9,83 @@ module ProviderRouting
     Candidate = Data.define(:provider, :model, :effort_level) do
       def to_h = super.compact
     end
+    Resolution = Data.define(:candidates, :source_scope, :source_id, :matched_rule, :match_details, :fallback, :reason) do
+      def explanation
+        {
+          "source_scope" => source_scope,
+          "source_id" => source_id,
+          "fallback" => fallback,
+          "reason" => reason,
+          "matched_rule" => matched_rule_payload,
+          "condition_results" => match_details,
+          "final_action" => final_action
+        }.compact
+      end
+
+      private
+
+      def matched_rule_payload
+        return nil unless matched_rule
+
+        {
+          "id" => matched_rule.id,
+          "scope_type" => matched_rule.scope_type,
+          "scope_id" => matched_rule.scope_id,
+          "position" => matched_rule.position,
+          "trigger" => matched_rule.trigger,
+          "conditions" => matched_rule.conditions
+        }.compact
+      end
+
+      def final_action
+        if matched_rule
+          matched_rule.action.to_h.deep_stringify_keys.merge("candidates" => serialized_candidates)
+        else
+          { "strategy" => "fallback_order", "candidates" => serialized_candidates }
+        end
+      end
+
+      def serialized_candidates
+        candidates.map { |candidate| candidate.to_h.stringify_keys }
+      end
+    end
 
     HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
 
-    def self.call(job:, task_key:)
-      new(job: job, task_key: task_key).call
+    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
+      resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).candidates
     end
 
-    def self.rule_configured?(job:, task_key:, include_default: true)
-      new(job: job, task_key: task_key).send(:rule_configured?, include_default: include_default)
+    def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).resolve
     end
 
-    def initialize(job:, task_key:)
+    def self.rule_configured?(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, include_default: true)
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).send(:rule_configured?, include_default: include_default)
+    end
+
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
       @job = job
       @task_key = task_key.to_s
+      @trigger = trigger
+      @workflow_trigger_kind = workflow_trigger_kind
     end
 
     def call
-      job_override_candidates ||
-        rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: task_key) ||
-        rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
-        repository_and_user_candidates.presence ||
-        HARDCODED_FALLBACK
+      resolve.candidates
+    end
+
+    def resolve
+      job_override_resolution ||
+        rule_resolution(scope_type: "job", scope_id: job.id) ||
+        rule_resolution(scope_type: "repository", scope_id: repository_id) ||
+        repository_and_user_resolution ||
+        hardcoded_fallback_resolution
     end
 
     private
 
-    attr_reader :job, :task_key
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind
 
     def job_override_candidates
       return nil if job.job_provider_setting_default?
@@ -46,6 +96,21 @@ module ProviderRouting
       # presentation and legacy callers, but the setting remains the source of
       # truth for explicit pins.
       [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
+    end
+
+    def job_override_resolution
+      candidates = job_override_candidates
+      return nil if candidates.blank?
+
+      Resolution.new(
+        candidates: candidates,
+        source_scope: "job_provider_setting",
+        source_id: job.id,
+        matched_rule: nil,
+        match_details: nil,
+        fallback: true,
+        reason: "explicit_job_provider_setting"
+      )
     end
 
     # No explicit job pin and no repository-scoped routing rule matched (a
@@ -59,8 +124,25 @@ module ProviderRouting
     # (and the user's own default provider) still act as the fallback chain,
     # so we concatenate rather than short-circuit. #uniq dedupes when the same
     # provider shows up in both the repo and user layers.
-    def repository_and_user_candidates
-      ((repository_explicit_candidates || []) + (user_scoped_candidates || [])).uniq(&:provider)
+    def repository_and_user_resolution
+      repository_candidates = repository_explicit_candidates || []
+      user_resolution = user_scoped_resolution
+      candidates = (repository_candidates + Array(user_resolution&.candidates)).uniq(&:provider)
+      return nil if candidates.blank?
+
+      if repository_candidates.present?
+        Resolution.new(
+          candidates: candidates,
+          source_scope: "repository_explicit_provider",
+          source_id: repository_id,
+          matched_rule: user_resolution&.matched_rule,
+          match_details: user_resolution&.match_details,
+          fallback: true,
+          reason: user_resolution ? "repository_provider_with_user_rule_failover" : "repository_explicit_provider"
+        )
+      else
+        user_resolution
+      end
     end
 
     def repository_explicit_candidates
@@ -70,10 +152,9 @@ module ProviderRouting
       [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
     end
 
-    def user_scoped_candidates
-      rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
-        rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
-        default_provider_candidates
+    def user_scoped_resolution
+      rule_resolution(scope_type: "user", scope_id: effective_user&.id) ||
+        default_provider_resolution
     end
 
     # No routing rule at any scope, and no explicit repository/membership
@@ -87,13 +168,52 @@ module ProviderRouting
       [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
     end
 
-    def rule_candidates(scope_type:, scope_id:, task_key:)
+    def default_provider_resolution
+      candidates = default_provider_candidates
+      return nil if candidates.blank?
+
+      Resolution.new(
+        candidates: candidates,
+        source_scope: "user_default_provider",
+        source_id: effective_user&.id,
+        matched_rule: nil,
+        match_details: nil,
+        fallback: true,
+        reason: "user_default_provider"
+      )
+    end
+
+    def rule_resolution(scope_type:, scope_id:)
       return nil if scope_id.blank?
 
-      rule = ProviderRoutingRule.find_by(scope_type: scope_type, scope_id: scope_id, task_key: task_key)
-      return nil if rule.nil? || rule.candidates.blank?
+      match = ProviderRoutingRule
+        .where(scope_type: scope_type, scope_id: scope_id)
+        .order(:position, :id)
+        .then { |rules| matching_rule_from(rules) }
+      return nil if match.nil? || match.fetch(:rule).action_candidates.blank?
 
-      rule.candidates.map { |candidate| candidate_from_hash(candidate) }
+      candidates = match.fetch(:rule).action_candidates.map { |candidate| candidate_from_hash(candidate) }
+      Resolution.new(
+        candidates: candidates,
+        source_scope: scope_type,
+        source_id: scope_id,
+        matched_rule: match.fetch(:rule),
+        match_details: match.fetch(:details),
+        fallback: false,
+        reason: "matched_rule"
+      )
+    end
+
+    def hardcoded_fallback_resolution
+      Resolution.new(
+        candidates: HARDCODED_FALLBACK,
+        source_scope: "hardcoded",
+        source_id: nil,
+        matched_rule: nil,
+        match_details: nil,
+        fallback: true,
+        reason: "no_rule_or_provider_default_matched"
+      )
     end
 
     def candidate_from_hash(hash)
@@ -110,10 +230,51 @@ module ProviderRouting
     end
 
     def rule_configured?(include_default:)
-      keys = [ task_key ]
-      keys << ProviderRoutingRule::DEFAULT_TASK_KEY if include_default
-      ProviderRoutingRule.where(scope_type: "repository", scope_id: repository_id, task_key: keys).exists? ||
-        ProviderRoutingRule.where(scope_type: "user", scope_id: effective_user&.id, task_key: keys).exists?
+      scopes = [
+        [ "job", job.id ],
+        [ "repository", repository_id ],
+        [ "user", effective_user&.id ]
+      ].select { |_scope_type, scope_id| scope_id.present? }
+
+      scopes.any? do |scope_type, scope_id|
+        ProviderRoutingRule
+          .where(scope_type: scope_type, scope_id: scope_id)
+          .any? do |rule|
+            next false if !include_default && rule.trigger.to_h["type"] == "default"
+
+            invocations(include_default: include_default).any? { |candidate_invocation| rule.matches?(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind) }
+          end
+      end
+    end
+
+    def invocation
+      @invocation ||= (trigger.presence || inferred_invocation).stringify_keys
+    end
+
+    def matching_rule_from(rules)
+      rules.each do |rule|
+        invocations(include_default: true).each do |candidate_invocation|
+          details = rule.match_details(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind)
+          return { rule: rule, details: details } if details["matched"]
+        end
+      end
+      nil
+    end
+
+    def invocations(include_default:)
+      values = [
+        invocation,
+        { "type" => "default" }
+      ]
+      values.pop unless include_default
+      values.uniq
+    end
+
+    def inferred_invocation
+      return { type: "step", kind: task_key } if Step::Kind.agentic_values.include?(task_key)
+      return { type: "chat_role", role: task_key } if AgentRole::CHAT_ROLES.include?(task_key)
+
+      { type: "legacy_task", task_key: task_key, kind: task_key }
     end
   end
 end

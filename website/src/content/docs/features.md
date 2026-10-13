@@ -802,7 +802,10 @@ choice is one-shot for the retry workflow. The Job detail page also has a
 provider selector for future workflows: leave it on Default to resolve the
 current repository/user provider each time a new workflow is created, or choose
 a concrete enabled provider for later feedback, rebase, and retry workflows on
-that Job. Existing workflow pins are not rewritten.
+that Job. The same page exposes job-specific routing rules and a resolved
+provider explanation, including the matched scope or rule, so operators can see
+why future work will use a provider before starting another workflow. Existing
+workflow pins are not rewritten.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
 workspace remains available, retry or rebuild landing workflows for landing
@@ -1259,7 +1262,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
   process-local material, redaction, cleanup, and access audit events.
-- **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
+- **Agent Settings and Credentials** store the default agent provider,
+  max-turn setting, auto-approval fallback, credentials, and "My default
+  routing" rules. Repository settings can layer repository-specific routing
+  on top, and Job detail can add job-specific routing overrides.
 - **Preferences** stores account-level toggles such as scheduling pause and the optional mobile chat focus mode that auto-hides the top app header while scrolling down in a chat.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).
 - **Theme** — light, dark, or system (matches the OS color-scheme preference and updates live if it changes) is picked from the account area. The choice applies before the page finishes loading, so there's no flash of the wrong theme, and it's respected by the desktop tray app too.

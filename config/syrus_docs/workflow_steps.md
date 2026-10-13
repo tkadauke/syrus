@@ -210,6 +210,11 @@ plugin-registered agent provider such as `claude`, `codex`, `muse`, or `agy`.
 `default` resolves the current repository/user default at workflow creation
 time; explicit values pin newly-created workflows for that Job to the selected
 provider.
+Operators can also manage ordered routing rules from the app surfaces that own
+each scope: Agent Settings shows "My default routing", repository settings show
+"My routing for this repository" with inherited user rules, and Job detail shows
+"Routing for this job" with inherited repository/user rules plus the resolver
+explanation for the provider that would be chosen for future work.
 
 `agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
 `SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as
@@ -327,21 +332,30 @@ timeout.
 
 **Provider routing and availability failover:** `ProviderRouting::Resolver`
 chooses ordered provider/model/effort candidates for a Workflow from explicit
-Job pins, repository routing rules, an explicit repository/membership
-provider (`Repository#agent_provider` or a write/admin member's override,
-via `Repository#explicit_agent_provider`), user routing rules, the user's own
-default provider, and the hardcoded fallback, in that order. A repository (or
-write/admin membership) provider outranks user-scoped routing rules even when
-no repository routing rule exists for the task -- a repository pinned to a
-specific provider is not silently routed to a user's personal default-routing
-rule. It does not foreclose failover, though: the repository provider is
-prepended to the user-scoped candidate chain rather than replacing it, so a
-real outage still fails over into the user's rules/default (deduplicated by
-provider), and the failover artifact still records the repository provider as
-the original choice. A repository-scoped routing rule (task-specific or
-default-task) still overrides the repository's explicit provider outright,
-the same as before. Workflow creation records the chosen candidate in
-`agent_provider_routing_decision`.
+Job pins, job-scoped routing rules, repository routing rules, an explicit
+repository/membership provider (`Repository#agent_provider` or a write/admin
+member's override, via `Repository#explicit_agent_provider`), user routing
+rules, the user's own default provider, and the hardcoded fallback, in that
+order. Within a rule scope it evaluates rules by ascending `position` and stops
+at the first match. Rule triggers are actual invocation kinds: chat roles and
+agentic `Step::Kind` values, including plugin-provided step kinds. Workflow
+trigger kind is evaluated as a condition only when workflow context is present.
+A repository (or write/admin membership) provider outranks user-scoped routing
+rules even when no repository routing rule exists for the task -- a repository
+pinned to a specific provider is not silently routed to a user's personal
+default-routing rule. It does not foreclose failover, though: the repository
+provider is prepended to the user-scoped candidate chain rather than replacing
+it, so a real outage still fails over into the user's rules/default
+(deduplicated by provider), and the failover artifact still records the
+repository provider as the original choice. A repository-scoped routing rule
+(task-specific or default-task) still overrides the repository's explicit
+provider outright, the same as before. Workflow creation records the chosen
+candidate in `agent_provider_routing_decision`, including a
+`routing_resolution` payload with the matched rule, source scope, condition
+results, and final action.
+Job detail serializes the same resolver explanation so operators can see which
+scope or rule selected the currently resolved provider without opening a run
+artifact.
 Before the first Run starts, `ProviderRouting::AvailabilitySelector` walks
 that ordered candidate list and chooses the first one that is not exhausted,
 rate-limited, in an auth-error state, or manually overridden -- this basic
@@ -362,14 +376,41 @@ pins remain the most specific resolver input, so they are not overridden by
 user/repository routing rules. Chat providers are not switched by workflow
 routing or by `SwitchChatProviderJob`.
 
-Operators edit routing rules from the Agent section of account settings and
-from the Automation section of repository settings. Account rules apply to Jobs
-that use the user's defaults; repository rules override matching account rules
-for that repository and are gated by the same repository-admin permissions as
-other repository automation settings. Each rule has a `task_key` and an ordered
-candidate list. Candidate providers come from the enabled agent-provider plugin
-catalog, model choices come from that provider's `.available_models`, and
-`effort_level` can be left blank to use the provider default.
+Operators edit default routing rules from the credentials/account settings
+surfaces and repository-specific rules from the Automation section of repository
+settings. Account rules apply to Jobs that use the user's defaults; repository
+rules override matching account rules for that repository and are gated by the
+same repository-admin permissions as other repository automation settings. Job
+detail surfaces can also edit Job-scoped overrides, gated by the same write
+permission used for Job mutation actions. The app API exposes scoped
+collections at
+`/api/v1/app/credentials/provider_routing_rules`,
+`/api/v1/app/repositories/:repository_id/provider_routing_rules`, and
+`/api/v1/app/jobs/:job_id/provider_routing_rules`; each collection supports
+CRUD plus a `PATCH .../reorder` action that updates every position in that
+one scope atomically. Repository and Job payloads include inherited rule
+context so an editor can show the account defaults, and for Jobs the
+repository overrides, that would apply underneath the current scope.
+
+Rules are owned by a user even when they are scoped to a repository or a Job.
+Within each user, repository, or Job scope they have an explicit `position`;
+the resolver walks rules in order and uses the first matching rule, with
+Job-scoped rules before repository-scoped rules and repository-scoped rules
+before user-scoped rules. Existing `task_key` rows continue to work through a
+legacy trigger shape, but new rules store a structured `trigger` for actual
+agent invocations: agentic `Step::Kind` values or chat
+`AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget predicates,
+day/time windows, repository predicates, and Job metadata predicates live in
+the structured `conditions` payload. Provider selection lives in the
+structured `action` payload, which currently supports ordered fallback
+provider triples and reserves a weighted strategy for future load balancing.
+Candidate providers come from the enabled agent-provider plugin catalog,
+model choices come from that provider's `.available_models`, and
+`effort_level` can be left blank to use the provider default. Editor options
+come from the same live registries: chat roles from `AgentRole`, agentic step
+kinds from `Step::Kind` including plugin-provided entries, workflow trigger
+conditions from `Workflow::TriggerKind`, and provider/model/effort data from
+the provider catalog.
 
 Direct Job creation and Job detail both expose the deeper job-level override.
 Choosing a provider there writes the Job's `job_provider_setting`,

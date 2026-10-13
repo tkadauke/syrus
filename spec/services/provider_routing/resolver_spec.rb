@@ -17,6 +17,15 @@ RSpec.describe ProviderRouting::Resolver do
     described_class::Candidate.new(provider: provider, model: model, effort_level: effort_level)
   end
 
+  def workflow_kind_provider(step: [], trigger: [])
+    Class.new do
+      include Syrus::Plugin::WorkflowKinds
+
+      define_singleton_method(:step_kinds) { step }
+      define_singleton_method(:trigger_kinds) { trigger }
+    end
+  end
+
   describe "1. job explicit override" do
     it "returns a single candidate built from the job's own provider/model/effort_level, ignoring every rule" do
       ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "ci_failure", candidates: [ { "provider" => "codex" } ])
@@ -60,15 +69,16 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "2. repository rule, exact task_key" do
-    it "wins over the repository's default-task rule and every user-scoped rule" do
+    it "wins over a later repository default-task rule and every user-scoped rule" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
-      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, position: 2, task_key: "default", candidates: [ { "provider" => "codex" } ])
       ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
       ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "agy" } ])
       ProviderRoutingRule.create!(
         scope_type: "repository",
         scope_id: repository.id,
+        position: 1,
         task_key: "ci_failure",
         candidates: [ { "provider" => "claude", "model" => "sonnet" }, { "provider" => "codex" } ]
       )
@@ -77,6 +87,192 @@ RSpec.describe ProviderRouting::Resolver do
         candidate(provider: "claude", model: "sonnet"),
         candidate(provider: "codex")
       ])
+    end
+  end
+
+  describe "ordered scoped rules" do
+    it "uses the first matching repository-scoped rule by position" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 2,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "claude" } ] }
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 1,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        conditions: { job_metadata: { priorities: [ "medium" ] } },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "returns a structured explanation for the first matching rule" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default", priority: "medium")
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 1,
+        trigger: { type: "step", kind: "implement" },
+        conditions: {
+          workflow_trigger_kind: [ "initial" ],
+          job_metadata: { priorities: [ "medium" ] }
+        },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex", model: "gpt-5" } ] }
+      )
+
+      resolution = described_class.resolve(
+        job: job,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )
+
+      expect(resolution.candidates).to eq([ candidate(provider: "codex", model: "gpt-5") ])
+      expect(resolution.explanation).to include(
+        "source_scope" => "repository",
+        "source_id" => repository.id,
+        "fallback" => false,
+        "reason" => "matched_rule",
+        "matched_rule" => include(
+          "id" => rule.id,
+          "scope_type" => "repository",
+          "position" => 1
+        ),
+        "condition_results" => include(
+          "matched" => true,
+          "trigger" => include("matched" => true),
+          "conditions" => include(
+            "workflow_trigger_kind" => include("matched" => true, "actual" => "initial"),
+            "job_metadata" => include("matched" => true)
+          )
+        ),
+        "final_action" => include(
+          "strategy" => "fallback_order",
+          "candidates" => [ { provider: "codex", model: "gpt-5" }.stringify_keys ]
+        )
+      )
+    end
+
+    it "lets job-scoped rules override repository and user rules" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "claude" } ])
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "ci_failure", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(
+        scope_type: "job",
+        scope_id: job.id,
+        job_id: job.id,
+        repository_id: repository.id,
+        user_id: user.id,
+        task_key: "ci_failure",
+        candidates: [ { "provider" => "agy" } ]
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "agy") ])
+    end
+
+    it "matches chat role triggers against the actual invocation role" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      ProviderRoutingRule.create!(
+        scope_type: "user",
+        scope_id: user.id,
+        trigger: { type: "chat_role", role: AgentRole::CHAT_CODING },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(described_class.call(
+        job: job,
+        task_key: AgentRole::CHAT_CODING
+      )).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "matches plugin-provided agentic step kinds" do
+      Syrus::PluginRegistry.register(
+        name: "provider_routing_resolver_spec",
+        version: "1.0.0",
+        provides: {
+          workflow_kinds: workflow_kind_provider(step: [
+            { kind: "plugin_agent_step", handler: "Implement", label: "Plugin agent step", style: "bg-gray-100", agentic: true }
+          ])
+        }
+      )
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "plugin_agent_step" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(described_class.call(
+        job: job,
+        task_key: "plugin_agent_step"
+      )).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "matches structured step triggers and workflow trigger conditions" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(described_class.call(
+        job: job,
+        task_key: "initial",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "lets an earlier default rule beat a later exact rule within the same scope" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 1,
+        trigger: { type: "default" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        position: 2,
+        trigger: { type: "legacy_task", task_key: "ci_failure" },
+        action: { strategy: "fallback_order", candidates: [ { provider: "claude" } ] }
+      )
+
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
+    end
+
+    it "does not treat the task key as workflow context for workflow trigger conditions" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+
+      expect(described_class.call(
+        job: job,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" }
+      )).to eq(described_class::HARDCODED_FALLBACK)
     end
   end
 
@@ -96,8 +292,8 @@ RSpec.describe ProviderRouting::Resolver do
     it "is used when neither repository rule exists, and wins over the user's default-task rule" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, position: 2, task_key: "default", candidates: [ { "provider" => "codex" } ])
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, position: 1, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
 
       expect(resolve(job)).to eq([ candidate(provider: "agy") ])
     end

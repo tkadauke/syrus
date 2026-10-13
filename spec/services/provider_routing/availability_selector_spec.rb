@@ -90,6 +90,60 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
     end
 
+    it "passes structured step triggers to the resolver" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )
+
+      expect(decision.candidate.provider).to eq("codex")
+    end
+
+    it "includes the resolver explanation in the routing artifact" do
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        trigger: { type: "step", kind: "implement" },
+        conditions: { workflow_trigger_kind: [ "initial" ] },
+        action: { strategy: "fallback_order", candidates: [ { provider: "codex" } ] }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "implement",
+        trigger: { type: "step", kind: "implement" },
+        workflow_trigger_kind: "initial"
+      )
+
+      expect(decision.artifact).to include(
+        "routing_resolution" => include(
+          "source_scope" => "repository",
+          "matched_rule" => include("id" => rule.id),
+          "condition_results" => include(
+            "matched" => true,
+            "conditions" => include("workflow_trigger_kind" => include("matched" => true))
+          ),
+          "final_action" => include("candidates" => [ { "provider" => "codex" } ])
+        )
+      )
+    end
+
     it "marks an uncredentialed sole candidate exhausted with auth-error availability" do
       user.update!(codex_api_key: nil, agent_provider: "codex", provider_availability_pause_thresholds: { "codex" => 0 })
       allow(App::ProviderAvailability).to receive(:for_user)
@@ -175,7 +229,8 @@ RSpec.describe ProviderRouting::AvailabilitySelector::Decision do
       availability: availability,
       candidate_availability: nil,
       decided_at: Time.zone.parse("2026-01-01T00:00:00Z"),
-      exhausted: false
+      exhausted: false,
+      routing_resolution: nil
     )
   end
 
