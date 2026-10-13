@@ -26,8 +26,10 @@ RSpec.describe "production configuration" do
 
   it "documents the environment-owned production host and proxy assumptions in config" do
     expect(production_config).to include('app_host = ENV.fetch("SYRUS_APP_HOST")')
-    expect(production_config).to include("default_allowed_hosts = app_host")
-    expect(production_config).to include('ENV.fetch("SYRUS_ALLOWED_HOSTS", default_allowed_hosts)')
+    expect(production_config).to include("Syrus::ProductionAllowedHosts.resolve(")
+    expect(production_config).to include('raw_allowed_hosts: ENV["SYRUS_ALLOWED_HOSTS"]')
+    expect(production_config).to include("allowed_hosts_env_blank = Syrus::ProductionAllowedHosts.blank_env?")
+    expect(production_config).to include("SYRUS_ALLOWED_HOSTS is set but blank")
     expect(production_config).to include('env_boolean.call("SYRUS_ASSUME_SSL", "true")')
     expect(production_config).to include('env_boolean.call("SYRUS_FORCE_SSL", "true")')
     expect(production_config).to include('sidecar_process = ENV["SYRUS_MCP_SIDECAR"].present? || ENV["SYRUS_CHAT_MCP_SIDECAR"].present?')

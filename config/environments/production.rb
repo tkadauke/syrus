@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require_relative "../../lib/syrus/production_allowed_hosts"
 require_relative "../active_record_encryption"
 require_relative "../retention_archive_storage"
 
@@ -6,11 +7,11 @@ Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
   env_boolean = ->(key, default) { ActiveModel::Type::Boolean.new.cast(ENV.fetch(key, default)) }
   app_host = ENV.fetch("SYRUS_APP_HOST")
-  default_allowed_hosts = app_host
-  allowed_hosts = ENV.fetch("SYRUS_ALLOWED_HOSTS", default_allowed_hosts)
-    .split(",")
-    .map(&:strip)
-    .reject(&:blank?)
+  allowed_hosts = Syrus::ProductionAllowedHosts.resolve(
+    app_host: app_host,
+    raw_allowed_hosts: ENV["SYRUS_ALLOWED_HOSTS"]
+  )
+  allowed_hosts_env_blank = Syrus::ProductionAllowedHosts.blank_env?
 
   # Code is not reloaded between requests.
   config.enable_reloading = false
@@ -61,6 +62,12 @@ Rails.application.configure do
   sidecar_process = ENV["SYRUS_MCP_SIDECAR"].present? || ENV["SYRUS_CHAT_MCP_SIDECAR"].present?
   log_device = sidecar_process ? STDERR : STDOUT
   config.logger = ActiveSupport::TaggedLogging.logger(log_device)
+
+  if allowed_hosts_env_blank
+    Rails.logger.warn(
+      "[HostAuthorization] SYRUS_ALLOWED_HOSTS is set but blank; using SYRUS_APP_HOST for host authorization"
+    )
+  end
 
   # Change to "debug" to log everything (including potentially personally-identifiable information!).
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")

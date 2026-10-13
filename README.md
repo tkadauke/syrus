@@ -263,7 +263,7 @@ bin/release-notes v0.4.0             # preview Claude-written notes
 Production is driven by environment variables:
 
 - `SYRUS_APP_HOST` — public app host for URL generation and mailer links.
-- `SYRUS_ALLOWED_HOSTS` — comma-separated host allowlist (defaults to `SYRUS_APP_HOST`).
+- `SYRUS_ALLOWED_HOSTS` — optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed.
 - `SYRUS_ASSUME_SSL` / `SYRUS_FORCE_SSL` — TLS behavior for proxied deployments (default `true`; `/up` is exempt).
 - `SYRUS_GITHUB_REPO` — optional: this installation's own `owner/repo`; enables build-revision links (degrades to no link when unset).
 - `SYRUS_BUG_REPORT_OWNER` — optional: GitHub owner/org for in-app bug reports (expects an active `<owner>/syrus` repo); leave it blank and the bug-report button just won't error when clicked.
