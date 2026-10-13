@@ -30,6 +30,7 @@ RSpec.describe RepoPrepPlan do
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
       expect(result.note).to match(/no commands/)
+      expect(result.error?).to be(false)
     end
 
     it "treats prepare: false as opt-out" do
@@ -37,13 +38,16 @@ RSpec.describe RepoPrepPlan do
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
       expect(result.note).to match(/opted out/)
+      expect(result.error?).to be(false)
     end
 
-    it "treats unexpected prepare: types as no-op (with diagnostic)" do
+    it "treats unexpected prepare: types as explicit config errors" do
       write(".syrus.yml", "prepare: bundle install\n")  # string, not array
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
       expect(result.note).to match(/must be an array/)
+      expect(result.error).to match(/must be an array/)
+      expect(result.error?).to be(true)
     end
 
     it "doesn't fall back to auto-detect when .syrus.yml exists but has no prepare key" do
@@ -54,11 +58,13 @@ RSpec.describe RepoPrepPlan do
       expect(result.source).to eq(".syrus.yml")
     end
 
-    it "captures parse errors without raising" do
+    it "captures parse errors as explicit config errors" do
       write(".syrus.yml", "prepare:\n  - bundle install\n  -\nbroken: [\n")
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
       expect(result.note).to match(/YAML parse error/)
+      expect(result.error).to match(/YAML parse error/)
+      expect(result.error?).to be(true)
     end
   end
 

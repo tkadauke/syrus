@@ -95,6 +95,23 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(prepared_file.read).to eq("ready\n")
   end
 
+  it "fails loudly on invalid explicit prepare config without recording a prepared cache" do
+    update_remote_config("prepare: bundle install\n")
+    checkout = described_class.new(step)
+
+    expect { checkout.setup }
+      .to raise_error(Steps::Base::StepFailed, /invalid prepare configuration.*must be an array/)
+
+    cache_details = step.reload.details.fetch("prepare_cache")
+    expect(cache_details).to include(
+      "status" => "miss",
+      "prepare_source" => ".syrus.yml",
+      "command_count" => 0
+    )
+    expect(checkout.path.join(described_class::PREPARED_MARKER)).not_to exist
+    expect(Pathname.new(cache_details.fetch("cache_path")).join(described_class::PREPARED_MARKER)).not_to exist
+  end
+
   it "records prepare cache misses and command spans for the first immutable checkout on a worker" do
     Thread.current[:syrus_current_run] = run
 
@@ -444,6 +461,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       source: ".syrus.yml",
       note: nil,
       guessed?: false,
+      error?: false,
       commands: [
         <<~BASH.squish
           mkdir -p node_modules/typescript node_modules/.bin .syrus/deps/bundle &&
@@ -645,6 +663,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       source: ".syrus.yml",
       note: nil,
       guessed?: false,
+      error?: false,
       commands: [ "printf changed > prepared-by-new-fingerprint.txt" ]
     )
     allow(RepoPrepPlan).to receive(:for).and_call_original
@@ -839,6 +858,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       source: ".syrus.yml",
       note: nil,
       guessed?: false,
+      error?: false,
       commands: [ "true" ]
     )
     described_class::PrepareCache.new(

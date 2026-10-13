@@ -97,6 +97,7 @@ module Steps
 
       log("[prepare] source: #{plan.source}")
       log("[prepare] note: #{plan.note}") if plan.note
+      fail_on_plan_error!(plan) if plan.error?
 
       if plan.commands.empty?
         log("[prepare] no commands to run; skipping")
@@ -259,6 +260,22 @@ module Steps
       log("[prepare] failure: #{prepare_failure_message(failure)}")
     end
 
+    def fail_on_plan_error!(plan)
+      failure = {
+        "command" => plan.source,
+        "workdir" => workspace.path.to_s,
+        "exit_status" => nil,
+        "timed_out" => false,
+        "stopped" => false,
+        "operator_killed" => false,
+        "aliveness_failed" => false,
+        "configuration_error" => true,
+        "message" => plan.error
+      }
+      record_prepare_failure!(failure)
+      raise StepFailed, prepare_failure_message(failure)
+    end
+
     # Same record shape as a hard failure, tagged `soft` so the UI can
     # frame it as "Syrus skipped a guessed step" rather than "setup
     # failed before the agent started" — the agent does still run.
@@ -270,6 +287,10 @@ module Steps
     end
 
     def prepare_failure_message(failure)
+      if failure["configuration_error"]
+        return "invalid prepare configuration in #{failure["command"]} at #{failure["workdir"]}: #{failure["message"]}"
+      end
+
       status = if failure["timed_out"]
         "timed out after #{PER_COMMAND_TIMEOUT}s"
       elsif failure["operator_killed"]
