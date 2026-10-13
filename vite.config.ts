@@ -7,6 +7,23 @@ import react from "@vitejs/plugin-react"
 // file without node types.
 const rootDir = decodeURIComponent(new URL(".", import.meta.url).pathname)
 
+const vendorChunkPackages = {
+  "vendor-react": ["/react/", "/react-dom/", "/react-router/", "/react-router-dom/"],
+  "vendor-query": ["/@tanstack/"],
+  "vendor-visualization": ["/d3", "/mermaid/", "/cytoscape"]
+} as const
+
+function manualVendorChunk(id: string) {
+  const normalizedId = id.replaceAll("\\", "/")
+  if (!normalizedId.includes("/node_modules/")) return undefined
+
+  for (const [chunkName, packagePaths] of Object.entries(vendorChunkPackages)) {
+    if (packagePaths.some((packagePath) => normalizedId.includes(packagePath))) return chunkName
+  }
+
+  return "vendor"
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, "")
   const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
@@ -27,9 +44,9 @@ export default defineConfig(({ mode }) => {
         input: "app/frontend/main.tsx",
         output: {
           entryFileNames: "spa.js",
-          chunkFileNames: "spa-[name].js",
+          chunkFileNames: "spa-[name]-[hash].js",
           assetFileNames: "spa-[name][extname]",
-          codeSplitting: false
+          manualChunks: manualVendorChunk
         }
       }
     },
