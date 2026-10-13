@@ -4,12 +4,12 @@ module Mcp::Tools
   # - Epics: scope through current_user.epics.
   # - Workflows and Runs: join through job.repository and require the repository
   #   to belong to current_user; further restricted by allowed_workflow_ids / allowed_run_ids.
-  # - ChatSessions: scoped by user_id, further restricted by allowed_chat_session_ids.
-  #   Never broadened to other users' chats even for admins (chat content is
-  #   legitimately private) — admin only changes whether a soft-deleted
-  #   session (still owned by the caller) is included.
+  # - ChatSessions: scoped through current_user.accessible_chat_sessions, further
+  #   restricted by allowed_chat_session_ids. Admin only changes whether a
+  #   soft-deleted session the caller participates in is included.
   #
-  # allowed_*_ids are nil by default (no additional restriction beyond user ownership).
+  # allowed_*_ids are nil by default (no additional restriction beyond the
+  # resource's base authorization scope).
   # They are populated by the McpToolContext when the surface restricts resource access —
   # for example, the future AGENT_INSIGHT role limits reads to a declared set of jobs.
   module AuthorizationSupport

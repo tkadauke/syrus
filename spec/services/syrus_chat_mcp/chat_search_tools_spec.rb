@@ -81,6 +81,26 @@ RSpec.describe "Mcp::Tools chat search tools" do
       )
     end
 
+    it "returns matches from chats where the current user is a participant but not the owner" do
+      shared_chat = ChatSession.create!(user: other_user, repository: other_repository, title: "Shared search room")
+      ChatParticipant.create!(chat_session: shared_chat, user: user, role: "member")
+      shared_message = message(shared_chat, role: "user", text: "participantneedle shared details")
+      private_message = message(other_user_chat, role: "user", text: "participantneedle private details")
+      [ shared_message, private_message ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+
+      response = call_tool("search_chats", query: "participantneedle")
+      results = response_payload(response).fetch(:results)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(results.map { |result| result[:chat_session_id] }).to eq([ shared_chat.id ])
+      expect(results.first).to include(
+        message_id: shared_message.id,
+        chat_title: "Shared search room",
+        repository: other_repository.slug,
+        snippet: a_string_including("<b>participantneedle</b>")
+      )
+    end
+
     it "uses the repository fallback title when a chat has no title" do
       untitled_chat = ChatSession.create!(user: user, repository: repository)
       indexed_message = message(untitled_chat, text: "fallback-title lookup")
