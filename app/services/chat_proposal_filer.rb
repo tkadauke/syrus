@@ -284,7 +284,7 @@ class ChatProposalFiler
     end
 
     Array(proposal.depends_on_epic_ids).each do |epic_id|
-      epic = user.epics.find_by(id: epic_id)
+      epic = Epic.accessible_to(user).find_by(id: epic_id)
       next unless epic
 
       validate_dependency_target!(epic, dependent_job: job)
@@ -297,7 +297,7 @@ class ChatProposalFiler
     end
 
     Array(proposal.depends_on_job_ids).each do |job_id|
-      depends_on_job = user.jobs.find_by(id: job_id)
+      depends_on_job = Job.accessible_to(user).find_by(id: job_id)
       next unless depends_on_job
 
       requirement = ProposalJobDependencyRequirements.for_job_id(proposal, job_id)
@@ -332,7 +332,7 @@ class ChatProposalFiler
     end
 
     Array(proposal.depends_on_job_ids).each do |job_id|
-      dep_job = user.jobs.find_by(id: job_id)
+      dep_job = Job.accessible_to(user).find_by(id: job_id)
       next unless dep_job
 
       validate_dependency_target!(dep_job)

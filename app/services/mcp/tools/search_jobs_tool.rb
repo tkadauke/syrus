@@ -46,7 +46,7 @@ module Mcp::Tools
         elsif context.user.admin?
           Job.all
         else
-          context.user.jobs
+          Job.accessible_to(context.user)
         end
       end
 
