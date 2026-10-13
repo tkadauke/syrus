@@ -2,6 +2,10 @@ require "etc"
 
 class RunProcessParallelism
   CPU_UTILIZATION = 0.8
+  # What to assume this process may use when nothing tells us our actual
+  # share. See undetectable_cpu_count for why this is deliberately small.
+  UNDETECTABLE_CPU_COUNT = 4
+  CPU_LIMIT_ENV = "SYRUS_WORKER_CPU_LIMIT".freeze
 
   def self.for(...) = new(...).call
 
@@ -10,7 +14,60 @@ class RunProcessParallelism
   end
 
   def self.effective_cpu_count
-    cgroup_v2_cpu_count || cgroup_v1_cpu_count || Etc.nprocessors
+    cgroup_v2_cpu_count || cgroup_v1_cpu_count || undetectable_cpu_count
+  end
+
+  # `Etc.nprocessors` reports the machine's CPUs, not this process's share of
+  # them, so trusting it inside a container without a CPU limit is how a
+  # worker comes to believe it owns the node.
+  #
+  # That is not hypothetical. Production worker workloads declared
+  # `requests.cpu` but no `limits.cpu`; Kubernetes only writes `cpu.max` into
+  # the cgroup from *limits*, so the quota probes above found "max", fell
+  # through to `Etc.nprocessors`, and every worker sized its parallelism as
+  # though the whole node were its own. Two workers shared one node, each
+  # believing that, and nodes sat at 99% CPU. Processes then starved, missed
+  # their heartbeats, and were declared dead: 51 worker deaths in a day, 62%
+  # of all grader failures, each orphaning a run, consuming a grader-loop
+  # iteration and reporting as "no progress" until the merge train was torn
+  # down. The landing queue could not drain.
+  #
+  # So an undetectable share is treated as a small one. Under-using a worker
+  # is recoverable and visible; over-subscribing a node kills the work on it
+  # and looks like a grader problem. Set #{CPU_LIMIT_ENV} to this process's
+  # real core budget to get accurate sizing without waiting for a manifest
+  # change, or give the pod a `limits.cpu` and the quota probes take over.
+  def self.undetectable_cpu_count
+    configured = positive_int(ENV[CPU_LIMIT_ENV])
+    return configured if configured
+
+    assumed = [ Etc.nprocessors, UNDETECTABLE_CPU_COUNT ].min
+    warn_about_undetectable_cpu_share(assumed)
+    assumed
+  end
+
+  def self.warn_about_undetectable_cpu_share(assumed)
+    return if @warned_about_undetectable_cpu_share
+
+    @warned_about_undetectable_cpu_share = true
+    Rails.logger.warn(
+      "[RunProcessParallelism] no CPU quota visible to this process " \
+      "(cgroup cpu.max is unset); assuming #{assumed} core(s) of " \
+      "#{Etc.nprocessors} on the host rather than trusting the host count. " \
+      "Set #{CPU_LIMIT_ENV} to this process's real budget, or give the pod " \
+      "a resources.limits.cpu, to size parallelism accurately."
+    )
+  end
+
+  def self.reset_undetectable_cpu_warning!
+    @warned_about_undetectable_cpu_share = false
+  end
+
+  def self.positive_int(raw)
+    value = Integer(raw.to_s.strip, 10)
+    value.positive? ? value : nil
+  rescue ArgumentError, TypeError
+    nil
   end
 
   def self.effective_memory_limit_bytes

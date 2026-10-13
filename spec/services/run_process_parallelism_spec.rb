@@ -109,4 +109,69 @@ RSpec.describe RunProcessParallelism do
 
     expect(described_class.effective_memory_limit_bytes).to eq(16.gigabytes)
   end
+
+  # A container without `limits.cpu` has no cgroup quota, so the probes return
+  # nil and `Etc.nprocessors` reports the whole machine. Trusting it is how a
+  # worker comes to size parallelism as though it owned the node -- and how two
+  # workers sharing a node drove it to 99% CPU, starved their own processes,
+  # and had their runs declared dead.
+  describe "CPU share when no quota is visible" do
+    before do
+      described_class.reset_undetectable_cpu_warning!
+      allow(described_class).to receive(:cgroup_v2_cpu_count).and_return(nil)
+      allow(described_class).to receive(:cgroup_v1_cpu_count).and_return(nil)
+      allow(Etc).to receive(:nprocessors).and_return(20)
+    end
+
+    after { described_class.reset_undetectable_cpu_warning! }
+
+    it "assumes a small share rather than the host's core count" do
+      stub_const("ENV", ENV.to_h.except(described_class::CPU_LIMIT_ENV))
+
+      expect(described_class.effective_cpu_count).to eq(described_class::UNDETECTABLE_CPU_COUNT)
+      expect(described_class.effective_cpu_count).to be < 20
+    end
+
+    it "honors an explicit core budget so a pod can be sized without a manifest change" do
+      stub_const("ENV", ENV.to_h.merge(described_class::CPU_LIMIT_ENV => "8"))
+
+      expect(described_class.effective_cpu_count).to eq(8)
+      expect(described_class.host_capacity).to eq(6)
+    end
+
+    it "falls back to the small share for a non-numeric budget" do
+      stub_const("ENV", ENV.to_h.merge(described_class::CPU_LIMIT_ENV => "lots"))
+
+      expect(described_class.effective_cpu_count).to eq(described_class::UNDETECTABLE_CPU_COUNT)
+    end
+
+    it "falls back to the small share for a non-positive budget" do
+      stub_const("ENV", ENV.to_h.merge(described_class::CPU_LIMIT_ENV => "0"))
+
+      expect(described_class.effective_cpu_count).to eq(described_class::UNDETECTABLE_CPU_COUNT)
+    end
+
+    it "never assumes more than the host actually has" do
+      allow(Etc).to receive(:nprocessors).and_return(2)
+      stub_const("ENV", ENV.to_h.except(described_class::CPU_LIMIT_ENV))
+
+      expect(described_class.effective_cpu_count).to eq(2)
+    end
+
+    it "says so in the log, because a silent wrong number is what caused the outage" do
+      stub_const("ENV", ENV.to_h.except(described_class::CPU_LIMIT_ENV))
+      allow(Rails.logger).to receive(:warn)
+
+      described_class.effective_cpu_count
+
+      expect(Rails.logger).to have_received(:warn).with(/no CPU quota visible/)
+    end
+  end
+
+  it "prefers a real cgroup quota over both the override and the assumed share" do
+    allow(described_class).to receive(:cgroup_v2_cpu_count).and_return(6)
+    stub_const("ENV", ENV.to_h.merge(described_class::CPU_LIMIT_ENV => "99"))
+
+    expect(described_class.effective_cpu_count).to eq(6)
+  end
 end
