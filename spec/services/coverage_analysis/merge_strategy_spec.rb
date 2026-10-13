@@ -45,13 +45,13 @@ RSpec.describe CoverageAnalysis::MergeStrategy do
     expect(result[:hit_map].keys).to contain_exactly("app/foo.rb", "app/bar.rb")
   end
 
-  it "accumulates lf/lh totals across sources" do
-    a = raw(lf: 10, lh: 7)
-    b = raw(lf: 5,  lh: 3)
+  it "recomputes lf/lh totals from the merged hit map" do
+    a = raw(hit_map: { "app/foo.rb" => { "1" => 1, "2" => 0 } }, lf: 100, lh: 100)
+    b = raw(hit_map: { "app/foo.rb" => { "2" => 2, "3" => 0 } }, lf: 100, lh: 100)
 
     result = merge(a, b)
-    expect(result[:lf]).to eq(15)
-    expect(result[:lh]).to eq(10)
+    expect(result[:lf]).to eq(3)
+    expect(result[:lh]).to eq(2)
   end
 
   it "accumulates branch and function totals across sources" do
@@ -65,16 +65,22 @@ RSpec.describe CoverageAnalysis::MergeStrategy do
     expect(result[:fnh]).to eq(3)
   end
 
-  it "merges per-file stats by summing their fields" do
+  it "recomputes per-file line stats from the merged hit map while summing branch and function fields" do
     stats_a = { lf: 10, lh: 7, brf: 4, brh: 2, fnf: 1, fnh: 1 }
     stats_b = { lf: 5,  lh: 5, brf: 2, brh: 2, fnf: 1, fnh: 0 }
 
-    a = raw(file_stats: { "app/foo.rb" => stats_a })
-    b = raw(file_stats: { "app/foo.rb" => stats_b })
+    a = raw(
+      hit_map: { "app/foo.rb" => { "1" => 1, "2" => 0 } },
+      file_stats: { "app/foo.rb" => stats_a }
+    )
+    b = raw(
+      hit_map: { "app/foo.rb" => { "2" => 3, "3" => 0 } },
+      file_stats: { "app/foo.rb" => stats_b }
+    )
 
     result = merge(a, b)
     merged_stats = result[:file_stats]["app/foo.rb"]
-    expect(merged_stats).to eq({ lf: 15, lh: 12, brf: 6, brh: 4, fnf: 2, fnh: 1 })
+    expect(merged_stats).to eq({ lf: 3, lh: 2, brf: 6, brh: 4, fnf: 2, fnh: 1 })
   end
 
   it "handles a nil or missing hit_map key without raising" do
@@ -86,6 +92,20 @@ RSpec.describe CoverageAnalysis::MergeStrategy do
     expect(result[:lf]).to eq(1)
   end
 
+  it "does not preserve line stats that are missing from the merged hit map" do
+    source = raw(
+      file_stats: { "app/foo.rb" => { lf: 10, lh: 8, brf: 2, brh: 1, fnf: 0, fnh: 0 } },
+      brf: 2,
+      brh: 1
+    )
+
+    result = merge(source)
+
+    expect(result[:lf]).to eq(0)
+    expect(result[:lh]).to eq(0)
+    expect(result[:file_stats]["app/foo.rb"]).to include(lf: 0, lh: 0, brf: 2, brh: 1)
+  end
+
   it "correctly merges three sources with overlapping and disjoint files" do
     a = raw(hit_map: { "a.rb" => { "1" => 1 } }, lf: 1, lh: 1)
     b = raw(hit_map: { "a.rb" => { "1" => 2 }, "b.rb" => { "3" => 5 } }, lf: 3, lh: 2)
@@ -95,7 +115,55 @@ RSpec.describe CoverageAnalysis::MergeStrategy do
     expect(result[:hit_map]["a.rb"]["1"]).to eq(3)
     expect(result[:hit_map]["b.rb"]["3"]).to eq(5)
     expect(result[:hit_map]["c.rb"]["7"]).to eq(1)
-    expect(result[:lf]).to eq(6)
-    expect(result[:lh]).to eq(4)
+    expect(result[:lf]).to eq(3)
+    expect(result[:lh]).to eq(3)
+  end
+
+  it "normalizes disjoint partial coverage for the same file as fully covered" do
+    unit = raw(
+      hit_map: { "app/foo.rb" => { "1" => 1, "2" => 0 } },
+      lf: 2,
+      lh: 1,
+      file_stats: { "app/foo.rb" => { lf: 2, lh: 1, brf: 0, brh: 0, fnf: 0, fnh: 0 } }
+    )
+    integration = raw(
+      hit_map: { "app/foo.rb" => { "1" => 0, "2" => 1 } },
+      lf: 2,
+      lh: 1,
+      file_stats: { "app/foo.rb" => { lf: 2, lh: 1, brf: 0, brh: 0, fnf: 0, fnh: 0 } }
+    )
+
+    normalized = CoverageAnalysis::Normalizer.normalize(merge(unit, integration))
+
+    expect(normalized[:summary]["lines_pct"]).to eq(100.0)
+    expect(normalized[:files]["app/foo.rb"]).to include(
+      "lines_pct" => 100.0,
+      "line_count" => 2,
+      "covered_line_count" => 2
+    )
+  end
+
+  it "counts overlapping executable lines once when deriving normalized percentages" do
+    first = raw(
+      hit_map: { "app/foo.rb" => { "1" => 1, "2" => 0 } },
+      lf: 2,
+      lh: 1,
+      file_stats: { "app/foo.rb" => { lf: 2, lh: 1, brf: 0, brh: 0, fnf: 0, fnh: 0 } }
+    )
+    second = raw(
+      hit_map: { "app/foo.rb" => { "2" => 3, "3" => 0 } },
+      lf: 2,
+      lh: 1,
+      file_stats: { "app/foo.rb" => { lf: 2, lh: 1, brf: 0, brh: 0, fnf: 0, fnh: 0 } }
+    )
+
+    normalized = CoverageAnalysis::Normalizer.normalize(merge(first, second))
+
+    expect(normalized[:summary]["lines_pct"]).to eq(66.67)
+    expect(normalized[:files]["app/foo.rb"]).to include(
+      "lines_pct" => 66.67,
+      "line_count" => 3,
+      "covered_line_count" => 2
+    )
   end
 end
