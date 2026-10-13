@@ -692,6 +692,7 @@ module Steps
         "filter_capabilities" => grader.metadata["filter_capabilities"],
         "capabilities" => target_capabilities_for(grader),
         "required_capabilities" => target_capabilities_for(grader),
+        "resources" => grader.resources&.to_h,
         "description" => grader.description,
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,

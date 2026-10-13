@@ -9,9 +9,15 @@ class TargetGraph
   # `generates` output globs). Consumers that care about a specific legacy
   # quirk read it by string key; nothing in the base graph model interprets
   # it.
+  #
+  # `resources` is a GraderResourceRequest on grader targets and is kept out
+  # of `metadata` on purpose: metadata is hashed into the grader fingerprint,
+  # and a resource request must not invalidate a cached green grade (see
+  # docs/plans/grader-resource-grants.md).
   Target = Data.define(
     :label, :kind, :project_id, :source_scope, :command, :dependencies,
-    :phases, :required, :timeout_minutes, :owner_config_path, :metadata, :capabilities
+    :phases, :required, :timeout_minutes, :owner_config_path, :metadata, :capabilities,
+    :resources
   ) do
     # `builder` targets are compiled from explicit `targets:` declarations and
     # can be warmed opportunistically on main by `builder_fanout`.
@@ -24,7 +30,8 @@ class TargetGraph
     def initialize(
       label:, kind:, project_id:,
       source_scope: [], command: nil, dependencies: [], phases: [],
-      required: false, timeout_minutes: nil, owner_config_path: nil, metadata: {}, capabilities: nil
+      required: false, timeout_minutes: nil, owner_config_path: nil, metadata: {}, capabilities: nil,
+      resources: nil
     )
       raise ArgumentError, "label must be a TargetGraph::Label" unless label.is_a?(TargetGraph::Label)
       raise ArgumentError, "kind #{kind.inspect} must be one of #{KINDS.join(', ')}" unless KINDS.include?(kind.to_s)
@@ -49,6 +56,9 @@ class TargetGraph
       unless capabilities.nil? || capabilities.is_a?(TargetGraph::ExecutionCapabilities)
         raise ArgumentError, "capabilities must be a TargetGraph::ExecutionCapabilities"
       end
+      unless resources.nil? || resources.is_a?(GraderResourceRequest)
+        raise ArgumentError, "resources must be a GraderResourceRequest"
+      end
 
       super(
         label: label,
@@ -62,7 +72,8 @@ class TargetGraph
         timeout_minutes: timeout_minutes,
         owner_config_path: owner_config_path&.to_s,
         metadata: metadata,
-        capabilities: capabilities
+        capabilities: capabilities,
+        resources: resources
       )
     end
 

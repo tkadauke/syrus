@@ -198,6 +198,22 @@ module Ruby
       SyrusYml::BaseRetry.new(strategy: "plugin", command: nil)
     end
 
+    # A parallel rspec run scales with whatever cores it is granted, so it asks
+    # for all of them and lets GraderResourceGrant decide; a serial run cannot
+    # use more than one and must not claim more, or it would starve peers that
+    # can. An explicit `resources:` in `.syrus.yml` wins either way, mirroring
+    # the `display_name` precedence.
+    #
+    # `cpu_min: 2` records that parallelism below two processes buys nothing
+    # beyond the serial path -- advisory today, an admission input later.
+    def resource_request_for(mode)
+      explicit = GraderResourceRequest.parse(config["resources"])
+      return explicit if explicit
+      return nil unless parallel_rspec_enabled_for?(mode)
+
+      GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 2)
+    end
+
     def coverage?
       ActiveModel::Type::Boolean.new.cast(config.fetch("coverage", false))
     end
@@ -718,6 +734,7 @@ module Ruby
         failures: failures,
         base_retry: base_retry,
         deps: configured_deps,
+        resources: resource_request_for(mode),
         metadata: {
           "grader_type" => self.class.type_name,
           "grader_framework" => "rspec",

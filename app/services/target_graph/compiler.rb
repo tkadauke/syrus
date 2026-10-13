@@ -669,6 +669,7 @@ class TargetGraph
             timeout_minutes: positive_timeout(grader.timeout_minutes),
             owner_config_path: config_path,
             capabilities: grader.capabilities,
+            resources: grader.resources,
             metadata: {
               "description" => grader.description,
               "display_name" => grader.display_name,
@@ -729,11 +730,16 @@ class TargetGraph
         owner: "target #{base.label} (#{overlay.owner_config_path}, #{declaration})"
       )
 
+      # A locally declared `resources:` wins over the imported target's, but is
+      # deliberately not recorded in `applied` -- that lands in metadata, which
+      # is hashed into the grader fingerprint, and a resource request must not
+      # invalidate a cached green grade.
       base.with(
         phases: applied.fetch("phases", base.phases),
         required: applied.fetch("required", base.required),
         timeout_minutes: applied.fetch("timeout_minutes", base.timeout_minutes),
         capabilities: merged_capabilities,
+        resources: overlay.resources || base.resources,
         metadata: base.metadata.merge(
           "syrus_overlay" => Array(base.metadata["syrus_overlay"]) + [
             {

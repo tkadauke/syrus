@@ -606,6 +606,7 @@ most once per workflow workspace.
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
 | `capabilities` | no | — | Execution requirements for this grader target: `os`, `arch`, `toolchain`, and `runtime` |
+| `resources` | no | serial (one core) | What the grader can productively use: `cpu`, `cpu_min`, `memory`. See [resources](#resources) |
 
 There are two grader declaration families:
 
@@ -845,6 +846,50 @@ or project-specific smoke tests. If a common language/framework plugin lacks a
 capability, add it to the plugin so other repositories inherit it.
 
 Keep the normal grader suite fast enough for repeated agent use. A useful target is under 30 seconds for the primary pass/fail suite. If tests are slow because they create real repositories, spawn shells, hit network services, exercise large filesystem trees, or boot full integrations, first try to replace that cost with fakes, dependency injection, fixtures, or narrower unit coverage. Mark tests CI-only only when the real integration behavior is important and cannot reasonably be made fast.
+
+### resources
+
+`resources` declares what a grader can productively use, so a test runner can
+size its own parallelism instead of Syrus guessing. All three keys are optional:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `cpu` | `1` | Cores the grader can use. A positive integer, or `all` to scale with whatever it is granted |
+| `cpu_min` | `1` | Below this width, parallelism buys nothing. Advisory today |
+| `memory` | — | Working set at full width. A byte count or a size like `6GB`, `512MB`, `1.5g` |
+
+```yaml
+grade:
+  - name: rspec
+    run: bin/rspec
+    resources:
+      cpu: all
+      cpu_min: 2
+      memory: 6GB
+  - name: rubocop
+    run: bin/rubocop
+    # no resources → assumed serial, claims one core
+```
+
+A request is a claim about the work, not a reservation. At spawn time Syrus
+resolves it against the worker's capacity and what concurrent graders already
+claim: a grader that declares nothing is assumed serial and charged one core,
+so a `cpu: all` grader receives everything the declared and undeclared peers
+leave behind. Two concurrent `cpu: all` graders split the remainder rather than
+both taking it. The resolved width reaches the command as
+`SYRUS_PROCESS_PARALLELISM`, and a declared `memory` as
+`SYRUS_MEMORY_LIMIT_BYTES`; a grader command should read those rather than
+calling `nproc` itself, which on a container without a CPU quota reports the
+whole node.
+
+Plugin-defined grader types supply their own default — `type: rspec` asks for
+`cpu: all` in modes where `parallel_rspec` is enabled and claims nothing in
+serial modes. An explicit `resources` block overrides that.
+
+A resource request deliberately does **not** participate in the grader
+fingerprint: it changes how fast a grader runs, never what it asserts, so
+retuning parallelism does not invalidate a cached green grade or force a
+re-grade on an otherwise clean rebase.
 
 ### when_files_changed
 

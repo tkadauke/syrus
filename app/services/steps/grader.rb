@@ -568,10 +568,28 @@ module Steps
       extra_env = Prepare.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace.path)
       ProcessRunner.forwarded_env(
         Prepare.prep_env_forward,
-        extra: workspace_dependency_env.merge(extra_env).merge(
-          "SYRUS_PROCESS_PARALLELISM" => RunProcessParallelism.for(run: run).to_s
-        ).merge(previous_failure_env)
+        extra: workspace_dependency_env.merge(extra_env).merge(resource_grant_env).merge(previous_failure_env)
       )
+    end
+
+    # The grant is the sole allocator for this grader: the parallelism it sizes
+    # itself with and the ceiling it runs under come from one resolution, not
+    # two independent ones. It travels as environment, never baked into the
+    # command -- the command text is fingerprinted, so a host-dependent `-n 8`
+    # would make a green grade uncarryable across workers of different sizes.
+    def resource_grant_env
+      grant = GraderResourceGrant.for(run: run)
+      log("[grader:#{step.details&.dig('name')}] resource grant: #{grant.cpu_cores} cpu of " \
+          "#{grant.details['host_capacity']} on this host " \
+          "(requested #{grant.details['requested_cpu']}; " \
+          "#{grant.details['fixed_claims']} already claimed, " \
+          "#{grant.details['unbounded_claimants']} peer(s) sharing the remainder)")
+      {
+        "SYRUS_PROCESS_PARALLELISM" => grant.cpu_cores.to_s
+      }.merge(grant.memory_max_bytes ? { "SYRUS_MEMORY_LIMIT_BYTES" => grant.memory_max_bytes.to_s } : {})
+    rescue StandardError => e
+      Rails.logger.warn("[Grader] resource grant failed for Step ##{step.id}: #{e.class}: #{e.message}")
+      { "SYRUS_PROCESS_PARALLELISM" => RunProcessParallelism.for(run: run).to_s }
     end
 
     # Spec files that failed this same grader on the previous loop iteration.

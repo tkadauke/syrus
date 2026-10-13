@@ -18,6 +18,69 @@ RSpec.describe GraderConclusionCache do
     )
   end
 
+  # A resource request changes how fast a grader runs, never what it asserts.
+  # Hashing it would discard every cached green grade on a parallelism tweak,
+  # so GradeStep/Grader/Target carry `resources` as a field of its own rather
+  # than as a `metadata` key, which is hashed.
+  # See docs/plans/grader-resource-grants.md.
+  it "does not fingerprint a resource request, so a parallelism tweak keeps a green grade carryable" do
+    plan = RepoGradePlan::Result.new(
+      graders: [ grader(name: "rspec") ],
+      source: ".syrus.yml",
+      note: nil,
+      max_iterations: 1,
+      rerun_only_failed: false
+    )
+    retuned = plan.with(
+      graders: [
+        grader(name: "rspec").with(
+          resources: GraderResourceRequest.new(cpu: GraderResourceRequest::ALL, cpu_min: 4, memory_bytes: 8 * 1024**3)
+        )
+      ]
+    )
+
+    expect(described_class.fingerprint_for_plan(plan)).to eq(described_class.fingerprint_for_plan(retuned))
+  end
+
+  # The landing path fingerprints TargetGraph::GradePlan, so the target side of
+  # the graph has to hold the same invariant as the grader list above.
+  it "does not fingerprint a grader target's resource request" do
+    plan = RepoGradePlan::Result.new(
+      graders: [ grader(name: "rspec") ],
+      source: ".syrus.yml",
+      note: nil,
+      max_iterations: 1,
+      rerun_only_failed: false
+    )
+    target = TargetGraph::Target.new(
+      label: TargetGraph::Label.parse("//:grade/rspec"),
+      kind: "grader",
+      project_id: "repo",
+      source_scope: [ "**/*.rb" ],
+      command: "bundle exec rspec"
+    )
+    bare = TargetGraph.new.tap { |graph| graph.add_target(target) }
+    tuned = TargetGraph.new.tap do |graph|
+      graph.add_target(target.with(resources: GraderResourceRequest.new(cpu: GraderResourceRequest::ALL)))
+    end
+
+    expect(described_class.fingerprint_for_plan(plan, target_graph: bare))
+      .to eq(described_class.fingerprint_for_plan(plan, target_graph: tuned))
+  end
+
+  it "still fingerprints a resource request smuggled into metadata, which is why it has its own field" do
+    plan = RepoGradePlan::Result.new(
+      graders: [ grader(name: "rspec") ],
+      source: ".syrus.yml",
+      note: nil,
+      max_iterations: 1,
+      rerun_only_failed: false
+    )
+    smuggled = plan.with(graders: [ grader(name: "rspec").with(metadata: { "resources" => { "cpu" => 8 } }) ])
+
+    expect(described_class.fingerprint_for_plan(plan)).not_to eq(described_class.fingerprint_for_plan(smuggled))
+  end
+
   it "fingerprints when_files_changed because those globs affect grader selection" do
     first = RepoGradePlan::Result.new(
       graders: [ grader(name: "site", when_files_changed: [ "website/**" ]) ],

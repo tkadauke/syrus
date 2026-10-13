@@ -265,6 +265,42 @@ grade:
 This keeps agents from burning time on unrelated checks while preserving the
 gate when relevant files change.
 
+## Grader Resources
+
+A test runner has to choose its own parallelism before it starts, so declare
+what the grader can productively use and let Syrus resolve it against the
+worker:
+
+```yaml
+grade:
+  - name: rspec
+    run: bin/rspec
+    resources:
+      cpu: all        # scales with whatever it is granted
+      cpu_min: 2      # below this, parallelism buys nothing
+      memory: 6GB     # working set at full width
+  - name: rubocop
+    run: bin/rubocop
+    # no resources → assumed serial, claims one core
+```
+
+`cpu` is a core count or `all`. At spawn time Syrus subtracts what concurrent
+graders claim and passes the result to the command as
+`SYRUS_PROCESS_PARALLELISM`, with a declared `memory` as
+`SYRUS_MEMORY_LIMIT_BYTES`. A grader that declares nothing is charged a single
+core, so an `all` grader gets the rest of the worker rather than a fixed
+fraction of it; two concurrent `all` graders split what is left.
+
+Read those variables instead of calling `nproc`: inside a container without a
+CPU quota, `nproc` reports the whole node and the grader will oversubscribe.
+Framework grader types set a sensible default — `type: rspec` asks for `all`
+wherever `parallel_rspec` is enabled — so most repositories need no `resources`
+block at all.
+
+Retuning a resource request never invalidates a passing grade. The request
+changes how fast a grader runs, not what it asserts, so it stays out of the
+grader fingerprint.
+
 ## Good Wrapper Scripts
 
 Good grader commands are deterministic, reasonably quiet, and produce

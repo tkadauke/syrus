@@ -93,12 +93,53 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(log_entries.first).to eq("...")
   end
 
-  it "passes the application-computed subprocess budget to grader commands" do
+  it "passes the resolved resource grant to grader commands" do
     fake_result = ProcessRunner::Result.new(
       exit_status: 0, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
+    allow(GraderResourceGrant).to receive(:for).with(run: run).and_return(
+      GraderResourceGrant::Result.new(cpu_cores: 7, memory_max_bytes: 6 * 1024**3, details: {})
+    )
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      expect(kwargs.fetch(:env)).to include(
+        "SYRUS_PROCESS_PARALLELISM" => "7",
+        "SYRUS_MEMORY_LIMIT_BYTES" => (6 * 1024**3).to_s
+      )
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+  end
+
+  it "omits the memory ceiling when the grader declared no working set" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    allow(GraderResourceGrant).to receive(:for).with(run: run).and_return(
+      GraderResourceGrant::Result.new(cpu_cores: 4, memory_max_bytes: nil, details: {})
+    )
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      expect(kwargs.fetch(:env)).to include("SYRUS_PROCESS_PARALLELISM" => "4")
+      expect(kwargs.fetch(:env)).not_to have_key("SYRUS_MEMORY_LIMIT_BYTES")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+  end
+
+  # A grader must still run if grant resolution breaks; the old divisor is the
+  # fallback, not an error.
+  it "falls back to the host parallelism probe when grant resolution fails" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    allow(GraderResourceGrant).to receive(:for).and_raise(ActiveRecord::StatementInvalid, "boom")
     allow(RunProcessParallelism).to receive(:for).with(run: run).and_return(3)
     allow(ProcessRunner).to receive(:new) do |**kwargs|
       expect(kwargs.fetch(:env)).to include("SYRUS_PROCESS_PARALLELISM" => "3")

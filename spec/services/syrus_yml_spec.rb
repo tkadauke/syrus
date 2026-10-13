@@ -385,6 +385,38 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.capabilities.to_h).to eq("os" => [ "linux" ])
   end
 
+  it "parses a grader resource request" do
+    config = parse(<<~YAML)
+      grade:
+        - name: backend
+          run: bin/rspec
+          resources:
+            cpu: all
+            cpu_min: 2
+            memory: 6GB
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    request = config.grade.steps.first.resources
+    expect(request).to be_unbounded_cpu
+    expect(request.cpu_min).to eq(2)
+    expect(request.memory_bytes).to eq(6 * 1024**3)
+    # An undeclared grader keeps a nil request; GraderResourceGrant reads that
+    # as the serial default rather than a claim on the host.
+    expect(config.grade.steps.last.resources).to be_nil
+  end
+
+  it "rejects a malformed grader resource request with the config path attached" do
+    expect { parse(<<~YAML) }.to raise_error(SyrusYml::ParseError, /grade\.steps\[0\]\.resources.*unknown keys cpus/)
+      grade:
+        - name: backend
+          run: bin/rspec
+          resources:
+            cpus: 4
+    YAML
+  end
+
   it "parses an iOS project with Xcode execution details carried by commands" do
     config = parse(<<~YAML)
       project:

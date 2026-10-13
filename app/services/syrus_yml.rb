@@ -163,10 +163,17 @@ class SyrusYml
   # (see App::JobDetailPayload::WorkflowSerializers#grader_display_name) is:
   # explicit `display_name` > plugin/type-generated `display_name` >
   # humanized `name` > raw `name`.
-  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities) do
+  #
+  # `resources` is a GraderResourceRequest and is deliberately absent from the
+  # grader fingerprint (GraderConclusionCache.fingerprint_for_graders): it
+  # changes how fast a grader runs, never what it asserts, so hashing it would
+  # discard cached green grades on a parallelism tweak. That is also why it is
+  # a field of its own rather than a `metadata` key, which *is* hashed.
+  GradeStep = Data.define(:name, :display_name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata, :capabilities, :resources) do
     def initialize(
       name:, run:, ci:, phases:, description:, required:, timeout_minutes:,
-      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}, capabilities: nil
+      when_files_changed:, junit_output:, failures:, base_retry:, deps:, display_name: nil, metadata: {}, capabilities: nil,
+      resources: nil
     )
       raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
 
@@ -185,7 +192,8 @@ class SyrusYml
         base_retry: base_retry,
         deps: deps,
         metadata: metadata.deep_stringify_keys,
-        capabilities: capabilities
+        capabilities: capabilities,
+        resources: resources
       )
     end
   end
@@ -568,8 +576,15 @@ class SyrusYml
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry") || default_base_retry_for_custom_grader(raw, failures),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps"),
       metadata: parse_grade_metadata(raw, label),
-      capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities")
+      capabilities: parse_capabilities(raw["capabilities"], "#{label}.capabilities"),
+      resources: parse_grade_resources(raw["resources"], "#{label}.resources")
     )
+  end
+
+  def parse_grade_resources(raw, label)
+    GraderResourceRequest.parse(raw)
+  rescue ArgumentError => e
+    raise ParseError, "#{label}: #{e.message}"
   end
 
   def expand_plugin_grade_type(type, raw, label, default_failures:)

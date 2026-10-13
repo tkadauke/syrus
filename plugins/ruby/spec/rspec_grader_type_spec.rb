@@ -48,6 +48,51 @@ RSpec.describe Ruby::RspecGraderType do
     expect(described_class.type_name).to eq("rspec")
   end
 
+  describe "resource requests" do
+    it "asks for every core a parallel run can use and leaves serial modes unclaimed" do
+      steps = described_class.grade_steps(
+        config: { "parallel_rspec" => { "rspec_modes" => [ "full" ] } },
+        default_failures: "strict"
+      )
+
+      full = steps.find { |step| step.metadata["grader_mode"] == "full" }
+      focused = steps.find { |step| step.metadata["grader_mode"] == "focused" }
+
+      expect(full.resources).to be_unbounded_cpu
+      expect(full.resources.cpu_min).to eq(2)
+      # A serial run cannot use a second core and must not claim one, or it
+      # would starve a peer that can.
+      expect(focused.resources).to be_nil
+    end
+
+    it "claims nothing at all when parallel_rspec is off" do
+      steps = described_class.grade_steps(config: {}, default_failures: "strict")
+
+      expect(steps.map(&:resources)).to all(be_nil)
+    end
+
+    it "lets an explicit resources declaration win over the generated default" do
+      steps = described_class.grade_steps(
+        config: {
+          "parallel_rspec" => { "rspec_modes" => [ "full" ] },
+          "resources" => { "cpu" => 4, "memory" => "6GB" }
+        },
+        default_failures: "strict"
+      )
+
+      request = steps.first.resources
+      expect(request).not_to be_unbounded_cpu
+      expect(request.cpu).to eq(4)
+      expect(request.memory_bytes).to eq(6 * 1024**3)
+    end
+
+    it "reports a malformed declaration as a config error" do
+      expect {
+        described_class.grade_steps(config: { "resources" => { "cpu" => 0 } }, default_failures: "strict")
+      }.to raise_error(ArgumentError, /positive integer/)
+    end
+  end
+
   it "generates a focused command whose embedded ruby selector survives .squish intact" do
     Dir.mktmpdir do |dir|
       run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
