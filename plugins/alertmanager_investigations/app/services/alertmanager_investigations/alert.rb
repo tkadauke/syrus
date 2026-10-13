@@ -17,6 +17,11 @@ module AlertmanagerInvestigations
       payload["annotations"].is_a?(Hash) ? payload["annotations"] : {}
     end
 
+    def actionable?
+      state = payload.dig("status", "state").to_s.strip
+      state.blank? || state == "active"
+    end
+
     def runbook_url
       RUNBOOK_KEYS.filter_map { |key| annotations[key].to_s.strip.presence }.first
     end
