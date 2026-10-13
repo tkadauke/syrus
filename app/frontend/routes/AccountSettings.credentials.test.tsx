@@ -181,7 +181,7 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 
-  it("shows user default routing rules on the credentials page", async () => {
+  it("shows user default routing rules on the agent settings page", async () => {
     mockRoutes(makePayload({
       provider_routing_rules: [
         {
@@ -208,7 +208,7 @@ describe("CredentialsRoute (provider cards)", () => {
         effort_levels: []
       }
     }))
-    renderCredentials()
+    renderAgentSettings()
 
     expect(await screen.findByRole("heading", { name: "My default routing" })).toBeInTheDocument()
     expect(screen.getByText("Visual user default")).toBeInTheDocument()

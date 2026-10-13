@@ -111,7 +111,6 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 }
 
 function CredentialsView({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
-  const { t } = useT("settings")
   const location = useLocation()
   const setupStatus = useSetupStatus()
   const prefix = routePrefix(location.pathname)
@@ -135,15 +134,6 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <MuseCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
         <AgyCredentialCard onNotice={onNotice} payload={payload} />
-        <ProviderRoutingRulesEditor
-          basePath="/api/v1/app/credentials/provider_routing_rules"
-          description={t("provider_routing.account_description")}
-          onSaved={() => onNotice(t("provider_routing.updated_notice"))}
-          options={payload.options.provider_routing_options}
-          queryKey={queryKey}
-          rules={payload.provider_routing_rules}
-          title={t("provider_routing.account_title")}
-        />
         <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} prefix={prefix} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}
