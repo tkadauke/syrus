@@ -20,6 +20,12 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     Rails.logger.info("[ChatWorkspacePrepareJob] chat=#{chat_session_id} repo=#{repository.slug} source=#{plan.source}")
     Rails.logger.info("[ChatWorkspacePrepareJob] note: #{plan.note}") if plan.note
+    if plan.error?
+      message = "invalid prepare configuration in #{plan.source}: #{plan.error}"
+      Rails.logger.error("[ChatWorkspacePrepareJob] #{message}")
+      mark_prepare_failed!(chat_session, message)
+      return
+    end
 
     if plan.commands.empty?
       Rails.logger.info("[ChatWorkspacePrepareJob] no commands to run; skipping")

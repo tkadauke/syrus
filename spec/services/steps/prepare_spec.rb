@@ -54,6 +54,39 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     )
   end
 
+  it "fails loudly when explicit prepare config has the wrong type" do
+    File.write(@ws_path.join(".syrus.yml"), "prepare: bundle install\n")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /invalid prepare configuration.*must be an array/)
+
+    failure = workflow.reload.artifact("prepare_failure")
+    expect(failure).to include(
+      "command" => ".syrus.yml",
+      "workdir" => @ws_path.to_s,
+      "configuration_error" => true,
+      "message" => include("must be an array")
+    )
+    expect(step.reload.details["prepare_failure"]).to eq(failure)
+    expect(workflow.artifact("prepared_workspace")).to be_nil
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("invalid prepare configuration")
+    expect(chunks).not_to include("no commands to run; skipping")
+  end
+
+  it "fails loudly when .syrus.yml cannot be parsed" do
+    File.write(@ws_path.join(".syrus.yml"), "prepare:\n  - bundle install\n  -\nbroken: [\n")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /invalid prepare configuration.*YAML parse error/)
+
+    failure = workflow.reload.artifact("prepare_failure")
+    expect(failure).to include(
+      "configuration_error" => true,
+      "message" => include("YAML parse error")
+    )
+    expect(workflow.artifact("prepared_workspace")).to be_nil
+  end
+
   it "clears a stale prepare_failure/mise_install_failure left by an earlier attempt once this attempt runs" do
     # A retry reopens and reuses the same Step *and* Workflow (RetryFailedStepEnqueuer),
     # only adding a new Run -- so a failure recorded on step.details AND
@@ -431,22 +464,24 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       expect(diagnostics["error"]).to be_nil
     end
 
-    it "shows a compilation failure clearly, naming the owning .syrus.yml path" do
+    it "logs target diagnostics before failing loudly on invalid .syrus.yml sections" do
       File.write(@ws_path.join(".syrus.yml"), <<~YAML)
         formatters:
           not_an_array: true
       YAML
 
-      handler.call
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /invalid prepare configuration/)
 
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
       expect(chunks).to include("[prepare] target graph compilation failed: .syrus.yml:")
 
       diagnostics = workflow.reload.artifact("target_graph_diagnostics")
       expect(diagnostics["error"]).to include(".syrus.yml:")
-      # A compile failure degrades to just the implicit root -- never a
-      # workflow-failing StepFailed; the agent still gets a workspace.
       expect(diagnostics["target_labels"]).to eq([ "//:repo" ])
+      expect(workflow.reload.artifact("prepare_failure")).to include(
+        "configuration_error" => true,
+        "message" => include("formatters: must be an array")
+      )
     end
   end
 
