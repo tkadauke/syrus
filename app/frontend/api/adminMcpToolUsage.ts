@@ -33,6 +33,7 @@ export type McpToolUsageRecentCall = {
   error_class: string | null
   error_message_summary: string | null
   sidecar_mode: string | null
+  daemon_worker_id: string | null
   authority: string | null
   job_id: number | null
   job_path: string | null
@@ -102,6 +103,7 @@ export type McpToolUsagePayload = {
     server_name: string | null
     provider?: string | null
     sidecar_mode?: string | null
+    daemon_worker_id?: string | null
     authority?: string | null
     status?: string | null
     error?: string | null

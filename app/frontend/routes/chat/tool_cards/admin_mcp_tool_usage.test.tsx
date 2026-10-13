@@ -134,6 +134,7 @@ const POPULATED_PAYLOAD = {
       error_class: "RuntimeError",
       error_message_summary: "boom",
       sidecar_mode: "persistent",
+      daemon_worker_id: "worker-chat",
       authority: "operator_host",
       job_id: 4774,
       job_path: "/jobs/4774",
@@ -203,6 +204,7 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("128.0 KB")).toBeInTheDocument()
     expect(screen.getByText("custom card next")).toBeInTheDocument()
     expect(screen.getByText("ignore for now")).toBeInTheDocument()
+    expect(screen.getByText(/worker-chat/)).toBeInTheDocument()
   })
 
   it("renders empty windows without pretending the payload is malformed", () => {

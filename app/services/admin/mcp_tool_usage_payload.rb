@@ -57,6 +57,7 @@ module Admin
       scope = scope.where(server_name: server_name) if server_name.present?
       scope = scope.where(provider: provider) if provider.present?
       scope = scope.where(sidecar_mode: sidecar_mode) if sidecar_mode.present?
+      scope = scope.where(daemon_worker_id: daemon_worker_id) if daemon_worker_id.present?
       scope = scope.where(authority: authority) if authority.present?
       scope = scope.where(status: status) if status.present?
       scope = scope.where(error: true) if error_param == "true"
@@ -81,6 +82,7 @@ module Admin
         server_name: server_name,
         provider: provider,
         sidecar_mode: sidecar_mode,
+        daemon_worker_id: daemon_worker_id,
         authority: authority,
         status: status,
         error: error_param,
@@ -136,6 +138,10 @@ module Admin
     def sidecar_mode
       value = normalized_filter_value(params[:sidecar_mode])
       McpToolUsage::SIDECAR_MODES.include?(value) ? value : nil
+    end
+
+    def daemon_worker_id
+      @daemon_worker_id ||= normalized_filter_value(params[:daemon_worker_id])
     end
 
     def authority
@@ -388,6 +394,7 @@ module Admin
         error_class: usage.error_class,
         error_message_summary: usage.error_message_summary,
         sidecar_mode: usage.sidecar_mode,
+        daemon_worker_id: usage.daemon_worker_id,
         authority: usage.authority,
         job_id: usage.job_id,
         job_path: usage.job_id ? "/jobs/#{usage.job_id}" : nil,

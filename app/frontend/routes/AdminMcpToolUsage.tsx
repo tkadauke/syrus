@@ -41,6 +41,7 @@ const MCP_FILTER_FIELDS = [
   "server_name",
   "provider",
   "sidecar_mode",
+  "daemon_worker_id",
   "authority",
   "status",
   "error",
@@ -128,6 +129,7 @@ function McpToolUsageFilters({ search }: { search: string }) {
         { name: "server_name", label: t("mcp_tool_usage.server_label"), placeholder: t("mcp_tool_usage.server_placeholder") },
         { name: "provider", label: t("mcp_tool_usage.provider_label"), placeholder: "codex" },
         { name: "sidecar_mode", label: t("mcp_tool_usage.sidecar_mode_label"), options: ["stdio", "persistent"].map((value) => ({ label: value, value })) },
+        { name: "daemon_worker_id", label: t("mcp_tool_usage.daemon_worker_label"), placeholder: "worker-uuid" },
         { name: "authority", label: t("mcp_tool_usage.authority_label"), options: ["workspace", "operator_host"].map((value) => ({ label: value, value })) },
         { name: "status", label: t("mcp_tool_usage.status_label"), options: ["started", "completed", "failed"].map((value) => ({ label: value, value })) },
         { name: "error", label: t("mcp_tool_usage.error_label"), options: [{ label: t("mcp_tool_usage.errors_only"), value: "true" }] },
@@ -437,6 +439,7 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
     },
     { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_provider"), key: "provider", defaultVisible: false, sort: "provider", sortValue: (row) => row.provider || "", render: (row) => row.provider || "-" },
     { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_sidecar_mode"), key: "sidecar_mode", defaultVisible: false, sort: "sidecar_mode", sortValue: (row) => row.sidecar_mode || "", render: (row) => row.sidecar_mode || "-" },
+    { className: "px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_daemon_worker"), key: "daemon_worker_id", defaultVisible: false, sort: "daemon_worker_id", sortValue: (row) => row.daemon_worker_id || "", render: (row) => row.daemon_worker_id || "-" },
     { className: "px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200", header: t("mcp_tool_usage.col_authority"), key: "authority", sort: "authority", sortValue: (row) => row.authority || "", render: (row) => row.authority || "-" },
     {
       className: "px-4 py-3 align-top text-xs",
