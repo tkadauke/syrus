@@ -75,4 +75,48 @@ RSpec.describe RunQueueResolver, :ci_only do
     expect(decision.queue_name).to eq("runs-macos-arm64")
     expect(decision).not_to be_blocked
   end
+
+  it "uses the newest host health sample when a worker has multiple fresh samples" do
+    ensure_solid_queue_test_tables!
+    now = Time.current
+    SolidQueue::Process.create!(
+      hostname: "worker-a",
+      kind: "Worker",
+      name: "worker-1",
+      pid: 123,
+      last_heartbeat_at: now,
+      metadata: {
+        "queues" => "runs",
+        "polling_interval" => 0.1,
+        "pool_size" => 1
+      }
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "worker-a",
+      role: "worker",
+      version: "abc123",
+      worker_storage_key: "storage-old",
+      observed_at: now - 2.minutes,
+      cpu_used_percent: 10,
+      capability_diagnostics: { "docker" => false }
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "worker-a",
+      role: "worker",
+      version: "abc123",
+      worker_storage_key: "storage-new",
+      observed_at: now - 1.minute,
+      cpu_used_percent: 10,
+      capability_diagnostics: { "docker" => true }
+    )
+    run = mutable_run_with_storage(nil)
+
+    decision = described_class.resolve(run: run)
+    live_worker = decision.details.fetch("live_workers").find { |worker| worker.fetch("hostname") == "worker-a" }
+
+    expect(live_worker).to include(
+      "worker_storage_key" => "storage-new",
+      "capability_diagnostics" => { "docker" => true }
+    )
+  end
 end
