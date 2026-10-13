@@ -249,6 +249,54 @@ RSpec.describe RunCompletionReconciler do
         expect(run.reload.state).to eq("succeeded")
       end
 
+      it "reconciles when the log contains an upstream PR entry" do
+        run = make_pr_open_run
+        job.update!(pr_number: nil)
+        JobLog.append!(run: run, chunk: "pr_open: opened upstream PR upstream/repo#123 from fork/repo (\"Add greeting helper\")")
+
+        allow(StepDispatcher).to receive(:advance_from)
+
+        result = described_class.call(run)
+
+        expect(result).to be_reconciled
+        expect(result.reason).to include("upstream PR #123")
+        expect(run.reload.state).to eq("succeeded")
+        expect(job.reload.pr_number).to eq(123)
+        expect(job.fork_review_pr_number).to be_nil
+      end
+
+      it "reconciles fork-review PR openings into fork_review_pr_number" do
+        run = make_pr_open_run
+        job.update!(pr_number: nil, fork_review_pr_number: nil)
+        JobLog.append!(run: run, chunk: "pr_open: opened fork review PR #77 on fork/repo (\"[Review] Add greeting helper\")")
+
+        allow(StepDispatcher).to receive(:advance_from)
+
+        result = described_class.call(run)
+
+        expect(result).to be_reconciled
+        expect(result.reason).to include("fork review PR #77")
+        expect(run.reload.state).to eq("succeeded")
+        expect(job.reload.fork_review_pr_number).to eq(77)
+        expect(job.pr_number).to be_nil
+      end
+
+      it "reconciles existing fork-review PR pushes into fork_review_pr_number" do
+        run = make_pr_open_run
+        job.update!(pr_number: nil, fork_review_pr_number: 88)
+        JobLog.append!(run: run, chunk: "pr_open: branch pushed for existing fork review PR #88")
+
+        allow(StepDispatcher).to receive(:advance_from)
+
+        result = described_class.call(run)
+
+        expect(result).to be_reconciled
+        expect(result.reason).to include("existing fork review PR #88")
+        expect(run.reload.state).to eq("succeeded")
+        expect(job.reload.fork_review_pr_number).to eq(88)
+        expect(job.pr_number).to be_nil
+      end
+
       it "returns unreconciled when the log's PR number does not match the job's pr_number" do
         run = make_pr_open_run
         job.update!(pr_number: 55)
