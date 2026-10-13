@@ -105,6 +105,10 @@ export const RECORDER_VIDEO_BITS_PER_SECOND = 2_500_000
 export const RECORDER_AUDIO_BITS_PER_SECOND = 128_000
 export const RECORDER_WARNING_SECONDS = MAX_WALKTHROUGH_DURATION_SECONDS - 60
 
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop())
+}
+
 export function formatClock(totalSeconds: number): string {
   const clamped = Math.max(0, Math.floor(totalSeconds))
   const minutes = Math.floor(clamped / 60)
@@ -158,17 +162,19 @@ export function useWalkthroughRecorder({
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAtRef = useRef(0)
   const finishedRef = useRef(false)
+  const mountedRef = useRef(true)
   // Resolve the bridge once — a plain browser has none, and re-reading it per
   // render would defeat the injectable test seam.
   const annotationRef = useRef<SyrusAnnotationBridge | null>(annotation ?? annotationBridge())
   const annotationUnsubscribeRef = useRef<(() => void) | null>(null)
 
-  const cleanup = useCallback(() => {
+  const cleanup = useCallback((options: { updateUi?: boolean } = {}) => {
+    const updateUi = options.updateUi ?? mountedRef.current
     if (tickRef.current) {
       clearInterval(tickRef.current)
       tickRef.current = null
     }
-    streamsRef.current.forEach((stream) => stream.getTracks().forEach((track) => track.stop()))
+    streamsRef.current.forEach(stopStream)
     streamsRef.current = []
     recorderRef.current = null
     // Tear the annotation overlay + global shortcut down on EVERY exit path
@@ -179,11 +185,13 @@ export function useWalkthroughRecorder({
       annotationUnsubscribeRef.current = null
     }
     annotationRef.current?.disable().catch(() => {})
-    setDrawing(false)
-    setAnnotationReady(false)
-    setAnnotationHold(false)
-    setAnnotationReason(null)
-    setDisplaySurface(null)
+    if (updateUi) {
+      setDrawing(false)
+      setAnnotationReady(false)
+      setAnnotationHold(false)
+      setAnnotationReason(null)
+      setDisplaySurface(null)
+    }
   }, [])
 
   const stop = useCallback((options: { discard?: boolean } = {}) => {
@@ -234,9 +242,14 @@ export function useWalkthroughRecorder({
     } catch {
       // User dismissed the picker (or the platform denied capture) — back to
       // idle silently; the picker itself was the confirmation surface.
-      setState({ phase: "idle" })
+      if (mountedRef.current) setState({ phase: "idle" })
       return
     }
+    if (!mountedRef.current) {
+      stopStream(display)
+      return
+    }
+    streamsRef.current = [display]
 
     // What did they choose to share? "monitor" composites the always-on-top
     // annotation overlay; "window"/"browser" excludes it (the HUD nudges them).
@@ -245,7 +258,7 @@ export function useWalkthroughRecorder({
     const videoTrack = display.getVideoTracks()[0]
     const settings = typeof videoTrack?.getSettings === "function" ? videoTrack.getSettings() : undefined
     const surface = (settings as (MediaTrackSettings & { displaySurface?: string }) | undefined)?.displaySurface
-    setDisplaySurface(typeof surface === "string" ? surface : null)
+    if (mountedRef.current) setDisplaySurface(typeof surface === "string" ? surface : null)
 
     // Arm the red-pen overlay (desktop shell only). An overlay failure must
     // never block the recording, so enable() rejections are swallowed and the
@@ -259,7 +272,7 @@ export function useWalkthroughRecorder({
       annotationApi
         .enable()
         .then((result) => {
-          if (finishedRef.current) return
+          if (finishedRef.current || !mountedRef.current) return
           setAnnotationReady(result.available === true)
           setAnnotationHold(result.hold === true)
           // Why hold could not start (undefined on success / old shells) —
@@ -268,7 +281,7 @@ export function useWalkthroughRecorder({
           setAnnotationReason(result.hold === true ? null : (result.reason ?? null))
         })
         .catch(() => {
-          if (!finishedRef.current) {
+          if (!finishedRef.current && mountedRef.current) {
             setAnnotationReady(false)
             setAnnotationHold(false)
             setAnnotationReason(null)
@@ -286,10 +299,15 @@ export function useWalkthroughRecorder({
       mic = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       })
+      if (!mountedRef.current) {
+        stopStream(mic)
+        return
+      }
       micLive = true
     } catch {
       mic = null
     }
+    if (!mountedRef.current) return
 
     const tracks = [ ...display.getVideoTracks(), ...(mic ? mic.getAudioTracks() : []) ]
     const combined = new MediaStream(tracks)
@@ -313,10 +331,14 @@ export function useWalkthroughRecorder({
       if (event.data.size > 0) chunksRef.current.push(event.data)
     }
     recorder.onstop = () => {
-      const durationSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
+      const durationSeconds = Math.min(
+        MAX_WALKTHROUGH_DURATION_SECONDS,
+        Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
+      )
       const type = recorder.mimeType || mimeType || "video/webm"
       const blob = new Blob(chunksRef.current, { type: type.split(";")[0] })
       cleanup()
+      if (!mountedRef.current) return
       setState({ phase: "idle" })
       setElapsed(0)
       onFinished({ blob, mimeType: type.split(";")[0], durationSeconds })
@@ -334,6 +356,10 @@ export function useWalkthroughRecorder({
     recorderRef.current = recorder
     startedAtRef.current = Date.now()
     recorder.start(1_000) // 1s timeslices so a crash loses at most a second
+    if (!mountedRef.current) {
+      cleanup({ updateUi: false })
+      return
+    }
     setElapsed(0)
     setState({ phase: "recording", startedAt: startedAtRef.current, micLive })
 
@@ -348,7 +374,13 @@ export function useWalkthroughRecorder({
     }, 500)
   }, [state.phase, cleanup, onFinished])
 
-  useEffect(() => () => cleanup(), [cleanup])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      cleanup({ updateUi: false })
+    }
+  }, [cleanup])
 
   return {
     state,
