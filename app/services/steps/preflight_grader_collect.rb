@@ -1,11 +1,12 @@
 module Steps
   # Aggregates the results of the preflight grader steps in a
-  # MainBranchRepair workflow. Two outcomes:
+  # MainBranchRepair workflow. Three outcomes:
   #
-  # - All required preflight graders passed: sets the "preflight_passed"
-  #   workflow artifact, skips all downstream steps (implement, the grade
-  #   loop, summarize, etc.), and returns. The dispatcher then walks past the
-  #   skipped steps and marks the workflow succeeded.
+  # - At least one preflight grader ran and all required preflight graders
+  #   passed: sets the "preflight_passed" workflow artifact, skips all
+  #   downstream steps (implement, the grade loop, summarize, etc.), and
+  #   returns. The dispatcher then walks past the skipped steps and marks the
+  #   workflow succeeded.
   #   Workflows::MainBranchRepair#after_success detects the artifact and
   #   marks the repository healthy without the agent ever running.
   #   The downstream grade loop's own retry_until barrier (grader_collect)
@@ -16,12 +17,20 @@ module Steps
   # - Any required preflight grader failed: logs the failures and returns
   #   normally so the chain continues to implement → grade loop.
   #
+  # - No preflight grader steps exist: logs the missing evidence and returns
+  #   normally so the chain continues to implement → grade loop.
+  #
   # Unlike GraderCollect this step never raises StepFailed — it is not
   # inside a retry_until loop and a grader failure here means "proceed to
   # implement", not "fail the workflow".
   class PreflightGraderCollect < Base
     def call
       preflight_steps = preflight_grader_steps
+
+      if preflight_steps.empty?
+        log("[preflight_grader_collect] no preflight graders ran — proceeding to implement")
+        return
+      end
 
       failed_required = preflight_steps.select do |g|
         g.details && g.details["required"] && g.state == "failed"
