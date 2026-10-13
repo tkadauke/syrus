@@ -20,16 +20,15 @@ module Mcp::Tools
       def call(job_id:, depends_on_job_id: nil, depends_on_epic_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         user = chat_session.user
-        jobs = user.admin? ? Job.all : user.jobs
 
         return Mcp::Tools.invalid("exactly one of depends_on_job_id or depends_on_epic_id must be supplied") if
           depends_on_job_id.nil? == depends_on_epic_id.nil?
 
-        job = jobs.find_by(id: job_id)
+        job = job_scope_for(user).find_by(id: job_id)
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         if depends_on_job_id
-          depends_on_job = jobs.find_by(id: depends_on_job_id)
+          depends_on_job = job_scope_for(user).find_by(id: depends_on_job_id)
           return Mcp::Tools.invalid("job not found: #{depends_on_job_id}") unless depends_on_job
 
           JobDependency.where(job: job, depends_on_job: depends_on_job).destroy_all
@@ -52,6 +51,10 @@ module Mcp::Tools
 
       def depends_on_epic_ids(job)
         job.dependencies.where.not(depends_on_epic_id: nil).order(:depends_on_epic_id).pluck(:depends_on_epic_id)
+      end
+
+      def job_scope_for(user)
+        user.admin? ? Job.all : Job.accessible_to(user)
       end
     end
   end
