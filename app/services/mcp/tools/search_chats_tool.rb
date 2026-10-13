@@ -27,7 +27,7 @@ module Mcp::Tools
 
         results = ChatMessageSearchIndex.search(
           query,
-          user_id: chat_session.user_id,
+          chat_session_ids: searchable_chat_session_ids,
           limit: normalize_limit(limit),
           snippet_start: "<b>",
           snippet_end: "</b>",
@@ -71,6 +71,12 @@ module Mcp::Tools
 
       def normalize_limit(value)
         value.to_i.clamp(1, 50)
+      end
+
+      def searchable_chat_session_ids
+        scope = current_user.accessible_chat_sessions
+        scope = scope.active unless admin?
+        scope.distinct.ids
       end
 
       def preload_sessions(results)
