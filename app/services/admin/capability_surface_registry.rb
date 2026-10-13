@@ -264,8 +264,7 @@ module Admin
     end
 
     def api_blocked_pending_action?(key, sources)
-      PendingActions::ApiInvocation::CHAT_BOUND_ACTIONS.key?(key) ||
-        sources.any? { |source| source.fetch(:requires_chat_session, false) }
+      sources.any? { |source| !source.fetch(:api_invokable) }
     end
 
     def mcp_capability_sources
@@ -307,7 +306,9 @@ module Admin
           source: "pending_action",
           name: klass.name,
           admin_only: klass.admin_only?,
-          requires_chat_session: klass.requires_chat_session?
+          requires_chat_session: klass.requires_chat_session?,
+          api_invokable: klass.api_invokable?,
+          api_invocation_blocked_reason: klass.api_invocation_blocked_reason
         }
       end
     end
