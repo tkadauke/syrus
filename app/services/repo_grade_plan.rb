@@ -54,8 +54,6 @@ class RepoGradePlan
     graders = expand_graders(grade.steps)
     note = graders.empty? ? "no valid graders configured" : nil
     Result.new(graders: graders, source: ".syrus.yml", note: note, max_iterations: grade.max_iterations, rerun_only_failed: grade.rerun_only_failed)
-  rescue SyrusYml::ParseError => e
-    empty_result(source: ".syrus.yml", note: e.message)
   end
 
   private
