@@ -1356,6 +1356,7 @@ module WorkEngine
             result = WorkIntents::Scheduler.start_ready!(intent)
             return success("#{work_intent_label(intent)} was already fulfilled by later Job work") if result.already_satisfied?
             return skipped("#{work_intent_label(intent)} now waits on #{result.reason}") if result.waiting?
+            return skipped("#{work_intent_label(intent)} did not start: #{result.reason || "no Run was created"}") if result.not_started?
             return success("relaunched #{work_intent_label(intent)} from #{previous_provider} to #{desired_provider} as #{workflow_label(result.workflow)}") unless result.already_active?
 
             return skipped("#{work_intent_label(intent)} already has #{result.reason}")
@@ -1392,6 +1393,8 @@ module WorkEngine
             skipped("#{work_intent_label(intent)} now waits on #{result.reason}")
           elsif result.blocked?
             success("launched #{work_intent_label(intent)} as blocked #{work_unit_label(result.work_unit)}: #{result.reason}")
+          elsif result.not_started?
+            skipped("#{work_intent_label(intent)} did not start: #{result.reason || "no Run was created"}")
           else
             success("launched #{work_intent_label(intent)} as #{workflow_label(result.workflow)}")
           end
