@@ -11,14 +11,15 @@ are not built yet.
 
 ## Why it exists
 
-Production "felt slow" on 2026-09-13 and it took about an hour of `kubectl` and
-ad-hoc SQL to find the cause: the polling queue was 2,715 jobs deep with its
-oldest job 190 minutes old, and growing. Polling is the product's clock — there
-are no inbound GitHub callbacks — so everything GitHub-driven was arriving three
-hours late while every health signal an operator would check looked fine: `/up`
-answering in 10ms, 40–70% node CPU headroom, no pod restarts.
+A Syrus instance can feel slow while every health signal an operator would
+normally check looks fine: `/up` answering in milliseconds, plenty of node CPU
+headroom, no pod restarts. Polling is the product's clock — there are no
+inbound GitHub callbacks — so a polling queue thousands of jobs deep and
+growing means everything GitHub-driven arrives hours late, with nothing in the
+usual dashboards saying so. Diagnosing it without metrics costs an hour of
+`kubectl` and ad-hoc SQL.
 
-The queue metrics below are that incident made visible.
+The queue metrics below make that visible.
 
 ## Scraping
 
@@ -340,7 +341,7 @@ three is a monotonic count. Each corresponds to a failure mode documented
 elsewhere in this codebase as having already happened in production and
 staying invisible outside a Rails console until someone went looking by hand
 -- the same "everything looks fine except the one number that matters" shape
-as the queue-backlog incident that motivated this whole metrics plan.
+as the queue backlog these metrics exist to catch.
 
 **`provider_circuit_state`** reads `ProviderCircuitBreaker.call` for every
 provider `User.agent_providers` knows about, not just the ones a user has
@@ -402,11 +403,11 @@ repository names or ids, per the cardinality rule below.
 | `syrus_auto_retry_attempts_total{skip_reason}` | auto-retry attempts by settled outcome |
 
 `Metrics::MaintenanceSampler` (`app/services/metrics/maintenance_sampler.rb`)
-owns all four. Motivating incident: `provider_sessions` reached 6.0 GB, rows
-dating back over a month, because the `prune_provider_sessions` recurring
-task had silently stopped -- invisible outside a Rails console until someone
-went looking by hand, the same shape as every other incident this metrics
-effort exists to catch.
+owns all four. The failure mode they cover: a recurring pruner stops silently
+and its table grows unbounded. `provider_sessions` can reach several
+gigabytes of month-old rows after `prune_provider_sessions` quietly stops,
+invisible outside a Rails console until someone goes looking by hand -- the
+same shape as every other failure this metrics effort exists to catch.
 
 **`recurring_job_last_success_seconds`** is a generic staleness signal
 covering every job declared in `config/recurring.yml` -- pruners chief among
@@ -492,9 +493,9 @@ series is cluster-wide, so aggregate it with `max by`, never `sum`.
 | `syrus_client_hidden_tab_suppressed_fetches_total{resource}` | Refetches a hidden browser tab deferred instead of running immediately |
 
 This group answers "does receiving an event cost more than one event's worth
-of backend work?" -- the question behind the production incident that
-motivated it (synchronized groups of identical requests from several open
-tabs). It splits into a server half and a browser half, because the
+of backend work?" -- the question behind the failure mode that motivates it:
+synchronized groups of identical requests arriving from several open tabs at
+once. It splits into a server half and a browser half, because the
 interesting failure modes live on both sides of the WebSocket.
 
 **Server half.** `AppEvents.broadcast`/`broadcast_job_resource`/

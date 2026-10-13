@@ -130,8 +130,9 @@ of the same window agree on the timestamps.
 **A bucket is never narrower than the recorder can sample.** The recorder
 samples every minute (`tick_interval 1.minute`). A bucket only as wide as that
 misses whenever a tick lands a moment late, and every miss renders as a hole —
-the dashboard reporting an outage that was really jitter. (A scheduler bug once
-made ticks fire every other minute, ~89s on average, which made that worse.)
+the dashboard reporting an outage that was really jitter. A scheduler that
+drifts — firing closer to every other minute than every minute — widens the
+gap between ticks and makes those false holes routine.
 `MetricsDashboard::SAMPLE_INTERVAL` records the cadence and a spec holds every
 window to at least twice it: the 1h window buckets at two minutes.
 
