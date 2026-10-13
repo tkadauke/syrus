@@ -2,11 +2,19 @@ require "rails_helper"
 
 # Everything that reads a repository without cloning it goes through
 # RepositoryContent, so a mirror (or another host) can answer first. A new
-# call straight to GithubClient's content readers would quietly bypass the
-# mirror, cost a GitHub request per read, and tie that code to GitHub. The
-# readers exist only for github_host, the provider built on them.
+# call straight to GithubClient's content or git-metadata readers would quietly
+# bypass the mirror, cost a GitHub request per read, and tie that code to
+# GitHub. The readers exist only for github_host, the provider built on them.
 RSpec.describe "repository content reads" do
-  READERS = %w[file_bytes_at commit_tree_entries compare_file_changes commit_sha_for commit_tree_sha].freeze
+  READERS = %w[
+    file_bytes_at
+    commit_tree_entries
+    compare_file_changes
+    compare_commits
+    compare_divergence
+    commit_sha_for
+    commit_tree_sha
+  ].freeze
   ALLOWED = %r{\A(plugins/github_host/|app/services/github_client\.rb\z)}
 
   it "go through RepositoryContent, not GithubClient's content readers" do

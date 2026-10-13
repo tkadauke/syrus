@@ -59,6 +59,8 @@ module EmergencyLand
       success(pr_number)
     rescue Octokit::Error => e
       failure("GitHub error: #{e.class}: #{e.message}")
+    rescue RepositoryContent::Error => e
+      failure("Repository content error: #{e.class}: #{e.message}")
     end
 
     private
@@ -76,7 +78,10 @@ module EmergencyLand
     def commits_ahead_of_default_branch?
       return false if job.branch_name.blank?
 
-      client.compare_commits(repository.slug, repository.default_branch, job.branch_name)[:commits].present?
+      content = RepositoryContent.for(repository, user: job.user)
+      base = content.resolve(repository.default_branch, max_age: 0)
+      head = content.resolve(job.branch_name, max_age: 0)
+      content.history(base: base, head: head).commits.present?
     end
 
     def no_commits_message
