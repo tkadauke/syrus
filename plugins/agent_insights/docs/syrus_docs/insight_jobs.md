@@ -184,7 +184,7 @@ Both thresholds count closed jobs of any kind except `agent_insight`, measured f
 
 ### Deduplication
 
-Both the sweep and the immediate trigger call `AgentInsights::Scheduler.enqueue_if_idle!`, which first checks whether a non-closed `agent_insight` job already exists for the repository. If one is queued or running, no new job is created.
+Manual runs, the sweep, and the immediate trigger call `AgentInsights::Scheduler.enqueue_if_idle!`, which locks the repository row and then checks whether a non-closed `agent_insight` job already exists for that repository. If one is queued or running, no new job is created.
 
 ### Validation
 
