@@ -115,6 +115,14 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(setting.user_daily_spend_budget_usd).to eq(20)
   end
 
+  it ".repository_full_poll_interval_hours defaults to 24 and reflects the setting" do
+    expect(AppSetting.repository_full_poll_interval_hours).to eq(24)
+
+    AppSetting.current.update!(repository_full_poll_interval_hours: 6)
+
+    expect(AppSetting.repository_full_poll_interval_hours).to eq(6)
+  end
+
   it ".grade_max_iterations defaults to 5 and reflects the setting" do
     expect(AppSetting.grade_max_iterations).to eq(5)
 

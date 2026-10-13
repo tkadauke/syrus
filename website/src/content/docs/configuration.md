@@ -578,6 +578,14 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Review policy | `self` | Who must approve before a Job lands; see [Review Policies](#review-policies) below |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
 
+Repository issue polling is normally incremental, using the last successful
+poll start time as GitHub's `since` cursor. Because GitHub applies that cursor
+to issue `updated_at`, Syrus also runs a periodic full reconcile per
+repository. The instance setting `repository_full_poll_interval_hours`
+defaults to `24`; once a repository's last successful full issue poll is older
+than that, the next autonomous issue poll omits the cursor and reconciles open
+trigger-labeled issues without creating duplicate Jobs.
+
 ## Review Policies
 
 The `review_policy` setting on each repository controls how many approvals are

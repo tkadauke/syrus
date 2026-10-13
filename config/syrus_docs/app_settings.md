@@ -139,6 +139,22 @@ repositories, and an in-flight autonomous repository poll that receives
 `Octokit::TooManyRequests` re-enqueues after GitHub's reset time without
 advancing the repository poll watermark.
 
+### repository_full_poll_interval_hours
+
+**Type:** integer · **Default:** 24
+
+Maximum age, in hours, of a repository's last successful full issue poll.
+Normal repository issue polls use GitHub's `since` cursor for incremental
+reads, but GitHub filters that cursor by issue `updated_at`, not by the time a
+label was applied. When this interval has elapsed, the next autonomous
+repository issue poll omits the cursor and reconciles all open trigger-labeled
+issues. A successful full poll stamps `Repository#last_full_poll_at`.
+
+Full reconciles still use the same linked-PR lookup budget as incremental
+polls. If a large backlog exceeds that per-poll budget, Syrus defers the
+overflow and does not advance either poll watermark; later polls continue the
+reconcile in bounded chunks instead of spending one oversized GitHub burst.
+
 ### runs_paused
 
 **Type:** boolean · **Default:** false

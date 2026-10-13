@@ -298,6 +298,19 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :repository_full_poll_interval_hours,
+      type: :integer,
+      default: 24,
+      min: 1,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Maximum age, in hours, of a repository's last successful full issue poll before the next autonomous issue poll reconciles without a GitHub updated_at cursor.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :user_daily_spend_budget_usd,
       type: :integer,
       default: 20,

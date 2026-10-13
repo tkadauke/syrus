@@ -36,9 +36,10 @@ class PollRepositoryJob < ApplicationJob
       )
     end
 
-    previous_poll_started_at = repository.last_poll_started_at
-    incremental_since = force ? nil : previous_poll_started_at
     poll_started_at = Time.current
+    previous_poll_started_at = repository.last_poll_started_at
+    full_poll = force || repository_full_poll_due?(repository, at: poll_started_at)
+    incremental_since = full_poll ? nil : previous_poll_started_at
 
     client = GithubClient.for(repository: repository, user: repository.user)
     listed_issues = list_labeled_issues(client, repository, since: incremental_since)
@@ -80,7 +81,11 @@ class PollRepositoryJob < ApplicationJob
       )
     end
     success_at = linked_lookup_overflow_numbers.any? ? nil : poll_started_at
-    repository.mark_poll_success!(at: success_at, clear_issue_errors: false)
+    repository.mark_poll_success!(
+      at: success_at,
+      full_poll_at: full_poll && success_at ? poll_started_at : nil,
+      clear_issue_errors: false
+    )
   rescue Octokit::TooManyRequests => e
     handle_transient_github_failure(repository, e, force: force, retry_attempt: transient_retry_attempt)
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
@@ -189,6 +194,13 @@ class PollRepositoryJob < ApplicationJob
     )
   rescue => e
     Rails.logger.warn("[PollRepositoryJob] #{repository.slug} failed to refresh untagged open issue count: #{e.message}")
+  end
+
+  def repository_full_poll_due?(repository, at:)
+    last_full_poll_at = repository.last_full_poll_at
+    return true if last_full_poll_at.blank?
+
+    last_full_poll_at <= at - AppSetting.repository_full_poll_interval_hours.hours
   end
 
   def untagged_open_issue_count_stale?(repository)

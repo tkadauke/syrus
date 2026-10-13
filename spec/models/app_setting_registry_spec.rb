@@ -48,6 +48,7 @@ RSpec.describe AppSettingRegistry do
       :discord_bot_token,
       :report_issue_repo_slug,
       :max_concurrent_agent_runs,
+      :repository_full_poll_interval_hours,
       :user_daily_spend_budget_usd,
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
