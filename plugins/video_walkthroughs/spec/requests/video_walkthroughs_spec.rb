@@ -184,6 +184,19 @@ RSpec.describe "API: /api/v1/app video walkthroughs", type: :request do
       expect(walkthrough.reload.state).to eq("failed")
     end
 
+    it "404s for another chat participant's walkthrough" do
+      participant = Factories.user(gemini_api_key: "gk-participant")
+      chat.chat_participants.create!(user: participant, role: "member")
+      walkthrough = create_walkthrough(chat: chat, state: "failed", error_message: "quota busy")
+      sign_in_as(participant)
+
+      post "/api/v1/app/video_walkthroughs/#{walkthrough.id}/retry"
+
+      expect(response).to have_http_status(:not_found)
+      expect(walkthrough.reload.state).to eq("failed")
+      expect(ActiveJob::Base.queue_adapter.enqueued_jobs.map { |j| j[:job] }).not_to include(VideoWalkthroughs::AnalysisJob)
+    end
+
     # The blob is the only thing enabling re-analysis; once the prune job
     # purges it AND there's no cached analysis, retry has nothing to work with.
     it "422s with video_expired when the analysis is blank and the blob is gone" do
