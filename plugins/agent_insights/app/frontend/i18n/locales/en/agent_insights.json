@@ -101,7 +101,7 @@
   "flag_proposal": "proposal",
   "preview_not_accessible": "You do not have access to this insight.",
   "view_job": "View job",
-  "promote_to_instance": "Promote to instance memory",
+  "promote_to_repository": "Promote to repository memory",
   "promoting": "Promoting…",
   "promote_error": "Failed to promote memory.",
   "pagination_showing": "Showing {{first}}–{{last}} of {{total}}",
