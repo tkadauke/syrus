@@ -148,6 +148,7 @@ module Syrus
         @scope&.dispose
         @scope = EffectScope.new(label: "installer")
         @applied_fingerprint = current
+        failed = false
 
         active = enabled_plugin_names
         ever_active = ever_enabled_plugin_names
@@ -164,9 +165,12 @@ module Syrus
             registration.install.call(child)
           rescue StandardError => e
             Rails.logger.error("[Syrus::Installer] install #{registration.label.inspect} failed: #{e.class}: #{e.message}")
+            failed = true
             child.dispose
           end
         end
+
+        @applied_fingerprint = nil if failed
       end
 
       def install?(registration, active, ever_active)
