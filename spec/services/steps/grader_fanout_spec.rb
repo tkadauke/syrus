@@ -953,7 +953,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       include("name" => "docs-tests")
     )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+    expect(chunks).to match(/skipped \d+ unaffected target\(s\): [^\n]*docs-tests/)
   end
 
   it "does not consult target health for an unaffected required landing target" do
@@ -981,7 +981,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests])
     expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+    expect(chunks).to match(/skipped \d+ unaffected target\(s\): [^\n]*docs-tests/)
   end
 
   it "computes merge-train affected targets from the built integration base" do
@@ -1086,7 +1086,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("computing affected targets from previous main SHA oldmain")
     expect(chunks).to include("selected app-tests (own source scope matched a changed file) [//:grade/app-tests]")
-    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+    expect(chunks).to match(/skipped \d+ unaffected target\(s\): [^\n]*docs-tests/)
   end
 
   it "runs all main branch grader targets when no previous main SHA exists" do
@@ -1396,7 +1396,56 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect { handler.call }.to raise_error(TargetGraph::ValidationError, /depends on unknown target \/\/:missing/)
   end
 
-  it "logs a message for each skipped grader" do
+  it "names every skipped grader in a single summary line" do
+    write_config(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm --prefix website run build
+          when_files_changed:
+            - "website/**"
+        - name: docs-build
+          run: make docs
+          when_files_changed:
+            - "docs/**"
+        - name: rspec
+          run: bin/rspec
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped 2 unaffected target(s): docs-build, website-build")
+  end
+
+  # One log line per evaluated target is what made this step take minutes: a
+  # monorepo skips most of a hundred-plus targets and every log call is a
+  # synchronous insert into a job_logs table measured in millions of rows.
+  # The per-target record lives in the selections artifact, which is the
+  # queryable source; the log only needs to say which were skipped.
+  it "writes one line for the skipped set rather than one per skipped grader" do
+    write_config(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm --prefix website run build
+          when_files_changed:
+            - "website/**"
+        - name: docs-build
+          run: make docs
+          when_files_changed:
+            - "docs/**"
+        - name: rspec
+          run: bin/rspec
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    skip_lines = run.reload.job_logs.pluck(:chunk).select { |c| c.include?("skipped") && c.include?("unaffected") }
+    expect(skip_lines.size).to eq(1)
+  end
+
+  it "still records every skipped target in the selections artifact" do
     write_config(<<~YAML)
       grade:
         - name: website-build
@@ -1410,24 +1459,10 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     handler.call
 
-    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("skipped website-build (no matching files changed)")
-  end
-
-  it "logs the target label alongside each skipped grader" do
-    write_config(<<~YAML)
-      grade:
-        - name: website-build
-          run: npm --prefix website run build
-          when_files_changed:
-            - "website/**"
-    YAML
-    stub_changed_files("app/models/user.rb")
-
-    handler.call
-
-    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("skipped website-build (no matching files changed) [//:grade/website-build]")
+    entries = workflow.reload.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)
+    expect(entries).to include(
+      include("name" => "website-build", "affected" => false, "target_label" => "//:grade/website-build")
+    )
   end
 
   it "logs each selected grader with its reason and target label" do

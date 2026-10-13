@@ -194,15 +194,30 @@ module Steps
       step.update!(details: step.details.to_h.merge(TARGET_SELECTIONS_ARTIFACT_KEY => entries))
     end
 
-    # Explains every grader's selection/skip by name and target label -- the
-    # existing "skipped <name> (no matching files changed)" prefix is kept
-    # verbatim so it stays a stable substring for anything already grepping
-    # workflow logs; the target label is appended rather than interleaved.
+    # Explains each SELECTED grader by name and target label, then collapses
+    # every unaffected target into one summary line.
+    #
+    # One line per evaluated target is what made this step slow. A monorepo
+    # evaluates well over a hundred targets and skips most of them, and every
+    # `log` call is a synchronous insert into a `job_logs` table measured in
+    # millions of rows -- around 1.9 seconds per line under production load.
+    # A fanout writing ~150 lines spent nearly all of its two-to-eleven
+    # minutes writing them, not deciding anything.
+    #
+    # Nothing is lost by collapsing: record_target_selections! above persists
+    # every target's name, reason, affected flag, target label and
+    # fingerprints to both the workflow artifact and Step#details, which is
+    # the queryable record. The skip lines only ever restated it.
     def log_selections(selections)
-      selections.each do |grader, selection|
-        verb = selection.affected ? "selected" : "skipped"
-        log("[grader_fanout] #{verb} #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}] capabilities: #{capabilities_description_for(grader)}")
+      selected, skipped = selections.partition { |_, selection| selection.affected }
+
+      selected.each do |grader, selection|
+        log("[grader_fanout] selected #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}] capabilities: #{capabilities_description_for(grader)}")
       end
+
+      return if skipped.empty?
+
+      log("[grader_fanout] skipped #{skipped.size} unaffected target(s): #{skipped.map { |grader, _| grader.name }.sort.join(', ')}")
     end
 
     # Expands the raw diff's changed files with any :affected_test_analyzer
