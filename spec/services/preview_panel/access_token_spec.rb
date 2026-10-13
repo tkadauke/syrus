@@ -31,6 +31,11 @@ RSpec.describe PreviewPanel::AccessToken do
       expect(described_class.panel_id_for("not-a-real-token")).to be_nil
     end
 
+    it "returns nil for array or hash params" do
+      expect(described_class.panel_id_for(["not-a-real-token"])).to be_nil
+      expect(described_class.panel_id_for({ "token" => "not-a-real-token" })).to be_nil
+    end
+
     it "returns nil for a blank token" do
       expect(described_class.panel_id_for(nil)).to be_nil
       expect(described_class.panel_id_for("")).to be_nil
