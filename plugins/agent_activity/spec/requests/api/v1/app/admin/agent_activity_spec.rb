@@ -248,6 +248,7 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("job_id")).to eq(job.id)
+      expect(parse_body).not_to include("agent_diff", "step_agent_diff")
       expect(parse_body.fetch("logs").map { |l| l["chunk"] }).to eq([ "Looked at the aqueducts." ])
     end
 

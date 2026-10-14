@@ -96,7 +96,7 @@ describe("WorkflowsTab", () => {
   it("renders run artifact diffs read-only, without diff comment feedback UI", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path === "/api/v1/app/jobs/42/runs/51/artifacts") {
+      if (path === "/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1") {
         return Promise.resolve(new Response(JSON.stringify({
           job_id: 42,
           workflow_id: 10,
@@ -104,6 +104,7 @@ describe("WorkflowsTab", () => {
           diff_review_version_id: 100,
           base_ref: "base-sha",
           head_ref: "head-sha",
+          artifact: "agent_diff",
           agent_diff: [
             "diff --git a/app/models/job.rb b/app/models/job.rb",
             "--- a/app/models/job.rb",
@@ -112,10 +113,7 @@ describe("WorkflowsTab", () => {
             "-old",
             "+new"
           ].join("\n"),
-          agent_diff_bytes: 120,
-          step_agent_diff: null,
-          logs_count: 0,
-          logs: []
+          agent_diff_bytes: 120
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -145,7 +143,7 @@ describe("WorkflowsTab", () => {
 
   it("makes run artifact diffs the mobile flex child with their own vertical scroll region", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
-      if (String(input) === "/api/v1/app/jobs/42/runs/51/artifacts") {
+      if (String(input) === "/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1") {
         return Promise.resolve(new Response(JSON.stringify({
           job_id: 42,
           workflow_id: 10,
@@ -153,6 +151,7 @@ describe("WorkflowsTab", () => {
           diff_review_version_id: 100,
           base_ref: "base-sha",
           head_ref: "head-sha",
+          artifact: "agent_diff",
           agent_diff: [
             "diff --git a/app/models/job.rb b/app/models/job.rb",
             "--- a/app/models/job.rb",
@@ -161,10 +160,7 @@ describe("WorkflowsTab", () => {
             "-old",
             "+new"
           ].join("\n"),
-          agent_diff_bytes: 120,
-          step_agent_diff: null,
-          logs_count: 0,
-          logs: []
+          agent_diff_bytes: 120
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 

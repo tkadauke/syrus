@@ -201,7 +201,7 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
   const artifactsPath = node?.run_id != null ? `/api/v1/app/jobs/${jobId}/runs/${node.run_id}/artifacts` : null
   const transcript = useQuery({
     queryKey: ["job_run_artifacts", String(jobId), String(node?.run_id)],
-    queryFn: () => fetchJobRunArtifacts(artifactsPath as string),
+    queryFn: () => fetchJobRunArtifacts(artifactsPath as string, "transcript"),
     enabled: node != null && artifactsPath != null
   })
 
@@ -226,7 +226,7 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
           {transcript.isPending ? <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("run_loading")}</p> : null}
           {transcript.isError ? <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p> : null}
           {transcript.data ? (
-            transcript.data.logs.length > 0 ? (
+            transcript.data.logs && transcript.data.logs.length > 0 ? (
               <RunTranscriptLogs fillHeight logs={transcript.data.logs} />
             ) : (
               <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>

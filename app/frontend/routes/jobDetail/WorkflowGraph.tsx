@@ -1370,8 +1370,11 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
     }
   })
   const artifacts = useQuery({
-    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id)],
-    queryFn: () => fetchJobRunArtifacts(run.app_artifacts_path),
+    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id), artifactView],
+    queryFn: () => fetchJobRunArtifacts(
+      run.app_artifacts_path,
+      artifactView === "diff" ? "agent_diff" : artifactView === "step_diff" ? "step_agent_diff" : "transcript"
+    ),
     enabled: isRunArtifactView,
     refetchInterval: artifactView === "transcript" && isActiveState(run.state) ? 2000 : false
   })
@@ -1618,7 +1621,7 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_transcript")}</ArtifactPanelHeader>
-      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
+      {payload.logs && payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
     </section>
   )
 }

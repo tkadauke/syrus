@@ -36,13 +36,18 @@ module Api
           end
 
           def artifacts
-            run = Run.includes(:job, step: :workflow).find_by(id: params[:run_id])
+            run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:job, step: :workflow).find_by(id: params[:run_id])
             unless run
               render_error("not_found", "Run not found.", status: :not_found)
               return
             end
 
-            render json: ::App::RunArtifactsPayload.build(run: run)
+            render json: ::App::RunArtifactsPayload.build(
+              run: run,
+              artifact: params[:artifact],
+              page: params[:page],
+              per: params[:per]
+            )
           end
 
           private
