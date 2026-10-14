@@ -10,7 +10,7 @@ module Mcp::Tools
       normalized_id = Integer(job_id, exception: false)
       return [ nil, Mcp::Tools.invalid("job_id must be an integer") ] unless normalized_id
 
-      scope = context.user.admin? ? Job.all : context.user.jobs
+      scope = context.user.admin? ? Job.all : Job.accessible_to(context.user)
       job = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("job not found: #{normalized_id}") ] unless job
 
@@ -21,7 +21,7 @@ module Mcp::Tools
       normalized_id = Integer(id, exception: false)
       return [ nil, Mcp::Tools.invalid("ref_movement_action_id must be an integer") ] unless normalized_id
 
-      scope = context.user.admin? ? RefMovementAction.all : RefMovementAction.where(repository: context.user.repositories)
+      scope = context.user.admin? ? RefMovementAction.all : RefMovementAction.where(repository: Repository.accessible_to(context.user))
       action = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("ref_movement_action not found: #{normalized_id}") ] unless action
 

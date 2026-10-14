@@ -31,15 +31,13 @@ test("signed-in user views the ERD and migration diff renderers on a Job's Revie
   await expect(page.getByText("accounts.id")).toBeVisible()
   await expect(page.getByText("unique idx: email")).toBeVisible()
 
-  const migrationOptionValue = await page.getByRole("option", { name: /Migration: AddNeedsAttentionCountToUsers/ }).getAttribute("value")
-  expect(migrationOptionValue).not.toBeNull()
-  await artifactSelector.selectOption(migrationOptionValue!)
-
   // rails_migration_diff, rendered by SyrusRails::MigrationDiffRenderer as a
   // before/after column table plus a change summary list.
-  const artifactSelect = page.getByLabel("Artifact")
-  const migrationOption = artifactSelect.locator("option").filter({ hasText: "Migration: AddNeedsAttentionCountToUsers" })
-  await artifactSelect.selectOption(await migrationOption.getAttribute("value") ?? "")
+  const migrationOption = artifactSelector.getByRole("option", { name: /Migration: AddNeedsAttentionCountToUsers/ })
+  await expect(migrationOption).toBeAttached()
+  const migrationOptionValue = await migrationOption.getAttribute("value")
+  if (!migrationOptionValue) throw new Error("Migration artifact option is missing a value")
+  await artifactSelector.selectOption(migrationOptionValue)
   await expect(page.getByText("Migration: AddNeedsAttentionCountToUsers", { exact: true })).toBeVisible()
   await expect(page.getByText("rails_migration_diff", { exact: true })).toBeVisible()
   await expect(page.getByText("AddNeedsAttentionCountToUsers", { exact: true }).first()).toBeVisible()

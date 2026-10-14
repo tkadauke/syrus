@@ -19,7 +19,7 @@ import { jobSlug } from "./formatting"
 import type { HTMLAttributes, ReactNode, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { AnsiText } from "../../components/AnsiText"
+import { TranscriptMessageRow } from "../../components/TranscriptMessageRow"
 import type { JobRun, fetchJobRunArtifacts } from "../../api/jobs"
 import { useT } from "../../hooks/useT"
 export { AgentDiff } from "../../components/diff/ReviewableDiff"
@@ -108,10 +108,13 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
 }
 
 function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<typeof useT>["t"]) {
-  if (kind === "assistant_text") return t("transcript_kind_agent")
-  if (kind === "tool_call") return t("transcript_kind_tool")
-  if (kind === "system") return t("transcript_kind_system")
-  return kind
+  const labels: Record<string, string> = {
+    assistant_text: t("transcript_kind_agent"),
+    tool_call: t("transcript_kind_tool"),
+    system: t("transcript_kind_system")
+  }
+
+  return kind ? labels[kind] || kind : null
 }
 
 export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]; fillHeight?: boolean }) {
@@ -122,7 +125,7 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
   const displayLogs = coalesceTranscriptLogs(logs)
   const streamClassName = [
     fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
-    "overflow-auto divide-y divide-border"
+    "min-w-0 overflow-y-auto overflow-x-hidden"
   ].join(" ")
 
   function handleScroll(event: UIEvent<HTMLOListElement>) {
@@ -136,10 +139,7 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
   return (
     <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
-        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-text-primary sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
-          <span className="text-text-subtle">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
-          <pre className="whitespace-pre-wrap break-words"><AnsiText text={log.chunk} /></pre>
-        </li>
+        <TranscriptMessageRow chunk={log.chunk} kind={log.kind} key={log.id} label={transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`} sequence={log.sequence} />
       ))}
     </ol>
   )

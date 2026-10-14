@@ -36,6 +36,16 @@ RSpec.describe ChatEpicProposalMaterializer do
     )
   end
 
+  def whiteboard_snapshot(chat_session:)
+    Whiteboard::Snapshot.create!(
+      chat_session: chat_session,
+      name: "Child mockup",
+      scene_json: { "elements" => [{ "id" => "mockup-element" }], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 1
+    )
+  end
+
   it "materializes the Epic, child Jobs, and sibling Job dependencies in one transaction" do
     proposal = epic_proposal
     prerequisite_epic = Factories.epic(user: user, repository: repository)
@@ -73,6 +83,41 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "refuses to materialize pre-existing bundles for read-tier collaborators" do
+    repository
+    collaborator = Factories.user(email_address: "materializer-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    collaborator_session = ChatSession.create!(user: collaborator, repository: repository)
+    proposal = collaborator_session.proposals.create!(
+      slug: "read-only-bundle",
+      title: "Read-only bundle",
+      body: "This proposal is visible but must not be filed.",
+      kind: "epic",
+      repository: repository
+    )
+    proposal.child_proposals.create!(
+      chat_session: collaborator_session,
+      slug: "read-only-child",
+      title: "Read-only child",
+      body: "This should not become a Job.",
+      repository: repository
+    )
+    counts = {
+      epics: Epic.count,
+      jobs: Job.count,
+      proposals_confirmed: ChatProposal.confirmed.count
+    }
+
+    expect {
+      described_class.new(user: collaborator).file!(proposal)
+    }.to raise_error(ArgumentError, /write access/)
+
+    expect(Epic.count).to eq(counts.fetch(:epics))
+    expect(Job.count).to eq(counts.fetch(:jobs))
+    expect(ChatProposal.confirmed.count).to eq(counts.fetch(:proposals_confirmed))
+    expect(proposal.reload).to be_proposed
+  end
+
   it "keeps Epic child Jobs on the current materialization path even when a child proposal carries backlog route metadata" do
     proposal = epic_proposal
     child = proposal.child_proposals.create!(
@@ -106,6 +151,32 @@ RSpec.describe ChatEpicProposalMaterializer do
 
     expect(child.reload.job).to eq(result.jobs.sole)
     expect(child.job.investigation?).to eq(true)
+  end
+
+  it "attaches child proposal media to materialized child Jobs" do
+    proposal = epic_proposal
+    snapshot = whiteboard_snapshot(chat_session: chat_session)
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "mockup-backed-child",
+      title: "Mockup backed child",
+      body: "Build it from the whiteboard reference.",
+      repository: repository,
+      media_ids: ["snapshot:#{snapshot.id}"]
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    job = child.reload.job
+    expect(job).to eq(result.jobs.sole)
+    expect(job.job_attachments.count).to eq(1)
+    attachment = job.job_attachments.first
+    expect(attachment).to have_attributes(
+      kind: "pending_snapshot",
+      title: "Child mockup",
+      source_url: "snapshot:#{snapshot.id}"
+    )
+    expect(attachment.content_cache).to include("mockup-element")
   end
 
   it "applies per-child provider overrides onto the materialized Jobs" do

@@ -34,11 +34,13 @@ class MergeTrainDispatcher
       raise ActiveRecord::Rollback if landing_job_in_progress
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
+      base_branch = landing_branch_result_for(members).base_branch
+      raise ActiveRecord::Rollback if base_branch.blank?
 
       train = MergeTrain.create!(
         epic: @epic,
         repository: @epic.repository,
-        base_branch: @epic.repository.default_branch
+        base_branch: base_branch
       )
 
       members.each_with_index do |job, index|
@@ -78,6 +80,8 @@ class MergeTrainDispatcher
 
     readiness = LandingBundleAssembler.for_epic(@epic)
     return readiness.reason unless readiness.ready?
+    landing_branch_result = landing_branch_result_for(readiness.members)
+    return landing_branch_result.reason unless landing_branch_result.ok?
 
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the merge train starts"
@@ -149,6 +153,10 @@ class MergeTrainDispatcher
     return [] unless unit
 
     unit.blocker_jobs
+  end
+
+  def landing_branch_result_for(members)
+    MergeTrains::LandingBranchResolver.call(repository: @epic.repository, members: members)
   end
 
   def cooldown_reason(failed_train)

@@ -44,6 +44,38 @@ RSpec.describe JobBundleDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  it "creates the bundle train on the delivery track landing branch shared by the members" do
+    a = approved_job(1)
+    b = approved_job(2)
+    a.update!(delivery_track: "hotfix")
+    b.update!(delivery_track: "hotfix")
+    policy = instance_double(DeliveryPolicy)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch).and_return("release")
+
+    workflow = described_class.try_dispatch!(repository)
+
+    expect(workflow).to be_present
+    expect(MergeTrain.last.base_branch).to eq("release")
+  end
+
+  it "does not create one bundle train for members targeting different landing branches" do
+    a = approved_job(1)
+    approved_job(2)
+    a.update!(delivery_track: "hotfix")
+    policy = instance_double(DeliveryPolicy)
+    allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:job_landing_branch) do |job|
+      job.delivery_track == "hotfix" ? "release" : repository.default_branch
+    end
+
+    expect(described_class.blocker_reason(repository))
+      .to eq("merge train members target multiple landing branches: #{repository.default_branch}, release")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "persists dependency order into merge train member positions" do
     AppSetting.current.update!(merge_train_max_size: 2)
     approved_job(1)

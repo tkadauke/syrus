@@ -13,26 +13,47 @@
 # provisioned here when missing.
 set -euo pipefail
 
-# Only adopt the image's shared browser directory when it actually exists.
-# Exporting it unconditionally pointed Playwright at an empty path on macOS and
-# every local run failed to launch Chromium.
-if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d /opt/ms-playwright ]; then
-  export PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
-fi
+default_browsers_path() {
+  if [ "$(uname -s)" = "Linux" ]; then
+    printf "%s/.cache/ms-playwright" "$HOME"
+  else
+    printf "%s/Library/Caches/ms-playwright" "$HOME"
+  fi
+}
 
 if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then
   npm ci
 fi
 
+browser_dir_name() {
+  local name="$1"
+  node -e 'const name = process.argv[1]; const data = require("./node_modules/playwright-core/browsers.json"); const browser = data.browsers.find((candidate) => candidate.name === name); if (!browser) process.exit(1); process.stdout.write(`${name.replace(/-/g, "_")}-${browser.revision}`);' "$name"
+}
+
+browsers_installed_at() {
+  local root="$1"
+  local chromium_dir
+  local headless_dir
+  chromium_dir="$(browser_dir_name chromium)"
+  headless_dir="$(browser_dir_name chromium-headless-shell)"
+
+  [ -x "$root/$chromium_dir/chrome-linux64/chrome" ] &&
+    [ -x "$root/$headless_dir/chrome-headless-shell-linux64/chrome-headless-shell" ]
+}
+
+# Only adopt the image's shared browser directory when it has both binaries the
+# suite needs. A stale or partial /opt/ms-playwright should fall back to the
+# normal user cache and install there instead of forcing every test to fail at
+# browser launch.
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && browsers_installed_at /opt/ms-playwright; then
+  export PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+fi
+
 # The image bakes its browser in; anywhere else Playwright manages its own copy
-# and the first run has to download it. `install` is idempotent and quick once
-# the browser is present, so just ask for it rather than trying to probe a
-# platform-specific cache layout.
-#
-# Both binaries are required: `headless: true` launches the separate
-# chromium-headless-shell build, not the full chromium, and installing only
-# "chromium" leaves the shell missing -- which fails at browser launch, well
-# after the server has booted.
+# and the first run has to download it. Both binaries are required: `headless:
+# true` launches the separate chromium-headless-shell build, not the full
+# chromium, and installing only "chromium" leaves the shell missing -- which
+# fails at browser launch, well after the server has booted.
 #
 # Only when they are actually missing, though: `playwright install` is not the
 # cheap no-op its docs suggest. It re-downloads ffmpeg and then hangs in its
@@ -40,14 +61,7 @@ fi
 # what this works on), with no output and a silent ten-minute lock retry -- so
 # a run on an already-provisioned machine never reached the tests at all.
 # Probing first keeps that failure away from everyone whose browsers are fine.
-browsers_installed() {
-  local root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
-  [ "$(uname -s)" = "Linux" ] && root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
-  compgen -G "$root/chromium-*/INSTALLATION_COMPLETE" > /dev/null &&
-    compgen -G "$root/chromium_headless_shell-*/INSTALLATION_COMPLETE" > /dev/null
-}
-
-if [ ! -d /opt/ms-playwright ] && ! browsers_installed; then
+if ! browsers_installed_at "${PLAYWRIGHT_BROWSERS_PATH:-$(default_browsers_path)}"; then
   echo "[test-e2e] Installing Chromium (first run only)."
   echo "[test-e2e] If this hangs after the download reaches 100%, you are likely on"
   echo "[test-e2e] a Node that Playwright's downloader cannot finish under; CI uses"

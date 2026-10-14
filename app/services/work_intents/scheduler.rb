@@ -11,6 +11,7 @@ module WorkIntents
     ) do
       def started? = status == "started"
       def blocked? = status == "blocked"
+      def not_started? = status == "not_started"
       def waiting? = status == "waiting"
       def already_active? = status == "already_active"
       def already_satisfied? = status == "already_satisfied"
@@ -110,14 +111,13 @@ module WorkIntents
         **options
       )
       launch_result = WorkUnits::Launcher.start!(workflow)
-      status = launch_result.blocked? ? "blocked" : "started"
       StartResult.new(
         intent: intent,
         gate_result: gate_result,
         workflow: workflow,
         work_unit: launch_result.work_unit || workflow.work_unit,
         launch_result: launch_result,
-        status: status,
+        status: launch_result.status,
         reason: launch_result.reason
       )
     end

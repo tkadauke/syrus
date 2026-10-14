@@ -38,7 +38,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("exactly one of depends_on_job_id or depends_on_epic_id must be supplied") if
           depends_on_job_id.nil? == depends_on_epic_id.nil?
 
-        job = user.jobs.find_by(id: job_id)
+        job = job_scope_for(user).find_by(id: job_id)
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         if depends_on_job_id
@@ -53,7 +53,7 @@ module Mcp::Tools
       private
 
       def add_job_target(job, depends_on_job_id, user, satisfaction_mode, required_deployment_stage_name)
-        depends_on_job = user.jobs.find_by(id: depends_on_job_id)
+        depends_on_job = job_scope_for(user).find_by(id: depends_on_job_id)
         return Mcp::Tools.invalid("job not found: #{depends_on_job_id}") unless depends_on_job
 
         dependency = JobDependency.find_or_initialize_by(
@@ -70,7 +70,7 @@ module Mcp::Tools
       end
 
       def add_epic_target(job, depends_on_epic_id, user, satisfaction_mode, required_deployment_stage_name)
-        epic = user.epics.find_by(id: depends_on_epic_id)
+        epic = epic_scope_for(user).find_by(id: depends_on_epic_id)
         return Mcp::Tools.invalid("epic not found: #{depends_on_epic_id}") unless epic
 
         dependency = JobDependency.find_or_initialize_by(
@@ -111,6 +111,14 @@ module Mcp::Tools
           satisfaction_mode: dependency.satisfaction_mode,
           required_deployment_stage_name: dependency.required_deployment_stage_name
         }.compact
+      end
+
+      def job_scope_for(user)
+        user.admin? ? Job.all : Job.accessible_to(user)
+      end
+
+      def epic_scope_for(user)
+        user.admin? ? Epic.all : Epic.accessible_to(user)
       end
     end
   end

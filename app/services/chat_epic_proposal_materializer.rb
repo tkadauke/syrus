@@ -19,6 +19,7 @@ class ChatEpicProposalMaterializer
     validate_child_count!(epic_proposal, job_proposals)
     validate_child_dependency_policy!(epic_proposal, job_proposals)
     ensure_active_repositories!([ epic_proposal ] + job_proposals)
+    ensure_repository_write!(epic_proposal, job_proposals)
     jobs = []
     epic = nil
 
@@ -66,6 +67,16 @@ class ChatEpicProposalMaterializer
   def ensure_active_repositories!(proposals)
     archived = proposals.map(&:effective_repository).compact.find(&:archived?)
     raise ArgumentError, "repository #{archived.slug} is archived" if archived
+  end
+
+  def ensure_repository_write!(epic_proposal, job_proposals)
+    parent_repository = epic_proposal.target_epic&.repository || epic_proposal.effective_repository
+    repositories = [ parent_repository, *job_proposals.map { |proposal| proposal.repository || parent_repository } ].compact.uniq
+    unauthorized = repositories.find { |repository| !RepositoryPolicy.new(user, repository).write? }
+    return unless unauthorized
+
+    raise ArgumentError,
+          "Only a repository member with write access, or an admin, can file work for #{unauthorized.slug}."
   end
 
   def proposed_children_for(epic_proposal)
@@ -140,7 +151,12 @@ class ChatEpicProposalMaterializer
     )
     job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
     job.save!
+    attach_media_to_job!(proposal, job)
     job
+  end
+
+  def attach_media_to_job!(proposal, job)
+    ChatMediaAttacher.new(chat_session: proposal.chat_session, job: job).attach!(proposal.media_ids)
   end
 
   def wire_sibling_dependencies(job_proposals, job_by_proposal_id)
@@ -182,7 +198,7 @@ class ChatEpicProposalMaterializer
     job_proposals.each do |proposal|
       job = job_by_proposal_id.fetch(proposal.id)
       Array(proposal.depends_on_job_ids).each do |job_id|
-        depends_on_job = user.jobs.find_by(id: job_id)
+        depends_on_job = Job.accessible_to(user).find_by(id: job_id)
         next unless depends_on_job
 
         requirement = ProposalJobDependencyRequirements.for_job_id(proposal, job_id)
@@ -215,7 +231,7 @@ class ChatEpicProposalMaterializer
 
   def wire_epic_dependencies(proposal, epic)
     Array(proposal.depends_on_job_ids).each do |job_id|
-      dep_job = user.jobs.find_by(id: job_id)
+      dep_job = Job.accessible_to(user).find_by(id: job_id)
       next unless dep_job
 
       validate_dependency_target!(dep_job)
@@ -233,7 +249,7 @@ class ChatEpicProposalMaterializer
     job_proposals.each do |proposal|
       job = job_by_proposal_id.fetch(proposal.id)
       Array(proposal.depends_on_epic_ids).each do |epic_id|
-        epic = user.epics.find_by(id: epic_id)
+        epic = Epic.accessible_to(user).find_by(id: epic_id)
         next unless epic
 
         validate_dependency_target!(epic)

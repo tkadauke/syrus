@@ -27,8 +27,10 @@ operator and repository closes any previous live briefing with
 Scheduled generation is opt-in and activity-gated. A scheduled pass only
 considers operators with at least one enabled repository subscription, then only
 creates a new briefing when Jobs or Workflows exist for the repository after
-that repository's last closed briefing. Manual regeneration bypasses this
-activity gate but does not enable future scheduled generation by itself.
+that repository's last closed briefing. Scheduled passes re-check current
+repository access and disable stale enabled subscriptions for repositories the
+operator can no longer see. Manual regeneration bypasses this activity gate but
+does not enable future scheduled generation by itself.
 `BriefingSettings` stores each
 operator's cron-like cadence, budget-gating flag, and optional agent provider
 override. A five-field cadence is interpreted in UTC, not in the server's

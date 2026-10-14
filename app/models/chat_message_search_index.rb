@@ -43,19 +43,37 @@ class ChatMessageSearchIndex < SearchRecord
       end
     end
 
-    def search(query, user_id:, chat_session_id: nil, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
-      predicates = [ "chat_message_fts MATCH ?", "user_id = ?" ]
+    def search(
+      query,
+      user_id: nil,
+      chat_session_id: nil,
+      chat_session_ids: nil,
+      limit: 20,
+      snippet_start: "<mark>",
+      snippet_end: "</mark>",
+      snippet_tokens: 24
+    )
+      scoped_chat_session_ids = Array(chat_session_ids)
+      scoped_chat_session_ids << chat_session_id if chat_session_id.present?
+      scoped_chat_session_ids = scoped_chat_session_ids.compact_blank.uniq
+      return [] if scoped_chat_session_ids.empty? && user_id.nil?
+
+      predicates = [ "chat_message_fts MATCH ?" ]
       binds = [
         bind(snippet_start.to_s),
         bind(snippet_end.to_s),
         bind(snippet_tokens.to_i),
-        bind(parse_fts_query(query)),
-        bind(user_id)
+        bind(parse_fts_query(query))
       ]
 
-      if chat_session_id.present?
-        predicates << "chat_session_id = ?"
-        binds << bind(chat_session_id)
+      if user_id.present?
+        predicates << "user_id = ?"
+        binds << bind(user_id)
+      end
+
+      if scoped_chat_session_ids.present?
+        predicates << "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
+        binds.concat(scoped_chat_session_ids.map { |id| bind(id) })
       end
 
       limit_sql = ""

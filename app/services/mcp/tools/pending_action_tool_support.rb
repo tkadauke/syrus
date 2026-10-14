@@ -23,7 +23,7 @@ module Mcp::Tools
       normalized_id = Integer(job_id, exception: false)
       return [ nil, Mcp::Tools.invalid("job_id is required") ] unless normalized_id
 
-      scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
+      scope = chat_session.user.admin? ? Job.all : Job.accessible_to(chat_session.user)
       job = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("job not found: #{normalized_id}") ] unless job
 
@@ -34,7 +34,7 @@ module Mcp::Tools
       normalized_id = Integer(repository_id, exception: false)
       return [ nil, Mcp::Tools.invalid("repository_id is required") ] unless normalized_id
 
-      scope = chat_session.user.admin? ? Repository.active : chat_session.user.repositories.active
+      scope = chat_session.user.admin? ? Repository.active : Repository.accessible_to(chat_session.user).active
       repository = scope.find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("repository not found: #{normalized_id}") ] unless repository
 
@@ -47,7 +47,7 @@ module Mcp::Tools
 
       document = Document.where(
         attachable_type: "Repository",
-        attachable_id: chat_session.user.repositories.active.select(:id)
+        attachable_id: Repository.accessible_to(chat_session.user).active.select(:id)
       ).find_by(id: normalized_id)
       return [ nil, Mcp::Tools.invalid("document not found: #{normalized_id}") ] unless document
 

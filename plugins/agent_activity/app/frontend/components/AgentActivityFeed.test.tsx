@@ -139,7 +139,16 @@ function setupFetchMock(sessionsOverrides: Record<string, unknown> = {}) {
         agent_diff: null,
         agent_diff_bytes: 0,
         logs_count: 1,
-        logs: [ { id: 1, sequence: 1, kind: "assistant_text", chunk: "Looked at the aqueducts.", created_at: "2026-01-01T00:10:00Z" } ]
+        logs: [
+          { id: 1, sequence: 1, kind: "assistant_text", chunk: "Looked at the aqueducts.", created_at: "2026-01-01T00:10:00Z" },
+          {
+            id: 2,
+            sequence: 2,
+            kind: "tool_call",
+            chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/aqueducts/some/really/long/mobile/path/that/needs/to/wrap",
+            created_at: "2026-01-01T00:10:01Z"
+          }
+        ]
       }))
     }
     if (url === "/api/v1/app/filters/usage") {
@@ -329,6 +338,10 @@ describe("AgentActivityFeed", () => {
     fireEvent.click(screen.getByText("Transcript"))
 
     expect(await screen.findByText("Looked at the aqueducts.")).toBeInTheDocument()
+    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-w-0", "overflow-x-hidden")
+    expect(screen.getByText("Looked at the aqueducts.").closest(".chat-prose")).toHaveClass("[overflow-wrap:anywhere]")
+    expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
+    expect(screen.getByText(/really\/long\/mobile\/path/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
   })
 
   it("links chat-backed sessions to the live chat instead of opening an inline transcript drawer", async () => {
