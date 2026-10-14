@@ -62,6 +62,14 @@ RSpec.describe CommandRedactor do
       )
     end
 
+    it "redacts complete quoted values containing spaces and ampersands" do
+      text = %(SECRET_KEY_BASE="super secret & value" AWS_SECRET_ACCESS_KEY='other secret & value' bin/rails)
+
+      expect(described_class.redact(text)).to eq(
+        %(SECRET_KEY_BASE="[REDACTED]" AWS_SECRET_ACCESS_KEY='[REDACTED]' bin/rails)
+      )
+    end
+
     it "leaves already-redacted assignments intact inside serialized data" do
       text = '{"command":"bin/deploy --api-key=[REDACTED]"}'
 
