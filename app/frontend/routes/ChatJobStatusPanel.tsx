@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type KeyboardEvent } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem, ChatJobStatusPendingProposal } from "../api/chats"
 import { fetchChatJobStatus } from "../api/chats"
 import { useT } from "../hooks/useT"
@@ -8,6 +8,7 @@ import { CopyableSlug } from "../components/CopyableSlug"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 function jobBorderClass(job: ChatJobStatusJobItem): string {
   if (job.blocker) return job.blocker.reason === "awaiting_review" ? "border-l-amber-400" : "border-l-red-500"
@@ -222,6 +223,8 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   const [hideClosedJobs, setHideClosedJobs] = useState(
     () => localStorage.getItem("chat_jobs_hide_closed") === "true"
   )
@@ -229,6 +232,7 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
     queryFn: () => fetchChatJobStatus(chatId),
+    refetchOnMount: "always",
     staleTime: 30_000
   })
 
@@ -274,7 +278,7 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
     epics.some((epic) => epic.children.some((j) => j.state === "closed"))
 
   function navigateToJob(jobId: number) {
-    navigate(`/jobs/${jobId}`)
+    navigate(withRoutePrefix(`/jobs/${jobId}`, prefix))
   }
 
   return (
