@@ -9866,19 +9866,31 @@ describe("App", () => {
       if (path === "/api/v1/app/jobs/42/runs/9/grade_log?name=tests&workflow_id=5") {
         return Promise.resolve(new Response(JSON.stringify({ job_id: 42, run_id: 9, name: "tests", contents: "rspec output\n" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/jobs/42/runs/9/artifacts") {
+      if (path === "/api/v1/app/jobs/42/runs/9/artifacts?artifact=transcript&page=1") {
         artifactFetchCount += 1
         return Promise.resolve(new Response(JSON.stringify({
           job_id: 42,
           run_id: 9,
-          agent_diff: "diff --git a/app.rb b/app.rb\nindex 1111111..2222222 100644\n--- a/app.rb\n+++ b/app.rb\n@@ -1,2 +1,2 @@\n-puts 'old forum'\n+puts 'forum'\n context\n",
-          agent_diff_bytes: 140,
+          artifact: "transcript",
           logs_count: artifactFetchCount > 1 ? 3 : 2,
+          logs_page: 1,
+          logs_per_page: 100,
+          logs_total_pages: 1,
+          logs_has_older: false,
           logs: [
             { id: 1, sequence: 0, kind: "assistant_text", chunk: "digging trench", created_at: "2026-05-30T10:02:00Z" },
             { id: 2, sequence: 1, kind: "tool_call", chunk: "found marble", created_at: "2026-05-30T10:03:00Z" },
             ...(artifactFetchCount > 1 ? [{ id: 3, sequence: 2, kind: "system", chunk: "new marble", created_at: "2026-05-30T10:04:00Z" }] : [])
           ]
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/runs/9/artifacts?artifact=agent_diff&page=1") {
+        return Promise.resolve(new Response(JSON.stringify({
+          job_id: 42,
+          run_id: 9,
+          artifact: "agent_diff",
+          agent_diff: "diff --git a/app.rb b/app.rb\nindex 1111111..2222222 100644\n--- a/app.rb\n+++ b/app.rb\n@@ -1,2 +1,2 @@\n-puts 'old forum'\n+puts 'forum'\n context\n",
+          agent_diff_bytes: 140
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
@@ -9950,7 +9962,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/runs/9/artifacts",
+        "/api/v1/app/jobs/42/runs/9/artifacts?artifact=transcript&page=1",
         expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
       )
     })
@@ -9979,7 +9991,7 @@ describe("App", () => {
       })
     })
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.filter(([path]) => String(path) === "/api/v1/app/jobs/42/runs/9/artifacts")).toHaveLength(2)
+      expect(fetchSpy.mock.calls.filter(([path]) => String(path) === "/api/v1/app/jobs/42/runs/9/artifacts?artifact=transcript&page=1")).toHaveLength(2)
     })
     expect(await screen.findByText("new marble")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
@@ -10062,7 +10074,7 @@ describe("App", () => {
   it("coalesces adjacent transcript chunks from the same command source", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path === "/api/v1/app/jobs/42/runs/9/artifacts") {
+      if (path === "/api/v1/app/jobs/42/runs/9/artifacts?artifact=transcript&page=1") {
         return Promise.resolve(new Response(JSON.stringify({
           job_id: 42,
           run_id: 9,
