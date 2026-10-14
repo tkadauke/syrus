@@ -151,6 +151,7 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
   const [value, setValue] = useState(String(table.retention_value || table.default_value))
   const [archiveBeforeDelete, setArchiveBeforeDelete] = useState(table.archive_before_delete)
   const [showArchives, setShowArchives] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
     setInfinite(table.retention_value === 0)
@@ -159,8 +160,9 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
   }, [table.retention_value, table.default_value, table.archive_before_delete])
 
   const save = useMutation({
-    mutationFn: () => updateRetentionSettings({
-      [table.setting_key]: infinite ? 0 : Number(value),
+    mutationFn: (retentionValue: number) => updateRetentionSettings({
+      [table.setting_key]: retentionValue,
+      [`${table.setting_key}_infinite`]: infinite,
       ...(table.archive_setting_key ? { [table.archive_setting_key]: archiveBeforeDelete } : {})
     }),
     onSuccess: (updated) => {
@@ -171,8 +173,15 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const retentionValue = finiteRetentionValue(value, infinite)
+    if (retentionValue == null) {
+      setValidationError(t("retention_settings.retention_value_required"))
+      return
+    }
+
+    setValidationError(null)
     onNotice(null)
-    save.mutate()
+    save.mutate(retentionValue)
   }
 
   const percentOfAvailable = availableBytes && table.estimated_max_byte_size != null && availableBytes > 0
@@ -201,8 +210,9 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
               disabled={infinite}
               fullWidth={false}
               id={`retention-value-${table.key}`}
-              min={0}
-              onChange={(event) => setValue(event.target.value)}
+              min={1}
+              onChange={(event) => { setValue(event.target.value); setValidationError(null) }}
+              required={!infinite}
               type="number"
               value={infinite ? "" : value}
             />
@@ -211,7 +221,7 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
           <Checkbox
             checked={infinite}
             label={<span className="text-xs text-text-primary">{t("retention_settings.infinite_label")}</span>}
-            onChange={(event) => setInfinite(event.target.checked)}
+            onChange={(event) => { setInfinite(event.target.checked); setValidationError(null) }}
           />
           {table.archivable ? (
             <Checkbox
@@ -223,6 +233,7 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
           <Button disabled={save.isPending} size="sm" type="submit">
             {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
           </Button>
+          {validationError ? <p className="text-xs text-danger" role="alert">{validationError}</p> : null}
           {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
           {table.archivable ? (
             <button
@@ -242,6 +253,18 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
       ) : null}
     </div>
   )
+}
+
+function finiteRetentionValue(value: string, infinite: boolean): number | null {
+  if (infinite) return 0
+
+  const trimmed = value.trim()
+  if (trimmed === "") return null
+
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 1) return null
+
+  return parsed
 }
 
 // Left off the shared column-config primitive: rendered once per retention

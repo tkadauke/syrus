@@ -7,13 +7,18 @@ module Api
         # (plus the cached RetentionSizeSnapshotJob sizing data and current
         # AppSetting values), never a hand-listed table set here.
         class RetentionSettingsController < BaseController
+          INFINITE_FLAG_SUFFIX = "_infinite".freeze
+
           def show
             render json: payload
           end
 
           def update
+            attributes = update_params
+            return if performed?
+
             setting = AppSetting.current
-            if setting.update(update_params)
+            if setting.update(attributes)
               render json: payload.merge(message: I18n.t("api.admin_retention_settings.updated"))
             else
               render_error("validation_failed", setting.errors.full_messages.to_sentence,
@@ -54,14 +59,54 @@ module Api
           end
 
           def update_params
-            permitted_settings = (RetentionPolicyRegistry.definitions.map(&:setting_key) +
+            definitions = RetentionPolicyRegistry.definitions
+            infinite_flag_keys = definitions.map { |definition| infinite_flag_key(definition) }
+            permitted_settings = (definitions.map(&:setting_key) +
+                                 infinite_flag_keys +
                                  RetentionPolicyRegistry.archive_app_setting_definitions.map(&:key) +
                                  [ :retention_available_space_override_gb ]).uniq
 
-            params
+            submitted = params
               .expect(retention_settings: permitted_settings)
               .to_h
+
+            validation_message = validate_retention_values(submitted, definitions)
+            if validation_message
+              render_error("validation_failed", validation_message, status: :unprocessable_content)
+              return
+            end
+
+            submitted
+              .except(*infinite_flag_keys.map(&:to_s))
               .reject { |_key, value| value.nil? || value == "" }
+          end
+
+          def validate_retention_values(submitted, definitions)
+            definitions.each do |definition|
+              setting_key = definition.setting_key.to_s
+              next unless submitted.key?(setting_key)
+
+              value = submitted[setting_key]
+              return I18n.t("api.admin_retention_settings.retention_value_required", table: definition.table_name) if value.nil? || value == ""
+
+              numeric_value = Integer(value, exception: false)
+              return I18n.t("api.admin_retention_settings.retention_value_required", table: definition.table_name) if numeric_value.nil?
+
+              infinite_requested = ActiveModel::Type::Boolean.new.cast(submitted[infinite_flag_key(definition).to_s])
+              if numeric_value.zero? && !infinite_requested
+                return I18n.t("api.admin_retention_settings.infinite_flag_required", table: definition.table_name)
+              end
+
+              if !numeric_value.zero? && infinite_requested
+                return I18n.t("api.admin_retention_settings.infinite_value_required", table: definition.table_name)
+              end
+            end
+
+            nil
+          end
+
+          def infinite_flag_key(definition)
+            :"#{definition.setting_key}#{INFINITE_FLAG_SUFFIX}"
           end
         end
       end
