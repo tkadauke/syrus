@@ -113,7 +113,7 @@ import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
-import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
+import { ChatMessage, SharedMessageRenderer, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle, TurnRetryIndicator } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
@@ -295,7 +295,9 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) => item.type === "tool_group" ? (
-        <ToolGroup item={item} key={renderItemKey(item)} />
+        <SharedMessageRenderer key={renderItemKey(item)} readOnly>
+          <ToolGroup item={item} />
+        </SharedMessageRenderer>
       ) : (
         <ChatMessage item={item} key={renderItemKey(item)} payload={placeholderPayload} pendingActionIds={pendingActionIds} prefix="" queryKey={chatQueryKey(payload.chat.id, "")} readOnly onNotice={() => undefined} />
       ))}
@@ -944,7 +946,9 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
           ) : item.type === "pending_action_group" ? (
             <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
           ) : item.type === "tool_group" ? (
-            <ToolGroup item={item} key={renderItemKey(item)} />
+            <SharedMessageRenderer key={renderItemKey(item)}>
+              <ToolGroup item={item} />
+            </SharedMessageRenderer>
           ) : (
             <ChatMessage
               animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
