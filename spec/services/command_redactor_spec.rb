@@ -39,6 +39,23 @@ RSpec.describe CommandRedactor do
       expect(redacted).not_to include("super-secret-token", "abc123", "xyz789")
     end
 
+    it "redacts assignments with sensitive segments anywhere in compound keys" do
+      text = "SECRET_KEY_BASE=a RAILS_MASTER_KEY=b AWS_SECRET_ACCESS_KEY=c PRIVATE_KEY=d " \
+        "DATABASE_PASSWORD=e GITHUB_TOKEN=f OPENAI_API_KEY=g _PRIVATE_KEY=h"
+
+      expect(described_class.redact(text)).to eq(
+        "SECRET_KEY_BASE=[REDACTED] RAILS_MASTER_KEY=[REDACTED] AWS_SECRET_ACCESS_KEY=[REDACTED] " \
+          "PRIVATE_KEY=[REDACTED] DATABASE_PASSWORD=[REDACTED] GITHUB_TOKEN=[REDACTED] " \
+          "OPENAI_API_KEY=[REDACTED] _PRIVATE_KEY=[REDACTED]"
+      )
+    end
+
+    it "does not redact assignment keys that only contain sensitive-looking substrings" do
+      text = "SECRETARY_NAME=visible TOKENIZER_MODE=visible MONKEY_PATCH=visible"
+
+      expect(described_class.redact(text)).to eq(text)
+    end
+
     it "redacts multiple occurrences in the same string" do
       text = "ghp_aaaaaaaaaaaaaaaaaaaa and ghp_bbbbbbbbbbbbbbbbbbbb"
 

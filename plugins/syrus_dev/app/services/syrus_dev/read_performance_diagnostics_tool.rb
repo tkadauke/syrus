@@ -179,8 +179,7 @@ module SyrusDev
       def scrub_text(value, limit)
         return nil if value.nil?
 
-        value.to_s
-          .gsub(/(authorization|password|passwd|secret|token|api[_-]?key)=([^&\s]+)/i, "\\1=[REDACTED]")
+        CommandRedactor.redact_assignments(value)
           .safe_byteslice(0, limit)
       end
     end
