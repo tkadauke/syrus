@@ -1,10 +1,13 @@
 require "net/http"
+require "set"
 require "stringio"
 require "uri"
 
 class JobImageAttachmentIngestor
   MAX_BYTES = 10.megabytes
+  DOWNLOAD_DEADLINE_SECONDS = 20
   MAX_LINE_BYTES = 32.kilobytes
+  MAX_URLS_PER_COMMENT = 20
   MAX_URL_BYTES = 4.kilobytes
   ALLOWED_CONTENT_TYPES = %w[
     image/gif
@@ -42,7 +45,20 @@ class JobImageAttachmentIngestor
   private
 
   def image_urls(markdown)
-    markdown.to_s.each_line.flat_map { |line| urls_from_line(line) }.uniq
+    urls = []
+    seen = Set.new
+
+    markdown.to_s.each_line do |line|
+      urls_from_line(line).each do |url|
+        next if seen.include?(url)
+
+        urls << url
+        seen << url
+        return urls if urls.size >= MAX_URLS_PER_COMMENT
+      end
+    end
+
+    urls
   end
 
   def urls_from_line(line)
@@ -96,40 +112,60 @@ class JobImageAttachmentIngestor
     false
   end
 
-  def download_image(source_url, redirects: 3)
+  def download_image(source_url, redirects: 3, deadline_at: nil)
+    deadline_at ||= monotonic_now + DOWNLOAD_DEADLINE_SECONDS
     uri = URI.parse(source_url)
     return nil unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
     return nil unless SsrfGuard.safe_host?(uri.host)
 
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 15, open_timeout: 5) do |http|
+    response = nil
+    body = +"".b
+
+    Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 15, open_timeout: 5) do |http|
       request = Net::HTTP::Get.new(uri)
       request["User-Agent"] = "Syrus image ingestor"
-      http.request(request)
+      request["Accept-Encoding"] = "identity"
+      http.request(request) do |res|
+        response = res
+        next unless res.is_a?(Net::HTTPSuccess)
+
+        return nil if res["content-length"].to_i > MAX_BYTES
+
+        content_type = res.content_type.to_s.downcase
+        return nil unless ALLOWED_CONTENT_TYPES.include?(content_type)
+
+        res.read_body do |chunk|
+          raise Timeout::Error, "image download deadline exceeded" if monotonic_now > deadline_at
+
+          body << chunk.b
+          raise IOError, "image download exceeded #{MAX_BYTES} bytes" if body.bytesize > MAX_BYTES
+        end
+      end
     end
 
     if response.is_a?(Net::HTTPRedirection) && redirects.positive?
       location = response["location"].to_s
       return nil if location.blank?
-      return download_image(URI.join(uri, location).to_s, redirects: redirects - 1)
+      return download_image(URI.join(uri, location).to_s, redirects: redirects - 1, deadline_at: deadline_at)
     end
 
     return nil unless response.is_a?(Net::HTTPSuccess)
-    return nil if response["content-length"].to_i > MAX_BYTES
 
     content_type = response.content_type.to_s.downcase
     return nil unless ALLOWED_CONTENT_TYPES.include?(content_type)
-
-    body = response.body.to_s
-    return nil if body.bytesize > MAX_BYTES
 
     Download.new(
       body: body,
       content_type: content_type,
       filename: filename_for(uri, content_type)
     )
-  rescue ArgumentError, URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, Net::OpenTimeout, Net::ReadTimeout => e
+  rescue ArgumentError, URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, Net::OpenTimeout, Net::ReadTimeout, IOError => e
     Rails.logger.warn("[JobImageAttachmentIngestor] #{@job.slug}: skipped #{source_url}: #{e.class}: #{e.message}")
     nil
+  end
+
+  def monotonic_now
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
   end
 
   def filename_for(uri, content_type)
