@@ -177,11 +177,31 @@ module Api
         end
 
         def chat_search_rows(query, limit)
+          rows = reject_unsearchable_chat_rows(
+            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+          )
+
           apply_filter_to_rows(
             "chat",
-            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            rows,
             :chat_message_id
           )
+        end
+
+        def reject_unsearchable_chat_rows(rows)
+          return rows if rows.empty?
+
+          ids = rows.filter_map { |row| row[:chat_message_id]&.to_i }
+          active_ids = searchable_chat_messages.where(id: ids).distinct.ids.to_set
+          rows.select { |row| active_ids.include?(row[:chat_message_id].to_i) }
+        end
+
+        def searchable_chat_messages
+          ChatMessage
+            .active
+            .joins(chat_session: :chat_participants)
+            .merge(ChatSession.active.visible)
+            .where(chat_participants: { user_id: Current.user.id })
         end
 
         def apply_filter_to_rows(type, rows, id_key)
@@ -375,10 +395,10 @@ module Api
         end
 
         def chat_messages_by_id
-          @chat_messages_by_id ||= ChatMessage
-            .joins(chat_session: :chat_participants)
-            .where(chat_participants: { user_id: Current.user.id }, id: result_ids(:chat_message_id))
+          @chat_messages_by_id ||= searchable_chat_messages
+            .where(id: result_ids(:chat_message_id))
             .includes(chat_session: :attached_repositories)
+            .distinct
             .index_by(&:id)
         end
 
@@ -473,7 +493,12 @@ module Api
           def filtered_scope(ids:, tree:, user:)
             ::Filters::Compiler.call(
               ::Filters::Ast.parse(tree),
-              scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: user.id }, id: ids),
+              scope: ChatMessage
+                .active
+                .joins(chat_session: :chat_participants)
+                .merge(ChatSession.active.visible)
+                .where(chat_participants: { user_id: user.id }, id: ids)
+                .distinct,
               user: user,
               subject: :chat_message
             )

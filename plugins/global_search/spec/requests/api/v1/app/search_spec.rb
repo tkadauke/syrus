@@ -232,6 +232,65 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
   end
 
+  it "excludes soft-deleted chat messages from chat results" do
+    chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
+    kept_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy kept" })
+    deleted_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy cleared" })
+    [ kept_message, deleted_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    deleted_message.soft_delete_by!(user)
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "chat",
+        "id" => kept_message.id,
+        "path" => chat_path(chat_session, message_id: kept_message.id),
+        "total_match_count" => 1
+      )
+    )
+    expect(results.to_s).not_to include("cleared")
+  end
+
+  it "excludes messages from soft-deleted chat sessions while cleanup is pending" do
+    kept_chat = ChatSession.create!(user: user, repository: repository, title: "Kept chat")
+    deleted_chat = ChatSession.create!(user: user, repository: repository, title: "Deleted chat")
+    kept_message = ChatMessage.create!(chat_session: kept_chat, role: "user", content: { "text" => "deploy kept" })
+    orphaned_message = ChatMessage.create!(chat_session: deleted_chat, role: "user", content: { "text" => "deploy orphaned" })
+    [ kept_message, orphaned_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    deleted_chat.soft_delete_by!(user)
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "chat",
+        "id" => kept_message.id,
+        "title" => "Kept chat"
+      )
+    )
+    expect(ChatMessage.active.exists?(orphaned_message.id)).to be(true)
+    expect(results.to_s).not_to include("orphaned")
+  end
+
+  it "excludes hidden chats from chat results" do
+    visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible chat")
+    hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden chat", hidden_at: Time.current)
+    visible_message = ChatMessage.create!(chat_session: visible_chat, role: "user", content: { "text" => "deploy visible" })
+    hidden_message = ChatMessage.create!(chat_session: hidden_chat, role: "user", content: { "text" => "deploy hidden" })
+    [ visible_message, hidden_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include("type" => "chat", "id" => visible_message.id, "title" => "Visible chat")
+    )
+    expect(results.to_s).not_to include("hidden")
+  end
+
   it "does not leak indexed records that no longer belong to the current user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
