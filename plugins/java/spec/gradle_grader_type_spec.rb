@@ -111,6 +111,7 @@ RSpec.describe Java::GradleGraderType do
       output = File.read(File.join(dir, ".syrus/grade-output/gradle-test-junit.xml"))
       expect(output).to include("<testsuites>")
       expect(output).to include("<testsuite name=\"ExampleTest\"")
+      expect(output.scan("<testcase ").size).to eq(1)
       expect(output).not_to include("<?xml")
     end
   end
