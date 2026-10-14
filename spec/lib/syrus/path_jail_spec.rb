@@ -74,6 +74,41 @@ RSpec.describe Syrus::PathJail do
       expect(resolved).to eq(root.join("link.txt"))
     end
 
+    it "resolves symlinks to targets still inside root when requested" do
+      target = root.join("real.txt")
+      File.write(target.to_s, "hi")
+      link = root.join("link.txt")
+      FileUtils.ln_s(target.to_s, link.to_s)
+
+      resolved = described_class.resolve!(root, "link.txt", resolve_symlinks: true)
+
+      expect(resolved).to eq(target.realpath)
+    end
+
+    it "raises PathEscape for symlinks to targets outside root when requested" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-path-jail-outside"))
+      File.write(outside.join("secret.txt").to_s, "secret")
+      FileUtils.ln_s(outside.join("secret.txt").to_s, root.join("link.txt").to_s)
+
+      expect { described_class.resolve!(root, "link.txt", resolve_symlinks: true) }
+        .to raise_error(described_class::PathEscape) do |error|
+          expect(error.reason).to eq(:escape)
+        end
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
+    it "raises PathEscape for symlinked directory components that leave root when requested" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-path-jail-outside"))
+      File.write(outside.join("secret.txt").to_s, "secret")
+      FileUtils.ln_s(outside.to_s, root.join("linked-dir").to_s)
+
+      expect { described_class.resolve!(root, "linked-dir/secret.txt", resolve_symlinks: true) }
+        .to raise_error(described_class::PathEscape)
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
     it "accepts an absolute relative_path that is already inside root" do
       resolved = described_class.resolve!(root, root.join("nested/file.txt").to_s)
 
