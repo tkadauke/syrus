@@ -27,7 +27,7 @@ module GitHistory
 
       page = @commit_log.fetch(cursor: @cursor, limit: @limit)
       commits = page.entries.map { |entry| @attributor.attribute(entry) }
-      next_cursor = page.has_more ? page.entries.last[:sha] : nil
+      next_cursor = page.has_more ? page.next_cursor : nil
 
       Result.new(commits: commits, next_cursor: next_cursor, has_more: page.has_more, available: true)
     end
