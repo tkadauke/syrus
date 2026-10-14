@@ -315,6 +315,30 @@ RSpec.describe Metrics::LandingSampler do
   end
 
   describe "#refresh_gauges!" do
+    it "clears tagged landing gauge series missing from the latest sample" do
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        job_state: { "approved" => 2, "running" => 1 },
+        landing_queue_depth: { "none" => 1, "waiting_github_mergeability" => 1 },
+        queue_table_rows: 10
+      })
+      refresh!
+
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        job_state: { "running" => 1 },
+        landing_queue_depth: {},
+        queue_table_rows: 3
+      })
+      refresh!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_job_state{state="running"} 1')
+      expect(rendered).not_to include('syrus_job_state{state="approved"}')
+      expect(rendered).not_to include("syrus_landing_queue_depth{")
+      expect(rendered).to include("syrus_queue_table_rows 3")
+    end
+
     it "reports nothing rather than zeroes when no sample has been taken" do
       expect(refresh!).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_job_state{")

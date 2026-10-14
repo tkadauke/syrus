@@ -75,7 +75,10 @@ module Metrics
     # window so a scrape storm collapses onto one lookup.
     def refresh_gauges!
       payload = Rails.cache.read(CACHE_KEY)
-      return false if payload.blank?
+      if payload.blank?
+        clear_sample_gauges!
+        return false
+      end
 
       set_each(:syrus_global_queue_ready_count, payload[:ready], :queue)
       set_each(:syrus_global_queue_oldest_age_seconds, payload[:oldest_age], :queue)
@@ -98,7 +101,25 @@ module Metrics
 
     def set_each(metric, values, tag)
       gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
       Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+    end
+
+    def clear_sample_gauges!
+      [
+        :syrus_global_queue_ready_count,
+        :syrus_global_queue_oldest_age_seconds,
+        :syrus_global_queue_claimed_count,
+        :syrus_global_queue_failed_count,
+        :syrus_global_queue_blocked_count,
+        :syrus_global_queue_orphaned_rows,
+        :syrus_global_queue_sample_age_seconds
+      ].each { |metric| clear_gauge!(metric) }
+    end
+
+    def clear_gauge!(metric)
+      gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
     end
 
     def collect

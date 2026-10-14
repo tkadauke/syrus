@@ -186,6 +186,31 @@ RSpec.describe Metrics::ResilienceSampler do
   end
 
   describe "#refresh_gauges!" do
+    it "clears tagged resilience gauge series missing from the latest sample" do
+      cache.write(described_class::CACHE_KEY, {
+        provider_circuit_state: { "codex" => :open, "claude" => :closed },
+        github_rate_limit_remaining: { "app" => 120, "pat" => 900 },
+        github_app_api_blocked_count: 1,
+        main_branch_broken_count: 2
+      })
+      described_class.refresh_gauges!
+
+      cache.write(described_class::CACHE_KEY, {
+        provider_circuit_state: { "codex" => :closed },
+        github_rate_limit_remaining: {},
+        github_app_api_blocked_count: 0,
+        main_branch_broken_count: 0
+      })
+      described_class.refresh_gauges!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_provider_circuit_state{provider="codex"} 0')
+      expect(rendered).not_to include('syrus_provider_circuit_state{provider="claude"}')
+      expect(rendered).not_to include("syrus_github_rate_limit_remaining{")
+      expect(rendered).to include("syrus_github_app_api_blocked_count 0")
+      expect(rendered).to include("syrus_repositories_main_branch_broken_count 0")
+    end
+
     it "reports nothing rather than zeroes when no sample has been taken" do
       expect(described_class.refresh_gauges!).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_provider_circuit_state{")
