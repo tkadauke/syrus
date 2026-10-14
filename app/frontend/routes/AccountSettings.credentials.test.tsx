@@ -131,7 +131,7 @@ function renderCredentials() {
 
 function renderAgentSettings() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const view = render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/settings/agent"]}>
@@ -142,12 +142,26 @@ function renderAgentSettings() {
       </QueryClientProvider>
     </I18nextProvider>
   )
+  return { client, ...view }
 }
 
 describe("CredentialsRoute (provider cards)", () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it("preserves unsaved agent settings when credentials refetch", async () => {
+    mockRoutes(makePayload())
+    const { client } = renderAgentSettings()
+
+    const maxTurns = await screen.findByLabelText("Max turns")
+    fireEvent.change(maxTurns, { target: { value: "321" } })
+    const refetched = makePayload()
+    refetched.user.agent_max_turns = 444
+    client.setQueryData(["credentials"], refetched)
+
+    await waitFor(() => expect(screen.getByLabelText("Max turns")).toHaveValue(321))
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {
