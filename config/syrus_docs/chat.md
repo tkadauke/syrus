@@ -285,10 +285,12 @@ Mention gating: `ChatSession#should_trigger_agent?(text)` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
 participants trigger the agent on every message; chats with 2+ require a
 case-insensitive `@syrus` substring (`agent_addressed?`) on that specific
-message. `InboundMessageRouter` and `ChatsController#message` both gate their
-`ChatTurnJob` enqueue on this. There is no autocomplete/mention-chip UI —
-plain-text matching only, kept intentionally compatible with a future
-Telegram-group bridge.
+message. `InboundMessageRouter`, `ChatsController#message`,
+`ChatQueuedMessagePromoter`, and `ScheduledChatMessageFireJob` all gate their
+`ChatTurnJob` enqueue on this. Unmentioned scheduled group-chat messages are
+still delivered as visible user messages without marking a turn in flight.
+There is no autocomplete/mention-chip UI — plain-text matching only, kept
+intentionally compatible with a future Telegram-group bridge.
 
 The web UI's entry point for group chats is a "New group chat" button in the
 chat sidebar (`AppChromeV2`), which opens a participant picker
