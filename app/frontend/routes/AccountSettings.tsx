@@ -151,7 +151,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
     )
   }
 
-  return <CredentialsForm onNotice={onNotice} payload={payload} prefix={prefix} section={section} />
+  return <CredentialsForm key={`${payload.user.id}:${section}`} onNotice={onNotice} payload={payload} prefix={prefix} section={section} />
 }
 
 // Chat provider pick, saved immediately per-change (partial PATCH) — the
@@ -234,10 +234,6 @@ function CredentialsForm({ payload, onNotice, prefix, section }: { payload: Cred
       onNotice(key ? t(key) : (updated.message ?? ""))
     }
   })
-
-  useEffect(() => {
-    setValues(inputFromPayload(payload))
-  }, [payload])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
