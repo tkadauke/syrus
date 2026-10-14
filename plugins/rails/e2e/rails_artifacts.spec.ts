@@ -26,6 +26,12 @@ test("signed-in user views the ERD and migration diff renderers on a Job's Revie
 
   // rails_migration_diff, rendered by SyrusRails::MigrationDiffRenderer as a
   // before/after column table plus a change summary list.
+  const artifactSelector = page.getByLabel("Artifact")
+  const migrationOption = artifactSelector.getByRole("option", { name: /Migration: AddNeedsAttentionCountToUsers/ })
+  await expect(migrationOption).toBeAttached()
+  const migrationOptionValue = await migrationOption.getAttribute("value")
+  if (!migrationOptionValue) throw new Error("Migration artifact option is missing a value")
+  await artifactSelector.selectOption(migrationOptionValue)
   await expect(page.getByText("Migration: AddNeedsAttentionCountToUsers", { exact: true })).toBeVisible()
   await expect(page.getByText("rails_migration_diff", { exact: true })).toBeVisible()
   await expect(page.getByText("AddNeedsAttentionCountToUsers", { exact: true }).first()).toBeVisible()

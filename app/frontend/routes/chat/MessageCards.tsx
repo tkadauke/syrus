@@ -679,11 +679,12 @@ function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResu
   )
 }
 
-export function ChatCommandOutputSurface({ command, compact = false, emptyLabel, exitStatus, outcome, output, testId = "shell-command-card" }: { command: string; compact?: boolean; emptyLabel: string; exitStatus?: number | null; outcome?: string | null; output: string; testId?: string }) {
+export function ChatCommandOutputSurface({ command, compact = false, emptyLabel, exitStatus, outcome, output, testId = "shell-command-card" }: { command: string; compact?: boolean; emptyLabel: string; exitStatus?: number | null; outcome?: string | null; output?: string | null; testId?: string }) {
   const { t } = useT("chat")
   const outcomeTone = (outcome && SHELL_COMMAND_OUTCOME_TONE[outcome]) || "bg-gray-700/40 text-gray-300"
   const paddingClass = compact ? "px-3 py-2" : "px-3 py-2"
   const maxHeightClass = compact ? "max-h-80" : "max-h-96"
+  const outputText = output || ""
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid={testId}>
@@ -694,7 +695,7 @@ export function ChatCommandOutputSurface({ command, compact = false, emptyLabel,
         {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${outcome}`)}</span> : null}
       </div>
       <pre className={`${maxHeightClass} ${paddingClass} min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]`}>
-        {output ? <AnsiText text={output} /> : <span className="italic text-gray-500">{emptyLabel}</span>}
+        {outputText ? <AnsiText text={outputText} /> : <span className="italic text-gray-500">{emptyLabel}</span>}
       </pre>
     </div>
   )
