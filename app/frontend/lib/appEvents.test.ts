@@ -1,7 +1,7 @@
-import { QueryClient } from "@tanstack/react-query"
+import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatPayload } from "../api/chats"
-import { applyAppEvent, queryKeysFor, resetAppEventSequenceTracking } from "./appEvents"
+import { applyAppEvent, queryKeysFor, recoverAppEventContinuity, recoverChatResourceContinuity, resetAppEventSequenceTracking } from "./appEvents"
 import { recentChatsQueryKey } from "./chatCache"
 import { readEntity, resetEntityStoreForTest, upsertEntity } from "./entityStore"
 import { flushClientMetricsQueue, resetClientMetricsForTest } from "./clientMetrics"
@@ -290,6 +290,56 @@ describe("applyAppEvent", () => {
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true, type: "active" })
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], type: "active" })
     expect(refetch.mock.calls.filter(([arg]) => JSON.stringify(arg) === JSON.stringify({ queryKey: ["jobs", "42", "detail"], type: "active" }))).toHaveLength(1)
+  })
+
+  it("includes active chat-pins query variants in hidden-tab reconnect recovery", () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "10", ""], { pins: [] })
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const pinsObserver = new QueryObserver(queryClient, {
+      queryKey: ["chat-pins", "9", ""],
+      queryFn: async () => ({ pins: [] }),
+      staleTime: Infinity
+    })
+    const searchedPinsObserver = new QueryObserver(queryClient, {
+      queryKey: ["chat-pins", "9", "?q=needle"],
+      queryFn: async () => ({ pins: [] }),
+      staleTime: Infinity
+    })
+    const unsubscribePins = pinsObserver.subscribe(() => {})
+    const unsubscribeSearchedPins = searchedPinsObserver.subscribe(() => {})
+
+    try {
+      recoverAppEventContinuity(queryClient)
+
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-pins", "9", ""], exact: true, refetchType: "none" })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-pins", "9", "?q=needle"], exact: true, refetchType: "none" })
+      expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
+    } finally {
+      unsubscribePins()
+      unsubscribeSearchedPins()
+    }
+  })
+
+  it("recovers chat-pins variants when a chat channel reconnects", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "9", "?q=needle"], { pins: [] })
+    queryClient.setQueryData(["chat-pins", "10", ""], { pins: [] })
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    recoverChatResourceContinuity(queryClient, 9)
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-pins", "9"] })
+    expect(queryClient.getQueryState(["chat-pins", "9", ""])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "9", "?q=needle"])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(["chat-pins", "10", ""])?.isInvalidated).toBe(false)
   })
 
   it("coalesces dashboard invalidations from event bursts", () => {
