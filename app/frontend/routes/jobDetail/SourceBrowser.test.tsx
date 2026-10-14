@@ -61,6 +61,54 @@ describe("ReviewDiffSettingsModal", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 
+  it("keeps numeric drafts local until the user commits a valid value", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      review_diff_settings: {
+        ...DEFAULT_REVIEW_DIFF_SETTINGS,
+        context_lines: 150
+      }
+    }))
+    renderModal()
+
+    const contextLines = screen.getByLabelText("Context lines")
+    fireEvent.change(contextLines, { target: { value: "1" } })
+
+    expect(contextLines).toHaveValue(1)
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.change(contextLines, { target: { value: "150" } })
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.blur(contextLines)
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/review_diff_settings", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ review_diff_settings: { context_lines: 150 } })
+    })))
+  })
+
+  it("does not replace a focused numeric draft when another setting save responds", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      review_diff_settings: {
+        ...DEFAULT_REVIEW_DIFF_SETTINGS,
+        line_wrapping: "wrap",
+        context_lines: DEFAULT_REVIEW_DIFF_SETTINGS.context_lines
+      }
+    }))
+    renderModal()
+
+    const contextLines = screen.getByLabelText("Context lines")
+    fireEvent.focus(contextLines)
+    fireEvent.change(contextLines, { target: { value: "1" } })
+    fireEvent.change(screen.getByLabelText("Line wrapping"), { target: { value: "wrap" } })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/review_diff_settings", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ review_diff_settings: { line_wrapping: "wrap" } })
+    })))
+    expect(contextLines).toHaveValue(1)
+  })
+
   it("persists the metric gutter setting when metric options are available", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       review_diff_settings: {
