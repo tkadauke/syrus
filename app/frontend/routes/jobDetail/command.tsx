@@ -9,6 +9,7 @@ import type { JobDetailQueryKey, JobWorkflowsQueryKey } from "./queryKeys"
 import type { NoticeToastTone } from "../../components/NoticeToast"
 import { errorMessage } from "../../lib/errorMessage"
 import { useT } from "../../hooks/useT"
+import { invalidateJobSurfaces } from "../../lib/jobQueryInvalidation"
 
 // Shared Job-command spine extracted from JobDetail.tsx: the mutation hook that
 // POST/PATCH/DELETEs a Job command and invalidates the relevant queries, the
@@ -58,7 +59,7 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       }
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
-      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      invalidateJobSurfaces(queryClient, jobId)
     },
     onError: (error) => {
       onNotice(errorMessage(error, t("command_error")), "error")

@@ -149,6 +149,39 @@ describe("useJobCommand notices", () => {
 describe("useJobCommand cache sync", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("invalidates cached dashboard rows and job previews after a command succeeds", async () => {
+    function CloseProbe() {
+      const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
+      return (
+        <button onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/close" })} type="button">
+          close
+        </button>
+      )
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const dashboardKey = ["dashboard", "rows", "?state=running"] as const
+    const previewKey = ["jobs", "1"] as const
+    client.setQueryData(dashboardKey, { jobs: [] })
+    client.setQueryData(previewKey, { job: { id: 1, state: "running" } })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Closed." }))
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CloseProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await act(async () => screen.getByRole("button", { name: "close" }).click())
+
+    await waitFor(() => {
+      expect(client.getQueryState(dashboardKey)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(previewKey)?.isInvalidated).toBe(true)
+    })
+  })
+
   it("merges the command response's job/actions into the cache synchronously, before the invalidated refetch resolves", async () => {
     function ApproveProbe() {
       const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
