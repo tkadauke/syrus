@@ -31,7 +31,7 @@ module Filters
         when :ends_with             then like(col, "%#{escape_like(value)}")
         when :does_not_end_with     then not_like(col, "%#{escape_like(value)}")
         when :equals                then scope.where(col => value)
-        when :not_equals            then scope.where.not(col => value)
+        when :not_equals            then exclude_matches(scope.where(col => value))
         when :is_set                then scope.where.not(col => [ nil, "" ])
         when :is_unset              then scope.where(col => [ nil, "" ])
         else unsupported_op!
@@ -45,7 +45,7 @@ module Filters
       end
 
       def not_like(col, pattern)
-        scope.where("#{quoted_column(col)} NOT LIKE ? ESCAPE #{like_escape_sql}", pattern)
+        exclude_matches(like(col, pattern))
       end
 
       def quoted_column(col)

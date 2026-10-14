@@ -95,6 +95,23 @@ RSpec.describe "Filters::Chips::Epics" do
     end
   end
 
+  describe "owner_user_id" do
+    it "keeps unowned Epics when filtering out a numeric owner" do
+      owner = Factories.user
+      unowned = Factories.epic(user: user, repository: repo, owner_user_id: nil, owner_id: nil)
+      owned_elsewhere = Factories.epic(user: user, repository: repo, owner_user_id: user.id, owner_id: nil)
+      legacy_owned_elsewhere = Factories.epic(user: user, repository: repo, owner_user_id: nil, owner_id: user.id)
+      Factories.epic(user: user, repository: repo, owner_user_id: owner.id, owner_id: nil)
+      Factories.epic(user: user, repository: repo, owner_user_id: nil, owner_id: owner.id)
+
+      expect(run(field: "owner_user_id", op: "is_not", value: owner.id)).to contain_exactly(
+        unowned,
+        owned_elsewhere,
+        legacy_owned_elsewhere
+      )
+    end
+  end
+
   describe "has_child_jobs" do
     it "matches Epics with child Jobs" do
       parent = Factories.epic(user: user, repository: repo)
