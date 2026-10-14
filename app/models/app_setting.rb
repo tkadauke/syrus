@@ -45,6 +45,7 @@ class AppSetting < ApplicationRecord
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
   after_commit :refresh_beta_mode_capability_caches, if: :beta_mode_enabled_changed?
+  after_save :clear_registry_beta_mode_cache, if: :beta_mode_enabled_changed?
 
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
@@ -288,5 +289,17 @@ class AppSetting < ApplicationRecord
 
     Syrus::PluginRegistry.clear_plugin_record_cache!
     Syrus::Installer.sync! if defined?(Syrus::Installer)
+  end
+
+  # The registry memoizes beta mode per request (see
+  # Syrus::PluginRegistry#beta_mode_enabled?), so a change has to drop that
+  # memo. This runs on save rather than on commit, unlike the capability
+  # refresh above: transactional tests never commit, and an after_commit hook
+  # would leave a toggled flag invisible to the registry for the rest of the
+  # example that toggled it.
+  def clear_registry_beta_mode_cache
+    return unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.clear_beta_mode_cache!
   end
 end

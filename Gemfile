@@ -184,6 +184,15 @@ group :test do
   gem "simplecov"
   gem "simplecov-lcov"
 
+  # Sampling profiler for the suite itself [https://github.com/tmm1/stackprof]
+  #
+  # Signal-based, so it samples the main thread wherever it actually is. A
+  # sampler built on a Ruby thread cannot do this: it only runs when the main
+  # thread releases the GVL, which is during IO, so it reports IO as ~99% of
+  # everything and hides all CPU work. That bias produced a wrong root cause
+  # for the suite's per-example overhead before this gem was added.
+  gem "stackprof", require: false
+
   gem "parallel_tests", "~> 5.8", require: false
 
   # JUnit XML formatter — feeds the rspec grader's junit_output ingestion

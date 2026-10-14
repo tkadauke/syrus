@@ -532,17 +532,63 @@ module Syrus
         end
       end
 
+      # Memoized for the life of the request (or example), because this is
+      # consulted once per manifest rather than once per caller.
+      # `plugin_enabled?` and `upsert_plugin_record!` both call it inside loops
+      # over every bundled plugin, so a single registry consultation issued one
+      # AppSetting query per plugin.
+      #
+      # Measured in the test suite: 66,085 of 72,089 total queries were
+      # "AppSetting Load", 65,484 of them from this method -- 218 per example,
+      # on examples that touch no plugin and assert nothing about settings. It
+      # is the same shape in production, where plugin_registry.all_plugins logs
+      # as a 1.1-1.4s phase carrying "AppSetting Load, count: 27".
+      #
+      # Current is reset per request and per example, so the cache has the same
+      # lifetime as the existing feature_enabled_cache beside it, and
+      # AppSetting invalidates it on save when the flag actually changes.
       def beta_mode_enabled?
         return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
         return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
         return true unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
-        AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.beta_mode_enabled? || false
+        cached = cached_beta_mode_enabled
+        return cached unless cached.nil?
+
+        value = AppSetting.find_by(singleton_key: AppSetting::SINGLETON_KEY)&.beta_mode_enabled? || false
+        store_cached_beta_mode_enabled(value)
+        value
       rescue ActiveRecord::ActiveRecordError
         true
       end
 
+      # Called by AppSetting when beta_mode_enabled changes. Separate from
+      # clear_plugin_record_cache! because this one has to fire inside a
+      # transaction too: transactional tests never commit, so an after_commit
+      # hook would leave a toggled flag invisible for the rest of the example.
+      def clear_beta_mode_cache!
+        return unless current_attributes_available?
+
+        Current.beta_mode_enabled_cache = nil
+      end
+
       private
+
+      def current_attributes_available?
+        defined?(Current) && Current.respond_to?(:beta_mode_enabled_cache)
+      end
+
+      def cached_beta_mode_enabled
+        return nil unless current_attributes_available?
+
+        Current.beta_mode_enabled_cache
+      end
+
+      def store_cached_beta_mode_enabled(value)
+        return unless current_attributes_available?
+
+        Current.beta_mode_enabled_cache = value
+      end
 
       def drain_effects_for_callback_provider(provider)
         plugin_name = all_plugins.find { |m| Array(m.provides[:callbacks]).include?(provider) }&.name

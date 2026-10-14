@@ -1,6 +1,7 @@
 class Current < ActiveSupport::CurrentAttributes
   attribute :session,
             :api_user,
+            :beta_mode_enabled_cache,
             :feature_enabled_cache,
             :provider_availability_cache,
             :operational_log_indexing_enabled,

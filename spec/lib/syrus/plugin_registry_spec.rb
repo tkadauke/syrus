@@ -1782,4 +1782,76 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(logger).to have_received(:error).with(/dependent is degraded: requires absent/)
     end
   end
+
+  # The registry consults beta mode once per manifest, inside loops over every
+  # bundled plugin, so an uncached read here is multiplied by the plugin count
+  # on every request and every example. These specs pin the two properties
+  # that make caching it safe.
+  describe ".beta_mode_enabled?" do
+    def count_app_setting_loads
+      count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        count += 1 if payload[:name] == "AppSetting Load" && !payload[:cached]
+      end
+      yield
+      count
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
+    it "loads the setting once however many times the registry consults it" do
+      # Let unrelated per-example lazy initialization settle before the
+      # counting window opens: the performance-logging SQL subscriber loads
+      # Feature's enabled cache on the example's first statement, and that
+      # reads app_settings too. It happens inside this method's own call, so
+      # it cannot be told apart by the caller.
+      AppSetting.current
+      described_class.clear_beta_mode_cache!
+
+      loads = count_app_setting_loads { 25.times { described_class.beta_mode_enabled? } }
+
+      expect(loads).to eq(1)
+    end
+
+    # Independent of query counting, and the property the caching actually
+    # has to hold: the answer comes from the memo until something drops it.
+    it "answers from the memo until it is cleared" do
+      AppSetting.current.update!(beta_mode_enabled: false)
+      described_class.clear_beta_mode_cache!
+      expect(described_class.beta_mode_enabled?).to be(false)
+
+      # update_all bypasses the AppSetting callback that drops the memo, so
+      # the registry should still be answering from it.
+      AppSetting.where(singleton_key: AppSetting::SINGLETON_KEY).update_all(beta_mode_enabled: true)
+      expect(described_class.beta_mode_enabled?).to be(false)
+
+      described_class.clear_beta_mode_cache!
+      expect(described_class.beta_mode_enabled?).to be(true)
+    end
+
+    # The invalidation hook on AppSetting fires on save rather than on commit
+    # for exactly this reason: transactional tests never commit, so an
+    # after_commit hook would leave the toggled flag invisible to the registry
+    # for the rest of the example that toggled it.
+    it "observes a change that has been saved but not committed" do
+      AppSetting.current.update!(beta_mode_enabled: false)
+      described_class.clear_beta_mode_cache!
+      expect(described_class.beta_mode_enabled?).to be(false)
+
+      AppSetting.current.update!(beta_mode_enabled: true)
+
+      expect(described_class.beta_mode_enabled?).to be(true)
+    end
+
+    it "gates an experimental plugin on the current flag after the cache was warmed" do
+      AppSetting.current.update!(beta_mode_enabled: false)
+      described_class.register(name: "cold_experimental_plugin", version: "1.0.0", experimental: true)
+      expect(PluginRecord.find_by!(name: "cold_experimental_plugin").enabled).to be(false)
+
+      AppSetting.current.update!(beta_mode_enabled: true)
+      described_class.register(name: "warm_experimental_plugin", version: "1.0.0", experimental: true)
+
+      expect(PluginRecord.find_by!(name: "warm_experimental_plugin").enabled).to be(true)
+    end
+  end
 end

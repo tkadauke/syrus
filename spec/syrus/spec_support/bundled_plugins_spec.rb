@@ -19,6 +19,20 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       end
     end
 
+    # The fast path is the reason this method is not simply the restore loop.
+    # It runs around every example in the suite, where the answer is almost
+    # always "nothing to do"; confirming that costs one query, while
+    # rediscovering it through all_plugins cost about 51ms per example.
+    it "skips the restore loop when every required plugin is already enabled" do
+      described_class.restore_test_provider_records
+      expect(described_class.required_records_already_enabled?).to be(true)
+
+      expect(Syrus::PluginRegistry).not_to receive(:all_plugins)
+      expect(Syrus::PluginRegistry).to receive(:clear_plugin_record_cache!).at_least(:once).and_call_original
+
+      described_class.restore_test_provider_records
+    end
+
     it "fails open when plugin registry materialization cannot read plugin_records" do
       allow(Syrus::PluginRegistry).to receive(:all_plugins).and_raise(
         ActiveRecord::StatementInvalid.new("SQLite3::SQLException: no such table: plugin_records")
