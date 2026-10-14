@@ -130,6 +130,47 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     expect(body["filters"]).to include("kind" => "stale_run", "sort" => "severity", "direction" => "asc")
   end
 
+  it "filters cached stuck items by status using the serialized attention state" do
+    sign_in_as(admin)
+    snapshot = Admin::StuckItemsCache::Snapshot.new(
+      items: [
+        { "kind" => "stale_run", "severity" => "warn", "attention_state" => "waiting", "detail" => "later", "age_label" => "2m", "run_id" => 2, "workflow_id" => nil, "job_id" => nil },
+        { "kind" => "stale_run", "severity" => "alarm", "attention_state" => "auto_repairable", "detail" => "earlier", "age_label" => "1m", "run_id" => 1, "workflow_id" => nil, "job_id" => nil },
+        { "kind" => "blocked_workflow", "severity" => "warn", "attention_state" => "operator_action_required", "detail" => "other", "age_label" => "3m", "run_id" => nil, "workflow_id" => 4, "job_id" => nil }
+      ],
+      captured_at: Time.current
+    )
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
+    q = Filters::QueryParam.encode("and" => [ { "field" => "status", "op" => "is", "value" => "waiting" } ])
+
+    get "/api/v1/app/admin/stuck", params: { q: q }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["items"].map { |item| item["run_id"] }).to eq([ 2 ])
+    expect(body["filters"]).to include("status" => "waiting")
+  end
+
+  it "sorts cached stuck item ages by seconds instead of age label text" do
+    sign_in_as(admin)
+    snapshot = Admin::StuckItemsCache::Snapshot.new(
+      items: [
+        { "kind" => "day_old", "severity" => "warn", "attention_state" => "waiting", "age_label" => "1d", "age_seconds" => 1.day.to_i, "run_id" => 1 },
+        { "kind" => "hour_old", "severity" => "warn", "attention_state" => "waiting", "age_label" => "2h", "age_seconds" => 2.hours.to_i, "run_id" => 2 },
+        { "kind" => "minute_old", "severity" => "warn", "attention_state" => "waiting", "age_label" => "5m", "age_seconds" => 5.minutes.to_i, "run_id" => 3 },
+        { "kind" => "legacy_cached", "severity" => "warn", "attention_state" => "waiting", "age_label" => "10m", "run_id" => 4 },
+        { "kind" => "unknown_age", "severity" => "warn", "attention_state" => "waiting", "age_label" => "-", "age_seconds" => nil, "run_id" => 5 }
+      ],
+      captured_at: Time.current
+    )
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
+
+    get "/api/v1/app/admin/stuck", params: { sort: "age", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["items"].map { |item| item["run_id"] }).to eq([ 3, 4, 2, 1, 5 ])
+  end
+
   it "surfaces a stale queued retry Run even when the Workflow has previous Runs" do
     ensure_solid_queue_test_tables!
     clear_solid_queue_test_tables!
