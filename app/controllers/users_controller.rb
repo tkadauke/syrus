@@ -8,11 +8,14 @@ class UsersController < ApplicationController
   before_action :enforce_signup_gate, only: %i[ create ]
 
   def create
-    @user = User.new(user_params)
-    if @user.save
-      @invitation&.accept!
+    result = Signups::Creator.call(attributes: user_params, invitation: @invitation)
+    @user = result.user
+
+    if result.created?
       start_new_session_for(@user)
       redirect_to after_authentication_url, notice: signup_notice
+    elsif result.forbidden?
+      redirect_to new_session_path, alert: t("users.signup_invitation_only")
     else
       redirect_to new_user_path(token: @invitation&.token),
                   alert: @user.errors.full_messages.to_sentence,
