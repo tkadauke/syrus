@@ -41,7 +41,20 @@ RSpec.describe "Plugin source boundaries" do
     expect(cycles).to eq([])
   end
 
-  it "keeps core code behind plugin extension boundaries" do
+  # The two whole-tree scans below are the slowest examples in the suite --
+  # 44.6s and 31.5s measured in production, 76s of a 40-minute suite from two
+  # examples -- because each reads every tracked source file and matches every
+  # line against every bundled manifest.
+  #
+  # They are also the one assertion here that a dedicated grader already makes:
+  # `plugin-boundaries` runs bin/check-plugin-boundaries, required in review,
+  # landing and ci, with its own 5-minute budget. Paying the scan a third time
+  # inside the landing-path suite buys nothing the gate does not already block
+  # on, so these run in the ci phase as a backstop and the fast suite skips
+  # them. Everything else in this file -- manifest discovery, the dependency
+  # graph, optional-dependency handling, the untracked-file regression -- is
+  # cheap, is NOT covered by that script, and still runs everywhere.
+  it "keeps core code behind plugin extension boundaries", :ci_only do
     expect(audit.core_violations.map(&:message)).to eq([])
   end
 
@@ -83,7 +96,9 @@ RSpec.describe "Plugin source boundaries" do
     end
   end
 
-  it "allows plugin-to-plugin references only through declared dependencies" do
+  # Same reasoning as core_violations above: the dedicated plugin-boundaries
+  # grader is the gate, and this scan is O(manifests squared x files).
+  it "allows plugin-to-plugin references only through declared dependencies", :ci_only do
     expect(audit.plugin_violations.map(&:message)).to eq([])
   end
 end

@@ -579,14 +579,27 @@ module Ruby
       value ? [ option, value ] : []
     end
 
+    # The resolved process count is echoed because its provenance was not
+    # recoverable after the fact. A grant of 5 was logged by the grader while
+    # the run produced ~21 shards, and nothing in the output said which number
+    # reached `-n` or where it came from -- so whether the grant failed to
+    # arrive, or arrived and was overridden, could not be told apart from the
+    # logs. Oversubscribing a CPU-capped pod is the single most expensive thing
+    # this command can do (Rails boot alone degraded from 3.4s to 38s per shard
+    # under contention), so the number and its source are worth one line.
     def parallel_process_setup
       configured = parallel_config["processes"].to_s.strip.presence
+      fallback = configured || '$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)'
       commands = [
         'RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"',
-        "if [ -z \"$RSPEC_PARALLEL_PROCESSES\" ]; then RSPEC_PARALLEL_PROCESSES=#{configured || '$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)'}; fi"
+        'RSPEC_PARALLEL_SOURCE="SYRUS_PROCESS_PARALLELISM"',
+        "if [ -z \"$RSPEC_PARALLEL_PROCESSES\" ]; then RSPEC_PARALLEL_PROCESSES=#{fallback}; RSPEC_PARALLEL_SOURCE=#{configured ? 'parallel_rspec.processes' : 'host-cpu-fallback'}; fi"
       ]
-      commands << "if [ \"$RSPEC_PARALLEL_PROCESSES\" -gt #{configured} ]; then RSPEC_PARALLEL_PROCESSES=#{configured}; fi" if configured
-      commands << 'if [ "$RSPEC_PARALLEL_PROCESSES" -lt 1 ]; then RSPEC_PARALLEL_PROCESSES=1; fi'
+      if configured
+        commands << "if [ \"$RSPEC_PARALLEL_PROCESSES\" -gt #{configured} ]; then RSPEC_PARALLEL_PROCESSES=#{configured}; RSPEC_PARALLEL_SOURCE=parallel_rspec.processes-cap; fi"
+      end
+      commands << 'if [ "$RSPEC_PARALLEL_PROCESSES" -lt 1 ]; then RSPEC_PARALLEL_PROCESSES=1; RSPEC_PARALLEL_SOURCE=floor; fi'
+      commands << 'echo "[rspec] parallelism: -n $RSPEC_PARALLEL_PROCESSES (source: $RSPEC_PARALLEL_SOURCE; host cpus $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo unknown))"'
       "#{commands.join('; ')};"
     end
 

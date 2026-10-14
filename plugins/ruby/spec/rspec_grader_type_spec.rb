@@ -625,6 +625,34 @@ RSpec.describe Ruby::RspecGraderType do
     expect(step.run.scan(/\sspec(?:;|\s)/).length).to eq(1)
   end
 
+  # A production run logged a grant of 5 cores and then produced ~21 shards,
+  # and nothing in the output said which number reached `-n` or where it came
+  # from -- so "the grant never arrived" and "the grant arrived and was
+  # overridden" were indistinguishable afterwards. Oversubscribing a CPU-capped
+  # pod is the most expensive mistake this command can make, so the resolved
+  # value and its provenance are reported.
+  describe "parallelism reporting" do
+    it "echoes the resolved process count and where it came from" do
+      step = described_class.grade_steps(
+        config: { "parallel_rspec" => { "rspec_modes" => [ "full" ] } },
+        default_failures: "strict"
+      ).first
+
+      expect(step.run).to include('echo "[rspec] parallelism: -n $RSPEC_PARALLEL_PROCESSES (source: $RSPEC_PARALLEL_SOURCE;')
+      expect(step.run).to include('RSPEC_PARALLEL_SOURCE="SYRUS_PROCESS_PARALLELISM"')
+      expect(step.run).to include("RSPEC_PARALLEL_SOURCE=host-cpu-fallback")
+    end
+
+    it "names the configured cap as the source when one clamps the grant" do
+      step = described_class.grade_steps(
+        config: { "parallel_rspec" => { "rspec_modes" => [ "full" ], "processes" => "2" } },
+        default_failures: "strict"
+      ).first
+
+      expect(step.run).to include("RSPEC_PARALLEL_SOURCE=parallel_rspec.processes-cap")
+    end
+  end
+
   it "executes parallel status checks when no serial pass is configured" do
     step = described_class.grade_steps(
       config: {
