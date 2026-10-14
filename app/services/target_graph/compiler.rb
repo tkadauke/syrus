@@ -143,11 +143,12 @@ class TargetGraph
         import_diagnostics: import_diagnostics
       )
     rescue StandardError => e
+      fallback_graph = TargetGraph.new
       Diagnostics.new(
         source: owner_config_path,
         owner_config_path: owner_config_path,
-        target_labels: [],
-        project_count: nil,
+        target_labels: fallback_graph.targets.keys.sort,
+        project_count: fallback_graph.projects.size,
         error: "#{owner_config_path}: #{e.message}",
         import_diagnostics: import_diagnostics
       )
@@ -650,6 +651,8 @@ class TargetGraph
     end
 
     def compile_graders!(graph, syrus_workspace_path: workspace_path, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+
       RepoGradePlan.for(syrus_workspace_path, project_path: package).graders.each do |grader|
         add_target!(
           graph,
@@ -680,6 +683,17 @@ class TargetGraph
           ),
           declaration: "legacy grade #{grader.name.inspect}"
         )
+      end
+    rescue SyrusYml::ParseError => e
+      record_config_error(config_path: config_path, error: e)
+    end
+
+    def record_config_error(config_path:, error:)
+      if config_path == owner_config_path
+        @parse_error ||= error
+      else
+        @nested_parse_errors ||= []
+        @nested_parse_errors << "#{config_path}: #{error.message}"
       end
     end
 

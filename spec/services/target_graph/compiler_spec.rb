@@ -1360,6 +1360,7 @@ RSpec.describe TargetGraph::Compiler do
     end
 
     it "reports an unexpected non-TargetGraph::Error instead of raising, matching its documented never-raises contract" do
+      write(".syrus.yml", "grade:\n  - name: tests\n    run: bin/rspec\n")
       allow(RepoGradePlan).to receive(:for).and_raise(StandardError, "boom")
 
       diagnostics = nil
