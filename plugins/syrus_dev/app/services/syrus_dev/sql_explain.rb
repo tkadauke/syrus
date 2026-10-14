@@ -3,6 +3,9 @@ module SyrusDev
     MAX_SQL_BYTES = 20_000
     DEFAULT_ANALYZE_TIMEOUT_MS = 1_000
     MAX_ANALYZE_TIMEOUT_MS = 5_000
+    NON_READ_ONLY_PATTERN =
+      /\b(?:insert|update|delete|replace|alter|create|drop|truncate|call|load|grant|revoke|lock|unlock)\b/i
+    ANALYZE_UNSAFE_PATTERN = /\b(?:into|get_lock|release_lock|sleep|benchmark|load_file)\b|\bfor\s+share\b/i
 
     Error = Class.new(StandardError)
 
@@ -58,6 +61,8 @@ module SyrusDev
       else
         sqlite_explain(connection, adapter)
       end
+    rescue ActiveRecord::ActiveRecordError => e
+      raise Error.new(database_error_message(e)), cause: e
     end
 
     private
@@ -79,8 +84,11 @@ module SyrusDev
       raise Error, "Only a single statement can be explained" if sql.include?(";")
       raise Error, "SQL comments are not accepted for explain requests" if sql.match?(%r{/\*|--|#})
       raise Error, "Only SELECT/CTE statements can be explained" unless normalized_sql.match?(/\A(?:select|with)\b/i)
-      raise Error, "Statement contains non-read-only SQL" if normalized_sql.match?(/\b(?:insert|update|delete|replace|alter|create|drop|truncate|call|load|grant|revoke|lock|unlock)\b/i)
+      raise Error, "Statement contains non-read-only SQL" if normalized_sql.match?(NON_READ_ONLY_PATTERN)
       raise Error, "Statement contains user variables, which are not safe for EXPLAIN ANALYZE" if analyze? && normalized_sql.match?(/@\w+/)
+      if analyze? && normalized_sql.match?(ANALYZE_UNSAFE_PATTERN)
+        raise Error, "Statement contains SQL that is not safe for EXPLAIN ANALYZE"
+      end
     end
 
     def mysql_explain(connection, adapter)
@@ -135,6 +143,14 @@ module SyrusDev
       connection.select_all(statement).to_a
     end
 
+    def database_error_message(error)
+      [
+        "Could not explain SQL: #{error.message}.",
+        "The stored sample SQL may be truncated or reference tables unavailable to this database;",
+        "copy the full query from logs and try again."
+      ].join(" ")
+    end
+
     def parse_json_plan(rows)
       raw = rows.first&.values&.first
       JSON.parse(raw) if raw.present?
@@ -160,8 +176,11 @@ module SyrusDev
     def analyze_safety_for(adapter)
       return { safe: false, reason: "EXPLAIN ANALYZE is only enabled for MySQL connections." } unless adapter.include?("mysql")
       return { safe: false, reason: "Only SELECT/CTE statements can be analyzed." } unless normalized_sql.match?(/\A(?:select|with)\b/i)
-      return { safe: false, reason: "Statement contains non-read-only SQL." } if normalized_sql.match?(/\b(?:insert|update|delete|replace|alter|create|drop|truncate|call|load|grant|revoke|lock|unlock)\b/i)
+      return { safe: false, reason: "Statement contains non-read-only SQL." } if normalized_sql.match?(NON_READ_ONLY_PATTERN)
       return { safe: false, reason: "Statement contains user variables." } if normalized_sql.match?(/@\w+/)
+      if normalized_sql.match?(ANALYZE_UNSAFE_PATTERN)
+        return { safe: false, reason: "Statement contains SQL that is not safe for EXPLAIN ANALYZE." }
+      end
 
       { safe: true, reason: "Read-only single-statement query; EXPLAIN ANALYZE will run with a short statement timeout." }
     end

@@ -150,15 +150,21 @@ Performance admin page and shared by no other surface:
   the top level.
 - On MySQL: default mode is `EXPLAIN FORMAT=JSON` (parsed into
   `json_plan`); `analyze: true` runs `EXPLAIN ANALYZE` instead (rejected if
-  the statement contains `@`-prefixed user variables, since those aren't
-  safe to actually execute), wrapped in a session `max_execution_time`
-  (default 1000ms, capped at 5000ms) that's reset to unlimited afterward.
+  the statement contains `@`-prefixed user variables or unsafe executable
+  constructs such as `INTO`, `GET_LOCK`, `RELEASE_LOCK`, `SLEEP`,
+  `BENCHMARK`, `LOAD_FILE`, or `FOR SHARE`), wrapped in a session
+  `max_execution_time` (default 1000ms, capped at 5000ms) that's reset to
+  unlimited afterward.
 - On SQLite (dev/test): `EXPLAIN QUERY PLAN` only — `analyze: true` raises,
   since SQLite has no equivalent — with a warning that the plan can differ
   from production MySQL.
 - `?` placeholders are substituted with literal `NULL` before explaining
   (`placeholder_substituted: true` flags this in the result) since the
   explain path has no bound parameter values to supply.
+- Database explain errors (for example, a sample SQL string truncated before
+  the end of the statement, or a table that doesn't exist in the current
+  database) are returned as invalid explain requests with a message telling
+  the operator to retry with the full query.
 
 ## MCP tools (`SyrusDev::WorkflowToolSet`)
 
