@@ -18,6 +18,7 @@ type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
 type TableColumnMeasurement = { kind: TableColumnKind; min: number; preferred: number }
 type TableColumnLayout = { wide: boolean; widths: number[] }
+type FenceStart = { marker: string; languageHint: string | null }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*(?:(?!\*\*)[\s\S])+\*\*|\*[^*\n]+\*)/g
 const PLAIN_URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
@@ -105,16 +106,16 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
       continue
     }
 
-    const fence = line.match(/^\s*```([\w.-]+)?\s*$/)
+    const fence = parseFenceStart(line)
     if (fence) {
       const code: string[] = []
       index += 1
-      while (index < lines.length && !lines[index].match(/^\s*```\s*$/)) {
+      while (index < lines.length && !isFenceClose(lines[index], fence.marker.length)) {
         code.push(lines[index])
         index += 1
       }
       if (index < lines.length) index += 1
-      const lang = fence[1] ? detectFenceLanguage(fence[1]) : null
+      const lang = fence.languageHint ? detectFenceLanguage(fence.languageHint) : null
       blocks.push(
         <div className="overflow-x-auto" key={`block-${key++}`}>
           <CodeBlock code={code.join("\n")} lang={lang} />
@@ -160,7 +161,8 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
       continue
     }
 
-    const paragraph: string[] = []
+    const paragraph = [lines[index].trim()]
+    index += 1
     while (index < lines.length && lines[index].trim() !== "" && !startsBlock(lines, index)) {
       paragraph.push(lines[index].trim())
       index += 1
@@ -169,6 +171,19 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
   }
 
   return blocks
+}
+
+function parseFenceStart(line: string): FenceStart | null {
+  const match = line.match(/^\s*(`{3,})([^`]*)$/)
+  if (!match) return null
+
+  const info = match[2].trim()
+  return { marker: match[1], languageHint: info ? info.split(/\s+/)[0] : null }
+}
+
+function isFenceClose(line: string, markerLength: number) {
+  const match = line.match(/^\s*(`{3,})\s*$/)
+  return Boolean(match && match[1].length >= markerLength)
 }
 
 function safeMarkdownPreview(text: string) {
@@ -287,8 +302,8 @@ function nextNonBlankListMarker(lines: string[], index: number, parentIndent: nu
 function startsBlock(lines: string[], index: number) {
   const line = lines[index]
   return (
-    /^\s*```/.test(line) ||
-    /^(#{1,4})\s+/.test(line) ||
+    Boolean(parseFenceStart(line)) ||
+    Boolean(line.match(/^(#{1,4})\s+(.+)$/)) ||
     /^\s*>\s?/.test(line) ||
     Boolean(listMarker(line)) ||
     /^\s*(?:---+|\*\*\*+)\s*$/.test(line) ||

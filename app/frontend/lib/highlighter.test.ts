@@ -203,6 +203,8 @@ describe("detectFenceLanguage", () => {
     expect(detectFenceLanguage("sh")).toBe("shellscript")
     expect(detectFenceLanguage("py")).toBe("python")
     expect(detectFenceLanguage("gql")).toBe("graphql")
+    expect(detectFenceLanguage("c++")).toBe("cpp")
+    expect(detectFenceLanguage("c#")).toBe("csharp")
   })
 
   it("returns null for an empty or unrecognized hint", () => {

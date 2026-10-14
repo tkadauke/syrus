@@ -63,6 +63,7 @@ type SelectionRect = { top: number; left: number; width: number; containerWidth:
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
+type WysiwygFenceStart = { marker: string; languageHint: string | null }
 type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
 type ReviewScrollSnapshot = { windowScrollX: number; windowScrollY: number; markdownScrollTop: number }
 type AnchorHighlight = {
@@ -2550,12 +2551,12 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
       continue
     }
 
-    const fence = line.match(/^\s*```([\w.-]+)?\s*$/)
+    const fence = parseWysiwygFenceStart(line)
     if (fence) {
       const codeLines: string[] = []
       offset += line.length + 1
       index += 1
-      while (index < lines.length && !lines[index].match(/^\s*```\s*$/)) {
+      while (index < lines.length && !isWysiwygFenceClose(lines[index], fence.marker.length)) {
         codeLines.push(lines[index])
         offset += lines[index].length + 1
         index += 1
@@ -2564,7 +2565,7 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
         offset += lines[index].length + 1
         index += 1
       }
-      const languageAttr = fence[1] ? ` data-code-language="${escapeHtml(fence[1])}"` : ""
+      const languageAttr = fence.languageHint ? ` data-code-language="${escapeHtml(fence.languageHint)}"` : ""
       blocks.push(`<pre${languageAttr}><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`)
       continue
     }
@@ -2614,7 +2615,7 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
     }
 
     const paragraph: Array<{ html: string; hardBreak: boolean }> = []
-    while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
+    do {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       const lineStart = offset + leading
@@ -2628,11 +2629,24 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
       }
       offset += paragraphLine.length + 1
       index += 1
-    }
+    } while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index))
     if (paragraph.length > 0) blocks.push(`<p>${renderWysiwygParagraph(paragraph)}</p>`)
   }
 
   return blocks.join("")
+}
+
+function parseWysiwygFenceStart(line: string): WysiwygFenceStart | null {
+  const match = line.match(/^\s*(`{3,})([^`]*)$/)
+  if (!match) return null
+
+  const info = match[2].trim()
+  return { marker: match[1], languageHint: info ? info.split(/\s+/)[0] : null }
+}
+
+function isWysiwygFenceClose(line: string, markerLength: number) {
+  const match = line.match(/^\s*(`{3,})\s*$/)
+  return Boolean(match && match[1].length >= markerLength)
 }
 
 function wysiwygParagraphLine(line: string) {
@@ -2837,8 +2851,8 @@ function blockquoteMarkdown(node: HTMLElement) {
 
 function startsWysiwygBlock(lines: string[], index: number) {
   return (
-    /^\s*```/.test(lines[index]) ||
-    /^(#{1,4})\s+/.test(lines[index]) ||
+    Boolean(parseWysiwygFenceStart(lines[index])) ||
+    Boolean(lines[index].match(/^(#{1,4})\s+(.+)$/)) ||
     /^\s*>\s?/.test(lines[index]) ||
     /^\s*(?:---+|\*\*\*+)\s*$/.test(lines[index]) ||
     Boolean(wysiwygListMarker(lines[index])) ||

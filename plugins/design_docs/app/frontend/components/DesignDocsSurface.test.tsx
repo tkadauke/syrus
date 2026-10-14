@@ -2408,6 +2408,51 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue(markdown)
   })
 
+  it("renders loose fenced code info strings and bare heading markers in Rich Text", async () => {
+    const markdown = [
+      "```c++",
+      "int main() {}",
+      "```",
+      "",
+      "```c#",
+      "class Program {}",
+      "```",
+      "",
+      '```js title="x.js"',
+      "console.log('ok')",
+      "```",
+      "",
+      "````",
+      "```",
+      "````",
+      "",
+      "> ```ts {1,3}",
+      "> const enabled = true",
+      "> ```",
+      "",
+      "# ",
+      "",
+      "## ",
+      "",
+      "Body"
+    ].join("\n")
+    mockFetch(docWithMarkdown(markdown))
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const codeBlocks = Array.from(editor.querySelectorAll("pre code")).map((code) => code.textContent)
+    const paragraphs = Array.from(editor.querySelectorAll("p")).map((paragraph) => paragraph.textContent)
+
+    expect(codeBlocks).toEqual(["int main() {}", "class Program {}", "console.log('ok')", "```", "const enabled = true"])
+    expect(editor.querySelector("pre[data-code-language='c++']")).toBeInTheDocument()
+    expect(editor.querySelector("pre[data-code-language='c#']")).toBeInTheDocument()
+    expect(editor.querySelector("pre[data-code-language='js']")).toBeInTheDocument()
+    expect(editor.querySelector("blockquote pre[data-code-language='ts'] code")).toHaveTextContent("const enabled = true")
+    expect(paragraphs).toEqual(["#", "##", "Body"])
+    expect(editor.querySelector("h1")).toBeNull()
+    expect(editor.querySelector("h2")).toBeNull()
+  })
+
   it("lets owners switch between Edit and Suggest change modes", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
