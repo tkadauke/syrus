@@ -89,4 +89,42 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
     expect(body.dig("filters", "direction")).to eq("asc")
     expect(body.fetch("events").map { |event| event.fetch("path") }).to eq([ "/a", "/z" ])
   end
+
+  it "builds the timeline from the canonical filter window instead of a flattened default" do
+    admin = Factories.user
+    old_event = BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "occurred_at" => 2.days.ago.iso8601,
+        "app_revision" => "current-sha",
+        "fingerprint" => "old",
+        "message" => "old error",
+        "path" => "/old"
+      }
+    )
+    BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "occurred_at" => 10.minutes.ago.iso8601,
+        "app_revision" => "current-sha",
+        "fingerprint" => "recent",
+        "message" => "recent error",
+        "path" => "/recent"
+      }
+    )
+    q = Filters::QueryParam.encode(
+      "and" => [
+        { "field" => "fingerprint", "op" => "is", "value" => old_event.fingerprint },
+        { "field" => "revision_scope", "op" => "is", "value" => "current" }
+      ]
+    )
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/browser_errors", params: { q: q }
+
+    expect(response).to have_http_status(:ok)
+    body = response.parsed_body
+    expect(body.fetch("events").map { |event| event.fetch("fingerprint") }).to eq([ "old" ])
+    expect(body.fetch("timeline").sum { |bucket| bucket.fetch("count") }).to eq(1)
+  end
 end
