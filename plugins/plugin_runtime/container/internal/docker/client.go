@@ -278,10 +278,21 @@ func (c *Client) RemoveContainer(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/containers/"+url.PathEscape(id), url.Values{"force": {"1"}}, nil, nil)
 }
 
-// CreateVolume creates a named volume. Creating one that exists is a no-op.
+// CreateVolume creates a named volume. If the name already exists, Docker
+// returns that existing volume; refuse it when any requested ownership label
+// disagrees so a caller cannot adopt another service's state by name.
 func (c *Client) CreateVolume(ctx context.Context, name string, labels map[string]string) error {
 	body := map[string]any{"Name": name, "Labels": labels}
-	return c.do(ctx, http.MethodPost, "/volumes/create", nil, body, nil)
+	var created VolumeSummary
+	if err := c.do(ctx, http.MethodPost, "/volumes/create", nil, body, &created); err != nil {
+		return err
+	}
+	for key, want := range labels {
+		if got, ok := created.Labels[key]; !ok || got != want {
+			return fmt.Errorf("volume %s label %s=%q, want %q", name, key, got, want)
+		}
+	}
+	return nil
 }
 
 // ListVolumes returns volumes carrying all labels.

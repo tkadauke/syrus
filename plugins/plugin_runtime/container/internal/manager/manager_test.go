@@ -107,6 +107,23 @@ func TestEnsureNeverSetsCapabilitiesOrDevices(t *testing.T) {
 	}
 }
 
+func TestEnsureRejectsPrivilegedServiceNameOnGenericLane(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManagerWithPrivileged(d)
+	s := service()
+	s.Plugin = "evil"
+
+	_, err := m.Ensure(context.Background(), "tailscale", s)
+	var refused *policy.Error
+	if !errors.As(err, &refused) {
+		t.Fatalf("expected *policy.Error, got %T %v", err, err)
+	}
+	if len(d.created) != 0 {
+		t.Fatal("generic ensure for a privileged name must create nothing")
+	}
+}
+
 const tailscaleImage = "ghcr.io/tkadauke/syrus-plugin-tailscale:test"
 
 func newManagerWithPrivileged(d *fakeDocker) *Manager {
@@ -190,6 +207,80 @@ func TestEnsurePrivilegedIsIdempotentAndReplacesOnEnvChangeKeepingTheVolume(t *t
 	}
 }
 
+func TestEnsurePrivilegedReplacesWhenDefinitionChanges(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManagerWithPrivileged(d)
+	ctx := context.Background()
+	env := map[string]string{"TS_AUTHKEY": "tskey-abc"}
+
+	if _, err := m.EnsurePrivileged(ctx, "tailscale", env); err != nil {
+		t.Fatal(err)
+	}
+
+	registry := privileged.NewRegistry(tailscaleImage, "http://web:80")
+	def := registry["tailscale"]
+	def.CapAdd = append(def.CapAdd, "SYS_ADMIN")
+	registry["tailscale"] = def
+	m.WithPrivileged(registry)
+
+	if _, err := m.EnsurePrivileged(ctx, "tailscale", env); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.created) != 2 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want the old privileged container replaced", len(d.created), d.containerCount())
+	}
+	if got := d.created[1].HostConfig.CapAdd; len(got) != 3 || got[2] != "SYS_ADMIN" {
+		t.Fatalf("CapAdd after definition change = %v", got)
+	}
+}
+
+func TestEnsurePrivilegedRefusesToAdoptGenericContainer(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManager(d)
+	ctx := context.Background()
+	generic := spec.Service{
+		Plugin:       "tailscale",
+		Image:        tailscaleImage,
+		InternalPort: 8080,
+		Volumes:      []spec.Volume{{Name: "state", MountPath: "/var/lib/tailscale"}},
+		Env:          map[string]string{"TS_AUTHKEY": "tskey-abc", "TS_SERVE_TARGET": "http://web:80"},
+		Healthcheck:  &spec.Healthcheck{Path: "/healthz"},
+	}
+	if _, err := m.Ensure(ctx, "tailscale", generic); err != nil {
+		t.Fatal(err)
+	}
+
+	m.WithPrivileged(privileged.NewRegistry(tailscaleImage, "http://web:80"))
+	_, err := m.EnsurePrivileged(ctx, "tailscale", map[string]string{"TS_AUTHKEY": "tskey-abc"})
+	if !errors.Is(err, ErrOwnershipConflict) {
+		t.Fatalf("expected ErrOwnershipConflict, got %v", err)
+	}
+	if len(d.created) != 1 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want the generic container left alone", len(d.created), d.containerCount())
+	}
+}
+
+func TestRemoveRejectsPrivilegedServiceNameOnGenericLane(t *testing.T) {
+	d := newFakeDocker()
+	d.images[tailscaleImage] = true
+	m := newManagerWithPrivileged(d)
+	ctx := context.Background()
+	if _, err := m.EnsurePrivileged(ctx, "tailscale", map[string]string{"TS_AUTHKEY": "tskey-abc"}); err != nil {
+		t.Fatal(err)
+	}
+
+	err := m.Remove(ctx, "tailscale", true)
+	var refused *privileged.Error
+	if !errors.As(err, &refused) {
+		t.Fatalf("expected *privileged.Error, got %T %v", err, err)
+	}
+	if d.containerCount() != 1 || d.volumeCount() != 1 {
+		t.Fatalf("containers=%d volumes=%d, want privileged service left alone", d.containerCount(), d.volumeCount())
+	}
+}
+
 // The registry is a compiled table: a name it does not know is refused, the
 // same way a policy violation is on the generic path -- and nothing is ever
 // created for it.
@@ -256,6 +347,55 @@ func TestEnsureIsIdempotent(t *testing.T) {
 	}
 	if len(d.created) != 1 {
 		t.Fatalf("created %d containers, want 1", len(d.created))
+	}
+}
+
+func TestEnsureRefusesToReplaceContainerOwnedByAnotherPlugin(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+	ctx := context.Background()
+
+	if _, err := m.Ensure(ctx, "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+	takeover := service()
+	takeover.Plugin = "evil"
+	takeover.Env = map[string]string{"SYRUS_URL": "http://evil.test"}
+
+	_, err := m.Ensure(ctx, "git-mirror", takeover)
+	if !errors.Is(err, ErrOwnershipConflict) {
+		t.Fatalf("expected ErrOwnershipConflict, got %v", err)
+	}
+	if len(d.created) != 1 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want original container left alone", len(d.created), d.containerCount())
+	}
+	for _, c := range d.containers {
+		if c.req.Labels[LabelPlugin] != "git_mirror" {
+			t.Fatalf("container plugin label = %q, want original owner", c.req.Labels[LabelPlugin])
+		}
+	}
+}
+
+func TestEnsureRefusesToAdoptVolumeOwnedByAnotherPlugin(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	d.volumes["syrus_plugin_git-mirror_data"] = map[string]string{
+		LabelManaged: "true",
+		LabelProject: "syrus",
+		LabelService: "git-mirror",
+		LabelPlugin:  "other_plugin",
+	}
+	m := newManager(d)
+
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err == nil {
+		t.Fatal("expected existing volume ownership mismatch to be refused")
+	}
+	if len(d.created) != 0 || d.containerCount() != 0 {
+		t.Fatalf("created=%d live=%d, want no container using another plugin's volume", len(d.created), d.containerCount())
+	}
+	if d.volumes["syrus_plugin_git-mirror_data"][LabelPlugin] != "other_plugin" {
+		t.Fatal("volume ownership label changed")
 	}
 }
 

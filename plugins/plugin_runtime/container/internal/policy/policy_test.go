@@ -33,6 +33,16 @@ func TestRefusalsAreTypedSoTheServerCanMapThemTo422(t *testing.T) {
 	}
 }
 
+func TestReservedServiceNameIsRefused(t *testing.T) {
+	p := New([]string{"ghcr.io/tkadauke/"}).WithReservedServiceNames([]string{"tailscale"})
+
+	err := p.Validate("tailscale", valid())
+	var refused *Error
+	if !errors.As(err, &refused) {
+		t.Fatalf("expected *policy.Error, got %T %v", err, err)
+	}
+}
+
 func TestImageAllowlist(t *testing.T) {
 	cases := []struct {
 		name    string

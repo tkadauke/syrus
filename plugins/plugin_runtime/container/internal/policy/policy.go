@@ -47,7 +47,8 @@ func refuse(format string, args ...any) error {
 
 // Policy holds the image allowlist.
 type Policy struct {
-	allowed []string
+	allowed  []string
+	reserved map[string]bool
 }
 
 // New builds a policy from allowlist entries. An entry ending in "/" allows a
@@ -67,10 +68,29 @@ func New(entries []string) Policy {
 // Allowed returns the normalized allowlist, for diagnostics.
 func (p Policy) Allowed() []string { return append([]string(nil), p.allowed...) }
 
+// WithReservedServiceNames returns a copy that refuses generic services using
+// names owned by another lane.
+func (p Policy) WithReservedServiceNames(names []string) Policy {
+	reserved := make(map[string]bool, len(p.reserved)+len(names))
+	for name, ok := range p.reserved {
+		reserved[name] = ok
+	}
+	for _, name := range names {
+		if name != "" {
+			reserved[name] = true
+		}
+	}
+	p.reserved = reserved
+	return p
+}
+
 // Validate checks a request against every rule.
 func (p Policy) Validate(name string, s spec.Service) error {
 	if !serviceNameRe.MatchString(name) {
 		return refuse("service name %q must match %s", name, serviceNameRe)
+	}
+	if p.reserved[name] {
+		return refuse("service name %q is reserved for a privileged service", name)
 	}
 	if !pluginNameRe.MatchString(s.Plugin) {
 		return refuse("plugin %q must match %s", s.Plugin, pluginNameRe)

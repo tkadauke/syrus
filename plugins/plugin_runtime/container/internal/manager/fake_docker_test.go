@@ -193,13 +193,20 @@ func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {
 func (f *fakeDocker) CreateVolume(_ context.Context, name string, labels map[string]string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if _, ok := f.volumes[name]; !ok {
-		copied := map[string]string{}
-		for k, v := range labels {
-			copied[k] = v
+	existing := f.volumes[name]
+	if existing != nil {
+		for key, want := range labels {
+			if got, ok := existing[key]; !ok || got != want {
+				return fmt.Errorf("volume %s label %s=%q, want %q", name, key, got, want)
+			}
 		}
-		f.volumes[name] = copied
+		return nil
 	}
+	copied := map[string]string{}
+	for k, v := range labels {
+		copied[k] = v
+	}
+	f.volumes[name] = copied
 	return nil
 }
 
