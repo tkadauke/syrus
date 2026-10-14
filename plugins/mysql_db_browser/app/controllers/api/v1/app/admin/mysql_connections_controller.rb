@@ -6,8 +6,12 @@ module Api
           before_action :require_mysql_db_browser_enabled
 
           def index
+            connections = MysqlConnection.order(:label).to_a
+            credentials_by_id = ::MysqlDbBrowser::CredentialMaterial.credentials_by_id_for(connections)
             render json: {
-              mysql_connections: MysqlConnection.order(:label).map { |connection| connection_json(connection) },
+              mysql_connections: connections.map do |connection|
+                connection_json(connection, credential: credentials_by_id[connection.credential_store_credential_id])
+              end,
               credential_scope_options: management_authorization.manageable_options
             }
           end
@@ -154,8 +158,7 @@ module Api
             @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
           end
 
-          def connection_json(connection)
-            credential = ::MysqlDbBrowser::CredentialMaterial.credential_for(connection)
+          def connection_json(connection, credential: ::MysqlDbBrowser::CredentialMaterial.credential_for(connection))
             {
               id: connection.id,
               label: connection.label,
