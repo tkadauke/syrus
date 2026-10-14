@@ -67,7 +67,7 @@ snapshot.
 Admin MySQL exposes different MCP tools on workflow and chat surfaces:
 
 - `admin_mysql_status(limit?)` — same payload as the admin page's snapshot.
-  Available to Syrus workflow implement agents and admin chats.
+  Available to admin-owned Syrus workflow implement runs and admin chats.
 - `admin_mysql_kill_query(thread_id)` — same as the admin page's kill action.
   Available only from admin chat contexts; direct run/workflow calls are
   rejected before `Inspector#kill_query` runs.
@@ -77,10 +77,14 @@ Availability differs by surface:
 - **Workflow tools** — `AdminMysql::WorkflowToolSet.available_for?` requires
   `AdminMysql.mysql?` and `McpToolPolicy.syrus_repository?` (the Job's
   repository is `tkadauke/syrus` or a registered fork), and
-  `available_for_context?` further restricts it to the `WORKFLOW_IMPLEMENT`
-  agent role. In other words, only implement-step agents working on Syrus
-  itself get read-only MySQL status diagnostics — not arbitrary
-  customer-repository workflows, and never query interruption.
+  `available_for_context?` further requires the `WORKFLOW_IMPLEMENT` agent
+  role and an admin Job owner. `StatusTool` repeats the admin check before
+  reading the database. In other words, only admin-owned implement runs
+  working on Syrus itself get read-only MySQL status diagnostics — not
+  non-admin runs, arbitrary customer-repository workflows, or any workflow
+  attempting query interruption. Process-list `info` and slow-log `sql_text`
+  values have string, hexadecimal, and numeric SQL literals redacted before
+  they are returned.
 - **Chat tools** — `AdminMysql::ChatToolSet.available_for?` requires the
   chat's user to be an admin and `AdminMysql.mysql?`, with no repository
   restriction, so any admin's chat session can inspect/kill queries once the
