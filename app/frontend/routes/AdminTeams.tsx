@@ -6,7 +6,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useMemo, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { AdminDataTablePanel } from "../components/AdminEventLogPanel"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
@@ -40,6 +40,7 @@ import {
 } from "../api/adminTeams"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 export function AdminTeamsIndex() {
   const { t } = useT("admin")
@@ -227,8 +228,10 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
 
 export function AdminTeamDetailRoute() {
   const { t } = useT("admin")
+  const location = useLocation()
   const params = useParams()
   const id = params.id || ""
+  const prefix = routePrefix(location.pathname)
   const team = useQuery({
     queryKey: ["admin", "teams", id],
     queryFn: () => fetchAdminTeam(id),
@@ -238,7 +241,7 @@ export function AdminTeamDetailRoute() {
   return (
     <Page.Root aria-label={t("teams.aria_detail")} gutter="responsive">
       <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
-        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix("/admin/teams", prefix)}>
           {t("teams.heading")}
         </Link>
         <Page.Title className="mt-2">{team.data?.team.name || `Team #${id}`}</Page.Title>
@@ -246,14 +249,15 @@ export function AdminTeamDetailRoute() {
 
       {team.isPending ? <PanelMessage>{t("teams.loading_team")}</PanelMessage> : null}
       {team.isError ? <TeamsError error={team.error} /> : null}
-      {team.isSuccess ? <TeamDetail payload={team.data} /> : null}
+      {team.isSuccess ? <TeamDetail payload={team.data} prefix={prefix} /> : null}
     </Page.Root>
   )
 }
 
-function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
+function TeamDetail({ payload, prefix }: { payload: AdminTeamDetailPayload; prefix: string }) {
   const { t } = useT("admin")
   const { confirm, dialog } = useConfirm()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const teamId = payload.team.id
@@ -271,7 +275,7 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
     mutationFn: () => deleteAdminTeam(teamId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "teams"] })
-      window.location.assign("/admin/teams")
+      navigate(withRoutePrefix("/admin/teams", prefix))
     }
   })
 
