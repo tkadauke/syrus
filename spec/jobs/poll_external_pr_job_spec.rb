@@ -389,6 +389,19 @@ RSpec.describe PollExternalPrJob, :ci_only do
       expect(WebMock).not_to have_requested(:get, issue_comments_url)
       expect(WebMock).not_to have_requested(:get, review_comments_url)
     end
+
+    it "suppresses transient GitHub failures while reading external PR reviews" do
+      stub_external_pr(state: "open", merged: false)
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 500, headers: { "Content-Type" => "application/json" }, body: "{}"
+      )
+
+      expect(Rails.logger).to receive(:warn).with(/PollExternalPrJob.*transient GitHub polling failure/)
+
+      expect { described_class.perform_now(external_pr_job.id) }.not_to raise_error
+      expect(WebMock).not_to have_requested(:get, issue_comments_url)
+      expect(WebMock).not_to have_requested(:get, review_comments_url)
+    end
   end
 
   describe "comment ingestion for external_pr Jobs" do
