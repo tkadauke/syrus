@@ -12,6 +12,7 @@ module Admin
       :reconciler_severity,
       :detail,
       :age_label,
+      :age_seconds,
       :run,
       :workflow,
       :job,
@@ -72,13 +73,15 @@ module Admin
       run = record_for(Run, issue, :run_ids)
       workflow = record_for(Workflow, issue, :workflow_ids) || run&.workflow
       job = record_for(Job, issue, :job_ids) || workflow&.job || run&.job
+      age_time = age_timestamp(issue, run, workflow, job)
 
       Item.new(
         kind: issue.kind,
         severity: severity_for(issue),
         reconciler_severity: issue.severity,
         detail: detail_for(issue, repair_plan, job),
-        age_label: age_label_for(age_timestamp(issue, run, workflow, job)),
+        age_label: age_label_for(age_time),
+        age_seconds: age_seconds_for(age_time),
         run: run,
         workflow: workflow,
         job: job,
@@ -213,6 +216,12 @@ module Admin
       hours = mins / 60
       return "#{hours}h" if hours < 48
       "#{hours / 24}d"
+    end
+
+    def age_seconds_for(time)
+      return nil if time.nil?
+
+      (now - time).to_i
     end
 
     def parse_time(value)
