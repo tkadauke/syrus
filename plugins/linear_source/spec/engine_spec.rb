@@ -8,7 +8,7 @@ RSpec.describe SyrusLinearSource::Engine do
     expect(manifest.default_enabled?).to be(false)
     expect(manifest.metadata[:routes]).to include(
       hash_including(
-        verb: "GET",
+        verb: "POST",
         path: "/api/v1/app/linear/teams",
         controller: "api/v1/app/linear#teams"
       )

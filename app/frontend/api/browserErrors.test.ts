@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { browserErrorRouteContext } from "./browserErrors"
+import { afterEach, describe, expect, it } from "vitest"
+import { browserErrorRouteContext, buildBrowserErrorPayload } from "./browserErrors"
 
 describe("browserErrorRouteContext", () => {
   it("identifies job routes with params" , () => {
@@ -24,7 +24,37 @@ describe("browserErrorRouteContext", () => {
     })
   })
 
+  it("redacts sensitive route params" , () => {
+    expect(browserErrorRouteContext("/chats/shared/share-token")).toEqual({
+      route_id: "chat.shared",
+      route_params: { token: "[FILTERED]" }
+    })
+    expect(browserErrorRouteContext("/passwords/reset-token/edit")).toEqual({
+      route_id: "password.reset",
+      route_params: { token: "[FILTERED]" }
+    })
+  })
+
   it("returns empty context for unknown paths" , () => {
     expect(browserErrorRouteContext("/unknown/path")).toEqual({})
+  })
+})
+
+describe("buildBrowserErrorPayload", () => {
+  afterEach(() => {
+    window.history.replaceState(null, "", "/")
+  })
+
+  it("strips query strings and sensitive path tokens from stored location fields" , () => {
+    window.history.replaceState(null, "", "/chats/shared/share-token?api_key=lin_api_secret")
+
+    const payload = buildBrowserErrorPayload(new Error("boom"), {
+      boundary: "test",
+      fingerprint: "abc"
+    })
+
+    expect(payload.url).toBe("http://localhost:3000/chats/shared/[FILTERED]")
+    expect(payload.path).toBe("/chats/shared/[FILTERED]")
+    expect(payload.route_params).toEqual({ token: "[FILTERED]" })
   })
 })
