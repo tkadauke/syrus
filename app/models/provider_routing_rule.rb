@@ -261,9 +261,11 @@ class ProviderRoutingRule < ApplicationRecord
     validate_candidate_model(provider, candidate["model"], index) if candidate["model"].present?
   end
 
-  # Soft check: only enforced once a provider actually exposes a model
-  # catalog (the model-effort-plumbing Epic). No provider implements
-  # `.available_models` yet, so this is a no-op today by design.
+  # Enforced for any provider that exposes a model catalog. Providers that do
+  # not are skipped, so this is a no-op for them -- but it is NOT a no-op
+  # generally: a candidate naming a model outside a publishing provider's
+  # catalog is rejected, so adding a usable model means adding it to that
+  # provider's `available_models` too.
   def validate_candidate_model(provider, model, index)
     provider_class = AgentProviders.for(provider)
     return unless provider_class.respond_to?(:available_models)

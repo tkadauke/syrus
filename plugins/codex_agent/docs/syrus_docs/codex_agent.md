@@ -24,7 +24,7 @@ passed as a CLI mcp-config flag:
 ```toml
 cli_auth_credentials_store = "file"
 approval_policy = "never"
-model = "gpt-5.5"
+model = "gpt-5.6"
 model_reasoning_effort = "<level>"          # only when set and not "none"
 
 [mcp_servers.syrus-mcp-sidecar]
@@ -40,8 +40,11 @@ KEY = "value"
 
 `write_config` skips the actual file write when the generated content is
 byte-identical to what's already on disk (`:unchanged`), avoiding
-unnecessary churn on every invocation. `DEFAULT_MODEL` is `gpt-5.5`,
-overridable instance-wide via `SYRUS_CODEX_MODEL`.
+unnecessary churn on every invocation. `DEFAULT_MODEL` is `gpt-5.6`,
+overridable instance-wide via `SYRUS_CODEX_MODEL` and per routing rule via a
+candidate's `model`. A candidate's model must also appear in
+`AgentProviders::Codex.available_models`, which `ProviderRoutingRule`
+validates against.
 
 ## Event stream
 

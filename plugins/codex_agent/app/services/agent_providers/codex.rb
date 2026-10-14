@@ -26,6 +26,10 @@ module AgentProviders
     def self.available_models
       [
         Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gpt-5.6", display_name: "GPT-5.6",
+          context_window: :large, cost_tier: :high
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
           id: "gpt-5.5", display_name: "GPT-5.5",
           context_window: :large, cost_tier: :high
         ),

@@ -187,6 +187,23 @@ RSpec.describe ProviderRoutingRule do
     expect(record).to be_valid
   end
 
+  # Regression: codex publishes a catalog, so this validation is live for it.
+  # A model the account can actually use is still unconfigurable until it is
+  # listed, which is a real failure mode when a provider changes which
+  # models it accepts.
+  it "accepts codex's default model, which must be in its published catalog" do
+    record = rule(candidates: [ { "provider" => "codex", "model" => CodexInvocation::DEFAULT_MODEL } ])
+
+    expect(record).to be_valid
+  end
+
+  it "rejects a codex candidate naming a model outside its published catalog" do
+    record = rule(candidates: [ { "provider" => "codex", "model" => "gpt-9.9-imaginary" } ])
+
+    expect(record).not_to be_valid
+    expect(record.errors[:candidates].join).to include("not in codex's known models")
+  end
+
   it "does not hard-fail on an unrecognized model when the provider has no model catalog yet" do
     allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
     record = rule(candidates: [ { "provider" => "claude", "model" => "not-a-real-model" } ])

@@ -42,7 +42,7 @@ RSpec.describe CodexInvocation do
         codex_home: "/tmp/codex-home",
         resume_session_id: "abc",
         resume_transcript_jsonl: "jsonl",
-        model: "gpt-5.5",
+        model: described_class::DEFAULT_MODEL,
         effort_level: "high",
         startup_timing: startup_timing
       )
@@ -104,7 +104,7 @@ RSpec.describe CodexInvocation do
         expect(captured[:cmd].last).to eq("-")
         expect(captured[:cmd]).not_to include("P")
         expect(captured[:stdin]).to eq("P")
-        expect(File.read(File.join(home, "config.toml"))).to include('model = "gpt-5.5"')
+        expect(File.read(File.join(home, "config.toml"))).to include(%(model = "#{described_class::DEFAULT_MODEL}"))
       end
     end
 
@@ -424,7 +424,7 @@ RSpec.describe CodexInvocation do
 
         config = File.read(File.join(home, "config.toml"))
         expect(config).to include('cli_auth_credentials_store = "file"')
-        expect(config).to include('model = "gpt-5.5"')
+        expect(config).to include(%(model = "#{described_class::DEFAULT_MODEL}"))
         expect(config).to include('[mcp_servers.syrus-mcp-sidecar]')
         expect(config).to include('command = "/app/bin/syrus-mcp-sidecar"')
         expect(config).to include('args = ["--run-id", "12"]')
@@ -511,7 +511,7 @@ RSpec.describe CodexInvocation do
         config = File.read(File.join(home, "config.toml"))
         expect(config).to include('cli_auth_credentials_store = "file"')
         expect(config).to include('approval_policy = "never"')
-        expect(config).to include('model = "gpt-5.5"')
+        expect(config).to include(%(model = "#{described_class::DEFAULT_MODEL}"))
         expect(config).not_to include("[mcp_servers.syrus-mcp-sidecar]")
         expect(config).not_to include("stale")
       end

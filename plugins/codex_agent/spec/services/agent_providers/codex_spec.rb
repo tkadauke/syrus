@@ -34,6 +34,13 @@ RSpec.describe AgentProviders::Codex do
       expect(models.map(&:cost_tier)).to all(be_present)
       expect(models.map(&:context_window)).to all(be_present)
     end
+
+    # ProviderRoutingRule validates a candidate's model against this catalog,
+    # so a model missing from here cannot be configured even when the account
+    # accepts it. The default in particular has to be selectable.
+    it "includes the default model so it can be named in a routing rule" do
+      expect(described_class.available_models.map(&:id)).to include(CodexInvocation::DEFAULT_MODEL)
+    end
   end
 
   describe ".refresh_stale_usage!" do

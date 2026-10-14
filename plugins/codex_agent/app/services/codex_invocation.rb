@@ -3,7 +3,11 @@ require "json"
 
 class CodexInvocation
   DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
-  DEFAULT_MODEL = "gpt-5.5"
+  # Overridable instance-wide via SYRUS_CODEX_MODEL, and per routing rule via
+  # a candidate's `model`. Worth knowing when changing this: a model the
+  # account cannot use fails every invocation with a 400 rather than
+  # degrading, which ProviderModelUnsupported classifies and fails over on.
+  DEFAULT_MODEL = "gpt-5.6"
   MCP_STARTUP_TIMEOUT_SECONDS = 60
   MCP_TOOL_TIMEOUT_SECONDS = 120
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes
