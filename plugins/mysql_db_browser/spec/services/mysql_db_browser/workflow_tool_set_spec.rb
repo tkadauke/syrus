@@ -48,12 +48,12 @@ RSpec.describe MysqlDbBrowser::WorkflowToolSet do
     expect(described_class.tool_definitions(context: review_context)).to eq([])
   end
 
-  it "delegates handling to ChatToolSet" do
+  it "delegates handling without revealing an unusable legacy connection" do
     disabled = Factories.mysql_connection(agentic_access_enabled: false)
 
     response = described_class.new.handle("mysql_db_browser_list_databases", { "mysql_connection_id" => disabled.id }, {})
 
     expect(response.error?).to be(true)
-    expect(response.content.first[:text]).to include("Agentic access is disabled")
+    expect(response.content.first[:text]).to include("was not found")
   end
 end
