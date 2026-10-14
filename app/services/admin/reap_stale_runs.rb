@@ -11,6 +11,8 @@ module Admin
         return Result.new(message: "A concurrent reconciliation is already running; try again shortly.", issues_count: 0, repairs_count: 0)
       end
 
+      Admin::StuckItemsCache.clear!
+
       Result.new(
         message: "WorkEngine reconciler ran inline.",
         issues_count: result.issues.size,
