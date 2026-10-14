@@ -84,6 +84,9 @@ class RunFailureClassifier
       result("database_lock", 0.85, true, "The run failed because another test run was already active in the same checkout; retry when the checkout is free.")
     when provider_auth_expired?
       result("provider_auth_expired", 0.95, false, "The provider authentication token expired and needs operator reauthorization.")
+    when provider_model_unsupported?
+      result(ProviderModelUnsupported::CLASSIFICATION, 0.95, false,
+             "The provider refused the model it was asked for. Retrying cannot help; the run has to go to a provider or model that accepts it.")
     # Legacy/external text fallback: new Syrus-owned agent invocation failures
     # declare Problems in Steps::Base#run_agent, but old RunDiagnostic rows and
     # third-party provider text still reach this classifier with prose only.
@@ -259,6 +262,13 @@ class RunFailureClassifier
     return false if run.agent_provider.blank?
 
     ProviderAuthFailure.detect?(provider_failure_text)
+  end
+
+  def provider_model_unsupported?
+    return false if run.agent_provider.blank?
+
+    run.agent_outcome == ProviderModelUnsupported::OUTCOME ||
+      ProviderModelUnsupported.detect?(provider_failure_text)
   end
 
   def process_died?

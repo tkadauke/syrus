@@ -249,6 +249,65 @@ RSpec.describe App::ProviderAvailability do
     expect(status.dig(:evidence, :current)).to include(status: "auth_error", source: "codex_invocation_auth_error", http_status: 401)
   end
 
+  # A provider that refuses its configured model is unusable until something
+  # is reconfigured, so availability has to report it open the same way an
+  # expired credential does. That is what makes routing fail over instead of
+  # feeding every run back into the same refusal.
+  it "reports a provider that refused its model as unavailable" do
+    run = failed_run(
+      provider: "codex",
+      outcome: ProviderModelUnsupported::OUTCOME,
+      message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account.",
+      classification: ProviderModelUnsupported::CLASSIFICATION
+    )
+    ProviderAvailabilityEvidence.record_invocation_model_unsupported!(
+      run: run,
+      message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account.",
+      http_status: 400,
+      observed_at: now - 1.minute
+    )
+
+    status = described_class.for_user(user, "codex", now: now, cached: false)
+
+    expect(status).to include(
+      provider: "codex",
+      state: "model_unsupported",
+      open: true,
+      usage_exhausted: false,
+      retry_after: nil
+    )
+    expect(status[:model]).to eq("gpt-5.5")
+    expect(status[:message]).to include("gpt-5.5")
+    expect(status.dig(:evidence, :current)).to include(
+      status: "model_unsupported", source: "codex_invocation_model_unsupported", http_status: 400
+    )
+  end
+
+  it "clears a refused-model state after the same model succeeds again" do
+    run = failed_run(
+      provider: "codex",
+      outcome: ProviderModelUnsupported::OUTCOME,
+      message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account.",
+      classification: ProviderModelUnsupported::CLASSIFICATION
+    )
+    ProviderAvailabilityEvidence.record_invocation_model_unsupported!(
+      run: run,
+      message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account.",
+      http_status: 400,
+      observed_at: now - 2.minutes
+    )
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      source: "chat_turn_success",
+      model: "gpt-5.5",
+      observed_at: now - 1.minute
+    )
+
+    status = described_class.for_user(user, "codex", now: now, cached: false)
+
+    expect(status&.dig(:state)).not_to eq("model_unsupported")
+  end
+
   it "clears expired auth availability after a later successful provider run" do
     run = failed_run(
       provider: "codex",

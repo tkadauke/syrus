@@ -114,6 +114,8 @@ class Problem
                 default_remediation: :escalate),
       Entry.new(code: "provider_auth_or_config", scope: :external, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "provider_model_unsupported", scope: :external, retryable: false,
+                default_remediation: :escalate),
       Entry.new(code: "provider_prompt_too_long", scope: :run, retryable: false,
                 default_remediation: :escalate),
       Entry.new(code: "provider_usage_limit", scope: :external, retryable: true,

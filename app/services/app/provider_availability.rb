@@ -4,6 +4,10 @@ module App
     DISPLAY_EVIDENCE_SCAN_LIMIT = 50
     USAGE_LIMIT_EVIDENCE_SCAN_LIMIT = 100
     AUTH_ERROR_WINDOW = 7.days
+    # A refused model stays refused until someone changes the model or the
+    # plan, so this window is generous. A later success on the same
+    # provider/model suppresses it, which is how recovery is detected.
+    MODEL_UNSUPPORTED_WINDOW = 7.days
     LATEST_PROVIDER_RUN_INDEX = "idx_runs_provider_latest_finished"
     @cache_mutex = Mutex.new
     @process_cache = {}
@@ -118,6 +122,9 @@ module App
       auth_signal = PerformanceLogging.phase("provider_availability.auth_error_signal", provider: provider) { auth_error_signal }
       return auth_error_status(auth_signal) if auth_signal
 
+      model_signal = PerformanceLogging.phase("provider_availability.model_unsupported_signal", provider: provider) { model_unsupported_signal }
+      return model_unsupported_status(model_signal) if model_signal
+
       usage_signal = PerformanceLogging.phase("provider_availability.usage_limit_signal", provider: provider) { usage_limit_signal }
       return usage_limit_status(usage_signal) if usage_signal
 
@@ -152,6 +159,7 @@ module App
     UsageLimitSignal = Data.define(:run, :model, :reason, :evidence)
     RateLimitSignal = Data.define(:run, :reason, :evidence)
     AuthErrorSignal = Data.define(:evidence)
+    ModelUnsupportedSignal = Data.define(:evidence)
 
     def open_status(circuit)
       {
@@ -223,6 +231,27 @@ module App
       }.merge(pause_metadata)
     end
 
+    # Deliberately `open: true`, same as auth_error: that is what makes
+    # ProviderRouting::AvailabilitySelector skip this provider and hand the
+    # work to the next candidate instead of retrying a refusal.
+    def model_unsupported_status(signal)
+      model = signal.evidence.model.presence
+      {
+        provider: provider,
+        label: provider_label,
+        model: model,
+        state: "model_unsupported",
+        open: true,
+        usage_exhausted: false,
+        retry_after: nil,
+        reason: "Provider refused the requested model.",
+        message: "#{provider_label} refused #{model ? "the #{model} model" : "the requested model"} for this account. " \
+                 "Choose a model this account can use, or route these runs to another provider.",
+        usage: usage_snapshot,
+        evidence: latest_evidence_payload(primary: signal.evidence.summary)
+      }.merge(pause_metadata)
+    end
+
     def usage_limit_status(signal)
       retry_after = retry_after_for_usage_signal(signal)
       {
@@ -238,6 +267,32 @@ module App
         usage: usage_snapshot,
         evidence: latest_evidence_payload(primary: usage_signal_summary(signal))
       }.merge(pause_metadata)
+    end
+
+    def model_unsupported_signal
+      current_model_unsupported_evidence&.then { |evidence| ModelUnsupportedSignal.new(evidence: evidence) }
+    end
+
+    def current_model_unsupported_evidence
+      model_unsupported_evidence_candidates.detect do |evidence|
+        !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
+          user: user,
+          provider: provider,
+          observed_at: evidence.observed_at,
+          account_id: evidence.account_id,
+          model: evidence.model
+        )
+      end
+    end
+
+    def model_unsupported_evidence_candidates
+      @model_unsupported_evidence_candidates ||= ProviderAvailabilityEvidence
+        .where(user: user, provider: provider, status: "model_unsupported")
+        .unrepaired_for_circuit
+        .where("observed_at >= ?", now - MODEL_UNSUPPORTED_WINDOW)
+        .recent
+        .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+        .to_a
     end
 
     def auth_error_signal

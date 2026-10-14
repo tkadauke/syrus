@@ -176,6 +176,37 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("Octokit::BadGateway")
   end
 
+  # Retrying a refused model cannot work, so it must not consume the retry
+  # budget. One real incident spent 25 merge-train attempts over 90 minutes
+  # on exactly this.
+  it "classifies a refused model as non-retryable" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.update!(agent_provider: "codex")
+    record = run.run_failure_classification || run.build_run_failure_classification
+    record.update!(
+      classification: ProviderModelUnsupported::CLASSIFICATION,
+      retryable: false,
+      confidence: 0.95,
+      reason: "The provider refused the model it was asked for.",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_model_unsupported")
+  end
+
+  it "classifies the refused-model agent outcome as non-retryable even with no classification row" do
+    fail_run!(agent_outcome: ProviderModelUnsupported::OUTCOME)
+    run.update!(agent_provider: "codex")
+    run.run_failure_classification&.destroy
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+  end
+
   it "classifies persisted provider auth expiration as non-retryable before generic turn_failed" do
     fail_run!(agent_outcome: "turn_failed")
     run.update!(agent_provider: "codex")

@@ -10,10 +10,16 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     probe_unavailable
     auth_error
     unsupported
+    model_unsupported
   ].freeze
 
   POSITIVE_STATUSES = %w[available].freeze
-  NEGATIVE_STATUSES = %w[exhausted warning rate_limited auth_error].freeze
+  # model_unsupported is negative for the same reason auth_error is: the
+  # provider will refuse every request until something is reconfigured, so
+  # routing has to treat it as unavailable and move on rather than keep
+  # feeding it work. ("unsupported" above is a probe status -- it means the
+  # provider has no usage probe, not that a model was refused.)
+  NEGATIVE_STATUSES = %w[exhausted warning rate_limited auth_error model_unsupported].freeze
   PROBE_SOURCES = %w[usage_probe].freeze
 
   belongs_to :user
@@ -184,6 +190,35 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       model: nil,
       status: "auth_error",
       source: "#{provider}_invocation_auth_error",
+      observed_at: observed_at,
+      http_status: http_status,
+      details: sanitized_details(
+        run_id: run.id,
+        agent_outcome: run.agent_outcome,
+        failure_classification: run.run_failure_classification&.classification,
+        message: message
+      )
+    )
+    App::ProviderAvailability.clear_cache!(user: run.user, provider: provider)
+    evidence
+  end
+
+  # Recorded when a provider refuses the model it was asked for on an
+  # otherwise-healthy account. Scoped to the model, because that is the
+  # actionable fact: "switch the model" and "the provider is down" call for
+  # very different operator responses.
+  def self.record_invocation_model_unsupported!(run:, model: nil, message: nil, http_status: nil, observed_at: Time.current)
+    return unless run&.user && run.agent_provider.present?
+
+    provider = run.agent_provider.to_s
+    evidence = create!(
+      user: run.user,
+      run: run,
+      provider: provider,
+      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      model: model.presence || ProviderModelUnsupported.extract_model(message),
+      status: "model_unsupported",
+      source: "#{provider}_invocation_model_unsupported",
       observed_at: observed_at,
       http_status: http_status,
       details: sanitized_details(

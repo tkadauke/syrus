@@ -187,6 +187,20 @@ module Runs
         return
       end
 
+      # Without this the fault leaves no trace availability can see, so
+      # nothing marks the provider unusable and routing keeps sending every
+      # run back into a refusal it cannot recover from.
+      if failure_classification_record&.classification == ProviderModelUnsupported::CLASSIFICATION ||
+          agent_outcome.to_s == ProviderModelUnsupported::OUTCOME
+        ProviderAvailabilityEvidence.record_invocation_model_unsupported!(
+          run: run,
+          model: run.model.presence || ProviderModelUnsupported.extract_model(text),
+          message: text,
+          observed_at: finished_at || Time.current
+        )
+        return
+      end
+
       if agent_outcome.to_s.in?(ProviderRateLimitEvidence::OUTCOMES) || explicit_rate_limited_classification?
         ProviderAvailabilityEvidence.record_invocation_rate_limit!(
           run: run,

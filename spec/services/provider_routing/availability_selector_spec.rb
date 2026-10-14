@@ -63,6 +63,58 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
       expect(decision).not_to be_exhausted
     end
 
+    # Mirrors a real incident: the provider kept refusing the only model it
+    # was configured with, on a healthy account, while the other candidate
+    # had a working credential and a 100% success rate. Nothing failed over,
+    # because a permanent refusal produced no availability state at all.
+    it "fails over away from a provider that is refusing its model" do
+      user.update!(provider_availability_pause_thresholds: { "claude" => 0, "codex" => 0 })
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        candidates: [ { "provider" => "codex" }, { "provider" => "claude" } ]
+      )
+      # No `open` key on purpose: `open: true` short-circuits the check
+      # before the state is consulted, so a payload carrying only the state
+      # is what actually exercises the state list.
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "model_unsupported" }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(nil)
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "codex")
+      )
+
+      expect(decision.candidate.provider).to eq("claude")
+      expect(decision).to be_failover
+      expect(decision).not_to be_exhausted
+    end
+
+    it "reports exhausted rather than failing over when the only candidate is refusing its model" do
+      user.update!(provider_availability_pause_thresholds: { "codex" => 0 })
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        candidates: [ { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(
+        { state: "model_unsupported" }
+      )
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "codex")
+      )
+
+      expect(decision).to be_exhausted
+    end
+
     it "fails over before checking availability when the preferred candidate has no configured credentials" do
       user.update!(codex_api_key: nil, provider_availability_pause_thresholds: { "codex" => 0, "claude" => 0 })
       ProviderRoutingRule.create!(

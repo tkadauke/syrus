@@ -368,6 +368,32 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  # Permanent, not transient: retrying cannot help, so this must not be
+  # marked retryable or the loop burns its whole budget on a refusal.
+  it "classifies a refused model as a non-retryable provider fault" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    JobLog.append!(
+      run: run,
+      chunk: %([codex error] {"status":400,"error":{"message":"The 'gpt-5.5' model is not supported ) +
+             %(when using Codex with a ChatGPT account."}}),
+      kind: "system"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq(ProviderModelUnsupported::CLASSIFICATION)
+    expect(result.retryable).to eq(false)
+  end
+
+  it "classifies the provider_model_unsupported outcome even without matching text" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: ProviderModelUnsupported::OUTCOME)
+
+    result = classification
+
+    expect(result.classification).to eq(ProviderModelUnsupported::CLASSIFICATION)
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies Codex websocket 401s as expired provider auth" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
     diagnostic("CodexInvocation::Error", "websocket connection rejected with 401 Unauthorized")

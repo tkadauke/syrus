@@ -39,6 +39,65 @@ RSpec.describe Runs::LifecyclePropagation, :ci_only do
     expect(evidence.model).to eq("gpt-5.5")
   end
 
+  # Without this evidence the fault is invisible to availability, so nothing
+  # marks the provider unusable and routing keeps sending work into a refusal
+  # it cannot recover from. The evidence row is the whole failover trigger.
+  it "records refused-model evidence so availability can fail the provider over" do
+    job = Factories.job(agent_provider: "codex")
+    run = job.initial_run
+    run.update!(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: ProviderModelUnsupported::OUTCOME,
+      model: "gpt-5.5",
+      step: nil,
+      finished_at: Time.current
+    )
+    run.create_run_diagnostic!(
+      error_class: "Steps::Base::StepFailed",
+      error_message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account."
+    )
+
+    described_class.failed!(run.reload)
+
+    evidence = ProviderAvailabilityEvidence.find_by!(run: run, status: "model_unsupported")
+    expect(evidence.model).to eq("gpt-5.5")
+    expect(evidence.source).to eq("codex_invocation_model_unsupported")
+  end
+
+  it "records refused-model evidence from the classification alone" do
+    job = Factories.job(agent_provider: "codex")
+    run = job.initial_run
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed", step: nil, finished_at: Time.current)
+    record = run.run_failure_classification || run.build_run_failure_classification
+    record.update!(
+      classification: ProviderModelUnsupported::CLASSIFICATION,
+      confidence: 0.95,
+      retryable: false,
+      reason: "provider refused the requested model",
+      classified_at: Time.current
+    )
+    run.create_run_diagnostic!(
+      error_class: "Steps::Base::StepFailed",
+      error_message: "The 'gpt-5.2-codex' model is not supported when using Codex with a ChatGPT account."
+    )
+
+    described_class.failed!(run.reload)
+
+    expect(ProviderAvailabilityEvidence.find_by!(run: run, status: "model_unsupported").model).to eq("gpt-5.2-codex")
+  end
+
+  it "does not record refused-model evidence for an ordinary agent failure" do
+    job = Factories.job(agent_provider: "codex")
+    run = job.initial_run
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed", step: nil, finished_at: Time.current)
+    run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "the grader failed")
+
+    described_class.failed!(run.reload)
+
+    expect(ProviderAvailabilityEvidence.where(run: run, status: "model_unsupported")).to be_empty
+  end
+
   it "does not record usage evidence from generic billing prose without structured provider outcome" do
     job = Factories.job(agent_provider: "codex")
     run = job.initial_run

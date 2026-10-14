@@ -975,6 +975,35 @@ RSpec.describe CodexInvocation do
       expect(events).to include([ "[codex error] temporary upstream failure", { kind: "system" } ])
     end
 
+    # The provider rejects the model with a 400 on an otherwise-healthy
+    # account. Left as a generic turn_failed it looks transient, gets
+    # retried forever, and never fails over to another provider.
+    it "captures a refused model as a distinct outcome" do
+      events = []
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = {
+        type: "turn.failed",
+        error: { "type" => "invalid_request_error", "message" => "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account." }.to_json
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: ProviderModelUnsupported::OUTCOME,
+        final_text: a_string_including("not supported when using Codex")
+      )
+    end
+
+    it "captures a refused model reported on the error event too" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = { type: "error", message: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account." }.to_json
+
+      update = invocation.send(:process_event, event, ->(*, **) { })
+
+      expect(update).to include(is_error: true, outcome: ProviderModelUnsupported::OUTCOME)
+    end
+
     it "captures Codex expired auth turn failures as a distinct outcome" do
       events = []
       invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")

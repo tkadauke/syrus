@@ -14,6 +14,7 @@ class AutoRetryFailureClassifier
 
   NON_RETRYABLE_AGENT_OUTCOMES = {
     ProviderAuthFailure::OUTCOME => "provider authentication token expired",
+    ProviderModelUnsupported::OUTCOME => "provider refused the requested model",
     ProviderUsageLimit::OUTCOME => "provider usage limit or model quota exhausted",
     "error_max_turns" => "agent exhausted max turns",
     "git_state_corrupt" => "agent corrupted git state",
@@ -122,6 +123,12 @@ class AutoRetryFailureClassifier
     end
     if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
       return non_retryable(ProviderAuthFailure::CLASSIFICATION, run.run_failure_classification.reason.presence || "provider authentication token expired")
+    end
+    if run.run_failure_classification&.classification == ProviderModelUnsupported::CLASSIFICATION
+      return non_retryable(
+        ProviderModelUnsupported::CLASSIFICATION,
+        run.run_failure_classification.reason.presence || "provider refused the requested model"
+      )
     end
     if authoritative_run_failure_classification?(run.run_failure_classification)
       classification = run.run_failure_classification

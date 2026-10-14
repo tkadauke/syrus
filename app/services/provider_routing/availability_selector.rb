@@ -175,12 +175,17 @@ module ProviderRouting
       remaining.nil? || !user.provider_availability_pause_enabled?(provider) || remaining >= user.provider_availability_pause_threshold_for(provider)
     end
 
+    UNAVAILABLE_STATES = %w[open rate_limited exhausted auth_error model_unsupported].freeze
+
     def actively_unavailable?(provider, payload)
       return true if user.provider_availability_overridden?(provider, evidence_observed_at: evidence_observed_at(payload))
       return true if payload&.dig(:open) == true || payload&.dig("open") == true
       return true if payload&.dig(:usage_exhausted) == true || payload&.dig("usage_exhausted") == true
-      return true if payload&.dig(:state).to_s.in?(%w[open rate_limited exhausted auth_error])
-      return true if payload&.dig("state").to_s.in?(%w[open rate_limited exhausted auth_error])
+      # model_unsupported belongs here with auth_error: both mean this
+      # provider will refuse every request until it is reconfigured, so the
+      # next candidate is strictly better than retrying this one.
+      return true if payload&.dig(:state).to_s.in?(UNAVAILABLE_STATES)
+      return true if payload&.dig("state").to_s.in?(UNAVAILABLE_STATES)
 
       false
     end

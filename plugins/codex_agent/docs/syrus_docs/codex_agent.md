@@ -54,10 +54,25 @@ handles the outcome-determining events:
 - `turn.failed` / `error` — failure. The message is scoped with
   `codex_error_detail` (prefixed `"model <model>: ..."`) before usage-limit
   detection so a rate-limit match is attributed to the right model; matches
-  against `ProviderUsageLimit.detect?` and `ProviderAuthFailure.detect?` are
-  classified into `ProviderUsageLimit::OUTCOME` /
-  `ProviderAuthFailure::OUTCOME` respectively before falling back to a
+  against `ProviderUsageLimit.detect?`, `ProviderAuthFailure.detect?` and
+  `ProviderModelUnsupported.detect?` are classified into
+  `ProviderUsageLimit::OUTCOME` / `ProviderAuthFailure::OUTCOME` /
+  `ProviderModelUnsupported::OUTCOME` respectively before falling back to a
   generic `turn_failed`/`error` outcome.
+
+  `ProviderModelUnsupported` covers the provider refusing the model it was
+  asked for on an otherwise-healthy account — a 400 whose message says the
+  model "is not supported" for this account, or that it does not exist / is
+  not accessible. This is a permanent fault, so it is deliberately not
+  treated as transient: it classifies non-retryable, records a
+  `model_unsupported` `ProviderAvailabilityEvidence` row scoped to the
+  refused model, and that makes `App::ProviderAvailability` report the
+  provider open so `ProviderRouting::AvailabilitySelector` fails over to the
+  next candidate instead of retrying. Left generic, this failure looks
+  transient and is retried indefinitely — one incident spent 25 merge-train
+  attempts over 90 minutes without ever trying the other configured
+  provider, which had a working credential throughout. A later success on the
+  same provider and model clears the state.
 - `item.started` / `item.completed` — the granular per-item stream
   (`process_item_event`): `agent_message` (assistant text, tagged
   `assistant_text_seen` for startup-timing instrumentation),
