@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
+import type { KeyboardEvent } from "react"
 import { patchReviewDiffSettings, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { Button } from "../../components/Button"
 import { Checkbox } from "../../components/Checkbox"
@@ -18,6 +19,13 @@ const REVIEW_SETTINGS_MODAL_CLASS = [
   "p-5",
   "shadow-[var(--shadow-panel)]"
 ].join(" ")
+
+const NUMERIC_SETTINGS = {
+  tab_width: { min: 2, max: 8 },
+  context_lines: { min: 5, max: 200 }
+} as const
+
+type NumericSettingKey = keyof typeof NUMERIC_SETTINGS
 
 export type ReviewDiffSettingsMetricOption = {
   id: string
@@ -38,6 +46,10 @@ export function ReviewDiffSettingsModal({
   const queryClient = useQueryClient()
   const { t } = useT("jobs")
   const [settings, setSettings] = useState(initialSettings)
+  const [numericDrafts, setNumericDrafts] = useState<Record<NumericSettingKey, string>>({
+    tab_width: String(initialSettings.tab_width),
+    context_lines: String(initialSettings.context_lines)
+  })
   const mutation = useMutation({
     mutationFn: patchReviewDiffSettings,
     onSuccess: (payload) => {
@@ -54,6 +66,33 @@ export function ReviewDiffSettingsModal({
       onChange(patch)
     } else {
       mutation.mutate(patch)
+    }
+  }
+
+  function updateNumericDraft(key: NumericSettingKey, value: string) {
+    setNumericDrafts((drafts) => ({ ...drafts, [key]: value }))
+  }
+
+  function commitNumericDraft(key: NumericSettingKey) {
+    const draft = numericDrafts[key].trim()
+    const parsedValue = Number(draft)
+    if (!draft || !Number.isFinite(parsedValue)) {
+      updateNumericDraft(key, String(settings[key]))
+      return
+    }
+
+    const range = NUMERIC_SETTINGS[key]
+    const nextValue = Math.min(range.max, Math.max(range.min, Math.round(parsedValue)))
+    updateNumericDraft(key, String(nextValue))
+    if (nextValue !== settings[key]) {
+      updateSetting(key, nextValue)
+    }
+  }
+
+  function handleNumericKeyDown(key: NumericSettingKey, event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      commitNumericDraft(key)
+      event.currentTarget.blur()
     }
   }
 
@@ -86,11 +125,27 @@ export function ReviewDiffSettingsModal({
         ) : null}
         <label className="space-y-1 text-sm text-text-secondary">
           <span>{t("review_settings_tab_width")}</span>
-          <Input max={8} min={2} onChange={(event) => updateSetting("tab_width", Number(event.target.value))} type="number" value={settings.tab_width} />
+          <Input
+            max={NUMERIC_SETTINGS.tab_width.max}
+            min={NUMERIC_SETTINGS.tab_width.min}
+            onBlur={() => commitNumericDraft("tab_width")}
+            onChange={(event) => updateNumericDraft("tab_width", event.target.value)}
+            onKeyDown={(event) => handleNumericKeyDown("tab_width", event)}
+            type="number"
+            value={numericDrafts.tab_width}
+          />
         </label>
         <label className="space-y-1 text-sm text-text-secondary">
           <span>{t("review_settings_context_lines")}</span>
-          <Input max={200} min={5} onChange={(event) => updateSetting("context_lines", Number(event.target.value))} type="number" value={settings.context_lines} />
+          <Input
+            max={NUMERIC_SETTINGS.context_lines.max}
+            min={NUMERIC_SETTINGS.context_lines.min}
+            onBlur={() => commitNumericDraft("context_lines")}
+            onChange={(event) => updateNumericDraft("context_lines", event.target.value)}
+            onKeyDown={(event) => handleNumericKeyDown("context_lines", event)}
+            type="number"
+            value={numericDrafts.context_lines}
+          />
         </label>
         <SettingsCheckbox checked={settings.syntax_highlighting} label={t("review_settings_syntax")} onChange={(checked) => updateSetting("syntax_highlighting", checked)} />
         <SettingsCheckbox checked={settings.visible_whitespace} label={t("review_settings_visible_whitespace")} onChange={(checked) => updateSetting("visible_whitespace", checked)} />
