@@ -15,6 +15,8 @@ module JavaScript
     SCRIPT_SELECTOR = %q{node -e "const s=(require('./package.json').scripts||{});process.stdout.write(s.dev?'dev':'start')"}.freeze
 
     def detect?(repo_path)
+      return false if framework_preview_repo?(repo_path)
+
       SCRIPT_KEYS.any? { |key| scripts(repo_path).key?(key) }
     end
 
@@ -35,6 +37,33 @@ module JavaScript
     end
 
     private
+
+    def framework_preview_repo?(repo_path)
+      path = Pathname.new(repo_path)
+      rails_repo?(path) || django_repo?(path)
+    end
+
+    def rails_repo?(path)
+      path.join("Gemfile").exist? &&
+        path.join("config", "application.rb").exist? &&
+        path.join("bin", "rails").exist?
+    end
+
+    def django_repo?(path)
+      manage_py = path.join("manage.py")
+      return false unless manage_py.exist?
+
+      module_name = django_settings_module_name(manage_py)
+      return false unless module_name
+
+      relative = module_name.split(".").join("/")
+      path.join("#{relative}.py").exist? || path.join(relative, "__init__.py").exist?
+    end
+
+    def django_settings_module_name(manage_py)
+      match = manage_py.read.match(/DJANGO_SETTINGS_MODULE["']?\s*,\s*["']([\w.]+)["']/)
+      match && match[1]
+    end
 
     def scripts(repo_path)
       package_json = Pathname.new(repo_path).join("package.json")
