@@ -29,9 +29,10 @@ class GraderLoopProgress
     rounds = Array(workflow.artifact(ARTIFACT_KEY)).reject { |round| round["iteration"] == current["iteration"] }
     workflow.set_artifact!(ARTIFACT_KEY, rounds + [ current ])
 
+    return Result.continue if current["transient_only"]
     return Result.continue unless prior
     if progressing?(prior.fetch("failing_set"), current.fetch("failing_set"))
-      workflow.job.clear_needs_attention!(reason: NO_PROGRESS_REASON) unless current["transient_only"]
+      workflow.job.clear_needs_attention!(reason: NO_PROGRESS_REASON)
       return Result.continue
     end
 
