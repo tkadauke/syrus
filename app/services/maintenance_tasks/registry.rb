@@ -4,6 +4,7 @@ module MaintenanceTasks
       def definitions
         @definitions ||= [
           Definitions::AgentsBackfill.new,
+          Definitions::BareCloneRemoteScrub.new,
           Definitions::LandedCommitsBackfill.new,
           Definitions::PreemptedExternalPrBackfill.new,
           Definitions::SearchDatabaseRebuild.new,
