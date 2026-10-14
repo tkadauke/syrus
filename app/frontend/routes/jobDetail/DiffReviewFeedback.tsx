@@ -23,6 +23,7 @@ import {
   type DiffReviewVersion
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
+import { parseUnifiedDiff, splitLines } from "../../components/diff/diffRendering"
 import { Pill, surfaceClasses } from "../../components/ui"
 import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
 import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
@@ -792,11 +793,17 @@ function discussionMessageForSelection({ body, headRef, selection }: { body: str
   ].join("\n")
 }
 
-function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
+export function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
   if (!patch) return null
-  const rows = patch.split("\n")
-  const marker = line.newLine != null ? `+${line.code}` : line.oldLine != null ? `-${line.code}` : ` ${line.code}`
-  const index = rows.findIndex((row) => row === marker)
+  const rows = splitLines(patch)
+  const parsedLines = parseUnifiedDiff(patch)
+  const index = parsedLines.findIndex((parsedLine) => (
+    parsedLine.kind === line.kind &&
+    parsedLine.code === line.code &&
+    (line.oldLine == null || parsedLine.oldLine === line.oldLine) &&
+    (line.newLine == null || parsedLine.newLine === line.newLine) &&
+    (line.oldLine != null || line.newLine != null)
+  ))
   if (index === -1) return rows.find((row) => row.startsWith("@@ ")) || null
   return rows.slice(Math.max(0, index - 4), Math.min(rows.length, index + 5)).join("\n")
 }
