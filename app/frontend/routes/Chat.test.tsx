@@ -590,6 +590,92 @@ describe("ChatWorkspace split breakpoint", () => {
 })
 
 describe("chat message tail refetch", () => {
+  it("does not merge a pending older page into a cached chat opened before the page resolves", async () => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+
+    let resolveOlderPage: ((response: Response) => void) | null = null
+    const olderPage = new Promise<Response>((resolve) => {
+      resolveOlderPage = resolve
+    })
+    const firstChat = chatPayload({}, { has_more_older: true, pending_proposal_count: 1 })
+    const secondChat = chatPayload({
+      chat: { id: 9, title: "Canal planning" },
+      messages: [
+        {
+          type: "message",
+          id: 19,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Discuss canals." },
+          text: "Discuss canals.",
+          bookmarkable: true
+        }
+      ]
+    }, {
+      paths: {
+        ...chatPayload().paths,
+        app_messages_path: "/api/v1/app/chats/9/messages"
+      }
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(chatQueryKey("9", ""), secondChat)
+
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/messages?before=9") {
+        return olderPage
+      }
+      if (path === "/api/v1/app/chats/9") {
+        return Promise.resolve(jsonResponse(secondChat))
+      }
+
+      return Promise.resolve(jsonResponse(firstChat))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRouteWithChatSwitch />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }))
+    expect(await screen.findByText("Loading older messages...")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+    expect(await screen.findByText("Discuss canals.")).toBeInTheDocument()
+    expect(screen.queryByText("Loading older messages...")).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveOlderPage?.(jsonResponse({
+        has_more_older: false,
+        messages: [
+          {
+            type: "message",
+            id: 4,
+            role: "user",
+            tool_name: null,
+            content: { text: "Old aqueduct page from the previous chat." },
+            text: "Old aqueduct page from the previous chat.",
+            bookmarkable: true
+          }
+        ]
+      }))
+      await olderPage
+    })
+
+    expect(screen.getByText("Discuss canals.")).toBeInTheDocument()
+    expect(screen.queryByText("Old aqueduct page from the previous chat.")).not.toBeInTheDocument()
+  })
+
   it("preserves older messages when a background refetch returns only the latest page", async () => {
     const olderMessage = {
       type: "message",
