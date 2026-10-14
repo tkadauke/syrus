@@ -112,7 +112,7 @@ describe("RetentionSettings", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ retention_settings: { notification_retention_days: 0 } })
+        body: JSON.stringify({ retention_settings: { notification_retention_days: 0, notification_retention_days_infinite: true } })
       }))
     })
     expect(await screen.findByText("Unbounded")).toBeInTheDocument()
@@ -145,9 +145,25 @@ describe("RetentionSettings", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ retention_settings: { notification_retention_days: 45 } })
+        body: JSON.stringify({ retention_settings: { notification_retention_days: 45, notification_retention_days_infinite: false } })
       }))
     })
+  })
+
+  it("blocks a blank finite retention value before it can be saved as infinite", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(retentionPayload())))
+
+    renderRoute()
+    await screen.findByText("notifications")
+
+    const numberInput = screen.getByLabelText("Retention window for notifications")
+    fireEvent.change(numberInput, { target: { value: "" } })
+    fireEvent.submit(numberInput.closest("form")!)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a retention window of at least 1.")
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
+      method: "PATCH"
+    }))
   })
 
   it("saves the manual available-space override", async () => {
@@ -218,6 +234,7 @@ describe("RetentionSettings", () => {
         body: JSON.stringify({
           retention_settings: {
             run_diagnostic_retention_days: 30,
+            run_diagnostic_retention_days_infinite: false,
             run_diagnostic_archive_before_delete: true
           }
         })

@@ -236,6 +236,9 @@ en:
 
     admin_retention_settings:
       updated: "Retention settings updated."
+      retention_value_required: "Enter a retention window for %{table}."
+      infinite_flag_required: "Choose infinite retention explicitly for %{table}."
+      infinite_value_required: "Infinite retention for %{table} must be saved as 0."
 
     direct_jobs:
       repository_not_found: "Repository not found or not active."
