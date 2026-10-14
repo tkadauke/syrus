@@ -97,6 +97,32 @@ describe("parseUnifiedDiff", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1)
     expect(warnSpy.mock.calls[0][0]).toContain("unexpected line inside diff")
   })
+
+  it("treats --- and +++ prefixes as changed content while hunk lines remain", () => {
+    const patch = [
+      "diff --git a/f.yml b/f.yml",
+      "--- a/f.yml",
+      "+++ b/f.yml",
+      "@@ -1,5 +1,3 @@",
+      " a",
+      "----",
+      "--- comment",
+      "-old",
+      "+++i;",
+      " d"
+    ].join("\n")
+
+    const hunkLines = parseUnifiedDiff(patch).filter((line) => line.kind !== "file" && line.kind !== "meta" && line.kind !== "hunk")
+    expect(hunkLines.map((line) => [line.kind, line.oldLine, line.newLine, line.marker, line.code])).toEqual([
+      ["context", 1, 1, "", "a"],
+      ["delete", 2, null, "-", "---"],
+      ["delete", 3, null, "-", "-- comment"],
+      ["delete", 4, null, "-", "old"],
+      ["add", null, 2, "+", "++i;"],
+      ["context", 5, 3, "", "d"]
+    ])
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
 })
 
 describe("tokenizeCode", () => {

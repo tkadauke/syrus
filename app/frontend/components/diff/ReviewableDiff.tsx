@@ -1997,11 +1997,12 @@ function isAddedFileDiff(file: ReviewableDiffFile) {
 
 export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
   const lines = hunk.replace(/\r\n/g, "\n").split("\n")
+  const parsedLines = parseUnifiedDiff(hunk)
   return (
     <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-800">
       {lines.map((line, index) => (
         <div
-          className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(hunkLineKind(line))} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
+          className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(parsedLines[index]?.kind ?? "context")} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
           key={index}
         >
           {line || " "}
@@ -2009,13 +2010,6 @@ export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: strin
       ))}
     </div>
   )
-}
-
-function hunkLineKind(line: string): DiffLineKind {
-  if (line.startsWith("@@")) return "hunk"
-  if (line.startsWith("+") && !line.startsWith("+++")) return "add"
-  if (line.startsWith("-") && !line.startsWith("---")) return "delete"
-  return "context"
 }
 
 // Renders one diff line's code cell. When Shiki tokens are available (see
@@ -2800,11 +2794,12 @@ export function filesFromUnifiedDiff(diff: string): ReviewableDiffFile[] {
   const rawFiles = normalized.split(/\n(?=diff --git )/)
   const files = rawFiles.map((patch, index) => {
     const path = pathFromPatch(patch) || (rawFiles.length === 1 ? "diff" : `diff-${index + 1}`)
+    const lines = parseUnifiedDiff(patch)
     return {
       path,
       patch,
-      additions: patch.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++")).length,
-      deletions: patch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")).length,
+      additions: lines.filter((line) => line.kind === "add").length,
+      deletions: lines.filter((line) => line.kind === "delete").length,
       status: statusFromPatch(patch)
     }
   })

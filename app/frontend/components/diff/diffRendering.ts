@@ -81,9 +81,12 @@ export function parseUnifiedDiff(diff: string) {
   const lines: DiffLine[] = []
   let oldLine: number | null = null
   let newLine: number | null = null
+  let remainingOldLines = 0
+  let remainingNewLines = 0
   let hunkId = -1
 
   for (const rawLine of rawLines) {
+    const insideHunkBody = remainingOldLines > 0 || remainingNewLines > 0
     const hunk = rawLine.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
     if (hunk) {
       const hunkOldStart = Number(hunk[1])
@@ -92,6 +95,8 @@ export function parseUnifiedDiff(diff: string) {
       const hunkNewLines = hunk[4] !== undefined ? Number(hunk[4]) : 1
       oldLine = hunkOldStart
       newLine = hunkNewStart
+      remainingOldLines = hunkOldLines
+      remainingNewLines = hunkNewLines
       hunkId += 1
       lines.push({ kind: "hunk", oldLine: null, newLine: null, marker: "", code: rawLine, hunkId, hunkOldStart, hunkOldLines, hunkNewStart, hunkNewLines })
       continue
@@ -99,16 +104,20 @@ export function parseUnifiedDiff(diff: string) {
 
     if (rawLine.startsWith("diff --git ")) {
       lines.push(diffLine("file", rawLine))
-    } else if (rawLine.startsWith("+") && !rawLine.startsWith("+++")) {
+    } else if (insideHunkBody && rawLine.startsWith("+") && remainingNewLines > 0) {
       lines.push(diffLine("add", rawLine.slice(1), null, newLine, "+", hunkId))
       if (newLine !== null) newLine += 1
-    } else if (rawLine.startsWith("-") && !rawLine.startsWith("---")) {
+      remainingNewLines -= 1
+    } else if (insideHunkBody && rawLine.startsWith("-") && remainingOldLines > 0) {
       lines.push(diffLine("delete", rawLine.slice(1), oldLine, null, "-", hunkId))
       if (oldLine !== null) oldLine += 1
-    } else if (rawLine.startsWith(" ") && oldLine !== null && newLine !== null) {
+      remainingOldLines -= 1
+    } else if (insideHunkBody && rawLine.startsWith(" ") && oldLine !== null && newLine !== null && remainingOldLines > 0 && remainingNewLines > 0) {
       lines.push(diffLine("context", rawLine.slice(1), oldLine, newLine, "", hunkId))
       oldLine += 1
       newLine += 1
+      remainingOldLines -= 1
+      remainingNewLines -= 1
     } else if (rawLine === NO_NEWLINE_MARKER) {
       lines.push(diffLine("no_newline", rawLine))
     } else {
