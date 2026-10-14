@@ -123,6 +123,88 @@ describe("ReviewWorkspace", () => {
     })
   })
 
+  it("keeps an unsaved line-comment draft when whole-review feedback is submitted", async () => {
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      old_line: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Ship it after this note."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([globalComment]))
+    vi.mocked(submitDiffReviewComments).mockResolvedValue({
+      message: "Diff comments submitted as chat feedback.",
+      workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
+      comments: [globalComment]
+    })
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+
+    const composer = screen.getByTestId("diff-review-composer")
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please keep this draft." } })
+    fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "Ship it after this note." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          anchor_kind: "review",
+          body: "Ship it after this note.",
+          diff_review_version_id: 100
+        })
+      )
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+    })
+    expect(within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")).toHaveValue("Please keep this draft.")
+  })
+
+  it("clears an unsaved line-comment draft when the displayed diff version changes", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+        versions: [
+          version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+          version({ id: 200, version_index: 2, label: "Repair", run_id: 22 })
+        ]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue(
+      {
+        ...version({
+          id: 200,
+          version_index: 2,
+          label: "Repair",
+          run_id: 22
+        }),
+        job_id: 42,
+        default_ref: "main",
+        diff_error: null,
+        files: sourceDiffPayload().files
+      }
+    )
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+    fireEvent.change(within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment"), { target: { value: "Wrong version if kept." } })
+
+    fireEvent.click(screen.getByLabelText("Version"))
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    fireEvent.click(within(listbox).getByRole("button", { name: "v2 RUN-22" }))
+
+    await waitFor(() => expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200))
+    expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
+  })
+
   it("does not render plugin review-note chrome when no annotations exist", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
