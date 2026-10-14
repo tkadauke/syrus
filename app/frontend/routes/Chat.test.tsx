@@ -2178,6 +2178,58 @@ describe("chat pending proposal jump banner", () => {
     })
   })
 
+  it("does not merge a pending older-message page into a cached chat after switching chats", async () => {
+    mockDesktopViewport()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const firstChat = chatPayload({
+      messages: [chatMessage(9, "assistant", "Latest aqueduct update.", localDateAt(9, 0))]
+    }, { has_more_older: true, pending_proposal_count: 1 })
+    const secondChat = chatPayload({
+      chat: { id: 9, title: "Canal planning" },
+      messages: [chatMessage(19, "assistant", "Discuss canals.", localDateAt(10, 0))]
+    }, { has_more_older: false })
+    let resolveOlderPage: ((response: Response) => void) | null = null
+    const olderPage = new Promise<Response>((resolve) => {
+      resolveOlderPage = resolve
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/messages?before=9") return olderPage
+      if (path === "/api/v1/app/chats/9") return Promise.resolve(jsonResponse(secondChat))
+
+      return Promise.resolve(jsonResponse(firstChat))
+    })
+    queryClient.setQueryData(chatQueryKey(9, ""), secondChat)
+
+    renderRouteWithChatSwitch(queryClient)
+
+    expect(await screen.findByText("Latest aqueduct update.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }))
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/messages?before=9", expect.anything())
+    })
+
+    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
+
+    expect(await screen.findByText("Discuss canals.")).toBeInTheDocument()
+    expect(screen.queryByText("Loading earlier messages...")).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveOlderPage?.(jsonResponse({
+        has_more_older: false,
+        messages: [chatMessage(4, "assistant", "Older aqueduct context.", localDateAt(8, 0))]
+      }))
+      await olderPage
+    })
+
+    expect(screen.getByText("Discuss canals.")).toBeInTheDocument()
+    expect(screen.queryByText("Older aqueduct context.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Latest aqueduct update.")).not.toBeInTheDocument()
+  })
+
   it("jumps through pending proposal messages in order", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -6243,9 +6295,9 @@ function renderRouteWithAwayLink() {
   )
 }
 
-function renderRouteWithChatSwitch() {
+function renderRouteWithChatSwitch(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <Routes>
           <Route element={<ChatRouteWithChatSwitch />} path="/app-shell/chats/:id" />

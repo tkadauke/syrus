@@ -234,7 +234,7 @@ export function ChatRoute() {
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_chat"))}</PanelMessage> : null}
-      {chat.isSuccess ? <ChatView chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
+      {chat.isSuccess ? <ChatView key={chat.data.chat.id} chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
 }
@@ -535,8 +535,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const visibleItemsSignature = chatStreamItemsSignature(streamItems)
   const retryTextMap = useMemo(() => retryTextByMessageId(displayedMessages), [displayedMessages])
   const loadOlder = useMutation({
-    mutationFn: (before: number) => fetchChatMessages(payload.paths.app_messages_path, before),
-    onSuccess: (page) => {
+    mutationFn: ({ before, messagesPath }: { before: number; chatId: string | number; messagesPath: string }) => fetchChatMessages(messagesPath, before),
+    onSuccess: (page, variables) => {
+      if (String(variables.chatId) !== String(streamChatIdRef.current)) return
+
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
@@ -618,9 +620,9 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       scrollHeight: stream.scrollHeight,
       scrollTop: stream.scrollTop
     } : null
-    loadOlder.mutate(oldestId)
+    loadOlder.mutate({ before: oldestId, chatId: payload.chat.id, messagesPath: payload.paths.app_messages_path })
     return true
-  }, [hasMoreOlder, loadOlder, oldestId])
+  }, [hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path])
 
   useEffect(() => {
     if (!olderMessageRequesterRef) return
@@ -821,8 +823,8 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     if (loadOlder.isPending || bookmarkLoadBeforeRef.current === oldestId) return
 
     bookmarkLoadBeforeRef.current = oldestId
-    loadOlder.mutate(oldestId)
-  }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
+    loadOlder.mutate({ before: oldestId, chatId: payload.chat.id, messagesPath: payload.paths.app_messages_path })
+  }, [activeBookmarkTarget, hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path, visibleItemsSignature])
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
