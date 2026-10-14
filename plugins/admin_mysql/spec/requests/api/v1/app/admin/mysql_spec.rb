@@ -24,6 +24,17 @@ RSpec.describe "API: /api/v1/app/admin/mysql", type: :request do
     expect(parse_body.dig("error", "code")).to eq("mysql_unavailable")
   end
 
+  it "rejects non-decimal thread ids before executing a kill" do
+    sign_in_as(admin)
+    PluginRecord.find_by!(name: "admin_mysql").update!(enabled: true)
+    allow(AdminMysql::Inspector).to receive(:mysql?).and_return(true)
+
+    post "/api/v1/app/admin/mysql/kill_query", params: { thread_id: "0x10" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(parse_body.dig("error", "message")).to include("positive decimal integer")
+  end
+
   it "does not advertise the admin page on SQLite" do
     sign_in_as(admin)
     PluginRecord.find_by!(name: "admin_mysql").update!(enabled: true)

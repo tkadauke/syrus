@@ -1,13 +1,14 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { KillQueryCard, killQuerySummary, parseKillQueryPayload } from "../adminMysqlToolCard"
+import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "@app/routes/chat/pendingActionToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
-  return killQuerySummary(context)
+  const result = parsePendingActionResult(context)
+  return result ? pendingActionCollapsedSummary(result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (!context.resultError && !parseKillQueryPayload(context)) return null
-  return <KillQueryCard context={context} />
+  const result = parsePendingActionResult(context)
+  return result ? <PendingActionResultCard result={result} /> : null
 }
 
 const adminMysqlKillQueryToolCard: ToolCardRenderer = {
