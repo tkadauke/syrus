@@ -147,22 +147,56 @@ module Prompts
     def render_archived_output(archived)
       reason = archived["unavailable_reason"] || archived[:unavailable_reason]
       if reason.present?
-        return indent(
-          "No output was captured for this grader: #{reason}. There is nothing to read and nothing to fix from it -- " \
-          "treat this grader as inconclusive for this iteration rather than as a code defect.",
-          by: 4
-        )
+        # A grader can leave no log behind and still have ingested results --
+        # test output written just before the process died, for instance. The
+        # records are worth showing even though the log is gone.
+        salvaged = Array(archived["failure_summary"] || archived[:failure_summary])
+        lines = [
+          indent(
+            "No log was captured for this grader: #{reason}.#{
+              salvaged.any? ? "" : " There is nothing to read and nothing to fix from it -- " \
+              "treat this grader as inconclusive for this iteration rather than as a code defect."
+            }",
+            by: 4
+          )
+        ]
+        if salvaged.any?
+          lines << indent("Its recorded results survived, though:", by: 4)
+          lines << indent(salvaged.join("\n"), by: 6)
+        end
+        return lines.join("\n")
       end
 
       path = archived["relative_path"] || archived[:relative_path]
       bytes = (archived["bytes"] || archived[:bytes]).to_i
       preview = (archived["preview"] || archived[:preview]).to_s
+      summary = Array(archived["failure_summary"] || archived[:failure_summary])
 
-      header = "Full log, complete and untruncated (#{format_bytes(bytes)}): #{path}"
-      instruction = "Read that file before changing anything. The lines below are only a short preview of it."
-      sections = [ indent(header, by: 4), indent(instruction, by: 4) ]
-      sections << indent("Preview:\n#{preview}", by: 6) if preview.present?
-      sections.join("\n")
+      sections = []
+
+      # An exact account from whichever plugin ingested this grader's results,
+      # when one is available. It beats the preview outright -- the preview is
+      # scraped out of log text and can miss failures the records already
+      # know about -- so it goes first and the preview is dropped.
+      if summary.any?
+        sections << indent("What failed (complete list, from this grader's own results):", by: 4)
+        sections << indent(summary.join("\n"), by: 6)
+      end
+
+      if path.present?
+        sections << indent("Full log, complete and untruncated (#{format_bytes(bytes)}): #{path}", by: 4)
+        sections << indent(
+          if summary.any?
+            "Open it for the detail behind any of the failures above."
+          else
+            "Read that file before changing anything. The lines below are only a short preview of it."
+          end,
+          by: 4
+        )
+        sections << indent("Preview:\n#{preview}", by: 6) if summary.empty? && preview.present?
+      end
+
+      sections.join("\n").presence
     end
 
     def output_for(entry)

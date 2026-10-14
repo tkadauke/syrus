@@ -892,6 +892,22 @@ writing) instead of an empty log, and the repair prompt presents it as
 inconclusive rather than as a code defect. Archiving is best-effort: a failure
 to write logs is logged and never changes the iteration's pass/fail verdict.
 
+`grader_collect` also asks any registered `:grader_failure_summarizer` plugin
+what failed, per non-passing grader, and stores the lines it returns on the
+same manifest entry as `failure_summary`. A log excerpt is a poor answer to
+that question — the failures are scattered through tens of kilobytes of prose,
+and one observed landing iteration recorded nine failing examples while
+showing the repair agent two of them. A plugin that already ingested the run's
+structured results answers it exactly, in a couple of kilobytes.
+
+When a summary is present the repair prompt leads with it and drops the
+log-derived preview, since the preview is scraped from log text and can miss
+failures the records already know about; the archived log is still offered for
+the detail behind each failure. A summary also survives a grader whose log did
+not — test output written just before the process died is still ingested — and
+is shown in that case too. Core never interprets these lines; see
+`grader_failure_summarizer` in `plugins.md`.
+
 When every failing required grader this iteration has an already-persisted
 `RunFailureClassification` naming a transient/infrastructure cause (a worker
 process dying, a full disk, a DB lock timeout, ...) rather than a code

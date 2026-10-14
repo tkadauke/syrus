@@ -19,6 +19,7 @@ module TestInsights
     provides domain_subscriber: "TestInsights::Subscribers",
              test_evidence: "TestInsights::TestEvidence",
              grader_input_materializer: "TestInsights::GraderRuntimeProfileProvider",
+             grader_failure_summarizer: "TestInsights::GraderFailureSummarizer",
              "global_search:source" => "TestInsights::SearchSource",
              repo_page_tab: "TestInsights::RepoPageTabs",
              ui_slot: "TestInsights::UiSlots",

@@ -243,9 +243,68 @@ RSpec.describe Prompts::GradeFailureFeedback do
 
       out = described_class.new(iterations: iterations, log_manifest: empty).to_s
 
-      expect(out).to include("No output was captured for this grader")
+      expect(out).to include("No log was captured for this grader")
       expect(out).to include("never started")
       expect(out).to include("inconclusive")
+    end
+
+    # An exact list from the plugin that ingested the results beats a preview
+    # scraped out of log text, so it replaces it rather than sitting beside it.
+    context "when a plugin summarized what failed" do
+      let(:summarized) do
+        {
+          "1" => [
+            manifest["1"].first.merge(
+              "preview" => "a scraped guess that missed most of the failures",
+              "failure_summary" => [
+                "9 of 13969 examples failed in this grader run. Every failure is listed below.",
+                "spec/jobs/browser_error_auto_report_job_spec.rb (3 failing)",
+                "  files one bug report when enabled"
+              ]
+            )
+          ]
+        }
+      end
+
+      it "leads with the complete failure list and drops the scraped preview" do
+        out = described_class.new(iterations: iterations, log_manifest: summarized).to_s
+
+        expect(out).to include("What failed (complete list, from this grader's own results)")
+        expect(out).to include("9 of 13969 examples failed")
+        expect(out).to include("spec/jobs/browser_error_auto_report_job_spec.rb (3 failing)")
+        expect(out).not_to include("a scraped guess")
+      end
+
+      it "still offers the full log for the detail behind those failures" do
+        out = described_class.new(iterations: iterations, log_manifest: summarized).to_s
+
+        expect(out).to include(".syrus/grade-logs/iteration-1/rspec.log")
+        expect(out).to include("Open it for the detail behind any of the failures above")
+      end
+
+      # A grader can die after its test output was written and ingested. The
+      # records are then the only account of the failure that survives.
+      it "surfaces recorded results even when no log survived" do
+        salvaged = {
+          "1" => [
+            {
+              "name" => "rspec",
+              "iteration" => 1,
+              "status" => "failed",
+              "bytes" => 0,
+              "unavailable_reason" => "the grader process produced no output before the Step ended",
+              "failure_summary" => [ "2 example(s) failed in this grader run. Every failure is listed below." ]
+            }
+          ]
+        }
+
+        out = described_class.new(iterations: iterations, log_manifest: salvaged).to_s
+
+        expect(out).to include("No log was captured for this grader")
+        expect(out).to include("Its recorded results survived, though:")
+        expect(out).to include("2 example(s) failed")
+        expect(out).not_to include("treat this grader as inconclusive")
+      end
     end
 
     it "keeps the old inline rendering when nothing was archived" do

@@ -19,6 +19,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `prompt_injector`
 - `artifact_renderer`
 - `grader_augmentor`
+- `grader_failure_summarizer`
 - `callbacks`
 - `prepare_detector`
 - `review_criteria_provider`
@@ -2238,6 +2239,68 @@ end
 Syrus::PluginRegistry.register(
   name: "my-plugin", version: "1.0.0",
   provides: { grader_augmentor: MyPlugin::GraderAugmentor }
+)
+```
+
+## `grader_failure_summarizer`
+
+Answers "what actually failed?" for a failed grader Step, so the repair agent
+that runs next gets an exact, complete list instead of whatever the grader log
+excerpt happened to include.
+
+Consulted by `Steps::GraderCollect`, once per non-passing grader Step, after
+every grader in the iteration has finished. That timing is the point: by then
+the grader has already announced its test output and the owning plugin has
+ingested it, so a summarizer reads its own structured records rather than
+re-parsing a workspace file that may not be on this machine any more. Compare
+`grader_augmentor`, which runs inside the grader Step itself and therefore has
+to parse files.
+
+The returned lines are stored on the workflow's `grade_log_manifest` artifact
+alongside the archived log (see the grade log archive in
+`workflow_steps.md`) and rendered into the repair prompt ahead of the log, in
+place of the log-derived preview. Core never parses or reformats them: which
+parser applies and what counts as a test case belong to the plugin that owns
+test results.
+
+Include `Syrus::Plugin::GraderFailureSummarizer` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `summarize_grader_failure` | `(grader_step:, run:, grader_name:) → Array<String>\|nil` | Return the lines to show the repair agent, or `nil`/`[]` when this summarizer has nothing to say about that grader. Must not raise. |
+
+Parameters:
+
+- `grader_step` — the failed grader `Step`
+- `run` — that grader's latest `Run`, for looking results up by run
+- `grader_name` — grader name from Step details (e.g. `"rspec"`)
+
+Keep it short. The lines travel in the workflow's artifacts column and are
+rendered into a prompt, so this is a summary rather than a second copy of the
+log; core caps it at `GraderLogArchive::SUMMARY_LINE_LIMIT` lines and
+`SUMMARY_MAX_BYTES` bytes. Match on `grader_name` so one grader's results do
+not get reported under another's.
+
+```ruby
+class MyPlugin::GraderFailureSummarizer
+  include Syrus::Plugin::GraderFailureSummarizer
+
+  def self.summarize_grader_failure(grader_step:, run:, grader_name:)
+    return [] if run.nil?
+
+    failures = MyPlugin::Result.where(run_id: run.id, grader_name: grader_name).failed
+    return [] if failures.empty?
+
+    [ "#{failures.size} check(s) failed. Every failure is listed below." ] +
+      failures.map { |failure| "#{failure.path} - #{failure.message}" }
+  rescue StandardError
+    []
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { grader_failure_summarizer: MyPlugin::GraderFailureSummarizer }
 )
 ```
 

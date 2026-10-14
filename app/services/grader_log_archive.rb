@@ -54,10 +54,27 @@ class GraderLogArchive
     "#{RELATIVE_ROOT}/iteration-#{iteration}/#{sanitize_name(name)}.log"
   end
 
+  # A plugin-authored summary is also capped, for the same reason the preview
+  # is: it rides in the artifacts column. A summarizer that needs more room
+  # than this is writing a second copy of the log, which is not its job.
+  SUMMARY_LINE_LIMIT = 60
+  SUMMARY_MAX_BYTES = 8192
+
   # Writes one log per grader Step and returns the manifest entries.
-  def self.write_all!(grader_steps:, iteration:, workspace_path:)
+  #
+  # `failure_summaries` maps a grader Step id to the lines a
+  # :grader_failure_summarizer plugin produced for it. Those lines are carried
+  # on the entry verbatim -- core does not parse or reformat them, because what
+  # a test failure is belongs to the plugin that owns test results.
+  def self.write_all!(grader_steps:, iteration:, workspace_path:, failure_summaries: {})
+    summaries = (failure_summaries || {}).to_h
     Array(grader_steps).map do |grader_step|
-      new(step: grader_step, iteration: iteration, workspace_path: workspace_path).write!
+      new(
+        step: grader_step,
+        iteration: iteration,
+        workspace_path: workspace_path,
+        failure_summary: summaries[grader_step.id]
+      ).write!
     end
   end
 
@@ -84,11 +101,12 @@ class GraderLogArchive
     end
   end
 
-  def initialize(step:, iteration:, workspace_path:, relative_path: nil)
+  def initialize(step:, iteration:, workspace_path:, relative_path: nil, failure_summary: nil)
     @step = step
     @iteration = iteration
     @workspace_path = Pathname.new(workspace_path.to_s)
     @relative_path = relative_path
+    @failure_summary = failure_summary
   end
 
   def write!
@@ -154,8 +172,29 @@ class GraderLogArchive
       "timed_out" => details["timed_out"],
       "relative_path" => relative_path,
       "bytes" => bytes,
-      "preview" => preview
+      "preview" => preview,
+      "failure_summary" => capped_failure_summary
     }.compact
+  end
+
+  # Kept separate from `preview`, not merged into it: the summary is an exact
+  # account from the plugin that ingested the results, while the preview is a
+  # best-effort guess scraped out of log text. The prompt prefers the former
+  # and falls back to the latter, so conflating them would lose that ordering.
+  def capped_failure_summary
+    lines = Array(@failure_summary).map { |line| line.to_s.chomp }.reject(&:empty?)
+    return nil if lines.empty?
+
+    lines = lines.first(SUMMARY_LINE_LIMIT)
+    kept = []
+    bytes = 0
+    lines.each do |line|
+      bytes += line.bytesize + 1
+      break if bytes > SUMMARY_MAX_BYTES
+
+      kept << line
+    end
+    kept.presence
   end
 
   # No chunks were ever published for this grader. Say which case it is
@@ -183,7 +222,8 @@ class GraderLogArchive
       "exit_code" => details["exit_code"],
       "timed_out" => details["timed_out"],
       "bytes" => 0,
-      "unavailable_reason" => reason
+      "unavailable_reason" => reason,
+      "failure_summary" => capped_failure_summary
     }.compact
   end
 

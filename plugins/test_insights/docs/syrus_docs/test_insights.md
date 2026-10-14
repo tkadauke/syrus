@@ -195,6 +195,26 @@ results without an N+1.
 
 ## Where it surfaces
 
+- **Grade-loop repair prompts** — `TestInsights::GraderFailureSummarizer`
+  provides core's `:grader_failure_summarizer` extension point. When a grader
+  Step fails, `Steps::GraderCollect` asks it what failed, and it returns a
+  compact list built from the `TestRun`/`TestCase` rows just ingested for that
+  grader's run: a headline count, then failures grouped by file with each
+  assertion's first line. Those lines are stored on the workflow's
+  `grade_log_manifest` artifact and rendered at the top of the next repair
+  agent's prompt, ahead of the archived grader log.
+
+  This exists because the grader log answers the question badly. The failures
+  are scattered through tens of kilobytes of prose, and the excerpt core keeps
+  inline is truncated by construction — one observed landing iteration
+  recorded nine failing examples and showed the repair agent two of them,
+  including hiding three failures in the file the agent then edited. These
+  records are exact, so the summary is complete by construction.
+
+  It matches on `grader_name` so a `react-tests` summary never appears under
+  an `rspec` failure, and returns nothing at all when the grader produced no
+  test results or when everything passed.
+
 - **Repository Tests tab** — `GET /api/v1/app/repositories/:repository_id/tests`
   (`Api::V1::App::RepositoryTestsController#index`) returns interesting recent
   failures by default and is filtered through the standard `FilterBar`

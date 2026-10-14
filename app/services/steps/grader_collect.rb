@@ -118,7 +118,8 @@ module Steps
       entries = GraderLogArchive.write_all!(
         grader_steps: interesting,
         iteration: run.iteration,
-        workspace_path: workspace.path
+        workspace_path: workspace.path,
+        failure_summaries: grader_failure_summaries(interesting)
       )
       manifest = workflow.artifact(GraderLogArchive::MANIFEST_ARTIFACT_KEY).to_h
       manifest[run.iteration.to_s] = entries
@@ -131,6 +132,48 @@ module Steps
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] grade log archive failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       nil
+    end
+
+    # Asks the :grader_failure_summarizer plugins what actually failed, per
+    # grader Step. This runs here rather than in Steps::Grader on purpose: by
+    # the time collect runs, the grader has already announced its test output
+    # and the owning plugin has ingested it, so a summarizer can read its own
+    # structured records instead of re-parsing a workspace file that may not
+    # be on this machine any more.
+    #
+    # Core never looks inside the returned lines. A summarizer that raises is
+    # dropped with a warning -- one plugin's bad day does not cost the repair
+    # agent the rest of its context.
+    def grader_failure_summaries(grader_steps)
+      providers = Syrus::PluginRegistry.providers_for(:grader_failure_summarizer)
+      return {} if providers.empty?
+
+      latest_runs = latest_runs_by_step_id(grader_steps)
+      grader_steps.each_with_object({}) do |grader_step, memo|
+        name = grader_step.details.to_h["name"]
+        lines = providers.flat_map do |provider|
+          begin
+            PerformanceLogging.plugin_call(
+              extension_point: :grader_failure_summarizer,
+              provider: provider,
+              operation: :summarize_grader_failure
+            ) do
+              Array(provider.summarize_grader_failure(
+                grader_step: grader_step,
+                run: latest_runs[grader_step.id],
+                grader_name: name
+              ))
+            end
+          rescue StandardError => e
+            Rails.logger.warn(
+              "[GraderCollect] grader_failure_summarizer #{provider} failed for Step ##{grader_step.id}: " \
+              "#{e.class}: #{e.message}"
+            )
+            []
+          end
+        end
+        memo[grader_step.id] = lines if lines.any?
+      end
     end
 
     def reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)

@@ -21,6 +21,7 @@ module Syrus
       source_control_provider
       artifact_renderer
       grader_augmentor
+      grader_failure_summarizer
       callbacks
       platform_delivery
       prepare_detector
@@ -77,6 +78,7 @@ module Syrus
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
       grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
+      grader_failure_summarizer: -> { Syrus::Plugin::GraderFailureSummarizer },
       callbacks:               -> { Syrus::Plugin::Callbacks },
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
       prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
