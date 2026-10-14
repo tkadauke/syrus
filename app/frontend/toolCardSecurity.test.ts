@@ -44,6 +44,12 @@ describe("toolCardSecurity", () => {
     )
   })
 
+  it("redacts quoted secret assignment values with escaped quotes", () => {
+    expect(redactToolCardText(String.raw`password = "hunter \"two\" tail"`)).toBe(
+      'password = "[redacted]"'
+    )
+  })
+
   it("redacts camelCase token keys in JSON-ish text", () => {
     expect(redactToolCardText('{"accessToken":"access-secret-123456","safe":"visible"}')).toBe(
       '{"accessToken":"[redacted]","safe":"visible"}'

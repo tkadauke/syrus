@@ -19,9 +19,11 @@ export function redactToolCardText(text: string): string {
   return text
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, `$1${REDACTED}`)
     .replace(new RegExp(`(["'])(${INLINE_SECRET_KEY_PATTERN})\\1(\\s*:\\s*)(["'])[^"']{6,}\\4`, "gi"), `$1$2$1$3$4${REDACTED}$4`)
-    .replace(new RegExp(`(?<![A-Za-z])(${INLINE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[:=]\\s*)(?:(["'])[^"'\\n\\r]*\\3|[^\\s,;}{]+)`, "gi"), (_match, key, separator, quote = "") => (
-      `${key}${separator}${quote}${REDACTED}${quote}`
-    ))
+    .replace(new RegExp(`(?<![A-Za-z])(${INLINE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\\\n\\r])*"|'(?:\\\\.|[^'\\\\\\n\\r])*'|[^\\s,;}{]+)`, "gi"), (_match, key, separator, value) => {
+      const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : ""
+
+      return `${key}${separator}${quote}${REDACTED}${quote}`
+    })
     .replace(/\b(gh[pousr]_[A-Za-z0-9_]{20,})\b/g, REDACTED)
     .replace(/\b(sk-[A-Za-z0-9_-]{20,})\b/g, REDACTED)
     .replace(/\b[A-Za-z0-9._-]*(?:credential|password|secret|token)[A-Za-z0-9._-]{6,}\b(?!\s*[:=])/gi, REDACTED)
