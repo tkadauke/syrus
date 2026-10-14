@@ -1,47 +1,88 @@
 module App
-  # Shared JSON shape for a single Run's transcript log + diff artifacts.
-  # Used by the operator-scoped Api::V1::App::JobsController#run_artifacts
-  # (ownership-scoped via find_job_by_param) and by any admin-gated
-  # counterpart (e.g. the agent_activity plugin's admin controller) that
-  # needs the same payload for a Run the caller reached through a different
-  # authorization path -- keeping one source of truth for the field list so
-  # the two callers' payloads can't silently drift apart.
   class RunArtifactsPayload
-    def self.build(run:)
-      logs = serialize_logs(run)
+    DEFAULT_LOGS_PER_PAGE = 100
+    MAX_LOGS_PER_PAGE = 200
+    ARTIFACTS = {
+      "transcript" => "App::RunArtifactsPayload::Transcript",
+      "agent_diff" => "App::RunArtifactsPayload::AgentDiff",
+      "step_agent_diff" => "App::RunArtifactsPayload::StepAgentDiff"
+    }.freeze
 
-      {
-        job_id: run.job_id,
-        workflow_id: run.step&.workflow_id,
-        run_id: run.id,
-        diff_review_version_id: diff_review_version_for(run)&.id,
-        base_ref: run.base_sha,
-        head_ref: run.head_sha,
-        agent_diff: run.agent_diff,
-        agent_diff_bytes: run.agent_diff&.bytesize || 0,
-        step_agent_diff: run.step_agent_diff,
-        logs_count: logs.size,
-        logs: logs
-      }
+    def self.build(run:, artifact: "transcript", page: 1, per: DEFAULT_LOGS_PER_PAGE)
+      artifact_class = ARTIFACTS.fetch(artifact.to_s, ARTIFACTS.fetch("transcript")).constantize
+      artifact_class.new(run: run, page: page.presence || 1, per: per.presence || DEFAULT_LOGS_PER_PAGE).build
     end
 
-    def self.diff_review_version_for(run)
-      DiffReviewVersion.where(job_id: run.job_id, run_id: run.id).latest_first.first
+    class Base
+      def initialize(run:, page:, per:)
+        @run = run
+        @page = [page.to_i, 1].max
+        @per = [[per.to_i, 1].max, MAX_LOGS_PER_PAGE].min
+      end
+
+      def build
+        {
+          job_id: run.job_id,
+          workflow_id: run.step&.workflow_id,
+          run_id: run.id,
+          diff_review_version_id: diff_review_version&.id,
+          base_ref: run.base_sha,
+          head_ref: run.head_sha
+        }.merge(artifact_payload)
+      end
+
+      private
+
+      attr_reader :run, :page, :per
+
+      def diff_review_version
+        DiffReviewVersion.where(job_id: run.job_id, run_id: run.id).latest_first.first
+      end
     end
 
-    def self.serialize_logs(run)
-      run.job_logs
-        .order(:sequence)
-        .pluck(:id, :sequence, :kind, :chunk, :created_at)
-        .map do |id, sequence, kind, chunk, created_at|
-          {
-            id: id,
-            sequence: sequence,
-            kind: kind,
-            chunk: chunk,
-            created_at: created_at&.iso8601
-          }
-        end
+    class Transcript < Base
+      private
+
+      def artifact_payload
+        logs_scope = run.job_logs.reorder(sequence: :desc, id: :desc)
+        logs_count = logs_scope.count
+        rows = logs_scope.offset((page - 1) * per).limit(per)
+          .pluck(:id, :sequence, :kind, :chunk, :created_at)
+          .reverse
+
+        {
+          artifact: "transcript",
+          logs_count: logs_count,
+          logs_page: page,
+          logs_per_page: per,
+          logs_total_pages: (logs_count.to_f / per).ceil,
+          logs_has_older: page * per < logs_count,
+          logs: rows.map { |row| serialize_log(row) }
+        }
+      end
+
+      def serialize_log(row)
+        id, sequence, kind, chunk, created_at = row
+        { id: id, sequence: sequence, kind: kind, chunk: chunk, created_at: created_at&.iso8601 }
+      end
+    end
+
+    class AgentDiff < Base
+      private
+
+      def artifact_payload
+        diff = Run.where(id: run.id).pick(:agent_diff)
+        { artifact: "agent_diff", agent_diff: diff, agent_diff_bytes: diff&.bytesize || 0 }
+      end
+    end
+
+    class StepAgentDiff < Base
+      private
+
+      def artifact_payload
+        diff = Run.where(id: run.id).pick(:step_agent_diff)
+        { artifact: "step_agent_diff", step_agent_diff: diff, step_agent_diff_bytes: diff&.bytesize || 0 }
+      end
     end
   end
 end
