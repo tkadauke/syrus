@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import type { FormEvent } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ProviderRoutingRulesEditor, RoutingRulesPanel } from "./ProviderRoutingRulesEditor"
 import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
@@ -137,6 +138,38 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
   })
 
+  it("creates a rule on Enter in a text field without submitting a parent form", async () => {
+    const onCreateRule = vi.fn()
+    const onParentSubmit = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault())
+    render(
+      <form onSubmit={onParentSubmit}>
+        <RoutingRulesPanel
+          description="Choose providers."
+          onCreateRule={onCreateRule}
+          onDeleteRule={vi.fn()}
+          onReorderRules={vi.fn()}
+          onUpdateRule={vi.fn()}
+          options={options}
+          rules={[]}
+          title="Provider routing rules"
+        />
+      </form>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "Default lane" } })
+    fireEvent.keyDown(within(dialog).getByLabelText(/Rule name/), { key: "Enter" })
+
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({
+      action: expect.objectContaining({ name: "Default lane" }),
+      task_key: "default",
+      trigger: { type: "default" }
+    })))
+    expect(onParentSubmit).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
+  })
+
   it("displays mutation error states", () => {
     renderPanel({ rules, saveError: new Error("Provider is unavailable") })
 
@@ -183,6 +216,19 @@ describe("ProviderRoutingRulesEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
     expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+  })
+
+  it("closes the edit draft after deleting the edited rule", async () => {
+    const onDeleteRule = vi.fn()
+    renderPanel({ onDeleteRule, rules })
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    expect(screen.getByRole("dialog", { name: "Edit routing rule" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+
+    await waitFor(() => expect(onDeleteRule).toHaveBeenCalledWith(rules[0]))
+    expect(screen.queryByRole("dialog", { name: "Edit routing rule" })).not.toBeInTheDocument()
   })
 
   it("wires edits, creates, deletes, and reorders through the API adapter", async () => {
