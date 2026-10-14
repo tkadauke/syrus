@@ -116,6 +116,37 @@ RSpec.describe "App API unified search", type: :request do
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
+  it "searches bare uppercase FTS5 operator words as text instead of returning a server error" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy NOT rollback")
+    GlobalSearch::JobIndex.upsert(job)
+
+    get "/api/v1/app/search", params: { query: "deploy NOT", types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
+  end
+
+  it "returns 422 when an FTS source still raises a syntax error" do
+    provider = Class.new do
+      def self.search_type = "widget"
+      def self.filter_subject = :job
+      def self.row_id_key = :widget_id
+      def self.search_rows(query:, user:, limit:)
+        raise ActiveRecord::StatementInvalid, "SQLite3::SQLException: fts5: syntax error"
+      end
+      def self.result_json(row:, user:) = { id: row.fetch(:widget_id) }
+    end
+    Syrus::PluginRegistry.register(name: "syntax_error_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "widget" ] }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.fetch("error")).to include(
+      "code" => "invalid_search_query",
+      "message" => "Search query could not be parsed."
+    )
+  end
+
   it "falls back to legacy plain-text q when query is absent" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Legacy deploy job")
     GlobalSearch::JobIndex.upsert(job)

@@ -100,6 +100,22 @@ RSpec.describe GlobalSearch::JobIndex do
     expect(results.map { |row| row[:job_id] }).to eq([ job.id ])
   end
 
+  it "treats uppercase FTS5 operator words as literal search terms" do
+    queries = {
+      "OR" => "OR release gate",
+      "error AND" => "error AND escalation",
+      "deploy NOT" => "deploy NOT rollback",
+      "NEAR deploy" => "NEAR deploy notes"
+    }
+    jobs = queries.transform_values do |title|
+      Factories.job_record(user: user, repository: repo, issue_title: title).tap { |job| described_class.upsert(job) }
+    end
+
+    queries.each_key do |query|
+      expect(described_class.search(query, user_id: user.id).map { |row| row[:job_id] }).to include(jobs.fetch(query).id)
+    end
+  end
+
   it "orders more relevant matches first using BM25 rank" do
     weaker = Factories.job_record(user: user, repository: repo, issue_title: "needle deployment")
     stronger = Factories.job_record(user: user, repository: repo, issue_title: "needle needle needle deployment")

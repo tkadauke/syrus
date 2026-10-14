@@ -48,6 +48,10 @@ module Api
               filter_schema: filter_schema(selected_types)
             }
           }
+        rescue ActiveRecord::StatementInvalid => e
+          raise unless fts_syntax_error?(e)
+
+          render_error("invalid_search_query", "Search query could not be parsed.", status: :unprocessable_content)
         end
 
         private
@@ -118,6 +122,10 @@ module Api
 
         def search_limit
           params.fetch(:limit, DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
+        end
+
+        def fts_syntax_error?(error)
+          error.message.match?(/fts5: syntax error|malformed MATCH expression/i)
         end
 
         def typed_rows(type, query, limit)
