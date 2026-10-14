@@ -110,6 +110,19 @@ describe("GET request single-flight", () => {
     await expect(refetch).resolves.toEqual({ job: { id: 42, state: "approved" } })
     await expect(staleRead).resolves.toEqual({ job: { id: 42, state: "queued" } })
   })
+
+  it("redacts query strings and sensitive path segments from recent request telemetry", async () => {
+    const { getJson, patchJson, getRecentApiRequests } = await import("./client")
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ ok: true })))
+
+    await getJson("/api/v1/app/linear/teams?api_key=lin_api_secret")
+    await patchJson("/api/v1/app/auth/passwords/reset-token", { password: "secret" })
+
+    expect(getRecentApiRequests().map((request) => request.path)).toEqual([
+      "/api/v1/app/linear/teams?[FILTERED]",
+      "/api/v1/app/auth/passwords/[FILTERED]"
+    ])
+  })
 })
 
 describe("401 sign-in redirect", () => {

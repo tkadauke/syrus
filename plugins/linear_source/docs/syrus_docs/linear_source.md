@@ -18,7 +18,7 @@ GitHub use):
 | Key | Type | Required | Scope | Notes |
 |---|---|---|---|---|
 | `api_key` | `password` | yes | `credentials` (encrypted) | Linear personal/API key, sent as the bare `Authorization` header value (Linear's convention — no `Bearer`/`token` prefix). |
-| `team_id` | `linear_team` | yes | `config` | Depends on `api_key`; the settings UI resolves the picker's options through `GET /api/v1/app/linear/teams`. |
+| `team_id` | `linear_team` | yes | `config` | Depends on `api_key`; the settings UI resolves the picker's options through `POST /api/v1/app/linear/teams`. |
 | `label_filter` | `string` | no | `config` | Optional Linear label name — only issues carrying this label are ingested. |
 
 `InputSources::Linear#validate_credentials!` calls Linear's `viewer` GraphQL
@@ -71,10 +71,11 @@ via `repository.mark_poll_failure!` before re-raising.
 
 ## Routes
 
-`GET /api/v1/app/linear/teams?api_key=...` (`Api::V1::App::LinearController
-#teams`) is a thin wrapper around `LinearClient#teams`, used by the
-config-schema `linear_team` field to populate its picker from a
-just-entered, not-yet-saved API key.
+`POST /api/v1/app/linear/teams` with `{ "api_key": "..." }`
+(`Api::V1::App::LinearController#teams`) is a thin wrapper around
+`LinearClient#teams`, used by the config-schema `linear_team` field to
+populate its picker from a just-entered, not-yet-saved API key without putting
+the secret in the URL.
 
 ## MCP tools / admin pages
 
