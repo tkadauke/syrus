@@ -457,6 +457,9 @@ RSpec.describe ChatProposalFiler do
       depends_on(syrus, github)
       client = instance_double(GithubClient)
       allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:issues_with_label)
+        .with("acme/widgets", "syrus", state: "all")
+        .and_return([])
       expect(client).to receive(:create_issue)
         .with("acme/widgets", title: "GitHub issue", body: "Body for GitHub issue", labels: %w[bug syrus])
         .and_return(Struct.new(:number).new(123))
@@ -469,6 +472,62 @@ RSpec.describe ChatProposalFiler do
       expect(github.job).to be_nil
       expect(syrus.reload.job).to be_present
       expect(JobDependency.count).to eq(0)
+    end
+
+    it "retries a confirmed GitHub issue proposal when the post-commit filing call failed" do
+      github = proposal(slug: "gh-retry", title: "GitHub retry", kind: "github_issue")
+      syrus = proposal(slug: "syrus-after-retry", title: "Syrus after retry")
+      depends_on(syrus, github)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:issues_with_label)
+        .with("acme/widgets", "syrus", state: "all")
+        .and_return([])
+      allow(client).to receive(:create_issue)
+        .with("acme/widgets", title: "GitHub retry", body: "Body for GitHub retry", labels: %w[syrus])
+        .and_raise(RuntimeError, "GitHub timeout")
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ syrus ])
+      }.to raise_error(RuntimeError, "GitHub timeout")
+
+      expect(github.reload).to be_confirmed
+      expect(github.github_issue_number).to be_nil
+      expect(syrus.reload).to be_confirmed
+      expect(syrus.job).to be_present
+
+      allow(client).to receive(:create_issue)
+        .with("acme/widgets", title: "GitHub retry", body: "Body for GitHub retry", labels: %w[syrus])
+        .and_return(Struct.new(:number).new(456))
+
+      result = described_class.new(user: user, repository: repository).file!([ syrus.reload ])
+
+      expect(github.reload.github_issue_number).to eq(456)
+      expect(result.github_issue_numbers[github.id]).to eq(456)
+      expect(Job.where(issue_title: "Syrus after retry").count).to eq(1)
+    end
+
+    it "records an already-created matching GitHub issue instead of creating a duplicate on retry" do
+      github = proposal(slug: "gh-existing", title: "GitHub existing", kind: "github_issue", labels: %(["bug"]))
+      github.update!(state: "confirmed", filed_at: Time.current, confirmed_at: Time.current)
+      existing_issue = Struct.new(:number, :title, :body, :labels, :pull_request).new(
+        789,
+        "GitHub existing",
+        "Body for GitHub existing",
+        [ Struct.new(:name).new("bug"), Struct.new(:name).new("syrus") ],
+        nil
+      )
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:issues_with_label)
+        .with("acme/widgets", "syrus", state: "all")
+        .and_return([ existing_issue ])
+      expect(client).not_to receive(:create_issue)
+
+      result = described_class.new(user: user, repository: repository).file!([ github ])
+
+      expect(github.reload.github_issue_number).to eq(789)
+      expect(result.github_issue_numbers[github.id]).to eq(789)
     end
 
     it "does not create GitHub issues when a later database validation rolls back the confirmation" do
