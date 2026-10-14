@@ -77,6 +77,39 @@ describe("GET request single-flight", () => {
 
     expect(window.fetch).toHaveBeenCalledTimes(2)
   })
+
+  it("does not share a pending pre-write response with a post-write refetch", async () => {
+    const { getJson, postJson } = await import("./client")
+    const pendingJobRead = deferred<Response>()
+    const secondJobRead = deferred<Response>()
+    const fetch = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (input === "/api/v1/app/jobs/42" && init?.method == null) {
+        return fetch.mock.calls.filter(([calledInput, calledInit]) => (
+          calledInput === "/api/v1/app/jobs/42" && calledInit?.method == null
+        )).length === 1 ? pendingJobRead.promise : secondJobRead.promise
+      }
+      if (input === "/api/v1/app/jobs/42/approve" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ ok: true }))
+      }
+      return Promise.reject(new Error(`Unexpected request: ${String(input)}`))
+    })
+
+    const staleRead = getJson("/api/v1/app/jobs/42")
+    await expect(postJson("/api/v1/app/jobs/42/approve")).resolves.toEqual({ ok: true })
+
+    const refetch = getJson("/api/v1/app/jobs/42")
+
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/app/jobs/42")
+    expect(fetch).toHaveBeenNthCalledWith(2, "/api/v1/app/jobs/42/approve", expect.objectContaining({ method: "POST" }))
+    expect(fetch.mock.calls[2]?.[0]).toBe("/api/v1/app/jobs/42")
+
+    secondJobRead.resolve(jsonResponse({ job: { id: 42, state: "approved" } }))
+    pendingJobRead.resolve(jsonResponse({ job: { id: 42, state: "queued" } }))
+
+    await expect(refetch).resolves.toEqual({ job: { id: 42, state: "approved" } })
+    await expect(staleRead).resolves.toEqual({ job: { id: 42, state: "queued" } })
+  })
 })
 
 describe("401 sign-in redirect", () => {
@@ -153,4 +186,14 @@ function jsonResponseWithRevision(body: unknown, revision: string) {
   const response = jsonResponse(body)
   response.headers.set("X-Syrus-Revision", revision)
   return response
+}
+
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void
+  let reject: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve: resolve!, reject: reject! }
 }
