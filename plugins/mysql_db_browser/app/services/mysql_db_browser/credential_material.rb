@@ -73,6 +73,13 @@ module MysqlDbBrowser
         CredentialStore::Credential.find_by(id: connection.credential_store_credential_id)
       end
 
+      def credentials_by_id_for(connections)
+        credential_ids = connections.filter_map(&:credential_store_credential_id).uniq
+        return {} if credential_ids.empty?
+
+        CredentialStore::Credential.where(id: credential_ids).index_by(&:id)
+      end
+
       private
 
       def metadata_attributes_for(connection, user:, credential:, scope_type:, scope_id:)

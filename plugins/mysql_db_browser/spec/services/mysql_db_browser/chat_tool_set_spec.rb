@@ -52,13 +52,13 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }.dig(:input_schema, :required)).to eq([ "mysql_connection_id", "sql" ])
   end
 
-  it "dispatches to the matching tool class, passing string-keyed params through" do
+  it "dispatches string-keyed params without revealing an unusable legacy connection" do
     disabled = Factories.mysql_connection(agentic_access_enabled: false)
 
     response = described_class.new.handle("mysql_db_browser_list_databases", { "mysql_connection_id" => disabled.id }, {})
 
     expect(response.error?).to be(true)
-    expect(response.content.first[:text]).to include("Agentic access is disabled")
+    expect(response.content.first[:text]).to include("was not found")
   end
 
   it "reports unknown tool names without dispatching" do

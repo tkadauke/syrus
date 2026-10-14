@@ -3,6 +3,15 @@ require "rails_helper"
 RSpec.describe MysqlDbBrowser::ListConnectionsTool do
   let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
 
+  def capture_queries
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "returns only safe connection metadata, including agentic and write flags" do
     enabled = Factories.mysql_connection(
       label: "Production reporting",
@@ -47,5 +56,23 @@ RSpec.describe MysqlDbBrowser::ListConnectionsTool do
     expect(serialized).not_to include("archive-db.internal")
     expect(serialized).not_to include("archive_user")
     expect(serialized).not_to include("archive-secret")
+  end
+
+  it "bulk-loads backing credentials when listing connections" do
+    3.times do |index|
+      connection = Factories.mysql_connection(label: "Connection #{index}", agentic_access_enabled: true)
+      MysqlDbBrowser::CredentialMaterial.store!(
+        connection, "secret-#{index}", user: chat_session.user,
+        scope_type: "user", scope_id: chat_session.user.id
+      )
+    end
+
+    queries = capture_queries do
+      response = described_class.call(server_context: { chat_session: chat_session })
+      expect(response.error?).to be(false)
+    end
+
+    credential_queries = queries.grep(/FROM ["`]?credential_store_credentials["`]?/i)
+    expect(credential_queries.size).to eq(1)
   end
 end

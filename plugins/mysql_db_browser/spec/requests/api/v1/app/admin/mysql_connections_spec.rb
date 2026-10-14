@@ -50,6 +50,24 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(parse_body.dig("credential_scope_options", "scopes").pluck("value")).to contain_exactly("user", "instance")
     end
 
+    it "bulk-loads backing credentials for the connection list" do
+      3.times do |index|
+        connection = Factories.mysql_connection(label: "Connection #{index}")
+        MysqlDbBrowser::CredentialMaterial.store!(
+          connection, "secret-#{index}", user: admin,
+          scope_type: "user", scope_id: admin.id
+        )
+      end
+
+      metrics = capture_performance_budget do
+        get "/api/v1/app/admin/mysql_connections"
+      end
+
+      expect(response).to have_http_status(:ok)
+      credential_queries = metrics.fetch(:queries).grep(/FROM ["`]?credential_store_credentials["`]?/i)
+      expect(credential_queries.size).to eq(1)
+    end
+
     it "creates a connection with credential-store-backed credentials" do
       post "/api/v1/app/admin/mysql_connections", params: {
         mysql_connection: {
