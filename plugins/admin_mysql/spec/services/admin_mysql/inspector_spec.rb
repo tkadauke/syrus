@@ -46,8 +46,25 @@ RSpec.describe AdminMysql::Inspector do
     rows = inspector.send(:process_list, limit: 2)
 
     expect(rows.map { |row| row[:id] }).to eq([ 5, 4 ])
-    expect(rows.first).to include(command: "Query", info: "SELECT 2")
+    expect(rows.first).to include(command: "Query", info: "SELECT ?")
     expect(inspector).not_to have_received(:select_all).with(include("information_schema.PROCESSLIST"))
+  end
+
+  it "redacts literals from process-list and slow-log SQL" do
+    inspector = described_class.new
+    sql = "SELECT * FROM users WHERE email = 'person@example.com' AND attempts = 12 AND token = 0xdeadbeef"
+
+    expect(inspector.send(:redact_sql, sql)).to eq(
+      "SELECT * FROM users WHERE email = ? AND attempts = ? AND token = ?"
+    )
+  end
+
+  it "redacts string literals truncated by the diagnostic limit" do
+    inspector = described_class.new
+
+    redacted = inspector.send(:redact_sql, "SELECT '#{"sensitive" * 200}'")
+
+    expect(redacted).to eq("SELECT ?")
   end
 
   it "adds a per-statement timeout hint to expensive diagnostic SELECTs" do

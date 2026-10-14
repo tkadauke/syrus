@@ -194,7 +194,7 @@ module AdminMysql
             command: row["Command"],
             time_seconds: row["Time"].to_i,
             state: row["State"],
-            info: row["Info"].to_s.safe_byteslice(0, 1000).presence
+            info: redact_sql(row["Info"])
           }
         end
     end
@@ -312,11 +312,15 @@ module AdminMysql
               rows_sent: row["rows_sent"].to_i,
               rows_examined: row["rows_examined"].to_i,
               database: row["db"],
-              sql_text: row["sql_text"]
+              sql_text: redact_sql(row["sql_text"])
             }
           end
         }
       end
+    end
+
+    def redact_sql(value)
+      SqlRedactor.call(value, limit: 1_000)
     end
 
     def clamp_limit(value)

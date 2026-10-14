@@ -21,6 +21,9 @@ module AdminMysql
 
     class << self
       def call(server_context:, limit: nil)
+        context = McpToolContext.from_server_context(server_context)
+        return Mcp::Tools.unauthorized("Admin MySQL status requires an admin context") unless context.user&.admin? == true
+
         payload = Inspector.new.snapshot(limit: limit || Inspector::DEFAULT_LIMIT)
         MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ], error: payload.dig(:error).present?)
       rescue Inspector::Unavailable, ArgumentError => e
