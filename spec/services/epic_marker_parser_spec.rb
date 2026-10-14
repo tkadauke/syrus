@@ -59,6 +59,33 @@ RSpec.describe EpicMarkerParser do
     })
   end
 
+  it "parses a block marker whose Epic line has a multibyte emoji prefix" do
+    expect(marker("<!-- syrus-epic\n📦 Epic: #447\n-->")).to eq({
+      kind: :child_of_epic,
+      owner: "acme",
+      repo: "widgets",
+      number: 447
+    })
+  end
+
+  it "parses a block marker whose Epic line has a multibyte dash prefix" do
+    expect(marker("<!-- syrus-epic\n– Epic: #447\n-->")).to eq({
+      kind: :child_of_epic,
+      owner: "acme",
+      repo: "widgets",
+      number: 447
+    })
+  end
+
+  it "parses a block marker whose Epic line has accented characters before Epic" do
+    expect(marker("<!-- syrus-epic\nÜnïcode – Epic: #447\n-->")).to eq({
+      kind: :child_of_epic,
+      owner: "acme",
+      repo: "widgets",
+      number: 447
+    })
+  end
+
   it "uses the first marker" do
     expect(marker("#{epic_marker("First marker")}\n#{epic_marker("#447")}")).to eq({
       kind: :epic_declaration,
@@ -72,6 +99,10 @@ RSpec.describe EpicMarkerParser do
 
   it "does not match Epic inside another word" do
     expect(marker("NotEpic: #447")).to be_nil
+  end
+
+  it "does not treat Epic inside another word as a block marker legacy line" do
+    expect(marker("<!-- syrus-epic\nNotEpic: #447\n-->")).to be_nil
   end
 
   it "does not parse a natural-language Epic line" do
