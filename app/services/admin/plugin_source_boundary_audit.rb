@@ -266,13 +266,30 @@ module Admin
       return [] unless absolute.exist?
 
       if absolute.file?
-        [ absolute ]
+        tracked?(absolute) ? [ absolute ] : []
       else
-        Dir.glob(absolute.join("**/*").to_s)
-           .map { |candidate| Pathname.new(candidate) }
-           .select { |candidate| candidate.file? && SOURCE_EXTENSIONS.include?(candidate.extname) }
-           .select { |candidate| tracked?(candidate) }
+        tracked_source_files_under(absolute) || glob_source_files_under(absolute)
       end
+    end
+
+    def tracked_source_files_under(absolute)
+      return unless tracked_paths
+
+      relative_root = relative(absolute)
+      prefix = "#{relative_root}/"
+
+      tracked_paths.filter_map do |path|
+        next unless path.start_with?(prefix)
+        next unless SOURCE_EXTENSIONS.include?(File.extname(path))
+
+        root.join(path)
+      end
+    end
+
+    def glob_source_files_under(absolute)
+      Dir.glob(absolute.join("**/*").to_s)
+         .map { |candidate| Pathname.new(candidate) }
+         .select { |candidate| candidate.file? && SOURCE_EXTENSIONS.include?(candidate.extname) }
     end
 
     # The audit is a check on committed source, so untracked files are out of

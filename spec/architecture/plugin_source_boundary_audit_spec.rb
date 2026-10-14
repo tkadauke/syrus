@@ -72,8 +72,11 @@ RSpec.describe "Plugin source boundaries" do
       Open3.capture2("git", "-C", dir, "init", "-q")
       Open3.capture2("git", "-C", dir, "add", "app/services/tracked_core_file.rb")
 
+      allow(Dir).to receive(:glob).and_call_original
+
       audit = Admin::PluginSourceBoundaryAudit.new(root: root)
       expect(audit.core_violations).to eq([])
+      expect(Dir).not_to have_received(:glob).with(a_string_matching(%r{/app/\*\*/\*}))
 
       # ...and the file is skipped for being untracked, not because the scan
       # found nothing to match. Tracking it surfaces the same reference.
