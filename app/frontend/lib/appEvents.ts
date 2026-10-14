@@ -415,7 +415,9 @@ export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: st
 }
 
 export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
-  invalidateAppQuery(queryClient, { queryKey: [ "chats", String(chatId) ] })
+  const id = String(chatId)
+  invalidateAppQuery(queryClient, { queryKey: [ "chats", id ] })
+  invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(id) })
 }
 
 function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
@@ -749,6 +751,7 @@ function continuityRecoveryQuery(query: { queryKey: QueryKey }) {
   if (queryKey.length === 1 && exactListRoots.has(String(root))) return true
   if (root === "bootstrap") return true
   if (root === "admin" && (queryKey[1] === "overview" || queryKey[1] === "stuck")) return true
+  if (root === "chat-pins" && queryKey.length >= 2) return true
   if (root === "chats" && queryKey.length >= 2) return true
   if (root === "epics" && queryKey.length >= 2) return true
   if (root === "repositories" && queryKey.length >= 2) return true
