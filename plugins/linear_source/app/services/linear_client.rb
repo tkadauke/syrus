@@ -1,5 +1,7 @@
 class LinearClient
   ENDPOINT = "https://api.linear.app/graphql"
+  ISSUE_PAGE_SIZE = 100
+  MAX_ISSUE_PAGES = 100
 
   def initialize(api_key:)
     @api_key = api_key
@@ -11,14 +13,26 @@ class LinearClient
 
   # Returns an array of issue hashes, or nil when rate-limited.
   def issues(team_id:, label_name: nil)
-    if label_name.present?
-      result = execute(ISSUES_WITH_LABEL_QUERY, variables: { teamId: team_id, labelName: label_name })
-    else
-      result = execute(ISSUES_QUERY, variables: { teamId: team_id })
-    end
-    return nil if result.nil?
+    query = label_name.present? ? ISSUES_WITH_LABEL_QUERY : ISSUES_QUERY
+    variables = { teamId: team_id, first: ISSUE_PAGE_SIZE }
+    variables[:labelName] = label_name if label_name.present?
+    issues = []
+    cursor = nil
 
-    result.dig("data", "issues", "nodes") || []
+    MAX_ISSUE_PAGES.times do
+      result = execute(query, variables: variables.merge(after: cursor))
+      return nil if result.nil?
+
+      connection = result.dig("data", "issues") || {}
+      issues.concat(connection["nodes"] || [])
+      page_info = connection["pageInfo"] || {}
+      return issues unless page_info["hasNextPage"]
+
+      cursor = page_info["endCursor"]
+      raise "Linear API returned a page without an end cursor" if cursor.blank?
+    end
+
+    raise "Linear issue pagination exceeded #{MAX_ISSUE_PAGES} pages"
   end
 
   # Returns the viewer data hash for credential validation, or nil when rate-limited.
@@ -65,8 +79,8 @@ class LinearClient
   end
 
   ISSUES_QUERY = <<~GQL.freeze
-    query IssueList($teamId: String!) {
-      issues(filter: {
+    query IssueList($teamId: String!, $first: Int!, $after: String) {
+      issues(first: $first, after: $after, filter: {
         team: { id: { eq: $teamId } }
         state: { type: { nin: ["cancelled", "completed"] } }
       }) {
@@ -78,13 +92,14 @@ class LinearClient
           state { type }
           labels { nodes { name } }
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   GQL
 
   ISSUES_WITH_LABEL_QUERY = <<~GQL.freeze
-    query IssueListWithLabel($teamId: String!, $labelName: String!) {
-      issues(filter: {
+    query IssueListWithLabel($teamId: String!, $labelName: String!, $first: Int!, $after: String) {
+      issues(first: $first, after: $after, filter: {
         team: { id: { eq: $teamId } }
         state: { type: { nin: ["cancelled", "completed"] } }
         labels: { name: { eq: $labelName } }
@@ -97,6 +112,7 @@ class LinearClient
           state { type }
           labels { nodes { name } }
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   GQL
