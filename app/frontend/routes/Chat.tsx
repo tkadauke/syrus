@@ -495,7 +495,7 @@ function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: Ch
   return merged
 }
 
-function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
+function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, onFindOpenChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; onFindOpenChange?: (open: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
   const location = useLocation()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -644,6 +644,11 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       if (contextFindOpenerRef.current === openFind) contextFindOpenerRef.current = null
     }
   }, [contextFindOpenerRef, openFind])
+
+  useEffect(() => {
+    onFindOpenChange?.(findOpen)
+    return () => onFindOpenChange?.(false)
+  }, [findOpen, onFindOpenChange])
 
   const selectFindMatch = useCallback((match: ChatSearchMatch | null) => {
     if (!match) return
@@ -1546,6 +1551,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
+  const [contextFindOpen, setContextFindOpen] = useState(false)
   // Reported by Compose's own ResizeObserver on its floating form element —
   // exposed as a CSS variable so the message stream's bottom padding and the
   // "new messages" pill (both siblings, not descendants, of Compose) can
@@ -1563,6 +1569,10 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
     setHasSentFirstMessage(false)
     setCanLoadEarlierMessages(payload.has_more_older)
   }, [payload.chat.id, payload.has_more_older])
+
+  useEffect(() => {
+    setContextFindOpen(false)
+  }, [payload.chat.id])
 
   // Deliberately scoped to chat.id alone (not has_more_older, which this
   // same effect above tracks too): has_more_older can flip mid-session
@@ -1624,8 +1634,8 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
       {!landing ? <AttachedCodingJobStrip payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded-none border-0 border-gray-200 bg-white transition-all duration-500 ease-out xl:rounded-t xl:border xl:border-b-0 dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
-        <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
-        {showUsageOverlay ? <UsageOverlay payload={payload} /> : null}
+        <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onFindOpenChange={setContextFindOpen} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
+        {showUsageOverlay && !contextFindOpen ? <UsageOverlay payload={payload} /> : null}
         {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} /> : null}
       </div>
       {landing ? (
