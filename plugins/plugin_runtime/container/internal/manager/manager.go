@@ -568,6 +568,9 @@ func (m *Manager) List(ctx context.Context) ([]Status, error) {
 	for _, name := range sorted {
 		st, err := m.Status(ctx, name)
 		if err != nil {
+			if docker.IsNotFound(err) {
+				continue
+			}
 			return nil, err
 		}
 		out = append(out, st)

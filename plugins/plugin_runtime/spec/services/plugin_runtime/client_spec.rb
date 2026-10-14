@@ -23,12 +23,14 @@ RSpec.describe PluginRuntime::Client do
     expect { client.ensure_service("git-mirror", spec) }.to raise_error(described_class::Refused, /privileged/)
   end
 
-  it "raises Unavailable when the manager cannot be reached or fails" do
+  it "raises Unavailable when the manager cannot be reached" do
     stub_request(:get, %r{/v1/services}).to_raise(Errno::ECONNREFUSED)
     expect { client.list }.to raise_error(described_class::Unavailable, /unreachable/)
+  end
 
+  it "raises ManagerError when the manager returns a 5xx response" do
     stub_request(:get, %r{/v1/services}).to_return(status: 502, body: { error: "daemon down" }.to_json)
-    expect { client.list }.to raise_error(described_class::Unavailable, /502/)
+    expect { client.list }.to raise_error(described_class::ManagerError, /502/)
   end
 
   # A wrong token is an operator mistake, not a plugin bug: it must not be
