@@ -34,6 +34,7 @@ class ChatPendingAction < ApplicationRecord
     submit_coding_changes
     reopen_epic_and_attach_job
     admin_kill_process
+    admin_mysql_kill_query
     admin_reap_stale_runs
     admin_pause_polling
     admin_unpause_polling

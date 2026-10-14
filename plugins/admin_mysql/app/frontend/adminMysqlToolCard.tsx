@@ -25,7 +25,6 @@ type ConnectionSummary = {
   abortedConnects: number | null
   maxConnectionErrors: number | null
 }
-
 type ProcessRow = {
   id: string
   command: string | null
@@ -66,13 +65,6 @@ type StatusPayload = {
   processes: ProcessRow[]
   statementDigests: SectionSummary<StatementDigestRow>
   slowLog: SectionSummary<SlowLogRow>
-  error: MysqlError | null
-}
-
-type KillQueryPayload = {
-  killed: boolean
-  threadId: string | null
-  generatedAt: string | null
   error: MysqlError | null
 }
 
@@ -245,18 +237,6 @@ export function parseStatusPayload(context: ToolCardContext): StatusPayload | nu
   }
 
   return { ...payload, health: statusHealth(payload) }
-}
-
-export function parseKillQueryPayload(context: ToolCardContext): KillQueryPayload | null {
-  const parsed = context.parsedResult
-  if (!isPlainObject(parsed) || typeof parsed.killed !== "boolean") return null
-
-  return {
-    killed: parsed.killed,
-    threadId: displayValue(parsed.thread_id),
-    generatedAt: displayValue(parsed.generated_at),
-    error: parseMysqlError(parsed.error)
-  }
 }
 
 function healthTone(health: HealthState): "success" | "warning" | "failure" | "neutral" {
@@ -441,40 +421,6 @@ export function StatusCard({ context }: { context: ToolCardContext }) {
         <SectionLabel>Statement digests</SectionLabel>
         <DigestSummary section={payload.statementDigests} />
       </div>
-    </CardShell>
-  )
-}
-
-export function killQuerySummary(context: ToolCardContext): string | null {
-  if (context.resultError && !isPlainObject(context.parsedResult)) return "Kill query failed"
-  const payload = parseKillQueryPayload(context)
-  if (!payload) return null
-
-  const thread = payload.threadId ? ` #${payload.threadId}` : ""
-  return payload.killed ? `Killed query${thread}` : `Kill query failed${thread}`
-}
-
-export function KillQueryCard({ context }: { context: ToolCardContext }) {
-  if (context.resultError && !isPlainObject(context.parsedResult)) {
-    return (
-      <CardShell>
-        <StatePill state="error" tone="failure" />
-        <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{context.resultBody}</div>
-      </CardShell>
-    )
-  }
-
-  const payload = parseKillQueryPayload(context)
-  if (!payload) return null
-
-  return (
-    <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={payload.killed ? "killed" : "error"} tone={payload.killed ? "success" : "failure"} />
-        {payload.threadId ? <Badge>thread #{payload.threadId}</Badge> : null}
-        {payload.generatedAt ? <Badge>{payload.generatedAt}</Badge> : null}
-      </div>
-      {payload.error ? <MysqlErrorNotice error={payload.error} /> : null}
     </CardShell>
   )
 }
