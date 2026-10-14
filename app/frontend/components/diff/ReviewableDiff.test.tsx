@@ -1470,6 +1470,46 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/run.rb")).toBeInTheDocument()
   })
 
+  it("counts hunk-body --- and +++ prefixes as additions and deletions", () => {
+    const diff = [
+      "diff --git a/config/settings.yml b/config/settings.yml",
+      "--- a/config/settings.yml",
+      "+++ b/config/settings.yml",
+      "@@ -1,5 +1,3 @@",
+      " a",
+      "----",
+      "--- comment",
+      "-old",
+      "+++i;",
+      " d"
+    ].join("\n")
+
+    expect(filesFromUnifiedDiff(diff)).toMatchObject([
+      {
+        additions: 1,
+        deletions: 3,
+        path: "config/settings.yml"
+      }
+    ])
+  })
+
+  it("colors hunk snippets with parsed line kinds for --- and +++ content", () => {
+    render(
+      <DiffHunkSnippet
+        hunk={[
+          "@@ -1,3 +1,3 @@",
+          " a",
+          "----",
+          "+++i;",
+          " d"
+        ].join("\n")}
+      />
+    )
+
+    expect(screen.getByText("----")).toHaveClass("bg-red-50")
+    expect(screen.getByText("+++i;")).toHaveClass("bg-green-50")
+  })
+
   it("layers Shiki syntax tokens on top of the diff add/remove background classes", async () => {
     const highlightedFiles = [
       {
