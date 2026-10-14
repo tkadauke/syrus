@@ -148,6 +148,10 @@ class JobStackResolver
       return blocked_result(FAN_IN_BLOCK_REASON, fan_in_blocker(parents))
     end
 
+    if (cached = reusable_prepared_base_artifact(parents))
+      return prepared_base_result(cached)
+    end
+
     build = prepared_base_builder.call(parents)
     return prepared_base_result(build) if build.succeeded?
 
@@ -172,9 +176,41 @@ class JobStackResolver
   def prepared_base_result(build)
     @job.update!(parent_job: nil) if apply? && @job.parent_job_id.present?
     artifacts = {
-      "prepared_stack_base" => build.to_h
+      "prepared_stack_base" => build.respond_to?(:to_h) ? build.to_h : build
     }
     ready_result(nil, artifacts: artifacts)
+  end
+
+  def reusable_prepared_base_artifact(parents)
+    artifact = @workflow&.artifact("prepared_stack_base")
+    return unless artifact.is_a?(Hash)
+    return unless artifact["succeeded"] == true
+    return if artifact["branch_name"].blank? || artifact["head_sha"].blank?
+
+    stored_dependencies = Array(artifact["dependencies"]).map { |dependency| prepared_dependency_identity(dependency) }
+    expected_dependencies = prepared_base_dependency_payloads(parents).map { |dependency| prepared_dependency_identity(dependency) }
+    return unless stored_dependencies.sort_by { |dependency| dependency.fetch("job_id") } ==
+      expected_dependencies.sort_by { |dependency| dependency.fetch("job_id") }
+
+    artifact
+  end
+
+  def prepared_dependency_identity(dependency)
+    dependency.to_h.slice("job_id", "branch_name", "head_sha")
+  end
+
+  def prepared_base_dependency_payloads(parents)
+    parents.map do |parent|
+      {
+        "job_id" => parent.id,
+        "branch_name" => parent.branch_name,
+        "head_sha" => prepared_base_head_sha(parent)
+      }
+    end
+  end
+
+  def prepared_base_head_sha(parent)
+    parent.mergeability_head_sha.presence || parent.head_sha.to_s.presence
   end
 
   def pending_blocker(unresolved)
