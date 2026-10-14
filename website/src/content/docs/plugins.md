@@ -56,6 +56,12 @@ snapshot calls out the launch-relevant groups:
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
+MySQL DB Browser connections inherit access from their Credential Store scope:
+user, repository, team, or instance. New connections default to the creating
+user, while existing instance-scoped connections remain shared until an admin
+narrows them. Legacy embedded passwords are admin-only until migrated by
+re-entering the password in the connection editor.
+
 Provider copy on the homepage and FAQ should use the adapter display names
 from `plugins/*/lib/*.rb` and `AgentProviders::*#display_name`, not hand-rolled
 model names. As of this release, the provider adapters are Claude Code, Codex,
