@@ -85,6 +85,7 @@ RSpec.describe GitHistory::RelayServer do
       body = json_body(response)
       expect(body["entries"].map { |e| e["subject"] }).to eq([ "third", "second" ])
       expect(body["has_more"]).to be true
+      expect(body["next_cursor"]).to match(/\A[0-9a-f]{40}:2\z/)
       expect(body["entries"].first).to include(
         "sha" => a_string_matching(/\A[0-9a-f]{40}\z/),
         "author_name" => "Test",
@@ -98,7 +99,7 @@ RSpec.describe GitHistory::RelayServer do
       bare_clone!
 
       first_page = json_body(call("/repositories/#{repository.id}/commits?limit=1"))
-      cursor = first_page["entries"].first["sha"]
+      cursor = first_page["next_cursor"]
 
       second_page = json_body(call("/repositories/#{repository.id}/commits?cursor=#{cursor}&limit=1"))
 
@@ -110,7 +111,7 @@ RSpec.describe GitHistory::RelayServer do
       response = call("/repositories/#{repository.id}/commits?limit=10")
 
       expect(response[0]).to eq(200)
-      expect(json_body(response)).to eq("entries" => [], "has_more" => false)
+      expect(json_body(response)).to eq("entries" => [], "has_more" => false, "next_cursor" => nil)
     end
 
     it "returns 404 for an unknown repository id" do
@@ -128,7 +129,7 @@ RSpec.describe GitHistory::RelayServer do
       response = call("/repositories/#{repository.id}/commits?cursor=--all&limit=10")
 
       expect(response[0]).to eq(200)
-      expect(json_body(response)).to eq("entries" => [], "has_more" => false)
+      expect(json_body(response)).to eq("entries" => [], "has_more" => false, "next_cursor" => nil)
     end
   end
 

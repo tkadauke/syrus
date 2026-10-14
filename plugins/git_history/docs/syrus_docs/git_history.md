@@ -65,14 +65,15 @@ compute it without any extra deployment config, and the raw
 incorrect token gets `401`.
 
 **Cursor validation.** `cursor` is passed as a positional revision argument
-to `git log` (`GitHistory::CommitLog#fetch`), not through a shell, so
-there's no shell-injection risk — but an unvalidated cursor is still a *git
-argument* injection risk: a value like `--all` would list commits across
-every ref instead of the default branch, and `--output=<path>` would write
-the log to an arbitrary file on disk. `CommitLog` restricts `cursor` to
-`/\A[0-9a-fA-F]{4,40}\z/` (git's own SHA alphabet) before using it, rejecting
-anything flag- or path-shaped by construction; an invalid cursor degrades to
-an empty page, same as an unknown SHA.
+plus a numeric skip offset to `git log` (`GitHistory::CommitLog#fetch`), not
+through a shell, so there's no shell-injection risk — but an unvalidated
+cursor is still a *git argument* injection risk: a value like `--all` would
+list commits across every ref instead of the default branch, and
+`--output=<path>` would write the log to an arbitrary file on disk. `CommitLog`
+restricts `cursor` to a hex revision plus optional decimal offset
+(`tip_sha:offset`) before using it, rejecting anything flag- or path-shaped by
+construction; an invalid cursor degrades to an empty page, same as an unknown
+SHA.
 
 **Single-writer-pod assumption.** See `config/syrus_docs/multi_worker.md`'s
 "Git History relay pinning" section: today exactly one worker pod ever syncs

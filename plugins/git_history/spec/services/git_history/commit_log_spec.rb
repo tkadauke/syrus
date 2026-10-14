@@ -21,10 +21,15 @@ RSpec.describe GitHistory::CommitLog do
     FileUtils.rm_rf(origin_dir)
   end
 
-  def commit!(message)
+  def commit!(message, date: nil)
     `touch #{origin_dir}/file-#{SecureRandom.hex(4)}.txt`
     `git -C #{origin_dir} add . 2>&1`
-    `git -C #{origin_dir} commit -m "#{message}" 2>&1`
+    if date
+      `GIT_AUTHOR_DATE="#{date}" GIT_COMMITTER_DATE="#{date}" \
+        git -C #{origin_dir} commit -m "#{message}" 2>&1`
+    else
+      `git -C #{origin_dir} commit -m "#{message}" 2>&1`
+    end
     `git -C #{origin_dir} rev-parse HEAD 2>&1`.strip
   end
 
@@ -89,23 +94,44 @@ RSpec.describe GitHistory::CommitLog do
 
       expect(page.entries.map { |e| e[:subject] }).to eq([ "third", "second" ])
       expect(page.has_more).to be true
+      expect(page.next_cursor).to match(/\A[0-9a-f]{40}:2\z/)
     end
 
     it "continues from a cursor without repeating the cursor commit" do
       sha1 = commit!("first")
       sha2 = commit!("second")
-      commit!("third")
+      sha3 = commit!("third")
       bare_clone!
 
       log = described_class.new(repository: repository)
       first_page = log.fetch(cursor: nil, limit: 2)
-      cursor = first_page.entries.last[:sha]
-      expect(cursor).to eq(sha2)
+      cursor = first_page.next_cursor
+      expect(cursor).to eq("#{sha3}:2")
+      expect(first_page.entries.last[:sha]).to eq(sha2)
 
       second_page = log.fetch(cursor: cursor, limit: 2)
 
       expect(second_page.entries.map { |e| e[:sha] }).to eq([ sha1 ])
       expect(second_page.has_more).to be false
+    end
+
+    it "keeps side-branch commits reachable when a merge spans the page boundary" do
+      base_sha = commit!("base", date: "2026-01-01T00:00:00Z")
+      `git -C #{origin_dir} checkout -b feature #{base_sha} 2>&1`
+      side_sha = commit!("side branch", date: "2026-01-01T00:00:01Z")
+      `git -C #{origin_dir} checkout main 2>&1`
+      main_sha = commit!("main branch", date: "2026-01-01T00:00:02Z")
+      `GIT_AUTHOR_DATE="2026-01-01T00:00:03Z" GIT_COMMITTER_DATE="2026-01-01T00:00:03Z" \
+        git -C #{origin_dir} merge --no-ff feature -m "merge feature" 2>&1`
+      merge_sha = `git -C #{origin_dir} rev-parse HEAD 2>&1`.strip
+      bare_clone!
+
+      log = described_class.new(repository: repository)
+      first_page = log.fetch(cursor: nil, limit: 2)
+      second_page = log.fetch(cursor: first_page.next_cursor, limit: 2)
+
+      expect(first_page.entries.map { |entry| entry[:sha] }).to eq([ merge_sha, main_sha ])
+      expect(second_page.entries.map { |entry| entry[:sha] }).to include(side_sha)
     end
 
     it "returns an empty page instead of raising when the cursor sha is unknown" do
