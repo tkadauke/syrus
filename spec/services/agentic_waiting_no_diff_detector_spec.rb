@@ -59,6 +59,24 @@ RSpec.describe AgenticWaitingNoDiffDetector do
     expect(described_class.detect?(run)).to be(true)
   end
 
+  it "detects a completed Codex MCP wakeup call without a started item" do
+    capture_transcript!(
+      {
+        "timestamp" => "2026-06-01T10:00:03Z",
+        "type" => "item.completed",
+        "item" => {
+          "type" => "mcp_tool_call",
+          "server" => "syrus-mcp-sidecar",
+          "tool" => "schedule_wakeup",
+          "result" => { "ok" => true },
+          "call_id" => "call_schedule_wakeup"
+        }
+      }
+    )
+
+    expect(described_class.detect?(run)).to be(true)
+  end
+
   it "does not treat a plain-text ScheduleWakeup mention as continuation evidence" do
     capture_transcript!(
       {
