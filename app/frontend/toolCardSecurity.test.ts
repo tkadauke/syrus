@@ -22,6 +22,34 @@ describe("toolCardSecurity", () => {
     )
   })
 
+  it("redacts environment-style secret assignments with prefixed key names", () => {
+    expect(redactToolCardText([
+      "DATABASE_PASSWORD=hunter2hunter2",
+      "MY_API_KEY=abcdef123456789",
+      "export GITHUB_TOKEN=abcdef123456",
+      "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "SECRET_KEY_BASE=0123456789abcdef0123456789abcdef"
+    ].join("\n"))).toBe([
+      "DATABASE_PASSWORD=[redacted]",
+      "MY_API_KEY=[redacted]",
+      "export GITHUB_TOKEN=[redacted]",
+      "AWS_SECRET_ACCESS_KEY=[redacted]",
+      "SECRET_KEY_BASE=[redacted]"
+    ].join("\n"))
+  })
+
+  it("redacts entire quoted secret assignment values", () => {
+    expect(redactToolCardText('password = "hunter two"')).toBe(
+      'password = "[redacted]"'
+    )
+  })
+
+  it("redacts quoted secret assignment values with escaped quotes", () => {
+    expect(redactToolCardText(String.raw`password = "hunter \"two\" tail"`)).toBe(
+      'password = "[redacted]"'
+    )
+  })
+
   it("redacts camelCase token keys in JSON-ish text", () => {
     expect(redactToolCardText('{"accessToken":"access-secret-123456","safe":"visible"}')).toBe(
       '{"accessToken":"[redacted]","safe":"visible"}'
