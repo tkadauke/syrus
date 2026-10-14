@@ -41,6 +41,12 @@ const sampleMessages: ChatMessageItem[] = [
   { type: "message", id: 3, role: "tool_use", text: "", bookmarkable: false },
 ]
 
+function captureCanvas(text = "screenshot") {
+  return {
+    toBlob: (cb: (blob: Blob | null) => void) => cb(new Blob([text], { type: "image/png" }))
+  } as HTMLCanvasElement
+}
+
 function renderButton(props: {
   context?: string
   chatId?: number | null
@@ -448,6 +454,35 @@ describe("BugReportButton", () => {
 
     resolveReport({ message: "Bug report queued." })
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
+  it("blocks submit, chat, and shortcuts while full-page capture is in flight", async () => {
+    let resolveFullPageCapture: (canvas: HTMLCanvasElement) => void = () => {}
+    mockHtml2canvas
+      .mockResolvedValueOnce(captureCanvas("viewport"))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFullPageCapture = resolve }))
+
+    const ref = renderButton({ bugReportMode: "direct_job" })
+    await openDialog(ref)
+
+    fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).toBeDisabled())
+    expect(screen.getByRole("button", { name: "Discuss" })).toBeDisabled()
+    expect(screen.getByLabelText("Title")).toBeDisabled()
+
+    const form = screen.getByRole("dialog").querySelector("form")!
+    fireEvent.submit(form)
+    fireEvent.keyDown(form, { key: "Enter", ctrlKey: true })
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+
+    expect(mockCreateBugReport).not.toHaveBeenCalled()
+    expect(mockStartBugReportChat).not.toHaveBeenCalled()
+
+    resolveFullPageCapture(captureCanvas("full page"))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).not.toBeDisabled())
+    expect(screen.getByRole("button", { name: "Discuss" })).not.toBeDisabled()
   })
 
   describe("when opened without messages", () => {
