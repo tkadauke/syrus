@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -396,6 +397,72 @@ func TestEnsureRefusesToAdoptVolumeOwnedByAnotherPlugin(t *testing.T) {
 	}
 	if d.volumes["syrus_plugin_git-mirror_data"][LabelPlugin] != "other_plugin" {
 		t.Fatal("volume ownership label changed")
+	}
+}
+
+func TestEnsureRefusesCreateConflictOwnedByAnotherPlugin(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	injectConflictingContainerDuringCreate(d, func(labels map[string]string) {
+		labels[LabelPlugin] = "evil"
+	})
+	m := newManager(d)
+
+	_, err := m.Ensure(context.Background(), "git-mirror", service())
+	if !errors.Is(err, ErrOwnershipConflict) {
+		t.Fatalf("expected ErrOwnershipConflict, got %v", err)
+	}
+	if len(d.created) != 0 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want the conflicting container not adopted", len(d.created), d.containerCount())
+	}
+	for _, c := range d.containers {
+		if c.running {
+			t.Fatal("conflicting container was started")
+		}
+	}
+}
+
+func TestEnsureRefusesCreateConflictWithDifferentSpec(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	injectConflictingContainerDuringCreate(d, func(labels map[string]string) {
+		labels[LabelSpec] = "not-the-desired-spec"
+	})
+	m := newManager(d)
+
+	_, err := m.Ensure(context.Background(), "git-mirror", service())
+	if !errors.Is(err, ErrOwnershipConflict) {
+		t.Fatalf("expected ErrOwnershipConflict, got %v", err)
+	}
+	if len(d.created) != 0 || d.containerCount() != 1 {
+		t.Fatalf("created=%d live=%d, want the conflicting container not adopted", len(d.created), d.containerCount())
+	}
+	for _, c := range d.containers {
+		if c.running {
+			t.Fatal("spec-mismatched container was started")
+		}
+	}
+}
+
+func injectConflictingContainerDuringCreate(d *fakeDocker, mutateLabels func(map[string]string)) {
+	inserted := false
+	d.beforeCreateContainer = func(name string, req docker.CreateContainerRequest) {
+		if inserted {
+			return
+		}
+		inserted = true
+		labels := map[string]string{}
+		for key, value := range req.Labels {
+			labels[key] = value
+		}
+		mutateLabels(labels)
+		req.Labels = labels
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		d.nextID++
+		id := fmt.Sprintf("c%d", d.nextID)
+		d.containers[id] = &fakeContainer{id: id, name: name, req: req}
 	}
 }
 
