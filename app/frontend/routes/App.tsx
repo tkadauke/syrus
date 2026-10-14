@@ -177,7 +177,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
       <Route path="/app-shell" element={<RootRoute initialBootstrap={initialBootstrap} />} />
       {renderAppRoutes(initialBootstrap)}
-      {renderPluginSidebarRoutes()}
+      {renderPluginSidebarRoutes(initialBootstrap)}
       <Route path="*" element={<BootstrapShell initialBootstrap={initialBootstrap} />} />
     </Routes>
   )
@@ -501,14 +501,19 @@ function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayl
  * entirely until the declarations arrive, so an unclaimed URL keeps falling to
  * the shell exactly as before.
  */
-function renderPluginSidebarRoutes() {
+function renderPluginSidebarRoutes(initialBootstrap: BootstrapPayload | null) {
   const location = useLocation()
-  // Gated only on not being a pre-auth page, deliberately not on the bootstrap
-  // query: waiting for a user would put two sequential round trips in front of
-  // a cold load of a plugin URL. Signed out, the endpoint 401s, the query
-  // errors, no routes register, and the URL falls through to the shell -- the
-  // same place it would have landed anyway.
-  const paths = usePluginSidebarPaths({ enabled: !isAuthPath(normalizedAppPath(location.pathname)) })
+  const normalizedPath = normalizedAppPath(location.pathname)
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    enabled: initialBootstrap == null && !isAuthPath(normalizedPath),
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
+  const user = (bootstrap.data ?? initialBootstrap)?.current_user
+  const shouldLoadPluginRoutes = Boolean(user) && !isAuthPath(normalizedPath)
+  const paths = usePluginSidebarPaths({ enabled: shouldLoadPluginRoutes })
 
   return paths.flatMap(({ path, section }) => {
     const element = section === "settings"
