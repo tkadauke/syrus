@@ -117,6 +117,9 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
     if (url === "/api/v1/app/repositories/1/input_sources/linear" && method === "GET") {
       return Promise.resolve(jsonResponse({ input_source: null }))
     }
+    if (url === "/api/v1/app/linear/teams" && method === "POST") {
+      return Promise.resolve(jsonResponse({ teams: [{ id: "linear-team-1", name: "Engineering" }] }))
+    }
     if (url === "/api/v1/app/repositories/1" && method === "PATCH") {
       return Promise.resolve(jsonResponse({
         message: "Saved.",
@@ -168,7 +171,10 @@ function renderRoute(initialEntry = "/repositories/1/edit") {
 }
 
 describe("RepositoryForm plugin input-source decoupling", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it("contains the edit page to the mobile viewport instead of widening the page", async () => {
     mockFetch()
@@ -480,6 +486,41 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith(
       "/api/v1/app/repositories/1",
       expect.objectContaining({ method: "PATCH" })
+    )
+  })
+
+  it("fetches Linear teams with a debounced POST body instead of a query-string key", async () => {
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Linear" })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/input_sources/linear",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    })
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "lin_api_secret" } })
+
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/app/linear/teams?"),
+      expect.anything()
+    )
+
+    await new Promise((resolve) => window.setTimeout(resolve, 450))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/linear/teams",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ api_key: "lin_api_secret" })
+        })
+      )
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/app/linear/teams?"),
+      expect.anything()
     )
   })
 
