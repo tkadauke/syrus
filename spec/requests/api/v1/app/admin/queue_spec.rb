@@ -297,6 +297,53 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "applies the failed since query param to the failed executions query" do
+    sign_in_as(admin)
+
+    travel_to Time.zone.parse("2026-10-13 12:00:00 UTC") do
+      old_job = solid_queue_job(class_name: "OldRunJob", queue_name: "runs")
+      recent_job = solid_queue_job(class_name: "RecentRunJob", queue_name: "runs")
+      SolidQueue::FailedExecution.create!(job: old_job, created_at: 2.hours.ago, error: { "message" => "old" })
+      SolidQueue::FailedExecution.create!(job: recent_job, created_at: 30.minutes.ago, error: { "message" => "recent" })
+      since = 1.hour.ago.iso8601
+
+      get "/api/v1/app/admin/queue/failed", params: { since: since }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["since"]).to eq(since)
+      expect(body["failures"].map { |failure| failure["class_name"] }).to eq([ "RecentRunJob" ])
+      expect(body["filter"]).to eq(
+        "and" => [
+          { "field" => "failed_since", "op" => "after", "value" => since }
+        ]
+      )
+    end
+  end
+
+  it "rejects malformed failed since query params" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/queue/failed", params: { since: "not-a-time" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_filter")
+  end
+
+  it "reports the failed since lower bound from the active smart folder" do
+    sign_in_as(admin)
+
+    travel_to Time.zone.parse("2026-10-13 12:00:00 UTC") do
+      SmartFolder.ensure_admin_queue_builtins!
+      folder = SmartFolder.for_subject(:admin_queue).find_by!(name: "Failed this hour")
+
+      get "/api/v1/app/admin/queue/failed", params: { smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["since"]).to eq(1.hour.ago.iso8601)
+    end
+  end
+
   it "does not advertise unsupported failed error-field sorting" do
     sign_in_as(admin)
     failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
@@ -462,6 +509,16 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
   it "shows process capabilities from fresh worker health samples when metadata and instance records omit them" do
     sign_in_as(admin)
     solid_queue_process(hostname: "mac-mini-a", pid: 101, metadata: { "queues" => "runs-macos-arm64" })
+    WorkerHostHealthSample.create!(
+      hostname: "mac-mini-a",
+      role: "worker",
+      version: "abc123",
+      worker_storage_key: "storage-mac-old",
+      observed_at: 10.minutes.ago,
+      cpu_used_percent: 80,
+      capabilities: { "os" => [ "linux" ] },
+      capability_diagnostics: { "docker" => true }
+    )
     WorkerHostHealthSample.create!(
       hostname: "mac-mini-a",
       role: "worker",

@@ -5,7 +5,7 @@ module Filters
         filter_name "failed_since"
         label "Failed since"
         column :created_at
-        operators :within_last
+        operators :within_last, :after
       end
     end
   end
