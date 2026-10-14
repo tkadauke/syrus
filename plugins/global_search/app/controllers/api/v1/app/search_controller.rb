@@ -245,11 +245,13 @@ module Api
         def merge_slug_rows(search_rows, slug_rows)
           return search_rows if slug_rows.empty?
 
-          existing_ids = search_rows.each_with_object([]) do |row, ids|
-            ids << slug_row_id(row)
+          slug_rows_by_id = slug_rows.index_by { |row| slug_row_id(row) }
+          upgraded_search_rows = search_rows.map do |row|
+            slug_row = slug_rows_by_id.delete(slug_row_id(row))
+            slug_row ? row.merge(slug_row) : row
           end
 
-          slug_rows.reject { |row| existing_ids.include?(slug_row_id(row)) } + search_rows
+          slug_rows_by_id.values + upgraded_search_rows
         end
 
         def slug_row_id(row)

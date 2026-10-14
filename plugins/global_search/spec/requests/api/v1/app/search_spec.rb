@@ -149,7 +149,9 @@ RSpec.describe "App API unified search", type: :request do
   it "ranks an exact JOB slug match ahead of indexed text that mentions the slug" do
     target = Factories.job_record(user: user, repository: repository, issue_number: 5, issue_title: "Exact slug target")
     mention = Factories.job_record(user: user, repository: repository, issue_title: "Mention-heavy competing job")
+    target.update!(issue_body: "This target mentions #{target.slug} once.")
     mention.update!(issue_body: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::JobIndex.upsert(target)
     GlobalSearch::JobIndex.upsert(mention)
 
     get "/api/v1/app/search", params: { query: target.slug, types: [ "job" ] }
@@ -186,7 +188,9 @@ RSpec.describe "App API unified search", type: :request do
   it "ranks an exact EPIC slug match ahead of indexed text that mentions the slug" do
     target = Factories.epic(user: user, repository: repository, title: "Exact epic target")
     mention = Factories.epic(user: user, repository: repository, title: "Mention-heavy competing epic")
+    target.update!(description: "This target mentions #{target.slug} once.")
     mention.update!(description: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::EpicIndex.upsert(target)
     GlobalSearch::EpicIndex.upsert(mention)
 
     get "/api/v1/app/search", params: { query: target.slug, types: [ "epic" ] }
