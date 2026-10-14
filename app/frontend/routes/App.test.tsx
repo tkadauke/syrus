@@ -8396,17 +8396,18 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledWith("https://auth.openai.com/oauth/authorize?state=abc", "_blank")
-      expect(actionCable.createSubscription.mock.calls.length).toBeGreaterThan(1)
+      expect(actionCable.createSubscription).toHaveBeenCalled()
     })
 
-    const callbacks = (actionCable.createSubscription.mock.calls as unknown[][])
-      .map((call) => (call[1] as { received?: unknown } | undefined)?.received)
-      .filter((received): received is (data: unknown) => void => typeof received === "function")
-    callbacks.forEach((received) => received({
+    const appUserSubscriptions = (actionCable.createSubscription.mock.calls as unknown[][])
+      .filter((call) => (call[0] as { channel?: string } | undefined)?.channel === "AppUserChannel")
+    expect(appUserSubscriptions).toHaveLength(1)
+    const received = (appUserSubscriptions[0][1] as { received: (data: unknown) => void }).received
+    received({
       type: "codex_oauth.callback",
       resource: "credential",
       payload: { code: "http://localhost:1455/auth/callback?code=auto-code&state=abc" }
-    }))
+    })
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(

@@ -4,20 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CodexConnect } from "./CodexConnect"
 import type { CredentialTestResult } from "@app/api/credentials"
-
-// The ChatGPT-login sub-flow holds an ActionCable auto-exchange subscription;
-// mock the consumer so tests can capture and fire the callback without ever
-// opening a real socket.
-const actionCable = vi.hoisted(() => ({
-  createSubscription: vi.fn(() => ({ unsubscribe: vi.fn() }))
-}))
-vi.mock("@rails/actioncable", () => ({
-  createConsumer: () => ({
-    subscriptions: {
-      create: actionCable.createSubscription
-    }
-  })
-}))
+import { APP_EVENT_RECEIVED_EVENT } from "@app/lib/appEvents"
 
 function renderConnect(props: { onConnected?: (result: CredentialTestResult) => void; secondaryAction?: React.ReactNode } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -46,7 +33,6 @@ function mockRoutes(routes: { patch?: () => Response; test?: () => Response; oau
 describe("CodexConnect", () => {
   afterEach(() => {
     vi.restoreAllMocks()
-    actionCable.createSubscription.mockClear()
   })
 
   it("saves and validates an API key, calling onConnected only once the saved key tests OK", async () => {
@@ -74,20 +60,34 @@ describe("CodexConnect", () => {
     expect(onConnected).not.toHaveBeenCalled()
   })
 
-  it("switches to ChatGPT login, authorizes, and auto-exchanges the callback code", async () => {
+  it("switches to ChatGPT login, authorizes, and auto-exchanges the callback code from the global app-event fanout", async () => {
     vi.spyOn(window, "open").mockReturnValue({} as Window)
     mockRoutes()
     const onConnected = vi.fn()
-    renderConnect({ onConnected })
+    const firstRender = renderConnect({ onConnected })
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "chatgpt_login" } })
     fireEvent.click(screen.getByRole("button", { name: "Authorize with ChatGPT" }))
-    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
 
-    const callback = (actionCable.createSubscription.mock.calls[0] as unknown[])[1] as { received: (data: unknown) => void }
-    callback.received({ type: "codex_oauth.callback", payload: { code: "auto-code" } })
+    await waitFor(() => expect(window.open).toHaveBeenCalledWith("https://auth.openai.com/oauth/authorize?state=abc", "_blank"))
+    window.dispatchEvent(new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
+      detail: { type: "codex_oauth.callback", payload: { code: "auto-code" } }
+    }))
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith(authJsonValid))
+
+    firstRender.unmount()
+
+    renderConnect({ onConnected })
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "chatgpt_login" } })
+    fireEvent.click(screen.getByRole("button", { name: "Authorize with ChatGPT" }))
+
+    await waitFor(() => expect(window.open).toHaveBeenCalledTimes(2))
+    window.dispatchEvent(new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
+      detail: { type: "codex_oauth.callback", payload: { code: "second-code" } }
+    }))
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledTimes(2))
   })
 
   it("renders the host-provided secondary action", () => {

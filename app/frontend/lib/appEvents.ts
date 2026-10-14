@@ -14,6 +14,7 @@ import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./cl
 // out-of-cache copy, regardless of where the proposal's message currently
 // scrolled to. See MessageStream in routes/Chat.tsx for the listener.
 export const PROPOSAL_UPDATED_EVENT = "syrus:proposal-updated"
+export const APP_EVENT_RECEIVED_EVENT = "syrus:app-event"
 
 export type ProposalUpdatedDetail = { chatSessionId: string; proposal: ChatProposal }
 
@@ -22,6 +23,21 @@ export function dispatchProposalUpdated(chatSessionId: string | number, proposal
   window.dispatchEvent(new CustomEvent<ProposalUpdatedDetail>(PROPOSAL_UPDATED_EVENT, {
     detail: { chatSessionId: String(chatSessionId), proposal }
   }))
+}
+
+export function addAppEventListener(listener: (event: AppEvent) => void) {
+  if (typeof window === "undefined") return () => {}
+
+  const handler = (event: Event) => {
+    listener((event as CustomEvent<AppEvent>).detail)
+  }
+  window.addEventListener(APP_EVENT_RECEIVED_EVENT, handler)
+  return () => window.removeEventListener(APP_EVENT_RECEIVED_EVENT, handler)
+}
+
+function dispatchAppEventReceived(event: AppEvent) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent<AppEvent>(APP_EVENT_RECEIVED_EVENT, { detail: event }))
 }
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -263,6 +279,8 @@ function patchCachedChatRecord(
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   const sequenceOutcome = trackAppEventSequence(queryClient, event)
   if (sequenceOutcome === "duplicate") return
+
+  dispatchAppEventReceived(event)
 
   const patchedFields = entityFieldsFromEventPayload(event.payload)
   applyAppEventToEntityStore(event)
