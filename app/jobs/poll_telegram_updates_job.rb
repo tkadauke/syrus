@@ -18,8 +18,13 @@ class PollTelegramUpdatesJob < PlatformPollingJob
     offset = AppSetting.telegram_update_offset
     updates = telegram_client.get_updates(offset: offset, timeout: 25)
     updates.each do |update|
-      process_update(update)
-      AppSetting.current.update!(telegram_update_offset: update["update_id"] + 1)
+      begin
+        process_update(update)
+      rescue => e
+        Rails.logger.error("#{self.class}: failed to process Telegram update #{update["update_id"]}: #{e}")
+      ensure
+        AppSetting.current.update!(telegram_update_offset: update["update_id"] + 1)
+      end
     end
   end
 
