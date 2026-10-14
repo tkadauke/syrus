@@ -243,7 +243,7 @@ RSpec.describe TargetGraph::Compiler do
       expect(described_class.compile(@dir).target(TargetGraph::Label.parse("//:prepare"))).to be_nil
     end
 
-    it "compiles no grader targets when legacy ci: expansion collides with another grader name" do
+    it "raises when legacy ci expansion collides with another grader name" do
       write(".syrus.yml", <<~YAML)
         grade:
           - name: dup
@@ -253,12 +253,13 @@ RSpec.describe TargetGraph::Compiler do
             run: bin/two
       YAML
 
-      graph = described_class.compile(@dir)
-
-      expect(graph.targets.keys).to eq(%w[//:repo])
+      expect { described_class.compile(@dir) }.to raise_error(
+        SyrusYml::ParseError,
+        /legacy ci expansion conflicts/
+      )
     end
 
-    it "compiles nothing beyond the implicit root when .syrus.yml itself fails to parse" do
+    it "raises when .syrus.yml itself fails to parse" do
       write(".syrus.yml", <<~YAML)
         formatters:
           not_an_array: true
@@ -267,9 +268,10 @@ RSpec.describe TargetGraph::Compiler do
             run: bin/rspec
       YAML
 
-      graph = described_class.compile(@dir)
-
-      expect(graph.targets.keys).to eq(%w[//:repo])
+      expect { described_class.compile(@dir) }.to raise_error(
+        SyrusYml::ParseError,
+        /formatters: must be an array/
+      )
     end
 
     it "compiles a nested .syrus.yml's legacy sections into a directory-scoped project and targets" do
@@ -1336,8 +1338,8 @@ RSpec.describe TargetGraph::Compiler do
 
       expect(diagnostics).to be_error
       expect(diagnostics.error).to start_with(".syrus.yml:")
-      # A parse failure degrades to the implicit root only -- never raises,
-      # matching TargetGraph::Compiler.compile's existing non-fatal contract.
+      # Diagnostics still report the implicit root even when strict
+      # compilation rejects invalid root config.
       expect(diagnostics.target_labels).to eq(%w[//:repo])
     end
 

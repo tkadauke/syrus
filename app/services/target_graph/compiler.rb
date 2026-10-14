@@ -143,12 +143,14 @@ class TargetGraph
         import_diagnostics: import_diagnostics
       )
     rescue StandardError => e
+      nested_errors = collect_nested_parse_errors_for_diagnostics
+      error_messages = [ "#{owner_config_path}: #{e.message}", *nested_errors ]
       Diagnostics.new(
         source: owner_config_path,
         owner_config_path: owner_config_path,
-        target_labels: [],
-        project_count: nil,
-        error: "#{owner_config_path}: #{e.message}",
+        target_labels: [ TargetGraph.root_label.to_s ],
+        project_count: 1,
+        error: error_messages.join("; "),
         import_diagnostics: import_diagnostics
       )
     end
@@ -315,6 +317,20 @@ class TargetGraph
 
     def nested_relative_dirs
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
+    end
+
+    def collect_nested_parse_errors_for_diagnostics
+      nested_relative_dirs.filter_map do |relative_dir|
+        nested_owner_config_path = "#{relative_dir}/#{SyrusYml::CONFIG_FILE}"
+        begin
+          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE), project_path: relative_dir)
+          validate_nested_deployment_stages!(nested_config)
+          nested_project_id(relative_dir, nested_config)
+          nil
+        rescue SyrusYml::ParseError, ArgumentError => e
+          "#{nested_owner_config_path}: #{e.message}"
+        end
+      end
     end
 
     def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, review_notes: nil, coverage: nil)
