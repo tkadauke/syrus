@@ -30,13 +30,16 @@ invalid rather than silently ingesting nothing.
 ## Polling and ingestion
 
 `InputSources::Linear#poll!` (invoked by the generic `PollInputSourceJob`,
-same as every other `InputSource`) runs a single GraphQL query
-(`LinearClient#issues`) filtered to the configured team, excluding Linear
-issues in `cancelled`/`completed` state, and additionally filtered
-server-side by `label_filter` when set. Each returned issue then passes
-through `LinearIngestPolicy.evaluate`, a second cancelled/completed check —
-belt-and-suspenders against a state changing between the GraphQL filter and
-local processing.
+same as every other `InputSource`) uses `LinearClient#issues` to fetch
+cursor-paginated GraphQL results in pages of up to 100 issues. The query is
+filtered to the configured team, excludes Linear issues in
+`cancelled`/`completed` state, and is additionally filtered server-side by
+`label_filter` when set. Pagination is capped at 100 pages; if Linear still
+reports another page at that point, or reports another page without an end
+cursor, the poll fails instead of silently processing an incomplete result.
+Each returned issue then passes through `LinearIngestPolicy.evaluate`, a
+second cancelled/completed check — belt-and-suspenders against a state
+changing between the GraphQL filter and local processing.
 
 For issues that pass the policy:
 
@@ -61,11 +64,12 @@ For issues that pass the policy:
   `issue_title`/`issue_body` copied from the Linear issue's `title`/
   `description`.
 
-A `429` from Linear's API is treated as a soft rate-limit: `LinearClient`
-returns `nil`, `poll!` logs a warning and records a *successful* poll
-(`repository.mark_poll_success!`) rather than an error, so a temporary rate
-limit doesn't trip the repository's poll-failure tracking. Any other
-non-200 response or a GraphQL `errors` array raises, which `poll!` records
+A `429` from any page of Linear's API is treated as a soft rate-limit:
+`LinearClient` discards any pages already fetched and returns `nil`; `poll!`
+records a *successful* poll (`repository.mark_poll_success!`) rather than an
+error, so a temporary rate limit doesn't ingest a partial result or trip the
+repository's poll-failure tracking. Any other non-200 response, a GraphQL
+`errors` array, or a pagination safety failure raises, which `poll!` records
 via `repository.mark_poll_failure!` before re-raising.
 
 ## Routes
