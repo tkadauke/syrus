@@ -65,7 +65,7 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
 
   return (
     <div className="space-y-3">
-      <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
       <JobDashboardNoticePanels panels={uiPanels} prefix={prefix} t={t} />
       <JobsTable
@@ -127,7 +127,7 @@ function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueue
 }
 
 
-function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[]; onClear: () => void }) {
+function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[] }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
@@ -143,7 +143,6 @@ function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: D
     }),
     onSuccess: (payload) => {
       setNotice(payload.message)
-      onClear()
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })

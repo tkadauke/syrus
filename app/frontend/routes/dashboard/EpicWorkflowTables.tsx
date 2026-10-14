@@ -68,7 +68,7 @@ export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPe
 
   return (
     <div className="space-y-3">
-      <BulkEpicActions selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      <BulkEpicActions selectedIds={selectedArray} />
       {isDesktop ? (
         <DataTable.Root>
           <DataTable.Header>
@@ -101,7 +101,7 @@ export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPe
   )
 }
 
-function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
+function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
@@ -109,7 +109,6 @@ function BulkEpicActions({ selectedIds, onClear }: { selectedIds: number[]; onCl
     mutationFn: (bulkAction: DashboardBulkEpicAction) => bulkDashboardEpics({ epic_ids: selectedIds, bulk_action: bulkAction }),
     onSuccess: (payload) => {
       setNotice(payload.message)
-      onClear()
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
