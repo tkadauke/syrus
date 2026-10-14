@@ -23,6 +23,10 @@ import { Page } from "../components/ui"
 
 const queryKey = ["admin", "settings"] as const
 
+function optionalNumber(value: string): number | undefined {
+  return value.trim() === "" ? undefined : Number(value)
+}
+
 export function AdminSettings() {
   const { t } = useT("admin")
   const [notice, setNotice] = useState<string | null>(null)
@@ -133,23 +137,23 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
       signups_open: signupsOpen,
-      grade_max_iterations: Number(gradeMaxIterations),
-      adversarial_review_rounds: Number(adversarialReviewRounds),
-      max_job_failures: Number(maxJobFailures),
-      merge_train_max_size: Number(mergeTrainMaxSize),
-      main_concern_report_threshold: Number(mainConcernReportThreshold),
+      grade_max_iterations: optionalNumber(gradeMaxIterations),
+      adversarial_review_rounds: optionalNumber(adversarialReviewRounds),
+      max_job_failures: optionalNumber(maxJobFailures),
+      merge_train_max_size: optionalNumber(mergeTrainMaxSize),
+      main_concern_report_threshold: optionalNumber(mainConcernReportThreshold),
       report_issue_repo_slug: reportIssueRepoSlug,
-      video_retention_days: Number(videoRetentionDays),
-      video_storage_budget_mb: Number(videoBudgetMb),
+      video_retention_days: optionalNumber(videoRetentionDays),
+      video_storage_budget_mb: optionalNumber(videoBudgetMb),
       telegram_bot_handle: telegramBotHandle,
-      max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
-      repository_full_poll_interval_hours: Number(repositoryFullPollIntervalHours),
-      proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
+      max_concurrent_agent_runs: optionalNumber(maxConcurrentAgentRuns),
+      repository_full_poll_interval_hours: optionalNumber(repositoryFullPollIntervalHours),
+      proactive_rebase_commit_threshold: optionalNumber(proactiveRebaseThreshold),
       show_work_unit_debug: showWorkUnitDebug,
-      rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
+      rebase_failure_cooldown_minutes: optionalNumber(rebaseFailureCooldown),
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
       workflow_admission_policy: workflowAdmissionPolicy,
-      chat_coding_workspace_budget_mb: Number(chatCodingWorkspaceBudgetMb)
+      chat_coding_workspace_budget_mb: optionalNumber(chatCodingWorkspaceBudgetMb)
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)

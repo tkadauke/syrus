@@ -166,6 +166,23 @@ describe("RetentionSettings", () => {
     }))
   })
 
+  it("does not save a blank finite retention value as infinite", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(retentionPayload()))
+
+    renderRoute()
+    await screen.findByText("notifications")
+
+    fireEvent.change(screen.getByLabelText("Retention window for notifications"), { target: { value: "" } })
+
+    const saveButton = screen.getAllByRole("button", { name: "Save" })[1]
+    expect(saveButton).toBeDisabled()
+    fireEvent.click(saveButton)
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "/api/v1/app/admin/retention_settings",
+      expect.objectContaining({ method: "PATCH" })
+    )
+  })
+
   it("saves the manual available-space override", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/admin/retention_settings" && init?.method === "PATCH") {
