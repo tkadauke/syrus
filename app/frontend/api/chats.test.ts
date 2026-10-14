@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, fetchChats } from "./chats"
+import { createChat, createEmptyChat, fetchChats, searchChatJobs } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -90,6 +90,17 @@ describe("chat API", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/app/chats?group_by=agent",
+      expect.anything()
+    )
+  })
+
+  it("includes active work in job dependency searches", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ jobs: [] }))
+
+    await searchChatJobs("running job")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/jobs?q=running+job&include_active_work=true&limit=10",
       expect.anything()
     )
   })
