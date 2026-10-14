@@ -234,7 +234,7 @@ export function ChatRoute() {
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_chat"))}</PanelMessage> : null}
-      {chat.isSuccess ? <ChatView chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
+      {chat.isSuccess ? <ChatView key={id} chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
 }
@@ -450,6 +450,11 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
 type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
 type ContextFindOpener = () => boolean
 type ContextFindSurface = "chat" | "workspace"
+type OlderMessagesRequest = {
+  before: number
+  chatId: string
+  path: string
+}
 
 export function contextFindSurface({
   activeSurface,
@@ -535,8 +540,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const visibleItemsSignature = chatStreamItemsSignature(streamItems)
   const retryTextMap = useMemo(() => retryTextByMessageId(displayedMessages), [displayedMessages])
   const loadOlder = useMutation({
-    mutationFn: (before: number) => fetchChatMessages(payload.paths.app_messages_path, before),
-    onSuccess: (page) => {
+    mutationFn: ({ before, path }: OlderMessagesRequest) => fetchChatMessages(path, before),
+    onSuccess: (page, request) => {
+      if (request.chatId !== String(streamChatIdRef.current)) return
+
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
@@ -618,9 +625,9 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       scrollHeight: stream.scrollHeight,
       scrollTop: stream.scrollTop
     } : null
-    loadOlder.mutate(oldestId)
+    loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
     return true
-  }, [hasMoreOlder, loadOlder, oldestId])
+  }, [hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path])
 
   useEffect(() => {
     if (!olderMessageRequesterRef) return
@@ -732,6 +739,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     setFindOpen(false)
     setFindQuery("")
     setActiveFindIndex(0)
+    setActiveBookmarkTarget(null)
+    loadOlder.reset()
+    bookmarkLoadBeforeRef.current = null
+    preserveScrollAfterOlderLoadRef.current = null
     atBottomRef.current = true
     lastScrollTopRef.current = 0
     lastUserScrollIntentAtRef.current = 0
@@ -821,8 +832,8 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     if (loadOlder.isPending || bookmarkLoadBeforeRef.current === oldestId) return
 
     bookmarkLoadBeforeRef.current = oldestId
-    loadOlder.mutate(oldestId)
-  }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
+    loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
+  }, [activeBookmarkTarget, hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path, visibleItemsSignature])
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
