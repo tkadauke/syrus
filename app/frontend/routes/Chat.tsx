@@ -883,7 +883,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
+        className={`h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
