@@ -4,7 +4,7 @@ require "tmpdir"
 RSpec.describe Syrus::SpaEntrypointPublisher do
   it "publishes the Vite entrypoint at the stable browser-visible path" do
     Dir.mktmpdir("spa-entrypoint") do |dir|
-      source = Pathname.new(dir).join("builds/spa.js")
+      source = Pathname.new(dir).join("builds/spa.digested.js")
       output = Pathname.new(dir).join("public/assets")
       source.dirname.mkpath
       source.write("import './spa-route-abc123.digested.js';")

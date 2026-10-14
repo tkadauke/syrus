@@ -237,6 +237,21 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('<script src="/assets/spa.js?v=entrypoint-sha" type="module"></script>')
   end
 
+  it "loads the development SPA entrypoint from the Vite pre-digested build" do
+    allow(Rails.env).to receive(:test?).and_return(false)
+    allow(Rails.env).to receive(:production?).and_return(false)
+    allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
+    allow(Rails.application.assets.load_path).to receive(:find).and_call_original
+    allow(Rails.application.assets.load_path).to receive(:find).with("spa.digested.js").and_return(double("spa entrypoint"))
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('<script src="/assets/spa.digested.js" type="module"></script>')
+  end
+
   it "renders a visible shell loading state before the SPA bundle executes" do
     user = Factories.user
     sign_in_as(user)

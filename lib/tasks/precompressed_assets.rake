@@ -13,7 +13,7 @@ end
 
 Rake::Task["assets:precompile"].enhance do
   Syrus::SpaEntrypointPublisher.new(
-    source_path: Rails.root.join("app/assets/builds/spa.js"),
+    source_path: Rails.root.join("app/assets/builds/spa.digested.js"),
     output_path: Rails.application.config.assets.output_path
   ).call
   Rake::Task["assets:precompress"].invoke

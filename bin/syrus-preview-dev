@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mkdir -p app/assets/builds log tmp/pids
-rm -f app/assets/builds/spa.js app/assets/builds/tailwind.css
+rm -f app/assets/builds/spa.js app/assets/builds/spa.digested.js app/assets/builds/tailwind.css
 
 pids=()
 rails_pid=""
@@ -47,7 +47,7 @@ wait_for_file() {
   done
 }
 
-wait_for_file app/assets/builds/spa.js log/vite.log
+wait_for_file app/assets/builds/spa.digested.js log/vite.log
 wait_for_file app/assets/builds/tailwind.css log/tailwind.log
 
 bin/rails server -p "${PORT:-3000}" -b 0.0.0.0 -e development > log/development.log 2>&1 &
