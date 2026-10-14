@@ -15,6 +15,7 @@ module Admin
         attention_state: item.attention_state,
         detail: item.detail,
         age_label: item.age_label,
+        age_seconds: item.age_seconds,
         run_id: item.run&.id,
         workflow_id: item.workflow&.id,
         workflow_slug: item.workflow&.slug,
