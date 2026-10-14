@@ -739,6 +739,8 @@ class ChatWorkspace
     return nil unless safe
     normalized_relative_path = safe.relative_path_from(path).to_s
     return file_content_at_ref(path, normalized_relative_path, ref) if ref.present?
+    safe = safe_checkout_path(path, normalized_relative_path, resolve_symlinks: true)
+    return nil unless safe
     return nil unless safe&.file?
 
     size = safe.size
@@ -1092,8 +1094,8 @@ class ChatWorkspace
 
   # Returns a Pathname for relative_path resolved within checkout_dir, or nil
   # if the path is blank, contains traversal sequences, or escapes the root.
-  def safe_checkout_path(checkout_dir, relative_path)
-    Syrus::PathJail.resolve!(checkout_dir, relative_path)
+  def safe_checkout_path(checkout_dir, relative_path, resolve_symlinks: false)
+    Syrus::PathJail.resolve!(checkout_dir, relative_path, resolve_symlinks: resolve_symlinks)
   rescue Syrus::PathJail::PathEscape
     nil
   end

@@ -23,7 +23,7 @@ module Syrus
     # an already-constructed absolute path against root) -- Pathname#join
     # discards `root` in that case, so absolute-path injection is caught by
     # the same escape check as `../` traversal.
-    def self.resolve!(root, relative_path)
+    def self.resolve!(root, relative_path, resolve_symlinks: false)
       if relative_path.blank?
         raise PathEscape.new(reason: :blank, relative_path: relative_path, root: root)
       end
@@ -35,7 +35,18 @@ module Syrus
         raise PathEscape.new(reason: :escape, relative_path: relative_path, root: root)
       end
 
-      candidate
+      return candidate unless resolve_symlinks
+
+      real_root = root.realpath
+      real_candidate = candidate.realpath
+
+      if real_candidate == real_root || !real_candidate.to_s.start_with?("#{real_root}#{File::SEPARATOR}")
+        raise PathEscape.new(reason: :escape, relative_path: relative_path, root: root)
+      end
+
+      real_candidate
+    rescue Errno::ENOENT, Errno::EACCES, Errno::ENOTDIR, Errno::ELOOP
+      raise PathEscape.new(reason: :escape, relative_path: relative_path, root: root)
     end
   end
 end
