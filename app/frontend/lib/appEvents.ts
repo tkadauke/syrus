@@ -983,7 +983,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const updateProposal = chatUpdateProposalPayload(event.payload)
   if (updateProposal) {
-    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"], exact: true })
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
 
     if (updateProposal.job_status_proposal) {
       patchChatJobStatusPendingProposal(queryClient, event.id, updateProposal.job_status_proposal)

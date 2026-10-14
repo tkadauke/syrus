@@ -867,6 +867,45 @@ describe("AppChromeV2", () => {
     expect(fetchNewChat).not.toHaveBeenCalled()
   })
 
+  it("reuses an existing unstarted chat from a non-default active recent-chat cache", async () => {
+    const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
+    const fetchNewChat = vi.spyOn(chatsApi, "fetchNewChat")
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(recentChatsQueryKey({ chat_types: ["agent", "group"] }), {
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({
+              id: 12,
+              title: null,
+              title_pending: true,
+              chat_path: "/chats/12",
+              current: false,
+              last_message_at: null,
+              created_at: "2026-06-01T00:00:00Z",
+              updated_at: "2026-06-01T00:00:00Z"
+            })
+          ]
+        })
+      ],
+      repositories: []
+    })
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient,
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New Chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
+    })
+    expect(createEmptyChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).not.toHaveBeenCalled()
+  })
+
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(recentChatsQueryKey({ status: "hidden" }), {

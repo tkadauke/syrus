@@ -10,7 +10,7 @@ import { type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, ty
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
-import { createEmptyChat, createGroupChat, fetchNewChat, type ChatProviderOption, type ChatsIndexPayload, type NewChatPayload } from "../api/chats"
+import { createEmptyChat, createGroupChat, fetchNewChat, type ChatProviderOption, type NewChatPayload } from "../api/chats"
 import { getJson, postJson } from "../api/client"
 import { signOut } from "../api/auth"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
@@ -44,9 +44,9 @@ import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
 import { LinkText, Surface } from "../components/ui"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { recentChatsQueryKey, updateRecentChatCache } from "../lib/chatCache"
+import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
-import { firstUnstartedChat } from "../lib/unstartedChat"
+import { firstUnstartedChatInRecentCaches } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
 import { MOBILE_CHROME_BOTTOM_OVERLAP_CLASS, MOBILE_CHROME_SURFACE_CLASS, MobileChromeContext } from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
@@ -432,7 +432,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setStartingChat(true)
     setDrawerOpen(false)
     try {
-      const unstartedChat = useDefaultRepository ? firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(recentChatsQueryKey())) : null
+      const unstartedChat = useDefaultRepository ? firstUnstartedChatInRecentCaches(queryClient) : null
       if (unstartedChat) {
         navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
         return

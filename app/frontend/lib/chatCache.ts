@@ -71,7 +71,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
-  queryClient.setQueryData<ChatsIndexPayload>(recentChatsQueryKey(), (current) => {
+  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
     const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
