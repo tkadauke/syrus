@@ -54,6 +54,20 @@ RSpec.describe CommandRedactor do
       )
     end
 
+    it "redacts option-style secret assignments while preserving their prefixes" do
+      text = 'bin/deploy --token=one --api-key="two" -password=three --safe=true'
+
+      expect(described_class.redact(text)).to eq(
+        'bin/deploy --token=[REDACTED] --api-key="[REDACTED]" -password=[REDACTED] --safe=true'
+      )
+    end
+
+    it "leaves already-redacted assignments intact inside serialized data" do
+      text = '{"command":"bin/deploy --api-key=[REDACTED]"}'
+
+      expect(described_class.redact_assignments(text)).to eq(text)
+    end
+
     it "does not redact assignment keys that only contain sensitive-looking substrings" do
       text = "SECRETARY_NAME=visible TOKENIZER_MODE=visible MONKEY_PATCH=visible"
 
