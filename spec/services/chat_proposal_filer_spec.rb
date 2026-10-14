@@ -402,6 +402,21 @@ RSpec.describe ChatProposalFiler do
       }.not_to change { session.reload.job_attachments.count }
     end
 
+    it "does not create a duplicate Job when confirmation uses a stale proposed record" do
+      job_proposal = proposal(slug: "stale-job-retry", title: "Stale retry job")
+      stale_copy = ChatProposal.find(job_proposal.id)
+      filer = described_class.new(user: user, repository: repository)
+
+      filer.file!([ job_proposal ])
+
+      expect(stale_copy).to be_proposed
+      allow(described_class).to receive(:ordered_closure).with([ stale_copy ]).and_return([ stale_copy ])
+      expect {
+        filer.file!([ stale_copy ])
+      }.not_to change(Job, :count)
+      expect(job_proposal.reload.job).to be_present
+    end
+
     it "dedupes shared upstream proposals for bulk filing" do
       root = proposal(slug: "root", title: "Root")
       left = proposal(slug: "left", title: "Left")
@@ -454,6 +469,29 @@ RSpec.describe ChatProposalFiler do
       expect(github.job).to be_nil
       expect(syrus.reload.job).to be_present
       expect(JobDependency.count).to eq(0)
+    end
+
+    it "does not create GitHub issues when a later database validation rolls back the confirmation" do
+      github = proposal(slug: "gh-rollback", title: "GitHub rollback", kind: "github_issue")
+      cancelled = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      cancelled.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+      syrus = proposal(
+        slug: "syrus-invalid",
+        title: "Invalid Syrus issue",
+        depends_on_job_ids: [ cancelled.id ]
+      )
+      depends_on(syrus, github)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      expect(client).not_to receive(:create_issue)
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ syrus ])
+      }.to raise_error(ArgumentError, /will not satisfy dependencies/)
+
+      expect(github.reload).to be_proposed
+      expect(github.github_issue_number).to be_nil
+      expect(syrus.reload).to be_proposed
     end
 
     it "files Epic proposals and wires Epic dependencies" do

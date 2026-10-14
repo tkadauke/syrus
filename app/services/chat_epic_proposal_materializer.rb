@@ -11,18 +11,21 @@ class ChatEpicProposalMaterializer
   end
 
   def file!(epic_proposal)
-    raise ArgumentError, "proposal must be an epic bundle" unless epic_proposal.epic?
-    raise ArgumentError, "proposal is no longer proposed" unless epic_proposal.proposed?
-
-    @chat_session = epic_proposal.chat_session
-    job_proposals = proposed_children_for(epic_proposal)
-    validate_child_count!(epic_proposal, job_proposals)
-    validate_child_dependency_policy!(epic_proposal, job_proposals)
-    ensure_active_repositories!([ epic_proposal ] + job_proposals)
     jobs = []
     epic = nil
+    job_proposals = []
 
     ApplicationRecord.transaction do
+      epic_proposal = ChatProposal.lock.find(epic_proposal.id)
+      raise ArgumentError, "proposal must be an epic bundle" unless epic_proposal.epic?
+      raise ArgumentError, "proposal is no longer proposed" unless epic_proposal.proposed?
+
+      @chat_session = epic_proposal.chat_session
+      job_proposals = proposed_children_for(epic_proposal)
+      validate_child_count!(epic_proposal, job_proposals)
+      validate_child_dependency_policy!(epic_proposal, job_proposals)
+      ensure_active_repositories!([ epic_proposal ] + job_proposals)
+
       epic = create_epic_for(epic_proposal)
       chat_session.chat_attachments.find_or_create_by!(attachable: epic)
       epic_proposal.update!(
@@ -69,7 +72,7 @@ class ChatEpicProposalMaterializer
   end
 
   def proposed_children_for(epic_proposal)
-    proposals = epic_proposal.child_proposals.includes(:dependencies).where(state: "proposed").to_a
+    proposals = epic_proposal.child_proposals.lock.includes(:dependencies).where(state: "proposed").to_a
     ChatProposal.topological_sort(proposals)
   end
 

@@ -310,6 +310,28 @@ RSpec.describe ChatEpicProposalMaterializer do
     }.not_to change(ChatAttachment, :count)
   end
 
+  it "does not create a duplicate Epic or child Job when confirmation uses a stale proposed record" do
+    proposal = epic_proposal
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+    stale_copy = ChatProposal.find(proposal.id)
+    materializer = described_class.new(user: user)
+
+    materializer.file!(proposal)
+
+    expect(stale_copy).to be_proposed
+    expect {
+      expect {
+        materializer.file!(stale_copy)
+      }.to raise_error(ArgumentError, /proposal is no longer proposed/)
+    }.to change(Epic, :count).by(0).and change(Job, :count).by(0)
+  end
+
   it "materializes Epic dependencies from proposal slug tokens" do
     prerequisite = chat_session.proposals.create!(
       slug: "some-slug",
