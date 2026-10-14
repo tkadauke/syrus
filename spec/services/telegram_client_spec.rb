@@ -18,7 +18,7 @@ RSpec.describe TelegramClient do
       expect(result).to eq([{ "update_id" => 10 }])
     end
 
-    it "returns an empty array when ok is false" do
+    it "raises when the Telegram API rejects the request" do
       stub_request(:get, "https://api.telegram.org/bottest-bot-token/getUpdates")
         .with(query: hash_including("offset" => "0"))
         .to_return(
@@ -27,16 +27,16 @@ RSpec.describe TelegramClient do
           headers: { "Content-Type" => "application/json" }
         )
 
-      expect(client.get_updates(offset: 0)).to eq([])
+      expect { client.get_updates(offset: 0) }
+        .to raise_error(TelegramClient::Error, "Unauthorized")
     end
 
-    it "returns an empty array and logs on network error" do
+    it "raises on network error" do
       stub_request(:get, "https://api.telegram.org/bottest-bot-token/getUpdates")
         .with(query: hash_including("offset" => "0"))
         .to_raise(Net::OpenTimeout)
 
-      expect(Rails.logger).to receive(:error).with(include("get_updates"))
-      expect(client.get_updates(offset: 0)).to eq([])
+      expect { client.get_updates(offset: 0) }.to raise_error(Net::OpenTimeout)
     end
 
     it "returns an empty array on timeout (empty result)" do

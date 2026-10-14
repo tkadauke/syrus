@@ -43,9 +43,45 @@ RSpec.describe PollTelegramUpdatesJob do
       AppSetting.current.update_column(:telegram_bot_token, nil)
       expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
     end
+
+    it "re-enqueues with backoff when fetching updates fails" do
+      allow_any_instance_of(TelegramClient).to receive(:get_updates).and_raise(Net::OpenTimeout)
+      allow(Rails.logger).to receive(:error)
+
+      expect { described_class.new.perform }
+        .to have_enqueued_job(described_class).at(
+          a_value_within(1.second).of(PlatformPollingJob::ERROR_RETRY_DELAY.from_now)
+        )
+    end
   end
 
   describe "#poll_once" do
+    it "logs a failed update, advances its offset, and processes later updates" do
+      failed_update = {
+        "update_id" => 30,
+        "message" => { "from" => { "id" => 99 }, "text" => "poison" }
+      }
+      later_update = {
+        "update_id" => 31,
+        "message" => { "from" => { "id" => 99 }, "text" => "next" }
+      }
+      allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([failed_update, later_update])
+
+      failed_router = instance_double(InboundMessageRouter)
+      later_router = instance_double(
+        InboundMessageRouter,
+        call: InboundMessageRouter::Result.new(status: :ok, session: nil)
+      )
+      allow(failed_router).to receive(:call).and_raise(ActiveRecord::RecordInvalid)
+      allow(InboundMessageRouter).to receive(:new).and_return(failed_router, later_router)
+      expect(Rails.logger).to receive(:error).with(include("Telegram update 30"))
+
+      described_class.new.perform
+
+      expect(later_router).to have_received(:call)
+      expect(AppSetting.current.reload.telegram_update_offset).to eq(32)
+    end
+
     context "with a text message from a linked user" do
       let(:identity) { Factories.platform_identity(user: user, platform: "telegram", external_id: "99") }
 

@@ -3,13 +3,15 @@ require "json"
 
 class TelegramClient
   BASE = "https://api.telegram.org"
+  class Error < StandardError; end
 
   def initialize(token: AppSetting.telegram_bot_token)
     @token = token
   end
 
   # GET /bot{token}/getUpdates?offset=N&timeout=T
-  # Returns array of Update objects, empty array on timeout or error.
+  # Returns an array of Update objects. Transport and API errors are raised so
+  # the polling job can back off before trying again.
   def get_updates(offset:, timeout: 25)
     uri = URI("#{BASE}/bot#{@token}/getUpdates")
     uri.query = URI.encode_www_form(offset: offset, timeout: timeout)
@@ -18,10 +20,9 @@ class TelegramClient
       http.get(uri.request_uri)
     end
     data = JSON.parse(response.body)
-    data["ok"] ? data["result"] : []
-  rescue => e
-    Rails.logger.error("TelegramClient#get_updates: #{e}")
-    []
+    raise Error, data["description"].presence || "Telegram getUpdates failed" unless data["ok"]
+
+    data["result"]
   end
 
   # POST /bot{token}/sendMessage

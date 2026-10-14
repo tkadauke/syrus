@@ -1,6 +1,8 @@
 class PlatformPollingJob < ApplicationJob
   queue_as :polling
 
+  ERROR_RETRY_DELAY = 30.seconds
+
   @registry = []
 
   class << self
@@ -78,19 +80,27 @@ class PlatformPollingJob < ApplicationJob
   end
 
   def perform
+    poll_failed = false
     return unless configured?
     return if duplicate_running?
     poll_once
   rescue => e
+    poll_failed = true
     Rails.logger.error("#{self.class}: #{e}")
   ensure
-    self.class.perform_later if configured?
+    enqueue_next_poll(poll_failed:) if configured?
   end
 
   private
 
   def configured? = raise NotImplementedError
   def poll_once   = raise NotImplementedError
+
+  def enqueue_next_poll(poll_failed:)
+    return self.class.perform_later unless poll_failed
+
+    self.class.set(wait: ERROR_RETRY_DELAY).perform_later
+  end
 
   def duplicate_running?
     SolidQueue::Job
