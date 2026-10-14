@@ -1,9 +1,10 @@
 import "xterm/css/xterm.css"
 
-import { createConsumer, type Subscription } from "@rails/actioncable"
+import type { Subscription } from "@rails/actioncable"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "xterm"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { getAppConsumer } from "@app/lib/actionCable"
 
 export type TerminalConnectionState = {
   connected: boolean
@@ -104,7 +105,7 @@ export function TerminalStream({
 
     doFit()
 
-    const subscription: Subscription = createConsumer().subscriptions.create(
+    const subscription: Subscription = getAppConsumer().subscriptions.create(
       { channel: "TerminalChannel", session_id: terminalSessionId },
       {
         connected() {

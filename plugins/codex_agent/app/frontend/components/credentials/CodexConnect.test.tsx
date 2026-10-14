@@ -8,15 +8,17 @@ import type { CredentialTestResult } from "@app/api/credentials"
 // The ChatGPT-login sub-flow holds an ActionCable auto-exchange subscription;
 // mock the consumer so tests can capture and fire the callback without ever
 // opening a real socket.
-const actionCable = vi.hoisted(() => ({
-  createSubscription: vi.fn(() => ({ unsubscribe: vi.fn() }))
-}))
-vi.mock("@rails/actioncable", () => ({
-  createConsumer: () => ({
+const actionCable = vi.hoisted(() => {
+  const createSubscription = vi.fn(() => ({ unsubscribe: vi.fn() }))
+  const createConsumer = vi.fn(() => ({
     subscriptions: {
-      create: actionCable.createSubscription
+      create: createSubscription
     }
-  })
+  }))
+  return { createConsumer, createSubscription }
+})
+vi.mock("@rails/actioncable", () => ({
+  createConsumer: actionCable.createConsumer
 }))
 
 function renderConnect(props: { onConnected?: (result: CredentialTestResult) => void; secondaryAction?: React.ReactNode } = {}) {
@@ -47,6 +49,7 @@ describe("CodexConnect", () => {
   afterEach(() => {
     vi.restoreAllMocks()
     actionCable.createSubscription.mockClear()
+    actionCable.createConsumer.mockClear()
   })
 
   it("saves and validates an API key, calling onConnected only once the saved key tests OK", async () => {
@@ -78,16 +81,26 @@ describe("CodexConnect", () => {
     vi.spyOn(window, "open").mockReturnValue({} as Window)
     mockRoutes()
     const onConnected = vi.fn()
-    renderConnect({ onConnected })
+    const firstRender = renderConnect({ onConnected })
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "chatgpt_login" } })
     fireEvent.click(screen.getByRole("button", { name: "Authorize with ChatGPT" }))
     await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
 
     const callback = (actionCable.createSubscription.mock.calls[0] as unknown[])[1] as { received: (data: unknown) => void }
     callback.received({ type: "codex_oauth.callback", payload: { code: "auto-code" } })
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith(authJsonValid))
+
+    firstRender.unmount()
+
+    renderConnect({ onConnected })
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "chatgpt_login" } })
+    fireEvent.click(screen.getByRole("button", { name: "Authorize with ChatGPT" }))
+
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledTimes(2))
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
   })
 
   it("renders the host-provided secondary action", () => {

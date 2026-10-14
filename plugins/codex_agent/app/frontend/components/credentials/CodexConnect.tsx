@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { createConsumer } from "@rails/actioncable"
 import {
   exchangeCodexOauth,
   savePartialCredentials,
@@ -11,6 +10,7 @@ import {
 import { openInNewTab } from "@app/lib/desktopShell"
 import { errorMessage } from "@app/lib/errorMessage"
 import { inputClass } from "@app/lib/formClasses"
+import { getAppConsumer } from "@app/lib/actionCable"
 import { useT } from "@app/hooks/useT"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
@@ -197,7 +197,7 @@ function CodexChatGptConnect({
   useEffect(() => {
     if (!authStarted) return
 
-    const consumer = createConsumer()
+    const consumer = getAppConsumer()
     const subscription = consumer.subscriptions.create(
       { channel: "AppUserChannel" },
       {
