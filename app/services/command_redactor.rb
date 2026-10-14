@@ -7,7 +7,7 @@ class CommandRedactor
   ].freeze
   GITHUB_TOKEN_PATTERN = /\b(?:ghp|github_pat|gho|ghu|ghs|ghr)_[A-Za-z0-9_]+\b/.freeze
   ASSIGNMENT_PATTERN = /(?<![A-Za-z0-9_-])([A-Za-z_][A-Za-z0-9_-]*)=([^&\s]+)/.freeze
-  SENSITIVE_ASSIGNMENT_SEGMENTS = %w[password passwd secret token key].freeze
+  SENSITIVE_ASSIGNMENT_SEGMENTS = %w[authorization password passwd secret token key].freeze
   SECRET_ASSIGNMENT_PATTERNS = [
     /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
     /((?:SYRUS_(?:CLI|MCP_PROXY)_INVOCATION_CONTEXT|invocation_context)["']?\s*[:=]\s*["']?)[^"',\s}]+/i,

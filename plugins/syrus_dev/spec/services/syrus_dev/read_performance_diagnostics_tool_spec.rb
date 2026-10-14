@@ -128,7 +128,10 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
     append_event(
       name: "SECRET_KEY_BASE=event-secret",
       fingerprint: "AWS_SECRET_ACCESS_KEY=fingerprint-secret",
-      metadata: { command: "PRIVATE_KEY=metadata-secret bin/rails" }
+      metadata: {
+        command: "PRIVATE_KEY=metadata-secret bin/rails",
+        header: "authorization=BearerValue"
+      }
     )
 
     response = described_class.call(server_context: { run_id: run.id }, include_events: true)
@@ -137,6 +140,7 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
     expect(event["name"]).to eq("SECRET_KEY_BASE=[REDACTED]")
     expect(event["fingerprint"]).to eq("AWS_SECRET_ACCESS_KEY=[REDACTED]")
     expect(event.dig("metadata", "command")).to eq("PRIVATE_KEY=[REDACTED] bin/rails")
+    expect(event.dig("metadata", "header")).to eq("authorization=[REDACTED]")
   end
 
   it "matches admin performance payload revision-scope filtering" do
