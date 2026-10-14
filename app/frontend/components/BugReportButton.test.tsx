@@ -982,6 +982,23 @@ describe("BugReportButton", () => {
       })
     })
 
+    it("does not submit the bug report when Ctrl+Enter commits annotation text", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      await annotate()
+      fireEvent.click(screen.getByRole("button", { name: "Text" }))
+      fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+      const input = screen.getByPlaceholderText("Type, then press Enter")
+      fireEvent.change(input, { target: { value: "Needs label" } })
+      fireEvent.keyDown(input, { key: "Enter", ctrlKey: true })
+
+      expect(bugReportsApi.createBugReport).not.toHaveBeenCalled()
+      expect(screen.getByRole("dialog", { name: "Annotate bug-report-viewport.png" })).toBeInTheDocument()
+      expect(screen.getByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+    })
+
     it("supports annotating the full-page screenshot", async () => {
       const ref = renderButton()
       await openDialog(ref)

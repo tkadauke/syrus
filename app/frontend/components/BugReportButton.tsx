@@ -378,6 +378,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
     if (formDisabled || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+    if (!event.currentTarget.contains(event.target as Node)) return
 
     event.preventDefault()
     event.currentTarget.requestSubmit()
