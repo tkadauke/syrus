@@ -166,6 +166,7 @@ Emergency kill switch: pause workflow execution. `RunJob` checks this flag and r
 **Type:** string · **Default:** "tkadauke/syrus"
 
 Controls where in-app bug reports are sent. The slug is also used for the "Report an issue" link displayed in the UI.
+The setting is required; saving a blank value is rejected.
 
 **Routing logic:** when a user submits a bug report, Syrus checks whether an active `Repository` record exists for this slug (system-wide match) or whether the user has a fork of it (`upstream_owner`/`upstream_name` match). If either is found, the report is filed as a direct Syrus Job against that repository. If neither is found, the report is filed as a plain GitHub issue via the API using the user's PAT; screenshots and attachments are uploaded to GitHub's asset CDN and embedded inline in the issue body.
 
@@ -282,7 +283,7 @@ Instance-wide storage budget for walkthrough video blobs, measured in megabytes.
 
 **Type:** string · **Default:** nil
 
-The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. The Telegram integration itself (long-poll adapter) is a separate job that registers via `PlatformPollingJob.registry`; this setting is what that job checks in its `configured?` guard.
+The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. Saving a blank handle clears the setting and disables Telegram configuration. The Telegram integration itself (long-poll adapter) is a separate job that registers via `PlatformPollingJob.registry`; this setting is what that job checks in its `configured?` guard.
 
 ### discord_bot_token
 
