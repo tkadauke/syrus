@@ -645,6 +645,7 @@
     "settings_updated": "Praescripta retentionis renovata sunt.",
     "infinite_label": "Retentio infinita",
     "retention_value_label": "Fenestra retentionis pro {{table}}",
+    "retention_value_required": "Fenestra retentionis saltem 1 inscribe.",
     "unit_days": "dies",
     "unit_hours": "horas",
     "current_size_label": "Magnitudo praesens",
