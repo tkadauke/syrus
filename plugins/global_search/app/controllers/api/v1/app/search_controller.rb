@@ -32,9 +32,12 @@ module Api
           end
 
           limit = search_limit
-          rows = selected_types.flat_map { |type| normalized_rows(type, query, limit) }
+          rows = selected_types.flat_map { |type| typed_rows(type, query, limit) }
           rows = grouped_chat_rows(rows)
-          rows.sort_by! { |row| [ row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ] }
+          rows = normalized_rows(rows)
+          rows.sort_by! do |row|
+            [ row.fetch(:priority), row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ]
+          end
           @search_result_rows = rows
 
           render json: {
@@ -117,16 +120,36 @@ module Api
           params.fetch(:limit, DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
         end
 
-        def normalized_rows(type, query, limit)
+        def typed_rows(type, query, limit)
           rows = search_rows(type, query, limit)
           return [] if rows.empty?
 
-          min_rank, max_rank = rows.map { |row| row.fetch(:rank).to_f }.minmax
-          denominator = max_rank - min_rank
-
           rows.each_with_index.map do |row, index|
-            normalized_rank = denominator.zero? ? 0.0 : (row.fetch(:rank).to_f - min_rank) / denominator
-            row.merge(type: type, type_order: types.index(type), rank: normalized_rank, ordinal: index)
+            row.merge(
+              type: type,
+              type_order: types.index(type),
+              priority: row.fetch(:priority, 0),
+              ordinal: index
+            )
+          end
+        end
+
+        def normalized_rows(rows)
+          ranked_rows = rows.reject { |row| row.fetch(:priority).negative? }
+          return rows.map { |row| row.merge(rank: 0.0) } if ranked_rows.empty?
+
+          min_rank, max_rank = ranked_rows.map { |row| row.fetch(:rank).to_f }.minmax
+          denominator = max_rank.to_f - min_rank.to_f
+
+          rows.map do |row|
+            normalized_rank =
+              if row.fetch(:priority).negative? || denominator.zero?
+                0.0
+              else
+                (row.fetch(:rank).to_f - min_rank.to_f) / denominator
+              end
+
+            row.merge(rank: normalized_rank)
           end
         end
 
@@ -244,7 +267,8 @@ module Api
             .map do |job|
             {
               job_id: job.id,
-              rank: -1.0,
+              priority: -1,
+              rank: 0.0,
               snippet: "<mark>#{ERB::Util.html_escape(job.slug)}</mark>"
             }
           end
@@ -257,7 +281,8 @@ module Api
           Current.user.epics.where(number: epic_numbers).map do |epic|
             {
               epic_id: epic.id,
-              rank: -1.0,
+              priority: -1,
+              rank: 0.0,
               snippet: "<mark>#{ERB::Util.html_escape(epic.slug)}</mark>"
             }
           end
