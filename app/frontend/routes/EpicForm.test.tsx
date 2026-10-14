@@ -41,6 +41,29 @@ function renderForm(mode: "new" | "edit", payload = formPayload()) {
 describe("EpicForm create buttons", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("preserves unsaved fields when the payload refetches", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const initialPayload = formPayload({ id: 3, epic_path: "/epics/3" })
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <EpicForm mode="edit" payload={initialPayload} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "Unsaved title" } })
+    rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <EpicForm mode="edit" payload={formPayload({ id: 3, title: "Server title", epic_path: "/epics/3" })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue("Unsaved title")
+  })
+
   it("does not offer create-and-start for a new empty Epic", () => {
     renderForm("new")
 

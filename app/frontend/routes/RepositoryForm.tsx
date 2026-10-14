@@ -66,7 +66,7 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
     <main aria-label={mode === "new" ? t('repository_form.aria_new') : t('repository_form.aria_edit')} className="mx-auto w-full min-w-0 max-w-3xl space-y-6 overflow-x-hidden px-4 py-6 sm:p-6">
       {form.isPending ? <PanelMessage>{t('repository_form.loading')}</PanelMessage> : null}
       {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t('repository_form.error_load'))}</PanelMessage> : null}
-      {form.isSuccess ? <RepositoryForm mode={mode} payload={form.data} prefix={prefix} /> : null}
+      {form.isSuccess ? <RepositoryForm key={`${mode}:${id}`} mode={mode} payload={form.data} prefix={prefix} /> : null}
     </main>
   )
 }
@@ -106,14 +106,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   const selectedOwnerType = useMemo(() => (
     ownerOptions.find((owner) => owner.login === values.owner)?.type || "org"
   ), [ownerOptions, values.owner])
-
-  useEffect(() => {
-    setValues(inputFromPayload(payload))
-    setRepairTouched(mode === "edit")
-    setRepoOptions([])
-    setBranchOptions([])
-    setRepoNotice(null)
-  }, [mode, payload])
 
   useEffect(() => {
     if (!location.hash) return
