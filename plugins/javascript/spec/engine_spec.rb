@@ -315,6 +315,23 @@ RSpec.describe JavaScript::Engine do
         expect(provider.detect?(@dir)).to be true
       end
 
+      it "returns false for a Rails repo with a package dev script" do
+        write_package_json("dev" => "vite")
+        write("Gemfile", "")
+        write("config/application.rb", "")
+        write("bin/rails", "")
+
+        expect(provider.detect?(@dir)).to be false
+      end
+
+      it "returns false for a Django repo with a package start script" do
+        write_package_json("start" => "vite --host 0.0.0.0")
+        write("manage.py", "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'project.settings')")
+        write("project/settings.py", "")
+
+        expect(provider.detect?(@dir)).to be false
+      end
+
       it "returns false for malformed package.json instead of raising" do
         write("package.json", "not json")
 
@@ -380,6 +397,34 @@ RSpec.describe JavaScript::Engine do
           preview_provider: JavaScript::PreviewProvider
         }
       )
+      Syrus::PluginRegistry.register(
+        name:             "ruby",
+        version:          Syrus::PluginApi.default_version,
+        description:      "Ruby language support.",
+        prepare_priority: 10,
+        provides:         {}
+      )
+      Syrus::PluginRegistry.register(
+        name:             "python",
+        version:          Syrus::PluginApi.default_version,
+        description:      "Python language support.",
+        prepare_priority: 30,
+        provides:         {}
+      )
+      Syrus::PluginRegistry.register(
+        name:             "syrus-rails",
+        version:          Syrus::PluginApi.default_version,
+        description:      "Ruby on Rails framework intelligence.",
+        depends_on:       [ "ruby" ],
+        provides:         { preview_provider: SyrusRails::PreviewProvider }
+      )
+      Syrus::PluginRegistry.register(
+        name:             "django",
+        version:          Syrus::PluginApi.default_version,
+        description:      "Django framework intelligence.",
+        depends_on:       [ "python" ],
+        provides:         { preview_provider: Django::PreviewProvider }
+      )
     end
 
     after { Syrus::PluginRegistry.reset! }
@@ -407,6 +452,29 @@ RSpec.describe JavaScript::Engine do
       result = PreviewCommandSource.new(@dir).resolve
       expect(result).not_to be_nil
       expect(result.start_command_for.call(port: 3005)).to include("PORT=3005 npm run")
+    end
+
+    it "uses the Rails preview provider for a Rails repo with a package dev script" do
+      write("package.json", JSON.generate("scripts" => { "dev" => "vite" }))
+      write("Gemfile", "")
+      write("config/application.rb", "")
+      write("bin/rails", "")
+
+      result = PreviewCommandSource.new(@dir).resolve
+      expect(result).not_to be_nil
+      expect(result.start_command_for.call(port: 3005)).to include("bin/rails server -p 3005")
+      expect(result.seed_command).to eq("bin/rails db:create db:migrate db:seed")
+    end
+
+    it "uses the Django preview provider for a Django repo with a package start script" do
+      write("package.json", JSON.generate("scripts" => { "start" => "vite --host 0.0.0.0" }))
+      write("manage.py", "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'project.settings')")
+      write("project/settings.py", "")
+
+      result = PreviewCommandSource.new(@dir).resolve
+      expect(result).not_to be_nil
+      expect(result.start_command_for.call(port: 3005)).to include("python manage.py runserver 0.0.0.0:3005")
+      expect(result.seed_command).to include("python manage.py migrate")
     end
   end
 end
