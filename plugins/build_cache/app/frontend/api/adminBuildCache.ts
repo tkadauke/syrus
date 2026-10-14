@@ -23,8 +23,8 @@ export type BuildCacheClearRequest = {
   older_than_days: number | null
   reason: string
   state: "pending" | "confirmed" | "cancelled"
-  result: { deleted_count: number; bytes_freed: number; truncated: boolean } | null
-  result_status: "present" | "empty" | "truncated"
+  result: { deleted_count: number; bytes_freed: number; truncated: boolean; delete_error_count?: number } | null
+  result_status: "present" | "empty" | "truncated" | "errors"
   requested_by: string | null
   created_at: string
   confirmed_at: string | null

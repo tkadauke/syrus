@@ -123,7 +123,7 @@ module BuildCache
         { field: "cancelled_since", label: "Cancelled since", bucket: "text", operators: [ "is" ] },
         { field: "created_since", label: "Created since", bucket: "text", operators: [ "is" ] },
         { field: "updated_since", label: "Updated since", bucket: "text", operators: [ "is" ] },
-        { field: "result_status", label: "Result", bucket: "enum", operators: [ "is" ], values: [ { label: "Present", value: "present" }, { label: "Empty", value: "empty" }, { label: "Truncated", value: "truncated" } ] }
+        { field: "result_status", label: "Result", bucket: "enum", operators: [ "is" ], values: [ { label: "Present", value: "present" }, { label: "Empty", value: "empty" }, { label: "Truncated", value: "truncated" }, { label: "Errors", value: "errors" } ] }
       ]
     end
 
@@ -144,6 +144,7 @@ module BuildCache
 
     def result_status(request)
       return "empty" unless request.result.present?
+      return "errors" if request.result["delete_error_count"].to_i.positive?
       return "truncated" if request.result["truncated"]
 
       "present"
@@ -155,10 +156,13 @@ module BuildCache
         scope
           .where.not(result: [ nil, {} ])
           .where.not("json_extract(result, '$.truncated') = ?", true)
+          .where("COALESCE(json_extract(result, '$.delete_error_count'), 0) = 0")
       when "empty"
         scope.where(result: [ nil, {} ])
       when "truncated"
         scope.where("json_extract(result, '$.truncated') = ?", true)
+      when "errors"
+        scope.where("COALESCE(json_extract(result, '$.delete_error_count'), 0) > 0")
       else
         scope
       end

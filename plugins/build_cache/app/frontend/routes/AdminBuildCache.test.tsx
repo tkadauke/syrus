@@ -146,7 +146,7 @@ describe("AdminBuildCache", () => {
         const url = String(input)
         if (url === "/api/v1/app/admin/build_cache/clear_requests/7/confirm" && init?.method === "POST") {
           return Promise.resolve(jsonResponse(buildCachePayload({
-            recent_requests: [ pendingRequestPayload({ state: "confirmed", result: { deleted_count: 3, bytes_freed: 300, truncated: false } }) ]
+            recent_requests: [ pendingRequestPayload({ state: "confirmed", result: { deleted_count: 3, bytes_freed: 300, truncated: false, delete_error_count: 2 }, result_status: "errors" }) ]
           })))
         }
         return Promise.resolve(jsonResponse(buildCachePayload({ pending_request: pendingRequestPayload() })))
@@ -163,6 +163,45 @@ describe("AdminBuildCache", () => {
         )
       })
       expect(await screen.findByText(/Cleared/i)).toBeInTheDocument()
+      expect(screen.getByText(/2 delete errors/i)).toBeInTheDocument()
+    })
+
+    it("does not overwrite the separate stats query with the clear response", async () => {
+      let statsRequests = 0
+      const fetchSpy = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url === "/api/v1/app/admin/build_cache/stats") {
+          statsRequests += 1
+          return Promise.resolve(jsonResponse({
+            configured: true,
+            stats: {
+              object_count: statsRequests === 1 ? 42 : 5,
+              total_size_bytes: 123456,
+              oldest_object: { key: "a", size: 10, last_modified: "2026-01-01T00:00:00Z" },
+              newest_object: { key: "b", size: 20, last_modified: "2026-02-01T00:00:00Z" },
+              truncated: false
+            },
+            stats_error: null
+          }))
+        }
+        if (url === "/api/v1/app/admin/build_cache/clear_requests/7/confirm" && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(buildCachePayload({
+            stats: null,
+            recent_requests: [ pendingRequestPayload({ state: "confirmed", result: { deleted_count: 3, bytes_freed: 300, truncated: false, delete_error_count: 0 } }) ]
+          })))
+        }
+        return Promise.resolve(jsonResponse(buildCachePayload({ stats: null, pending_request: pendingRequestPayload() })))
+      })
+      renderPage(fetchSpy)
+
+      expect(await screen.findByText("42")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: /Confirm and clear/i }))
+
+      await waitFor(() => {
+        expect(statsRequests).toBeGreaterThanOrEqual(2)
+      })
+      expect(await screen.findByText("5")).toBeInTheDocument()
+      expect(screen.queryByText(/Stats unavailable/i)).not.toBeInTheDocument()
     })
 
     it("does not call the confirm endpoint when the user cancels the confirmation dialog", async () => {

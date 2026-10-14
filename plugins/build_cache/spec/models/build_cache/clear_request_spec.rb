@@ -76,12 +76,13 @@ RSpec.describe BuildCache::ClearRequest do
 
       expect(request.reload.state).to eq("confirmed")
       expect(request.confirmed_at).to be_present
-      expect(request.result).to eq("deleted_count" => 1, "bytes_freed" => 100, "truncated" => false)
+      expect(request.result).to eq("deleted_count" => 1, "bytes_freed" => 100, "truncated" => false, "delete_error_count" => 0)
 
       action = AdminAction.last
       expect(action.action).to eq("build_cache_clear")
       expect(action.params["reason"]).to eq("cleanup")
       expect(action.params["deleted_count"]).to eq(1)
+      expect(action.params["delete_error_count"]).to eq(0)
     end
 
     it "executes a partial clear scoped to older_than_days" do
@@ -93,7 +94,25 @@ RSpec.describe BuildCache::ClearRequest do
 
       request.confirm!(user: user)
 
-      expect(request.reload.result).to eq("deleted_count" => 1, "bytes_freed" => 100, "truncated" => false)
+      expect(request.reload.result).to eq("deleted_count" => 1, "bytes_freed" => 100, "truncated" => false, "delete_error_count" => 0)
+    end
+
+    it "records partial delete errors without overstating the cleared objects" do
+      s3 = stub_s3(objects: [
+        { key: "ok", size: 100, last_modified: 10.days.ago },
+        { key: "locked", size: 200, last_modified: 10.days.ago }
+      ])
+      s3.stub_responses(:delete_objects, {
+        errors: [
+          { key: "locked", code: "AccessDenied", message: "access denied" }
+        ]
+      })
+      request = described_class.create!(user: user, scope: "full", reason: "cleanup")
+
+      request.confirm!(user: user)
+
+      expect(request.reload.result).to eq("deleted_count" => 1, "bytes_freed" => 100, "truncated" => false, "delete_error_count" => 1)
+      expect(AdminAction.last.params["delete_error_count"]).to eq(1)
     end
 
     it "does nothing and returns false when the request is not pending" do

@@ -45,7 +45,8 @@ module BuildCache
         result: {
           "deleted_count" => outcome.deleted_count,
           "bytes_freed" => outcome.bytes_freed,
-          "truncated" => outcome.truncated
+          "truncated" => outcome.truncated,
+          "delete_error_count" => outcome.delete_error_count
         }
       )
 
@@ -60,7 +61,8 @@ module BuildCache
           reason: reason,
           deleted_count: outcome.deleted_count,
           bytes_freed: outcome.bytes_freed,
-          truncated: outcome.truncated
+          truncated: outcome.truncated,
+          delete_error_count: outcome.delete_error_count
         }
       )
 
