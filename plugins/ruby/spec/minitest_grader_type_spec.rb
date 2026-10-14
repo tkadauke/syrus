@@ -14,7 +14,8 @@ RSpec.describe Ruby::MinitestGraderType do
     expect(steps.map(&:name)).to eq(%w[minitest minitest-focused minitest-ci])
     expect(steps.first.run).to include("bin/rails test test")
     expect(steps.first.run).to include("bundle exec rake test")
-    expect(steps.first.run).to include("bundle exec ruby -Itest test")
+    expect(steps.first.run).to include("bundle exec ruby -Itest -e")
+    expect(steps.first.run).to include("-- test")
     expect(steps.first.run).to include("RAILS_ENV=test bin/rails db:test:prepare")
     expect(steps.first.phases).to eq(%w[landing])
     expect(steps.first.failures).to eq("allow_inherited")
@@ -30,7 +31,9 @@ RSpec.describe Ruby::MinitestGraderType do
 
     expect(steps.second.run).to include(".syrus/minitest-focused-files")
     expect(steps.second.run).to include("bin/rails test $(cat .syrus/minitest-focused-files)")
-    expect(steps.second.run).to include("bundle exec ruby -Itest $(cat .syrus/minitest-focused-files)")
+    expect(steps.second.run).to include("bundle exec rake test TEST=\"$(paste -sd, .syrus/minitest-focused-files)\"")
+    expect(steps.second.run).to include("bundle exec ruby -Itest -e")
+    expect(steps.second.run).to include("-- $(cat .syrus/minitest-focused-files)")
     expect(steps.second.phases).to eq(%w[review])
     expect(steps.second.when_files_changed).to include("**/*.rb", "test/**/*.rb", "Rakefile")
     expect(steps.second.metadata["grader_mode"]).to eq("focused")
@@ -102,9 +105,14 @@ RSpec.describe Ruby::MinitestGraderType do
     expect(steps.first.run).to include("plugins/example/bin/rails test plugins/example/test")
     expect(steps.first.run).to include("[ -f plugins/example/Rakefile ]")
     expect(steps.first.run).to include("cd plugins/example && bundle exec rake test")
-    expect(steps.first.run).to include("bundle exec ruby -Iplugins/example/test plugins/example/test")
+    expect(steps.first.run).to include("bundle exec ruby -Iplugins/example/test -e")
+    expect(steps.first.run).to include("-- plugins/example/test")
     expect(steps.second.run).to include("plugins/example/bin/rails test $(cat .syrus/minitest-focused-files)")
-    expect(steps.second.run).to include("bundle exec ruby -Iplugins/example/test $(cat .syrus/minitest-focused-files)")
+    expect(steps.second.run).to include("cd plugins/example && bundle exec rake test")
+    expect(steps.second.run).to include("delete_prefix\\(prefix\\)")
+    expect(steps.second.run).to include("< ../../.syrus/minitest-focused-files")
+    expect(steps.second.run).to include("bundle exec ruby -Iplugins/example/test -e")
+    expect(steps.second.run).to include("-- $(cat .syrus/minitest-focused-files)")
   end
 
   it "can restrict generated graders by phase" do
@@ -182,5 +190,65 @@ RSpec.describe Ruby::MinitestGraderType do
     script = Shellwords.split(script_arg).sole
 
     expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
+  end
+
+  it "loads every selected test file through the non-Rails focused fallback" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "test"))
+      File.write(File.join(dir, "test/a_test.rb"), <<~RUBY)
+        require "minitest/autorun"
+        class ATest < Minitest::Test
+          def test_a_runs
+            assert true
+          end
+        end
+      RUBY
+      File.write(File.join(dir, "test/b_test.rb"), <<~RUBY)
+        require "minitest/autorun"
+        class BTest < Minitest::Test
+          def test_b_runs
+            assert true
+          end
+        end
+      RUBY
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+      File.write(File.join(dir, ".syrus/minitest-focused-files"), "test/a_test.rb\ntest/b_test.rb\n")
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+      ruby_command = command.match(/bundle exec (?<ruby>ruby -Itest -e .+? -- \$\(cat \.syrus\/minitest-focused-files\))/m)[:ruby]
+      stdout, stderr, status = Open3.capture3("bash", "-c", ruby_command, chdir: dir)
+
+      expect(status).to be_success, stderr
+      expect(stdout).to include("2 runs")
+    end
+  end
+
+  it "expands test directories through the non-Rails full fallback" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "test/unit"))
+      File.write(File.join(dir, "test/unit/a_test.rb"), <<~RUBY)
+        require "minitest/autorun"
+        class ATest < Minitest::Test
+          def test_a_runs
+            assert true
+          end
+        end
+      RUBY
+      File.write(File.join(dir, "test/unit/b_test.rb"), <<~RUBY)
+        require "minitest/autorun"
+        class BTest < Minitest::Test
+          def test_b_runs
+            assert true
+          end
+        end
+      RUBY
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").first.run
+      ruby_command = command.match(/(?<ruby>bundle exec ruby -Itest -e .+? -- test);/m)[:ruby]
+      stdout, stderr, status = Open3.capture3("bash", "-c", ruby_command.delete_prefix("bundle exec "), chdir: dir)
+
+      expect(status).to be_success, stderr
+      expect(stdout).to include("2 runs")
+    end
   end
 end

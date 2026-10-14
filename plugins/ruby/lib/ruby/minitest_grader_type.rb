@@ -225,7 +225,7 @@ module Ruby
         elif [ -f #{rakefile_path} ]; then
           #{rake_command};
         else
-          bundle exec ruby -I#{test_load_path} #{rendered_paths};
+          #{ruby_loader_command(paths)};
         fi
       BASH
 
@@ -237,8 +237,10 @@ module Ruby
         #{database_prepare_command}
         if [ -x #{rails_bin} ]; then
           RAILS_ENV=${RAILS_ENV:-test} #{rails_bin} test $(cat .syrus/minitest-focused-files);
+        elif [ -f #{rakefile_path} ]; then
+          #{focused_rake_command};
         else
-          bundle exec ruby -I#{test_load_path} $(cat .syrus/minitest-focused-files);
+          #{ruby_loader_command("$(cat .syrus/minitest-focused-files)")};
         fi
       BASH
     end
@@ -280,6 +282,31 @@ module Ruby
       return "bundle exec rake test" if project_path.blank?
 
       "cd #{Shellwords.escape(project_path)} && bundle exec rake test"
+    end
+
+    def focused_rake_command
+      test_files = focused_rake_test_files
+      return %(bundle exec rake test TEST="#{test_files}") if project_path.blank?
+
+      %(cd #{Shellwords.escape(project_path)} && bundle exec rake test TEST="#{test_files}")
+    end
+
+    def focused_rake_test_files
+      return "$(paste -sd, .syrus/minitest-focused-files)" if project_path.blank?
+
+      script = 'prefix = ARGV.fetch(0) + "/"; puts STDIN.each_line.map { |line| line.chomp.delete_prefix(prefix) }.join(",")'
+      file_list = ([ ".." ] * project_path.split("/").size + [ ".syrus", "minitest-focused-files" ]).join("/")
+      "$(ruby -e #{Shellwords.escape(script)} -- #{Shellwords.escape(project_path)} < #{Shellwords.escape(file_list)})"
+    end
+
+    def ruby_loader_command(paths)
+      rendered_paths = paths.is_a?(String) ? paths : Shellwords.join(paths)
+
+      "bundle exec ruby -I#{test_load_path} -e #{Shellwords.escape(minitest_loader_ruby)} -- #{rendered_paths}"
+    end
+
+    def minitest_loader_ruby
+      'files = ARGV.flat_map { |path| File.directory?(path) ? Dir[File.join(path, "**/*_test.rb")] : path }; files.uniq.sort.each { |file| require File.expand_path(file) }'
     end
 
     def focused_selector_ruby
