@@ -127,12 +127,14 @@ module Metrics
     def refresh_gauges!
       payload = Rails.cache.read(CACHE_KEY)
       totals = read_totals
-      return false if payload.blank? && totals.blank?
 
       if payload.present?
         set_each(:syrus_job_state, payload[:job_state], :state)
         set_each(:syrus_landing_queue_depth, payload[:landing_queue_depth], :blocked_reason)
         Syrus::Metrics.gauge(:syrus_queue_table_rows).set(payload[:queue_table_rows].to_i)
+      else
+        clear_sample_gauges!
+        return false if totals.blank?
       end
 
       reconcile_totals!(totals) if totals.present?
@@ -146,7 +148,21 @@ module Metrics
 
     def set_each(metric, values, tag)
       gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
       Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+    end
+
+    def clear_sample_gauges!
+      [
+        :syrus_job_state,
+        :syrus_landing_queue_depth,
+        :syrus_queue_table_rows
+      ].each { |metric| clear_gauge!(metric) }
+    end
+
+    def clear_gauge!(metric)
+      gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
     end
 
     # Bootstraps the cursor to "now" without instrumenting anything the first

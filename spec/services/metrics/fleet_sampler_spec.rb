@@ -116,6 +116,26 @@ RSpec.describe Metrics::FleetSampler do
   end
 
   describe "#refresh_gauges!" do
+    it "clears tagged fleet gauge series missing from the latest sample" do
+      cache.write(described_class::CACHE_KEY, {
+        instance_versions: { [ "web", "aaa111" ] => 1, [ "worker", "bbb222" ] => 2 },
+        spawned_processes: { [ "agent", "running" ] => 1 }
+      })
+      described_class.refresh_gauges!
+
+      cache.write(described_class::CACHE_KEY, {
+        instance_versions: { [ "web", "ccc333" ] => 1 },
+        spawned_processes: {}
+      })
+      described_class.refresh_gauges!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_instance_versions{role="web",version="ccc333"} 1')
+      expect(rendered).not_to include('syrus_instance_versions{role="web",version="aaa111"}')
+      expect(rendered).not_to include('syrus_instance_versions{role="worker",version="bbb222"}')
+      expect(rendered).not_to include("syrus_spawned_processes{")
+    end
+
     it "reports nothing rather than zeroes when no sample has been taken" do
       expect(described_class.refresh_gauges!).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_instance_versions{")
