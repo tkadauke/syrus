@@ -130,16 +130,20 @@ function setupFetchMock(sessionsOverrides: Record<string, unknown> = {}) {
       return Promise.resolve(jsonResponse(sessionsPayload({ filter: decodeQ(url) || { and: [] }, ...sessionsOverrides })))
     }
     if (url.includes("/artifacts")) {
+      const page = new URL(url, "http://example.test").searchParams.get("page") || "1"
       return Promise.resolve(jsonResponse({
         job_id: 42,
         workflow_id: 900,
         run_id: 501,
         base_ref: "abc",
         head_ref: "def",
-        agent_diff: null,
-        agent_diff_bytes: 0,
-        logs_count: 1,
-        logs: [
+        artifact: "transcript",
+        logs_count: 201,
+        logs_page: Number(page),
+        logs_per_page: 100,
+        logs_total_pages: 3,
+        logs_has_older: page !== "3",
+        logs: page === "1" ? [
           { id: 1, sequence: 1, kind: "assistant_text", chunk: "Looked at the aqueducts.", created_at: "2026-01-01T00:10:00Z" },
           {
             id: 2,
@@ -148,7 +152,7 @@ function setupFetchMock(sessionsOverrides: Record<string, unknown> = {}) {
             chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/aqueducts/some/really/long/mobile/path/that/needs/to/wrap",
             created_at: "2026-01-01T00:10:01Z"
           }
-        ]
+        ] : [{ id: 3, sequence: 3, kind: "assistant_text", chunk: "Earlier aqueduct work.", created_at: "2026-01-01T00:00:00Z" }]
       }))
     }
     if (url === "/api/v1/app/filters/usage") {
@@ -342,6 +346,10 @@ describe("AgentActivityFeed", () => {
     expect(screen.getByText("Looked at the aqueducts.").closest(".chat-prose")).toHaveClass("[overflow-wrap:anywhere]")
     expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
     expect(screen.getByText(/really\/long\/mobile\/path/).closest("pre")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Older" }))
+    expect(await screen.findByText("Earlier aqueduct work.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Newer" })).toBeInTheDocument()
   })
 
   it("links chat-backed sessions to the live chat instead of opening an inline transcript drawer", async () => {

@@ -145,6 +145,23 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: NonNulla
   )
 }
 
+export function TranscriptPagination({ hasOlder, onPageChange, page, totalPages }: { hasOlder: boolean; onPageChange: (page: number) => void; page: number; totalPages: number }) {
+  const { t } = useT("jobs")
+  if (totalPages <= 1) return null
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs">
+      <span className="text-text-muted">
+        {hasOlder ? t("transcript_older_rows_hidden") : t("transcript_page", { page, total: totalPages })}
+      </span>
+      <div className="flex gap-2">
+        {page > 1 ? <Button onClick={() => onPageChange(page - 1)} variant="secondary">{t("transcript_newer")}</Button> : null}
+        {hasOlder ? <Button onClick={() => onPageChange(page + 1)} variant="secondary">{t("transcript_older")}</Button> : null}
+      </div>
+    </div>
+  )
+}
+
 export function TagsPanel({ payload, command, embedded = false, canManageTags }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean; canManageTags: boolean }) {
   const { t } = useT("jobs")
   const [tagName, setTagName] = useState("")
