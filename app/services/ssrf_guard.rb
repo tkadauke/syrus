@@ -1,4 +1,5 @@
 require "ipaddr"
+require "socket"
 
 # Blocks server-side HTTP fetches from reaching private, loopback,
 # link-local, or other non-routable network destinations. Used by code
@@ -8,14 +9,10 @@ require "ipaddr"
 # internal network (cloud metadata endpoints, cluster-internal services,
 # etc).
 #
-# Deliberately string/literal-based, not DNS-resolving, mirroring
-# SyrusBrowser::LoopbackGuard: resolving a hostname and checking the
-# resolved address is vulnerable to DNS rebinding (a name that answers a
-# public IP at check time and a private one a moment later, when Net::HTTP
-# itself performs the connection). This blocks the common case — an
-# attacker pasting a raw internal/loopback/link-local IP literal or a
-# known-internal hostname directly into markdown — without adding a
-# network dependency to the check itself.
+# Canonical IP literals are checked directly. Hostnames and ambiguous
+# numeric-looking forms are resolved before the fetch so libc-accepted
+# aliases such as 127.1, decimal/hex/octal IPv4, and trailing-dot
+# absolute names cannot bypass the private-range denylist.
 class SsrfGuard
   INVALID_IP_LITERAL = Object.new.freeze
   IPV4_NUMERIC_COMPONENT = /(?:0x[0-9a-f]+|[0-9]+)/
@@ -55,16 +52,26 @@ class SsrfGuard
   ].freeze
 
   def self.safe_host?(host)
-    normalized = host.to_s.strip.downcase
+    normalized = normalize_host(host)
     return false if normalized.blank?
     return false if BLOCKED_HOSTNAMES.include?(normalized)
 
     ip = parse_ip(normalized)
-    return true unless ip
     return false if ip == INVALID_IP_LITERAL
+    return allowed_ip?(ip) if ip
 
-    blocked_ranges_for(ip).none? { |range| range.include?(ip) }
+    resolved_ips = resolved_ips_for(normalized)
+    return false if resolved_ips.empty?
+
+    resolved_ips.all? { |resolved_ip| allowed_ip?(resolved_ip) }
   end
+
+  def self.normalize_host(host)
+    normalized = host.to_s.strip.downcase
+    normalized = normalized.chomp(".") if normalized.length > 1
+    normalized
+  end
+  private_class_method :normalize_host
 
   def self.parse_ip(normalized)
     IPAddr.new(normalized)
@@ -130,6 +137,21 @@ class SsrfGuard
     end
   end
   private_class_method :ipv4_address_from_parts
+
+  def self.resolved_ips_for(normalized)
+    Addrinfo
+      .getaddrinfo(normalized, nil, Socket::AF_UNSPEC, Socket::SOCK_STREAM)
+      .filter_map { |addrinfo| parse_ip(addrinfo.ip_address) }
+      .uniq
+  rescue SocketError, SystemCallError
+    []
+  end
+  private_class_method :resolved_ips_for
+
+  def self.allowed_ip?(ip)
+    blocked_ranges_for(ip).none? { |range| range.include?(ip) }
+  end
+  private_class_method :allowed_ip?
 
   def self.blocked_ranges_for(ip)
     ip.ipv4? ? BLOCKED_IPV4_RANGES : BLOCKED_IPV6_RANGES
