@@ -136,6 +136,37 @@ describe("Notifications", () => {
 
     expect(await screen.findByText("Job detail")).toBeInTheDocument()
   })
+
+  it("leaves keyboard activation of a nested PR link to the link", async () => {
+    const notification = notificationRecord({
+      id: 74,
+      kind: "job_implemented",
+      body: "Syrus opened PR #74 for JOB-529: Fix keyboard traps",
+      job_id: 529,
+      job_title: "Fix keyboard traps",
+      pr_url: "https://github.com/acme/widgets/pull/74"
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(notificationsPayload({
+      notifications: [ notification ],
+      unread_count: 1
+    })))
+
+    renderWithClient(
+      <MemoryRouter initialEntries={["/app-shell/notifications"]}>
+        <Routes>
+          <Route element={<NotificationsRoute />} path="/app-shell/notifications" />
+          <Route element={<div>Job detail</div>} path="/app-shell/jobs/529" />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    const main = await screen.findByRole("main", { name: "Notifications" })
+    const prLink = await within(main).findByRole("link", { name: "PR #74" })
+
+    expect(fireEvent.keyDown(prLink, { key: "Enter" })).toBe(true)
+    expect(fireEvent.keyDown(prLink, { key: " " })).toBe(true)
+    expect(screen.queryByText("Job detail")).not.toBeInTheDocument()
+  })
 })
 
 function renderWithClient(children: React.ReactNode) {

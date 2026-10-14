@@ -207,6 +207,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
       onClick={openNotification}
       onKeyDown={(event) => {
         if (!jobTarget) return
+        if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           openNotification()
