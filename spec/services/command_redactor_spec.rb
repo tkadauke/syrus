@@ -31,12 +31,16 @@ RSpec.describe CommandRedactor do
     end
 
     it "redacts generic secret-shaped command assignments" do
-      text = "bin/deploy password=super-secret-token api_key=abc123 refresh_token=xyz789 --safe=true"
+      text = "bin/deploy authorization=bearer-value password=super-secret-token " \
+        "api_key=abc123 refresh_token=xyz789 --safe=true"
 
       redacted = described_class.redact(text)
 
-      expect(redacted).to eq("bin/deploy password=[REDACTED] api_key=[REDACTED] refresh_token=[REDACTED] --safe=true")
-      expect(redacted).not_to include("super-secret-token", "abc123", "xyz789")
+      expect(redacted).to eq(
+        "bin/deploy authorization=[REDACTED] password=[REDACTED] " \
+          "api_key=[REDACTED] refresh_token=[REDACTED] --safe=true"
+      )
+      expect(redacted).not_to include("bearer-value", "super-secret-token", "abc123", "xyz789")
     end
 
     it "redacts assignments with sensitive segments anywhere in compound keys" do
