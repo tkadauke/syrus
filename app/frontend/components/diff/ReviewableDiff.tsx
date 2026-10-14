@@ -1885,7 +1885,7 @@ export function UnifiedDiffTable({
                     showReviewNotes={showReviewNotes}
                     showMetricGutter={showMetricGutter}
                     showLineNumbers={showLineNumbers}
-                    tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                    tokens={tokensByLine[index]}
                   />
                   {renderReviewAnnotationRow(inlineReviewNotes, true)}
                   {renderThreadRow(threads, true)}
@@ -1906,7 +1906,8 @@ export function UnifiedDiffTable({
                         highlightedToken={activeHighlight}
                         kind={line.kind}
                         onToggleHighlightToken={toggleHighlight}
-                        tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                        reviewSettings={reviewSettings}
+                        tokens={tokensByLine[index]}
                       />
                     </td>
                   </tr>
@@ -1965,7 +1966,8 @@ export function UnifiedDiffTable({
                       highlightedToken={activeHighlight}
                       kind={line.kind}
                       onToggleHighlightToken={toggleHighlight}
-                      tokens={reviewSettings.visible_whitespace ? undefined : tokensByLine[index]}
+                      reviewSettings={reviewSettings}
+                      tokens={tokensByLine[index]}
                     />
                   </td>
                   {/* eslint-disable-next-line design-system/no-raw-table-classes */}
@@ -2030,21 +2032,24 @@ function DiffCode({
   highlightedToken,
   kind,
   onToggleHighlightToken,
+  reviewSettings,
   tokens
 }: {
   code: string
   highlightedToken?: string | null
   kind: DiffLineKind
   onToggleHighlightToken: (token: string) => void
+  reviewSettings: ReviewDiffSettings
   tokens?: ThemedToken[]
 }) {
   const highlightable = kind === "add" || kind === "delete" || kind === "context"
-  if (!highlightable || !code) return <>{tokens ? renderCodeLine(tokens, code || " ") : code || " "}</>
+  const displayTokens = tokens ? reviewDisplayTokens(tokens, reviewSettings) : undefined
+  if (!highlightable || !code) return <>{displayTokens ? renderCodeLine(displayTokens, code || " ") : code || " "}</>
 
-  if (tokens) {
+  if (displayTokens) {
     return (
       <>
-        {tokens.map((shikiToken, tokenIndex) => (
+        {displayTokens.map((shikiToken, tokenIndex) => (
           <Fragment key={tokenIndex}>
             {tokenizeCode(shikiToken.content).map((word, wordIndex) =>
               word.highlightable ? (
@@ -2088,6 +2093,29 @@ function DiffCode({
       )}
     </>
   )
+}
+
+function reviewDisplayTokens(tokens: ThemedToken[], settings: ReviewDiffSettings): ThemedToken[] {
+  if (settings.whitespace !== "trim_trailing" && !settings.visible_whitespace) return tokens
+
+  let displayTokens = tokens
+  if (settings.whitespace === "trim_trailing") {
+    displayTokens = tokens.map((token) => ({ ...token }))
+    for (let index = displayTokens.length - 1; index >= 0; index -= 1) {
+      const token = displayTokens[index]
+      const trimmedContent = token.content.replace(/[ \t]+$/u, "")
+      if (trimmedContent.length > 0) {
+        displayTokens[index] = { ...token, content: trimmedContent }
+        displayTokens = displayTokens.slice(0, index + 1)
+        break
+      }
+      if (index === 0) displayTokens = []
+    }
+  }
+
+  if (!settings.visible_whitespace) return displayTokens
+
+  return displayTokens.map((token) => ({ ...token, content: token.content.replace(/\t/gu, "→\t").replace(/ /gu, "·") }))
 }
 
 /* eslint-disable design-system/no-raw-table-classes */
@@ -2162,7 +2190,14 @@ function SplitDiffRow({
       ) : null}
       <td className={`${codeCellClass} ${line.kind === "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="old">
         {oldCode ? (
-          <DiffCode code={oldCode} highlightedToken={highlightedToken} kind={line.kind} onToggleHighlightToken={onToggleHighlightToken} tokens={tokens} />
+          <DiffCode
+            code={oldCode}
+            highlightedToken={highlightedToken}
+            kind={line.kind}
+            onToggleHighlightToken={onToggleHighlightToken}
+            reviewSettings={reviewSettings}
+            tokens={tokens}
+          />
         ) : null}
       </td>
       {showLineNumbers ? (
@@ -2183,7 +2218,14 @@ function SplitDiffRow({
       ) : null}
       <td className={`${codeCellClass} ${line.kind !== "delete" ? diffCoverageBorderClass(annotation) : ""}`} data-diff-split-side="new">
         {newCode ? (
-          <DiffCode code={newCode} highlightedToken={highlightedToken} kind={line.kind} onToggleHighlightToken={onToggleHighlightToken} tokens={tokens} />
+          <DiffCode
+            code={newCode}
+            highlightedToken={highlightedToken}
+            kind={line.kind}
+            onToggleHighlightToken={onToggleHighlightToken}
+            reviewSettings={reviewSettings}
+            tokens={tokens}
+          />
         ) : null}
       </td>
       <td className={`w-4 select-none text-center ${diffDensityClasses(reviewSettings).marker}`}>

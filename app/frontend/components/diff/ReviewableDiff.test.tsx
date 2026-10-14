@@ -1509,6 +1509,79 @@ describe("ReviewableDiff", () => {
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
 
+  it("keeps Shiki syntax colors when visible whitespace is enabled", async () => {
+    const highlightedFiles = [
+      {
+        additions: 1,
+        deletions: 0,
+        patch: [
+          "diff --git a/app/models/job.rb b/app/models/job.rb",
+          "--- a/app/models/job.rb",
+          "+++ b/app/models/job.rb",
+          "@@ -1,1 +1,2 @@",
+          " class Job",
+          "+  def call; end"
+        ].join("\n"),
+        path: "app/models/job.rb",
+        status: "modified"
+      }
+    ]
+
+    render(
+      <ReviewableDiff
+        files={highlightedFiles}
+        mode="single-file"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, visible_whitespace: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const codeCell = await waitFor(() => getCodeCellText("··def·call;·end"))
+    expect(Array.from(codeCell.querySelectorAll("[data-diff-highlight-token]")).map((token) => token.textContent)).toEqual(["def", "call", "end"])
+    const addedKeyword = await waitFor(() => {
+      const element = screen.getByText("def")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
+    })
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
+
+  it("keeps Shiki syntax colors in split view when visible whitespace is enabled", async () => {
+    const highlightedFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: [
+          "diff --git a/app/models/job.rb b/app/models/job.rb",
+          "--- a/app/models/job.rb",
+          "+++ b/app/models/job.rb",
+          "@@ -1,1 +1,1 @@",
+          "-  class OldJob; end",
+          "+  class Job; end"
+        ].join("\n"),
+        path: "app/models/job.rb",
+        status: "modified"
+      }
+    ]
+
+    render(
+      <ReviewableDiff
+        files={highlightedFiles}
+        mode="single-file"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", visible_whitespace: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    await waitFor(() => expect(getCodeCellText("··class·Job;·end")).toBeInTheDocument())
+    const addedKeyword = await waitFor(() => {
+      const element = within(getCodeCellText("··class·Job;·end")).getByText("class")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
+    })
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
+
   it("shows the plain unavailable placeholder for a patch-less non-image file", () => {
     const binaryFiles = [{ additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }]
 
