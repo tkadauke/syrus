@@ -12197,6 +12197,7 @@ describe("App", () => {
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
+      expect(within(mobileTabsShell).queryByText("Tokens: 12.4k in / 3.2k out · $0.0123")).not.toBeInTheDocument()
       expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
       expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
@@ -12206,6 +12207,7 @@ describe("App", () => {
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
+      expect(within(mobileTabsShell).getByText("Tokens: 12.4k in / 3.2k out · $0.0123")).toBeInTheDocument()
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
       expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
     } finally {

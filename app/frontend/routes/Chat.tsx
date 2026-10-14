@@ -1432,7 +1432,7 @@ function MobileChatTopChrome({
         }))}
         onSelect={onSelectMobileTab}
       />
-      {usageOverlayHidden ? null : <UsageOverlay mobile payload={payload} />}
+      {!usageOverlayHidden && activeMobileTab === "chat" ? <UsageOverlay mobile payload={payload} /> : null}
     </div>
   )
 }
