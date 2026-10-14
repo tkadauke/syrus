@@ -6,20 +6,8 @@ import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "../i18n"
 import type { CredentialsPayload } from "../api/credentials"
+import { APP_EVENT_RECEIVED_EVENT } from "../lib/appEvents"
 import { AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
-
-// The Codex card holds its ActionCable auto-exchange subscription at card
-// level; mock the consumer so tests can capture and fire the callback.
-const actionCable = vi.hoisted(() => ({
-  createSubscription: vi.fn(() => ({ unsubscribe: vi.fn() }))
-}))
-vi.mock("@rails/actioncable", () => ({
-  createConsumer: () => ({
-    subscriptions: {
-      create: actionCable.createSubscription
-    }
-  })
-}))
 
 function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
@@ -160,7 +148,6 @@ describe("CredentialsRoute (provider cards)", () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    actionCable.createSubscription.mockClear()
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {
@@ -356,20 +343,21 @@ describe("CredentialsRoute (provider cards)", () => {
     // ChatGPT mode with no auth.json saved → the authorize flow is visible.
     const codexCard = await screen.findByTestId("credential-card-codex")
     fireEvent.click(within(codexCard).getByRole("button", { name: "Authorize with ChatGPT" }))
-    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/credentials/codex_oauth_start",
+      expect.objectContaining({ method: "POST" })
+    ))
 
     // Flip the auth mode mid-authorization: the ChatGPT section unmounts,
-    // but the card-level subscription must survive.
+    // but the card-level app-event listener must survive.
     fireEvent.change(within(codexCard).getByLabelText("Codex authentication"), { target: { value: "api_key" } })
     await waitFor(() => expect(within(screen.getByTestId("credential-card-codex")).getByText("A Codex API key is saved.")).toBeInTheDocument())
     expect(within(screen.getByTestId("credential-card-codex")).queryByRole("button", { name: "Authorize with ChatGPT" })).not.toBeInTheDocument()
 
     // The provider callback arrives late — it must still auto-exchange.
-    const callbacks = (actionCable.createSubscription.mock.calls as unknown[][])
-      .map((call) => (call[1] as { received?: unknown } | undefined)?.received)
-      .filter((received): received is (data: unknown) => void => typeof received === "function")
-    expect(callbacks.length).toBeGreaterThan(0)
-    callbacks.forEach((received) => received({ type: "codex_oauth.callback", payload: { code: "auto-code" } }))
+    window.dispatchEvent(new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
+      detail: { type: "codex_oauth.callback", payload: { code: "auto-code" } }
+    }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(

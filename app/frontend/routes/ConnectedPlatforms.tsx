@@ -18,7 +18,7 @@ import {
   type PlatformIdentity
 } from "../api/platformIdentities"
 import { ApiError } from "../api/client"
-import { getAppConsumer } from "../lib/actionCable"
+import { addAppEventListener } from "../lib/appEvents"
 
 const queryKey = ["platform_identities"] as const
 
@@ -218,21 +218,13 @@ function LinkingInstructions({
   onLinkedRef.current = onLinked
 
   useEffect(() => {
-    const consumer = getAppConsumer()
-    const subscription = consumer.subscriptions.create(
-      { channel: "AppUserChannel" },
-      {
-        received(data: unknown) {
-          const event = data as { type?: string; payload?: PlatformIdentitiesPayload }
-          if (event.type === "platform_identity_linked" && event.payload) {
-            onLinkedRef.current(event.payload)
-            onNotice(t("connected_platforms.connected_notice", { platform: platformLabel(platform, t) }))
-          }
-        }
+    return addAppEventListener((event) => {
+      const payload = event.payload as PlatformIdentitiesPayload | undefined
+      if (event.type === "platform_identity_linked" && payload) {
+        onLinkedRef.current(payload)
+        onNotice(t("connected_platforms.connected_notice", { platform: platformLabel(platform, t) }))
       }
-    )
-
-    return () => subscription.unsubscribe()
+    })
   }, [platform, onNotice])
 
   async function copyToken() {

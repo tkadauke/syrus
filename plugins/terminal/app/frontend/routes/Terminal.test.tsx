@@ -9,9 +9,15 @@ import { TerminalPane, TerminalRoute } from "./Terminal"
 import type { BootstrapPayload } from "@app/api/bootstrap"
 import type { TerminalSessionRecord, TerminalSessionsPayload } from "../api/terminal"
 
-const actionCable = vi.hoisted(() => ({
-  createSubscription: vi.fn(() => ({ perform: vi.fn(), unsubscribe: vi.fn() }))
-}))
+const actionCable = vi.hoisted(() => {
+  const createSubscription = vi.fn(() => ({ perform: vi.fn(), unsubscribe: vi.fn() }))
+  const createConsumer = vi.fn(() => ({
+    subscriptions: {
+      create: createSubscription
+    }
+  }))
+  return { createConsumer, createSubscription }
+})
 
 const xtermMock = vi.hoisted(() => ({
   terminalConstructor: vi.fn(),
@@ -25,11 +31,7 @@ const xtermMock = vi.hoisted(() => ({
 }))
 
 vi.mock("@rails/actioncable", () => ({
-  createConsumer: () => ({
-    subscriptions: {
-      create: actionCable.createSubscription
-    }
-  })
+  createConsumer: actionCable.createConsumer
 }))
 
 vi.mock("xterm", () => ({
@@ -100,6 +102,7 @@ describe("TerminalRoute", () => {
       toJSON: () => ({})
     })
     actionCable.createSubscription.mockClear()
+    actionCable.createConsumer.mockClear()
     xtermMock.terminalConstructor.mockClear()
     xtermMock.open.mockClear()
     xtermMock.write.mockClear()
@@ -269,6 +272,40 @@ describe("TerminalRoute", () => {
     mixin.received({ type: "disconnected" })
     expect(await screen.findByText("Session ended - reload to reconnect")).toBeInTheDocument()
     expect(screen.getByText("○ disconnected")).toBeInTheDocument()
+  })
+
+  it("reuses the shared ActionCable consumer when TerminalPane remounts", async () => {
+    const firstUnsubscribe = vi.fn()
+    actionCable.createSubscription.mockReturnValueOnce({ perform: vi.fn(), unsubscribe: firstUnsubscribe })
+
+    const { unmount } = renderWithClient(
+      <MemoryRouter>
+        <TerminalPane session={terminalSession({ id: 4 })} />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledWith(
+      { channel: "TerminalChannel", session_id: 4 },
+      expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
+    ))
+    const consumerCreationsAfterFirstMount = actionCable.createConsumer.mock.calls.length
+    expect(consumerCreationsAfterFirstMount).toBeLessThanOrEqual(1)
+
+    unmount()
+
+    expect(firstUnsubscribe).toHaveBeenCalledTimes(1)
+
+    renderWithClient(
+      <MemoryRouter>
+        <TerminalPane session={terminalSession({ id: 5 })} />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledWith(
+      { channel: "TerminalChannel", session_id: 5 },
+      expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
+    ))
+    expect(actionCable.createConsumer).toHaveBeenCalledTimes(consumerCreationsAfterFirstMount)
   })
 
   it("opens and fits TerminalPane only after the pane has measurable dimensions", async () => {
