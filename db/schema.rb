@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_042838) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_14_212030) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1757,6 +1757,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_042838) do
     t.string "planned_execution_source"
     t.datetime "approval_withdrawn_at"
     t.string "landing_failure_code"
+    t.datetime "branch_cleanup_attempted_at"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -1800,6 +1801,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_042838) do
     t.index ["source_ref"], name: "index_jobs_on_source_ref"
     t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["state", "approved_at", "id"], name: "index_jobs_on_state_and_approved_at_and_id"
+    t.index ["state", "branch_deleted_at", "branch_cleanup_attempted_at", "finished_at"], name: "idx_jobs_branch_cleanup_candidates"
     t.index ["state", "landing_queue_entry_position", "id"], name: "index_jobs_on_state_and_landing_queue_entry_position_and_id"
     t.index ["state", "landing_queue_position", "id"], name: "index_jobs_on_state_and_landing_queue_position_and_id"
     t.index ["target_repository_id"], name: "index_jobs_on_target_repository_id"
