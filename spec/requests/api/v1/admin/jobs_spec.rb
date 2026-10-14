@@ -296,6 +296,16 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       )
     end
 
+    it "clears the admin stuck snapshot after force-fail" do
+      job.update!(state: "running")
+      allow(Admin::StuckItemsCache).to receive(:clear!).and_call_original
+
+      post "/api/v1/admin/jobs/#{job.id}/force_fail", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(Admin::StuckItemsCache).to have_received(:clear!)
+    end
+
     it "allows force-failing other non-terminal states" do
       job.update!(state: "approved")
 
