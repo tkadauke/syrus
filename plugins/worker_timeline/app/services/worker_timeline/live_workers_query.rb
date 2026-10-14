@@ -50,17 +50,18 @@ module WorkerTimeline
       slots = active_slots.select { |slot| slot[:worker_storage_key].presence == key || (slot[:worker_storage_key].blank? && host_key_for(hostname: slot[:hostname]) == key) }
       pools = pools_for(key, host_processes, slots)
       total_slots = pools.sum { |pool| pool[:capacity].to_i }
-      total_slots = slots.length if total_slots.zero?
+      used_slots = occupancy_units(slots)
+      total_slots = used_slots if total_slots.zero?
       health = health_payload(sample)
-      status = status_for(used_slots: slots.length, total_slots: total_slots, health: health)
+      status = status_for(used_slots: used_slots, total_slots: total_slots, health: health)
 
       {
         key: key,
         hostname: hostname,
         worker_storage_key: key,
         status: status,
-        status_reasons: status_reasons(status: status, used_slots: slots.length, total_slots: total_slots, health: health),
-        occupancy: { used: slots.length, total: total_slots },
+        status_reasons: status_reasons(status: status, used_slots: used_slots, total_slots: total_slots, health: health),
+        occupancy: { used: used_slots, total: total_slots, slots: slots.length },
         health: health,
         pools: pools,
         sparklines: sparklines_for(key)
@@ -86,8 +87,8 @@ module WorkerTimeline
         hostname: unassigned.first[:hostname],
         pid: nil,
         queues: [ "inferred" ],
-        capacity: unassigned.length,
-        used: unassigned.length,
+        capacity: occupancy_units(unassigned),
+        used: occupancy_units(unassigned),
         status: "busy",
         last_heartbeat_at: nil,
         slots: unassigned
@@ -97,14 +98,15 @@ module WorkerTimeline
     def best_pool_for(slot, pool_states)
       candidates = pool_states.select { |state| slot_matches_pool?(slot, state[:queues]) }
       candidates.min_by do |state|
-        saturation = state[:capacity].positive? ? state[:slots].length.to_f / state[:capacity] : state[:slots].length
+        occupied = occupancy_units(state[:slots])
+        saturation = state[:capacity].positive? ? occupied.to_f / state[:capacity] : occupied
         [ saturation, state[:slots].length, state[:process].pid.to_i ]
       end
     end
 
     def pool_payload(state)
       process = state[:process]
-      used = state[:slots].length
+      used = occupancy_units(state[:slots])
       capacity = state[:capacity]
       {
         key: "#{process.hostname}:#{process.pid}",
@@ -124,6 +126,50 @@ module WorkerTimeline
       return true if slot[:queue_role].blank? && queues.include?("runs")
 
       queues.include?(slot[:queue_role].to_s)
+    end
+
+    # How many worker threads these slots actually occupy.
+    #
+    # `capacity` is SolidQueue's `thread_pool_size`: a count of threads. Slots
+    # are not threads. One thread running one grader Step spawns a whole tree
+    # of processes -- bundler, the test runner, its parallel workers -- and
+    # each becomes its own slot, so counting slots against thread capacity
+    # compares unrelated units and reports a healthy worker as "overloaded".
+    # A real case read 15/2 while that host sat at 15% CPU.
+    #
+    # One Run occupies one thread, so slots sharing a Run collapse to one
+    # unit. Slots with no Run fall back to their step, then workflow, then
+    # their own id, which keeps genuinely distinct work counted separately.
+    # The raw slot count is still reported as `occupancy[:slots]` -- it is
+    # useful, it just is not an occupancy figure.
+    # Which worker a slot belongs to.
+    #
+    # A spawned process is attributed to the host it actually ran on. The
+    # workflow's own storage key is the wrong answer for it: graders with the
+    # immutable_source_checkout placement are deliberately NOT pinned to the
+    # workflow's worker -- RunQueueResolver sends them to the shared `runs`
+    # queue -- so they land wherever there is room. Keying their slots by the
+    # workflow's worker drew every grader of one workflow onto a single card,
+    # which read as one overloaded host beside five idle ones while the work
+    # was in fact spread across all of them.
+    #
+    # Slots with no process of their own (a Run, Step or Workflow that has not
+    # spawned anything yet) still belong to the workflow's worker, which is the
+    # best available answer for them.
+    def slot_worker_key(hostname:, workflow:, process_id:)
+      return host_key_for(hostname: hostname) if process_id.present? && hostname.present?
+
+      workflow&.worker_storage_key.presence || host_key_for(hostname: hostname)
+    end
+
+    def occupancy_units(slots)
+      Array(slots).map do |slot|
+        if slot[:run_id].present? then [ :run, slot[:run_id] ]
+        elsif slot[:step_id].present? then [ :step, slot[:step_id] ]
+        elsif slot[:workflow_id].present? then [ :workflow, slot[:workflow_id] ]
+        else [ :slot, slot[:id] ]
+        end
+      end.uniq.length
     end
 
     def pool_capacity(process)
@@ -217,7 +263,7 @@ module WorkerTimeline
         attribution: attribution,
         confidence: "inferred",
         hostname: hostname,
-        worker_storage_key: workflow&.worker_storage_key.presence || host_key_for(hostname: hostname),
+        worker_storage_key: slot_worker_key(hostname: hostname, workflow: workflow, process_id: process_id),
         queue_role: queue_role_for(workflow),
         job_id: job&.id,
         job_slug: job&.slug,

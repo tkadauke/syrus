@@ -169,7 +169,7 @@ export type WorkerTimelineLiveWorker = {
   worker_storage_key: string | null
   status: WorkerTimelineLiveStatus
   status_reasons: string[]
-  occupancy: { used: number; total: number }
+  occupancy: { used: number; total: number; slots?: number }
   health: {
     level: string
     reasons: string[]

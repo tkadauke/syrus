@@ -210,10 +210,10 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       workers = parse_body.fetch("workers").index_by { |worker| worker.fetch("hostname") }
       expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(%w[ hostname status window ])
       expect(parse_body.dig("attribution", "exact_thread_ownership")).to be(false)
-      expect(workers.fetch("worker-a").dig("occupancy")).to eq("used" => 1, "total" => 2)
+      expect(workers.fetch("worker-a").dig("occupancy")).to include("used" => 1, "total" => 2)
       expect(workers.fetch("worker-idle").fetch("status")).to eq("idle")
       expect(workers.fetch("worker-hot").fetch("status")).to eq("overloaded")
-      expect(workers.fetch("worker-hot").dig("occupancy")).to eq("used" => 2, "total" => 1)
+      expect(workers.fetch("worker-hot").dig("occupancy")).to include("used" => 2, "total" => 1)
       slot = workers.fetch("worker-a").fetch("pools").first.fetch("slots").first
       expect(slot).to include("job_slug" => busy_job.slug, "workflow_id" => busy_workflow.id, "step_kind" => "implement", "run_id" => busy_run.id, "pid" => 901, "process_kind" => "agent")
       expect(slot.fetch("command_excerpt")).to include("[REDACTED]")
@@ -235,9 +235,91 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
 
       expect(response).to have_http_status(:ok)
       worker = parse_body.fetch("workers").find { |entry| entry.fetch("hostname") == "worker-a" }
-      expect(worker.dig("occupancy")).to eq("used" => 1, "total" => 2)
+      expect(worker.dig("occupancy")).to include("used" => 1, "total" => 2)
       expect(worker.fetch("pools").sum { |pool| pool.fetch("slots").length }).to eq(1)
       expect(worker.fetch("pools").map { |pool| pool.fetch("used") }).to contain_exactly(1, 0)
+    end
+
+    # Regression: graders with the immutable_source_checkout placement are not
+    # pinned to the workflow's worker -- RunQueueResolver sends them to the
+    # shared `runs` queue, so they run wherever there is room. Attributing
+    # their slots to the workflow's worker drew a whole workflow's graders
+    # onto one card, which read as a single overloaded host beside idle peers
+    # while the work was actually spread across all of them.
+    it "attributes a spawned process to the host it ran on, not the workflow's worker" do
+      enable_plugin!
+      sign_in_as(admin)
+      spread_job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Spread graders")
+      spread_workflow = Workflow.create!(job: spread_job, trigger_kind: "main_grader", state: "running",
+                                         started_at: 9.minutes.ago, worker_hostname: "worker-origin", worker_storage_key: "storage-origin")
+      spread_step = spread_workflow.steps.create!(kind: "grader", position: 1, state: "running", started_at: 8.minutes.ago)
+      spread_run = Run.create!(job: spread_job, user: admin, step: spread_step, trigger_kind: "main_grader",
+                               agent_provider: "codex", state: "running", started_at: 7.minutes.ago)
+      SpawnedProcess.create!(kind: "grader", command: "bin/rspec", hostname: "worker-elsewhere", pid: 4100,
+                             started_at: 6.minutes.ago, run: spread_run, workflow: spread_workflow)
+      solid_queue_process(hostname: "worker-origin", pid: 120, metadata: { "queues" => "runs", "thread_pool_size" => 1 })
+      solid_queue_process(hostname: "worker-elsewhere", pid: 121, metadata: { "queues" => "runs", "thread_pool_size" => 1 })
+      create_health_sample(hostname: "worker-origin", worker_storage_key: "storage-origin", cpu_used_percent: 10, memory_used_percent: 20, io_pressure_some: 0)
+      create_health_sample(hostname: "worker-elsewhere", worker_storage_key: "storage-elsewhere", cpu_used_percent: 20, memory_used_percent: 25, io_pressure_some: 0)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      workers = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }
+      expect(workers.fetch("worker-elsewhere").dig("occupancy", "used")).to eq(1)
+      expect(workers.fetch("worker-origin").dig("occupancy", "used")).to eq(0)
+      expect(workers.fetch("worker-origin").fetch("status")).to eq("idle")
+    end
+
+    # Regression: occupancy used to count spawned processes against
+    # SolidQueue's thread_pool_size. One grader Step spawns a tree of
+    # processes -- bundler, the test runner, its parallel workers -- so a
+    # worker doing exactly one unit of work reported many slots against a
+    # capacity of one and was flagged "overloaded" while nearly idle. A real
+    # host read 15/2 at 15% CPU.
+    it "counts one busy thread per Run, not one per spawned process" do
+      enable_plugin!
+      sign_in_as(admin)
+      noisy_job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Noisy grader")
+      noisy_workflow = Workflow.create!(job: noisy_job, trigger_kind: "main_grader", state: "running",
+                                        started_at: 9.minutes.ago, worker_hostname: "worker-noisy", worker_storage_key: "storage-noisy")
+      noisy_step = noisy_workflow.steps.create!(kind: "grader", position: 1, state: "running", started_at: 8.minutes.ago)
+      noisy_run = Run.create!(job: noisy_job, user: admin, step: noisy_step, trigger_kind: "main_grader",
+                              agent_provider: "codex", state: "running", started_at: 7.minutes.ago)
+      6.times do |index|
+        SpawnedProcess.create!(kind: "grader", command: "bin/rspec worker #{index}", hostname: "worker-noisy",
+                               pid: 2000 + index, started_at: 6.minutes.ago, run: noisy_run, workflow: noisy_workflow)
+      end
+      solid_queue_process(hostname: "worker-noisy", pid: 110, metadata: { "queues" => "runs", "thread_pool_size" => 1 })
+      create_health_sample(hostname: "worker-noisy", worker_storage_key: "storage-noisy", cpu_used_percent: 15, memory_used_percent: 30, io_pressure_some: 1)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      worker = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }.fetch("worker-noisy")
+      expect(worker.dig("occupancy", "used")).to eq(1)
+      expect(worker.dig("occupancy", "total")).to eq(1)
+      expect(worker.fetch("status")).to eq("busy")
+      expect(worker.fetch("status_reasons")).not_to include("capacity exceeded")
+    end
+
+    # The raw count is still worth showing; it just is not an occupancy figure.
+    it "still reports how many slots those processes occupy" do
+      enable_plugin!
+      sign_in_as(admin)
+      j = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Slot count")
+      wf = Workflow.create!(job: j, trigger_kind: "main_grader", state: "running", started_at: 9.minutes.ago,
+                            worker_hostname: "worker-count", worker_storage_key: "storage-count")
+      st = wf.steps.create!(kind: "grader", position: 1, state: "running", started_at: 8.minutes.ago)
+      run = Run.create!(job: j, user: admin, step: st, trigger_kind: "main_grader", agent_provider: "codex",
+                        state: "running", started_at: 7.minutes.ago)
+      3.times { |i| SpawnedProcess.create!(kind: "grader", command: "cmd #{i}", hostname: "worker-count", pid: 3000 + i, started_at: 6.minutes.ago, run: run, workflow: wf) }
+      solid_queue_process(hostname: "worker-count", pid: 111, metadata: { "queues" => "runs", "thread_pool_size" => 1 })
+      create_health_sample(hostname: "worker-count", worker_storage_key: "storage-count", cpu_used_percent: 15, memory_used_percent: 30, io_pressure_some: 1)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      worker = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }.fetch("worker-count")
+      expect(worker.dig("occupancy", "slots")).to eq(3)
+      expect(worker.dig("occupancy", "used")).to eq(1)
     end
 
     it "classifies running descendants of terminal workflows as diagnostics instead of live occupancy" do
@@ -262,7 +344,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
 
       expect(response).to have_http_status(:ok)
       worker = parse_body.fetch("workers").find { |entry| entry.fetch("hostname") == "worker-a" }
-      expect(worker.dig("occupancy")).to eq("used" => 1, "total" => 2)
+      expect(worker.dig("occupancy")).to include("used" => 1, "total" => 2)
       live_slots = worker.fetch("pools").flat_map { |pool| pool.fetch("slots") }
       expect(live_slots.map { |slot| slot.fetch("run_id") }).to eq([ active_run.id ])
       expect(live_slots.map { |slot| slot.fetch("step_id") }).to eq([ active_step.id ])
