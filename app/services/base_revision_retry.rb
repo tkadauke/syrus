@@ -3,7 +3,6 @@ require "fileutils"
 require "open3"
 require "shellwords"
 require "tempfile"
-require "timeout"
 require "tmpdir"
 
 class BaseRevisionRetry
@@ -170,16 +169,34 @@ class BaseRevisionRetry
 
   def run_command(command, chdir, output)
     result = nil
-    Timeout.timeout(TIMEOUT_SECONDS) do
-      Open3.popen2e(env, "bash", "-c", command, chdir: chdir.to_s) do |stdin, stream, wait_thread|
-        stdin.close
+    timed_out = false
+    Open3.popen2e(env, "bash", "-c", command, chdir: chdir.to_s, pgroup: true) do |stdin, stream, wait_thread|
+      stdin.close
+      reader = Thread.new do
         stream.each { |chunk| output << chunk }
-        result = wait_thread.value
       end
+
+      timed_out = wait_thread.join(TIMEOUT_SECONDS).nil?
+      if timed_out
+        kill_process_group(wait_thread.pid)
+        wait_thread.join
+      end
+
+      reader.join
+      result = wait_thread.value unless timed_out
     end
+
+    if timed_out
+      output << "\n[brr] timed out after #{TIMEOUT_SECONDS.to_i}s\n"
+      return nil
+    end
+
     result
-  rescue Timeout::Error
-    output << "\n[brr] timed out after #{TIMEOUT_SECONDS.to_i}s\n"
+  end
+
+  def kill_process_group(pid)
+    Process.kill("KILL", -pid)
+  rescue Errno::ESRCH
     nil
   end
 
