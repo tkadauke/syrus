@@ -26,7 +26,9 @@ module Api
         end
 
         def close_issue
-          repository = find_repository
+          repository = find_writable_repository
+          return unless repository
+
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
 
@@ -37,7 +39,9 @@ module Api
 
 
         def delegate_issue
-          repository = find_repository
+          repository = find_writable_repository
+          return unless repository
+
           issue_number = params.require(:issue_number).to_i
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
 
@@ -48,7 +52,9 @@ module Api
 
 
         def bulk_issues
-          repository = find_repository
+          repository = find_writable_repository
+          return unless repository
+
           issue_numbers = selected_issue_numbers
           if issue_numbers.empty?
             render_error("validation_failed", I18n.t("api.repositories.select_issue"), status: :unprocessable_content)
@@ -307,7 +313,7 @@ module Api
         private
 
         def find_repository
-          ::Repository.accessible_to(Current.user).find(params[:repository_id] || params[:id])
+          find_readable_repository(params[:repository_id] || params[:id])
         end
       end
     end

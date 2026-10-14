@@ -222,6 +222,26 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(parse_body["message"]).to eq("Issue #13 delegated to Syrus.")
   end
 
+  it "forbids read-tier members from mutating GitHub issues" do
+    owner = user
+    reader = Factories.user
+    repository = Factories.repository(user: owner, owner: "acme", name: "widgets", trigger_label: "syrus")
+    repository.repository_memberships.create!(user: reader, role: "read")
+    sign_in_as(reader)
+    expect(GithubClient).not_to receive(:for)
+
+    [
+      [ :post, "/api/v1/app/repositories/#{repository.id}/issues/close", { issue_number: 12 } ],
+      [ :post, "/api/v1/app/repositories/#{repository.id}/issues/delegate", { issue_number: 13 } ],
+      [ :post, "/api/v1/app/repositories/#{repository.id}/issues/bulk", { issue_numbers: %w[4 8], bulk_action: "delegate" } ]
+    ].each do |method, path, params|
+      public_send(method, path, params: params)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "message")).to include("write access")
+    end
+  end
+
 
   it "bulk closes and delegates selected GitHub issues" do
     sign_in_as(user)
