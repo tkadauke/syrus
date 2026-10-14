@@ -414,6 +414,42 @@ describe("Markdown", () => {
     expect(pre?.querySelector("code")?.textContent).toBe("const x = 1")
   })
 
+  it("renders fenced code blocks with GitHub-style info strings", () => {
+    const markdown = [
+      "```c++",
+      "int main() {}",
+      "```",
+      "",
+      '```js title="x.js"',
+      "console.log('ok')",
+      "```",
+      "",
+      "```ts {1,3}",
+      "const enabled = true",
+      "```",
+      "",
+      "```c#",
+      "class Program {}",
+      "```"
+    ].join("\n")
+    const { container } = render(<Markdown text={markdown} />)
+    const codeBlocks = Array.from(container.querySelectorAll("pre code")).map((code) => code.textContent)
+
+    expect(codeBlocks).toEqual(["int main() {}", "console.log('ok')", "const enabled = true", "class Program {}"])
+  })
+
+  it("requires matching-length closing fences for longer backtick runs", () => {
+    const { container } = render(<Markdown text={"````\n```\n````"} />)
+
+    expect(container.querySelector("pre code")).toHaveTextContent("```")
+  })
+
+  it("renders unusual fence info strings inside blockquotes", () => {
+    const { container } = render(<Markdown text={"> ```c++\n> int main() {}\n> ```"} />)
+
+    expect(container.querySelector("blockquote pre code")).toHaveTextContent("int main() {}")
+  })
+
   it("highlights fenced code blocks using the language hint from the info string", async () => {
     render(<Markdown text={"```ruby\nclass User\nend\n```"} />)
 
@@ -518,6 +554,15 @@ describe("Markdown", () => {
     expect(screen.getByText("Review")).toBeInTheDocument()
     expect(screen.getByText(/One or more lines were truncated/)).toBeInTheDocument()
     expect(container.querySelector("p")?.textContent?.length).toBeLessThanOrEqual(2_100)
+  })
+
+  it("renders heading markers with no heading text as prose", () => {
+    const { container } = render(<Markdown text={"# \n\n## \n\nBody"} />)
+    const paragraphs = Array.from(container.querySelectorAll("p")).map((paragraph) => paragraph.textContent)
+
+    expect(paragraphs).toEqual(["#", "##", "Body"])
+    expect(container.querySelector("h1")).toBeNull()
+    expect(container.querySelector("h2")).toBeNull()
   })
 
   it("renders plain text without applying markdown semantics", () => {

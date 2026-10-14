@@ -389,6 +389,10 @@ export function detectHighlighterLanguage(path: string): HighlighterLanguageId |
 }
 
 const HIGHLIGHTER_LANGUAGE_IDS = new Set<string>(Object.keys(LANGUAGE_LOADERS))
+const FENCE_LANGUAGE_ALIASES: Record<string, HighlighterLanguageId> = {
+  "c++": "cpp",
+  "c#": "csharp"
+}
 
 // Maps a Markdown fenced code block's info string (e.g. the `ruby` in
 // ```ruby) to a highlighter language id. Accepts both canonical ids
@@ -397,6 +401,7 @@ const HIGHLIGHTER_LANGUAGE_IDS = new Set<string>(Object.keys(LANGUAGE_LOADERS))
 export function detectFenceLanguage(hint: string): HighlighterLanguageId | null {
   const normalized = hint.trim().toLowerCase()
   if (!normalized) return null
+  if (FENCE_LANGUAGE_ALIASES[normalized]) return FENCE_LANGUAGE_ALIASES[normalized]
   if (HIGHLIGHTER_LANGUAGE_IDS.has(normalized)) return normalized as HighlighterLanguageId
 
   return detectHighlighterLanguage(`fence.${normalized}`)
