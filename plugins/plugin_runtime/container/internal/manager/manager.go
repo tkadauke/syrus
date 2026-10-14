@@ -10,6 +10,9 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -145,6 +148,7 @@ func New(d Docker, p policy.Policy, project, network string) *Manager {
 // nil map is safe in Go and Lookup simply never finds anything.
 func (m *Manager) WithPrivileged(r privileged.Registry) *Manager {
 	m.privileged = r
+	m.policy = m.policy.WithReservedServiceNames(r.Names())
 	return m
 }
 
@@ -216,12 +220,15 @@ func (m *Manager) reconcileContainer(ctx context.Context, name string, s spec.Se
 	lock.Lock()
 	defer lock.Unlock()
 
-	hash := s.Hash()
+	hash := desiredSpecHash(s, def)
 	existing, err := m.find(ctx, name)
 	if err != nil {
 		return Status{}, err
 	}
 	if existing != nil {
+		if err := checkContainerOwnership(existing.Labels, s.Plugin, def != nil); err != nil {
+			return Status{}, err
+		}
 		if existing.Labels[LabelSpec] == hash {
 			if existing.State != "running" {
 				if err := m.docker.StartContainer(ctx, existing.ID); err != nil {
@@ -257,6 +264,10 @@ func (m *Manager) reconcileContainer(ctx context.Context, name string, s spec.Se
 // unless purge is set: disabling a plugin should not throw away data that took
 // hours to build, but uninstalling it should.
 func (m *Manager) Remove(ctx context.Context, name string, purge bool) error {
+	if _, ok := m.privileged.Lookup(name); ok {
+		return privileged.ReservedName(name)
+	}
+
 	lock := m.lockFor(name)
 	lock.Lock()
 	defer lock.Unlock()
@@ -671,7 +682,7 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 	for k, v := range labels {
 		containerLabels[k] = v
 	}
-	containerLabels[LabelSpec] = s.Hash()
+	containerLabels[LabelSpec] = desiredSpecHash(s, def)
 	containerLabels[LabelPort] = strconv.Itoa(s.InternalPort)
 	if s.Healthcheck != nil {
 		containerLabels[LabelHealthPath] = s.Healthcheck.Path
@@ -730,6 +741,38 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 		return err
 	}
 	return m.docker.StartContainer(ctx, id)
+}
+
+// ErrOwnershipConflict means the named Docker object belongs to a different
+// plugin or to the other privilege lane. The manager refuses to adopt or
+// replace it because service names, container names, and volume names share a
+// daemon-global namespace.
+var ErrOwnershipConflict = errors.New("managed object belongs to a different plugin or privilege lane")
+
+func checkContainerOwnership(labels map[string]string, plugin string, privilegedExpected bool) error {
+	if labels[LabelPlugin] != plugin {
+		return fmt.Errorf("%w: container plugin label %q does not match %q", ErrOwnershipConflict, labels[LabelPlugin], plugin)
+	}
+	privilegedActual := labels[LabelPrivileged] == "true"
+	if privilegedActual != privilegedExpected {
+		return fmt.Errorf("%w: container privileged label is %v, expected %v", ErrOwnershipConflict, privilegedActual, privilegedExpected)
+	}
+	return nil
+}
+
+func desiredSpecHash(s spec.Service, def *privileged.Definition) string {
+	if def == nil {
+		return s.Hash()
+	}
+	raw, err := json.Marshal(struct {
+		Service    spec.Service          `json:"service"`
+		Privileged privileged.Definition `json:"privileged"`
+	}{Service: s, Privileged: *def})
+	if err != nil {
+		panic(err)
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 func (m *Manager) removeContainer(ctx context.Context, id string) error {
