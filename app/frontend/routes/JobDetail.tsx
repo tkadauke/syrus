@@ -172,11 +172,13 @@ export function JobDetailRoute() {
 
   function selectTab(tab: JobTab) {
     const search = new URLSearchParams(location.search)
-    if (tab === "summary") search.delete("tab")
+    if (tab === "summary" || tab === "source") search.delete("tab")
     else search.set("tab", tab)
     if (tab !== "workflows") search.delete("workflows_page")
     const next = search.toString()
-    navigate(`${location.pathname}${next ? `?${next}` : ""}`)
+    const basePathname = location.pathname.replace(/\/source\/?$/, "")
+    const pathname = tab === "source" ? `${basePathname}/source` : basePathname
+    navigate(`${pathname}${next ? `?${next}` : ""}`)
   }
 
   return (

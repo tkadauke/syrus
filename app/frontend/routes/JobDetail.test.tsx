@@ -2992,6 +2992,52 @@ describe("JobDetailRoute", () => {
     expect(await screen.findByText("No agent activity recorded for this Job yet.")).toBeInTheDocument()
   })
 
+  it("leaves the source subroute when selecting a non-source tab", async () => {
+    const payload = jobPayload()
+    const workflowsPayload = {
+      job_id: 1,
+      current_intent: null,
+      work_units: [],
+      workflows: [],
+      workflows_pagination: payload.workflows_pagination,
+      feature_flags: payload.feature_flags,
+      actions: payload.actions,
+      paths: payload.paths
+    }
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = requestUrl(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(payload))
+      if (path === "/api/v1/app/jobs/1/source") return Promise.resolve(jsonResponse(jobSourcePayload()))
+      if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowsPayload))
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1/source"]}>
+            <LocationProbe />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id/source" />
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Source" })).toHaveClass("border-brand")
+
+    fireEvent.click(screen.getByRole("button", { name: /Workflows/ }))
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/1?tab=workflows"))
+    expect(await screen.findByRole("button", { name: /Workflows/ })).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Source" })).not.toHaveClass("border-brand")
+  })
+
   it("falls back to Summary for stale direct visits to the removed Artifacts tab", async () => {
     const payload = jobPayload({
       typed_artifacts: [{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }]
