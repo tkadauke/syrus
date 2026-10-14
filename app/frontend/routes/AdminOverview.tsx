@@ -35,7 +35,7 @@ const emptyChatScopedEvents: NonNullable<AdminOverviewPayload["chat_scoped_event
 }
 
 export function AdminOverview() {
-  return <AdminOverviewPage />
+  return <AdminOverviewPage page="recurring" />
 }
 
 export function AdminResourceAdmission() {
@@ -69,7 +69,7 @@ function AdminOverviewPage({
   ariaKey = "overview.aria_overview",
   renderContent
 }: {
-  page?: "overview" | "resource_admission" | "scoped_chat_events"
+  page?: "overview" | "recurring" | "resource_admission" | "scoped_chat_events"
   titleKey?: string
   headingKey?: string
   ariaKey?: string
@@ -114,7 +114,7 @@ function AdminOverviewPage({
         </Page.HeadingGroup>
       </Page.Header>
 
-      {page === "overview" ? (
+      {page === "overview" || page === "recurring" ? (
         <section aria-label={t("overview.aria_metrics")} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Metric title={t("overview.active_runs")} value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))} href={withRoutePrefix("/admin/queue/active", prefix)} />
           <Metric title={t("overview.queued_runs")} value={data.queued_runs.total} context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")} href={withRoutePrefix("/admin/queue/pending", prefix)} />

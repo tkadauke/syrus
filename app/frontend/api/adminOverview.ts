@@ -436,7 +436,7 @@ export type WorkerHealthPayload = {
   hosts: WorkerHealthHost[]
 }
 
-export function fetchAdminOverview(page: "overview" | "resource_admission" | "scoped_chat_events" = "overview") {
+export function fetchAdminOverview(page: "overview" | "recurring" | "resource_admission" | "scoped_chat_events" = "overview") {
   const params = new URLSearchParams()
   if (page !== "overview") params.set("page", page)
 
