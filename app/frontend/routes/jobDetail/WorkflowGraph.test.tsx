@@ -184,6 +184,36 @@ describe("WorkflowsTab", () => {
     expect(screen.getByTestId("diff-file-scroll")).toHaveClass("overflow-x-scroll", "[-webkit-overflow-scrolling:touch]")
   })
 
+  it("pages through older run transcript chunks", async () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].job_log_count = 101
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const page = new URL(String(input), "http://example.test").searchParams.get("page") || "1"
+      return Promise.resolve(new Response(JSON.stringify({
+        job_id: 42, workflow_id: 10, run_id: 51, diff_review_version_id: null, base_ref: null, head_ref: null,
+        artifact: "transcript", logs_count: 101, logs_page: Number(page), logs_per_page: 100, logs_total_pages: 2,
+        logs_has_older: page === "1",
+        logs: page === "1" ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Newest output", created_at: null }] : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Oldest output", created_at: null }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42 } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
+    expect(await screen.findByText("Newest output")).toBeInTheDocument()
+    expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Older" }))
+    expect(await screen.findByText("Oldest output")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Newer" })).toBeInTheDocument()
+  })
+
   it("hides Step diff when it duplicates the full diff, as on a first implement run", () => {
     const workflow = workflowWithDiffRun()
     workflow.steps[0].runs[0].step_agent_diff_present = true
