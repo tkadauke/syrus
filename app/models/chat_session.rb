@@ -339,6 +339,16 @@ class ChatSession < ApplicationRecord
     self.turn_in_flight = false
   end
 
+  def fail_turn_for!(message)
+    if message && current_turn_message_id.present?
+      end_turn_for!(message)
+    else
+      update_columns(current_turn_message_id: nil, turn_in_flight: false)
+      self.current_turn_message_id = nil
+      self.turn_in_flight = false
+    end
+  end
+
   def agent_busy?
     live_agents = SpawnedProcess.live_agent
     live_agents.where(chat_session_id: id).or(live_agents.where(workdir: workspace_root.to_s)).exists?

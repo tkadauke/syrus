@@ -44,7 +44,8 @@ RSpec.describe ChatStopReconciler do
 
   it "marks an orphaned chat agent turn as failed even without a stop request" do
     chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-stop-reconciler-orphaned")
-    chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    message = chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    chat.begin_turn_for!(message)
     spawned_process = SpawnedProcess.create!(
       kind: "agent",
       command: "claude --print",
@@ -61,6 +62,7 @@ RSpec.describe ChatStopReconciler do
 
     expect(chat.reload.stop_requested_at).to be_nil
     expect(chat).not_to be_turn_in_flight
+    expect(chat.current_turn_message_id).to be_nil
     expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
       [ "system", { "text" => "Agent turn failed." } ]
     )
