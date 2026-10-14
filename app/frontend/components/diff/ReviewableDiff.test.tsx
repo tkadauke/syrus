@@ -1549,6 +1549,46 @@ describe("ReviewableDiff", () => {
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
 
+  it("drops cached syntax tokens when a same-path patch changes with the same visible row count", async () => {
+    const firstFile = {
+      additions: 1,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/models/job.rb b/app/models/job.rb",
+        "--- a/app/models/job.rb",
+        "+++ b/app/models/job.rb",
+        "@@ -1,1 +1,2 @@",
+        " class Job",
+        "+  def old_token; end"
+      ].join("\n"),
+      path: "app/models/job.rb",
+      status: "modified"
+    }
+    const secondFile = {
+      ...firstFile,
+      patch: [
+        "diff --git a/app/models/job.rb b/app/models/job.rb",
+        "--- a/app/models/job.rb",
+        "+++ b/app/models/job.rb",
+        "@@ -1,1 +1,2 @@",
+        " class Job",
+        "+  def new_token; end"
+      ].join("\n")
+    }
+
+    const { rerender } = render(<ReviewableDiff files={[firstFile]} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    await waitFor(() => {
+      const element = screen.getByText("old_token")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+    })
+
+    rerender(<ReviewableDiff files={[secondFile]} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    expect(screen.getByText("new_token")).toBeInTheDocument()
+    expect(screen.queryByText("old_token")).not.toBeInTheDocument()
+  })
+
   it("shows the plain unavailable placeholder for a patch-less non-image file", () => {
     const binaryFiles = [{ additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }]
 
@@ -2198,6 +2238,31 @@ describe("hidden-context expansion", () => {
     expect(getCodeCellText("line 3")).toBeInTheDocument()
     expect(getCodeCellText("line 4")).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: "Whole file loaded" })).toBeDisabled()
+  })
+
+  it("drops loaded full-file context when a same-path patch changes", async () => {
+    const firstFile = fileWithHunkAt(5)
+    const secondFile = {
+      ...firstFile,
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -6,1 +6,2 @@", " keep", "+added again"].join("\n")
+    }
+    const onLoadFileContext = vi
+      .fn()
+      .mockResolvedValueOnce(Array.from({ length: 10 }, (_, i) => `old revision line ${i + 1}`).join("\n"))
+      .mockResolvedValueOnce(Array.from({ length: 10 }, (_, i) => `new revision line ${i + 1}`).join("\n"))
+
+    const { rerender } = render(<ReviewableDiff files={[firstFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Load whole file" }))
+    await findCodeCellText("old revision line 1")
+    expect(await screen.findByRole("button", { name: "Whole file loaded" })).toBeDisabled()
+
+    rerender(<ReviewableDiff files={[secondFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+    fireEvent.click(screen.getByRole("button", { name: "Load whole file" }))
+
+    await findCodeCellText("new revision line 1")
+    expect(onLoadFileContext).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText("old revision line 1")).not.toBeInTheDocument()
   })
 
   it("hides context-expansion controls entirely when no loader is provided", () => {
