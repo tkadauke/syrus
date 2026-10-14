@@ -117,6 +117,19 @@ RSpec.describe InputSources::Linear do
       expect { source.poll! }.not_to change(Job, :count)
     end
 
+    it "does not re-ingest a Linear issue after its prior Job closed" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        input_source: source,
+        external_ref: "abc-1",
+        state: "closed"
+      )
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ linear_issue ])
+
+      expect { source.poll! }.not_to change(Job, :count)
+    end
+
     it "skips issues whose state type is cancelled" do
       cancelled = linear_issue(state_type: "cancelled")
       allow_any_instance_of(LinearClient).to receive(:issues).and_return([ cancelled ])

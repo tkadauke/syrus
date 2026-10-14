@@ -108,7 +108,7 @@ module InputSources
     end
 
     def existing_job_for_issue(issue_id)
-      Job.where(input_source_id: id, external_ref: issue_id).open_threads.order(:created_at).last
+      Job.where(input_source_id: id, external_ref: issue_id).order(:created_at, :id).last
     end
 
     def ingest_with_epic_marker!(marker, issue, issue_body)
