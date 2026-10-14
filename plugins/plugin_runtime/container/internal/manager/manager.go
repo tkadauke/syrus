@@ -736,6 +736,12 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 		if existing == nil {
 			return err
 		}
+		if err := checkContainerOwnership(existing.Labels, s.Plugin, def != nil); err != nil {
+			return err
+		}
+		if existing.Labels[LabelSpec] != desiredSpecHash(s, def) {
+			return fmt.Errorf("%w: container spec label does not match the desired spec", ErrOwnershipConflict)
+		}
 		id = existing.ID
 	} else if err != nil {
 		return err

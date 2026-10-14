@@ -26,7 +26,8 @@ type fakeDocker struct {
 	pulls    int
 	created  []docker.CreateContainerRequest
 
-	inspectNotFound map[string]bool
+	inspectNotFound       map[string]bool
+	beforeCreateContainer func(name string, req docker.CreateContainerRequest)
 }
 
 type fakeContainer struct {
@@ -117,6 +118,10 @@ func (f *fakeDocker) InspectContainer(_ context.Context, id string) (docker.Cont
 }
 
 func (f *fakeDocker) CreateContainer(_ context.Context, name string, req docker.CreateContainerRequest) (string, error) {
+	if f.beforeCreateContainer != nil {
+		f.beforeCreateContainer(name, req)
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, c := range f.containers {
