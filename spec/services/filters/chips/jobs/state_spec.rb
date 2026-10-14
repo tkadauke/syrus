@@ -11,8 +11,19 @@ RSpec.describe Filters::Chips::Jobs::State do
     job
   end
 
-  def apply(value, op: :is)
-    described_class.new(scope: Job.all, op: op, value: value, user: user).apply
+  def apply(value, op: :is, scope: Job.all)
+    described_class.new(scope: scope, op: op, value: value, user: user).apply
+  end
+
+  def job_selects
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].squish
+      queries << sql if sql.start_with?("SELECT") && sql.include?('"jobs"')
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
   end
 
   describe "#apply" do
@@ -91,6 +102,23 @@ RSpec.describe Filters::Chips::Jobs::State do
 
       expect(results).to contain_exactly(implemented, approved)
       expect(results).not_to include(landing)
+    end
+
+    it "uses a scoped subquery instead of plucking matching ids globally" do
+      visible = job_in("queued")
+      hidden_repository = Factories.repository(user: user)
+      hidden = Factories.job_record(user: user, repository: hidden_repository,
+                                    issue_number: rand(1..100_000), state: "queued")
+
+      scope = Job.where(repository_id: repository.id)
+      queries = job_selects do
+        expect(apply("open", scope: scope).to_a).to contain_exactly(visible)
+      end
+
+      expect(queries.size).to eq(1)
+      expect(queries.first).to match(/\bIN \(SELECT\b/)
+      expect(queries.first).to include(%("jobs"."repository_id"))
+      expect(queries.first).not_to include(hidden.id.to_s)
     end
   end
 end

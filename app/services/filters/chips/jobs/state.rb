@@ -52,27 +52,30 @@ module Filters
         private
 
         def match(values)
-          scope.where(id: union_ids(values))
+          return scope.none if values.empty?
+
+          scope.where(id: union_scope(values))
         end
 
         def not_match(values)
-          scope.where.not(id: union_ids(values))
+          return scope if values.empty?
+
+          scope.where.not(id: union_scope(values))
         end
 
-        def union_ids(values)
-          # OR-union the matching id sets for every requested value. Pluck
-          # is acceptable here for the same reason the Compiler does it
-          # for OR-groups: the typical state filter touches a small number
-          # of rows relative to the user-scoped base.
-          values.flat_map { |v| scope_for(v).pluck(:id) }.uniq
+        def union_scope(values)
+          values.map { |v| scope_for(v) }
+                .reduce { |left, right| left.or(right) }
+                .except(:select, :order)
+                .select(:id)
         end
 
         def scope_for(value)
           case value.to_s
-          when "open"   then Job.open_threads
-          when "closed" then Job.closed_threads
-          when "backlog" then Job.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
-          else Job.where(state: value)
+          when "open"   then scope.open_threads
+          when "closed" then scope.closed_threads
+          when "backlog" then scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
+          else scope.where(state: value)
           end
         end
       end
