@@ -71,20 +71,24 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
 }
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
-  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
-    if (!current || !Array.isArray(current.groups)) return current
+  queryClient.getQueryCache().findAll({ queryKey: ["chats", "recent"] }).forEach((query) => {
+    queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => {
+      if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
-    const updated = recentChatRecord(chat, existing, options.occurredAt)
-    const targetKey = chatGroupKey(updated)
-    const groups = withoutChat(current.groups, chat.id)
-    const targetIndex = groups.findIndex((group) => group.key === targetKey)
-    const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-    const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
-    const nextGroup = { ...targetGroup, chats: nextChats }
-    const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
+      const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
+      if (!existing && !recentChatBelongsInQuery(chat, query.queryKey)) return current
 
-    return { ...current, groups: nextGroups }
+      const updated = recentChatRecord(chat, existing, options.occurredAt)
+      const targetKey = chatGroupKey(updated)
+      const groups = withoutChat(current.groups, chat.id)
+      const targetIndex = groups.findIndex((group) => group.key === targetKey)
+      const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
+      const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
+      const nextGroup = { ...targetGroup, chats: nextChats }
+      const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
+
+      return { ...current, groups: nextGroups }
+    })
   })
 }
 
@@ -172,6 +176,29 @@ function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt
     created_at: candidate.created_at ?? existing?.created_at ?? occurredAt,
     updated_at: latestTimestamp(candidate.updated_at, existing?.updated_at, occurredAt)
   }
+}
+
+function recentChatBelongsInQuery(chat: ChatRecord, queryKey: QueryKey) {
+  if (queryKey.length < 3) return true
+
+  const status = queryKey[2]
+  if (status === "hidden" && !chatIsHidden(chat)) return false
+  if (status === "active" && chatIsHidden(chat)) return false
+
+  const chatTypes = typeof queryKey[4] === "string" ? queryKey[4].split(",").filter(Boolean) : []
+  return chatTypes.length === 0 || chatTypes.includes(chatTypeFor(chat))
+}
+
+function chatIsHidden(chat: ChatRecord) {
+  return (chat as ChatRecord & { hidden_at?: string | null }).hidden_at != null
+}
+
+function chatTypeFor(chat: ChatRecord) {
+  if (chat.chat_type) return chat.chat_type
+  if (chat.origin_platform) return "external"
+  if (chat.conversation_kind === "group") return "group"
+
+  return "agent"
 }
 
 function latestTimestamp(...values: Array<string | null | undefined>) {
