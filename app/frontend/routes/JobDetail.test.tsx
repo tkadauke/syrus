@@ -3262,6 +3262,50 @@ describe("JobDetailRoute", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/1?tab=coverage"))
     expect(await screen.findByRole("button", { name: "Coverage" })).toHaveClass("border-brand")
   })
+
+  it("leaves the source subroute when another job detail tab is selected", async () => {
+    const payload = jobPayload()
+    const workflowsPayload = {
+      current_intent: null,
+      work_units: [],
+      workflows: payload.workflows,
+      workflows_pagination: payload.workflows_pagination,
+      feature_flags: payload.feature_flags,
+      actions: payload.actions,
+      paths: payload.paths
+    }
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = requestUrl(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(payload))
+      if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowsPayload))
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1/source"]}>
+            <LocationProbe />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id/source" />
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Source" })).toHaveClass("border-brand")
+
+    fireEvent.click(screen.getByRole("button", { name: /Workflows/ }))
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/1?tab=workflows"))
+    expect(await screen.findByRole("button", { name: /Workflows/ })).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Source" })).not.toHaveClass("border-brand")
+  })
 })
 
 describe("TestPlanPanel", () => {
