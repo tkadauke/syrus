@@ -9,6 +9,7 @@ module PendingActions
 
       progress!("Marking #{job.slug} failed...")
       job.force_fail!
+      Admin::StuckItemsCache.clear!
       job
     end
 
