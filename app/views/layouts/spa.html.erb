@@ -447,7 +447,7 @@
     <% elsif Rails.env.production? %>
       <%= spa_asset_tag tag.script("", src: "/assets/spa.js", type: "module") %>
     <% elsif Rails.application.assets.load_path.find("spa.digested.js") %>
-      <%= spa_asset_tag tag.script("", src: "/assets/spa.digested.js", type: "module") %>
+      <%= spa_javascript_include_tag "spa.digested.js", type: "module" %>
     <% elsif Rails.application.assets.load_path.find("spa.js") %>
       <%= spa_javascript_include_tag "spa", type: "module" %>
     <% end %>

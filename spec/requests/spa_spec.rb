@@ -11,6 +11,30 @@ RSpec.describe "SPA shell", type: :request do
     [ path, Pathname.new("#{path}.br"), Pathname.new("#{path}.gz") ].each { |asset_path| asset_path.delete if asset_path&.exist? }
   end
 
+  def with_build_asset(relative_path, body)
+    path = Rails.root.join("app/assets/builds", relative_path)
+    existed = path.exist?
+    original_body = path.binread if existed
+    FileUtils.mkdir_p(path.dirname)
+    path.binwrite(body)
+    clear_propshaft_load_path_cache
+    yield path
+  ensure
+    if path
+      if existed
+        path.binwrite(original_body)
+      elsif path.exist?
+        path.delete
+      end
+      clear_propshaft_load_path_cache
+    end
+  end
+
+  def clear_propshaft_load_path_cache
+    load_path = Rails.application.assets.load_path
+    load_path.send(:clear_cache) if load_path.respond_to?(:clear_cache, true)
+  end
+
   def gzip(content)
     StringIO.new.tap do |io|
       Zlib::GzipWriter.wrap(io) { |writer| writer.write(content) }
@@ -225,15 +249,22 @@ RSpec.describe "SPA shell", type: :request do
     allow(Rails.env).to receive(:test?).and_return(false)
     allow(Rails.env).to receive(:production?).and_return(false)
     allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
-    allow(Rails.application.assets.load_path).to receive(:find).and_call_original
-    allow(Rails.application.assets.load_path).to receive(:find).with("spa.digested.js").and_return(double("spa entrypoint"))
     user = Factories.user
     sign_in_as(user)
 
-    get app_shell_path
+    with_build_asset("spa.digested.js", "console.log('preview entrypoint')") do
+      get app_shell_path
 
-    expect(response).to have_http_status(:ok)
-    expect(response.body).to include('<script src="/assets/spa.digested.js" type="module"></script>')
+      expect(response).to have_http_status(:ok)
+      js_paths = response.body.scan(/<script[^>]+src="([^"]+)"[^>]*><\/script>/).flatten
+      entrypoint_path = js_paths.find { |path| path.include?("spa.digested") }
+      expect(entrypoint_path).to match(%r{\A/assets/spa\.digested-[0-9a-f]{8}\.js\z})
+
+      get entrypoint_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("preview entrypoint")
+    end
   end
 
   it "renders a visible shell loading state before the SPA bundle executes" do
