@@ -3174,6 +3174,63 @@ describe("JobDetailRoute", () => {
     resolveJob2Workflows(jsonResponse({ ...workflowPlaceholder, job_id: 2, paths: job2.paths }))
   })
 
+  it("remounts cached Job detail state when navigating between Jobs", async () => {
+    const job1 = jobPayload({
+      job: { ...baseJob(), id: 1, state: "implemented", summary_state: "implemented", issue_title: "First Job" },
+      actions: { ...jobPayload().actions, can_write: true }
+    })
+    const job2 = jobPayload({
+      job: { ...baseJob(), id: 2, state: "implemented", summary_state: "implemented", issue_title: "Second Job" },
+      actions: { ...jobPayload().actions, can_write: true },
+      paths: jobPathsFor(2)
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 12, trigger_kind: "chat_feedback" } }, 201))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+    queryClient.setQueryData(["jobs", "1", "detail", ""], job1)
+    queryClient.setQueryData(["jobs", "2", "detail", ""], job2)
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <NavigateToJob2Summary />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("First Job")).toBeInTheDocument()
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Only applies to the first Job." } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to Job 2" }))
+
+    expect(await screen.findByText("Second Job")).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Only applies to the first Job.")).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
+
+    openOverflowMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Give feedback" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Only applies to the second Job." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/2/chat_feedback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ body: "Only applies to the second Job." })
+        })
+      )
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.anything())
+  })
+
   it("falls back to Summary for an unclaimed plugin tab URL", async () => {
     const payload = jobPayload({
       ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
@@ -4892,6 +4949,11 @@ function LocationProbe() {
 function NavigateToJob2() {
   const navigate = useNavigate()
   return <button onClick={() => navigate("/jobs/2?tab=workflows")}>Go to Job 2</button>
+}
+
+function NavigateToJob2Summary() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate("/jobs/2")}>Go to Job 2</button>
 }
 
 function jobNavigationContext(overrides: Partial<JobNavigationContext> = {}): JobNavigationContext {
