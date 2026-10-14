@@ -72,7 +72,7 @@ module Ruby
           # Merge branch hits (sum across result sets)
           if (branches = file_data["branches"])
             merged_branches[filepath] ||= {}
-            branches.each do |key, count|
+            each_branch_hit(branches) do |key, count|
               merged_branches[filepath][key] = (merged_branches[filepath][key] || 0) + count.to_i
             end
           end
@@ -80,6 +80,18 @@ module Ruby
       end
 
       { lines: merged_lines, branches: merged_branches }
+    end
+
+    def each_branch_hit(branches)
+      branches.each do |condition_key, arms_or_count|
+        if arms_or_count.is_a?(Hash)
+          arms_or_count.each do |arm_key, count|
+            yield [condition_key, arm_key], count
+          end
+        else
+          yield condition_key, arms_or_count
+        end
+      end
     end
 
     def build_artifact(merged)
