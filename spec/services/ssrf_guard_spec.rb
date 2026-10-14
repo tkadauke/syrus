@@ -2,7 +2,19 @@ require "rails_helper"
 
 RSpec.describe SsrfGuard do
   describe ".safe_host?" do
+    before do
+      allow(Addrinfo).to receive(:getaddrinfo).and_raise(SocketError)
+    end
+
+    def stub_resolution(host, *ips)
+      allow(Addrinfo).to receive(:getaddrinfo)
+        .with(host, nil, Socket::AF_UNSPEC, Socket::SOCK_STREAM)
+        .and_return(ips.map { |ip| instance_double(Addrinfo, ip_address: ip) })
+    end
+
     it "allows ordinary public hostnames" do
+      stub_resolution("uploads.example.com", "93.184.216.34")
+
       expect(described_class.safe_host?("uploads.example.com")).to be true
     end
 
@@ -16,6 +28,7 @@ RSpec.describe SsrfGuard do
 
     it "blocks loopback hostnames and IPs" do
       expect(described_class.safe_host?("localhost")).to be false
+      expect(described_class.safe_host?("localhost.")).to be false
       expect(described_class.safe_host?("127.0.0.1")).to be false
       expect(described_class.safe_host?("127.5.5.5")).to be false
       expect(described_class.safe_host?("::1")).to be false
@@ -26,6 +39,8 @@ RSpec.describe SsrfGuard do
       expect(described_class.safe_host?("2130706433")).to be false
       expect(described_class.safe_host?("0x7f.0.0.1")).to be false
       expect(described_class.safe_host?("0177.0.0.1")).to be false
+      expect(described_class.safe_host?("0x7f000001")).to be false
+      expect(described_class.safe_host?("017700000001")).to be false
       expect(described_class.safe_host?("2852039166")).to be false
     end
 
@@ -45,10 +60,12 @@ RSpec.describe SsrfGuard do
 
     it "blocks link-local addresses, including the cloud metadata IP" do
       expect(described_class.safe_host?("169.254.169.254")).to be false
+      expect(described_class.safe_host?("169.254.169.254.")).to be false
     end
 
     it "blocks known internal metadata hostnames" do
       expect(described_class.safe_host?("metadata.google.internal")).to be false
+      expect(described_class.safe_host?("metadata.google.internal.")).to be false
     end
 
     it "blocks RFC1918 private ranges" do
@@ -60,6 +77,16 @@ RSpec.describe SsrfGuard do
     it "blocks IPv6 unique-local and link-local ranges" do
       expect(described_class.safe_host?("fc00::1")).to be false
       expect(described_class.safe_host?("fe80::1")).to be false
+    end
+
+    it "blocks hostnames that resolve to blocked ranges" do
+      stub_resolution("assets.example.test", "93.184.216.34", "10.0.0.5")
+
+      expect(described_class.safe_host?("assets.example.test")).to be false
+    end
+
+    it "blocks hosts that cannot be resolved" do
+      expect(described_class.safe_host?("missing.example.test")).to be false
     end
 
     it "blocks blank hosts" do
