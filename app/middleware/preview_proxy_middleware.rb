@@ -42,12 +42,23 @@ class PreviewProxyMiddleware
     host = env["HTTP_HOST"].to_s
 
     panel_match = @panel_host_pattern.match(host)
-    return serve_panel(env, panel_match[1].to_i) if panel_match
+    return rescuing_proxy_errors { serve_panel(env, panel_match[1].to_i) } if panel_match
 
     match = @host_pattern.match(host)
+    # Not a preview host, so hand the request to the rest of the stack
+    # *outside* the rescue below. This middleware is inserted before 0, which
+    # makes it the outermost one, so a rescue around this call swallows every
+    # exception raised anywhere beneath it and reports it as "Proxy error."
+    # with nothing but a log line -- including in environments that render
+    # exceptions themselves, where it hides the real error entirely.
     return @app.call(env) unless match
 
-    preview_environment_id = match[1].to_i
+    rescuing_proxy_errors { serve_preview(env, match[1].to_i) }
+  end
+
+  private
+
+  def serve_preview(env, preview_environment_id)
     preview_env = PreviewEnvironment.find_by(id: preview_environment_id, state: "running")
     return not_available_response unless preview_env
 
@@ -59,12 +70,16 @@ class PreviewProxyMiddleware
     status, headers, body = proxy(env, preview_env)
     set_preview_access_cookie!(headers, request, access_token)
     [status, headers, body]
+  end
+
+  # Only the preview-serving paths above are covered: a failure there is a
+  # genuine proxy failure, and 502 is the honest answer for it.
+  def rescuing_proxy_errors
+    yield
   rescue => e
     Rails.logger.error("PreviewProxyMiddleware: #{e.class}: #{e.message}")
     [502, { "Content-Type" => "text/html; charset=utf-8" }, ["<p>Proxy error.</p>"]]
   end
-
-  private
 
   def proxy(env, preview_env)
     request = Rack::Request.new(env)

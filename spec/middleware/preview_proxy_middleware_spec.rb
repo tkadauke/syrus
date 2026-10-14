@@ -42,6 +42,20 @@ RSpec.describe PreviewProxyMiddleware do
   end
 
   describe "passthrough for non-preview hosts" do
+    # This middleware is inserted before 0, so it wraps the entire stack. It
+    # used to rescue around the passthrough as well, which turned any
+    # exception raised beneath it into a bare "Proxy error." 502 with only a
+    # log line -- hiding the real failure from the environments that render
+    # exceptions themselves.
+    it "lets an exception from the app propagate instead of reporting a proxy error" do
+      exploding_app = ->(_env) { raise ArgumentError, "downstream boom" }
+      middleware = described_class.new(exploding_app)
+
+      expect {
+        middleware.call(env_for(host: "syrus.example.com"))
+      }.to raise_error(ArgumentError, "downstream boom")
+    end
+
     it "passes through requests for the main app domain" do
       status, _, body = middleware.call(env_for(host: "syrus.example.com"))
       expect(status).to eq(200)
