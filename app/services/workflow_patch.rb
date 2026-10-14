@@ -45,10 +45,13 @@ class WorkflowPatch
     validate!
 
     patched = patched_graph
-    @workflow.update!(
-      chain_template: patched,
-      artifacts: (@workflow.artifacts || {}).merge("workflow_patches" => history + [ record ])
-    )
+    Step.transaction do
+      materialize_live_steps!
+      @workflow.update!(
+        chain_template: patched,
+        artifacts: (@workflow.artifacts || {}).merge("workflow_patches" => history + [ record ])
+      )
+    end
 
     Result.new(applied: true, reason: nil, graph: patched)
   rescue Rejected => e
@@ -61,9 +64,15 @@ class WorkflowPatch
     raise Rejected, "unknown operation #{@operation.inspect}" unless OPERATIONS.include?(@operation)
     raise Rejected, "unknown author #{@author.inspect}" unless AUTHORS.include?(@author)
     raise Rejected, "no nodes to add" if @nodes.empty? && @operation != "mark_optional_done"
+    if @operation == "mark_optional_done"
+      raise Rejected, "operation #{@operation.inspect} does not change the live workflow graph"
+    end
 
     # Against the serialized form: a bare "implement" is a node too, and
     # checking the raw input would have silently passed every string.
+    unsupported = serialized_nodes.reject { |node| node["type"] == "step" && node["kind"].present? }
+    raise Rejected, "runtime workflow patches may only add step nodes" if unsupported.any?
+
     added = WorkflowTemplates.step_kinds_in(serialized_nodes)
     unknown = added.reject { |kind| Step::Kind.by_kind.key?(kind) }
     raise Rejected, "unknown step kind(s): #{unknown.uniq.sort.join(', ')}" if unknown.any?
@@ -105,6 +114,83 @@ class WorkflowPatch
   end
 
   def history = Array(@workflow.artifacts&.dig("workflow_patches"))
+
+  def materialize_live_steps!
+    previous = live_anchor_step
+    continuation = previous&.next_step
+    ensure_live_insertion_possible!(previous: previous, continuation: continuation)
+    insertion_position = previous ? previous.position + 1 : next_position
+
+    @workflow.steps.where("position >= ?", insertion_position).update_all(
+      [ "position = position + ?", serialized_nodes.size ]
+    )
+
+    new_steps = serialized_nodes.map.with_index do |node, index|
+      kind = node.fetch("kind")
+      Step.create!(
+        workflow: @workflow,
+        kind: kind,
+        position: insertion_position + index,
+        iteration: previous&.iteration || 1,
+        loop_id: previous&.loop_id,
+        placement_policy: Step::Kind.fetch(kind).placement_policy_for(@workflow.job.repository)
+      )
+    end
+
+    if previous
+      ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+    end
+    new_steps.last.update!(next_step_id: continuation&.id)
+    wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+    enqueue_ready_inserted_step!(new_steps.first)
+  end
+
+  def ensure_live_insertion_possible!(previous:, continuation:)
+    raise Rejected, "workflow is not active" unless @workflow.queued? || @workflow.running?
+    return unless previous&.terminal?
+    return unless continuation&.runs&.exists?
+
+    raise Rejected, "cannot insert after terminal step #{previous.kind.inspect}; its continuation already started"
+  end
+
+  def live_anchor_step
+    return @workflow.steps.order(:position, :id).last if @after_kind.blank?
+
+    @workflow.steps.where(kind: @after_kind).order(:position, :id).first ||
+      raise(Rejected, "no live step #{@after_kind.inspect} to insert after")
+  end
+
+  def next_position
+    last_position = @workflow.steps.maximum(:position)
+    last_position ? last_position + 1 : 0
+  end
+
+  def wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
+    return if new_steps.empty?
+
+    if previous
+      ([ previous ] + new_steps).each_cons(2) do |dependency, dependent|
+        dependent.update!(depends_on_ids: [ dependency.id ])
+      end
+    end
+
+    return unless continuation
+
+    ids = continuation.depends_on_step_ids
+    if ids.empty?
+      continuation.update!(depends_on_ids: [ new_steps.last.id ])
+    elsif previous && ids.include?(previous.id)
+      continuation.update!(depends_on_ids: ids.map { |id| id == previous.id ? new_steps.last.id : id })
+    end
+  end
+
+  def enqueue_ready_inserted_step!(step)
+    return unless step&.queued?
+    return if step.runs.exists?
+    return unless step.dependencies_settled?
+
+    StepDispatcher.create_run_and_enqueue(step, @workflow)
+  end
 
   def record
     {

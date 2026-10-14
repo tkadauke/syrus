@@ -25,6 +25,7 @@ class PreviewService
   TTL_CHECK_INTERVAL_SECONDS = 30
   HEALTH_CHECK_TIMEOUT_SECONDS = 120
   HEALTH_CHECK_RETRY_INTERVAL_SECONDS = 2
+  PREVIEW_COMMAND_TIMEOUT_SECONDS = 10.minutes.to_i
   GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 10
   CHILD_HEARTBEAT_INTERVAL_SECONDS = ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS
 
@@ -127,10 +128,10 @@ class PreviewService
 
     process_env = preview_process_env(source, workdir)
 
-    run_setup_commands(source, workdir, process_env)
+    return unless run_setup_commands(source, workdir, workspace_path, env, process_env)
     return if stop_requested?(env)
 
-    run_seed_command(source, workdir, process_env) if source.seed_command
+    return if source.seed_command && !run_seed_command(source, workdir, workspace_path, env, process_env)
     return if stop_requested?(env)
 
     child = spawn_app(source.start_command_for.call(port: port), workdir, port, env, process_env)
@@ -139,20 +140,49 @@ class PreviewService
     await_health_check(env, port, source.health_check_path)
   end
 
-  def run_seed_command(source, workspace_path, process_env)
-    run_preview_command!("seed", source.seed_command, workspace_path, process_env)
+  def run_seed_command(source, workdir, workspace_path, env, process_env)
+    run_preview_command!("seed", source.seed_command, workdir, workspace_path, env, process_env)
   end
 
-  def run_setup_commands(source, workspace_path, process_env)
+  def run_setup_commands(source, workdir, workspace_path, env, process_env)
     Array(source.setup_commands).each do |command|
-      run_preview_command!("setup", command, workspace_path, process_env)
+      return false unless run_preview_command!("setup", command, workdir, workspace_path, env, process_env)
     end
+    true
   end
 
-  def run_preview_command!(label, command, workspace_path, process_env)
+  def run_preview_command!(label, command, workdir, workspace_path, env, process_env)
     Rails.logger.info("[PreviewService] running #{label}: #{command}")
-    result = system(process_env, "bash", "-c", command, chdir: workspace_path, exception: false, unsetenv_others: true)
-    raise "preview #{label} command exited non-zero: #{command}" unless result
+    result = ProcessRunner.new(
+      env: process_env,
+      command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(workdir, read_write: workspace_path),
+      network: "prepare",
+      timeout: PREVIEW_COMMAND_TIMEOUT_SECONDS,
+      kind: "preview",
+      job: env.job,
+      display_command: command,
+      stop_requested: -> { preview_command_stop_requested?(env) }
+    ).run
+    return true if result.success?
+
+    if result.stopped? || result.operator_killed?
+      stop_environment(env)
+      return false
+    end
+
+    suffix = if result.timed_out?
+      " timed out after #{PREVIEW_COMMAND_TIMEOUT_SECONDS}s"
+    else
+      " exited non-zero"
+    end
+    raise "preview #{label} command#{suffix}: #{command}"
+  end
+
+  def preview_command_stop_requested?(env)
+    return true if @shutting_down
+
+    env.reload.stopping?
   end
 
   def preview_workdir(env, workspace_path)
