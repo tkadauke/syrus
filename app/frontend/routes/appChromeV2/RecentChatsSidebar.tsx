@@ -94,13 +94,15 @@ function writeSidebarSettings(settings: ChatSidebarSettings) {
 function normalizeSidebarSettings(settings: Partial<ChatSidebarSettings>, availableChatTypes?: ChatType[], availableAgents?: ChatSidebarAgentOption[]): ChatSidebarSettings {
   const availableTypes = availableChatTypes ?? []
   const agents = availableAgents ?? []
-  const chatTypeFeatureVisible = availableTypes.length > 1
-  const agentFeatureVisible = agents.length > 1
+  const chatTypeAvailabilityKnown = availableChatTypes !== undefined
+  const agentAvailabilityKnown = availableAgents !== undefined
+  const chatTypeFeatureVisible = chatTypeAvailabilityKnown ? availableTypes.length > 1 : true
+  const agentFeatureVisible = agentAvailabilityKnown ? agents.length > 1 : true
   const status = STATUS_OPTIONS.some((option) => option.value === settings.status) ? settings.status as ChatSidebarStatus : DEFAULT_SIDEBAR_SETTINGS.status
   const groupByCandidate = GROUP_BY_OPTIONS.some((option) => option.value === settings.group_by) ? settings.group_by as ChatSidebarGroupBy : DEFAULT_SIDEBAR_SETTINGS.group_by
   const groupBy = (groupByCandidate === "chat_type" && !chatTypeFeatureVisible) || (groupByCandidate === "agent" && !agentFeatureVisible) ? DEFAULT_SIDEBAR_SETTINGS.group_by : groupByCandidate
   const rawChatTypes = Array.isArray(settings.chat_types) ? settings.chat_types : DEFAULT_SIDEBAR_SETTINGS.chat_types
-  const selectedChatTypes = rawChatTypes.filter((value): value is ChatType => CHAT_TYPE_OPTIONS.some((option) => option.value === value) && (availableTypes.length === 0 || availableTypes.includes(value)))
+  const selectedChatTypes = rawChatTypes.filter((value): value is ChatType => CHAT_TYPE_OPTIONS.some((option) => option.value === value) && (!chatTypeAvailabilityKnown || availableTypes.includes(value)))
   const chatTypes = chatTypeFeatureVisible && selectedChatTypes.length === 0 ? availableTypes : chatTypeFeatureVisible ? selectedChatTypes : []
   const sortBy = SORT_BY_OPTIONS.some((option) => option.value === settings.sort_by) ? settings.sort_by as ChatSidebarSortBy : DEFAULT_SIDEBAR_SETTINGS.sort_by
   const perGroup = PER_GROUP_OPTIONS.includes(settings.per_group as ChatSidebarPerGroup) ? settings.per_group as ChatSidebarPerGroup : DEFAULT_SIDEBAR_SETTINGS.per_group
