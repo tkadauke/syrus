@@ -1152,6 +1152,7 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
   const mutation = useMutation({
     mutationFn: (priority: string) => updateJobPriority(priorityPath, priority),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
     },
@@ -1298,6 +1299,7 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
   const mutation = useMutation({
     mutationFn: () => updateJobProviderSetting(providerPath, draft),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
     },

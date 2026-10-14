@@ -162,8 +162,12 @@ describe("useJobCommand cache sync", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     const dashboardKey = ["dashboard", "rows", "?state=running"] as const
     const previewKey = ["jobs", "1"] as const
+    const sourceDiffKey = ["jobs", "1", "source_diff", ""] as const
+    const reviewCommentsKey = ["jobs", "1", "diff_review_comments", "job_source_diff", ""] as const
     client.setQueryData(dashboardKey, { jobs: [] })
     client.setQueryData(previewKey, { job: { id: 1, state: "running" } })
+    client.setQueryData(sourceDiffKey, { files: [] })
+    client.setQueryData(reviewCommentsKey, { comments: [] })
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Closed." }))
 
     render(
@@ -179,6 +183,8 @@ describe("useJobCommand cache sync", () => {
     await waitFor(() => {
       expect(client.getQueryState(dashboardKey)?.isInvalidated).toBe(true)
       expect(client.getQueryState(previewKey)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(sourceDiffKey)?.isInvalidated).toBe(false)
+      expect(client.getQueryState(reviewCommentsKey)?.isInvalidated).toBe(false)
     })
   })
 

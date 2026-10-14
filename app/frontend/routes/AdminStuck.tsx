@@ -180,6 +180,8 @@ function StuckTable({
     onSuccess: (_payload, { jobId }) => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "stuck"] })
       void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })
+      void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "detail"] })
+      void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "workflows"] })
       invalidateJobSurfaces(queryClient, jobId)
     }
   })
