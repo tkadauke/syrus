@@ -1490,7 +1490,7 @@ RSpec.describe GithubClient do
       expect(stub).to have_been_requested
     end
 
-    it "suppresses 422 UnprocessableEntity and logs a warning" do
+    it "suppresses a protected-branch 422 and logs a warning" do
       stub_request(:delete, delete_url).to_return(
         status: 422,
         headers: { "Content-Type" => "application/json" },
@@ -1500,15 +1500,26 @@ RSpec.describe GithubClient do
       expect(client.delete_branch("acme/widgets", "syrus/issue-42-1")).to be(false)
     end
 
-    it "suppresses 404 NotFound and logs a warning" do
+    it "treats a missing-reference 422 as already deleted" do
+      stub_request(:delete, delete_url).to_return(
+        status: 422,
+        headers: { "Content-Type" => "application/json" },
+        body: { message: "Reference does not exist" }.to_json
+      )
+      allow(Rails.logger).to receive(:info)
+      expect(client.delete_branch("acme/widgets", "syrus/issue-42-1")).to be(true)
+      expect(Rails.logger).to have_received(:info).with(/already deleted/)
+    end
+
+    it "treats 404 NotFound as already deleted" do
       stub_request(:delete, delete_url).to_return(
         status: 404,
         headers: { "Content-Type" => "application/json" },
         body: { message: "Not Found" }.to_json
       )
-      allow(Rails.logger).to receive(:warn)
-      expect(client.delete_branch("acme/widgets", "syrus/issue-42-1")).to be(false)
-      expect(Rails.logger).to have_received(:warn).with(/could not delete/)
+      allow(Rails.logger).to receive(:info)
+      expect(client.delete_branch("acme/widgets", "syrus/issue-42-1")).to be(true)
+      expect(Rails.logger).to have_received(:info).with(/already deleted/)
     end
 
     it "retries transient GitHub server errors and succeeds when a later delete works" do
