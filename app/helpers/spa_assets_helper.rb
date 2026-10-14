@@ -35,6 +35,8 @@ module SpaAssetsHelper
   def content_hashed_spa_asset_path?(path)
     filename = File.basename(path.split(/[?#]/, 2).first)
 
+    return true if filename.include?(".digested.")
+
     filename.match?(/\A.+-[0-9a-f]{8,}(?:\.[^.]+)+\z/i)
   end
 end

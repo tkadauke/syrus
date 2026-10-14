@@ -46,7 +46,7 @@ RSpec.describe "Vite build config" do
 
   it "keeps the Rails SPA entrypoint logical and marks Vite-hashed dependencies as pre-digested" do
     expect(config.fetch("base")).to eq("/assets/")
-    expect(config.fetch("entryFileNames")).to eq("spa.js")
+    expect(config.fetch("entryFileNames")).to eq("spa.digested.js")
     expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].digested.js")
     expect(config.fetch("assetFileNames")).to eq("spa-[name]-[hash].digested[extname]")
   end
