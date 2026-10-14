@@ -3,6 +3,7 @@ import { useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useT } from "../../hooks/useT"
 import { Button } from "../../components/Button"
+import { Select } from "../../components/Select"
 import { CloseIcon } from "../../components/CloseIcon"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
@@ -48,8 +49,7 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
   run_visual_diff: 310,
 
   retry_failed_step: 400,
-  retry_implementation: 410,
-  retry_feedback: 420,
+  retry_with: 410,
   restart: 500,
   unapprove: 510,
   reopen: 520,
@@ -114,7 +114,7 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   const shortcutGroup = t("shortcuts.group")
   const approveAction = actions.find((action) => action.key === "approve")
   const unapproveAction = actions.find((action) => action.key === "unapprove")
-  const retryAction = actions.find((action) => action.key === "retry_failed_step") ?? actions.find((action) => action.key === "retry_implementation")
+  const retryAction = actions.find((action) => action.key === "retry_failed_step") ?? actions.find((action) => action.key === "retry_with")
   const cancelAction = actions.find((action) => action.key === "cancel")
   const stopLandingAction = actions.find((action) => action.key === "stop_landing")
   const reopenAction = actions.find((action) => action.key === "reopen")
@@ -134,15 +134,21 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   function handleActionClick(action: HeaderAction) {
     if (action.key === "approve" && onApprove) {
       onApprove()
+    } else if (action.key === "retry_with") {
+      openRetryDialog(action)
     } else {
       command.mutate(action.input)
     }
   }
 
+  function openRetryDialog(action: HeaderAction) {
+    setRetryFeedbackInput(action.input as RetryPostInput)
+    setRetryFeedbackOpen(true)
+  }
+
   function handleOverflowActionClick(action: HeaderAction) {
-    if (action.key.startsWith("retry_feedback")) {
-      setRetryFeedbackInput(action.input as RetryPostInput)
-      setRetryFeedbackOpen(true)
+    if (action.key === "retry_with") {
+      openRetryDialog(action)
       return
     }
     handleActionClick(action)
@@ -164,6 +170,17 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
                 {primaryAction.label}
               </button>
             )
+            : primaryAction.key === "retry_with"
+              ? (
+                <button
+                  className={buttonClass(primaryAction.tone)}
+                  disabled={command.isPending}
+                  onClick={() => openRetryDialog(primaryAction)}
+                  type="button"
+                >
+                  {primaryAction.label}
+                </button>
+              )
             : <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>{primaryAction.label}</CommandButton>
         ) : null}
         {overflowExtraItems.length > 0 || overflowActions.length > 0 ? (
@@ -178,7 +195,17 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
       </div>
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
-      {retryAction ? <JobShortcut description={retryAction.label} group={shortcutGroup} keys="alt+r" onTrigger={() => command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })} /> : null}
+      {retryAction ? (
+        <JobShortcut
+          description={retryAction.label}
+          group={shortcutGroup}
+          keys="alt+r"
+          onTrigger={() => {
+            if (retryAction.key === "retry_with") openRetryDialog(retryAction)
+            else command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })
+          }}
+        />
+      ) : null}
       {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="alt+x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
       {stopLandingAction ? <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="alt+s" onTrigger={() => command.mutate(stopLandingAction.input)} /> : null}
       {reopenAction ? <JobShortcut description={reopenAction.label} group={shortcutGroup} keys="alt+o" onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })} /> : null}
@@ -188,6 +215,7 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
           command={command}
           input={retryFeedbackInput || { method: "post", path: payload.actions.retry_implementation_action?.path || payload.paths.app_run_again_path }}
           onClose={() => { setRetryFeedbackOpen(false); setRetryFeedbackInput(null) }}
+          payload={payload}
         />
       ) : null}
     </>
@@ -328,25 +356,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_run_visual_review) available.push({ key: "run_visual_review", label: t("run_visual_review"), input: { method: "post", path: paths.app_visual_review_path }, tone: "secondary" })
   if (actions.can_run_visual_diff) available.push({ key: "run_visual_diff", label: t("run_visual_diff"), input: { method: "post", path: paths.app_visual_diff_path }, tone: "secondary" })
   if (actions.retry_failed_step_action) available.push({ key: "retry_failed_step", label: actions.retry_failed_step_action.label, input: { method: "post", path: actions.retry_failed_step_action.path }, tone: "primary" })
-  if (actions.retry_implementation_action) available.push({ key: "retry_implementation", label: actions.retry_implementation_action.label, input: { method: "post", path: actions.retry_implementation_action.path }, tone: "primary" })
-  if (actions.retry_implementation_action) available.push({ key: "retry_feedback", label: t("retry_with_feedback"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: "secondary" })
-  if (actions.retry_implementation_action) {
-    actions.retry_agent_options.forEach((provider) => {
-      const providerName = agentProviderLabel(payload, provider)
-      available.push({
-        key: `retry_implementation_${provider}`,
-        label: t("retry_with_agent", { provider: providerName }),
-        input: { method: "post", path: actions.retry_implementation_action!.path, body: { agent_provider: provider } },
-        tone: "secondary"
-      })
-      available.push({
-        key: `retry_feedback_${provider}`,
-        label: t("retry_with_agent_feedback", { provider: providerName }),
-        input: { method: "post", path: actions.retry_implementation_action!.path, body: { agent_provider: provider } },
-        tone: "secondary"
-      })
-    })
-  }
+  if (actions.retry_implementation_action) available.push({ key: "retry_with", label: t("retry_with"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: actions.retry_failed_step_action ? "secondary" : "primary" })
   if (actions.can_restart) available.push({ key: "restart", label: t("start_over"), input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") }, tone: "secondary" })
   if (actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented") available.push({ key: "approve", label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"), input: { method: "post", path: paths.app_approve_path }, tone: "success" })
   if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
@@ -384,9 +394,6 @@ function orderOverflowHeaderActions(actions: HeaderAction[]) {
 }
 
 function headerActionRank(key: string) {
-  if (key.startsWith("retry_implementation_")) return HEADER_ACTION_ORDER.retry_implementation
-  if (key.startsWith("retry_feedback_")) return HEADER_ACTION_ORDER.retry_feedback
-
   return HEADER_ACTION_ORDER[key] ?? 800
 }
 
@@ -421,7 +428,7 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("restart")
   } else if (jobState === "failed") {
     add("retry_failed_step")
-    add("retry_implementation")
+    add("retry_with")
     add("restart")
   } else if (jobState === "no_change_needed") {
     add("cancel")
@@ -432,8 +439,8 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("restart")
   } else if (availableKeys.has("reopen")) {
     add("reopen")
-  } else if (availableKeys.has("retry_implementation")) {
-    add("retry_implementation")
+  } else if (availableKeys.has("retry_with")) {
+    add("retry_with")
   } else if (availableKeys.has("accept_triage")) {
     // The only decision this Job is waiting on. reject_triage falls back
     // into the overflow menu alongside it.
@@ -543,17 +550,22 @@ function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onA
   )
 }
 
-function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<typeof useJobCommand>; input: RetryPostInput; onClose: () => void }) {
+function RetryFeedbackDialog({ command, input, onClose, payload }: { command: ReturnType<typeof useJobCommand>; input: RetryPostInput; onClose: () => void; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
+  const defaultProvider = payload.job.agent_provider || ""
+  const [provider, setProvider] = useState(defaultProvider)
   const [feedback, setFeedback] = useState("")
   const trimmedFeedback = feedback.trim()
+  const providerOptions = retryProviderOptions(payload)
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!trimmedFeedback) return
 
+    const body = { ...(input.body as Record<string, unknown> | undefined) }
+    if (provider && provider !== defaultProvider) body.agent_provider = provider
+    if (trimmedFeedback) body.retry_context = trimmedFeedback
     command.mutate(
-      { ...input, method: "post", body: { ...(input.body as Record<string, unknown> | undefined), retry_context: trimmedFeedback } },
+      { ...input, method: "post", body },
       { onSuccess: onClose }
     )
   }
@@ -577,6 +589,19 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
           </button>
         </div>
         <form className="mt-4 space-y-3" onSubmit={submit}>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-provider">
+            {t("retry_provider_label")}
+          </label>
+          <Select
+            disabled={command.isPending}
+            id="retry-provider"
+            onChange={(event) => setProvider(event.target.value)}
+            value={provider}
+          >
+            {providerOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-feedback-text">
             {t("retry_feedback_label")}
           </label>
@@ -585,12 +610,12 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
             className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
-            required
+            placeholder={t("retry_feedback_placeholder")}
             value={feedback}
           />
           <div className="flex flex-wrap justify-end gap-2">
             <Button disabled={command.isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
-            <Button disabled={command.isPending || !trimmedFeedback} type="submit" variant="primary">
+            <Button disabled={command.isPending} type="submit" variant="primary">
               {command.isPending ? t("retrying") : t("retry")}
             </Button>
           </div>
@@ -602,4 +627,12 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
 
 function agentProviderLabel(payload: JobDetailPayload, provider: string) {
   return payload.job.job_provider_setting_options?.find((option) => option.value === provider)?.label || provider
+}
+
+function retryProviderOptions(payload: JobDetailPayload) {
+  const providers = [payload.job.agent_provider, ...payload.actions.retry_agent_options].filter((provider): provider is string => Boolean(provider))
+  return Array.from(new Set(providers)).map((provider) => ({
+    value: provider,
+    label: agentProviderLabel(payload, provider)
+  }))
 }

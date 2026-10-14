@@ -10497,7 +10497,7 @@ describe("App", () => {
             path: "/api/v1/app/jobs/42/run_again"
           },
           retry_failed_step_action: null,
-          retry_agent_options: ["codex"],
+          retry_agent_options: ["claude"],
           can_restart: true,
           can_cancel: true,
           can_open_in_coding_mode: true,
@@ -10542,8 +10542,6 @@ describe("App", () => {
       ["Retry PR ingestion", "POST", "/api/v1/app/jobs/42/retry_pr_ingestion"],
       ["Run visual review", "POST", "/api/v1/app/jobs/42/visual_review"],
       ["Run before/after comparison", "POST", "/api/v1/app/jobs/42/visual_diff"],
-      ["Retry implementation", "POST", "/api/v1/app/jobs/42/run_again"],
-      ["Retry with Codex", "POST", "/api/v1/app/jobs/42/run_again"],
       ["Start over", "POST", "/api/v1/app/jobs/42/restart"],
       ["Unapprove", "POST", "/api/v1/app/jobs/42/unapprove"],
       ["Reopen", "POST", "/api/v1/app/jobs/42/reopen"],
@@ -10565,10 +10563,7 @@ describe("App", () => {
       "Retry PR ingestion",
       "Run visual review",
       "Run before/after comparison",
-      "Retry implementation",
-      "Retry with Codex",
-      "Retry with feedback",
-      "Retry with Codex and feedback",
+      "Retry with ...",
       "Start over",
       "Unapprove",
       "Reopen",
@@ -10584,7 +10579,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     expect(within(screen.getByRole("menu")).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(overflowLabels)
-    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with ..." })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     await waitFor(() => {
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()
@@ -10613,6 +10608,22 @@ describe("App", () => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
     }
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with ..." }))
+    const retryDialog = await screen.findByRole("dialog", { name: "Retry with feedback" })
+    fireEvent.change(within(retryDialog).getByLabelText("Provider"), { target: { value: "claude" } })
+    fireEvent.change(within(retryDialog).getByLabelText("Feedback"), { target: { value: "Try the waterwheel route." } })
+    fireEvent.click(within(retryDialog).getByRole("button", { name: "Retry" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/run_again",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ agent_provider: "claude", retry_context: "Try the waterwheel route." })
+        })
+      )
+    })
   }, 60000)
 
   it("labels approval as reapproval after a landing failure", async () => {
@@ -10700,7 +10711,7 @@ describe("App", () => {
             path: "/api/v1/app/jobs/42/run_again"
           },
           retry_failed_step_action: null,
-          retry_agent_options: ["codex"],
+          retry_agent_options: ["claude"],
           can_approve: false,
           can_poll_feedback: false,
           can_rebase: false,
@@ -10719,11 +10730,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("button", { name: "Retry implementation" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
-    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with Codex and feedback" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Retry with ..." }))
 
     const dialog = screen.getByRole("dialog", { name: "Retry with feedback" })
+    fireEvent.change(within(dialog).getByLabelText("Provider"), { target: { value: "claude" } })
     fireEvent.change(within(dialog).getByLabelText("Feedback"), { target: { value: "Please use the marble route this time." } })
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
 
@@ -10732,7 +10742,7 @@ describe("App", () => {
         "/api/v1/app/jobs/42/run_again",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ agent_provider: "codex", retry_context: "Please use the marble route this time." })
+          body: JSON.stringify({ agent_provider: "claude", retry_context: "Please use the marble route this time." })
         })
       )
     })
