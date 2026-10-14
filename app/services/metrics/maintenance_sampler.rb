@@ -49,6 +49,7 @@ module Metrics
     CURSOR_CACHE_KEY = "syrus:metrics:maintenance_sample:cursor".freeze
     TOTALS_CACHE_KEY = "syrus:metrics:maintenance_sample:totals".freeze
     CURSOR_TTL = 1.day
+    FAILED_READ = Object.new.freeze
 
     def self.declare_metrics!
       Syrus::Metrics.declare do
@@ -137,9 +138,10 @@ module Metrics
       after = cursor["auto_retry_attempts_through"]
       return cursor["auto_retry_attempts_through"] = now.iso8601(6) if after.nil?
 
-      reasons = guard("settled auto-retry attempts", []) {
+      reasons = guard("settled auto-retry attempts") {
         source.settled_auto_retry_attempts(after: Time.iso8601(after), through: now)
       }
+      return if failed_read?(reasons)
 
       running_totals = (totals["auto_retry_attempts_total"] ||= {})
       reasons.each do |reason|
@@ -196,11 +198,15 @@ module Metrics
     end
 
     # One unreachable source costs its own gauge/counter, not the whole tick.
-    def guard(what, fallback)
+    def guard(what, fallback = FAILED_READ)
       yield
     rescue StandardError => e
       Rails.logger.warn("[Metrics::MaintenanceSampler] could not sample #{what}: #{e.class}: #{e.message}")
       fallback
+    end
+
+    def failed_read?(value)
+      value.equal?(FAILED_READ)
     end
   end
 end
