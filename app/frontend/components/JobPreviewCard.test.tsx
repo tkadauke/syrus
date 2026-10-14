@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { applyAppEvent } from "../lib/appEvents"
 import { resetEntityStoreForTest, upsertEntity } from "../lib/entityStore"
 import { JobCompactCard, JobPreviewCard, JobPreviewSkeleton } from "./JobPreviewCard"
 
@@ -11,13 +12,15 @@ function client() {
 }
 
 function renderCard(id: number) {
+  const queryClient = client()
   render(
-    <QueryClientProvider client={client()}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <JobPreviewCard id={id} />
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return queryClient
 }
 
 describe("JobPreviewCard", () => {
@@ -69,6 +72,53 @@ describe("JobPreviewCard", () => {
     expect(screen.getByText("Already loaded")).toBeInTheDocument()
     expect(screen.getByText("Loaded from the job detail route.")).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("refetches from a job event after the preview fields are already loaded", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    fetchSpy.mockResolvedValueOnce(jsonResponse({
+      job: {
+        id: 42,
+        entity_revision: 1,
+        state: "queued",
+        issue_title: "Initial title",
+        issue_body: "Loaded once.",
+        title_pending: false,
+        start_blocked_reason: null,
+        start_blocked_count: null,
+        start_blocked_details: null,
+        start_blocked_next_check_at: null,
+        start_blocked_at: null
+      }
+    }))
+    fetchSpy.mockResolvedValueOnce(jsonResponse({
+      job: {
+        id: 42,
+        entity_revision: 2,
+        state: "running",
+        issue_title: "Updated title",
+        issue_body: "Loaded once.",
+        title_pending: false,
+        start_blocked_reason: null,
+        start_blocked_count: null,
+        start_blocked_details: null,
+        start_blocked_next_check_at: null,
+        start_blocked_at: null
+      }
+    }))
+    const queryClient = renderCard(42)
+    await waitFor(() => expect(screen.getByText("queued")).toBeInTheDocument())
+
+    applyAppEvent(queryClient, {
+      type: "job.updated",
+      resource: "job",
+      id: 42,
+      revision: 2
+    })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByText("running")).toBeInTheDocument())
+    expect(screen.getByText("Updated title")).toBeInTheDocument()
   })
 
   it("shows detailed start-block context in the queued-job pill tooltip", async () => {

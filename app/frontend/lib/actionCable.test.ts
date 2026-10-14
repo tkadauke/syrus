@@ -241,6 +241,7 @@ describe("subscribeToJobResourceEvents", () => {
     expect(invalidate).not.toHaveBeenCalled()
 
     connected?.() // reconnect
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42" ], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "detail" ] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "workflows" ] })
   })

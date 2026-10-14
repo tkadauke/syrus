@@ -39,7 +39,7 @@ afterEach(() => {
 describe("queryKeysFor", () => {
   it("maps resource events to the query keys they invalidate", () => {
     expect(queryKeysFor(event("user", null))).toEqual([["bootstrap"]])
-    expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
+    expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
@@ -239,6 +239,7 @@ describe("applyAppEvent", () => {
     applyAppEvent(queryClient, event("job", 42))
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["job_run_artifacts", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
 
@@ -258,7 +259,9 @@ describe("applyAppEvent", () => {
     applyAppEvent(queryClient, event("job", 42))
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "source_diff", ""] }))
     expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "diff_review_comments", "job_source_diff", ""] }))
   })
@@ -275,6 +278,7 @@ describe("applyAppEvent", () => {
     vi.runOnlyPendingTimers()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, refetchType: "none" })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true, refetchType: "none" })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], refetchType: "none" })
     expect(refetch).not.toHaveBeenCalled()
 
@@ -282,6 +286,7 @@ describe("applyAppEvent", () => {
     document.dispatchEvent(new Event("visibilitychange"))
 
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, type: "active" })
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true, type: "active" })
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"], type: "active" })
     expect(refetch.mock.calls.filter(([arg]) => JSON.stringify(arg) === JSON.stringify({ queryKey: ["jobs", "42", "detail"], type: "active" }))).toHaveLength(1)
   })
@@ -1188,6 +1193,16 @@ describe("applyAppEvent revisioned event patches", () => {
     applyAppEvent(queryClient, { ...event("job", 1), sequence: 2, revision: 5, payload: { fields: { state: "running" } } })
 
     expect(readEntity("jobs", 1)?.revision).toBe(5)
+  })
+
+  it("does not advance an entity revision from a fields-less resource event", () => {
+    const queryClient = new QueryClient()
+    upsertEntity({ kind: "jobs", id: 42, fields: { state: "queued" }, revision: 3, source: "job_detail" })
+
+    applyAppEvent(queryClient, { ...event("job", 42), revision: 4 })
+
+    expect(readEntity("jobs", 42)?.revision).toBe(3)
+    expect(readEntity("jobs", 42)?.fields.state).toBe("queued")
   })
 
   it("recovers with one bounded, targeted refresh scoped to the resource a detected gap arrived on", () => {
