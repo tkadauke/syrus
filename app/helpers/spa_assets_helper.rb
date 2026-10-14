@@ -32,9 +32,17 @@ module SpaAssetsHelper
     end.html_safe
   end
 
+  # Two builders produce content-hashed filenames here, with different hash
+  # alphabets. Propshaft digests are lowercase hex (`tailwind-74e6a7ef.css`).
+  # Vite emits base64url hashes, which can contain characters outside hex, and
+  # marks those files `.digested` so propshaft keeps the name as-is
+  # (`spa-vendor-DuQfn8Z1.digested.css`). Both already change name when their
+  # content changes, so appending a revision query string to either only
+  # breaks caching across deploys for a file that did not change.
   def content_hashed_spa_asset_path?(path)
     filename = File.basename(path.split(/[?#]/, 2).first)
 
-    filename.match?(/\A.+-[0-9a-f]{8,}(?:\.[^.]+)+\z/i)
+    filename.include?(".digested.") ||
+      filename.match?(/\A.+-[0-9a-f]{8,}(?:\.[^.]+)+\z/i)
   end
 end

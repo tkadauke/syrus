@@ -165,6 +165,22 @@ RSpec.describe "SPA shell", type: :request do
     expect(js_paths).to include("/assets/spa-test.js?v=cache-sha")
   end
 
+  # Vite hashes are base64url, so they can contain characters outside hex, and
+  # Vite marks those files `.digested` rather than giving them a hex digest.
+  # Regression: the revision query string was appended to them, so an
+  # unchanged file got a new URL on every deploy.
+  it "leaves Vite content-hashed assets unversioned even though their hash is not hex" do
+    allow(SyrusVersion).to receive(:current).and_return("cache-sha")
+    helpers = ApplicationController.helpers
+
+    expect(helpers.spa_asset_tag(%(<link rel="stylesheet" href="/assets/spa-vendor-DuQfn8Z1.digested.css">)))
+      .to eq(%(<link rel="stylesheet" href="/assets/spa-vendor-DuQfn8Z1.digested.css">))
+    expect(helpers.spa_asset_tag(%(<link rel="stylesheet" href="/assets/tailwind-74e6a7ef.css">)))
+      .to eq(%(<link rel="stylesheet" href="/assets/tailwind-74e6a7ef.css">))
+    expect(helpers.spa_asset_tag(%(<script src="/assets/spa-entry.js"></script>)))
+      .to eq(%(<script src="/assets/spa-entry.js?v=cache-sha"></script>))
+  end
+
   it "keeps unchanged content-hashed SPA asset URLs stable across deploy revisions" do
     user = Factories.user
     sign_in_as(user)
