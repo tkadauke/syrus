@@ -62,6 +62,42 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
     expect(calls).to eq(1)
   end
 
+  it "recomputes when a run health snapshot is created without saving the Run" do
+    run = job.runs.first
+    fetch { [ "built" ] }
+    run_revision_before = run.reload.entity_revision
+
+    RunHealthSnapshot.create!(
+      run: run,
+      health_status: "warning",
+      run_state: run.state,
+      hint: "diagnosed"
+    )
+
+    calls = 0
+    result = fetch { calls += 1; [ "rebuilt" ] }
+
+    expect(run.reload.entity_revision).to eq(run_revision_before)
+    expect(result).to eq([ "rebuilt" ])
+    expect(calls).to eq(1)
+  end
+
+  it "recomputes when a running Run heartbeat changes without bumping entity_revision" do
+    run = job.runs.first
+    run.update!(state: "running", started_at: 5.minutes.ago)
+    fetch { [ "built" ] }
+    run_revision_before = run.reload.entity_revision
+
+    RunHeartbeat.touch(run, now: 1.minute.ago, force: true)
+
+    calls = 0
+    result = fetch { calls += 1; [ "rebuilt" ] }
+
+    expect(run.reload.entity_revision).to eq(run_revision_before)
+    expect(result).to eq([ "rebuilt" ])
+    expect(calls).to eq(1)
+  end
+
   it "recomputes when a Step below the highest entity_revision changes" do
     # The failure this guards against needs two Steps at different
     # revisions: one well ahead, and one changing underneath it. MAX over

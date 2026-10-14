@@ -48,7 +48,22 @@ module App
     end
 
     def fingerprint
-      [ workflow_stats, step_stats, run_stats, @page, @admin ].join(":")
+      [
+        workflow_stats,
+        step_stats,
+        run_stats,
+        run_volatile_stats,
+        job_log_stats,
+        command_span_stats,
+        run_health_snapshot_stats,
+        spawned_process_stats,
+        workflow_warning_stats,
+        provider_session_stats,
+        run_diagnostic_stats,
+        run_failure_classification_stats,
+        @page,
+        @admin
+      ].join(":")
     end
 
     def fetch
@@ -90,6 +105,61 @@ module App
 
     def run_stats
       Run.where(job_id: @job.id).pick(Arel.sql("COUNT(*)"), Arel.sql("SUM(entity_revision)"))
+    end
+
+    # The serialized tree also includes live/diagnostic tables that are not
+    # Revisionable children. Fingerprint their row counts, latest row ids, and
+    # latest update times so operator-triggered diagnostics and streaming run
+    # metadata do not wait for the cache TTL to become visible.
+    def stats_for(scope, table_name)
+      scope.pick(
+        Arel.sql("COUNT(*)"),
+        Arel.sql("MAX(#{table_name}.id)"),
+        Arel.sql("MAX(#{table_name}.updated_at)")
+      )
+    end
+
+    def run_child_stats_for(model, table_name)
+      stats_for(
+        model.joins("INNER JOIN runs ON runs.id = #{table_name}.run_id").where(runs: { job_id: @job.id }),
+        table_name
+      )
+    end
+
+    def run_volatile_stats
+      Run.where(job_id: @job.id).pick(Arel.sql("MAX(last_heartbeat_at)"))
+    end
+
+    def job_log_stats
+      run_child_stats_for(JobLog, "job_logs")
+    end
+
+    def command_span_stats
+      run_child_stats_for(CommandSpan, "command_spans")
+    end
+
+    def run_health_snapshot_stats
+      run_child_stats_for(RunHealthSnapshot, "run_health_snapshots")
+    end
+
+    def spawned_process_stats
+      run_child_stats_for(SpawnedProcess, "spawned_processes")
+    end
+
+    def workflow_warning_stats
+      stats_for(WorkflowWarning.where(job_id: @job.id), "workflow_warnings")
+    end
+
+    def provider_session_stats
+      run_child_stats_for(ProviderSession, "provider_sessions")
+    end
+
+    def run_diagnostic_stats
+      run_child_stats_for(RunDiagnostic, "run_diagnostics")
+    end
+
+    def run_failure_classification_stats
+      run_child_stats_for(RunFailureClassification, "run_failure_classifications")
     end
 
     def cache_key
