@@ -84,13 +84,24 @@ class PlatformPollingJob < ApplicationJob
   rescue => e
     Rails.logger.error("#{self.class}: #{e}")
   ensure
-    self.class.perform_later if configured?
+    reenqueue_polling_job if configured? && continue_polling?
   end
 
   private
 
   def configured? = raise NotImplementedError
   def poll_once   = raise NotImplementedError
+  def continue_polling? = true
+  def polling_restart_delay = nil
+
+  def reenqueue_polling_job
+    delay = polling_restart_delay
+    if delay.present? && delay.to_f.positive?
+      self.class.set(wait: delay).perform_later
+    else
+      self.class.perform_later
+    end
+  end
 
   def duplicate_running?
     SolidQueue::Job

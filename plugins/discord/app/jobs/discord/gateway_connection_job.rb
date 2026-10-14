@@ -7,11 +7,13 @@ module Discord
   # Gateway session, via #duplicate_running?), error logging, and
   # self-re-enqueue for free -- each #poll_once owns exactly one
   # Discord::GatewayClient#run call (one Gateway session's lifetime); when it
-  # returns, the base class immediately re-enqueues a fresh job, which opens a
-  # fresh connection, giving reconnection across worker restarts/deploys the
-  # same way Telegram's long-poll loop does.
+  # returns, the base class re-enqueues a fresh job, which opens a
+  # fresh connection after a backoff, giving reconnection across worker
+  # restarts/deploys the same way Telegram's long-poll loop does.
   class GatewayConnectionJob < PlatformPollingJob
     RECONNECT_BACKOFF_SECONDS = 5
+    MAX_RECONNECT_BACKOFF_SECONDS = 5.minutes
+    RECONNECT_ATTEMPT_CACHE_KEY = "discord:gateway_connection_job:reconnect_attempts"
 
     class << self
       attr_accessor :gateway_client_factory
@@ -26,9 +28,15 @@ module Discord
 
     def poll_once
       gateway_client.run { |event| process_dispatch(event) }
+
+      if gateway_client.fatal_close?
+        stop_polling_after_fatal_close
+      else
+        schedule_reconnect
+      end
     rescue => e
       Rails.logger.error("Discord::GatewayConnectionJob: #{e}")
-      sleep(RECONNECT_BACKOFF_SECONDS) unless Rails.env.test?
+      schedule_reconnect
     end
 
     def gateway_client
@@ -37,6 +45,41 @@ module Discord
 
     def discord_client
       @discord_client ||= Discord::Client.new
+    end
+
+    def continue_polling?
+      @continue_polling != false
+    end
+
+    def polling_restart_delay
+      @polling_restart_delay
+    end
+
+    def stop_polling_after_fatal_close
+      Rails.cache.delete(RECONNECT_ATTEMPT_CACHE_KEY)
+      @continue_polling = false
+      Rails.logger.error(
+        "Discord::GatewayConnectionJob: Gateway closed with fatal code " \
+        "#{gateway_client.fatal_close_code}#{": #{gateway_client.fatal_close_reason}" if gateway_client.fatal_close_reason.present?}; " \
+        "not re-enqueuing until the connector is re-primed"
+      )
+    end
+
+    def schedule_reconnect
+      @polling_restart_delay = next_reconnect_delay
+    end
+
+    def next_reconnect_delay
+      if gateway_client.reset_reconnect_backoff?
+        Rails.cache.delete(RECONNECT_ATTEMPT_CACHE_KEY)
+        return RECONNECT_BACKOFF_SECONDS
+      end
+
+      attempts =
+        Rails.cache.read(RECONNECT_ATTEMPT_CACHE_KEY).to_i + 1
+
+      Rails.cache.write(RECONNECT_ATTEMPT_CACHE_KEY, attempts, expires_in: 1.hour)
+      [ RECONNECT_BACKOFF_SECONDS * (2 ** (attempts - 1)), MAX_RECONNECT_BACKOFF_SECONDS ].min
     end
 
     def process_dispatch(event)
