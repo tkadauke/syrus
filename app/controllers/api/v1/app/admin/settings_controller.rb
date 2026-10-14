@@ -67,13 +67,17 @@ module Api
             params
               .expect(app_setting: permitted_settings)
               .to_h
-              .reject { |key, value| booleanish?(key) ? false : value.blank? }
+              .each_with_object({}) do |(key, value), settings|
+                definition = AppSettingRegistry.fetch(key)
+                next if value.blank? && !definition.boolean? && (definition.secret || definition.type != :string)
+
+                settings[key] = nullable_string?(key) && value.blank? ? nil : value
+              end
           end
 
-          # signups_open is a boolean (false must survive the blank-reject);
-          # everything else is only applied when a value is actually sent.
-          def booleanish?(key)
-            AppSettingRegistry.boolean_key?(key)
+          def nullable_string?(key)
+            definition = AppSettingRegistry.fetch(key)
+            definition.type == :string && AppSetting.columns_hash.fetch(key.to_s).null
           end
 
           def audit_workflow_admission_control_change!(setting)
