@@ -68,13 +68,13 @@ RSpec.describe "App API unified search", type: :request do
       "created_at" => stronger_job.created_at.iso8601
     )
     expect(by_type_and_id.fetch([ "job", stronger_job.id ]).fetch("snippet")).to include("<mark>deploy</mark>")
-    expect(by_type_and_id.fetch([ "job", weaker_job.id ])).to include("rank" => 1.0)
+    expect(by_type_and_id.fetch([ "job", stronger_job.id ]).fetch("rank"))
+      .to be < by_type_and_id.fetch([ "job", weaker_job.id ]).fetch("rank")
     expect(by_type_and_id.fetch([ "epic", epic.id ])).to include(
       "type" => "epic",
       "id" => epic.id,
       "slug" => epic.slug,
       "title" => "Launch epic",
-      "rank" => 0.0,
       "path" => epic_path(epic),
       "state" => "in_progress",
       "repository_slug" => "acme/widgets"
@@ -83,11 +83,11 @@ RSpec.describe "App API unified search", type: :request do
       "type" => "chat",
       "id" => chat_message.id,
       "title" => "Launch chat",
-      "rank" => 0.0,
       "path" => chat_path(chat_session, message_id: chat_message.id),
       "state" => nil,
       "repository_slug" => "acme/widgets"
     )
+    expect(results.map { |row| row.fetch("rank") }).to all(be_between(0.0, 1.0).inclusive)
   end
 
   it "limits searches to requested types" do
@@ -146,6 +146,24 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "ranks an exact JOB slug match ahead of indexed text that mentions the slug" do
+    target = Factories.job_record(user: user, repository: repository, issue_number: 5, issue_title: "Exact slug target")
+    mention = Factories.job_record(user: user, repository: repository, issue_title: "Mention-heavy competing job")
+    mention.update!(issue_body: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::JobIndex.upsert(mention)
+
+    get "/api/v1/app/search", params: { query: target.slug, types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to start_with(target.id, mention.id)
+    expect(results.first).to include(
+      "type" => "job",
+      "id" => target.id,
+      "slug" => target.slug,
+      "snippet" => "<mark>#{target.slug}</mark>"
+    )
+  end
+
   it "returns an existing epic when searching by EPIC slug" do
     epic = Factories.epic(user: user, repository: repository, title: "Unindexed epic target")
 
@@ -162,6 +180,24 @@ RSpec.describe "App API unified search", type: :request do
         "path" => epic_path(epic),
         "repository_slug" => "acme/widgets"
       )
+    )
+  end
+
+  it "ranks an exact EPIC slug match ahead of indexed text that mentions the slug" do
+    target = Factories.epic(user: user, repository: repository, title: "Exact epic target")
+    mention = Factories.epic(user: user, repository: repository, title: "Mention-heavy competing epic")
+    mention.update!(description: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::EpicIndex.upsert(mention)
+
+    get "/api/v1/app/search", params: { query: target.slug, types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to start_with(target.id, mention.id)
+    expect(results.first).to include(
+      "type" => "epic",
+      "id" => target.id,
+      "slug" => target.slug,
+      "snippet" => "<mark>#{target.slug}</mark>"
     )
   end
 
