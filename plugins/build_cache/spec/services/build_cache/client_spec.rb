@@ -95,7 +95,31 @@ RSpec.describe BuildCache::Client do
 
       expect(result.deleted_count).to eq(2)
       expect(result.bytes_freed).to eq(300)
+      expect(result.delete_error_count).to eq(0)
       expect(delete_calls.first[:delete][:objects].map { |o| o[:key] }).to contain_exactly("a", "b")
+    end
+
+    it "does not count S3 per-key delete errors as deleted objects" do
+      s3 = stub_client
+      described_class.client_factory = -> { s3 }
+      s3.stub_responses(:list_objects_v2, {
+        is_truncated: false,
+        contents: [
+          { key: "ok", size: 100, last_modified: 3.days.ago },
+          { key: "locked", size: 200, last_modified: 1.day.ago }
+        ]
+      })
+      s3.stub_responses(:delete_objects, {
+        errors: [
+          { key: "locked", code: "AccessDenied", message: "access denied" }
+        ]
+      })
+
+      result = described_class.new.clear_all!
+
+      expect(result.deleted_count).to eq(1)
+      expect(result.bytes_freed).to eq(100)
+      expect(result.delete_error_count).to eq(1)
     end
   end
 
@@ -121,6 +145,28 @@ RSpec.describe BuildCache::Client do
       expect(result.deleted_count).to eq(1)
       expect(result.bytes_freed).to eq(100)
       expect(delete_calls.first[:delete][:objects].map { |o| o[:key] }).to eq([ "old" ])
+    end
+
+    it "reports truncation when the object scan reaches the cap before all pages are listed" do
+      stub_const("#{described_class}::MAX_OBJECTS_SCANNED", 3)
+      s3 = stub_client
+      described_class.client_factory = -> { s3 }
+      s3.stub_responses(:list_objects_v2, {
+        is_truncated: true,
+        next_continuation_token: "unscanned-page",
+        contents: [
+          { key: "old", size: 100, last_modified: 10.days.ago },
+          { key: "new-1", size: 200, last_modified: 1.hour.ago },
+          { key: "new-2", size: 300, last_modified: 2.hours.ago }
+        ]
+      })
+      s3.stub_responses(:delete_objects, {})
+
+      result = described_class.new.clear_older_than!(5)
+
+      expect(result.deleted_count).to eq(1)
+      expect(result.bytes_freed).to eq(100)
+      expect(result.truncated).to be(true)
     end
   end
 end
