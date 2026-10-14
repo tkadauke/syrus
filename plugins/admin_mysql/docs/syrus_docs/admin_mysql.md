@@ -60,7 +60,9 @@ snapshot.
 
 `POST /api/v1/app/admin/mysql/kill_query` (mirrored at
 `/api/v1/admin/mysql/kill_query`) runs `KILL QUERY <thread_id>` against a
-`PROCESSLIST.Id` — it stops the query, not the connection.
+decimal `PROCESSLIST.Id` — it stops the query, not the connection. String ids
+are interpreted strictly as base 10; prefixed hexadecimal and other non-digit
+forms are rejected.
 
 ## MCP tools
 
@@ -69,8 +71,10 @@ Admin MySQL exposes different MCP tools on workflow and chat surfaces:
 - `admin_mysql_status(limit?)` — same payload as the admin page's snapshot.
   Available to Syrus workflow implement agents and admin chats.
 - `admin_mysql_kill_query(thread_id)` — same as the admin page's kill action.
-  Available only from admin chat contexts; direct run/workflow calls are
-  rejected before `Inspector#kill_query` runs.
+  Available only from admin chat contexts. It records the requesting operator,
+  thread id, and current statement in a pending action; the statement is checked
+  again before the query is interrupted after operator confirmation. Direct
+  run/workflow calls are rejected before `Inspector#kill_query` runs.
 
 Availability differs by surface:
 
