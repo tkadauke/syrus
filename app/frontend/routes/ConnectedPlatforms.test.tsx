@@ -5,25 +5,13 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import * as useConfirmModule from "../hooks/useConfirm"
+import { APP_EVENT_RECEIVED_EVENT } from "../lib/appEvents"
 
 function mockUseConfirm(confirmed: boolean) {
   const mockConfirm = vi.fn<ReturnType<typeof useConfirmModule.useConfirm>["confirm"]>().mockResolvedValue(confirmed)
   vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm, dialog: <></> })
   return mockConfirm
 }
-
-let receivedHandler: ((data: unknown) => void) | undefined
-
-vi.mock("@rails/actioncable", () => ({
-  createConsumer: () => ({
-    subscriptions: {
-      create: (_params: unknown, handlers: { received: (data: unknown) => void }) => {
-        receivedHandler = handlers.received
-        return { unsubscribe: vi.fn() }
-      }
-    }
-  })
-}))
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -49,7 +37,6 @@ function renderRoute() {
 
 describe("ConnectedPlatformsRoute", () => {
   afterEach(() => {
-    receivedHandler = undefined
     vi.restoreAllMocks()
   })
 
@@ -94,14 +81,16 @@ describe("ConnectedPlatformsRoute", () => {
       expect.objectContaining({ method: "POST" })
     )
 
-    receivedHandler?.({
-      type: "platform_identity_linked",
-      payload: payload({
-        platform_identities: [
-          { id: 8, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
-        ]
-      })
-    })
+    window.dispatchEvent(new CustomEvent(APP_EVENT_RECEIVED_EVENT, {
+      detail: {
+        type: "platform_identity_linked",
+        payload: payload({
+          platform_identities: [
+            { id: 8, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
+          ]
+        })
+      }
+    }))
 
     await waitFor(() => {
       expect(screen.getByText(/Connected as @ada since/)).toBeInTheDocument()

@@ -3,7 +3,7 @@ import { Input } from "../Input"
 import { Select } from "../Select"
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { getAppConsumer } from "../../lib/actionCable"
+import { addAppEventListener } from "../../lib/appEvents"
 import {
   clearCredential,
   exchangeCodexOauth,
@@ -679,19 +679,10 @@ function useCodexChatGptFlow(actions: ReturnType<typeof useCredentialActions>, o
   useEffect(() => {
     if (!authStarted) return
 
-    const consumer = getAppConsumer()
-    const subscription = consumer.subscriptions.create(
-      { channel: "AppUserChannel" },
-      {
-        received(data: unknown) {
-          const event = data as { type?: string; payload?: { code?: string } }
-          const code = event.type === "codex_oauth.callback" ? event.payload?.code?.trim() : ""
-          if (code) autoExchangeRef.current(code)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    return addAppEventListener((event) => {
+      const code = event.type === "codex_oauth.callback" ? (event.payload as { code?: string } | undefined)?.code?.trim() : ""
+      if (code) autoExchangeRef.current(code)
+    })
   }, [authStarted])
 
   return {

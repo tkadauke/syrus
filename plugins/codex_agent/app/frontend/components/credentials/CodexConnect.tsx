@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { createConsumer } from "@rails/actioncable"
 import {
   exchangeCodexOauth,
   savePartialCredentials,
@@ -11,6 +10,7 @@ import {
 import { openInNewTab } from "@app/lib/desktopShell"
 import { errorMessage } from "@app/lib/errorMessage"
 import { inputClass } from "@app/lib/formClasses"
+import { addAppEventListener } from "@app/lib/appEvents"
 import { useT } from "@app/hooks/useT"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
@@ -197,22 +197,13 @@ function CodexChatGptConnect({
   useEffect(() => {
     if (!authStarted) return
 
-    const consumer = createConsumer()
-    const subscription = consumer.subscriptions.create(
-      { channel: "AppUserChannel" },
-      {
-        received(data: unknown) {
-          const event = data as { type?: string; payload?: { code?: string } }
-          const code = event.type === "codex_oauth.callback" ? event.payload?.code?.trim() : ""
-          if (code) {
-            setAuthCode(code)
-            void exchangeRef.current(code)
-          }
-        }
+    return addAppEventListener((event) => {
+      const code = event.type === "codex_oauth.callback" ? (event.payload as { code?: string } | undefined)?.code?.trim() : ""
+      if (code) {
+        setAuthCode(code)
+        void exchangeRef.current(code)
       }
-    )
-
-    return () => subscription.unsubscribe()
+    })
   }, [authStarted])
 
   async function saveManual() {
