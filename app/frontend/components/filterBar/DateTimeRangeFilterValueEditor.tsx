@@ -89,11 +89,11 @@ function BetweenDateControls({ chip, inputType, onChange, precision }: { chip: F
     <div className="flex flex-wrap items-end gap-2">
       <label className={filterLabelClass()} htmlFor="filter-date-from">
         {t("filter_bar.from")}
-        <Input className="mt-1" fullWidth={false} id="filter-date-from" onChange={(event) => onChange({ ...chip, value: [event.target.value, value[1] || ""] })} type={inputType} value={inputValue(value[0], precision)} />
+        <Input className="mt-1" fullWidth={false} id="filter-date-from" onChange={(event) => onChange({ ...chip, value: [serializeInputValue(event.target.value, precision), value[1] || ""] })} type={inputType} value={inputValue(value[0], precision)} />
       </label>
       <label className={filterLabelClass()} htmlFor="filter-date-to">
         {t("filter_bar.to")}
-        <Input className="mt-1" fullWidth={false} id="filter-date-to" onChange={(event) => onChange({ ...chip, value: [value[0] || "", event.target.value] })} type={inputType} value={inputValue(value[1], precision)} />
+        <Input className="mt-1" fullWidth={false} id="filter-date-to" onChange={(event) => onChange({ ...chip, value: [value[0] || "", serializeInputValue(event.target.value, precision)] })} type={inputType} value={inputValue(value[1], precision)} />
       </label>
     </div>
   )
@@ -105,7 +105,7 @@ function SingleDateControl({ chip, inputType, onChange, precision }: { chip: Fil
   return (
     <label className={filterLabelClass()} htmlFor="filter-date-value">
       {t("filter_bar.value")}
-      <Input className="mt-1" fullWidth={false} id="filter-date-value" onChange={(event) => onChange({ ...chip, value: event.target.value })} type={inputType} value={inputValue(chip.value, precision)} />
+      <Input className="mt-1" fullWidth={false} id="filter-date-value" onChange={(event) => onChange({ ...chip, value: serializeInputValue(event.target.value, precision) })} type={inputType} value={inputValue(chip.value, precision)} />
     </label>
   )
 }
@@ -116,18 +116,41 @@ function rangePreset(precision: "date" | "datetime", from: Date, to: Date) {
 
 function inputValue(value: unknown, precision: "date" | "datetime") {
   const raw = String(value ?? "")
-  return precision === "datetime" ? raw.replace(/Z$/, "").slice(0, 16) : raw.slice(0, 10)
+  if (precision === "date") return raw.slice(0, 10)
+  if (!hasExplicitOffset(raw)) return raw.slice(0, 16)
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw.slice(0, 16)
+  return localDateTimeInputValue(date)
 }
 
 function serializeDate(date: Date, precision: "date" | "datetime") {
+  if (precision === "datetime") return date.toISOString()
+
   const yyyy = String(date.getFullYear()).padStart(4, "0")
   const mm = String(date.getMonth() + 1).padStart(2, "0")
   const dd = String(date.getDate()).padStart(2, "0")
-  if (precision === "date") return `${yyyy}-${mm}-${dd}`
+  return `${yyyy}-${mm}-${dd}`
+}
 
+function localDateTimeInputValue(date: Date) {
+  const yyyy = String(date.getFullYear()).padStart(4, "0")
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
   const hh = String(date.getHours()).padStart(2, "0")
   const min = String(date.getMinutes()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+}
+
+function serializeInputValue(value: string, precision: "date" | "datetime") {
+  if (precision === "date" || !value) return value
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : serializeDate(date, precision)
+}
+
+function hasExplicitOffset(value: string) {
+  return /(?:Z|[+-]\d\d:\d\d)$/.test(value)
 }
 
 function startOfDay(date: Date) {
@@ -135,11 +158,11 @@ function startOfDay(date: Date) {
 }
 
 function endOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
 }
 
 function shiftDays(date: Date, days: number) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, date.getHours(), date.getMinutes())
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds())
 }
 
 function startOfWeek(date: Date) {
