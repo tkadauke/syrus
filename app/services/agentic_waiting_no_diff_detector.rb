@@ -48,8 +48,7 @@ class AgenticWaitingNoDiffDetector
   end
 
   def schedule_wakeup_used?
-    tool_uses.any? { |event| event.data[:name].to_s.match?(/schedule_wakeup|ScheduleWakeup/i) } ||
-      assistant_text.match?(/schedule_wakeup|ScheduleWakeup/i)
+    tool_uses.any? { |event| event.data[:name].to_s.match?(/schedule_wakeup|ScheduleWakeup/i) }
   end
 
   def background_command_used?

@@ -45,13 +45,41 @@ RSpec.describe AgenticWaitingNoDiffDetector do
         "type" => "assistant",
         "message" => {
           "content" => [
-            { "type" => "text", "text" => "I used ScheduleWakeup so the next turn can check the tests." }
+            {
+              "type" => "tool_use",
+              "name" => "mcp__syrus-chat-sidecar__ScheduleWakeup",
+              "id" => "u1",
+              "input" => { "seconds" => 300 }
+            }
           ]
         }
       }
     )
 
     expect(described_class.detect?(run)).to be(true)
+  end
+
+  it "does not treat a plain-text ScheduleWakeup mention as continuation evidence" do
+    capture_transcript!(
+      {
+        "type" => "assistant",
+        "message" => {
+          "content" => [
+            { "type" => "tool_use", "name" => "Bash", "id" => "u1", "input" => { "command" => "bin/rspec spec/models/user_spec.rb" } }
+          ]
+        }
+      },
+      {
+        "type" => "assistant",
+        "message" => {
+          "content" => [
+            { "type" => "text", "text" => "ScheduleWakeup is not needed here; the fix is already present and the tree is clean." }
+          ]
+        }
+      }
+    )
+
+    expect(described_class.detect?(run)).to be(false)
   end
 
   it "does not flag a foreground command followed by an ordinary no-change conclusion" do
