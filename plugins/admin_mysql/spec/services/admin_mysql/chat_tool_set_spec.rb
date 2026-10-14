@@ -1,8 +1,27 @@
 require "rails_helper"
 
 RSpec.describe AdminMysql::ChatToolSet do
-  let(:admin_chat) { instance_double(ChatSession, user: instance_double(User, admin?: true)) }
-  let(:regular_chat) { instance_double(ChatSession, user: instance_double(User, admin?: false)) }
+  let(:attached_repositories) { double(ids: []) }
+  let(:admin_chat) do
+    instance_double(
+      ChatSession,
+      user: instance_double(User, admin?: true),
+      coding?: false,
+      mode: "planner",
+      repository: nil,
+      attached_repositories: attached_repositories
+    )
+  end
+  let(:regular_chat) do
+    instance_double(
+      ChatSession,
+      user: instance_double(User, admin?: false),
+      coding?: false,
+      mode: "planner",
+      repository: nil,
+      attached_repositories: attached_repositories
+    )
+  end
 
   it "is unavailable outside MySQL even for admins" do
     allow(AdminMysql).to receive(:mysql?).and_return(false)
@@ -51,6 +70,15 @@ RSpec.describe AdminMysql::ChatToolSet do
     expect(AdminMysql::Inspector).not_to receive(:new)
 
     response = described_class.new.handle("admin_mysql_kill_query", { "thread_id" => 42 }, { chat_session: regular_chat })
+
+    expect(response.error?).to be(true)
+    expect(response.content.first[:text]).to include("Unauthorized")
+  end
+
+  it "refuses direct status dispatch from non-admin chats" do
+    expect(AdminMysql::Inspector).not_to receive(:new)
+
+    response = described_class.new.handle("admin_mysql_status", {}, { chat_session: regular_chat })
 
     expect(response.error?).to be(true)
     expect(response.content.first[:text]).to include("Unauthorized")
