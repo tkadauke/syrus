@@ -123,6 +123,40 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
     expect(body.dig("logs", 0, "context")).to include("api_key" => "api_key=[REDACTED]")
   end
 
+  it "honors canonical filter operators for indexed log fields" do
+    warn_worker = log_event(occurred_at: 70.minutes.ago, level: "warn", role: "worker", hostname: "worker-alpha", message: "old worker warning")
+    error_worker = log_event(occurred_at: 15.minutes.ago, level: "error", role: "worker", hostname: "worker-beta", message: "recent worker error")
+    info_web = log_event(occurred_at: 10.minutes.ago, level: "info", role: "web", hostname: "web-alpha", message: "recent web info")
+    [ warn_worker, error_worker, info_web ].each { |event| OperationalLogIndex.upsert(event) }
+    sign_in_as(admin)
+
+    q = Filters::QueryParam.encode(
+      "and" => [
+        { "field" => "level", "op" => "is_one_of", "value" => %w[warn error] },
+        { "field" => "role", "op" => "is_not", "value" => "web" },
+        { "field" => "hostname", "op" => "contains", "value" => "worker" },
+        { "field" => "since", "op" => "more_than_ago", "value" => { "n" => 30, "unit" => "minutes" } }
+      ]
+    )
+
+    get "/api/v1/app/admin/operational_logs", params: { q: q, revision_scope: "all" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("logs").map { |row| row.fetch("id") }).to eq([ warn_worker.id ])
+
+    q = Filters::QueryParam.encode(
+      "and" => [
+        { "field" => "level", "op" => "is_none_of", "value" => %w[warn error] },
+        { "field" => "until", "op" => "after", "value" => 20.minutes.ago.iso8601 }
+      ]
+    )
+
+    get "/api/v1/app/admin/operational_logs", params: { q: q, revision_scope: "all" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("logs").map { |row| row.fetch("id") }).to eq([ info_web.id ])
+  end
+
   it "paginates and can include all revisions" do
     newest = log_event(occurred_at: 5.minutes.ago, app_revision: "other-sha", message: "newest")
     middle = log_event(occurred_at: 10.minutes.ago, app_revision: "current-sha", message: "middle")
