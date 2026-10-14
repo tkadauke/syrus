@@ -52,7 +52,12 @@ class LandingValidationCache
   end
 
   def self.valid_head_for?(job:, head_sha:)
-    reusable_for?(job: job, head_sha: head_sha).reusable?
+    return false if head_sha.blank?
+
+    validation_artifacts(job).any? do |entry|
+      artifact = entry.fetch(:artifact)
+      artifact["head_sha"] == head_sha && !stale_checked_at?(artifact)
+    end
   end
 
   def self.reusable_for?(job:, head_sha:, tree_sha: nil, base_sha: nil, base_tree_sha: nil, base_ref: nil, grader_fingerprint: nil, changed_files_fingerprint: nil)
