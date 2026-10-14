@@ -13,9 +13,20 @@ module PluginRuntime
   #   transient or operational, and the reconciler must not act on a partial
   #   view of the world while it lasts -- in particular it must not remove
   #   anything.
+  # - ManagerError: the manager answered with an operational failure for a
+  #   request it did receive. The driver decides whether that is one service's
+  #   error or a cleanup pass it should skip.
   class Client
     class Error < StandardError; end
     class Refused < Error; end
+    class ManagerError < Error
+      attr_reader :code
+
+      def initialize(message, code:)
+        @code = code
+        super(message)
+      end
+    end
     class Unavailable < Error; end
     # The service has no container to act on (never created, still pulling).
     class NotFound < Error; end
@@ -127,6 +138,8 @@ module PluginRuntime
       when 400, 422 then raise Refused, payload["error"].to_s
       when 404 then raise NotFound, payload["error"].to_s
       when 409 then raise Conflict, payload["error"].to_s
+      when 500..599
+        raise ManagerError.new("runtime manager returned #{code}: #{payload['error']}", code:)
       else raise Unavailable, "runtime manager returned #{code}: #{payload['error']}"
       end
     rescue JSON::ParserError

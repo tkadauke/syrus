@@ -6,7 +6,7 @@ RSpec.describe PluginRuntime::ManagedDriver do
   let(:client) do
     Class.new do
       attr_reader :ensured, :ensured_privileged, :removed
-      attr_accessor :running, :refuse, :unavailable
+      attr_accessor :running, :refuse, :unavailable, :manager_error_for, :list_manager_error
 
       def initialize
         @ensured = []
@@ -18,6 +18,7 @@ RSpec.describe PluginRuntime::ManagedDriver do
       def ensure_service(name, spec)
         raise PluginRuntime::Client::Unavailable, "connection refused" if unavailable
         raise PluginRuntime::Client::Refused, "image not in the allowlist" if refuse
+        raise manager_error("daemon blew up") if manager_error_for == name
 
         @ensured << [ name, spec ]
         { "service" => name, "state" => "running", "endpoint" => "http://#{name}:8080", "image" => spec["image"] }
@@ -26,6 +27,7 @@ RSpec.describe PluginRuntime::ManagedDriver do
       def ensure_privileged_service(name, env)
         raise PluginRuntime::Client::Unavailable, "connection refused" if unavailable
         raise PluginRuntime::Client::Refused, "env key not allowed" if refuse
+        raise manager_error("daemon blew up") if manager_error_for == name
 
         @ensured_privileged << [ name, env ]
         { "service" => name, "state" => "running", "endpoint" => "http://#{name}:8080", "privileged" => true }
@@ -33,6 +35,7 @@ RSpec.describe PluginRuntime::ManagedDriver do
 
       def list
         raise PluginRuntime::Client::Unavailable, "connection refused" if unavailable
+        raise manager_error("list failed") if list_manager_error
 
         running.map { |name| { "service" => name } }
       end
@@ -43,6 +46,10 @@ RSpec.describe PluginRuntime::ManagedDriver do
 
       def status(name)
         { "service" => name, "state" => "stopped", "image" => "ghcr.io/tkadauke/x:1" }
+      end
+
+      def manager_error(message)
+        PluginRuntime::Client::ManagerError.new("runtime manager returned 502: #{message}", code: 502)
       end
     end.new
   end
@@ -157,6 +164,28 @@ RSpec.describe PluginRuntime::ManagedDriver do
     driver.reconcile([ entry("broken") { raise "boom" }, entry("git-mirror") ])
 
     expect(client.ensured.map(&:first)).to eq([ "git-mirror" ])
+  end
+
+  it "records one manager service failure without marking every service unavailable" do
+    client.running = %w[git-mirror disabled-service]
+    client.manager_error_for = "broken"
+
+    driver.reconcile([ entry("broken"), entry("git-mirror") ])
+
+    expect(client.ensured.map(&:first)).to eq([ "git-mirror" ])
+    expect(client.removed).to eq([ [ "disabled-service", false ] ])
+    expect(PluginRuntime::StatusCache.read("broken").state).to eq("error")
+    expect(PluginRuntime::StatusCache.read("broken").error).to include("daemon blew up")
+    expect(PluginRuntime::StatusCache.read("git-mirror")).to be_available
+  end
+
+  it "keeps desired statuses when the manager cannot list services for cleanup" do
+    client.list_manager_error = true
+
+    driver.reconcile([ entry("git-mirror") ])
+
+    expect(client.removed).to be_empty
+    expect(PluginRuntime::StatusCache.read("git-mirror")).to be_available
   end
 
   describe "privileged services" do
