@@ -9,6 +9,7 @@ import { site } from "../lib/site";
 const links = [
   { href: "/#how", label: "How it works" },
   { href: "/#features", label: "Why Syrus" },
+  { href: "/control-plane", label: "Control plane" },
   { href: "/#entry-points", label: "Entry points" },
   { href: "/plugins", label: "Plugins" },
   { href: "/docs", label: "Docs" },
