@@ -197,14 +197,17 @@ the token arrived.
 registered once per role, not once globally. `WorkflowMcpTransportSelector`
 derives the role from `AgentRole.for_step_kind(run.step.kind)` before the
 agent config is generated, and `PersistentMcpDaemon.workflow_role_path(role)`
-selects the corresponding daemon path. `WorkflowContextResolver` resolves
-the signed token's `"run"` surface, reconstructs the real
-`McpToolContext.from_run(run)`, then maps that to registry surface
-`:workflow` by recomputing `McpToolPolicy.for(context)` plus
-`Mcp::Sidecar.plugin_workflow_tools_for(context)`. That explicit `"run"`
-token / `:workflow` registry split is intentional: the token describes what
-runtime object the caller is bound to, while the registry describes which MCP
-surface contributes tools.
+selects the corresponding daemon path. `tools/list` requests that carry an
+invocation token are context-scoped to the real Run, so Codex and other
+stdio-proxy clients discover run-specific plugin tools such as Review Notes'
+`submit_review_notes`; health checks and unauthenticated diagnostics keep using
+the static role inventory. `WorkflowContextResolver` resolves the signed
+token's `"run"` surface, reconstructs the real `McpToolContext.from_run(run)`,
+then maps that to registry surface `:workflow` by recomputing
+`McpToolPolicy.for(context)` plus `Mcp::Sidecar.plugin_workflow_tools_for(context)`.
+That explicit `"run"` token / `:workflow` registry split is intentional: the
+token describes what runtime object the caller is bound to, while the registry
+describes which MCP surface contributes tools.
 
 **Usage logging is authoritative at this boundary.** `WorkflowToolDispatch`
 wraps every persistent workflow call with
