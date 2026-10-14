@@ -34,6 +34,10 @@ module Discord
 
     MAX_RECONNECT_ATTEMPTS = 5
     BACKOFF_BASE_SECONDS = 2
+    FATAL_CLOSE_CODES = [ 4004, 4010, 4011, 4012, 4013, 4014 ].freeze
+    RESUMABLE_CLOSE_CODES = ([ 1006 ] + (4000..4009).to_a).freeze
+
+    attr_reader :fatal_close_code, :fatal_close_reason
 
     def initialize(token:, url: DEFAULT_URL)
       @token = token
@@ -44,6 +48,9 @@ module Discord
       @write_mutex = Mutex.new
     end
 
+    def fatal_close? = fatal_close_code.present?
+    def session_established? = @session_id.present?
+
     # Connects and blocks dispatching Gateway DISPATCH payloads (the full
     # `{ "t" => ..., "d" => ... }` hash) to `handler` until the session ends.
     # Returns (does not raise) once retries are exhausted or the connection
@@ -51,6 +58,8 @@ module Discord
     def run(&handler)
       @handler = handler
       attempts = 0
+      @fatal_close_code = nil
+      @fatal_close_reason = nil
 
       loop do
         @should_reconnect = false
@@ -82,7 +91,7 @@ module Discord
       @closed = false
 
       @driver.on(:message) { |event| handle_frame(event.data) }
-      @driver.on(:close) { @closed = true }
+      @driver.on(:close) { |event| handle_close(event) }
       @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: #{event.message}") }
 
       @driver.start
@@ -138,6 +147,20 @@ module Discord
         @driver.close
       when OP_DISPATCH
         handle_dispatch(payload)
+      end
+    end
+
+    def handle_close(event)
+      @closed = true
+      code = event.respond_to?(:code) ? event.code : nil
+      reason = event.respond_to?(:reason) ? event.reason : nil
+
+      if FATAL_CLOSE_CODES.include?(code)
+        @fatal_close_code = code
+        @fatal_close_reason = reason
+        @should_reconnect = false
+      elsif RESUMABLE_CLOSE_CODES.include?(code)
+        @should_reconnect = @session_id.present?
       end
     end
 

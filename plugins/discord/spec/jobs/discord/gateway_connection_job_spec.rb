@@ -8,8 +8,12 @@ RSpec.describe Discord::GatewayConnectionJob do
   let(:default_factory) { described_class.gateway_client_factory }
 
   around do |ex|
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
     PluginRecord.find_by!(name: "discord").update!(enabled: true)
     ex.run
+  ensure
+    Rails.cache = original_cache
   end
 
   before do
@@ -23,7 +27,13 @@ RSpec.describe Discord::GatewayConnectionJob do
   end
 
   def stub_gateway_client(events: [], error: nil)
-    client = instance_double(Discord::GatewayClient)
+    client = instance_double(
+      Discord::GatewayClient,
+      fatal_close?: false,
+      fatal_close_code: nil,
+      fatal_close_reason: nil,
+      session_established?: false
+    )
     allow(client).to receive(:run) do |&block|
       raise error if error
 
@@ -58,7 +68,9 @@ RSpec.describe Discord::GatewayConnectionJob do
   describe "re-enqueue behaviour" do
     it "re-enqueues itself after perform when configured" do
       stub_gateway_client(events: [])
-      expect { described_class.new.perform }.to have_enqueued_job(described_class)
+      expect {
+        described_class.new.perform
+      }.to have_enqueued_job(described_class).at(a_value_within(1.second).of(described_class::RECONNECT_BACKOFF_SECONDS.seconds.from_now))
     end
 
     it "does not re-enqueue when the bot token is absent" do
@@ -73,6 +85,46 @@ RSpec.describe Discord::GatewayConnectionJob do
       described_class.new.perform
 
       expect(client).not_to have_received(:run)
+    end
+
+    it "backs off repeated startup failures exponentially" do
+      stub_gateway_client(events: [])
+
+      described_class.new.perform
+
+      expect {
+        described_class.new.perform
+      }.to have_enqueued_job(described_class).at(
+        a_value_within(1.second).of((described_class::RECONNECT_BACKOFF_SECONDS * 2).seconds.from_now)
+      )
+    end
+
+    it "resets the backoff after a Gateway session was established" do
+      stub_gateway_client(events: [])
+      described_class.new.perform
+
+      client = stub_gateway_client(events: [])
+      allow(client).to receive(:session_established?).and_return(true)
+      described_class.new.perform
+      clear_enqueued_jobs
+
+      expect {
+        stub_gateway_client(events: [])
+        described_class.new.perform
+      }.to have_enqueued_job(described_class).at(
+        a_value_within(1.second).of(described_class::RECONNECT_BACKOFF_SECONDS.seconds.from_now)
+      )
+    end
+
+    it "does not re-enqueue after a fatal Gateway close" do
+      client = stub_gateway_client(events: [])
+      allow(client).to receive(:fatal_close?).and_return(true)
+      allow(client).to receive(:fatal_close_code).and_return(4014)
+      allow(client).to receive(:fatal_close_reason).and_return("Disallowed intents")
+      allow(Rails.logger).to receive(:error)
+
+      expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
+      expect(Rails.logger).to have_received(:error).with(include("fatal code 4014"))
     end
   end
 
@@ -194,7 +246,9 @@ RSpec.describe Discord::GatewayConnectionJob do
         stub_gateway_client(error: RuntimeError.new("connection reset"))
         allow(Rails.logger).to receive(:error)
 
-        expect { described_class.new.perform }.to have_enqueued_job(described_class)
+        expect {
+          described_class.new.perform
+        }.to have_enqueued_job(described_class).at(a_value_within(1.second).of(described_class::RECONNECT_BACKOFF_SECONDS.seconds.from_now))
       end
     end
   end
