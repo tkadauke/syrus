@@ -20,7 +20,14 @@ RSpec.describe BroadcastsJobProgress do
         "type" => "job.updated",
         "resource" => "job",
         "id" => job.id,
-        "changed" => include("workflow.created", "id", "job_id", "trigger_kind")
+        "changed" => include("workflow.created", "id", "job_id", "trigger_kind"),
+        "payload" => {
+          "fields" => hash_including(
+            "state" => "queued",
+            "issue_title" => job.issue_title,
+            "title_pending" => false
+          )
+        }
       )
     )
     expect(workflow).to be_persisted
