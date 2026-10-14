@@ -144,6 +144,12 @@ describe("AdminTeamsIndex", () => {
 describe("AdminTeamDetailRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("preserves the app-shell prefix in the teams back link", async () => {
+    renderDetail()
+
+    expect(await screen.findByRole("link", { name: "Teams" })).toHaveAttribute("href", "/app-shell/admin/teams")
+  })
+
   it("shows members and read-only repository grants", async () => {
     renderDetail()
 
@@ -233,6 +239,7 @@ describe("AdminTeamDetailRoute", () => {
           <MemoryRouter initialEntries={["/app-shell/admin/teams/1"]}>
             <Routes>
               <Route element={<AdminTeamDetailRoute />} path="/app-shell/admin/teams/:id" />
+              <Route element={<div>Teams index route</div>} path="/app-shell/admin/teams" />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>
@@ -247,6 +254,7 @@ describe("AdminTeamDetailRoute", () => {
           expect.objectContaining({ method: "DELETE" })
         )
       })
+      expect(await screen.findByText("Teams index route")).toBeInTheDocument()
     })
   })
 })
