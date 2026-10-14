@@ -45,6 +45,8 @@ import { DataTable, Form, Surface, Text } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 
+const LINEAR_TEAM_LOOKUP_DEBOUNCE_MS = 400
+
 type OwnerOption = {
   login: string
   type: "user" | "org"
@@ -1030,11 +1032,12 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
   })
 
   const plausibleApiKey = values.api_key?.startsWith("lin_api_") ? values.api_key : ""
+  const debouncedApiKey = useDebouncedValue(plausibleApiKey, LINEAR_TEAM_LOOKUP_DEBOUNCE_MS)
 
   const teamsQuery = useQuery({
-    queryKey: ["linear_teams", sourceType.type_key, plausibleApiKey],
-    queryFn: () => fetchLinearTeams(plausibleApiKey),
-    enabled: sourceType.schema.some((field) => field.type === "linear_team") && plausibleApiKey.length > 0,
+    queryKey: ["linear_teams", sourceType.type_key, safeQueryFingerprint(debouncedApiKey)],
+    queryFn: () => fetchLinearTeams(debouncedApiKey),
+    enabled: sourceType.schema.some((field) => field.type === "linear_team") && debouncedApiKey.length > 0,
     retry: false
   })
 
@@ -1097,6 +1100,26 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
       </div>
     </section>
   )
+}
+
+function useDebouncedValue(value: string, delayMs: number): string {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value), delayMs)
+    return () => window.clearTimeout(timer)
+  }, [delayMs, value])
+
+  return debouncedValue
+}
+
+function safeQueryFingerprint(value: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${value.length}:${(hash >>> 0).toString(36)}`
 }
 
 function InputSourceField({

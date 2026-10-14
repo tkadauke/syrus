@@ -825,8 +825,7 @@ export function saveInputSource(path: string, values: InputSourceInput) {
 }
 
 export function fetchLinearTeams(apiKey: string) {
-  const params = new URLSearchParams({ api_key: apiKey })
-  return getJson<LinearTeamsPayload>(`/api/v1/app/linear/teams?${params}`)
+  return postJson<LinearTeamsPayload>("/api/v1/app/linear/teams", { api_key: apiKey })
 }
 
 export function syncFork(id: number) {
