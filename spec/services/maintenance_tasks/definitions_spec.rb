@@ -1,6 +1,48 @@
 require "rails_helper"
 
 RSpec.describe "maintenance task definitions" do
+  describe MaintenanceTasks::Definitions::BareCloneRemoteScrub do
+    let(:definition) { described_class.new }
+
+    it "wraps the bare clone remote scrubber" do
+      scrubber_result = RepositoryBareCloneRemoteScrubber::Result.new(
+        processed: 3,
+        scrubbed: 2,
+        removed: 1,
+        failed: 0,
+        done: true
+      )
+      scrubber = instance_double(RepositoryBareCloneRemoteScrubber, credentialed_remote_count: 3, scrub_batch: scrubber_result)
+      allow(RepositoryBareCloneRemoteScrubber).to receive(:new).and_return(scrubber)
+
+      task = maintenance_task_for(definition)
+      result = definition.perform_batch(task)
+
+      expect(result).to have_attributes(done: true, processed: 3, failed: 0)
+      expect(result.message).to include("rewrote 2")
+      expect(result.message).to include("removed 1")
+      expect(task.current_step_key).to eq("clone_configs")
+      expect(scrubber).to have_received(:scrub_batch).with(limit: task.batch_size)
+    end
+
+    it "reports scrub failures as terminal maintenance task failures" do
+      scrubber_result = RepositoryBareCloneRemoteScrubber::Result.new(
+        processed: 1,
+        scrubbed: 0,
+        removed: 0,
+        failed: 1,
+        done: false
+      )
+      scrubber = instance_double(RepositoryBareCloneRemoteScrubber, credentialed_remote_count: 1, scrub_batch: scrubber_result)
+      allow(RepositoryBareCloneRemoteScrubber).to receive(:new).and_return(scrubber)
+
+      result = definition.perform_batch(maintenance_task_for(definition))
+
+      expect(result).to have_attributes(done: true, processed: 1, failed: 1, level: "warning")
+      expect(result.message).to include("failed to update")
+    end
+  end
+
   describe MaintenanceTasks::Definitions::AgentsBackfill do
     let(:definition) { described_class.new }
     let(:user) { Factories.user }
