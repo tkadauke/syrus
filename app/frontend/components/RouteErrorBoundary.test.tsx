@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { RouteErrorBoundary } from "./RouteErrorBoundary"
+import { Link, MemoryRouter, Route, Routes, useParams } from "react-router-dom"
+import { LocationKeyedRouteErrorBoundary, RouteErrorBoundary } from "./RouteErrorBoundary"
 
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn()
@@ -28,6 +29,12 @@ const mockFileEventJob = fileEventJob as ReturnType<typeof vi.fn> & typeof fileE
 function Bomb({ shouldThrow }: { shouldThrow: boolean }) {
   if (shouldThrow) throw new Error("Test explosion")
   return <div>Safe content</div>
+}
+
+function ParamRoute() {
+  const params = useParams()
+  if (params.id === "1") throw new Error("Job 1 exploded")
+  return <div>Job {params.id} loaded</div>
 }
 
 describe("RouteErrorBoundary", () => {
@@ -79,6 +86,32 @@ describe("RouteErrorBoundary", () => {
       metadata: { boundary: "route" }
     })))
     expect(await screen.findByRole("link", { name: "Browser error #123 captured" })).toHaveAttribute("href", "/admin/browser_errors?id=123&revision_scope=all")
+  })
+
+  it("resets the route error state when the pathname changes inside the same route pattern", async () => {
+    render(
+      <MemoryRouter initialEntries={["/jobs/1"]}>
+        <Link to="/jobs/2">Open healthy job</Link>
+        <Routes>
+          <Route
+            path="/jobs/:id"
+            element={
+              <LocationKeyedRouteErrorBoundary>
+                <ParamRoute />
+              </LocationKeyedRouteErrorBoundary>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("alert")).toBeInTheDocument()
+    expect(screen.getByText("Job 1 exploded")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Open healthy job" }))
+
+    await screen.findByText("Job 2 loaded")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
   it("files a job from the captured browser error event when report button is clicked", async () => {
