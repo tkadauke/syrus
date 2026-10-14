@@ -28,7 +28,13 @@ module Discord
 
     def extract_text(content)
       return content.to_s if content.is_a?(String)
+      if content.is_a?(Array)
+        return content.filter_map do |block|
+          block["text"] if block.is_a?(Hash) && block["type"] == "text"
+        end.join
+      end
       return "" unless content.is_a?(Hash)
+
       content["text"].to_s
     end
 

@@ -31,6 +31,29 @@ RSpec.describe PlatformDelivery::TelegramAdapter do
       end
     end
 
+    context "with canonical assistant content blocks" do
+      let(:message) do
+        ChatMessage.new(
+          chat_session: session,
+          role: "assistant",
+          content: [
+            { "type" => "thinking", "thinking" => "private reasoning" },
+            { "type" => "text", "text" => "Visible reply" },
+            { "type" => "text", "text" => "\nSecond paragraph" }
+          ]
+        )
+      end
+
+      it "delivers joined text blocks and skips thinking blocks" do
+        client = instance_double(TelegramClient, send_message: nil)
+        allow(TelegramClient).to receive(:new).and_return(client)
+
+        described_class.new.deliver(message: message, platform_identity: identity)
+
+        expect(client).to have_received(:send_message).with(chat_id: "42", text: "Visible reply\nSecond paragraph")
+      end
+    end
+
     context "with blank content" do
       let(:message) { ChatMessage.new(chat_session: session, role: "assistant", content: { "text" => "" }) }
 
