@@ -54,6 +54,14 @@ RSpec.describe ReapStaleBranchesJob do
       expect(client).not_to have_received(:delete_branch)
     end
 
+    it "skips jobs outside the branch cleanup retention window" do
+      closed_job(branch_name: "syrus/old-issue", finished_at: 31.days.ago)
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+    end
+
     it "skips jobs where branch_deleted_at is already set" do
       closed_job(branch_name: "syrus/issue-3", finished_at: 24.hours.ago, branch_deleted_at: 1.hour.ago)
 
@@ -80,6 +88,20 @@ RSpec.describe ReapStaleBranchesJob do
       expect(client).to have_received(:delete_branch).with("acme/widgets", "syrus/issue-5")
       expect(a.reload.branch_deleted_at).to be_present
       expect(b.reload.branch_deleted_at).to be_present
+    end
+
+    it "processes only the oldest bounded batch of eligible jobs" do
+      stub_const("#{described_class}::MAX_BRANCHES_PER_RUN", 2)
+      oldest = closed_job(branch_name: "syrus/oldest", finished_at: 4.days.ago)
+      middle = closed_job(branch_name: "syrus/middle", finished_at: 3.days.ago)
+      newest = closed_job(branch_name: "syrus/newest", finished_at: 2.days.ago)
+
+      described_class.perform_now
+
+      expect(client).to have_received(:delete_branch).with("acme/widgets", oldest.branch_name)
+      expect(client).to have_received(:delete_branch).with("acme/widgets", middle.branch_name)
+      expect(client).not_to have_received(:delete_branch).with("acme/widgets", newest.branch_name)
+      expect(newest.reload.branch_deleted_at).to be_nil
     end
 
     it "continues processing remaining jobs when one deletion fails" do

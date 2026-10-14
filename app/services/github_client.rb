@@ -242,11 +242,6 @@ class GithubClient
     raise
   end
 
-  # Deletes a branch ref. 422 (protected branch) and 404 (branch never
-  # existed or already gone) are suppressed and logged as warnings —
-  # GitHub may have auto-deleted the branch after merge. Octokit's
-  # delete_branch uses boolean_from_response, which catches 404
-  # internally and returns false; 422 raises Octokit::UnprocessableEntity.
   # Force-updates a branch ref to `sha`, but only while the branch still points
   # at `expected_sha`. This is the GitHub-API equivalent of
   # `git push --force-with-lease=<branch>:<expected_sha>`, and exists so a
@@ -273,17 +268,26 @@ class GithubClient
   end
 
   def delete_branch(repo_slug, branch_name)
+    # A missing ref is treated as successfully deleted so callers can finish
+    # cleanup when GitHub auto-deleted the branch after merge. Octokit's
+    # delete_branch catches 404 internally and returns false; a missing ref can
+    # also surface as 422.
     attempts = 0
 
     begin
       deleted = @client.delete_branch(repo_slug, branch_name)
       unless deleted
-        Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (branch not found or already deleted)")
-        return false
+        Rails.logger.info("[GithubClient] #{@user&.email_address} found #{repo_slug}@#{branch_name} already deleted")
+        return true
       end
 
       true
     rescue Octokit::UnprocessableEntity => e
+      if e.message.match?(/reference does not exist/i)
+        Rails.logger.info("[GithubClient] #{@user&.email_address} found #{repo_slug}@#{branch_name} already deleted")
+        return true
+      end
+
       Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (suppressed): #{e.message}")
       false
     rescue Octokit::TooManyRequests => e
