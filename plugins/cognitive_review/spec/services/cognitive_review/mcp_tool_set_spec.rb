@@ -1,4 +1,5 @@
 require "rails_helper"
+require "rack/mock"
 
 RSpec.describe CognitiveReview::McpToolSet do
   let(:run) { Factories.job_with_run(step_attrs: { kind: "post_implementation_review" }).initial_run }
@@ -20,11 +21,18 @@ RSpec.describe CognitiveReview::McpToolSet do
     expect(tool_names).to include("submit_review_notes")
   end
 
+  it "advertises submit_review_notes through the persistent workflow MCP sidecar for review runs" do
+    tool_names = persistent_workflow_sidecar_tool_names(run)
+
+    expect(tool_names).to include("submit_review_notes")
+  end
+
   it "withholds the tool from ordinary implementation runs" do
     implement_run = Factories.job_with_run(step_attrs: { kind: "implement" }).initial_run
 
     expect(described_class.available_for_context?(McpToolContext.from_run(implement_run))).to be(false)
     expect(workflow_sidecar_tool_names(implement_run)).not_to include("submit_review_notes")
+    expect(persistent_workflow_sidecar_tool_names(implement_run)).not_to include("submit_review_notes")
   end
 
   it "stores submitted notes as durable rows scoped to the current diff version" do
@@ -271,5 +279,29 @@ RSpec.describe CognitiveReview::McpToolSet do
     request = { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }.to_json
     response = JSON.parse(server.handle_json(request), symbolize_names: true)
     response.fetch(:result).fetch(:tools).map { |tool| tool.fetch(:name) }
+  end
+
+  def persistent_workflow_sidecar_tool_names(run)
+    data_root = Dir.mktmpdir("syrus-cognitive-review-persistent-mcp")
+    original_data_root = ENV["SYRUS_DATA_ROOT"]
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    daemon = PersistentMcpDaemon.new
+    worker_id = WorkerStorageIdentity.key(data_root: data_root)
+    token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "codex")
+    path = PersistentMcpDaemon.workflow_role_path(AgentRole.for_step_kind(run.step.kind))
+    env = Rack::MockRequest.env_for(
+      path,
+      method: "POST",
+      input: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json,
+      "CONTENT_TYPE" => "application/json",
+      "HTTP_ACCEPT" => "application/json, text/event-stream",
+      PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER_ENV_KEY => token
+    )
+
+    response = JSON.parse(daemon.call(env)[2].first, symbolize_names: true)
+    response.fetch(:result).fetch(:tools).map { |tool| tool.fetch(:name) }
+  ensure
+    ENV["SYRUS_DATA_ROOT"] = original_data_root
+    FileUtils.rm_rf(data_root) if data_root
   end
 end
