@@ -16,8 +16,9 @@ module MysqlDbBrowser
     class << self
       def call(server_context:)
         Mcp::Tools.with_database_connection do
+          context = McpToolContext.from_server_context(server_context)
           payload = {
-            mysql_connections: AgenticAccess.safe_connection_metadata
+            mysql_connections: AgenticAccess.safe_connection_metadata(context: context)
           }
           MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ])
         end

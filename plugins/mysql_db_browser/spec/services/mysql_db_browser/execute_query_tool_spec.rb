@@ -22,6 +22,10 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     MysqlDbBrowser::QueryExecutor.client_factory = original
   end
 
+  before do
+    MysqlDbBrowser::CredentialMaterial.store!(connection, "secret", user: user, scope_type: "user", scope_id: user.id)
+  end
+
   def call(mysql_connection_id:, sql:, server_context:, limit: nil)
     described_class.call(server_context: server_context, mysql_connection_id: mysql_connection_id, sql: sql, limit: limit)
   end

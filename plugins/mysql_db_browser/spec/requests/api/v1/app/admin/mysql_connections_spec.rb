@@ -47,6 +47,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(connection).not_to have_key("password")
       expect(connection).not_to have_key("credentials")
       expect(response.body).not_to include("s3cret")
+      expect(parse_body.dig("credential_scope_options", "scopes").pluck("value")).to contain_exactly("user", "instance")
     end
 
     it "creates a connection with credential-store-backed credentials" do
@@ -63,7 +64,8 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(connection.password).to be_nil
       expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection)).to have_attributes(
         credential_type: "mysql_db_browser.connection",
-        scope_type: "instance",
+        scope_type: "user",
+        scope_id: admin.id,
         payload: "hunter2",
         safe_metadata: include("host" => "db.example.com", "port" => 3306, "username" => "app"),
         target_constraints: include("allowed_hosts" => [ "db.example.com" ]),
@@ -71,6 +73,26 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       )
       expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection).allowed_tools).not_to include("credential.exec")
       expect(connection.agentic_access_enabled).to be false
+    end
+
+    it "creates a connection with an explicitly selected manageable scope" do
+      repository = Factories.repository(user: admin)
+
+      post "/api/v1/app/admin/mysql_connections", params: {
+        mysql_connection: {
+          label: "Repo DB", host: "db.example.com", port: 3306, username: "app", password: "secret",
+          credential_scope_type: "repository", credential_scope_id: repository.id
+        }
+      }
+
+      expect(response).to have_http_status(:created)
+      connection = MysqlConnection.find(parse_body.dig("mysql_connection", "id"))
+      expect(MysqlDbBrowser::CredentialMaterial.credential_for(connection)).to have_attributes(
+        scope_type: "repository", scope_id: repository.id
+      )
+      expect(parse_body.fetch("mysql_connection")).to include(
+        "credential_scope_type" => "repository", "credential_scope_id" => repository.id, "legacy_credentials" => false
+      )
     end
 
     it "rejects invalid params" do
