@@ -9,6 +9,7 @@ const cols: { title: string; links: FooterLink[] }[] = [
     links: [
       { label: "How it works", href: "/#how" },
       { label: "Why Syrus", href: "/#features" },
+      { label: "Control plane", href: "/control-plane" },
       { label: "Entry points", href: "/#entry-points" },
       { label: "Plugins", href: "/plugins" }
     ]
