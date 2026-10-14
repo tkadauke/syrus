@@ -69,8 +69,20 @@ class EpicMarkerParser
     return nil unless line
 
     value = line.strip
-    value = value.sub(/\Aepic\s*:\s*/i, "")
+    value = marker_value_from_legacy_line(value) || value
     truncate_marker_value(value)
+  end
+
+  def marker_value_from_legacy_line(line)
+    index = line.downcase.index("epic")
+    return nil unless index
+    return nil if index.positive? && line[index - 1].match?(/[A-Za-z0-9_]/)
+
+    after_marker = line[(index + 4)..].to_s
+    colon_index = after_marker.index(":")
+    return nil unless colon_index && after_marker[0...colon_index].strip.empty?
+
+    after_marker[(colon_index + 1)..].to_s.strip
   end
 
   def truncate_marker_value(value)
