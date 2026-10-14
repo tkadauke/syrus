@@ -490,6 +490,25 @@ func TestListIncludesServicesStillPulling(t *testing.T) {
 	}
 }
 
+func TestListSkipsAContainerRemovedBetweenListAndInspect(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+	d.inspectNotFound = map[string]bool{"c1": true}
+
+	statuses, err := m.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 0 {
+		t.Fatalf("statuses = %+v, want the concurrently removed container skipped", statuses)
+	}
+}
+
 // On shutdown the manager takes its containers with it so `docker compose
 // down` can remove the project network -- but never another project's, and
 // never anyone's data.

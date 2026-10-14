@@ -51,6 +51,8 @@ module PluginRuntime
       ServiceStatus.from_manager(@client.status(entry.name), plugin: entry.plugin)
     rescue Client::Unavailable
       raise
+    rescue Client::ManagerError => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error", error: e.message)
     rescue Client::Error => e
       ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error", error: e.message)
     end
@@ -61,6 +63,8 @@ module PluginRuntime
     rescue Client::Refused => e
       ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error",
                           error: "refused by the runtime manager: #{e.message}")
+    rescue Client::ManagerError => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error", error: e.message)
     rescue Client::Unavailable
       raise
     rescue StandardError => e
@@ -79,6 +83,8 @@ module PluginRuntime
     rescue Client::Refused => e
       ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error",
                           error: "refused by the runtime manager: #{e.message}")
+    rescue Client::ManagerError => e
+      ServiceStatus.build(service: entry.name, plugin: entry.plugin, mode: mode, state: "error", error: e.message)
     rescue Client::Unavailable
       raise
     rescue StandardError => e
@@ -104,6 +110,8 @@ module PluginRuntime
         @client.remove(name)
         StatusCache.delete(name)
       end
+    rescue Client::ManagerError
+      nil
     end
   end
 end
