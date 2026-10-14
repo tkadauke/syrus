@@ -167,6 +167,66 @@ describe("ImageAnnotationModal", () => {
     })
   })
 
+  it("commits pending text before starting another text placement", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(canvas, { clientX: 30, clientY: 32, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 32, pointerId: 1 })
+
+    const firstInput = screen.getByPlaceholderText("Type, then press Enter")
+    fireEvent.change(firstInput, { target: { value: "First note" } })
+    fireEvent.pointerDown(canvas, { clientX: 60, clientY: 50, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 60, clientY: 50, pointerId: 2 })
+
+    await waitFor(() => {
+      expect(contexts[1].fillText).toHaveBeenCalledWith("First note", 30, 32)
+    })
+
+    const nextInput = screen.getByPlaceholderText("Type, then press Enter")
+    expect(nextInput).toBeVisible()
+    expect(nextInput).toHaveValue("")
+  })
+
+  it("commits pending text when finishing the annotation", async () => {
+    const onDone = vi.fn()
+    renderModal({ onDone })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+    fireEvent.change(screen.getByPlaceholderText("Type, then press Enter"), { target: { value: "Done note" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+
+    expect(onDone).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.arrayContaining([expect.objectContaining({ kind: "text", value: "Done note", x: 30, y: 32 })])
+    )
+    expect(contexts[0].drawImage).toHaveBeenCalled()
+    expect(contexts[1].fillText).toHaveBeenCalledWith("Done note", 30, 32)
+  })
+
+  it("treats pending text as unsaved work when closing", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+    fireEvent.change(screen.getByPlaceholderText("Type, then press Enter"), { target: { value: "Keep me" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    await waitFor(() => {
+      expect(contexts[1].fillText).toHaveBeenCalledWith("Keep me", 30, 32)
+    })
+  })
+
   it("focuses the text input after placing text", async () => {
     renderModal()
     await waitForLoaded()
