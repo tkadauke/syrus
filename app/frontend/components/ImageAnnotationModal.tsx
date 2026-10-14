@@ -568,13 +568,14 @@ function ImageAnnotationModalContent({
     textInputRef.current?.focus()
   }, [textPlacement?.x, textPlacement?.y])
 
-  const requestClose = useCallback(() => {
-    if (shapesRef.current.length > 0) {
+  const requestClose = () => {
+    const currentShapes = commitText()
+    if (currentShapes.length > 0) {
       setShowDiscardConfirm(true)
     } else {
       onClose()
     }
-  }, [onClose])
+  }
 
   const syncHistoryCounts = useCallback(() => {
     setUndoCount(pastRef.current.length)
@@ -853,6 +854,7 @@ function ImageAnnotationModalContent({
     const point = canvasPoint(event)
 
     if (tool === "text") {
+      commitText()
       setSelectedShapeId(null)
       setTextPlacement({ ...point, value: "" })
       return
@@ -1044,16 +1046,22 @@ function ImageAnnotationModalContent({
     }
   }
 
-  function commitText() {
-    if (!textPlacement) return
+  function commitText(): Shape[] {
+    if (!textPlacement) return shapesRef.current
     const value = textPlacement.value.trim()
-    if (!value) { setTextPlacement(null); return }
+    if (!value) {
+      setTextPlacement(null)
+      return shapesRef.current
+    }
 
     const newShape: TextShape = { id: makeId(), kind: "text", x: textPlacement.x, y: textPlacement.y, value, color, size: textSize }
     const prev = shapesRef.current
+    const next = [...prev, newShape]
     pushUndo(prev)
-    setShapes([...prev, newShape])
+    shapesRef.current = next
+    setShapes(next)
     setTextPlacement(null)
+    return next
   }
 
   function changeTextSize(size: TextSize) {
@@ -1086,10 +1094,12 @@ function ImageAnnotationModalContent({
     const overlayContext = overlayCanvas?.getContext("2d")
     if (!imageCanvas || !overlayCanvas || !imageContext || !overlayContext) return
 
+    const currentShapes = commitText()
+
     // Re-render without selection overlay before compositing
-    renderCanvas(shapes, null, overlayContext, overlayCanvas)
+    renderCanvas(currentShapes, null, overlayContext, overlayCanvas)
     imageContext.drawImage(overlayCanvas, 0, 0)
-    onDone(imageCanvas.toDataURL("image/png"), shapesRef.current)
+    onDone(imageCanvas.toDataURL("image/png"), currentShapes)
   }
 
   function changeZoom(delta: number) {
