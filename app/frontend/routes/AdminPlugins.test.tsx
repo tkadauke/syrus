@@ -78,6 +78,29 @@ const pluginFilterSchema = [
 ]
 
 describe("AdminPlugins", () => {
+  it("preserves the app-shell prefix in the plugin detail back link", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: {
+        name: "terminal",
+        display_name: "Terminal",
+        disable_blockers: [],
+        version: "1.0.0",
+        enabled: true,
+        disableable: true,
+        extension_points: []
+      }
+    }))
+
+    renderRoute(
+      <Routes>
+        <Route path="/app-shell/admin/plugins/:name" element={<AdminPluginDetail />} />
+      </Routes>,
+      "/app-shell/admin/plugins/terminal"
+    )
+
+    expect(await screen.findByRole("link", { name: "Plugins" })).toHaveAttribute("href", "/app-shell/admin/plugins")
+  })
+
   it("renders registered plugins and extension points", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
