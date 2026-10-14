@@ -9,7 +9,7 @@ type PluginModule = {
   default?: ComponentType
 }
 
-const routeModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/repo_tabs/*.tsx")
+const routeModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx" ])
 
 const componentLoaders = Object.fromEntries(
   Object.entries(routeModules).map(([path, loader]) => {

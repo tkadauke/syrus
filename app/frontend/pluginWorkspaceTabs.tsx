@@ -20,7 +20,7 @@ type PluginModule = {
   default?: ComponentType<PluginWorkspaceTabProps>
 }
 
-const workspaceTabModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/workspaceTabs/*.tsx")
+const workspaceTabModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/workspaceTabs/*.tsx", "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx" ])
 
 const componentLoaders = Object.fromEntries(
   Object.entries(workspaceTabModules).map(([path, loader]) => {

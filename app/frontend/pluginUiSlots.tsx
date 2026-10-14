@@ -16,8 +16,8 @@ export type UiSlotPanel = {
   label_key?: string
 }
 
-const corePanelModules = import.meta.glob<PluginModule>("./ui_slots/*.tsx")
-const pluginPanelModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/ui_slots/*.tsx")
+const corePanelModules = import.meta.glob<PluginModule>([ "./ui_slots/*.tsx", "!./ui_slots/*.test.tsx" ])
+const pluginPanelModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/ui_slots/*.tsx", "!../../plugins/*/app/frontend/ui_slots/*.test.tsx" ])
 
 const componentLoaders = Object.fromEntries(
   [
