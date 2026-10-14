@@ -13,7 +13,10 @@ function dataTransfer() {
 }
 
 function encodeFilterTree(tree: Record<string, unknown>) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 function mockUseConfirm(confirmed: boolean) {
@@ -38,6 +41,9 @@ function stagingConnection(overrides: Record<string, unknown> = {}) {
     agentic_access_enabled: false,
     allow_writes: false,
     has_password: true,
+    credential_scope_type: "instance",
+    credential_scope_id: null,
+    legacy_credentials: false,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides
@@ -56,7 +62,22 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
     calls.push({ body, method, url })
 
     if (url === "/api/v1/app/admin/mysql_connections" && method === "GET") {
-      return Promise.resolve(jsonResponse({ mysql_connections: connections }))
+      return Promise.resolve(
+        jsonResponse({
+          mysql_connections: connections,
+          credential_scope_options: {
+            scopes: [
+              { value: "user", label: "User" },
+              { value: "repository", label: "Repository" },
+              { value: "team", label: "Team" },
+              { value: "instance", label: "Instance" }
+            ],
+            users: [{ id: 7, label: "Admin" }],
+            repositories: [{ id: 9, label: "acme/widgets" }],
+            teams: [{ id: 11, label: "Platform" }]
+          }
+        })
+      )
     }
     if (url === "/api/v1/app/admin/mysql_connections" && method === "POST") {
       await options.createDelay
@@ -353,7 +374,18 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
               field: "name",
               label: "Name",
               bucket: "string",
-              operators: ["contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset"]
+              operators: [
+                "contains",
+                "does_not_contain",
+                "starts_with",
+                "does_not_start_with",
+                "ends_with",
+                "does_not_end_with",
+                "equals",
+                "not_equals",
+                "is_set",
+                "is_unset"
+              ]
             }
           ],
           filter: params.get("q") ? { and: [] } : null,
@@ -523,7 +555,8 @@ describe("MysqlConnections", () => {
         default_database: "",
         agentic_access_enabled: false,
         allow_writes: false,
-        password: "hunter2"
+        password: "hunter2",
+        credential_scope_type: "user"
       }
     })
   })
@@ -561,7 +594,8 @@ describe("MysqlConnections", () => {
         default_database: "orders_production",
         agentic_access_enabled: false,
         allow_writes: false,
-        password: "hunter2"
+        password: "hunter2",
+        credential_scope_type: "user"
       }
     })
   })
@@ -864,7 +898,9 @@ describe("MysqlConnections", () => {
       fireEvent.click(within(contentRegion).getByLabelText("email"))
       fireEvent.click(within(contentRegion).getByRole("button", { name: "Move email up" }))
 
-      const headers = within(contentRegion).getAllByRole("columnheader").map((cell) => cell.textContent)
+      const headers = within(contentRegion)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent)
       expect(headers[0]).toContain("email")
       expect(headers[1]).toContain("id")
     })
@@ -908,12 +944,18 @@ describe("MysqlConnections", () => {
       fireEvent.dragOver(idHeader, { dataTransfer: transfer })
       fireEvent.drop(idHeader, { dataTransfer: transfer })
 
-      const headers = within(contentRegion).getAllByRole("columnheader").map((cell) => cell.textContent)
+      const headers = within(contentRegion)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent)
       expect(headers[0]).toContain("email")
       expect(headers[1]).toContain("id")
 
       const firstRowCells = within(contentRegion).getAllByRole("row")[1]
-      expect(within(firstRowCells).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["grace@example.com", "1"])
+      expect(
+        within(firstRowCells)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent)
+      ).toEqual(["grace@example.com", "1"])
     })
 
     it("restores margin on the browser header and tab bar while the surrounding Page.Root stays flush", async () => {

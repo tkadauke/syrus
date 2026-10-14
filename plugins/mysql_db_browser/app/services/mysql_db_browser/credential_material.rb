@@ -15,13 +15,15 @@ module MysqlDbBrowser
     class CredentialStoreUnavailable < StandardError; end
 
     class << self
-      def store!(connection, password, user:)
+      def store!(connection, password, user:, scope_type: nil, scope_id: nil)
         value = password.to_s
         raise ArgumentError, "password is blank" if value.blank?
         raise CredentialStoreUnavailable, "credential_store plugin must be enabled to store MySQL connection passwords" unless credential_store_enabled?
 
         credential = credential_for(connection) || CredentialStore::Credential.new(created_by: user, owner_user: user)
-        credential.assign_attributes(metadata_attributes_for(connection, user: user, credential: credential).merge(
+        credential.assign_attributes(metadata_attributes_for(
+          connection, user: user, credential: credential, scope_type: scope_type, scope_id: scope_id
+        ).merge(
           payload: value,
           last_rotated_at: Time.current,
           revoked_at: nil
@@ -32,14 +34,16 @@ module MysqlDbBrowser
         credential
       end
 
-      def sync_metadata!(connection, user:)
+      def sync_metadata!(connection, user:, scope_type: nil, scope_id: nil)
         return nil if connection.credential_store_credential_id.blank?
         raise CredentialStoreUnavailable, "credential_store plugin must be enabled to update MySQL connection credential metadata" unless credential_store_enabled?
 
         credential = credential_for(connection)
         return nil unless credential
 
-        credential.update!(metadata_attributes_for(connection, user: user, credential: credential))
+        credential.update!(metadata_attributes_for(
+          connection, user: user, credential: credential, scope_type: scope_type, scope_id: scope_id
+        ))
         credential
       end
 
@@ -71,13 +75,16 @@ module MysqlDbBrowser
 
       private
 
-      def metadata_attributes_for(connection, user:, credential:)
+      def metadata_attributes_for(connection, user:, credential:, scope_type:, scope_id:)
+        selected_scope_type = scope_type.presence || credential.scope_type.presence || "user"
+        selected_scope_id = selected_scope_type == "instance" ? nil : (scope_id.presence || credential.scope_id.presence || user.id)
+
         {
           name: "mysql-db-browser-connection-#{connection.id}",
           description: "MySQL DB Browser connection: #{connection.label}",
           credential_type: CREDENTIAL_TYPE,
-          scope_type: "instance",
-          scope_id: nil,
+          scope_type: selected_scope_type,
+          scope_id: selected_scope_id,
           created_by: credential.created_by || user,
           owner_user: credential.owner_user || user,
           safe_metadata: {

@@ -5,7 +5,8 @@ MySQL DB Browser lets admins register external MySQL connections, inspect schema
 This plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect.
 
 Agentic DB Browser tools include `mysql_db_browser_list_connections`, which
-returns safe connection metadata only (`id`, `label`, `default_database`,
+returns safe metadata only for agentic-enabled connections in the caller's
+credential scope (`id`, `label`, `default_database`,
 `agentic_access_enabled`, `allow_writes`, and timestamps). Agents should call
 it before schema browsing or query execution so they do not have to guess a
 `mysql_connection_id`. Query execution remains read-only by default, but safe
@@ -26,6 +27,9 @@ Enable this plugin when Syrus operators need a lightweight database browser for 
 ## Operational Notes
 
 Treat configured credentials as sensitive production access. New and rotated
-secrets are stored through the Credential Store plugin; legacy encrypted
-connection payloads remain readable until password rotation moves them forward.
+secrets are stored through the Credential Store plugin and default to the
+creator's user scope. Admins can select repository, team, or instance scope.
+Existing credential-backed connections retain instance scope until narrowed;
+legacy encrypted connection payloads are admin-only until an admin re-enters
+the password in Edit to migrate and scope them.
 Use narrowly scoped MySQL users for each connection whenever possible.
