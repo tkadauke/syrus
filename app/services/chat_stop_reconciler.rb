@@ -71,6 +71,7 @@ class ChatStopReconciler
       reason = stop_request ? "operator_cancelled" : "turn_failed"
       closed_tool_calls = close_dangling_tool_calls!(chat, reason)
       if turn_in_flight || closed_tool_calls.positive?
+        chat.fail_current_turn! if turn_in_flight
         create_terminal_message!(chat, message)
       end
       chat.update!(stop_requested_at: nil) if chat.stop_requested_at?

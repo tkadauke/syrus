@@ -44,7 +44,8 @@ RSpec.describe ChatStopReconciler do
 
   it "marks an orphaned chat agent turn as failed even without a stop request" do
     chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-stop-reconciler-orphaned")
-    chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    message = chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    chat.begin_turn_for!(message)
     spawned_process = SpawnedProcess.create!(
       kind: "agent",
       command: "claude --print",
@@ -61,6 +62,35 @@ RSpec.describe ChatStopReconciler do
 
     expect(chat.reload.stop_requested_at).to be_nil
     expect(chat).not_to be_turn_in_flight
+    expect(chat.current_turn_message_id).to be_nil
+    expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Agent turn failed." } ]
+    )
+  end
+
+  it "clears a crashed system-message-triggered turn before writing the terminal message" do
+    chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-stop-reconciler-system-turn")
+    chat.messages.create!(role: "user", content: { "text" => "Confirm it" }, created_at: 30.seconds.ago)
+    turn_message = chat.messages.create!(
+      role: "system",
+      content: { "text" => "Confirmed.", "source" => "pending_action_outcome" },
+      created_at: 20.seconds.ago
+    )
+    chat.begin_turn_for!(turn_message)
+    spawned_process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "dead-worker",
+      started_at: 15.seconds.ago,
+      finished_at: Time.current,
+      outcome: "orphaned"
+    )
+
+    expect(described_class.reconcile_spawned_process!(spawned_process)).to eq(true)
+
+    expect(chat.reload).not_to be_turn_in_flight
+    expect(chat.current_turn_message_id).to be_nil
     expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
       [ "system", { "text" => "Agent turn failed." } ]
     )
