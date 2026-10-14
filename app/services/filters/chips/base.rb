@@ -121,6 +121,11 @@ module Filters
       def unsupported_op!
         raise ArgumentError, "#{self.class.filter_name}: unsupported operator #{op.inspect}"
       end
+
+      def exclude_matches(matching_scope)
+        primary_key = scope.klass.primary_key
+        scope.where.not(primary_key => matching_scope.select(primary_key))
+      end
     end
   end
 end
