@@ -29,7 +29,10 @@ class ChatProposalFiler
       job_by_proposal_id = existing_jobs_for(ordered)
 
       ordered.each do |proposal|
-        next unless proposal.proposed?
+        unless proposal.proposed?
+          github_issue_proposals << proposal if needs_github_issue_filing?(proposal)
+          next
+        end
 
         materialized = create_record_for(proposal)
         proposal_attrs = {
@@ -101,6 +104,10 @@ class ChatProposalFiler
     ids = proposals.map(&:id)
     locked = ChatProposal.lock.where(id: ids).index_by(&:id)
     ids.map { |id| locked.fetch(id) }
+  end
+
+  def needs_github_issue_filing?(proposal)
+    proposal.github_issue? && proposal.confirmed? && proposal.github_issue_number.blank?
   end
 
   def ensure_repository_scope!(proposals)
@@ -244,22 +251,44 @@ class ChatProposalFiler
   end
 
   def file_github_issue(proposal)
-    proposal = ChatProposal.lock.find(proposal.id)
-    return proposal.github_issue_number if proposal.github_issue_number.present?
-
-    issue = GithubClient.for(repository: repository, user: user).create_issue(
-      repository.slug,
-      title: proposal.title,
-      body: proposal.body,
-      labels: github_labels_for(proposal)
-    )
-    proposal.update!(github_issue_number: issue.number)
-    issue.number
+    ApplicationRecord.transaction do
+      proposal = ChatProposal.lock.find(proposal.id)
+      if proposal.github_issue_number.present?
+        proposal.github_issue_number
+      else
+        client = GithubClient.for(repository: repository, user: user)
+        issue = existing_github_issue_for(proposal, client) || client.create_issue(
+          repository.slug,
+          title: proposal.title,
+          body: proposal.body,
+          labels: github_labels_for(proposal)
+        )
+        proposal.update!(github_issue_number: issue.number)
+        issue.number
+      end
+    end
   end
 
   def github_labels_for(proposal)
     labels = parse_labels(proposal.labels)
     (labels + [ repository.trigger_label ]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  end
+
+  def existing_github_issue_for(proposal, client)
+    expected_labels = github_labels_for(proposal)
+    client.issues_with_label(repository.slug, repository.trigger_label, state: "all").find do |issue|
+      next false if issue.respond_to?(:pull_request) && issue.pull_request
+
+      issue.title == proposal.title &&
+        issue.body.to_s == proposal.body.to_s &&
+        (expected_labels - issue_label_names(issue)).empty?
+    end
+  end
+
+  def issue_label_names(issue)
+    Array(issue.labels).map do |label|
+      label.respond_to?(:name) ? label.name : label.to_s
+    end.map(&:to_s).map(&:strip).reject(&:blank?)
   end
 
   def parse_labels(value)
