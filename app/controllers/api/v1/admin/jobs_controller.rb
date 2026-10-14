@@ -89,6 +89,7 @@ module Api
           end
 
           job.force_fail!
+          ::Admin::StuckItemsCache.clear!
           render json: serialize(job.reload)
         end
 

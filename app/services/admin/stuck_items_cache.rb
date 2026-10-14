@@ -48,6 +48,10 @@ module Admin
         write(items: items, captured_at: result.captured_at || now)
       end
 
+      def clear!
+        Rails.cache.delete(CACHE_KEY)
+      end
+
       def empty_snapshot
         Snapshot.new(items: [], captured_at: nil)
       end
