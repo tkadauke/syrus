@@ -452,13 +452,17 @@ row count/byte size, its projected max size at the configured retention (or
 that max size as a percentage of available space; when available space is
 `unknown` the page surfaces the `retention_available_space_override_gb`
 input inline instead of a blank comparison. Each row edits its own retention
-window independently (a numeric input plus an "infinite retention" toggle
-that zeroes the value) rather than one flat form, since the settings are
-unrelated to each other. `update` validates against the same
+window independently (a required numeric input plus an "infinite retention"
+toggle) rather than one flat form, since the settings are unrelated to each
+other. `PATCH /api/v1/app/admin/retention_settings` accepts `0` as the
+infinite sentinel only when the matching `<setting_key>_infinite` flag is
+also true; blank finite inputs and bare zeroes are rejected before updating
+`AppSetting`, so clearing a field while retyping cannot silently disable
+age-based pruning. Nonzero values still validate against the same
 `AppSettingRegistry`-derived numericality bounds as every other retention
-setting, so `0` is always accepted as the infinite sentinel. This page covers
-only the DB-table entries in the registry; the existing walkthrough-video
-retention/budget settings documented above stay on `/settings/edit`.
+setting. This page covers only the DB-table entries in the registry; the
+existing walkthrough-video retention/budget settings documented above stay on
+`/settings/edit`.
 
 ### Archive-before-delete storage (`RetentionArchive`)
 
