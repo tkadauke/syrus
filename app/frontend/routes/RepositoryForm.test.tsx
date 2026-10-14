@@ -165,10 +165,22 @@ function renderRoute(initialEntry = "/repositories/1/edit") {
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return client
 }
 
 describe("RepositoryForm plugin input-source decoupling", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("preserves unsaved settings when the edit payload refetches", async () => {
+    mockFetch()
+    const client = renderRoute()
+
+    const trigger = await screen.findByLabelText("Trigger label")
+    fireEvent.change(trigger, { target: { value: "unsaved-label" } })
+    client.setQueryData(["repositories", "edit", "1"], editPayload({ trigger_label: "server-label" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Trigger label")).toHaveValue("unsaved-label"))
+  })
 
   it("contains the edit page to the mobile viewport instead of widening the page", async () => {
     mockFetch()
