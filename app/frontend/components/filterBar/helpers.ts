@@ -226,7 +226,24 @@ function isTodayIsoDate(isoDate: string) {
 function formatDateLiteral(value: unknown) {
   const raw = String(value ?? "").trim()
   if (!raw) return ""
+  if (hasExplicitOffset(raw)) {
+    const date = new Date(raw)
+    if (!Number.isNaN(date.getTime())) return formatLocalDateTime(date)
+  }
   return raw.replace(/Z$/, "").replace("T", " ").slice(0, raw.includes("T") ? 16 : 10)
+}
+
+function formatLocalDateTime(date: Date) {
+  const yyyy = String(date.getFullYear()).padStart(4, "0")
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  const hh = String(date.getHours()).padStart(2, "0")
+  const min = String(date.getMinutes()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}`
+}
+
+function hasExplicitOffset(value: string) {
+  return /(?:Z|[+-]\d\d:\d\d)$/.test(value)
 }
 
 export function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {

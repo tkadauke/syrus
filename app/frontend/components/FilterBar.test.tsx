@@ -99,6 +99,20 @@ function decodedFilterFromLocation() {
   return JSON.parse(new TextDecoder().decode(bytes))
 }
 
+function localDateTimeInputValue(value: string) {
+  const date = new Date(value)
+  const yyyy = String(date.getFullYear()).padStart(4, "0")
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  const hh = String(date.getHours()).padStart(2, "0")
+  const min = String(date.getMinutes()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+}
+
+function localDateTimeLabel(value: string) {
+  return localDateTimeInputValue(value).replace("T", " ")
+}
+
 describe("FilterBar", () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -619,19 +633,19 @@ describe("FilterBar", () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Created between 2026-05-01 08:30 - 2026-05-02 17:45" }))
+    fireEvent.click(screen.getByRole("button", { name: `Created between ${localDateTimeLabel("2026-05-01T08:30:00Z")} - ${localDateTimeLabel("2026-05-02T17:45:00Z")}` }))
     const from = screen.getByLabelText("From") as HTMLInputElement
     const to = screen.getByLabelText("To") as HTMLInputElement
 
     expect(from.type).toBe("datetime-local")
-    expect(from.value).toBe("2026-05-01T08:30")
-    expect(to.value).toBe("2026-05-02T17:45")
+    expect(from.value).toBe(localDateTimeInputValue("2026-05-01T08:30:00Z"))
+    expect(to.value).toBe(localDateTimeInputValue("2026-05-02T17:45:00Z"))
 
     fireEvent.change(from, { target: { value: "2026-05-03T09:15" } })
 
     await waitFor(() => {
       expect(decodedFilterFromLocation()).toEqual({
-        and: [{ field: "created_at", op: "between", value: ["2026-05-03T09:15", "2026-05-02T17:45:00Z"] }]
+        and: [{ field: "created_at", op: "between", value: [new Date("2026-05-03T09:15").toISOString(), "2026-05-02T17:45:00Z"] }]
       })
     })
   })
@@ -682,7 +696,7 @@ describe("FilterBar", () => {
 
     await waitFor(() => {
       expect(decodedFilterFromLocation()).toEqual({
-        and: [{ field: "created_at", op: "between", value: ["2026-08-31T00:00", "2026-08-31T23:59"] }]
+        and: [{ field: "created_at", op: "between", value: [new Date("2026-08-31T00:00").toISOString(), new Date("2026-08-31T23:59:59.999").toISOString()] }]
       })
     })
 
