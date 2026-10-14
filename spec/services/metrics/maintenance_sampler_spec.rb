@@ -259,6 +259,21 @@ RSpec.describe Metrics::MaintenanceSampler do
       expect(Syrus::Metrics.render).to include('syrus_auto_retry_attempts_total{skip_reason="none"} 2')
     end
 
+    it "does not advance the auto-retry cursor after a transient read failure" do
+      source = FakeMaintenanceSource.new
+      t0 = Time.current
+      travel_to(t0) { sample!(source: source) } # bootstrap
+
+      source.settled_auto_retry_attempts = ActiveRecord::StatementInvalid.new("timeout")
+      travel_to(t0 + 2.minutes) { sample!(source: source) }
+
+      source.settled_auto_retry_attempts = [ nil ]
+      travel_to(t0 + 3.minutes) { sample!(source: source) }
+      refresh!
+
+      expect(Syrus::Metrics.render).to include('syrus_auto_retry_attempts_total{skip_reason="none"} 1')
+    end
+
     it "does not count a pending attempt that has neither performed nor been skipped yet" do
       t0 = Time.current
       travel_to(t0) { sample! }

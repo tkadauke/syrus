@@ -162,6 +162,23 @@ RSpec.describe Metrics::WorkerSampler do
       expect(Syrus::Metrics.render).to include('syrus_workflow_step_duration_seconds_count{kind="implement"} 1')
     end
 
+    it "does not advance the step-duration cursor after a transient read failure" do
+      source = FakeWorkerSource.new
+      t0 = Time.current
+      travel_to(t0) { sample!(source: source) } # bootstrap
+
+      source.finished_steps = ActiveRecord::StatementInvalid.new("timeout")
+      travel_to(t0 + 2.minutes) { sample!(source: source) }
+
+      source.finished_steps = [
+        [ "implement", t0 + 30.seconds, t0 + 1.minute ]
+      ]
+      travel_to(t0 + 3.minutes) { sample!(source: source) }
+      refresh!(source: source)
+
+      expect(Syrus::Metrics.render).to include('syrus_workflow_step_duration_seconds_count{kind="implement"} 1')
+    end
+
     # One unreachable source costs its own gauge/counter, not the whole tick --
     # same degradation posture as Metrics::QueueSampler/Metrics::LandingSampler.
     it "degrades one failing source without losing the rest of the sample" do
