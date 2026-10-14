@@ -282,6 +282,6 @@ class BaseRevisionRetry
   end
 
   def redacted_command(command)
-    command.to_s.gsub(/(token|password|secret|key)=\S+/i, '\1=[REDACTED]')
+    CommandRedactor.redact(command)
   end
 end

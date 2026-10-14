@@ -11,7 +11,6 @@ module OperationalLogging
   NOTIFICATION_SUBSCRIPTION_MUTEX = Mutex.new
   SECRET_FILTERS = [
     /(authorization:\s*bearer\s+)[^\s,;]+/i,
-    /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
     /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
     /((?:SYRUS_(?:CLI|MCP_PROXY)_INVOCATION_CONTEXT|invocation_context)["']?\s*[:=]\s*["']?)[^"',\s}]+/i,
     /((?:credential_)?lease_id["']?\s*[:=]\s*["']?)[^"',\s}]+/i
@@ -268,7 +267,7 @@ module OperationalLogging
   end
 
   def redact(value)
-    text = value.to_s
+    text = CommandRedactor.redact_assignments(value)
     SECRET_FILTERS.reduce(text) { |current, pattern| current.gsub(pattern, "\\1[REDACTED]") }
   end
 

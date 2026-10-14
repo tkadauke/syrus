@@ -43,6 +43,22 @@ RSpec.describe BaseRevisionRetry do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with("test_insights:parser").and_return([])
   end
 
+  it "redacts compound secret assignments from recorded commands" do
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+
+    command = "SECRET_KEY_BASE=one AWS_SECRET_ACCESS_KEY=two PRIVATE_KEY=three bin/rspec-fast"
+
+    expect(retry_check.send(:redacted_command, command)).to eq(
+      "SECRET_KEY_BASE=[REDACTED] AWS_SECRET_ACCESS_KEY=[REDACTED] PRIVATE_KEY=[REDACTED] bin/rspec-fast"
+    )
+  end
+
   it "treats failed tests as inherited when the focused base run reports the same failures" do
     provider = Class.new do
       def self.command_for(**)
