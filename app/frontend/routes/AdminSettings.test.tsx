@@ -62,6 +62,52 @@ function renderRoute() {
   )
 }
 
+describe("AdminSettings numeric fields", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("omits a blank numeric setting instead of coercing it to zero", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+    const input = await screen.findByLabelText("Max concurrent agent runs (global)")
+    fireEvent.change(input, { target: { value: "" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")
+      expect(patchCall).toBeDefined()
+      const body = JSON.parse(String(patchCall?.[1]?.body))
+      expect(body.app_setting).not.toHaveProperty("max_concurrent_agent_runs")
+    })
+  })
+
+  it("preserves an explicitly entered zero", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+    const input = await screen.findByLabelText("Max concurrent agent runs (global)")
+    fireEvent.change(input, { target: { value: "0" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"max_concurrent_agent_runs":0')
+      }))
+    })
+  })
+})
+
 describe("AdminSettings SecretRow", () => {
   let mockConfirm: ReturnType<typeof mockUseConfirm>
 
