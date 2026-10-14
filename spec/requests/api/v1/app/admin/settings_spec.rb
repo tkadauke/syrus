@@ -84,6 +84,32 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(AppSetting.current.reload.telegram_bot_token).to eq("new-bot-token")
   end
 
+  it "clears a nullable string setting when sent a blank value" do
+    sign_in_as(admin)
+    AppSetting.current.update!(telegram_bot_handle: "acme_syrus_bot")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { telegram_bot_handle: "" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.telegram_bot_handle).to be_nil
+    expect(parse_body.dig("settings", "telegram_bot_handle")).to be_nil
+  end
+
+  it "rejects clearing a required string setting" do
+    sign_in_as(admin)
+    AppSetting.current.update!(report_issue_repo_slug: "acme/syrus")
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { report_issue_repo_slug: "" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(AppSetting.current.reload.report_issue_repo_slug).to eq("acme/syrus")
+  end
+
   it "updates signups_open" do
     sign_in_as(admin)
 
