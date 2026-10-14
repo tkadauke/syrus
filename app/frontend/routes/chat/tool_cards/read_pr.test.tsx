@@ -37,7 +37,7 @@ describe("read_pr tool card", () => {
         body: "Adds custom cards.",
         state: "open",
         html_url: "https://github.com/tkadauke/syrus/pull/7",
-        diff: { text: "diff --git a/x b/x\n+added", truncated: false, bytes: 25 }
+        diff: { text: "diff --git a/x b/x\n@@ -0,0 +1 @@\n+added", truncated: false, bytes: 25 }
       }
     }
 
@@ -60,7 +60,7 @@ describe("read_pr tool card", () => {
       pr: {
         number: 7,
         state: "open",
-        diff: { text: "diff --git a/x b/x\n+added", truncated: true, bytes: 640020, omitted_bytes: 588820 }
+        diff: { text: "diff --git a/x b/x\n@@ -0,0 +1 @@\n+added", truncated: true, bytes: 640020, omitted_bytes: 588820 }
       }
     }
 

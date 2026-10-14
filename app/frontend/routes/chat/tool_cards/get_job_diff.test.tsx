@@ -19,7 +19,7 @@ describe("get_job_diff tool card", () => {
   })
 
   it("summarizes the collapsed row with page info", () => {
-    const parsedResult = { job_id: 4221, run_id: 9, diff: "diff --git a/x b/x\n+a", page: 1, total_pages: 2, has_next_page: true }
+    const parsedResult = { job_id: 4221, run_id: 9, diff: "diff --git a/x b/x\n@@ -0,0 +1 @@\n+a", page: 1, total_pages: 2, has_next_page: true }
     expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221 diff (page 1 of 2)")
   })
 
@@ -40,7 +40,7 @@ describe("get_job_diff tool card", () => {
     const parsedResult = {
       job_id: 4221,
       run_id: 9,
-      diff: "diff --git a/foo.rb b/foo.rb\n+added\n-removed",
+      diff: "diff --git a/foo.rb b/foo.rb\n@@ -1 +1 @@\n-removed\n+added",
       page: 1,
       per_bytes: 51200,
       total_bytes: 640020,
