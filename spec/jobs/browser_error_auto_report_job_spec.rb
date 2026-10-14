@@ -43,6 +43,7 @@ RSpec.describe BrowserErrorAutoReportJob do
     job = Factories.job_record(user: user)
     router = instance_double(BugReports::Router)
     allow(BugReports::Router).to receive(:new).with(user: user).and_return(router)
+    allow(router).to receive(:mode).and_return(:direct_job)
     allow(router).to receive(:call).and_return(BugReports::Router::Result.new(job: job, mode: :direct_job))
 
     described_class.perform_now(event.id)
@@ -68,6 +69,7 @@ RSpec.describe BrowserErrorAutoReportJob do
     second = browser_error
     router = instance_double(BugReports::Router)
     allow(BugReports::Router).to receive(:new).and_return(router)
+    allow(router).to receive(:mode).and_return(:github_issue)
     allow(router).to receive(:call).and_return(BugReports::Router::Result.new(issue_url: "https://github.example/issues/1", mode: :github_issue))
 
     described_class.perform_now(first.id)
@@ -82,6 +84,7 @@ RSpec.describe BrowserErrorAutoReportJob do
     event = browser_error
     router = instance_double(BugReports::Router)
     allow(BugReports::Router).to receive(:new).and_return(router)
+    allow(router).to receive(:mode).and_return(:github_issue)
     allow(router).to receive(:call).and_return(
       BugReports::Router::Result.new(error_code: "github_token_required", error_message: "GitHub token required", mode: :github_issue)
     )
