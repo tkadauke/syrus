@@ -104,6 +104,26 @@ RSpec.describe Ruby::SimpleCovAnalyzer do
       end
     end
 
+    context "with SimpleCov's nested branch coverage data" do
+      let(:result) { described_class.call(output_path: fixture("resultset_with_nested_branches.json")) }
+
+      # discount.rb: lines [null,1,1,1,null] → 3 executable, 3 hit → 100.0%
+      # branches: 4 arms, 2 non-zero (vip then:1, guest else:2) → 50.0%
+
+      it "computes lines_pct from line hits" do
+        expect(result.dig("summary", "lines_pct")).to eq(100.0)
+      end
+
+      it "flattens nested branch arms into branch hit counts" do
+        expect(result.dig("summary", "branches_pct")).to eq(50.0)
+      end
+
+      it "includes nested branch coverage in the per-file entry" do
+        file_entry = result.dig("files", "app/services/discount.rb")
+        expect(file_entry["branches_pct"]).to eq(50.0)
+      end
+    end
+
     context "with merged result sets from multiple test suites" do
       let(:result) { described_class.call(output_path: fixture("merged_resultset.json")) }
 
