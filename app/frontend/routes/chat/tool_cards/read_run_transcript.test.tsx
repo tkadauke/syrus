@@ -29,7 +29,7 @@ describe("read_run_transcript tool card", () => {
       run_state: "succeeded",
       agent_outcome: "success",
       agent_summary: "changed the code",
-      agent_diff: "diff --git a/foo.rb b/foo.rb\n+added line\n-removed line",
+      agent_diff: "diff --git a/foo.rb b/foo.rb\n@@ -1 +1 @@\n+added line\n-removed line",
       total_chunks: 5,
       page: 2,
       per: 2,
