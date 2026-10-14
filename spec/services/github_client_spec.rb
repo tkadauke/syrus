@@ -122,7 +122,7 @@ RSpec.describe GithubClient do
       expect(stub).to have_been_requested
     end
 
-    it "records App-to-PAT API fallback and updates the current Job credential mode" do
+    it "falls back to PAT when the installation cannot access the repository" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
       installation = Factories.installation(
         user: user,
@@ -138,12 +138,12 @@ RSpec.describe GithubClient do
       run = step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind)
       expect(job.credential_mode).to eq("app")
 
-      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+      app_request = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
         .with(headers: { "Authorization" => "token install-token" })
-        .to_return(
-          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json },
-          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json }
-        )
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
       pat_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
         .with(headers: { "Authorization" => "token ghp_test_token" })
         .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { number: 42, title: "PAT path" }.to_json)
@@ -151,6 +151,7 @@ RSpec.describe GithubClient do
       Thread.current[:syrus_current_run] = run
       GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
 
+      expect(app_request).to have_been_requested.once
       expect(pat_stub).to have_been_requested
       expect(job.reload.credential_mode).to eq("pat")
       expect(GithubAuthFallbackDiagnostic.last).to have_attributes(
@@ -158,7 +159,9 @@ RSpec.describe GithubClient do
         installation: installation,
         run: run,
         operation_type: "api",
-        error_status: 404
+        error_status: 404,
+        refresh_attempted: false,
+        refresh_succeeded: false
       )
     ensure
       Thread.current[:syrus_current_run] = nil
@@ -184,18 +187,24 @@ RSpec.describe GithubClient do
         .with(headers: { "Authorization" => "token install-token" })
         .to_return(
           { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json },
-          { status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json }
+          { status: 200, headers: { "Content-Type" => "application/json" }, body: { number: 42, title: "App restored" }.to_json }
         )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
       stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
         .with(headers: { "Authorization" => "token ghp_test_token" })
         .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
 
       Thread.current[:syrus_current_run] = run
+      client = GithubClient.for(repository: repository, user: user)
       expect {
-        GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+        client.fetch_issue(repository.slug, 42)
       }.to raise_error(Octokit::NotFound)
 
       expect(job.reload.credential_mode).to eq("app")
+      expect(client.fetch_issue(repository.slug, 42).title).to eq("App restored")
+      expect(client.auth_source).to eq(:installation)
     ensure
       Thread.current[:syrus_current_run] = nil
     end
@@ -395,6 +404,34 @@ RSpec.describe GithubClient do
         .with(headers: { "Authorization" => "Bearer app-jwt" })
         .to_return(status: 201, headers: { "Content-Type" => "application/json" },
                    body: { token: token, expires_at: expires_at.iso8601 }.to_json)
+    end
+
+    it "returns a resource 404 without refreshing when the installation can access the repository" do
+      tokenless_user = Factories.user
+      repo = Factories.repository(user: tokenless_user, owner: "acme", name: "missing-resource")
+      installation = Factories.installation(
+        user: tokenless_user,
+        github_installation_id: 987,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repo.update!(installation: installation)
+      request = stub_request(:get, "https://api.github.com/repos/acme/missing-resource/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+      access_probe = stub_request(:get, "https://api.github.com/repos/acme/missing-resource")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { full_name: "acme/missing-resource" }.to_json)
+
+      expect {
+        GithubClient.for(repository: repo, user: tokenless_user).fetch_issue(repo.slug, 42)
+      }.to raise_error(Octokit::NotFound)
+
+      expect(request).to have_been_requested.once
+      expect(access_probe).to have_been_requested.once
+      expect(WebMock).not_to have_requested(:post, "https://api.github.com/app/installations/987/access_tokens")
+      expect(GithubAuthFallbackDiagnostic.count).to eq(0)
     end
 
     it "returns the cached token when it is not near expiry" do
@@ -624,6 +661,10 @@ RSpec.describe GithubClient do
         .with(headers: { "Authorization" => "token fresh-token" })
         .to_return(status: 404, headers: { "Content-Type" => "application/json" },
                    body: { message: "Not Found" }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets")
+        .with(headers: { "Authorization" => "token fresh-token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Not Found" }.to_json)
       pat_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
         .with(headers: { "Authorization" => "token ghp_test_token" })
         .to_return(status: 200, headers: { "Content-Type" => "application/json" },
@@ -685,6 +726,23 @@ RSpec.describe GithubClient do
       )
     ensure
       Thread.current[:syrus_current_run] = nil
+    end
+
+    it "re-raises a token-mint NotFound when no PAT fallback is available" do
+      tokenless_user = Factories.user
+      repo = Factories.repository(user: tokenless_user, owner: "acme", name: "tokenless")
+      installation = Factories.installation(user: tokenless_user, github_installation_id: 987)
+      repo.update!(installation: installation)
+      stub_request(:post, "https://api.github.com/app/installations/987/access_tokens")
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Not Found" }.to_json)
+
+      expect { GithubClient.for(repository: repo, user: tokenless_user) }.to raise_error(Octokit::NotFound)
+      expect(GithubAuthFallbackDiagnostic.last).to have_attributes(
+        installation: installation,
+        operation_type: "api_token_mint",
+        error_class: "Octokit::NotFound"
+      )
     end
 
     it "refreshes a stale installation token when fetching an Actions job log, then succeeds" do
@@ -996,6 +1054,14 @@ RSpec.describe GithubClient do
       result = client.compare_commits("acme/widgets", "base-sha", "staging")
 
       expect(result[:truncated]).to be(false)
+    end
+
+    it "raises Octokit::NotFound when either revision is unknown" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...gone")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+
+      expect { client.compare_commits("acme/widgets", "base-sha", "gone") }.to raise_error(Octokit::NotFound)
     end
   end
 
