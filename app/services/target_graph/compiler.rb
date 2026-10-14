@@ -115,6 +115,7 @@ class TargetGraph
     def compile
       @import_errors = []
       @import_diagnostics = []
+      @grade_parse_errors = []
       graph = TargetGraph.new(root_project: root_project_override)
       compile_imported_build_system_graphs!(graph)
       compile_explicit_targets!(graph)
@@ -410,6 +411,7 @@ class TargetGraph
     def combined_error
       messages = []
       messages << "#{owner_config_path}: #{parse_error.message}" if parse_error
+      messages.concat(Array(@grade_parse_errors))
       messages.concat(Array(@nested_parse_errors))
       messages.concat(Array(import_errors))
       messages.join("; ").presence
@@ -650,6 +652,8 @@ class TargetGraph
     end
 
     def compile_graders!(graph, syrus_workspace_path: workspace_path, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return if syrus_config.nil? && parse_error
+
       RepoGradePlan.for(syrus_workspace_path, project_path: package).graders.each do |grader|
         add_target!(
           graph,
@@ -681,6 +685,8 @@ class TargetGraph
           declaration: "legacy grade #{grader.name.inspect}"
         )
       end
+    rescue SyrusYml::ParseError => e
+      @grade_parse_errors << "#{config_path}: #{e.message}"
     end
 
     def add_target!(graph, target, declaration:)

@@ -86,12 +86,26 @@ class FakeMediaRecorder {
 }
 
 function fakeTrack() {
-  return { stop: vi.fn(), addEventListener: vi.fn() }
+  return { stop: vi.fn(), addEventListener: vi.fn(), getSettings: vi.fn(() => ({})) }
 }
 
 function fakeStream() {
   const track = fakeTrack()
   return { getTracks: () => [track], getVideoTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream
+}
+
+function fakeInspectableStream() {
+  const track = fakeTrack()
+  const stream = { getTracks: () => [track], getVideoTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream
+  return { stream, track }
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {}
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
 }
 
 describe("useWalkthroughRecorder onFinished", () => {
@@ -144,6 +158,201 @@ describe("useWalkthroughRecorder onFinished", () => {
     expect(result0.mimeType).toBe("video/webm")
 
     vi.unstubAllGlobals()
+  })
+
+  it("clamps the recorder duration to the walkthrough cap", async () => {
+    const onFinished = vi.fn()
+    let recorder: FakeMediaRecorder | null = null
+
+    vi.stubGlobal("MediaRecorder", class extends FakeMediaRecorder {
+      constructor() {
+        super()
+        recorder = this
+      }
+    })
+    vi.stubGlobal("MediaStream", class {})
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(fakeStream()),
+        getUserMedia: vi.fn().mockResolvedValue(fakeStream())
+      }
+    })
+    const nowSpy = vi.spyOn(Date, "now")
+    nowSpy.mockReturnValue(1_000_000)
+
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished }))
+
+    await act(async () => {
+      await result.current.start()
+    })
+    expect(recorder).not.toBeNull()
+
+    nowSpy.mockReturnValue(1_901_000)
+    act(() => {
+      result.current.stop()
+    })
+
+    await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1))
+    expect(onFinished.mock.calls[0][0].durationSeconds).toBe(MAX_WALKTHROUGH_DURATION_SECONDS)
+
+    vi.unstubAllGlobals()
+  })
+
+  it("delivers the finished recording to the latest onFinished callback", async () => {
+    const firstOnFinished = vi.fn()
+    const latestOnFinished = vi.fn()
+    let recorder: FakeMediaRecorder | null = null
+
+    vi.stubGlobal("MediaRecorder", class extends FakeMediaRecorder {
+      constructor() {
+        super()
+        recorder = this
+      }
+    })
+    vi.stubGlobal("MediaStream", class {})
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(fakeStream()),
+        getUserMedia: vi.fn().mockResolvedValue(fakeStream())
+      }
+    })
+
+    const { result, rerender } = renderHook(
+      ({ onFinished }) => useWalkthroughRecorder({ onFinished }),
+      { initialProps: { onFinished: firstOnFinished } }
+    )
+
+    await act(async () => {
+      await result.current.start()
+    })
+    expect(recorder).not.toBeNull()
+
+    rerender({ onFinished: latestOnFinished })
+    act(() => {
+      result.current.stop()
+    })
+
+    await waitFor(() => expect(latestOnFinished).toHaveBeenCalledTimes(1))
+    expect(firstOnFinished).not.toHaveBeenCalled()
+
+    vi.unstubAllGlobals()
+  })
+})
+
+describe("useWalkthroughRecorder lifecycle cleanup", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it("surfaces MediaRecorder construction failures as an error state", async () => {
+    vi.stubGlobal("MediaRecorder", class {
+      static isTypeSupported = () => true
+      constructor() {
+        throw new Error("unsupported recorder options")
+      }
+    })
+    vi.stubGlobal("MediaStream", class {})
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(fakeStream()),
+        getUserMedia: vi.fn().mockResolvedValue(fakeStream())
+      }
+    })
+
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn() }))
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    expect(result.current.state).toEqual({
+      phase: "error",
+      message: "This browser cannot record the screen. Drag a video file in instead."
+    })
+  })
+
+  it("stops the display stream and does not create a recorder when unmounted while the display picker is open", async () => {
+    const displayCapture = deferred<MediaStream>()
+    const display = fakeInspectableStream()
+    const getUserMedia = vi.fn()
+    const mediaRecorderConstructor = vi.fn()
+
+    vi.stubGlobal("MediaRecorder", class extends FakeMediaRecorder {
+      constructor() {
+        super()
+        mediaRecorderConstructor()
+      }
+    })
+    vi.stubGlobal("MediaStream", class {})
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      mediaDevices: {
+        getDisplayMedia: vi.fn(() => displayCapture.promise),
+        getUserMedia
+      }
+    })
+
+    const { result, unmount } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn() }))
+    let startPromise: Promise<void> = Promise.resolve()
+
+    act(() => {
+      startPromise = result.current.start()
+    })
+    unmount()
+
+    await act(async () => {
+      displayCapture.resolve(display.stream)
+      await startPromise
+    })
+
+    expect(display.track.stop).toHaveBeenCalledTimes(1)
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(mediaRecorderConstructor).not.toHaveBeenCalled()
+  })
+
+  it("stops both streams and does not create a recorder when unmounted while the mic prompt is open", async () => {
+    const display = fakeInspectableStream()
+    const mic = fakeInspectableStream()
+    const micCapture = deferred<MediaStream>()
+    const mediaRecorderConstructor = vi.fn()
+
+    vi.stubGlobal("MediaRecorder", class extends FakeMediaRecorder {
+      constructor() {
+        super()
+        mediaRecorderConstructor()
+      }
+    })
+    vi.stubGlobal("MediaStream", class {})
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(display.stream),
+        getUserMedia: vi.fn(() => micCapture.promise)
+      }
+    })
+
+    const { result, unmount } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn() }))
+    let startPromise: Promise<void> = Promise.resolve()
+
+    act(() => {
+      startPromise = result.current.start()
+    })
+    await waitFor(() => expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalled())
+    unmount()
+
+    await act(async () => {
+      micCapture.resolve(mic.stream)
+      await startPromise
+    })
+
+    expect(display.track.stop).toHaveBeenCalledTimes(1)
+    expect(mic.track.stop).toHaveBeenCalledTimes(1)
+    expect(mediaRecorderConstructor).not.toHaveBeenCalled()
   })
 })
 

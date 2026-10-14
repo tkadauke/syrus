@@ -9,7 +9,7 @@ import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { SyrusMark } from "../components/SyrusBrand"
-import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
+import { LocationKeyedRouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
 import { ConnectionStatusRoute } from "../components/ConnectionStatus"
 import { useAppEvents } from "../lib/useAppEvents"
@@ -453,8 +453,8 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={<RouteErrorBoundary key={path}>{element}</RouteErrorBoundary>} key={path} path={path} />,
-    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{element}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={path} path={path} />,
+    <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
   ]).concat([
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />

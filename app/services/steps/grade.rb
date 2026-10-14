@@ -6,7 +6,11 @@ module Steps
 
     def call
       workspace.setup
-      plan = RepoGradePlan.for(workspace.path)
+      plan = begin
+        RepoGradePlan.for(workspace.path)
+      rescue SyrusYml::ParseError => e
+        raise StepFailed, ".syrus.yml grade config is invalid: #{e.message}"
+      end
       record_plan_source!(plan)
 
       log("[grade] source: #{plan.source}")
