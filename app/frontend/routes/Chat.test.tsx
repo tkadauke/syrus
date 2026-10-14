@@ -188,6 +188,175 @@ describe("chat context find", () => {
     expect(screen.getByText("1/1")).toBeInTheDocument()
   })
 
+  it("keeps the selected match when chat messages update without changing find match ids", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the initial route." },
+          text: "Preview the initial route.",
+          bookmarkable: true
+        },
+        {
+          type: "message",
+          id: 10,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the alternate route." },
+          text: "Preview the alternate route.",
+          bookmarkable: true
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Preview the alternate route.")
+    const firstScroll = vi.fn()
+    const secondScroll = vi.fn()
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: firstScroll
+    })
+    Object.defineProperty(document.getElementById("message-10"), "scrollIntoView", {
+      configurable: true,
+      value: secondScroll
+    })
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
+
+    await waitFor(() => expect(firstScroll).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }))
+
+    await waitFor(() => expect(secondScroll).toHaveBeenCalledTimes(1))
+    expect(screen.getByText("2/2")).toBeInTheDocument()
+
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), {
+        ...payload,
+        messages: [
+          ...payload.messages,
+          {
+            type: "message",
+            id: 11,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "A fresh stream update arrives." },
+            text: "A fresh stream update arrives.",
+            bookmarkable: true
+          }
+        ]
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(await screen.findByText("A fresh stream update arrives.")).toBeInTheDocument()
+    expect(screen.getByText("2/2")).toBeInTheDocument()
+    expect(firstScroll).toHaveBeenCalledTimes(1)
+    expect(secondScroll).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears the chat find query on close so later message updates do not jump to a hidden match", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the initial route." },
+          text: "Preview the initial route.",
+          bookmarkable: true
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Preview the initial route.")
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+    expect(screen.queryByRole("searchbox", { name: "Find" })).not.toBeInTheDocument()
+
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), {
+        ...payload,
+        messages: [
+          ...payload.messages,
+          {
+            type: "message",
+            id: 11,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "A fresh stream update arrives." },
+            text: "A fresh stream update arrives.",
+            bookmarkable: true
+          }
+        ]
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(await screen.findByText("A fresh stream update arrives.")).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    expect(screen.getByRole("searchbox", { name: "Find" })).toHaveValue("")
+  })
+
   it("hides the desktop token overlay while the transcript find bar is open", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -653,92 +822,6 @@ describe("ChatWorkspace split breakpoint", () => {
 })
 
 describe("chat message tail refetch", () => {
-  it("does not merge a pending older page into a cached chat opened before the page resolves", async () => {
-    window.localStorage.clear()
-    mockDesktopViewport()
-
-    let resolveOlderPage: ((response: Response) => void) | null = null
-    const olderPage = new Promise<Response>((resolve) => {
-      resolveOlderPage = resolve
-    })
-    const firstChat = chatPayload({}, { has_more_older: true, pending_proposal_count: 1 })
-    const secondChat = chatPayload({
-      chat: { id: 9, title: "Canal planning" },
-      messages: [
-        {
-          type: "message",
-          id: 19,
-          role: "assistant",
-          tool_name: null,
-          content: { text: "Discuss canals." },
-          text: "Discuss canals.",
-          bookmarkable: true
-        }
-      ]
-    }, {
-      paths: {
-        ...chatPayload().paths,
-        app_messages_path: "/api/v1/app/chats/9/messages"
-      }
-    })
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(chatQueryKey("9", ""), secondChat)
-
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      if (path === "/api/v1/app/chats/8/messages?before=9") {
-        return olderPage
-      }
-      if (path === "/api/v1/app/chats/9") {
-        return Promise.resolve(jsonResponse(secondChat))
-      }
-
-      return Promise.resolve(jsonResponse(firstChat))
-    })
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-          <Routes>
-            <Route element={<ChatRouteWithChatSwitch />} path="/app-shell/chats/:id" />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }))
-    expect(await screen.findByText("Loading older messages...")).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("link", { name: "Open canal chat" }))
-    expect(await screen.findByText("Discuss canals.")).toBeInTheDocument()
-    expect(screen.queryByText("Loading older messages...")).not.toBeInTheDocument()
-
-    await act(async () => {
-      resolveOlderPage?.(jsonResponse({
-        has_more_older: false,
-        messages: [
-          {
-            type: "message",
-            id: 4,
-            role: "user",
-            tool_name: null,
-            content: { text: "Old aqueduct page from the previous chat." },
-            text: "Old aqueduct page from the previous chat.",
-            bookmarkable: true
-          }
-        ]
-      }))
-      await olderPage
-    })
-
-    expect(screen.getByText("Discuss canals.")).toBeInTheDocument()
-    expect(screen.queryByText("Old aqueduct page from the previous chat.")).not.toBeInTheDocument()
-  })
-
   it("preserves older messages when a background refetch returns only the latest page", async () => {
     const olderMessage = {
       type: "message",

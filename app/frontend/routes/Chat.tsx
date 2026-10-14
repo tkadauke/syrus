@@ -526,6 +526,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
+  const lastAutoSelectedFindSignatureRef = useRef<string | null>(null)
   const displayedMessages = useMemo(() => mergeChatMessages(olderMessages, payload.messages), [olderMessages, payload.messages])
   const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
@@ -559,6 +560,11 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   })
   const localFindMatches = useMemo(() => localChatFindMatches(displayedMessages, findQuery, { includeSystem: showSystemMessages }), [displayedMessages, findQuery, showSystemMessages])
   const findMatches = useMemo(() => mergeChatFindMatches(localFindMatches, findResults.data?.matches ?? []), [findResults.data?.matches, localFindMatches])
+  const normalizedFindQuery = findQuery.trim()
+  const findSelectionSignature = useMemo(() => {
+    if (!normalizedFindQuery) return ""
+    return `${normalizedFindQuery}\n${findMatches.map((match) => match.message_id).join("|")}`
+  }, [findMatches, normalizedFindQuery])
   const findCountLabel = findQuery.trim().length === 0
     ? t("context_find_ready")
     : findResults.isPending && findMatches.length === 0
@@ -643,6 +649,13 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     return true
   }, [])
 
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery("")
+    setActiveFindIndex(0)
+    lastAutoSelectedFindSignatureRef.current = null
+  }, [])
+
   useEffect(() => {
     if (!contextFindOpenerRef) return
 
@@ -673,9 +686,16 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   }, [findMatches, selectFindMatch])
 
   useEffect(() => {
+    if (!findOpen || !normalizedFindQuery) {
+      lastAutoSelectedFindSignatureRef.current = null
+      return
+    }
+    if (lastAutoSelectedFindSignatureRef.current === findSelectionSignature) return
+
+    lastAutoSelectedFindSignatureRef.current = findSelectionSignature
     setActiveFindIndex(0)
     if (findMatches.length > 0) selectFindMatch(findMatches[0])
-  }, [findMatches, selectFindMatch])
+  }, [findMatches, findOpen, findSelectionSignature, normalizedFindQuery, selectFindMatch])
 
   useEffect(() => {
     onCanLoadOlderChange?.(hasMoreOlder && oldestId != null && !loadOlder.isPending)
@@ -876,7 +896,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
             placeholder={t("context_find_placeholder_chat")}
             previousLabel={t("context_find_previous")}
             query={findQuery}
-            onClose={() => setFindOpen(false)}
+            onClose={closeFind}
             onNext={() => goToFindIndex(activeFindIndex + 1)}
             onPrevious={() => goToFindIndex(activeFindIndex - 1)}
             onQueryChange={setFindQuery}
