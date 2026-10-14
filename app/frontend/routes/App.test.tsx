@@ -3473,6 +3473,73 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 30000)
 
+  it("reenables bulk job actions after the action succeeds", async () => {
+    let resolveBulkAction: ((response: Response) => void) | undefined
+    const bulkActionResponse = new Promise<Response>((resolve) => {
+      resolveBulkAction = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                total: 1,
+                items: [
+                  dashboardJobItem({
+                    bulk_actions: {
+                      retry: true,
+                      close: true
+                    }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard/jobs/bulk") return bulkActionResponse
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByLabelText("Select Repair aqueduct"))
+    const retryButton = screen.getByRole("button", { name: "Retry" })
+    const closeButton = screen.getByRole("button", { name: "Close" })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(retryButton).toBeDisabled()
+      expect(closeButton).toBeDisabled()
+    })
+
+    resolveBulkAction?.(
+      new Response(JSON.stringify({ message: "Retry enqueued for 1 job." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(retryButton).toBeEnabled()
+      expect(closeButton).toBeEnabled()
+    })
+  })
+
   it("shows only bulk job actions that apply to every selected dashboard row", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
