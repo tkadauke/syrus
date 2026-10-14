@@ -199,18 +199,19 @@ module Admin
     end
 
     def recurring_payload
-      task_keys = ::SolidQueue::RecurringTask.pluck(:key)
+      tasks = ::SolidQueue::RecurringTask.select(:key, :schedule).to_a
+      task_keys = tasks.map(&:key)
       payload = { count: task_keys.size }
       return payload unless recurring_diagnostics_page?
 
       last_run_at_by_task_key = ::SolidQueue::RecurringExecution.where(task_key: task_keys).group(:task_key).maximum(:run_at)
-      overdue = task_keys.filter_map do |key|
-        last_run_at = last_run_at_by_task_key[key]
+      overdue = tasks.filter_map do |task|
+        last_run_at = last_run_at_by_task_key[task.key]
         if last_run_at.nil?
-          { key: key, age_seconds: nil, never_run: true }
+          { key: task.key, age_seconds: nil, never_run: true }
         else
           age = Time.current - last_run_at
-          { key: key, age_seconds: age.to_i } if age > 10.minutes
+          { key: task.key, age_seconds: age.to_i } if age > recurring_overdue_after(task.schedule)
         end
       end
       payload.merge(overdue: overdue)
@@ -218,6 +219,29 @@ module Admin
            ActiveRecord::ConnectionNotEstablished,
            ActiveRecord::ActiveRecordError
       { unreachable: true }
+    end
+
+    def recurring_overdue_after(schedule)
+      interval = recurring_schedule_interval(schedule)
+      return 10.minutes unless interval
+
+      interval * 2
+    end
+
+    def recurring_schedule_interval(schedule)
+      text = schedule.to_s.strip.downcase
+      return unless text.start_with?("every ")
+
+      case text
+      when /\Aevery (?:(\d+) )?seconds?(?:\b|$)/
+        ($1 || 1).to_i.seconds
+      when /\Aevery (?:(\d+) )?minutes?(?:\b|$)/
+        ($1 || 1).to_i.minutes
+      when /\Aevery (?:(\d+) )?hours?(?:\b|$)/
+        ($1 || 1).to_i.hours
+      when /\Aevery (?:(\d+) )?days?(?:\b|$)/
+        ($1 || 1).to_i.days
+      end
     end
 
     def stuck_items

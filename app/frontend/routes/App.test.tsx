@@ -2465,7 +2465,7 @@ describe("App", () => {
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
-    vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -2534,7 +2534,7 @@ describe("App", () => {
             current: [],
             hosts: []
           },
-          recurring: { overdue: [] },
+          recurring: { count: 2, overdue: [{ key: "poll_repositories", age_seconds: 660 }] },
           stuck_pagination: { page: 1, per_page: 50, total: 1, total_pages: 1, first_item: 1, last_item: 1, previous_path: null, next_path: null },
           stuck: [
             {
@@ -2591,7 +2591,11 @@ describe("App", () => {
       expect(screen.queryByRole("region", { name: "Scoped chat event evaluator decisions" })).not.toBeInTheDocument()
       expect(screen.queryByText("JSON::ParserError: evaluator did not return JSON")).not.toBeInTheDocument()
       expect(screen.getByRole("link", { name: /Workers/ })).toHaveClass("border-red-200")
-      expect(screen.getByText("2")).toBeInTheDocument()
+      const recurringMetric = screen.getByRole("link", { name: /Recurring jobs/ })
+      expect(recurringMetric).toHaveClass("border-red-200")
+      expect(within(recurringMetric).getByText("poll_repositories")).toBeInTheDocument()
+      expect(within(recurringMetric).getByText("2")).toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/overview?page=recurring", expect.anything())
     } finally {
       script.remove()
     }

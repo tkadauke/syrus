@@ -138,6 +138,51 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
     )
   end
 
+  it "returns cadence-aware recurring overdue tasks for the recurring diagnostics page" do
+    admin = Factories.user
+    travel_to Time.zone.parse("2026-06-05 12:00:00 UTC") do
+      five_minute_task = SolidQueue::RecurringTask.create!(
+        key: "poll_repositories",
+        class_name: "PollAllRepositoriesJob",
+        schedule: "every 5 minutes",
+        static: true,
+        created_at: Time.current,
+        updated_at: Time.current
+      )
+      hourly_task = SolidQueue::RecurringTask.create!(
+        key: "refresh_retention_size_snapshot",
+        class_name: "RetentionSizeSnapshotJob",
+        schedule: "every hour",
+        static: true,
+        created_at: Time.current,
+        updated_at: Time.current
+      )
+      never_run_task = SolidQueue::RecurringTask.create!(
+        key: "sample_global_metrics",
+        class_name: "SampleGlobalMetricsJob",
+        schedule: "every minute",
+        static: true,
+        created_at: Time.current,
+        updated_at: Time.current
+      )
+      stale_job = solid_queue_job(class_name: five_minute_task.class_name, queue_name: "polling", finished_at: 11.minutes.ago)
+      fresh_hourly_job = solid_queue_job(class_name: hourly_task.class_name, queue_name: "cleanup", finished_at: 20.minutes.ago)
+      SolidQueue::RecurringExecution.create!(task_key: five_minute_task.key, run_at: 11.minutes.ago, job: stale_job, created_at: 11.minutes.ago)
+      SolidQueue::RecurringExecution.create!(task_key: hourly_task.key, run_at: 20.minutes.ago, job: fresh_hourly_job, created_at: 20.minutes.ago)
+      sign_in_as(admin)
+
+      get api_v1_app_admin_overview_path, params: { page: "recurring" }
+
+      expect(response).to have_http_status(:ok)
+      recurring = parse_body.fetch("recurring")
+      expect(recurring).to include("count" => 3)
+      expect(recurring.fetch("overdue")).to contain_exactly(
+        { "key" => five_minute_task.key, "age_seconds" => 660 },
+        { "key" => never_run_task.key, "age_seconds" => nil, "never_run" => true }
+      )
+    end
+  end
+
   it "does not show stale false Codex model-list decode failures as provider usage circuits" do
     admin = Factories.user
     job = Factories.job(user: admin, agent_provider: "codex")
@@ -230,5 +275,18 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "recent" => []
     )
     expect(parse_body).not_to have_key("resource_admission")
+  end
+
+  def solid_queue_job(class_name:, queue_name:, arguments: { "arguments" => [] }, finished_at: nil, priority: 0, scheduled_at: nil)
+    SolidQueue::Job.create!(
+      class_name: class_name,
+      queue_name: queue_name,
+      priority: priority,
+      arguments: arguments,
+      created_at: Time.current,
+      updated_at: Time.current,
+      finished_at: finished_at,
+      scheduled_at: scheduled_at
+    )
   end
 end
