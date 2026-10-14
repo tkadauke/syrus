@@ -3559,6 +3559,74 @@ describe("App", () => {
     expect(within(bulkToolbar()).queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   }, 30000)
 
+  it("reenables bulk job actions after the action succeeds", async () => {
+    let resolveBulk: ((response: Response) => void) | null = null
+    const payload = dashboardPayload({
+      subject: "job",
+      view: "list",
+      total: 1,
+      preferences: {
+        ...dashboardPayload().preferences,
+        visible_columns: ["checkbox", "issue", "state"]
+      },
+      items: [
+        dashboardJobItem({
+          id: 42,
+          title: "Retryable aqueduct",
+          state: "failed",
+          issue_number: 42,
+          bulk_actions: {
+            retry: true,
+            close: true
+          }
+        })
+      ]
+    })
+
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/dashboard/jobs/bulk" && init?.method === "POST") {
+        return new Promise<Response>((resolve) => {
+          resolveBulk = resolve
+        })
+      }
+
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(dashboardResponse(payload, input))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    expect(await screen.findByText("Retryable aqueduct")).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("Select Retryable aqueduct"))
+    const bulkToolbar = () => screen.getByText("1 selected").closest("div")!.parentElement!
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+
+    fireEvent.click(within(bulkToolbar()).getByRole("button", { name: "Retry" }))
+    await waitFor(() => {
+      expect(within(bulkToolbar()).getByRole("button", { name: "Retry" })).toBeDisabled()
+    })
+
+    await act(async () => {
+      resolveBulk?.(jsonResponse({
+        message: "Retry enqueued for 1 job.",
+        action: "retry",
+        affected_job_ids: [42],
+        skipped_job_ids: []
+      }))
+    })
+
+    expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(bulkToolbar()).getByRole("button", { name: "Retry" })).not.toBeDisabled()
+      expect(within(bulkToolbar()).getByRole("button", { name: "Close" })).not.toBeDisabled()
+    })
+  }, 30000)
+
   it("uses conservative bulk job action fallback when row payloads omit bulk_actions", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
