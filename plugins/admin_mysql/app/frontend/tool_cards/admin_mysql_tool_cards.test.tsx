@@ -225,25 +225,21 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
   })
 
-  it("renders admin_mysql_kill_query success and failure outcomes", () => {
-    const killed = context({
+  it("renders admin_mysql_kill_query as a pending operator confirmation", () => {
+    const pending = context({
       toolName: "admin_mysql_kill_query",
-      parsedResult: { killed: true, thread_id: 90, generated_at: "2026-09-10T12:00:00Z" }
-    })
-    const failed = context({
-      toolName: "admin_mysql_kill_query",
-      resultError: true,
-      parsedResult: { killed: false, thread_id: 91, error: { message: "Unknown thread id: 91" } }
+      parsedResult: {
+        pending_confirmation_id: 90,
+        pending_action_id: 90,
+        state: "pending",
+        message: "Kill the query on MySQL thread 90?"
+      }
     })
 
-    expect(killQueryToolCard.collapsedSummary?.(killed)).toBe("Killed query #90")
-    render(<>{killQueryToolCard.renderExpanded(killed)}</>)
-    expect(screen.getByText("killed")).toBeInTheDocument()
-    expect(screen.getByText("thread #90")).toBeInTheDocument()
-
-    expect(killQueryToolCard.collapsedSummary?.(failed)).toBe("Kill query failed #91")
-    render(<>{killQueryToolCard.renderExpanded(failed)}</>)
-    expect(screen.getByText("Unknown thread id: 91")).toBeInTheDocument()
+    expect(killQueryToolCard.collapsedSummary?.(pending)).toBe("Kill the query on MySQL thread 90?")
+    render(<>{killQueryToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Kill the query on MySQL thread 90?")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed JSON payloads", () => {

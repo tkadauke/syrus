@@ -26,16 +26,24 @@ RSpec.describe AdminMysql::ChatToolSet do
     expect(tools.find { |tool| tool.fetch(:name) == "admin_mysql_kill_query" }.dig(:input_schema, :required)).to eq([ "thread_id" ])
   end
 
-  it "keeps admin chat kill-query dispatch intact" do
-    payload = { killed: true, thread_id: 42 }
-    inspector = instance_double(AdminMysql::Inspector, kill_query: payload)
+  it "creates a pending action with the current statement instead of killing immediately" do
+    admin = Factories.user(admin: true)
+    admin_chat = ChatSession.create!(user: admin)
+    inspector = instance_double(AdminMysql::Inspector, process: { id: 42, info: "SELECT * FROM jobs" })
     allow(AdminMysql::Inspector).to receive(:new).and_return(inspector)
 
     response = described_class.new.handle("admin_mysql_kill_query", { "thread_id" => 42 }, { chat_session: admin_chat })
 
     expect(response.error?).to be(false)
-    expect(response.content.first[:text]).to eq(JSON.pretty_generate(payload))
-    expect(inspector).to have_received(:kill_query).with(42)
+    payload = JSON.parse(response.content.first[:text])
+    action = admin_chat.pending_actions.find(payload.fetch("pending_action_id"))
+    expect(action).to have_attributes(
+      action: "admin_mysql_kill_query",
+      state: "pending",
+      user: admin,
+      payload: { "thread_id" => 42, "statement" => "SELECT * FROM jobs" }
+    )
+    expect(inspector).to have_received(:process).with(42)
   end
 
   it "refuses kill-query dispatch outside an admin chat context" do
