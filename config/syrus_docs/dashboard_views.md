@@ -6,6 +6,13 @@ The Jobs and Epics dashboards support three view modes toggled from the toolbar:
 
 Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
 
+All dashboard subjects start from repositories the current user can access,
+including direct repository memberships, Team grants, and upstream repositories
+reachable through those grants. Ownership scopes (`mine`, `team`, `claimable`,
+and `user`) narrow that accessible repository set; `team` is not instance-wide,
+and a selected `user` owner must be a collaborator on at least one repository in
+the viewer's accessible dashboard set.
+
 ## kanban
 
 Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows. Backlogged Jobs are open planned work, but they do not dispatch Workflows or Runs until an operator releases them from backlog.
