@@ -3,6 +3,7 @@ module Admin
     class Payload
       PER_PAGE = 100
       PROCESS_STALE_THRESHOLD = InstanceVersion::HEARTBEAT_STALE_THRESHOLD
+      LATEST_SAMPLE_HOST_LIMIT = 500
       SORT_DIRECTIONS = %w[asc desc].freeze
       DEFAULT_SORTS = {
         active: [ "claimed_at", "desc" ],
@@ -95,11 +96,11 @@ module Admin
       def failed
         PerformanceLogging.phase("admin_queue_payload", tab: "failed") do
           SmartFolder.ensure_admin_queue_builtins!
-          since = failed_since
           active_folder = active_smart_folder
           base = SolidQueue::FailedExecution.joins(:job)
           filter = display_filter(:failed, active_folder)
           filtered = filter.apply(base)
+          since = failed_since(filter)
           total = PerformanceLogging.phase("admin_queue.failed.total") { filtered.count }
           failures = PerformanceLogging.phase("admin_queue.failed.query") {
             apply_sql_sort(filtered, :failed)
@@ -359,8 +360,39 @@ module Admin
         ((end_time - start_time) / 1.minute).ceil.clamp(1, (::Admin::WorkerHealthPayload::MAX_MINUTE_BUCKET_WINDOW / 1.minute).to_i)
       end
 
-      def failed_since
-        params[:since].present? ? Time.iso8601(params[:since]) : 24.hours.ago
+      def failed_since(filter)
+        failed_since_from_tree(filter.to_h) || 24.hours.ago
+      end
+
+      def failed_since_from_tree(node)
+        case node
+        when Hash
+          if node["field"].to_s == "failed_since"
+            failed_since_from_chip(node)
+          else
+            Array(node["and"] || node["or"]).filter_map { |child| failed_since_from_tree(child) }.first ||
+              failed_since_from_tree(node["not"])
+          end
+        when Array
+          node.filter_map { |child| failed_since_from_tree(child) }.first
+        end
+      end
+
+      def failed_since_from_chip(chip)
+        case chip["op"].to_s
+        when "after"
+          parse_time(chip["value"])
+        when "within_last"
+          duration_from_filter_value(chip["value"]).ago
+        end
+      end
+
+      def duration_from_filter_value(value)
+        spec = value.is_a?(Hash) ? value : {}
+        n = Integer(spec["n"] || spec[:n] || 0)
+        unit_key = (spec["unit"] || spec[:unit]).to_s
+        per = Filters::Chips::DateColumn::UNITS.fetch(unit_key)
+        per * n
       end
 
       def parse_time(value)
@@ -470,12 +502,26 @@ module Admin
       end
 
       def latest_sample_by_hostname
-        @latest_sample_by_hostname ||= WorkerHostHealthSample
+        @latest_sample_by_hostname ||= latest_worker_health_samples.index_by(&:hostname)
+      end
+
+      def latest_worker_health_samples
+        table = WorkerHostHealthSample.quoted_table_name
+        ranked = WorkerHostHealthSample
           .worker_role
           .where("observed_at >= ?", PROCESS_STALE_THRESHOLD.ago)
+          .select(
+            "#{table}.*, " \
+            "ROW_NUMBER() OVER (PARTITION BY #{table}.hostname " \
+            "ORDER BY #{table}.observed_at DESC, #{table}.id DESC) AS sample_rank"
+          )
+
+        WorkerHostHealthSample
+          .from(ranked, table)
+          .where("sample_rank = 1")
           .order(observed_at: :desc)
+          .limit(LATEST_SAMPLE_HOST_LIMIT)
           .to_a
-          .index_by(&:hostname)
       end
 
       def drains_by_identity
