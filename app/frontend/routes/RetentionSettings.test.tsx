@@ -172,11 +172,14 @@ describe("RetentionSettings", () => {
     renderRoute()
     await screen.findByText("notifications")
 
-    fireEvent.change(screen.getByLabelText("Retention window for notifications"), { target: { value: "" } })
+    const input = screen.getByLabelText("Retention window for notifications")
+    fireEvent.change(input, { target: { value: "" } })
 
     const saveButton = screen.getAllByRole("button", { name: "Save" })[1]
     expect(saveButton).toBeDisabled()
-    fireEvent.click(saveButton)
+    const form = input.closest("form")
+    if (!form) throw new Error("Retention settings form not found")
+    fireEvent.submit(form)
     expect(fetchSpy).not.toHaveBeenCalledWith(
       "/api/v1/app/admin/retention_settings",
       expect.objectContaining({ method: "PATCH" })
