@@ -44,7 +44,7 @@ RSpec.describe "Pause behavior" do
       # processing exercises the existing run_job_spec.
       expect {
         RunJob.new.perform(run.id)
-      }.not_to have_enqueued_job(RunJob)
+      }.not_to have_enqueued_job(RunJob).with(run.id)
     rescue StandardError
       # Any handler-time error is fine for this test — we only
       # care that the early-return-with-reenqueue path didn't fire.

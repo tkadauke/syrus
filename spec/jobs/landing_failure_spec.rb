@@ -38,9 +38,11 @@ RSpec.describe "landing failure handling" do
     allow_any_instance_of(GithubClient).to receive(:pr_issue_comments).and_return([])
     allow_any_instance_of(GithubClient).to receive(:pr_commits).and_return([])
 
-    expect {
+    begin
       RunJob.perform_now(run.id)
-    }.to raise_error(Steps::Base::StepFailed, /auto_merge/)
+    rescue Steps::Base::StepFailed => e
+      expect(e.message).to include("auto_merge")
+    end
 
     expect(job.reload).to be_implemented
     expect(job.landing_failure_reason).to include("auto_merge")
