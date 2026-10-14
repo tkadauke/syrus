@@ -20,7 +20,8 @@ import {
   updateMysqlConnection,
   type MysqlConnectionInput,
   type MysqlConnectionRow,
-  type MysqlConnectionTestResult
+  type MysqlConnectionTestResult,
+  type CredentialScopeOptions
 } from "../api/mysqlConnections"
 import {
   fetchMysqlDatabases,
@@ -47,7 +48,8 @@ const EMPTY_FORM: MysqlConnectionInput = {
   default_database: "",
   agentic_access_enabled: false,
   allow_writes: false,
-  password: ""
+  password: "",
+  credential_scope_type: "user"
 }
 
 type BrowseTarget = { connectionId: number; label: string }
@@ -136,7 +138,12 @@ export function MysqlConnections() {
       ) : null}
 
       {formTarget ? (
-        <ConnectionFormModal connection={formTarget === "create" ? null : formTarget} onClose={() => setFormTarget(null)} onNotice={setNotice} />
+        <ConnectionFormModal
+          connection={formTarget === "create" ? null : formTarget}
+          scopeOptions={connections.data?.credential_scope_options}
+          onClose={() => setFormTarget(null)}
+          onNotice={setNotice}
+        />
       ) : null}
     </Page.Root>
   )
@@ -145,11 +152,13 @@ export function MysqlConnections() {
 function ConnectionFormModal({
   connection,
   onClose,
-  onNotice
+  onNotice,
+  scopeOptions
 }: {
   connection: MysqlConnectionRow | null
   onClose: () => void
   onNotice: (message: string | null) => void
+  scopeOptions?: CredentialScopeOptions
 }) {
   const { t } = useT("mysql_db_browser")
   const queryClient = useQueryClient()
@@ -164,7 +173,9 @@ function ConnectionFormModal({
           default_database: connection.default_database || "",
           agentic_access_enabled: connection.agentic_access_enabled,
           allow_writes: connection.allow_writes,
-          password: ""
+          password: "",
+          credential_scope_type: connection.credential_scope_type || "user",
+          credential_scope_id: connection.credential_scope_id || undefined
         }
       : EMPTY_FORM
   )
@@ -209,6 +220,7 @@ function ConnectionFormModal({
             passwordHint={isEdit ? t("field_password_hint_edit") : undefined}
             passwordRequired={!isEdit}
             values={values}
+            scopeOptions={scopeOptions}
           />
           <Form.Actions align="start" className="pt-0">
             <Button disabled={save.isPending} type="submit" variant="primary">
@@ -260,28 +272,23 @@ function ConnectionsTable({
   if (!isDesktop) {
     return (
       <div className="space-y-3">
-        <FilterBar
-          filter={filterTree}
-          filterSchema={filterSchema}
-          pathname={location.pathname}
-          search={location.search}
-        />
+        <FilterBar filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
         <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-        {filteredConnections.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-900">
-            {filteredConnections.map((connection) => (
-              <MobileConnectionCard
-                connection={connection}
-                key={connection.id}
-                onBrowse={() => onBrowse(connection)}
-                onEdit={() => onEdit(connection)}
-                onNotice={onNotice}
-              />
-            ))}
-          </div>
-        )}
+          {filteredConnections.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-900">
+              {filteredConnections.map((connection) => (
+                <MobileConnectionCard
+                  connection={connection}
+                  key={connection.id}
+                  onBrowse={() => onBrowse(connection)}
+                  onEdit={() => onEdit(connection)}
+                  onNotice={onNotice}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     )
@@ -289,12 +296,7 @@ function ConnectionsTable({
 
   return (
     <div className="space-y-3">
-      <FilterBar
-        filter={filterTree}
-        filterSchema={filterSchema}
-        pathname={location.pathname}
-        search={location.search}
-      />
+      <FilterBar filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
       <AdminEventLogTable
         columns={connectionColumns({ onBrowse, onEdit, onNotice, t })}
         defaultSort={{ column: "label", direction: "asc" }}
@@ -310,15 +312,49 @@ function ConnectionsTable({
 
 function connectionFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField[] {
   return [
-    { field: "query", label: t("connection_filter_query"), bucket: "text", operators: ["contains"], free_text_search: true, expansions: { placeholder: t("connection_filter_placeholder") } },
+    {
+      field: "query",
+      label: t("connection_filter_query"),
+      bucket: "text",
+      operators: ["contains"],
+      free_text_search: true,
+      expansions: { placeholder: t("connection_filter_placeholder") }
+    },
     { field: "label", label: t("col_label"), bucket: "text", operators: ["contains", "is", "is_not"] },
     { field: "host", label: t("col_host"), bucket: "text", operators: ["contains", "is", "is_not"] },
     { field: "port", label: t("field_port"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] },
     { field: "username", label: t("col_username"), bucket: "text", operators: ["contains", "is", "is_not"] },
     { field: "default_database", label: t("col_default_database"), bucket: "text", operators: ["contains", "is", "is_not", "is_set", "is_unset"] },
-    { field: "agentic_access_enabled", label: t("col_agentic_access"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("agentic_enabled") }, { value: "false", label: t("agentic_disabled") }] },
-    { field: "allow_writes", label: t("col_allow_writes"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("allow_writes_enabled") }, { value: "false", label: t("allow_writes_disabled") }] },
-    { field: "has_password", label: t("col_password"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("has_password_yes") }, { value: "false", label: t("has_password_no") }] },
+    {
+      field: "agentic_access_enabled",
+      label: t("col_agentic_access"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("agentic_enabled") },
+        { value: "false", label: t("agentic_disabled") }
+      ]
+    },
+    {
+      field: "allow_writes",
+      label: t("col_allow_writes"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("allow_writes_enabled") },
+        { value: "false", label: t("allow_writes_disabled") }
+      ]
+    },
+    {
+      field: "has_password",
+      label: t("col_password"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("has_password_yes") },
+        { value: "false", label: t("has_password_no") }
+      ]
+    },
     { field: "created_at", label: t("col_created_at"), bucket: "date", operators: ["before", "after", "between"] },
     { field: "updated_at", label: t("col_updated_at"), bucket: "date", operators: ["before", "after", "between"] }
   ]
@@ -360,8 +396,12 @@ function connectionSearchText(connection: MysqlConnectionRow, t: ReturnType<type
     connection.default_database,
     connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled"),
     connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled"),
-    connection.has_password ? t("has_password_yes") : t("has_password_no")
-  ].filter(Boolean).join(" ").toLowerCase()
+    connection.has_password ? t("has_password_yes") : t("has_password_no"),
+    connection.legacy_credentials ? t("credential_scope_legacy") : connection.credential_scope_type
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
 }
 
 function connectionColumns({
@@ -376,28 +416,80 @@ function connectionColumns({
   t: ReturnType<typeof useT>["t"]
 }): Array<AdminEventLogTableColumn<MysqlConnectionRow>> {
   return [
-    { key: "label", header: t("col_label"), className: "font-medium text-gray-900 dark:text-gray-100", render: (connection) => connection.label, sort: "label", sortValue: (connection) => connection.label },
-    { key: "host", header: t("col_host"), className: "font-mono text-gray-700 dark:text-gray-300", render: (connection) => `${connection.host}:${connection.port}`, sort: "host", sortValue: (connection) => `${connection.host}:${connection.port}` },
-    { key: "username", header: t("col_username"), className: "text-gray-700 dark:text-gray-300", render: (connection) => connection.username, sort: "username", sortValue: (connection) => connection.username },
-    { key: "default_database", header: t("col_default_database"), className: "text-gray-700 dark:text-gray-300", render: (connection) => connection.default_database || "-", sort: "default_database", sortValue: (connection) => connection.default_database || "" },
+    {
+      key: "label",
+      header: t("col_label"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (connection) => connection.label,
+      sort: "label",
+      sortValue: (connection) => connection.label
+    },
+    {
+      key: "host",
+      header: t("col_host"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      render: (connection) => `${connection.host}:${connection.port}`,
+      sort: "host",
+      sortValue: (connection) => `${connection.host}:${connection.port}`
+    },
+    {
+      key: "username",
+      header: t("col_username"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (connection) => connection.username,
+      sort: "username",
+      sortValue: (connection) => connection.username
+    },
+    {
+      key: "default_database",
+      header: t("col_default_database"),
+      className: "text-gray-700 dark:text-gray-300",
+      render: (connection) => connection.default_database || "-",
+      sort: "default_database",
+      sortValue: (connection) => connection.default_database || ""
+    },
     {
       key: "password",
       header: t("col_password"),
-      render: (connection) => <StatusBadge tone={connection.has_password ? "success" : "neutral"}>{connection.has_password ? t("has_password_yes") : t("has_password_no")}</StatusBadge>,
+      render: (connection) => (
+        <StatusBadge tone={connection.has_password ? "success" : "neutral"}>
+          {connection.has_password ? t("has_password_yes") : t("has_password_no")}
+        </StatusBadge>
+      ),
       sort: "password",
       sortValue: (connection) => Number(connection.has_password)
     },
     {
+      key: "credential_scope",
+      header: t("col_credential_scope"),
+      render: (connection) =>
+        connection.legacy_credentials ? (
+          <StatusBadge tone="warning">{t("credential_scope_legacy")}</StatusBadge>
+        ) : (
+          t(`credential_scope_${connection.credential_scope_type || "user"}`)
+        ),
+      sort: "credential_scope",
+      sortValue: (connection) => (connection.legacy_credentials ? "legacy" : connection.credential_scope_type || "")
+    },
+    {
       key: "agentic_access",
       header: t("col_agentic_access"),
-      render: (connection) => <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>{connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}</StatusBadge>,
+      render: (connection) => (
+        <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>
+          {connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
+        </StatusBadge>
+      ),
       sort: "agentic_access",
       sortValue: (connection) => Number(connection.agentic_access_enabled)
     },
     {
       key: "allow_writes",
       header: t("col_allow_writes"),
-      render: (connection) => <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>{connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}</StatusBadge>,
+      render: (connection) => (
+        <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>
+          {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
+        </StatusBadge>
+      ),
       sort: "allow_writes",
       sortValue: (connection) => Number(connection.allow_writes)
     },
@@ -422,7 +514,9 @@ function connectionColumns({
       header: <span className="sr-only">{t("col_actions")}</span>,
       label: t("col_actions"),
       pin: "end",
-      render: (connection) => <ConnectionActions align="end" connection={connection} onBrowse={() => onBrowse(connection)} onEdit={() => onEdit(connection)} onNotice={onNotice} />,
+      render: (connection) => (
+        <ConnectionActions align="end" connection={connection} onBrowse={() => onBrowse(connection)} onEdit={() => onEdit(connection)} onNotice={onNotice} />
+      ),
       required: true
     }
   ]
@@ -468,7 +562,7 @@ function filterTreeFromSearch(search: string): FilterTree {
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return { and: [] }
   try {
-    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (encoded.length % 4)) % 4)}`
     const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
     return { and: topLevelNodes(parsed) }
@@ -597,13 +691,15 @@ function ConnectionFieldsGrid({
   onChange,
   passwordHint,
   passwordRequired,
-  values
+  values,
+  scopeOptions
 }: {
   idPrefix: string
   onChange: (values: MysqlConnectionInput) => void
   passwordHint?: string
   passwordRequired?: boolean
   values: MysqlConnectionInput
+  scopeOptions?: CredentialScopeOptions
 }) {
   const { t } = useT("mysql_db_browser")
   const [connectionUrl, setConnectionUrl] = useState("")
@@ -661,6 +757,44 @@ function ConnectionFieldsGrid({
         </Form.Label>
         <Form.Input onChange={(event) => set("default_database", event.target.value)} type="text" value={values.default_database} />
       </Form.Field>
+      <Form.Field controlId={`${idPrefix}-credential-scope`}>
+        <Form.Label>{t("field_credential_scope")}</Form.Label>
+        <Form.Select
+          onChange={(event) =>
+            onChange({ ...values, credential_scope_type: event.target.value as MysqlConnectionInput["credential_scope_type"], credential_scope_id: undefined })
+          }
+          value={values.credential_scope_type}
+        >
+          {scopeOptions?.scopes.map((scope) => (
+            <option key={scope.value} value={scope.value}>
+              {scope.label}
+            </option>
+          ))}
+        </Form.Select>
+        <Form.HelpText>{t("field_credential_scope_hint")}</Form.HelpText>
+      </Form.Field>
+      {values.credential_scope_type !== "instance" ? (
+        <Form.Field controlId={`${idPrefix}-credential-scope-target`}>
+          <Form.Label>{t("field_credential_scope_target")}</Form.Label>
+          <Form.Select
+            onChange={(event) => set("credential_scope_id", Number(event.target.value))}
+            required={values.credential_scope_type !== "user"}
+            value={values.credential_scope_id || ""}
+          >
+            <option value="">{t("field_credential_scope_target_default")}</option>
+            {(values.credential_scope_type === "user"
+              ? scopeOptions?.users
+              : values.credential_scope_type === "repository"
+                ? scopeOptions?.repositories
+                : scopeOptions?.teams
+            )?.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.label}
+              </option>
+            ))}
+          </Form.Select>
+        </Form.Field>
+      ) : null}
       <Form.Field className="sm:col-span-2 lg:col-span-3" controlId={`${idPrefix}-agentic-access`}>
         <Form.Checkbox
           checked={values.agentic_access_enabled}

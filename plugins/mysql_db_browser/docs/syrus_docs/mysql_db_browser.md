@@ -164,11 +164,12 @@ through five MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`MysqlDbBrowser::WorkflowToolSet` / `MysqlDbBrowser::ChatToolSet`,
 `plugins/mysql_db_browser/app/services/mysql_db_browser/{workflow,chat}_tool_set.rb`):
 
-- `mysql_db_browser_list_connections` - lists configured DB Browser
+- `mysql_db_browser_list_connections` - lists agentic-enabled DB Browser
   connections using safe metadata only: `id`, `label`, `default_database`,
   `agentic_access_enabled`, `allow_writes`, `created_at`, and `updated_at`.
   It deliberately omits host, port, username, credentials, and password
-  presence. Agents should call this first to discover the correct
+  presence. Connections outside the caller's credential scope are omitted.
+  Agents should call this first to discover the correct
   `mysql_connection_id` before using any schema or query tool.
 - `mysql_db_browser_list_databases` / `mysql_db_browser_list_tables` /
   `mysql_db_browser_describe_table` - thin MCP wrappers around
@@ -180,7 +181,16 @@ through five MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
   connection also has `allow_writes`, and every attempt is recorded to
   `MysqlQueryAudit` with the acting agent's user.
 
-**Gating is per-connection, not per-repository or admin-only** - a deliberate
+**Gating is per-connection and credential scope.** New connections default to
+the creator's user scope; administrators may explicitly choose user,
+repository, team, or instance scope from the connection form. Existing
+credential-backed connections keep their instance scope until an administrator
+narrows them. Legacy rows whose password still lives on `MysqlConnection` are
+shown as legacy in the UI and are usable by administrators only; re-entering
+the password in Edit migrates the secret into Credential Store and applies the
+selected scope.
+
+This is a deliberate
 departure from `AdminMysql::WorkflowToolSet`/`ChatToolSet` (which gate on
 `McpToolPolicy.syrus_repository?`/`chat_session.user.admin?`, since those
 tools only ever touch Syrus's own database). There is no framework hook to
@@ -194,7 +204,10 @@ configured `MysqlConnection` so an agent can inspect safe connection
 metadata); the actual per-connection authorization happens inside
 each tool's own `#call`, via `MysqlDbBrowser::AgenticAccess.connection!(id)` -
 it resolves the `mysql_connection_id` named in that call's params and raises
-unless that specific row has `agentic_access_enabled: true`, mirroring
+unless that specific row has `agentic_access_enabled: true` and the backing
+credential's scope policy accepts the caller. Repository scope also requires
+the repository to be present in the run/chat token's allowed repository IDs.
+An unusable connection is reported exactly like a missing connection, mirroring
 `Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
 first-party tools. `AgenticAccess.connection!`/`.connection_with_write_access!`
 delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`

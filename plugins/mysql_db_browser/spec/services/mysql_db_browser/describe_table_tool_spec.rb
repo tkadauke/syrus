@@ -2,9 +2,10 @@ require "rails_helper"
 
 RSpec.describe MysqlDbBrowser::DescribeTableTool do
   let(:connection) { Factories.mysql_connection(agentic_access_enabled: true) }
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
 
   def call(mysql_connection_id:, database:, table:)
-    described_class.call(server_context: {}, mysql_connection_id: mysql_connection_id, database: database, table: table)
+    described_class.call(server_context: { chat_session: chat_session }, mysql_connection_id: mysql_connection_id, database: database, table: table)
   end
 
   it "returns the table's detail payload" do

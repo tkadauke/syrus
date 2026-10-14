@@ -37,7 +37,10 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+            McpToolContext.new(
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
+              allowed_repository_ids: Repository.ids
+            )
           end
 
           def set_connection
