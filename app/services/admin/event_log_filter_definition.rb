@@ -273,9 +273,13 @@ module Admin
     end
 
     def flat_filters(params)
+      chips(params).to_h { |chip| [ chip.field, chip.value ] }
+    end
+
+    def chips(params)
       chips = []
       collect_chips(Filters::Ast.parse(filter_tree(params)), chips)
-      chips.to_h { |chip| [ chip.field, chip.value ] }
+      chips
     end
 
     private
