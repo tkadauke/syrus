@@ -129,6 +129,26 @@ hooks:
     - git checkout -- db/schema.rb 2>/dev/null || true
     - git checkout -- db/structure.sql 2>/dev/null || true
 
+# How a failed merge train is handled, as a ladder indexed by attempt.
+#
+# `restart` -- the default when nothing is set here -- terminalizes the train,
+# deletes its integration branch, and hands every member back individually, so
+# a train stopped by one failure discards the whole assembly *and* any repair
+# commits a landing_fix already made. On a 10-to-20 member train that is two
+# hours of grading thrown away per attempt, and the next attempt re-derives
+# the same membership and fails the same way.
+#
+# So: keep the repair work on the first attempt, keep the assembly on the
+# second, and only fall back to a full restart after that.
+#
+# `failure_rungs: [multisect]` turns on attribution. Without it a failed train
+# marks every member `grader_loop_no_progress` identically, nothing is
+# evicted, and the retry re-bundles the member that actually broke. Multisect
+# bisects the assembly to find it.
+merge_train:
+  failure_policy: [keep_fixes, keep_assembly, restart]
+  failure_rungs: [multisect]
+
 adversarial_review:
   rounds: 1
   criteria:
