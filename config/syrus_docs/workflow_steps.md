@@ -867,6 +867,31 @@ In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
 no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
 earlier repair commits without rerunning known non-actionable graders.
 
+#### Grade log archive
+
+`grader_collect` writes every non-passing grader's **complete** output to
+`.syrus/grade-logs/iteration-<n>/<grader>.log` in its workspace, and records an
+index of those files on the workflow under the `grade_log_manifest` artifact
+(grader name, path, byte count, exit code, and a short preview).
+
+The logs are rebuilt from the chunk stream the grader published while it ran,
+not copied from the grader's own log file. That matters because graders fan out
+across workers: the grader's file is usually on a different machine than the
+repair step, and the excerpt kept on `Step#details` is truncated by
+construction. The chunk stream is the one complete, machine-independent copy.
+
+A repair step (`landing_fix` and the other grade-loop repair steps) rebuilds
+those files in *its* workspace before composing its prompt, so the paths it
+hands the agent resolve on whichever worker it landed on. The prompt carries
+only a preview plus the path, and states that the file is complete — the agent
+is expected to read it rather than infer the failure from the preview.
+
+A grader that produced no output at all is recorded with an explicit
+`unavailable_reason` (never started, cancelled, died mid-run, or exited without
+writing) instead of an empty log, and the repair prompt presents it as
+inconclusive rather than as a code defect. Archiving is best-effort: a failure
+to write logs is logged and never changes the iteration's pass/fail verdict.
+
 When every failing required grader this iteration has an already-persisted
 `RunFailureClassification` naming a transient/infrastructure cause (a worker
 process dying, a full disk, a DB lock timeout, ...) rather than a code

@@ -562,8 +562,35 @@ module Steps
 
       [
         prompt,
-        Prompts::GradeFailureFeedback.new(iterations: iterations).to_s
+        Prompts::GradeFailureFeedback.new(
+          iterations: iterations,
+          log_manifest: materialized_grade_log_manifest
+        ).to_s
       ].join("\n\n")
+    end
+
+    # Recreates every archived grader log in *this* step's workspace before
+    # the prompt is composed, and returns the manifest describing them.
+    #
+    # Steps::GraderCollect already wrote these files, but in the workspace it
+    # ran in: graders and repair steps fan out across workers, so the files
+    # cannot be assumed present here. Rewriting them from the durable chunk
+    # stream is cheap and idempotent, and it is what lets the prompt promise
+    # the agent a path that actually resolves.
+    def materialized_grade_log_manifest
+      manifest = workflow.artifact(GraderLogArchive::MANIFEST_ARTIFACT_KEY).to_h
+      return {} if manifest.blank?
+
+      manifest.each_value do |entries|
+        GraderLogArchive.materialize!(entries: entries, workspace_path: workspace.path)
+      end
+      manifest
+    rescue StandardError => e
+      Rails.logger.warn("[Steps::Base] grade log materialization failed for Step ##{step.id}: #{e.class}: #{e.message}")
+      # The prompt still renders the previews and paths it has. A path that
+      # did not materialize is handled by the prompt's own wording, which
+      # tells the agent to re-run the grader command if the file is absent.
+      manifest
     end
 
     # adversarial_review / visual_review verdicts of "needs_work" advance

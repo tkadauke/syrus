@@ -1078,4 +1078,57 @@ RSpec.describe Steps::Base, :ci_only do
       expect(tip).to eq("Add greeting helper")
     end
   end
+
+  # The repair step routinely runs on a different worker than the graders and
+  # the collect step did, so the archived log files are not on its disk. The
+  # prompt promises the agent a path, so composing it has to make that path
+  # real first -- rebuilt from the durable chunk stream, not assumed present.
+  describe "#append_grade_failure_feedback" do
+    let(:workspace_dir) { Pathname.new(Dir.mktmpdir("syrus-grade-log-feedback")) }
+    let(:fake_ws) { instance_double(WorkflowWorkspace, path: workspace_dir) }
+    let(:grader_step) do
+      Step.create!(
+        workflow: workflow, kind: "grader", position: 5, iteration: 1, state: "failed",
+        started_at: 2.minutes.ago, finished_at: 1.minute.ago,
+        details: { "name" => "rspec", "required" => true, "command" => "bin/rspec", "exit_code" => 1 }
+      )
+    end
+
+    before do
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      grader_run = grader_step.runs.create!(job: job, trigger_kind: "initial", state: "failed", iteration: 1)
+      JobLog.create!(run: grader_run, kind: "grade_log", sequence: 0, chunk: "rspec ./spec/a_spec.rb:1 # broken\n")
+      workflow.set_artifact!("iterations", [ [ { "name" => "rspec", "status" => "failed", "command" => "bin/rspec" } ] ])
+      workflow.set_artifact!(GraderLogArchive::MANIFEST_ARTIFACT_KEY, {
+        "1" => [ GraderLogArchive.new(step: grader_step, iteration: 1, workspace_path: Dir.mktmpdir).write! ]
+      })
+    end
+
+    after { FileUtils.rm_rf(workspace_dir) }
+
+    it "rebuilds the archived logs in this step's workspace" do
+      relative = ".syrus/grade-logs/iteration-1/rspec.log"
+      expect(workspace_dir.join(relative)).not_to exist
+
+      handler.send(:append_grade_failure_feedback, "PROMPT")
+
+      expect(workspace_dir.join(relative).read).to include("rspec ./spec/a_spec.rb:1")
+    end
+
+    it "hands the agent the path it just materialized" do
+      out = handler.send(:append_grade_failure_feedback, "PROMPT")
+
+      expect(out).to start_with("PROMPT")
+      expect(out).to include(".syrus/grade-logs/iteration-1/rspec.log")
+      expect(out).to include("complete and untruncated")
+    end
+
+    it "still renders the feedback when materialization fails" do
+      allow(GraderLogArchive).to receive(:materialize!).and_raise(Errno::EACCES)
+
+      out = handler.send(:append_grade_failure_feedback, "PROMPT")
+
+      expect(out).to include(".syrus/grade-logs/iteration-1/rspec.log")
+    end
+  end
 end

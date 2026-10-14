@@ -29,6 +29,7 @@ module Steps
       target_health_skipped = target_health_skipped_entries
       reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
       append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
+      archive_grade_logs!(grader_steps)
 
       # Carried-forward graders (rerun_only_failed) never appear here — they
       # are, by construction, graders that already passed and so were never
@@ -98,6 +99,39 @@ module Steps
     end
 
     private
+
+    # Writes every non-passing grader's complete log into the workspace and
+    # records an index of them on the workflow, so the repair agent that runs
+    # next gets a preview plus a path to the whole log instead of an excerpt
+    # chosen for it. Only non-passing graders are archived: a grader that
+    # passed has nothing for a repair agent to read, and the manifest travels
+    # in the artifacts column, which is already over a megabyte on a busy
+    # workflow.
+    #
+    # Best-effort on purpose. This is diagnostic plumbing for the next
+    # iteration; it must never be the reason a grade iteration fails, because
+    # the iteration's own pass/fail verdict is decided below either way.
+    def archive_grade_logs!(grader_steps)
+      interesting = grader_steps.reject { |grader| grader.state == "succeeded" }
+      return if interesting.empty?
+
+      entries = GraderLogArchive.write_all!(
+        grader_steps: interesting,
+        iteration: run.iteration,
+        workspace_path: workspace.path
+      )
+      manifest = workflow.artifact(GraderLogArchive::MANIFEST_ARTIFACT_KEY).to_h
+      manifest[run.iteration.to_s] = entries
+      workflow.set_artifact!(GraderLogArchive::MANIFEST_ARTIFACT_KEY, manifest)
+
+      written = entries.count { |entry| entry["unavailable_reason"].blank? }
+      missing = entries.size - written
+      log("[grader_collect] archived #{written} grader log(s) for iteration #{run.iteration}" \
+          "#{missing.positive? ? " (#{missing} produced no output)" : ""}")
+    rescue StandardError => e
+      Rails.logger.warn("[GraderCollect] grade log archive failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+      nil
+    end
 
     def reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
       return if grader_steps.any? || carried_forward.any? || target_health_skipped.any?

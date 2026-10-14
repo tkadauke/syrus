@@ -174,4 +174,88 @@ RSpec.describe Prompts::GradeFailureFeedback do
 
     expect(out).not_to include("record_isolated_repro")
   end
+
+  # The whole point of archiving the log is that the agent reads the log. The
+  # prompt carries a pointer and a preview, and says plainly that the file is
+  # complete, so the agent does not treat the preview as the whole story.
+  describe "with archived grader logs" do
+    let(:iterations) do
+      [
+        [
+          { "name" => "rspec", "status" => "failed", "exit_code" => 1, "command" => "bin/rspec" }
+        ]
+      ]
+    end
+    let(:manifest) do
+      {
+        "1" => [
+          {
+            "name" => "rspec",
+            "iteration" => 1,
+            "status" => "failed",
+            "relative_path" => ".syrus/grade-logs/iteration-1/rspec.log",
+            "bytes" => 91_100,
+            "preview" => "rspec ./spec/thing_spec.rb:9 # Thing is broken"
+          }
+        ]
+      }
+    end
+
+    it "points at the full log and tells the agent to read it" do
+      out = described_class.new(iterations: iterations, log_manifest: manifest).to_s
+
+      expect(out).to include(".syrus/grade-logs/iteration-1/rspec.log")
+      expect(out).to include("complete and untruncated")
+      expect(out).to include("Read that file before changing anything")
+      expect(out).to include("rspec ./spec/thing_spec.rb:9")
+    end
+
+    it "tells the agent the archived logs hold the complete output" do
+      out = described_class.new(iterations: iterations, log_manifest: manifest).to_s
+
+      expect(out).to include("complete output with nothing removed")
+      expect(out).not_to include("re-run the\n          exact command shown")
+    end
+
+    it "does not dump the grader output inline when a log was archived" do
+      noisy = iterations.deep_dup
+      noisy[0][0]["output"] = "GIANT INLINE DUMP\n" * 200
+
+      out = described_class.new(iterations: noisy, log_manifest: manifest).to_s
+
+      expect(out).not_to include("GIANT INLINE DUMP")
+    end
+
+    # A grader that produced nothing is inconclusive, not a defect. Saying so
+    # stops the next agent inventing a fix for a failure it cannot see.
+    it "explains a grader that produced no output rather than rendering a blank" do
+      empty = {
+        "1" => [
+          {
+            "name" => "rspec",
+            "iteration" => 1,
+            "status" => "failed",
+            "bytes" => 0,
+            "unavailable_reason" => "the grader Step never started, so no output was produced"
+          }
+        ]
+      }
+
+      out = described_class.new(iterations: iterations, log_manifest: empty).to_s
+
+      expect(out).to include("No output was captured for this grader")
+      expect(out).to include("never started")
+      expect(out).to include("inconclusive")
+    end
+
+    it "keeps the old inline rendering when nothing was archived" do
+      inline = iterations.deep_dup
+      inline[0][0]["output"] = "expected true to equal false\n"
+
+      out = described_class.new(iterations: inline).to_s
+
+      expect(out).to include("expected true to equal false")
+      expect(out).to include("re-run the")
+    end
+  end
 end

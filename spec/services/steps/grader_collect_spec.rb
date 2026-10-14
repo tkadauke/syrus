@@ -1428,6 +1428,57 @@ RSpec.describe Steps::GraderCollect do
     end
   end
 
+  # The repair agent that runs after a failed iteration used to get whatever
+  # excerpt the grader chose to keep. It now gets a preview plus a path to the
+  # whole log, which means this Step has to write the log and index it.
+  describe "grade log archive" do
+    let(:grader_step) { workflow.steps.find_by!(kind: "grader") }
+
+    before do
+      grader_step.update!(
+        state: "failed",
+        details: grader_step.details.merge("name" => "rspec", "required" => true, "exit_code" => 1)
+      )
+      grader_run = grader_step.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: 1
+      )
+      [ "Failures:\n", "  1) Thing is broken\n", "rspec ./spec/thing_spec.rb:9 # Thing is broken\n" ]
+        .each_with_index do |chunk, index|
+          JobLog.create!(run: grader_run, kind: "grade_log", chunk: chunk, sequence: index)
+        end
+    end
+
+    it "writes the failing grader's full log and indexes it on the workflow" do
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /required graders failed/)
+
+      manifest = workflow.reload.artifact(GraderLogArchive::MANIFEST_ARTIFACT_KEY)
+      entry = manifest.fetch("1").sole
+      expect(entry).to include("name" => "rspec", "status" => "failed")
+      expect(@ws_path.join(entry["relative_path"]).read).to include("rspec ./spec/thing_spec.rb:9")
+      expect(entry["preview"]).to include("Thing is broken")
+    end
+
+    it "does not archive graders that passed" do
+      Step.create!(
+        workflow: workflow, kind: "grader", position: 99, iteration: 1, loop_id: loop_id,
+        state: "succeeded", details: { "name" => "eager-load", "required" => true, "exit_code" => 0 }
+      )
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      names = workflow.reload.artifact(GraderLogArchive::MANIFEST_ARTIFACT_KEY).fetch("1").map { |e| e["name"] }
+      expect(names).to eq([ "rspec" ])
+    end
+
+    # Diagnostic plumbing for the next iteration must never be what decides
+    # this one: the pass/fail verdict is computed either way.
+    it "still reaches its verdict when archiving blows up" do
+      allow(GraderLogArchive).to receive(:write_all!).and_raise(Errno::ENOSPC)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /required graders failed/)
+    end
+  end
+
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
