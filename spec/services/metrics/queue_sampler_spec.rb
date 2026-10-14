@@ -136,6 +136,57 @@ RSpec.describe Metrics::QueueSampler do
       expect(age).to be_within(5).of(300)
     end
 
+    it "clears tagged queue series missing from the latest sample" do
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        ready: { "polling" => 3, "runs" => 2 },
+        oldest_age: { "polling" => 60 },
+        claimed: { "runs" => 1 },
+        blocked: 0,
+        failed: { "PollPullRequestJob" => 4 },
+        orphaned: 0
+      })
+      described_class.refresh_gauges!(source: source)
+
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        ready: { "runs" => 1 },
+        oldest_age: {},
+        claimed: {},
+        blocked: 0,
+        failed: {},
+        orphaned: 0
+      })
+      described_class.refresh_gauges!(source: source)
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_global_queue_ready_count{queue="runs"} 1')
+      expect(rendered).not_to include('syrus_global_queue_ready_count{queue="polling"}')
+      expect(rendered).not_to include("syrus_global_queue_oldest_age_seconds{")
+      expect(rendered).not_to include("syrus_global_queue_claimed_count{")
+      expect(rendered).not_to include("syrus_global_queue_failed_count{")
+    end
+
+    it "clears stale queue gauges when the cached sample disappears" do
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        ready: { "polling" => 3 },
+        oldest_age: { "polling" => 60 },
+        claimed: { "runs" => 1 },
+        blocked: 2,
+        failed: { "PollPullRequestJob" => 4 },
+        orphaned: 5
+      })
+      described_class.refresh_gauges!(source: source)
+      cache.delete(described_class::CACHE_KEY)
+
+      expect(described_class.refresh_gauges!(source: source)).to be(false)
+      rendered = Syrus::Metrics.render
+      expect(rendered).not_to include("syrus_global_queue_ready_count{")
+      expect(rendered).not_to include("syrus_global_queue_blocked_count")
+      expect(rendered).not_to include("syrus_global_queue_sample_age_seconds")
+    end
+
     it "reports nothing rather than zeroes when no sample has been taken" do
       expect(described_class.refresh_gauges!(source: source)).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_global_queue_ready_count{")
