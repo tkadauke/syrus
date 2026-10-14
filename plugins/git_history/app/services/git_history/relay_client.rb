@@ -37,7 +37,7 @@ module GitHistory
     def fetch(cursor:, limit:)
       parsed = get_json("/repositories/#{@repository.id}/commits", cursor: cursor, limit: limit)
       entries = Array(parsed["entries"]).map(&:symbolize_keys)
-      CommitLog::Page.new(entries: entries, has_more: parsed["has_more"] == true)
+      CommitLog::Page.new(entries: entries, has_more: parsed["has_more"] == true, next_cursor: parsed["next_cursor"])
     rescue Unavailable
       CommitLog::Page.new(entries: [], has_more: false)
     end
