@@ -1,4 +1,5 @@
 import { useState } from "react"
+import type { KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
 import { ChevronIcon } from "./ChevronIcon"
@@ -41,7 +42,7 @@ export type RoutingRulesPanelProps = {
   destroyPending?: boolean
   inheritedContext?: ProviderRoutingInheritedContext[]
   onCreateRule: (input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
-  onDeleteRule: (rule: ProviderRoutingRule) => void
+  onDeleteRule: (rule: ProviderRoutingRule) => Promise<unknown> | unknown
   onReorderRules: (ids: number[]) => void
   onUpdateRule: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
   options?: ProviderRoutingOptions
@@ -113,7 +114,7 @@ export function ProviderRoutingRulesEditor({
       destroyPending={destroy.isPending}
       inheritedContext={inheritedContext}
       onCreateRule={(input) => save.mutateAsync({ input })}
-      onDeleteRule={(rule) => destroy.mutate(rule)}
+      onDeleteRule={(rule) => destroy.mutateAsync(rule)}
       onReorderRules={(ids) => reorder.mutate(ids)}
       onUpdateRule={(rule, input) => save.mutateAsync({ rule, input })}
       options={options}
@@ -193,6 +194,16 @@ export function RoutingRulesPanel({
     closeEditor()
   }
 
+  async function deleteRule(rule: ProviderRoutingRule) {
+    try {
+      await onDeleteRule(rule)
+    } catch {
+      return
+    }
+
+    if (draft?.id === rule.id) closeEditor()
+  }
+
   function move(rule: ProviderRoutingRule, direction: -1 | 1) {
     const index = routingRules.findIndex((candidate) => candidate.id === rule.id)
     const nextIndex = index + direction
@@ -219,7 +230,7 @@ export function RoutingRulesPanel({
         <div className="space-y-3">
           <RulesTable
             destroyPending={destroyPending}
-            onDelete={onDeleteRule}
+            onDelete={deleteRule}
             onDuplicate={duplicate}
             onEdit={edit}
             onMove={move}
@@ -363,7 +374,7 @@ function RulesTable({
                   <>
                     <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">{t("provider_routing.edit")}</Button>
                     <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">{t("provider_routing.duplicate")}</Button>
-                    <Button disabled={destroyPending} onClick={() => onDelete?.(rule)} size="sm" variant="danger">{t("provider_routing.delete")}</Button>
+                    <Button disabled={destroyPending} onClick={() => { void onDelete?.(rule) }} size="sm" variant="danger">{t("provider_routing.delete")}</Button>
                   </>
                 )}
               </div>
@@ -420,6 +431,17 @@ function RuleEditorModal({
     })
   }
 
+  function submitOnTextInputEnter(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter") return
+    if (event.nativeEvent.isComposing) return
+    if (saving) return
+    if (!(event.target instanceof HTMLInputElement)) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    onSave()
+  }
+
   return (
     <Modal
       className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
@@ -427,7 +449,7 @@ function RuleEditorModal({
       onClose={onClose}
       open={Boolean(draft)}
     >
-      <div className="space-y-5">
+      <div className="space-y-5" onKeyDown={submitOnTextInputEnter}>
         <div>
           <h2 className="text-base font-semibold text-text-primary" id={titleId}>
             {currentDraft.id ? t("provider_routing.edit_rule_title") : t("provider_routing.new_rule_title")}
