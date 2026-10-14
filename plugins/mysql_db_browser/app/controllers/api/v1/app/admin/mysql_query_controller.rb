@@ -143,7 +143,10 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+            McpToolContext.new(
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
+              allowed_repository_ids: Repository.ids
+            )
           end
 
           def build_select(client:, filter_tree:, filter_schema:, sort_column:, sort_direction:, per_page:, offset:)
