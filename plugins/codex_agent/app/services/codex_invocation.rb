@@ -7,7 +7,7 @@ class CodexInvocation
   # a candidate's `model`. Worth knowing when changing this: a model the
   # account cannot use fails every invocation with a 400 rather than
   # degrading, which ProviderModelUnsupported classifies and fails over on.
-  DEFAULT_MODEL = "gpt-5.6"
+  DEFAULT_MODEL = "gpt-5.6-sol"
   MCP_STARTUP_TIMEOUT_SECONDS = 60
   MCP_TOOL_TIMEOUT_SECONDS = 120
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes

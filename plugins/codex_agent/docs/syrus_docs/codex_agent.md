@@ -24,7 +24,7 @@ passed as a CLI mcp-config flag:
 ```toml
 cli_auth_credentials_store = "file"
 approval_policy = "never"
-model = "gpt-5.6"
+model = "gpt-5.6-sol"
 model_reasoning_effort = "<level>"          # only when set and not "none"
 
 [mcp_servers.syrus-mcp-sidecar]
@@ -40,11 +40,50 @@ KEY = "value"
 
 `write_config` skips the actual file write when the generated content is
 byte-identical to what's already on disk (`:unchanged`), avoiding
-unnecessary churn on every invocation. `DEFAULT_MODEL` is `gpt-5.6`,
+unnecessary churn on every invocation. `DEFAULT_MODEL` is `gpt-5.6-sol`,
 overridable instance-wide via `SYRUS_CODEX_MODEL` and per routing rule via a
 candidate's `model`. A candidate's model must also appear in
 `AgentProviders::Codex.available_models`, which `ProviderRoutingRule`
 validates against.
+
+## Choosing a model, and what happens when one is retired
+
+`available_models` is not decoration: `ProviderRoutingRule` validates a
+candidate's `model` against it, so a model absent from the catalog cannot be
+configured even when the account accepts it. Adding a usable model means
+adding it there.
+
+Model availability on **ChatGPT sign-in** (`codex_auth_mode = "chatgpt_login"`)
+is decided by OpenAI per plan, and models are retired on announced dates. A
+retirement does not announce itself to Syrus: every invocation simply starts
+failing with
+
+    400 invalid_request_error
+    The '<model>' model is not supported when using Codex with a ChatGPT account.
+
+Two things make that hard to read the first time. The message says
+"not supported" rather than "retired", so it looks like misconfiguration; and
+a staged retirement fails only a fraction of requests at first, so it looks
+intermittent and transient rather than permanent. It is permanent --
+`ProviderModelUnsupported` classifies it non-retryable and fails over to the
+next routing candidate rather than retrying, which is what keeps a retirement
+from turning into a retry storm.
+
+Operator checklist when every Codex invocation starts refusing a model:
+
+1. `codex doctor` on a worker, or the interactive `/model` picker, is the
+   authoritative answer for what that account can use right now. The catalog
+   in this plugin is a static list and can lag reality.
+2. Check whether the model was retired on a published date before assuming a
+   local misconfiguration. The timing is the tell: a clean break with no
+   deploy behind it.
+3. Set the replacement. A routing rule candidate's `model` is live config; the
+   `SYRUS_CODEX_MODEL` environment variable is instance-wide and needs a
+   restart; `DEFAULT_MODEL` needs a deploy.
+4. Model retirements announced for ChatGPT and Codex have not applied to the
+   OpenAI API. An API-key credential (`codex_auth_mode = "api_key"`) is
+   therefore a fallback when sign-in has no usable model, at per-token cost
+   instead of the subscription.
 
 ## Event stream
 
