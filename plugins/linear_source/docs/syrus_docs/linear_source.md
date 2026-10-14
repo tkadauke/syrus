@@ -41,8 +41,9 @@ local processing.
 For issues that pass the policy:
 
 - **Dedup** — `dedup_key` is the Linear issue's `id` (stored as `Job
-  #external_ref`); an issue that already has an open Syrus Job for this
-  input source is skipped rather than re-ingested.
+  #external_ref`); an issue that already has any Syrus Job for this input
+  source is skipped rather than re-ingested, even after the prior Job reaches
+  a terminal state.
 - **Epic markers** — the issue's `description` is parsed with the same
   `EpicMarkerParser` GitHub Source uses. An explicit
   `<!-- syrus-epic: <name> -->` comment creates/finds an `Epic`; an explicit
