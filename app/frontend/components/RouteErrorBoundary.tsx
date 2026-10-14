@@ -1,23 +1,13 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react"
+import { useLocation } from "react-router-dom"
 import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErrors"
 import { createBugReport } from "../api/bugReports"
 import { fileEventJob } from "../api/eventActions"
+import { computeBrowserErrorFingerprint } from "../lib/browserErrorFingerprint"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 
 const STORAGE_KEY = "syrus_reported_errors"
-
-function computeFingerprint(error: Error): string {
-  try {
-    return btoa(error.message + "\n" + (error.stack ?? "")).slice(0, 64)
-  } catch {
-    try {
-      return btoa(encodeURIComponent(error.message)).slice(0, 64)
-    } catch {
-      return "unknown"
-    }
-  }
-}
 
 function readReportedFingerprints(): string[] {
   try {
@@ -134,7 +124,7 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
   }
 
   static getDerivedStateFromError(error: Error): BoundaryState {
-    const fp = computeFingerprint(error)
+    const fp = computeBrowserErrorFingerprint(error)
     return {
       hasError: true,
       error,
@@ -153,7 +143,7 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
     void recordBrowserError(buildBrowserErrorPayload(error, {
       boundary: "route",
       componentStack: info.componentStack ?? "",
-      fingerprint: computeFingerprint(error)
+      fingerprint: computeBrowserErrorFingerprint(error)
     })).then((result) => {
       this.setState((prev) => prev.hasError ? { ...prev, browserEventId: result.id } : prev)
     }).catch(() => {
@@ -176,4 +166,10 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
 
     return this.props.children
   }
+}
+
+export function LocationKeyedRouteErrorBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation()
+
+  return <RouteErrorBoundary key={location.pathname}>{children}</RouteErrorBoundary>
 }
