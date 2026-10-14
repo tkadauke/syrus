@@ -124,6 +124,17 @@ RSpec.describe "Filters::Chips" do
     end
   end
 
+  describe "closure_reason" do
+    it "keeps NULL rows when filtering by a negative enum operator" do
+      open = Factories.job_record(repository: repo, issue_number: 1, state: "queued", closure_reason: nil)
+      cancelled = Factories.job_record(repository: repo, issue_number: 2, state: "closed", closure_reason: "cancelled")
+      Factories.job_record(repository: repo, issue_number: 3, state: "closed", closure_reason: "pr_merged")
+
+      expect(run(field: "closure_reason", op: "is_not", value: "pr_merged")).to contain_exactly(open, cancelled)
+      expect(run(field: "closure_reason", op: "is_none_of", value: [ "pr_merged" ])).to contain_exactly(open, cancelled)
+    end
+  end
+
   describe "repository_id" do
     it "filters to one repository" do
       api = Factories.repository(user: user, owner: "acme", name: "api")
@@ -131,6 +142,30 @@ RSpec.describe "Filters::Chips" do
       Factories.job(repository: api, issue_number: 2)
 
       expect(run(field: "repository_id", op: "is", value: repo.id)).to contain_exactly(mine)
+    end
+  end
+
+  describe "epic_id" do
+    it "keeps NULL rows when filtering by a negative FK operator" do
+      epic = Factories.epic(user: user, repository: repo)
+      epicless = Factories.job_record(repository: repo, issue_number: 1, epic_id: nil)
+      other_epic = Factories.epic(user: user, repository: repo)
+      different = Factories.job_record(repository: repo, issue_number: 2, epic: other_epic)
+      Factories.job_record(repository: repo, issue_number: 3, epic: epic)
+
+      expect(run(field: "epic_id", op: "is_not", value: epic.id)).to contain_exactly(epicless, different)
+      expect(run(field: "epic_id", op: "is_none_of", value: [ epic.id ])).to contain_exactly(epicless, different)
+    end
+  end
+
+  describe "branch_name" do
+    it "keeps NULL rows when filtering by a negative string operator" do
+      without_branch = Factories.job_record(repository: repo, issue_number: 1, branch_name: nil)
+      other_branch = Factories.job_record(repository: repo, issue_number: 2, branch_name: "syrus/bar")
+      Factories.job_record(repository: repo, issue_number: 3, branch_name: "syrus/foo")
+
+      expect(run(field: "branch_name", op: "does_not_contain", value: "foo")).to contain_exactly(without_branch, other_branch)
+      expect(run(field: "branch_name", op: "not_equals", value: "syrus/foo")).to contain_exactly(without_branch, other_branch)
     end
   end
 

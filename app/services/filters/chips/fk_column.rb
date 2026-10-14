@@ -19,9 +19,9 @@ module Filters
         col = self.class.column
         case op
         when :is        then scope.where(col => value)
-        when :is_not    then scope.where.not(col => value)
+        when :is_not    then exclude_matches(scope.where(col => value))
         when :is_one_of then scope.where(col => Array(value))
-        when :is_none_of then scope.where.not(col => Array(value))
+        when :is_none_of then exclude_matches(scope.where(col => Array(value)))
         when :is_set    then scope.where.not(col => nil)
         when :is_unset  then scope.where(col => nil)
         else unsupported_op!
