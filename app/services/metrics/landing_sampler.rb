@@ -57,6 +57,7 @@ module Metrics
     # A landed Job's lead time ranges from minutes to days once a blocked
     # approval is included, so this needs its own, wider exponential spread.
     TIME_TO_LAND_BUCKETS = [ 30, 60, 300, 900, 1800, 3600, 7200, 14_400, 28_800, 86_400, 259_200 ].freeze
+    FAILED_READ = Object.new.freeze
 
     def self.declare_metrics!
       Syrus::Metrics.declare do
@@ -157,7 +158,8 @@ module Metrics
       after = cursor["runs_through"]
       return cursor["runs_through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("finished runs", []) { source.finished_runs(after: Time.iso8601(after), through: now) }
+      rows = guard("finished runs") { source.finished_runs(after: Time.iso8601(after), through: now) }
+      return if failed_read?(rows)
 
       running_totals = (totals["runs_total"] ||= {})
       rows.each do |state, trigger_kind, *|
@@ -177,7 +179,8 @@ module Metrics
       after = cursor["jobs_through"]
       return cursor["jobs_through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("landed jobs", []) { source.landed_jobs(after: Time.iso8601(after), through: now) }
+      rows = guard("landed jobs") { source.landed_jobs(after: Time.iso8601(after), through: now) }
+      return if failed_read?(rows)
       totals["jobs_landed_total"] = (totals["jobs_landed_total"] || 0) + rows.size
 
       lead_times = rows.filter_map { |created_at, finished_at| [ {}, finished_at - created_at ] if created_at && finished_at }
@@ -190,9 +193,10 @@ module Metrics
       after = cursor["queue_completed_through"]
       return cursor["queue_completed_through"] = now.iso8601(6) if after.nil?
 
-      completed = guard("completed queue executions", 0) {
+      completed = guard("completed queue executions") {
         queue_source.completed_count(after: Time.iso8601(after), through: now)
       }
+      return if failed_read?(completed)
       totals["queue_completed_total"] = (totals["queue_completed_total"] || 0) + completed.to_i
 
       cursor["queue_completed_through"] = now.iso8601(6)
@@ -247,11 +251,15 @@ module Metrics
     end
 
     # One unreachable source costs its own gauge/counter, not the whole tick.
-    def guard(what, fallback)
+    def guard(what, fallback = FAILED_READ)
       yield
     rescue StandardError => e
       Rails.logger.warn("[Metrics::LandingSampler] could not sample #{what}: #{e.class}: #{e.message}")
       fallback
+    end
+
+    def failed_read?(value)
+      value.equal?(FAILED_READ)
     end
   end
 end
