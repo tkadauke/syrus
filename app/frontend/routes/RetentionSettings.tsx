@@ -175,6 +175,8 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!infinite && !hasNumericValue(value)) return
+
     onNotice(null)
     save.mutate()
   }
