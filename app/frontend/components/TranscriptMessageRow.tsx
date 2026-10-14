@@ -1,4 +1,4 @@
-import { ChatAssistantMarkdownSurface, ChatCommandOutputSurface, SystemMessage } from "../routes/chat/MessageCards"
+import { ChatAssistantMarkdownSurface, ChatCommandOutputSurface, SharedMessageRenderer, SystemMessage } from "../routes/chat/MessageCards"
 
 type TranscriptMessageTone = "assistant" | "system" | "tool" | "log"
 
@@ -22,26 +22,23 @@ export function TranscriptMessageRow({ chunk, kind, label, sequence }: Transcrip
 
   if (tone === "assistant") {
     return (
-      <li className="min-w-0 px-3 py-2 text-sm text-text-primary" data-testid="run-transcript-log-assistant">
-        <article className="min-w-0 space-y-1">
-          <div className="px-1 text-2xs font-medium uppercase text-text-secondary">{displayLabel}</div>
-          <ChatAssistantMarkdownSurface compact text={chunk} />
-        </article>
-      </li>
+      <SharedMessageRenderer as="li" readOnly testId="run-transcript-log-assistant">
+        <ChatAssistantMarkdownSurface text={chunk} />
+      </SharedMessageRenderer>
     )
   }
 
   if (tone === "system") {
     return (
-      <li className="min-w-0 px-3 py-2 text-sm text-text-primary" data-testid="run-transcript-log-system">
+      <SharedMessageRenderer as="li" readOnly testId="run-transcript-log-system">
         <SystemMessage item={{ tone: "neutral", label: displayLabel, body: chunk, prominent: true }} prefix="" />
-      </li>
+      </SharedMessageRenderer>
     )
   }
 
   return (
-    <li className="min-w-0 px-3 py-2 text-sm text-text-primary" data-testid={`run-transcript-log-${tone}`}>
-      <ChatCommandOutputSurface command={displayLabel} compact emptyLabel="" output={chunk} testId={`run-transcript-${tone}-output`} />
-    </li>
+    <SharedMessageRenderer as="li" readOnly testId={`run-transcript-log-${tone}`}>
+      <ChatCommandOutputSurface command={displayLabel} emptyLabel="" output={chunk} testId={`run-transcript-${tone}-output`} />
+    </SharedMessageRenderer>
   )
 }

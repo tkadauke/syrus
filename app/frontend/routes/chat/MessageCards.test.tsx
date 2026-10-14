@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
+import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, SharedMessageRenderer, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
@@ -175,6 +175,22 @@ beforeEach(() => {
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
   vi.mocked(createChatMessagePin).mockReset()
   vi.mocked(deleteChatMessagePin).mockReset()
+})
+
+describe("shared message presentation", () => {
+  it("marks interactive and read-only render modes while keeping the same layout", () => {
+    const { rerender } = render(<SharedMessageRenderer><span>Interactive body</span></SharedMessageRenderer>)
+
+    const interactive = screen.getByText("Interactive body").closest("article")
+    expect(interactive).toHaveAttribute("data-message-mode", "interactive")
+    expect(interactive).toHaveClass("min-w-0", "pt-6", "text-sm")
+
+    rerender(<SharedMessageRenderer as="li" readOnly><span>Transcript body</span></SharedMessageRenderer>)
+
+    const readOnly = screen.getByText("Transcript body").closest("li")
+    expect(readOnly).toHaveAttribute("data-message-mode", "read-only")
+    expect(readOnly).toHaveClass("min-w-0", "pt-6", "text-sm")
+  })
 })
 
 describe("user message markdown heuristic", () => {

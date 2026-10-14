@@ -125,7 +125,7 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
   const displayLogs = coalesceTranscriptLogs(logs)
   const streamClassName = [
     fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
-    "min-w-0 overflow-y-auto overflow-x-hidden"
+    "min-w-0 space-y-4 overflow-y-auto overflow-x-hidden px-3 pb-3"
   ].join(" ")
 
   function handleScroll(event: UIEvent<HTMLOListElement>) {
