@@ -215,6 +215,36 @@ describe("chat context find", () => {
 
     expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
   })
+
+  it("hides the mobile token summary while the transcript find bar is open", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Chat mobile tabs" })).toBeInTheDocument()
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+
+    expect(screen.getByRole("searchbox", { name: "Find" })).toBeInTheDocument()
+    expect(screen.queryByText(/Tokens:/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+  })
 })
 
 describe("workspaceTabLabel", () => {
