@@ -78,7 +78,10 @@ from rendering so it can be unit tested without mounting React:
 
 Clicking an `agent_session` card reuses the exact same transcript mechanism
 as the `agent_activity` plugin's sessions feed: `RunTranscriptLogs` fed by
-`GET /api/v1/app/jobs/:job_id/runs/:run_id/artifacts`. Clicking a
+`GET /api/v1/app/jobs/:job_id/runs/:run_id/artifacts?artifact=transcript`.
+The endpoint returns the newest bounded page of log chunks plus pagination
+metadata, so opening or polling the sidebar never serializes the full Run
+transcript or either diff blob. Clicking a
 `deterministic_check` card shows only its captured raw command output/
 command line (`detail.output`, `detail.command`, or a `format`/`generate`
 step's `*_failures` entries) -- no "reasoning" framing, since there is no

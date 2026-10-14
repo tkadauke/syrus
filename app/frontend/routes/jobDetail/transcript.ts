@@ -8,7 +8,7 @@ import type { fetchJobRunArtifacts } from "../../api/jobs"
 
 const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 
-export type TranscriptLog = Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"][number]
+export type TranscriptLog = NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>[number]
 export type DisplayTranscriptLog = TranscriptLog & { sourceKey: string }
 
 export function coalesceTranscriptLogs(logs: TranscriptLog[]) {

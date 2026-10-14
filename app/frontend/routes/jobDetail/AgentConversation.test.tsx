@@ -69,16 +69,14 @@ describe("AgentConversationTab", () => {
           ]
         })))
       }
-      if (path === "/api/v1/app/jobs/1/runs/501/artifacts") {
+      if (path === "/api/v1/app/jobs/1/runs/501/artifacts?artifact=transcript&page=1") {
         return Promise.resolve(jsonResponse({
           job_id: 1,
           workflow_id: 9,
           run_id: 501,
           base_ref: null,
           head_ref: null,
-          agent_diff: null,
-          agent_diff_bytes: 0,
-          step_agent_diff: null,
+          artifact: "transcript",
           logs_count: 1,
           logs: [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Wrote the greeting helper.", created_at: null }]
         }))

@@ -117,7 +117,7 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   return kind ? labels[kind] || kind : null
 }
 
-export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]; fillHeight?: boolean }) {
+export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>; fillHeight?: boolean }) {
   const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
