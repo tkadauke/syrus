@@ -192,7 +192,7 @@ function ansiInlineStyle(style: AnsiStyle) {
 
 function stripAnsiControls(text: string) {
   return text
-    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")
     .replace(/\u001b[@-_][0-?]*[ -/]*[@-~]/g, "")
 }
 

@@ -33,4 +33,16 @@ describe("AnsiText", () => {
 
     expect(segments.map((segment) => segment.text).join("")).toBe("beforeafter")
   })
+
+  it("preserves OSC hyperlink labels with BEL terminators", () => {
+    const segments = parseAnsiText("a \u001b]8;;http://x\u0007LABEL\u001b]8;;\u0007 b")
+
+    expect(segments.map((segment) => segment.text).join("")).toBe("a LABEL b")
+  })
+
+  it("preserves OSC hyperlink labels with ST terminators", () => {
+    const segments = parseAnsiText("a \u001b]8;;http://x\u001b\\LABEL\u001b]8;;\u001b\\ b")
+
+    expect(segments.map((segment) => segment.text).join("")).toBe("a LABEL b")
+  })
 })
