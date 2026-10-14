@@ -48,7 +48,7 @@ module App
             )
             raise InvalidScope, "owner_id is required for dashboard scope user" unless id
 
-            User.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
+            owner_options_scope.find_by(id: id) || raise(InvalidScope, "Unknown dashboard owner user: #{id}")
           end
         end
       end
@@ -74,11 +74,25 @@ module App
       end
 
       def team_user_count
-        @team_user_count ||= User.count
+        @team_user_count ||= owner_options_scope.count
       end
 
       def owner_options
-        @owner_options ||= User.order(Arel.sql("LOWER(email_address) ASC"), :id).to_a
+        @owner_options ||= owner_options_scope.order(Arel.sql("LOWER(email_address) ASC"), :id).to_a
+      end
+
+      def owner_options_scope
+        @owner_options_scope ||= User.where(id: accessible_owner_user_ids)
+      end
+
+      def accessible_owner_user_ids
+        @accessible_owner_user_ids ||= begin
+          direct_owner_ids = RepositoryMembership.where(repository_id: active_repo_ids).select(:user_id)
+          team_ids = TeamRepository.where(repository_id: active_repo_ids).select(:team_id)
+          team_owner_ids = TeamMembership.where(team_id: team_ids).select(:user_id)
+
+          User.where(id: direct_owner_ids).or(User.where(id: team_owner_ids)).select(:id)
+        end
       end
 
       def apply_ownership_scope(scope, subject_name)

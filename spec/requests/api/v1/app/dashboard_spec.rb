@@ -1162,6 +1162,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
     it "filters dashboard records by ownership scope" do
       teammate = Factories.user(email_address: "teammate@example.com")
+      RepositoryMembership.create!(repository: repo, user: teammate, role: "read")
       owned_epic = Factories.epic(user: user, repository: repo, title: "Owned epic", owner_user: user)
       unowned_epic = Factories.epic(user: user, repository: repo, title: "Unowned epic", owner_user: nil)
       unowned_done_epic = Factories.epic(user: user, repository: repo, title: "Unowned done epic", owner_user: nil, state: "done")
@@ -1259,6 +1260,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
     it "keeps explicit team and user scopes available for dashboard coordination" do
       teammate = Factories.user(email_address: "teammate@example.com")
+      RepositoryMembership.create!(repository: repo, user: teammate, role: "read")
       mine = Factories.job_record(repository: repo, issue_number: 31, issue_title: "My basilica", owner_user: user)
       teammate_job = Factories.job_record(repository: repo, issue_number: 32, issue_title: "Their basilica", owner_user: teammate)
       claimable = Factories.job_record(repository: repo, issue_number: 33, issue_title: "Loose basilica", owner_user: nil)
@@ -1299,6 +1301,45 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "message")).to eq("Unknown dashboard owner user: 99999999")
+    end
+
+    it "scopes team job rows and selected owners to repositories the viewer can access" do
+      other_user = Factories.user(email_address: "other@example.com")
+      other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+      visible = Factories.job_record(repository: repo, owner_user: user, issue_number: 51, issue_title: "Visible road")
+      hidden = Factories.job_record(user: other_user, repository: other_repo, owner_user: other_user, issue_number: 52, issue_title: "Hidden forum")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "team" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(visible.id)
+      expect(body.fetch("items").map { |item| item.fetch("id") }).not_to include(hidden.id)
+      expect(body.dig("controls", "owners").map { |owner| owner.fetch("id") }).to contain_exactly(user.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "job", scope: "user", owner_id: other_user.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Unknown dashboard owner user: #{other_user.id}")
+    end
+
+    it "scopes default epic work and claimable epics to repositories the viewer can access" do
+      other_user = Factories.user(email_address: "other@example.com")
+      other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+      visible_owned = Factories.epic(user: user, repository: repo, owner_user: user, state: "ready", title: "Visible owned epic")
+      visible_claimable = Factories.epic(user: user, repository: repo, state: "ready", title: "Visible claimable epic")
+      hidden_claimable = Factories.epic(user: other_user, repository: other_repo, state: "ready", title: "Hidden claimable epic")
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "mine" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(visible_owned.id, visible_claimable.id)
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "claimable" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(visible_claimable.id)
+      expect(parse_body.fetch("items").map { |item| item.fetch("id") }).not_to include(hidden_claimable.id)
     end
 
     it "applies smart folder filters and returns active folder metadata" do
@@ -1754,6 +1795,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       my_workflow = Workflow.create!(job: mine, trigger_kind: "initial", state: "queued")
       teammate = Factories.user(email_address: "teammate@example.com")
       teammate_repo = Factories.repository(user: teammate, owner: "acme", name: "api")
+      RepositoryMembership.create!(repository: teammate_repo, user: user, role: "read")
       theirs = Factories.job_record(user: teammate, repository: teammate_repo, owner_user: teammate, issue_number: 21, issue_title: "Their forum")
       their_workflow = Workflow.create!(job: theirs, trigger_kind: "initial", state: "queued")
 
@@ -1778,9 +1820,10 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(my_workflow.id, their_workflow.id)
     end
 
-    it "defaults epics to team scope (all active epics)" do
+    it "defaults epics to team scope across accessible active epics" do
       teammate = Factories.user(email_address: "teammate@example.com")
       teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
+      RepositoryMembership.create!(repository: teammate_repo, user: user, role: "read")
       mine = Factories.epic(user: teammate, repository: teammate_repo, owner: user, state: "in_progress", title: "My claimed epic")
       mine_owner_user = Factories.epic(user: teammate, repository: teammate_repo, owner_user: user, state: "ready", title: "My owner-user epic")
       claimable_backlog = Factories.epic(user: teammate, repository: teammate_repo, state: "backlog", title: "Claimable backlog epic")
@@ -1803,6 +1846,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     it "still supports explicit ownership_scope=claimable param for backward compat" do
       teammate = Factories.user(email_address: "teammate@example.com")
       teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
+      RepositoryMembership.create!(repository: teammate_repo, user: user, role: "read")
       claimable_backlog = Factories.epic(user: teammate, repository: teammate_repo, state: "backlog", title: "Claimable backlog epic")
       claimable = Factories.epic(user: teammate, repository: teammate_repo, state: "ready", title: "Claimable epic")
       not_claimable = Factories.epic(user: teammate, repository: teammate_repo, owner: teammate, state: "ready", title: "Teammate epic")
@@ -1822,6 +1866,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     it "supports team and per-user ownership scopes with useful badges" do
       teammate = Factories.user(email_address: "teammate@example.com", first_name: "Team", last_name: "Mate")
       teammate_repo = Factories.repository(user: teammate, owner: "globex", name: "api")
+      RepositoryMembership.create!(repository: teammate_repo, user: user, role: "read")
       mine = Factories.job_record(user: user, repository: repo, owner_user: user, issue_number: 30, issue_title: "Mine")
       theirs = Factories.job_record(user: teammate, repository: teammate_repo, owner_user: teammate, issue_number: 31, issue_title: "Theirs")
 

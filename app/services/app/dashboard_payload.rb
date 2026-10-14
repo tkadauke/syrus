@@ -267,10 +267,16 @@ module App
     end
 
     def active_repositories_scope
-      return Repository.active if subject == "epic"
-      return Repository.active if mine_scope? || team_scope? || user_scope? || claimable_scope?
+      @active_repositories_scope ||= Repository.active.where(id: accessible_repository_ids)
+    end
 
-      Repository.active.where(user_id: user.id)
+    def accessible_repository_ids
+      @accessible_repository_ids ||= begin
+        member_repo_ids = Repository.accessible_repository_ids_for(user)
+        upstream_repo_ids = Repository.where(id: member_repo_ids).where.not(upstream_repository_id: nil).select(:upstream_repository_id)
+
+        Repository.where(id: member_repo_ids).or(Repository.where(id: upstream_repo_ids)).select(:id)
+      end
     end
 
     def ui_panels_json
