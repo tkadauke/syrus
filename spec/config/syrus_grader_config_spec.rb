@@ -389,6 +389,13 @@ RSpec.describe "Syrus grader configuration" do
       "another grader having run first: #{missing.map(&:name).join(', ')}"
   end
 
+  it "gives the full-tree plugin boundary audit enough time under shared-worker load" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "plugin-boundaries" }
+
+    expect(grader.timeout_minutes).to be >= 8
+  end
+
   def copy_cli_prepare_fixture(destination)
     %w[go.work go.work.sum].each do |file|
       FileUtils.cp(Rails.root.join(file), destination.join(file))
