@@ -44,9 +44,10 @@ design.
 `Discord::GatewayConnectionJob` (a `PlatformPollingJob` subclass, registered
 as the plugin's `platform_delivery` `connector_job_class`) owns exactly one
 Gateway session per `#poll_once` call; when `GatewayClient#run` returns
-(session exhausted or connection lost), the base class immediately
-re-enqueues a fresh job, which opens a new connection — the same
-self-healing pattern used for reconnection across worker restarts/deploys.
+(session exhausted or connection lost), the base class re-enqueues a fresh
+job after the connector's reconnect backoff, which opens a new connection
+-- the same self-healing pattern used for reconnection across worker
+restarts/deploys.
 `PlatformDelivery::Registry.start_connectors!` starts/stops this job in step
 with the plugin's enabled state (unlike core's Telegram adapter, which
 starts unconditionally via `PlatformPollingJob.registry`).
@@ -103,8 +104,13 @@ separate bot process to restart. This plugin depends on external Discord
 connectivity, a live Gateway session, and a valid bot token — monitor it like
 any other long-lived platform integration. A revoked or invalid
 `discord_bot_token` shows up as `Discord::PlatformConfig#configured?`
-returning false (linking instructions disappear) and `GatewayConnectionJob`
-logging connection errors on every reconnect attempt.
+returning false (linking instructions disappear). Startup connection
+failures and exhausted reconnect runs are logged on each reconnect attempt
+and re-enqueued with a growing backoff. Discord Gateway fatal closes such
+as bad authentication or invalid/disallowed intents are logged once and
+stop that job's self-reenqueue loop; a manual restart or the connector
+watchdog may re-prime it later, but the fatal condition will stop each
+attempt until an operator fixes the configuration.
 
 Because the job re-enqueues itself in an `ensure` block after each Gateway
 session ends, it normally survives worker restarts and reconnects on its

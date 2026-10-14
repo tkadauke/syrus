@@ -76,6 +76,30 @@ RSpec.describe PlatformPollingJob do
       expect(Rails.logger).to receive(:error).with(include("oops"))
       expect { concrete_class.new.perform }.to have_enqueued_job(concrete_class)
     end
+
+    it "re-enqueues with a subclass-provided delay" do
+      concrete_class.class_eval do
+        private
+
+        def polling_restart_delay = 30.seconds
+      end
+      allow_any_instance_of(concrete_class).to receive(:duplicate_running?).and_return(false)
+
+      expect {
+        concrete_class.new.perform
+      }.to have_enqueued_job(concrete_class).at(a_value_within(1.second).of(30.seconds.from_now))
+    end
+
+    it "does not re-enqueue when a subclass stops polling" do
+      concrete_class.class_eval do
+        private
+
+        def continue_polling? = false
+      end
+      allow_any_instance_of(concrete_class).to receive(:duplicate_running?).and_return(false)
+
+      expect { concrete_class.new.perform }.not_to have_enqueued_job(concrete_class)
+    end
   end
 
   describe "#duplicate_running?" do

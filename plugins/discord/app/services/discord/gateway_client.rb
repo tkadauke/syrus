@@ -34,6 +34,10 @@ module Discord
 
     MAX_RECONNECT_ATTEMPTS = 5
     BACKOFF_BASE_SECONDS = 2
+    FATAL_CLOSE_CODES = [ 4004, 4010, 4011, 4012, 4013, 4014 ].freeze
+    RESUMABLE_CLOSE_CODES = ([ 1006 ] + (4000..4009).to_a).freeze
+
+    attr_reader :fatal_close_code, :fatal_close_reason, :run_outcome
 
     def initialize(token:, url: DEFAULT_URL)
       @token = token
@@ -44,6 +48,10 @@ module Discord
       @write_mutex = Mutex.new
     end
 
+    def fatal_close? = fatal_close_code.present?
+    def session_established? = @session_id.present?
+    def reset_reconnect_backoff? = session_established? && run_outcome == :closed
+
     # Connects and blocks dispatching Gateway DISPATCH payloads (the full
     # `{ "t" => ..., "d" => ... }` hash) to `handler` until the session ends.
     # Returns (does not raise) once retries are exhausted or the connection
@@ -51,21 +59,29 @@ module Discord
     def run(&handler)
       @handler = handler
       attempts = 0
+      @fatal_close_code = nil
+      @fatal_close_reason = nil
 
       loop do
         @should_reconnect = false
+        @run_outcome = nil
 
         begin
           connect_and_pump
+          @run_outcome ||= @session_id.present? ? :closed : :startup_failure
         rescue => e
           Rails.logger.error("Discord::GatewayClient: connection error: #{e.message}")
           @should_reconnect = @session_id.present?
+          @run_outcome = @should_reconnect ? :connection_error : :startup_failure
         end
 
         break unless @should_reconnect
 
         attempts += 1
-        break if attempts > MAX_RECONNECT_ATTEMPTS
+        if attempts > MAX_RECONNECT_ATTEMPTS
+          @run_outcome = :reconnect_exhausted
+          break
+        end
 
         sleep(BACKOFF_BASE_SECONDS * attempts) unless Rails.env.test?
       end
@@ -82,7 +98,7 @@ module Discord
       @closed = false
 
       @driver.on(:message) { |event| handle_frame(event.data) }
-      @driver.on(:close) { @closed = true }
+      @driver.on(:close) { |event| handle_close(event) }
       @driver.on(:error) { |event| Rails.logger.error("Discord::GatewayClient: #{event.message}") }
 
       @driver.start
@@ -102,6 +118,7 @@ module Discord
     rescue EOFError, IOError, SystemCallError, OpenSSL::SSL::SSLError
       @closed = true
       @should_reconnect = @session_id.present?
+      @run_outcome = @should_reconnect ? :connection_lost : :startup_failure
     end
 
     def build_uri(base)
@@ -131,13 +148,33 @@ module Discord
         send_heartbeat
       when OP_RECONNECT
         @should_reconnect = true
+        @run_outcome = :gateway_reconnect_requested
         @driver.close
       when OP_INVALID_SESSION
         @session_id = nil unless payload["d"] == true
         @should_reconnect = true
+        @run_outcome = :invalid_session
         @driver.close
       when OP_DISPATCH
         handle_dispatch(payload)
+      end
+    end
+
+    def handle_close(event)
+      @closed = true
+      code = event.respond_to?(:code) ? event.code : nil
+      reason = event.respond_to?(:reason) ? event.reason : nil
+
+      if FATAL_CLOSE_CODES.include?(code)
+        @fatal_close_code = code
+        @fatal_close_reason = reason
+        @run_outcome = :fatal_close
+        @should_reconnect = false
+      elsif RESUMABLE_CLOSE_CODES.include?(code)
+        @should_reconnect = @session_id.present?
+        @run_outcome = @should_reconnect ? :resumable_close : :startup_failure
+      else
+        @run_outcome ||= @session_id.present? ? :closed : :startup_failure
       end
     end
 
