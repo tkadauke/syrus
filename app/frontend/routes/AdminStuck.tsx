@@ -8,6 +8,7 @@ import { workflowSlug } from "../lib/slugs"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { invalidateJobSurfaces } from "../lib/jobQueryInvalidation"
 import {
   AdminEventFilterBar,
   AdminEventLogTable,
@@ -82,7 +83,7 @@ function buildStuckColumns({
   prefix,
   t
 }: {
-  forceFail: { isPending: boolean; mutate: (path: string) => void }
+  forceFail: { isPending: boolean; mutate: (input: { path: string; jobId: number }) => void }
   prefix: string
   t: (key: string) => string
 }): Array<AdminEventLogTableColumn<StuckItem>> {
@@ -138,7 +139,7 @@ function buildStuckColumns({
             <button
               className="font-medium text-red-600 underline hover:no-underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:disabled:text-gray-500"
               disabled={forceFail.isPending}
-              onClick={() => forceFail.mutate(item.force_fail_path as string)}
+              onClick={() => forceFail.mutate({ path: item.force_fail_path as string, jobId: item.job_id as number })}
               type="button"
             >
               {forceFail.isPending ? t("stuck.force_failing") : t("stuck.force_fail")}
@@ -175,11 +176,11 @@ function StuckTable({
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const forceFail = useMutation({
-    mutationFn: forceFailStuckJob,
-    onSuccess: () => {
+    mutationFn: ({ path }: { path: string; jobId: number }) => forceFailStuckJob(path),
+    onSuccess: (_payload, { jobId }) => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "stuck"] })
       void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })
-      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      invalidateJobSurfaces(queryClient, jobId)
     }
   })
   const columns = buildStuckColumns({ forceFail, prefix, t })
