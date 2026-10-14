@@ -343,6 +343,16 @@ describe("DashboardSmartFolderNav", () => {
     expect(currentLocation()).toBe("/dashboard/jobs?smart_folder_id=7&start_blocked=1")
   })
 
+  it("leaves keyboard activation of the blocked-count badge to the badge", () => {
+    const { currentLocation } = renderNav([
+      folder({ id: 7, name: "Queued", key: "queued", kind: "builtin", position: 0, count: 4, blocked_count: 2, path: "/dashboard/jobs?smart_folder_id=7" })
+    ])
+
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Show 2 blocked queued jobs" }), { key: "Enter" })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Show 2 blocked queued jobs" }), { key: " " })).toBe(true)
+    expect(currentLocation()).toBe("/dashboard/jobs")
+  })
+
   it("keeps the dashboard blocked-count built-in row clickable outside the blocked badge", () => {
     const { currentLocation } = renderNav([
       folder({ id: 7, name: "Queued", key: "queued", kind: "builtin", position: 0, count: 4, blocked_count: 2, path: "/dashboard/jobs?smart_folder_id=7" })

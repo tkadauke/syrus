@@ -381,6 +381,7 @@ function SmartFolderRow<TFolder extends SmartFolderNavFolder>({
           navigate(href)
         }}
         onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
           if (event.key !== "Enter" && event.key !== " ") return
           event.preventDefault()
           selectFolder()
