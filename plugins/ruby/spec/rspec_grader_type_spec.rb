@@ -4,6 +4,11 @@ require "tmpdir"
 require "fileutils"
 
 RSpec.describe Ruby::RspecGraderType do
+  def focused_selector_from(command)
+    script_arg = command.match(/ruby -e (?<script>.+?) > \.syrus\/rspec-focused-files/m)[:script]
+    Shellwords.split(script_arg).sole
+  end
+
   def run_generated_rspec_command(command, parallel_status:, serial_status: 0)
     Dir.mktmpdir("rspec-grader-command") do |dir|
       bin_dir = File.join(dir, "bin")
@@ -118,6 +123,42 @@ RSpec.describe Ruby::RspecGraderType do
       expect(status).to be_success, "expected the focused-file selector to run without a shell/ruby syntax error, got:\n#{stderr}"
       expect(stdout).to include("spec/models/concerns/widget_spec.rb")
     end
+  end
+
+  it "maps gem-style lib changes to specs under spec without requiring a main or master ref" do
+    Dir.mktmpdir do |dir|
+      run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+      run_git.call("init", "-q", "-b", "develop")
+      run_git.call("config", "user.email", "test@example.com")
+      run_git.call("config", "user.name", "Test")
+      run_git.call("config", "commit.gpgsign", "false")
+      FileUtils.mkdir_p(File.join(dir, "spec/foo"))
+      File.write(File.join(dir, "spec/foo/bar_spec.rb"), "RSpec.describe(Foo::Bar) {}\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "base")
+      run_git.call("checkout", "-q", "-b", "feature")
+      FileUtils.mkdir_p(File.join(dir, "lib/foo"))
+      File.write(File.join(dir, "lib/foo/bar.rb"), "module Foo; class Bar; end; end\n")
+      run_git.call("add", "-A")
+      run_git.call("commit", "-q", "-m", "feature")
+
+      command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+      stdout, stderr, status = Open3.capture3("ruby", "-e", focused_selector_from(command), chdir: dir)
+
+      expect(status).to be_success, "expected the focused-file selector to run, got:\n#{stderr}"
+      expect(stdout.lines.map(&:strip)).to include("spec/foo/bar_spec.rb")
+    end
+  end
+
+  it "falls back to the full RSpec suite when focused selection has no resolvable base" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+
+    stdout, _stderr, status = run_generated_rspec_command(command, parallel_status: 0, serial_status: 7) do |dir|
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+    end
+
+    expect(stdout).to include("falling back to full RSpec suite")
+    expect(status.exitstatus).to eq(7)
   end
 
   it "expands to typed focused review, full landing, and ci graders" do
@@ -336,11 +377,10 @@ RSpec.describe Ruby::RspecGraderType do
 
   it "keeps the focused selector as valid Ruby after shell escaping" do
     command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
-    script_arg = command.match(/ruby -e (?<script>.+?) > \.syrus\/rspec-focused-files/m)[:script]
-    script = Shellwords.split(script_arg).sole
+    script = focused_selector_from(command)
 
     expect { RubyVM::InstructionSequence.compile(script) }.not_to raise_error
-    expect(script).to include("exit 0 unless base\nscope =")
+    expect(script).to include("git symbolic-ref -q --short refs/remotes/origin/HEAD")
   end
 
   # The gate exists so a repair that did not work is rejected in seconds
