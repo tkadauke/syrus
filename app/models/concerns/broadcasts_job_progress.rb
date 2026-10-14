@@ -57,7 +57,8 @@ module BroadcastsJobProgress
       resource: "job",
       id: owner_job.id,
       changed: [ "#{self.class.name.underscore}.#{action}", *changed.map(&:to_s) ].uniq,
-      revision: owner_job.entity_revision
+      revision: owner_job.entity_revision,
+      payload: { fields: App::JobEventFields.for(owner_job) }
     )
 
     # A second, resource-specific event alongside the job-level rollup above:
