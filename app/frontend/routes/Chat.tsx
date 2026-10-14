@@ -861,22 +861,27 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     )
   }
 
+  const mobileFindBarStyle = !isDesktop && findOpen ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined
+  const messageStreamStyle = !isDesktop && !findOpen ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined
+
   return (
-    <div className="relative h-full min-h-0">
+    <div className="relative flex h-full min-h-0 flex-col">
       {findOpen ? (
-        <ContextFindBar
-          closeLabel={t("context_find_close")}
-          countLabel={findCountLabel}
-          hasResults={findMatches.length > 0}
-          nextLabel={t("context_find_next")}
-          placeholder={t("context_find_placeholder_chat")}
-          previousLabel={t("context_find_previous")}
-          query={findQuery}
-          onClose={() => setFindOpen(false)}
-          onNext={() => goToFindIndex(activeFindIndex + 1)}
-          onPrevious={() => goToFindIndex(activeFindIndex - 1)}
-          onQueryChange={setFindQuery}
-        />
+        <div className="shrink-0" data-testid="chat-context-find-bar" style={mobileFindBarStyle}>
+          <ContextFindBar
+            closeLabel={t("context_find_close")}
+            countLabel={findCountLabel}
+            hasResults={findMatches.length > 0}
+            nextLabel={t("context_find_next")}
+            placeholder={t("context_find_placeholder_chat")}
+            previousLabel={t("context_find_previous")}
+            query={findQuery}
+            onClose={() => setFindOpen(false)}
+            onNext={() => goToFindIndex(activeFindIndex + 1)}
+            onPrevious={() => goToFindIndex(activeFindIndex - 1)}
+            onQueryChange={setFindQuery}
+          />
+        </div>
       ) : null}
       {
         // pb-* used to be a static guess sized for the composer's default
@@ -889,12 +894,12 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
+        className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
         onScroll={handleScroll}
-        style={!isDesktop ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined}
+        style={messageStreamStyle}
         onTouchMove={handleTouchMove}
         onWheel={handleWheel}
         ref={streamRef}

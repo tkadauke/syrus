@@ -230,20 +230,25 @@ describe("chat context find", () => {
       return Promise.resolve(jsonResponse(chatPayload()))
     })
 
-    renderRoute()
+    renderRouteWithMobileChromeContext({ topInset: 44 })
 
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: "Chat mobile tabs" })).toBeInTheDocument()
     expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+    expect(screen.getByTestId("chat-message-stream")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
 
     fireEvent.keyDown(window, { key: "f", ctrlKey: true })
 
     expect(screen.getByRole("searchbox", { name: "Find" })).toBeInTheDocument()
     expect(screen.queryByText(/Tokens:/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("chat-context-find-bar")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
+    expect(screen.getByTestId("chat-message-stream")).not.toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
 
     fireEvent.click(screen.getByRole("button", { name: "Close find" }))
 
     expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-context-find-bar")).not.toBeInTheDocument()
+    expect(screen.getByTestId("chat-message-stream")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
   })
 })
 
