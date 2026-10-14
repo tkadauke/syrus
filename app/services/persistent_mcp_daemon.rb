@@ -151,7 +151,8 @@ class PersistentMcpDaemon
     elsif workflow_mcp_path?(request.path)
       workflow_role = workflow_role_for_path(request.path)
       if workflow_role
-        workflow_mcp_transport_for(workflow_role).call(inject_invocation_context(env))
+        context_scoped_workflow_response(env, workflow_role) ||
+          workflow_mcp_transport_for(workflow_role).call(inject_invocation_context(env))
       else
         not_found
       end
@@ -369,6 +370,48 @@ class PersistentMcpDaemon
     )
   end
 
+  def context_scoped_workflow_response(env, workflow_role)
+    return unless env["REQUEST_METHOD"] == "POST"
+
+    request = Rack::Request.new(env)
+    body_string = request.body.read
+    request.body.rewind
+    parsed = JSON.parse(body_string, symbolize_names: true)
+    return unless parsed.is_a?(Hash) && %w[tools/list tools/call].include?(parsed[:method])
+    if parsed[:method] == "tools/call"
+      tool_name = parsed.dig(:params, :name)
+      return if static_daemon_tool_name?(tool_name) || static_workflow_tool_name?(workflow_role, tool_name)
+    end
+
+    meta = parsed.dig(:params, :_meta).is_a?(Hash) ? parsed.dig(:params, :_meta) : {}
+    token = env[INVOCATION_CONTEXT_HEADER_ENV_KEY].presence || meta[INVOCATION_CONTEXT_META_KEY]
+    return if token.blank?
+
+    resolved = PersistentMcpDaemon::WorkflowContextResolver.resolve(
+      identity: identity,
+      workflow_role: workflow_role,
+      _meta: meta.merge(INVOCATION_CONTEXT_META_KEY => token)
+    )
+    server = MCP::Server.new(
+      name: "syrus-persistent-mcp-daemon-#{self.class.workflow_role_path_token(workflow_role)}",
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] +
+        wrapped_workflow_tools(resolved.allowed_tools),
+      server_context: { identity: identity, workflow_role: workflow_role }
+    )
+    body_string = body_with_invocation_context(parsed, meta: meta, token: token)
+
+    json_response(200, JSON.parse(server.handle_json(body_string)))
+  rescue JSON::ParserError
+    nil
+  rescue McpInvocationContext::InvalidContext => e
+    json_response(
+      200,
+      jsonrpc: "2.0",
+      id: parsed && parsed[:id],
+      error: { code: -32001, message: "Unauthorized: invocation context #{e.class.name.demodulize}: #{e.message}" }
+    )
+  end
+
   def body_with_invocation_context(parsed, meta:, token:)
     params = parsed[:params].is_a?(Hash) ? parsed[:params] : {}
     JSON.generate(
@@ -392,8 +435,18 @@ class PersistentMcpDaemon
     end
   end
 
+  def static_workflow_tool_name?(role, tool_name)
+    return false if tool_name.blank?
+
+    workflow_tools(role).any? { |tool| McpToolRegistry.tool_name_for(tool) == tool_name.to_s }
+  end
+
   def wrapped_chat_tools(tools)
     unique_tools(tools).map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
+  end
+
+  def wrapped_workflow_tools(tools)
+    unique_tools(tools).map { |tool| PersistentMcpDaemon::WorkflowToolDispatch.wrap(tool) }
   end
 
   def mcp_transport
