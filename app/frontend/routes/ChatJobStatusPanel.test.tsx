@@ -17,7 +17,7 @@ function renderPanel(chatId: number | string = 8, onSelectMessage?: (messageId: 
             element={<ChatJobStatusPanel chatId={chatId} onSelectMessage={onSelectMessage} />}
             path="/app-shell/chats/:id"
           />
-          <Route element={<div data-testid="job-detail" />} path="/jobs/:id" />
+          <Route element={<div data-testid="job-detail" />} path="/app-shell/jobs/:id" />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -167,7 +167,7 @@ describe("ChatJobStatusPanel job cards", () => {
     expect(link).toHaveAttribute("href", "https://github.com/acme/widgets/pull/7")
   })
 
-  it("navigates to the job detail page when the card is clicked", async () => {
+  it("navigates to the app-shell job detail page when the card is clicked", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
 
     renderPanel()
@@ -176,11 +176,11 @@ describe("ChatJobStatusPanel job cards", () => {
     fireEvent.click(card)
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/jobs/42")
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/42")
     })
   })
 
-  it("navigates to the job detail page when the card is activated by keyboard", async () => {
+  it("navigates to the app-shell job detail page when the card is activated by keyboard", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
 
     renderPanel()
@@ -189,7 +189,7 @@ describe("ChatJobStatusPanel job cards", () => {
     fireEvent.keyDown(card, { key: "Enter" })
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/jobs/42")
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/42")
     })
   })
 
@@ -301,6 +301,19 @@ describe("ChatJobStatusPanel epic tree", () => {
 
     expect(await screen.findByText("Survey route")).toBeInTheDocument()
     expect(screen.getByText("JOB-10")).toBeInTheDocument()
+  })
+
+  it("navigates epic child job cards within the app-shell route prefix", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+
+    renderPanel()
+
+    const childCard = await screen.findByRole("button", { name: /Survey route/i })
+    fireEvent.click(childCard)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/10")
+    })
   })
 
   it("collapses and expands the epic section on header click", async () => {
@@ -599,6 +612,22 @@ describe("ChatJobStatusPanel pending proposals", () => {
 })
 
 describe("ChatJobStatusPanel live updates", () => {
+  it("refetches mounted cached status so reopening the Jobs tab is fresh within the stale window", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "8", "job_status"], {
+      pending_proposals: [],
+      items: [jobItem({ title: "Cached status" })]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({ title: "Refetched status" })
+    ]))
+
+    renderPanelWithClient(queryClient)
+
+    expect(screen.getByText("Cached status")).toBeInTheDocument()
+    expect(await screen.findByText("Refetched status")).toBeInTheDocument()
+  })
+
   it("invalidates the job_status query when a matching syrus:job-status-changed event fires", async () => {
     let callCount = 0
     vi.spyOn(window, "fetch").mockImplementation(() => {
