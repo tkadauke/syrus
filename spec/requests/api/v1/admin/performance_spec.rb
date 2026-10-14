@@ -47,6 +47,24 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request, requires_plugin
       "sql_count" => 20,
       "sql_duration_ms" => 1_500.0
     )
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_SQL_EVENT,
+      "occurred_at" => 2.seconds.ago.iso8601(6),
+      "name" => "Job Load",
+      "sql" => "SELECT * FROM jobs WHERE id = 1",
+      "fingerprint" => "SELECT * FROM jobs WHERE id = ?",
+      "duration_ms" => 35.0,
+      "app_revision" => "new-sha"
+    )
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_SQL_EVENT,
+      "occurred_at" => 1.second.ago.iso8601(6),
+      "name" => "Job Load",
+      "sql" => "SELECT * FROM jobs WHERE id = 2",
+      "fingerprint" => "SELECT * FROM jobs WHERE id = ?",
+      "duration_ms" => 45.0,
+      "app_revision" => "new-sha"
+    )
   end
 
   it "401s without a token" do

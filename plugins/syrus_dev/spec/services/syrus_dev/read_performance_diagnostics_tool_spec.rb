@@ -55,6 +55,15 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
 
   it "returns sanitized summaries and metadata without raw events by default" do
     append_event
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_SQL_EVENT,
+      "occurred_at" => Time.current.iso8601(6),
+      "app_revision" => "new-sha",
+      "duration_ms" => 250.0,
+      "name" => "Job Load",
+      "sql" => "SELECT * FROM jobs WHERE token = 'super-secret'",
+      "fingerprint" => "SELECT * FROM jobs WHERE id = ?"
+    )
 
     response = described_class.call(server_context: { run_id: run.id })
 
