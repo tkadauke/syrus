@@ -74,9 +74,9 @@ export function fetchAgentActivitySessions(scope: "mine" | "admin", search = "")
   return getJson<AgentActivitySessionsPayload>(`${path}${query ? `?${query}` : ""}`)
 }
 
-export function fetchAgentActivityTranscript(transcriptPath: string) {
+export function fetchAgentActivityTranscript(transcriptPath: string, page = 1) {
   const separator = transcriptPath.includes("?") ? "&" : "?"
-  return getJson<AgentActivityRunArtifacts>(`${transcriptPath}${separator}artifact=transcript`)
+  return getJson<AgentActivityRunArtifacts>(`${transcriptPath}${separator}artifact=transcript&page=${page}`)
 }
 
 export function recordAgentActivityFilterUsage(scope: "mine" | "admin", filter: Record<string, unknown>) {
