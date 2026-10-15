@@ -22,6 +22,12 @@ trap cleanup EXIT
 
 mkdir -p "$tmpdir/db" "$tmpdir/search"
 
+# This check only needs bootable Active Record encryption configuration; it
+# must never depend on or embed the application's Rails credentials key.
+encryption_primary_key="fresh_db_prepare_primary_key_32b"
+encryption_deterministic_key="fresh_db_prepare_deterministic_key"
+encryption_key_derivation_salt="fresh_db_prepare_derivation_salt"
+
 # Kubernetes creates the MySQL databases before Rails starts. That means
 # `db:prepare` sees existing-but-empty secondary databases and takes the
 # migration path, not the schema-load path. Empty SQLite files reproduce that
@@ -36,7 +42,9 @@ touch \
 env \
   SYRUS_SQLITE=1 \
   RAILS_ENV=production \
-  RAILS_MASTER_KEY="${RAILS_MASTER_KEY:-8c3f538bb0a369f25d62cf5fa7e9be09}" \
+  ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="$encryption_primary_key" \
+  ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY="$encryption_deterministic_key" \
+  ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT="$encryption_key_derivation_salt" \
   SECRET_KEY_BASE="${SECRET_KEY_BASE:-fresh-db-prepare-local-secret}" \
   DB_HOST="${DB_HOST:-127.0.0.1}" \
   SYRUS_DATABASE_PASSWORD="${SYRUS_DATABASE_PASSWORD:-fresh-db-prepare}" \
@@ -49,7 +57,9 @@ env \
 env \
   SYRUS_SQLITE=1 \
   RAILS_ENV=production \
-  RAILS_MASTER_KEY="${RAILS_MASTER_KEY:-8c3f538bb0a369f25d62cf5fa7e9be09}" \
+  ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY="$encryption_primary_key" \
+  ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY="$encryption_deterministic_key" \
+  ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT="$encryption_key_derivation_salt" \
   SECRET_KEY_BASE="${SECRET_KEY_BASE:-fresh-db-prepare-local-secret}" \
   DB_HOST="${DB_HOST:-127.0.0.1}" \
   SYRUS_DATABASE_PASSWORD="${SYRUS_DATABASE_PASSWORD:-fresh-db-prepare}" \
