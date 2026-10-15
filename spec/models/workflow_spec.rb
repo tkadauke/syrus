@@ -152,6 +152,21 @@ RSpec.describe Workflow, :ci_only do
       expect(workflow.projected_active_step_ids).to be_empty
     end
 
+    it "runs commit propagation when cancelling an active Run" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+
+      expect(Runs::LifecyclePropagation).to receive(:cancelled!).with(have_attributes(id: run.id)).and_call_original
+      expect(Runs::LifecyclePropagation).to receive(:terminal!).with(have_attributes(id: run.id)).and_call_original
+      expect(Runs::LifecyclePropagation).to receive(:state_changed!).with(have_attributes(id: run.id)).and_call_original
+
+      workflow.cancel_active_descendants!
+
+      expect(run.reload).to be_cancelled
+      expect(run.finished_at).to be_present
+    end
+
     it "preserves metadata written after terminal cleanup selected an active Step" do
       workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
       step = Step.create!(

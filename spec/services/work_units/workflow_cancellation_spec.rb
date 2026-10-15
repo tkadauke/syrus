@@ -63,6 +63,9 @@ RSpec.describe WorkUnits::WorkflowCancellation do
   it "preserves legacy cancellation for workflows without work units" do
     workflow = Workflows::Initial.instantiate(job: job)
 
+    expect(workflow).to receive(:wake_workflow_admission_after_completion!).and_call_original
+    expect(workflow).to receive(:record_workflow_activity_state_change!).and_call_original
+
     expect {
       described_class.cancel!(
         workflow,
@@ -72,6 +75,7 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     }.not_to raise_error
 
     expect(workflow.reload).to be_cancelled
+    expect(workflow.finished_at).to be_present
     expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
   end
 
