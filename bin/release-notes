@@ -84,8 +84,9 @@ fi
 
 PREVIOUS_TAG="$(syrus_release_previous_stable_tag_for "$VERSION")"
 TARGET_REF="HEAD"
-if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-  TARGET_REF="$VERSION"
+VERSION_TAG="v${VERSION#v}"
+if git rev-parse -q --verify "refs/tags/$VERSION_TAG" >/dev/null; then
+  TARGET_REF="$VERSION_TAG"
 fi
 
 if [ -n "$PREVIOUS_TAG" ]; then
@@ -121,7 +122,9 @@ Target ref: $TARGET_REF
 Commits:
 PROMPT_HEADER
   printf '%s\n' "$COMMIT_LOG"
-  [ -n "$DIFF_STAT" ] && printf '\nDiff stat:\n%s\n' "$DIFF_STAT"
+  if [ -n "$DIFF_STAT" ]; then
+    printf '\nDiff stat:\n%s\n' "$DIFF_STAT"
+  fi
 )"
 
 # Progress/status go to stderr so --stdout emits ONLY the notes.
@@ -133,14 +136,15 @@ echo "== Generating release notes for $VERSION with Claude ==" >&2
 # adaptive thinking, which shares the output budget.
 NOTES_MODEL="claude-sonnet-5"
 if [ -n "$API_KEY" ]; then
-  NOTES="$(
+  REQUEST_BODY="$(
     jq -n --arg m "$NOTES_MODEL" --arg p "$PROMPT" \
-      '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}' \
+      '{model:$m, max_tokens:8000, messages:[{role:"user", content:$p}]}'
+  )"
+  NOTES="$(
+    printf 'x-api-key: %s\nanthropic-version: 2023-06-01\ncontent-type: application/json\n' "$API_KEY" \
       | curl -fsS https://api.anthropic.com/v1/messages \
-          -H "x-api-key: $API_KEY" \
-          -H "anthropic-version: 2023-06-01" \
-          -H "content-type: application/json" \
-          --data-binary @- \
+          -H @- \
+          --data-binary "$REQUEST_BODY" \
       | jq -r '.content[]? | select(.type == "text") | .text'
   )"
 else
