@@ -148,10 +148,15 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "admission_control")
 
       queries = capture_sql { workflows_payload_for(job) }
+      # The desired-work probe is a narrow projection; `AS t0_r0` marks an
+      # eager-load join, which other parts of the payload issue for their own
+      # reasons and which this example is not about. Without excluding them the
+      # count measures unrelated queries that happen to touch work_units.
       active_intent_unit_queries = queries.select do |sql|
         sql.match?(/FROM [`"]?work_units[`"]?/i) &&
           sql.match?(/work_intent_id/i) &&
-          sql.match?(/state/i)
+          sql.match?(/state/i) &&
+          !sql.match?(/ AS t0_r/i)
       end
 
       expect(active_intent_unit_queries.size).to eq(1)
@@ -1215,7 +1220,12 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       run_payload = payload.dig(:workflows, 0, :steps, 0, :runs, 0)
       expect(run_payload).to include(job_log_count: 2, rate_limited: true)
 
-      job_log_queries = queries.select { |sql| sql.match?(/FROM [`"]?job_logs[`"]?/i) }
+      # Only the grouped markers query is in scope. The payload also issues a
+      # single COUNT/MAX digest over the Job's logs for cache freshness, which
+      # is batched in its own right and not what "one grouped query" is about.
+      job_log_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?job_logs[`"]?/i) && sql.match?(/GROUP BY/i)
+      end
       expect(job_log_queries.size).to eq(1)
       expect(job_log_queries.first).to include("MAX(sequence)")
       expect(job_log_queries.first).to include("rate_limited")

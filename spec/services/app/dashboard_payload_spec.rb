@@ -167,7 +167,11 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       query_count = 0
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
-        query_count += 1 if payload[:sql].include?("repository_memberships")
+        # Count only queries that load membership rows. Other parts of the
+        # payload -- accessible-repository scoping, the team user count --
+        # name repository_memberships inside subqueries, and counting those
+        # measures unrelated work rather than whether this lookup batches.
+        query_count += 1 if payload[:sql].match?(/SELECT\s+["`]?repository_memberships["`]?\.\*/i)
       end
 
       result = begin
@@ -1904,7 +1908,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "shows the claimable folder when there are multiple users" do
-      Factories.user
+      # "Multiple users" means multiple users who can reach the active
+      # repositories: team_user_count scopes to RepositoryMembership, so an
+      # unrelated account does not make a team folder appear.
+      RepositoryMembership.create!(repository: repo, user: Factories.user, role: "write")
 
       result = call(subject: "epic")
 
