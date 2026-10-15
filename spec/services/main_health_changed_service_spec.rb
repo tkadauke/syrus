@@ -1299,8 +1299,9 @@ RSpec.describe MainHealthChangedService, :ci_only do
           described_class.new(repository).send(:retry_held_jobs!)
         end
 
-        expect(workflow_selects.size).to eq(1)
+        expect(workflow_selects.size).to eq(2)
         expect(workflow_selects.first).to include("LIMIT")
+        expect(workflow_selects.join("\n")).not_to match(/IN\s*\(\s*SELECT.+LIMIT/im)
       end
 
       it "looks up newer workflows in one grouped query instead of once per candidate" do
@@ -1329,7 +1330,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           described_class.new(repository).send(:retry_held_jobs!)
         end
 
-        expect(workflow_selects).to eq(3)
+        expect(workflow_selects).to eq(4)
       end
     end
 

@@ -293,7 +293,9 @@ class MainHealthChangedService
       .where(state: "failed")
       .order(id: :desc)
       .limit(MAX_RECOVERY_SCAN)
-      .select(:id)
+      .pluck(:id)
+
+    return retried if recent_failed_ids.empty?
 
     candidates = Workflow
       .where(id: recent_failed_ids)
