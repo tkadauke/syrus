@@ -5,8 +5,8 @@ module Api
       # (see BuildCache::RepositorySettings, config/syrus_docs/sccache_build_cache.md's
       # "Cache-safe coverage recipe"). Deliberately narrow: the only setting
       # here is `basedirs_safe`, gated behind a repository the current user
-      # can actually see, same access-scoping pattern as
-      # InsightScheduleConfigsController.
+      # can actually see. Repository-wide mutations require repository admin
+      # access.
       class BuildCacheRepositorySettingsController < BaseController
         def show
           repository = find_repository
@@ -18,6 +18,7 @@ module Api
         def update
           repository = find_repository
           return unless repository
+          return unless authorize_repository_admin!(repository)
 
           settings = BuildCache::RepositorySettings.for_repository(repository) ||
             BuildCache::RepositorySettings.new(repository: repository)
@@ -33,7 +34,7 @@ module Api
         private
 
         def find_repository
-          repo = Current.user.repositories.find_by(id: params[:id])
+          repo = Repository.accessible_to(Current.user).active.find_by(id: params[:id])
           render_error("not_found", "Repository not found.", status: :not_found) unless repo
           repo
         end
