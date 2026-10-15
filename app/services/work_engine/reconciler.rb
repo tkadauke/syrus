@@ -1637,7 +1637,7 @@ module WorkEngine
     def active_runtime_workflows_for_job(job)
       @active_runtime_workflows_for_job ||= {}
       @active_runtime_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
         active_work_units_for_job(job)
           .select { |unit| first_class_work_unit?(unit) }
           .filter_map(&:workflow)
@@ -1649,7 +1649,7 @@ module WorkEngine
     def active_work_unit_owned_workflows_for_job(job)
       @active_work_unit_owned_workflows_for_job ||= {}
       @active_work_unit_owned_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
         active_work_units_for_job(job)
           .filter_map(&:workflow)
           .uniq(&:id)
@@ -3641,8 +3641,12 @@ module WorkEngine
     def active_runtime_work_for_job?(job)
       return false unless job
 
-      WorkUnits::TerminalWorkflowSync.for_job(job)
-      job.reload.active_runtime_work?
+      @active_runtime_work_for_job ||= {}
+      return @active_runtime_work_for_job[job.id] if @active_runtime_work_for_job.key?(job.id)
+
+      WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
+      job.reload
+      @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_for_job?(job)
     end
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow, include_active_start_block: false)
