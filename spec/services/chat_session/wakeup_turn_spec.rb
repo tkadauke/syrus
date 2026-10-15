@@ -38,6 +38,16 @@ RSpec.describe ChatSession::WakeupTurn do
     expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, message.id).on_queue("chat")
   end
 
+  it "does not create a message or enqueue a turn for a soft-deleted chat" do
+    wakeup
+    chat_session.update_column(:deleted_at, Time.current)
+
+    expect {
+      expect(described_class.new(wakeup).run).to be_nil
+    }.not_to change(ChatMessage, :count)
+    expect(ChatTurnJob).not_to have_been_enqueued
+  end
+
   it "keeps ordinary scheduled wakeups as visible automation messages" do
     ordinary_wakeup = ChatWakeup.create!(
       chat_session: chat_session,
