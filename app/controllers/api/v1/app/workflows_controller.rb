@@ -58,8 +58,12 @@ module Api
         private
 
         def find_workflow
-          workflow = Workflow.joins(:job).where(jobs: { user_id: Current.user.id }).find(params[:workflow_id])
-          workflow
+          readable_jobs = if Current.user.admin?
+            Job.all
+          else
+            Job.where(user: Current.user).or(Job.accessible_to(Current.user))
+          end
+          Workflow.joins(:job).merge(readable_jobs).find(params[:workflow_id])
         end
       end
     end

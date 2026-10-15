@@ -78,12 +78,36 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/coverage_hit_map", type:
   end
 
   it "returns 404 for a workflow belonging to another user" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     other_workflow = workflow_for(Factories.user)
 
     get "/api/v1/app/workflows/#{other_workflow.id}/coverage_hit_map"
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns coverage for a workflow visible through repository membership" do
+    workflow = workflow_for(user)
+    member = Factories.user
+    workflow.job.repository.repository_memberships.create!(user: member, role: "read")
+    workflow.attach_coverage_hit_map!({ "app/models/user.rb" => { "1" => 2 } })
+    sign_in_as(member)
+
+    get "/api/v1/app/workflows/#{workflow.id}/coverage_hit_map", params: { file: "app/models/user.rb" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["lines"]).to eq("1" => 2)
+  end
+
+  it "returns coverage from any workflow to a global admin" do
+    workflow = workflow_for(user)
+    admin = Factories.user(admin: true)
+    sign_in_as(admin)
+
+    get "/api/v1/app/workflows/#{workflow.id}/coverage_hit_map"
+
+    expect(response).to have_http_status(:ok)
   end
 end
 
@@ -136,6 +160,7 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
   end
 
   it "returns 404 for a workflow belonging to another user" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     other_workflow = workflow_for(Factories.user)
     other_workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
@@ -143,6 +168,19 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
     get "/api/v1/app/workflows/#{other_workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns a visual artifact visible through repository membership" do
+    workflow = workflow_for(user)
+    member = Factories.user
+    workflow.job.repository.repository_memberships.create!(user: member, role: "read")
+    workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+    sign_in_as(member)
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq(png_bytes)
   end
 
   it "returns retryable unavailable JSON when artifact storage is temporarily unreachable" do
