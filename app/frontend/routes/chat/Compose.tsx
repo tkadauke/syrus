@@ -172,7 +172,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const updateRepository = useMutation({
     mutationFn: (nextRepositoryId: string) => updateChatRepository(chatId, nextRepositoryId || null),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat)
       onNotice(null)
     },
@@ -363,7 +363,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       finishSubmittedDraft(draft, true)
       rememberSubmittedPrompt(draft.messageText)
       onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       setPendingConfirmation(null)
       onNotice(null)
@@ -488,7 +488,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     },
     onSuccess: (result, action) => {
       if (result.payload) {
-        queryClient.setQueryData(queryKey, result.payload)
+        mergeChatPayloadUpdate(queryClient, queryKey, result.payload)
         updateRecentChatCache(queryClient, result.payload.chat)
       }
       if (action.kind === "discard") {
@@ -537,7 +537,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const stash = useMutation({
     mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text, content == null ? attachments : []),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       setText("")
       setAttachments([])
       setAttachmentError(null)
@@ -3168,21 +3168,21 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
   const update = useMutation({
     mutationFn: () => updateQueuedChatMessage(appendSearch(message.app_update_path, search), draft),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       setEditing(false)
     }
   })
   const remove = useMutation({
     mutationFn: () => deleteQueuedChatMessage(appendSearch(message.app_delete_path, search)),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
   const stash = useMutation({
     mutationFn: async () => {
       const afterCreate = await createScratchpadItem(chatId, messageDraft)
-      queryClient.setQueryData(queryKey, afterCreate)
+      mergeChatPayloadUpdate(queryClient, queryKey, afterCreate)
       return deleteQueuedChatMessage(appendSearch(message.app_delete_path, search))
     },
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
 
   useEffect(() => {
@@ -3319,7 +3319,7 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
   const stopRequestedAt = payload.chat?.stop_requested_at
   const stop = useMutation({
     mutationFn: () => stopChat(appendSearch(payload.paths.app_stop_path, search)),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
   return (
     <button aria-label={t("aria_stop_agent")} className={className ?? STOP_BUTTON_CLASS} disabled={Boolean(stopRequestedAt) || stop.isPending} onClick={() => stop.mutate()} type="button">
