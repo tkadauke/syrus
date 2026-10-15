@@ -63,4 +63,12 @@ RSpec.describe SyrusDev::SqlExplain do
       described_class.call(sql: "SELECT 1 /*!; DELETE FROM users */")
     }.to raise_error(described_class::Error, /executable comments/)
   end
+
+  it "rejects quote escapes whose tokenization depends on the MySQL SQL mode" do
+    sql = "SELECT 'safe\\' + SLEEP(5) -- '"
+
+    expect {
+      described_class.call(sql: sql, analyze: true)
+    }.to raise_error(described_class::Error, /ambiguous backslash escape/)
+  end
 end
