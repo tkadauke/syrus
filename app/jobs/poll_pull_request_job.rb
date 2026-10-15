@@ -723,7 +723,7 @@ class PollPullRequestJob < ApplicationJob
     base_sha = pr_base_sha
     return false unless base_sha
 
-    if active_ci_failure_workflows_for_repository.any? { |workflow| workflow.job_id != @job.id && ci_failure_base_sha_for(workflow) == base_sha }
+    if active_ci_failure_workflows_for_repository.any? { |workflow| ci_failure_base_sha_for(workflow) == base_sha }
       Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because another active CI repair is already handling base #{base_sha[0, 7]}")
       return true
     end
@@ -733,7 +733,7 @@ class PollPullRequestJob < ApplicationJob
 
   def active_ci_failure_workflows_for_repository
     workflow_ids = WorkUnit
-      .where(repository: @job.repository, kind: "ci_failure", state: WorkUnits::Ownership::ACTIVE_STATES)
+      .where(repository: @job.repository, kind: "ci_failure", state: WorkUnits::Gates::CiRepairSafety::RESERVING_STATES)
       .where.not(workflow_id: nil)
       .pluck(:workflow_id)
 
