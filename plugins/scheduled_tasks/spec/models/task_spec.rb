@@ -342,6 +342,17 @@ RSpec.describe ScheduledTasks::Task do
       expect(task.has_open_pr?).to be true
     end
 
+    it "returns true when a prior Job has an external PR" do
+      task = build_cron
+      task.save!
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "external_pr", state: "implemented",
+        scheduled_task_id: task.id, external_pr_number: 99
+      )
+      expect(task.has_open_pr?).to be true
+    end
+
     it "returns false when prior Jobs are closed" do
       task = build_cron
       task.save!
@@ -376,6 +387,19 @@ RSpec.describe ScheduledTasks::Task do
         kind: "cron", scheduled_task_id: task.id, issue_number: nil, pr_number: 20
       )
       expect(task.last_pr_job).to eq(newer)
+    end
+
+    it "returns the most recent Job with an external_pr_number" do
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "cron", scheduled_task_id: task.id, issue_number: nil, pr_number: 10
+      )
+      external_pr_job = task.jobs.create!(
+        user: user, repository: repository,
+        kind: "external_pr", state: "implemented",
+        scheduled_task_id: task.id, external_pr_number: 20
+      )
+      expect(task.last_pr_job).to eq(external_pr_job)
     end
 
     it "ignores Jobs without a pr_number when selecting the most recent" do

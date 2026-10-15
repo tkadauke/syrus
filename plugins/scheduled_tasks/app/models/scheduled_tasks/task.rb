@@ -152,19 +152,19 @@ module ScheduledTasks
     # Does this task already have a Job whose PR is still open on GitHub
     # from a prior fire? Used by pr_pileup_policy=skip to short-circuit.
     def has_open_pr?
-      jobs.open_threads.where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL").exists?
+      jobs.open_threads.with_pr.exists?
     end
 
     # Most recent Job's still-open PR ids — used by pr_pileup_policy=replace
     # to close them out before opening a fresh one.
     def open_pr_jobs
-      jobs.open_threads.where.not(pr_number: nil)
+      jobs.open_threads.with_pr
     end
 
     # The most recently created Job from this task that opened a PR.
     # Used by Prompts::ScheduledTask to tell the agent what happened last time.
     def last_pr_job
-      jobs.where.not(pr_number: nil).order(created_at: :desc).first
+      jobs.with_pr.order(created_at: :desc).first
     end
 
     def soft_delete!

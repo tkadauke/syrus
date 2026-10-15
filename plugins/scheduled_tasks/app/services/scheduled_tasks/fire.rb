@@ -122,11 +122,12 @@ module ScheduledTasks
 
     def close_prior_open_prs
       @task.open_pr_jobs.find_each do |old_job|
-        Rails.logger.info("[ScheduledTasks::Fire] task ##{@task.id} closing prior PR ##{old_job.pr_number} (#{old_job.slug}) per replace policy")
+        pr_number = old_job.external_pr_number || old_job.pr_number
+        Rails.logger.info("[ScheduledTasks::Fire] task ##{@task.id} closing prior PR ##{pr_number} (#{old_job.slug}) per replace policy")
         begin
-          GithubClient.for(repository: @task.repository, user: @task.user).close_pull_request(@task.repository.slug, old_job.pr_number)
+          GithubClient.for(repository: @task.repository, user: @task.user).close_pull_request(@task.repository.slug, pr_number)
         rescue StandardError => e
-          Rails.logger.warn("[ScheduledTasks::Fire] failed to close PR ##{old_job.pr_number}: #{e.class}: #{e.message}")
+          Rails.logger.warn("[ScheduledTasks::Fire] failed to close PR ##{pr_number}: #{e.class}: #{e.message}")
         end
         old_job.close_with_reason!("replaced_by_scheduled_task")
       end
