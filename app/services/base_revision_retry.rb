@@ -144,7 +144,8 @@ class BaseRevisionRetry
         grader_name: grader_name,
         grader_command: @grader_step.details.to_h["command"],
         failed_cases: @failed_cases,
-        base_retry: config
+        base_retry: config,
+        project_path: @grader_step.details.to_h["project_path"]
       )
       return command.to_s.strip if command.to_s.strip.present?
     rescue StandardError => e
