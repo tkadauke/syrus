@@ -39,7 +39,7 @@ class JobBundleDispatcher
       raise ActiveRecord::Rollback if active_member_work?(members)
       raise ActiveRecord::Rollback if active_member_lock?(members)
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
-      raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
+      raise ActiveRecord::Rollback unless members.all?(&:eligible_for_landing_dispatch?)
       raise ActiveRecord::Rollback unless members.all? { |job| LandingApprovalGate.satisfied?(job, policy: delivery_policy) }
       base_branch = landing_branch_result_for(members).base_branch
       raise ActiveRecord::Rollback if base_branch.blank?
