@@ -2,6 +2,7 @@ module WorkIntents
   class TerminalUnitSync
     ACTIVE_UNIT_STATES = %w[queued blocked running].freeze
     SUPERSEDING_CANCEL_REASONS = [
+      Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       Workflow::SUPERSEDED_BY_REBASE_REASON,
       WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
       "operator_cancelled",

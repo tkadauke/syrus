@@ -110,6 +110,16 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     expect(intent.cancelled_at).to be_present
   end
 
+  it "cancels a requested WorkIntent when its only WorkUnit is superseded by a newer workflow" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+    intent = workflow.work_unit.work_intent
+
+    workflow.work_unit.preempt!(reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+
+    expect(intent.reload).to have_attributes(state: "cancelled")
+    expect(intent.cancelled_at).to be_present
+  end
+
   it "cancels a requested retry WorkIntent when it is superseded by approval" do
     workflow = WorkUnits::Launcher.instantiate(kind: "retry", job: job)
     intent = workflow.work_unit.work_intent
