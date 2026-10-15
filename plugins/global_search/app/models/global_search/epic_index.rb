@@ -38,13 +38,12 @@ module GlobalSearch
         end
       end
 
-      def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)
+      def search(query, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)
         binds = [
           bind(snippet_start.to_s),
           bind(snippet_end.to_s),
           bind(snippet_tokens.to_i),
-          bind(parse_fts_query(query)),
-          bind(user_id)
+          bind(parse_fts_query(query))
         ]
 
         limit_sql = ""
@@ -60,7 +59,7 @@ module GlobalSearch
               bm25(epic_fts) AS rank,
               snippet(epic_fts, -1, ?, ?, '...', ?) AS snippet
             FROM epic_fts
-            WHERE epic_fts MATCH ? AND user_id = ?
+            WHERE epic_fts MATCH ?
             ORDER BY rank ASC, created_at DESC, epic_id DESC
             #{limit_sql}
           SQL
