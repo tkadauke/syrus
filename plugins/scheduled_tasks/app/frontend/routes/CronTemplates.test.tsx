@@ -183,8 +183,36 @@ function renderNewForm() {
   )
 }
 
+function renderEditForm() {
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = String(input)
+    return Promise.resolve(jsonResponse(url === "/api/v1/app/cron_templates/5" ? templateDetail() : { templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/cron_templates/5/edit"]}>
+        <Routes>
+          <Route element={<CronTemplateFormRoute mode="edit" />} path="/app-shell/cron_templates/:id/edit" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+  return client
+}
+
 describe("CronTemplateFormRoute cadence preview", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("preserves an edited draft when background data refreshes", async () => {
+    const client = renderEditForm()
+    const name = await screen.findByLabelText("Name")
+
+    fireEvent.change(name, { target: { value: "My unsaved template" } })
+    act(() => client.setQueryData(["cron_templates", "5"], templateDetail()))
+
+    expect(name).toHaveValue("My unsaved template")
+  })
 
   it("previews the pre-filled placeholder cadence successfully on load", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
