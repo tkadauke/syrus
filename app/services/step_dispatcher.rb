@@ -10,6 +10,10 @@ class StepDispatcher
     new(step.workflow, advancing_from: step, check_phase_admission: check_phase_admission).advance!
   end
 
+  def self.finish_workflow!(workflow)
+    new(workflow).send(:finish_workflow!)
+  end
+
   # Kick off a freshly-instantiated Workflow. Caller (Job#after_
   # create_commit for issue Jobs, polling jobs for follow-up
   # workflows) instantiates Workflows::* in a transaction; once
