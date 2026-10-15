@@ -829,6 +829,17 @@ RSpec.describe ChatSession do
         expect(ChatProposal.exists?(proposal.id)).to be(true)
       end
 
+      it "cancels pending wakeups while preserving completed wakeup history" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        pending = session.wakeups.create!(user: repo.user, prompt: "Follow up", fire_at: 1.hour.from_now)
+        fired = session.wakeups.create!(user: repo.user, prompt: "Already done", fire_at: 1.hour.ago, state: "fired")
+
+        session.soft_delete_by!(actor)
+
+        expect(pending.reload).to be_cancelled
+        expect(fired.reload).to be_fired
+      end
+
       it "enqueues the workspace/search cleanup job post-commit, same as a hard destroy" do
         session = described_class.create!(repository: repo, user: repo.user)
         session.update_columns(workspace_path: "/tmp/syrus-data/chat-workspaces/#{session.id}")
