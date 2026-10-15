@@ -7,7 +7,7 @@ module Prompts
     def self.render(skill_path, arguments)
       raw = File.read(skill_path)
       body = raw.sub(/\A---\n.*?\n---\n+/m, "").strip
-      body.gsub("$ARGUMENTS", arguments)
+      body.gsub("$ARGUMENTS") { arguments }
     end
   end
 end
