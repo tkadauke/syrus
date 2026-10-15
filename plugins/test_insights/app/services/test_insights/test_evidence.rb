@@ -34,21 +34,20 @@ module TestInsights
     def self.failed_test_cases(run:, grader_name:)
       return [] if run.nil?
 
-      TestCase.joins(:test_run)
-              .where(test_insight_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
-              .select(:repository_id, :suite_name, :name, :file_path, :failure_message, :test_identity_id)
-              .map do |test_case|
-                {
-                  "suite_name" => test_case.suite_name,
-                  "name" => test_case.name,
-                  "file_path" => test_case.file_path,
-                  "identity" => [ test_case.suite_name, test_case.name ].join(0.chr),
-                  "failure_message" => failure_message_snippet(test_case.failure_message),
-                  "app_path" => "/repositories/#{test_case.repository_id}/plugin/tests?test_id=#{test_case.test_identity_id}"
-                }
-              end
+      failed_test_case_scope(run: run, grader_name: grader_name)
+              .map { |test_case| failed_test_case_payload(test_case) }
               .uniq
               .sort_by { |test_case| test_case.fetch("identity") }
+    end
+
+    def self.failed_test_summary(run:, grader_name:, limit:)
+      return { "failed_count" => 0, "failures" => [] } if run.nil?
+
+      scope = failed_test_case_scope(run: run, grader_name: grader_name)
+      {
+        "failed_count" => scope.unscope(:select).count,
+        "failures" => scope.order(:suite_name, :name, :id).limit(limit).map { |test_case| failed_test_case_payload(test_case) }
+      }
     end
 
     # First line only, byte-bounded -- this rides inline in the job detail
@@ -58,6 +57,23 @@ module TestInsights
       return nil if message.blank?
 
       message.to_s.lines.first.to_s.strip.safe_byteslice(0, FAILURE_MESSAGE_SNIPPET_BYTES)
+    end
+
+    def self.failed_test_case_scope(run:, grader_name:)
+      TestCase.joins(:test_run)
+        .where(test_insight_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
+        .select(:repository_id, :suite_name, :name, :file_path, :failure_message, :test_identity_id)
+    end
+
+    def self.failed_test_case_payload(test_case)
+      {
+        "suite_name" => test_case.suite_name,
+        "name" => test_case.name,
+        "file_path" => test_case.file_path,
+        "identity" => [ test_case.suite_name, test_case.name ].join(0.chr),
+        "failure_message" => failure_message_snippet(test_case.failure_message),
+        "app_path" => "/repositories/#{test_case.repository_id}/plugin/tests?test_id=#{test_case.test_identity_id}"
+      }
     end
 
     # Backs Adjudicators::KnownFlakyFailure. Delegates entirely to

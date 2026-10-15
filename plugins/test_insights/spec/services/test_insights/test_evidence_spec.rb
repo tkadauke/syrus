@@ -144,5 +144,23 @@ RSpec.describe TestInsights::TestEvidence do
     it "returns an empty array when the run is nil" do
       expect(described_class.failed_test_cases(run: nil, grader_name: "rspec")).to eq([])
     end
+
+    it "counts all failures but loads only the requested summary rows" do
+      8.times { |index| create_test_case(status: "failed", name: "failure #{index}", failure_message: "message #{index}") }
+      selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, data|
+        sql = data[:sql].to_s
+        selects << sql if sql.start_with?("SELECT") && sql.include?("test_insight_cases")
+      end
+
+      summary = described_class.failed_test_summary(run: run, grader_name: "rspec", limit: 3)
+
+      expect(summary.fetch("failed_count")).to eq(8)
+      expect(summary.fetch("failures").size).to eq(3)
+      expect(selects).to include(a_string_matching(/COUNT\(\*\)/))
+      expect(selects).to include(a_string_matching(/LIMIT (?:\?|3)/))
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
   end
 end

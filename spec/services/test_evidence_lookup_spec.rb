@@ -11,6 +11,13 @@ RSpec.describe TestEvidenceLookup do
     end
   end
 
+  def bounded_fake_provider(summary:)
+    Module.new do
+      define_singleton_method(:failed_test_summary) { |run:, grader_name:, limit:| summary }
+      define_singleton_method(:failed_test_cases) { |**| raise "unbounded fallback called" }
+    end
+  end
+
   def stub_provider(provider)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
@@ -57,6 +64,15 @@ RSpec.describe TestEvidenceLookup do
 
       expect(summary["omitted_count"]).to eq(0)
       expect(summary["failures"]).to eq(failures)
+    end
+
+    it "uses a provider's bounded summary without loading its complete failure list" do
+      failures = (1..3).map { |n| { "suite_name" => "S", "name" => "case #{n}" } }
+      stub_provider(bounded_fake_provider(summary: { "failed_count" => 20, "failures" => failures }))
+
+      summary = described_class.failed_test_summary_for(run, "rspec", limit: 3)
+
+      expect(summary).to include("failed_count" => 20, "failures" => failures, "omitted_count" => 17)
     end
   end
 end
