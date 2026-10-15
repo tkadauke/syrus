@@ -61,7 +61,15 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     first_step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
     first_run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
     next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
-    tail_step.update_columns(state: "cancelled", started_at: nil, finished_at: 8.minutes.ago) if tail_step
+    if tail_step
+      tail_step.update_columns(
+        state: "cancelled",
+        started_at: nil,
+        finished_at: 8.minutes.ago,
+        cancellation_reason: "terminal_workflow_active_descendants",
+        details: workflow.active_descendant_cancellation_details("terminal_workflow_active_descendants")
+      )
+    end
     workflow.work_unit.mark_terminal!("failed")
     workflow.work_unit.work_intent.fail!
 
@@ -71,7 +79,40 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(result.run.step).to eq(next_step)
     expect(workflow.work_unit.reload).to be_running
     expect(workflow.work_unit.work_intent.reload).to be_requested
-    expect(tail_step.reload).to be_queued if tail_step
+    if tail_step
+      expect(tail_step.reload).to be_queued
+      expect(tail_step.cancellation_reason).to be_nil
+      expect(tail_step.details.to_h.slice(*Step::CANCELLATION_DETAIL_KEYS)).to be_empty
+    end
+  end
+
+  it "does not revive a deliberately cancelled tail after a deferred branch step" do
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "merge_train",
+      state: "running",
+      agent_provider: "codex",
+      chain_template: []
+    )
+    attach_work_unit(workflow, state: "running")
+    branch_step = Step.create!(workflow: workflow, kind: "merge_train_agent", position: 1)
+    original_tail = Step.create!(
+      workflow: workflow,
+      kind: "merge_train_land",
+      position: 2,
+      state: "cancelled",
+      finished_at: 1.minute.ago,
+      cancellation_reason: StepDispatcher::LOOP_EXHAUSTED_AFTER_GRADER_FAILURE
+    )
+    branch_step.update!(next_step: original_tail)
+
+    result = described_class.call(workflow.id, branch_step.id)
+
+    expect(result).to be_started
+    expect(result.run.step).to eq(branch_step)
+    expect(original_tail.reload).to be_cancelled
+    expect(original_tail.cancellation_reason).to eq(StepDispatcher::LOOP_EXHAUSTED_AFTER_GRADER_FAILURE)
   end
 
   it "does not resume a step whose DAG dependencies are not ready" do
