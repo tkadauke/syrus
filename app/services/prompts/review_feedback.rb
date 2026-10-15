@@ -7,6 +7,8 @@ module Prompts
   # again — never the reviewer's critique — so it had no way to know what
   # to fix.
   class ReviewFeedback
+    include GithubContentTrust
+
     def initialize(intro:, iterations:)
       @intro = intro
       @iterations = Array(iterations)
@@ -16,6 +18,8 @@ module Prompts
       return nil if @iterations.empty?
 
       <<~PROMPT.strip
+        #{github_content_trust_boundary}
+
         #{@intro}
 
         #{render_iterations}

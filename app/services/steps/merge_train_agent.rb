@@ -111,6 +111,17 @@ module Steps
       member = train.members.includes(:job).detect { |candidate| candidate.job.slug.casecmp?(slug) }
       raise StepFailed, "merge_train_agent withdraw action named a non-member job_slug" unless member
 
+      attribution = workflow.artifact(MergeTrainMultisect::ARTIFACT_KEY).to_h
+      attributed_member = attribution["attributed_member"].to_h
+      current_failures = Array(latest_failing_round["failing_set"]).map(&:to_s)
+      attributed_failures = Array(attribution["failing_set"]).map(&:to_s)
+      authorized = attribution["status"] == "attributed" &&
+        attributed_member["job_id"].to_i == member.job_id &&
+        (current_failures & attributed_failures).any?
+      unless authorized
+        raise StepFailed, "merge_train_agent withdraw action lacks matching deterministic attribution"
+      end
+
       member
     end
 
