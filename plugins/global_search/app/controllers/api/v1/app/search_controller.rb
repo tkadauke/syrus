@@ -16,6 +16,7 @@ module Api
         COMMON_FILTER_FIELDS = %w[repository_id created_at updated_at].freeze
         DEFAULT_LIMIT = 30
         MAX_LIMIT = 100
+        FTS_BATCH_SIZE = 100
         CHAT_GROUPED_MATCH_LIMIT = 3
 
         def index
@@ -170,7 +171,9 @@ module Api
 
         def job_search_rows(query, limit)
           rows = merge_slug_rows(
-            accessible_rows(GlobalSearch::JobIndex.search(query, limit: nil), Job, :job_id),
+            ranked_accessible_rows(
+              type: "job", query: query, limit: limit, index: GlobalSearch::JobIndex, model: Job, id_key: :job_id
+            ),
             job_slug_rows(query)
           )
           apply_filter_to_rows("job", rows, :job_id).first(limit)
@@ -178,7 +181,9 @@ module Api
 
         def epic_search_rows(query, limit)
           rows = merge_slug_rows(
-            accessible_rows(GlobalSearch::EpicIndex.search(query, limit: nil), Epic, :epic_id),
+            ranked_accessible_rows(
+              type: "epic", query: query, limit: limit, index: GlobalSearch::EpicIndex, model: Epic, id_key: :epic_id
+            ),
             epic_slug_rows(query)
           )
           apply_filter_to_rows("epic", rows, :epic_id).first(limit)
@@ -228,6 +233,22 @@ module Api
           ids = rows.filter_map { |row| row[id_key]&.to_i }
           accessible_ids = model.accessible_to(Current.user).where(id: ids).pluck(:id).to_set
           rows.select { |row| accessible_ids.include?(row[id_key].to_i) }
+        end
+
+        def ranked_accessible_rows(type:, query:, limit:, index:, model:, id_key:)
+          rows = []
+          offset = 0
+
+          loop do
+            batch = index.search(query, limit: FTS_BATCH_SIZE, offset: offset)
+            eligible_batch = accessible_rows(batch, model, id_key)
+            rows.concat(apply_filter_to_rows(type, eligible_batch, id_key))
+            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE
+
+            offset += FTS_BATCH_SIZE
+          end
+
+          rows.first(limit)
         end
 
         def filtered_scope(type, ids, tree)

@@ -373,6 +373,27 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to eq([])
   end
 
+  it "pages past a bounded batch of higher-ranked inaccessible job matches" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Accessible needle job")
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "ranked")
+    inaccessible_jobs = 3.times.map do |index|
+      Factories.job_record(
+        user: other_user,
+        repository: other_repo,
+        issue_title: "Inaccessible needle #{index}",
+        issue_body: "needle " * 10
+      )
+    end
+    (inaccessible_jobs + [ job ]).each { |record| GlobalSearch::JobIndex.upsert(record) }
+    stub_const("Api::V1::App::SearchController::FTS_BATCH_SIZE", 3)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "job" ], limit: 1 }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
+  end
+
   it "uses q as an encoded filter AST when query is present" do
     queued_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy queued job", state: "queued")
     closed_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy closed job", state: "closed")

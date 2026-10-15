@@ -38,7 +38,7 @@ module GlobalSearch
         end
       end
 
-      def search(query, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)
+      def search(query, limit: 20, offset: 0, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)
         binds = [
           bind(snippet_start.to_s),
           bind(snippet_end.to_s),
@@ -48,8 +48,9 @@ module GlobalSearch
 
         limit_sql = ""
         if limit.present?
-          limit_sql = "LIMIT ?"
+          limit_sql = "LIMIT ? OFFSET ?"
           binds << bind(limit.to_i)
+          binds << bind(offset.to_i)
         end
 
         rows = connection.exec_query(
