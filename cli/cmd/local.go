@@ -272,6 +272,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 	}
 	defer conn.Close()
 	activity := newLocalActivityLogger(out)
+	connectionCtx, cancelConnection := context.WithCancel(ctx)
 
 	identJSON, err := json.Marshal(map[string]any{
 		"channel":         "LocalTunnelChannel",
@@ -289,6 +290,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 	// the connection itself. Safe for concurrent use by the per-call
 	// goroutines and the main receive loop below.
 	var activeCalls sync.Map // tool_use_id (string) -> context.CancelFunc
+	var callWg sync.WaitGroup
 
 	// done is closed when localConnectAndServe is about to return, giving the
 	// ctx goroutine a chance to exit before writeCh is closed.
@@ -305,16 +307,24 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 		}
 	}()
 
-	// Defers are LIFO: close(done) fires first so the ctx goroutine stops
-	// writing to writeCh, then closeWrite drains and closes the channel.
+	var connectionWg sync.WaitGroup
+
+	// Cancel and join every connection-owned goroutine before closing the
+	// writer channel. Tool calls must not survive a dropped socket or attempt
+	// to publish their result through a writer that has already shut down.
 	defer func() {
+		cancelConnection()
+		close(done)
+		callWg.Wait()
+		connectionWg.Wait()
 		close(writeCh)
 		writeWg.Wait()
 	}()
-	defer close(done)
 
 	// Handle SIGINT / SIGTERM: send a graceful disconnect before closing.
+	connectionWg.Add(1)
 	go func() {
+		defer connectionWg.Done()
 		select {
 		case <-ctx.Done():
 		case <-done:
@@ -441,9 +451,11 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 			if err := json.Unmarshal(msg.Message, &call); err != nil {
 				continue
 			}
-			callCtx, cancelCall := context.WithCancel(ctx)
+			callCtx, cancelCall := context.WithCancel(connectionCtx)
 			activeCalls.Store(call.ToolUseID, cancelCall)
+			callWg.Add(1)
 			go func(c localToolCallMsg, callCtx context.Context, cancelCall context.CancelFunc) {
+				defer callWg.Done()
 				defer func() {
 					activeCalls.Delete(c.ToolUseID)
 					cancelCall()
@@ -459,7 +471,10 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 				if err != nil {
 					return
 				}
-				writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(payload)}
+				select {
+				case writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(payload)}:
+				case <-connectionCtx.Done():
+				}
 			}(call, callCtx, cancelCall)
 
 		case "cancel_tool_call":
