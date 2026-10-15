@@ -5,6 +5,16 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql].to_s unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/profiles"
 
@@ -81,6 +91,34 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(response.body).not_to include("solo@example.com")
     expect(response.body).not_to include("ghp_solo_secret")
     expect(response.body).not_to include("sk-solo-secret")
+  end
+
+  it "loads directory counts with a constant number of aggregate queries" do
+    viewer = Factories.user
+    teammates = Array.new(4) { |index| Factories.user(email_address: "teammate#{index}@example.com") }
+    teammate = teammates.first
+    repository = Factories.repository(user: teammate, owner: "acme", name: "active")
+    Factories.repository(user: teammate, owner: "acme", name: "archived", archived_at: Time.current)
+    Factories.epic(user: teammate, repository: repository, title: "Active epic")
+    Factories.epic(user: teammate, repository: repository, title: "Archived epic", state: Epic::ARCHIVED_STATE)
+    Factories.job_record(user: teammate, repository: repository, issue_number: 1, state: "running")
+    Factories.job_record(user: teammate, repository: repository, issue_number: 2, state: "closed", closure_reason: "no_changes")
+    sign_in_as(viewer)
+
+    queries = capture_sql { get "/api/v1/app/profiles" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("profiles").find { |profile| profile.fetch("id") == teammate.id }.fetch("counts")).to eq(
+      "repositories" => 1,
+      "epics" => 1,
+      "jobs" => 2,
+      "open_jobs" => 1
+    )
+
+    count_queries = queries.grep(/\bSELECT\b.*\bCOUNT\(/i)
+    expect(count_queries.grep(/\bFROM [`"]?repositories[`"]?/i).size).to eq(1)
+    expect(count_queries.grep(/\bFROM [`"]?epics[`"]?/i).size).to eq(1)
+    expect(count_queries.grep(/\bFROM [`"]?jobs[`"]?/i).size).to eq(2)
   end
 
   it "shows a teammate profile with safe owned work summaries" do
