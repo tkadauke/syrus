@@ -1271,6 +1271,66 @@ RSpec.describe MainHealthChangedService, :ci_only do
         described_class.recovered!(repository)
         expect(RetryWorkflowEnqueuer).to have_received(:call).exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES).times
       end
+
+      it "only scans the most recent bounded set of failed workflows" do
+        now = Time.current
+        rows = Array.new(10_000) do |index|
+          {
+            job_id: held_job.id,
+            user_id: user.id,
+            trigger_kind: "retry",
+            agent_provider: "claude",
+            state: "failed",
+            artifacts: "{}",
+            created_at: now + index.seconds,
+            updated_at: now + index.seconds
+          }
+        end
+        Workflow.insert_all!(rows)
+
+        workflow_selects = []
+        subscriber = lambda do |*, payload|
+          sql = payload[:sql]
+          workflow_selects << sql if sql.match?(/\ASELECT/i) && sql.include?("workflows")
+        end
+
+        expect(RetryWorkflowEnqueuer).not_to receive(:call)
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          described_class.new(repository).send(:retry_held_jobs!)
+        end
+
+        expect(workflow_selects.size).to eq(1)
+        expect(workflow_selects.first).to include("LIMIT")
+      end
+
+      it "looks up newer workflows in one grouped query instead of once per candidate" do
+        20.times do
+          job = Factories.job_record(repository: repository)
+          workflow = Workflow.create!(
+            job: job,
+            user: user,
+            trigger_kind: "initial",
+            agent_provider: "claude",
+            state: "failed"
+          )
+          workflow.set_artifact!("main_broken", true)
+        end
+
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "retry unavailable", circuit: nil)
+        )
+        workflow_selects = 0
+        subscriber = lambda do |*, payload|
+          sql = payload[:sql]
+          workflow_selects += 1 if sql.match?(/\ASELECT/i) && sql.include?("workflows")
+        end
+
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          described_class.new(repository).send(:retry_held_jobs!)
+        end
+
+        expect(workflow_selects).to eq(3)
+      end
     end
 
     context "rebasing PRs left with failing CI" do
