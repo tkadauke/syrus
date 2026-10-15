@@ -4,8 +4,8 @@ module App
   # Configure Agent modal can auto-enable a provider the operator just
   # connected, without ever accepting an arbitrary client-supplied plugin
   # name -- only a plugin actually wired to that agent_provider key can be
-  # flipped on. Never reuse this for admin-facing plugin management; that
-  # cascade-aware flow lives in AdminPluginCascadeActions.
+  # flipped on. Enabling delegates to the same cascade-aware service used by
+  # admin plugin management.
   class OnboardingAgentProviderPlugin
     def self.enable!(provider)
       new(provider).enable!
@@ -19,8 +19,7 @@ module App
       record = matching_plugin_record
       return nil unless record
 
-      record.update!(enabled: true) unless record.enabled?
-      record
+      ::Admin::PluginEnabler.enable!(record)
     end
 
     private

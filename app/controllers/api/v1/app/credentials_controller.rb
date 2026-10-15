@@ -198,11 +198,11 @@ module Api
 
         # Onboarding-only: auto-enables the exact plugin backing the agent
         # provider the Configure Agent modal just connected. Never available
-        # once the operator has finished first-run setup, and never able to
-        # enable anything other than the plugin OnboardingAgentProviderPlugin
-        # resolves for the given provider key.
+        # to non-admins or once the operator has finished first-run setup, and
+        # never able to enable anything other than the plugin
+        # OnboardingAgentProviderPlugin resolves for the given provider key.
         def connect_onboarding_provider
-          unless onboarding_in_progress?
+          unless Current.user.admin? && onboarding_in_progress?
             render_error("forbidden", "This action is only available during onboarding.", status: :forbidden)
             return
           end
@@ -215,6 +215,8 @@ module Api
           end
 
           render json: credentials_payload(Current.user.reload).merge(message: "#{plugin.display_name || plugin.name} enabled.")
+        rescue ::Admin::PluginEnabler::ExperimentalPluginsBlocked => e
+          render_error("beta_mode_not_enabled", e.message, status: :unprocessable_content)
         end
 
         def recheck_provider_availability
