@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tkadauke/syrus/plugins/git_mirror/container/internal/gitexec"
 )
 
 // upstream is a real git repository the mirror fetches from over file://.
@@ -496,6 +498,36 @@ func TestAfterARestartRepositoriesServeFromDiskButWaitForRegistration(t *testing
 	register(t, restarted, "42", u)
 	if got, _, err := restarted.Resolve(ctx, "42", "main", time.Minute); err != nil || got != sha {
 		t.Fatalf("resolve after registration = %s, %v", got, err)
+	}
+}
+
+func TestSyncAllFetchesRepositoriesConcurrently(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nif [ \"$1\" = fetch ]; then sleep 0.3; fi\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{
+		cfg: Config{
+			Git:          gitexec.Runner{Binary: script},
+			FetchTimeout: 2 * time.Second,
+			ReadTimeout:  2 * time.Second,
+			Now:          time.Now,
+		},
+		repos: map[string]*repo{},
+	}
+	for _, id := range []string{"one", "two"} {
+		repoDir := filepath.Join(dir, id)
+		if err := os.Mkdir(repoDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		s.repos[id] = &repo{id: id, dir: repoDir, url: "https://example.test/" + id, registered: true}
+	}
+
+	started := time.Now()
+	s.SyncAll(context.Background())
+	if elapsed := time.Since(started); elapsed > 550*time.Millisecond {
+		t.Fatalf("SyncAll took %v; repository fetches appear to have run serially", elapsed)
 	}
 }
 
