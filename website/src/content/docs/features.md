@@ -1672,6 +1672,10 @@ of piling up meta-insights that only say another insight is stale; retired
 insights drop out of the default active review but stay inspectable through
 a "Retired" filter alongside Pending/Accepted/Dismissed/All.
 
+Repository collaborators, including users with access through a team, can use
+the same suggestion actions and insight scheduling controls as the repository
+owner from the repository's Agent Insights tab.
+
 While the plugin is enabled, regular chat agents can discover
 and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
 in the chat's attached repositories. Admin chat agents can inspect all
