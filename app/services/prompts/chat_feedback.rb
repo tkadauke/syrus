@@ -4,6 +4,13 @@ module Prompts
   class ChatFeedback
     include GithubContentTrust
 
+    MAX_ISSUE_BODY_BYTES = 20_000
+    MAX_FEEDBACK_BYTES = 10_000
+    MAX_COMMENT_BYTES = 4_000
+    MAX_COMMENTS = 20
+    MAX_COMMENTS_BYTES = 30_000
+    MAX_SUMMARIES_BYTES = 20_000
+
     def initialize(issue:, feedback:, diff_comments: [], prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @feedback = feedback
@@ -40,7 +47,7 @@ module Prompts
       <<~SECTION.strip
         Original issue: #{@issue.title}
 
-        #{@issue.body}
+        #{Truncate.text(@issue.body, max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
       SECTION
     end
 
@@ -58,11 +65,12 @@ module Prompts
       lines = @prior_summaries.each_with_index.map do |summary, index|
         "Round #{index + 1}:\n#{summary}"
       end
+      summaries = Truncate.text(lines.join("\n\n"), max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries")
 
       <<~SECTION.strip
         What you've done on this PR in previous feedback rounds:
 
-        #{lines.join("\n\n")}
+        #{summaries}
       SECTION
     end
 
@@ -70,7 +78,7 @@ module Prompts
       <<~SECTION.strip
         Operator feedback from Syrus Chat:
 
-        #{@feedback}
+        #{Truncate.text(@feedback, max_bytes: MAX_FEEDBACK_BYTES, label: "feedback")}
       SECTION
     end
 
@@ -117,7 +125,9 @@ module Prompts
     end
 
     def render_diff_comments
-      @diff_comments.map { |comment| render_diff_comment(comment.to_h) }.join("\n\n")
+      Truncate.collection(@diff_comments, max_items: MAX_COMMENTS, max_bytes: MAX_COMMENTS_BYTES) do |comment|
+        render_diff_comment(comment.to_h)
+      end
     end
 
     def render_diff_comment(comment)
@@ -132,7 +142,7 @@ module Prompts
         #{indent(value(comment, "diff_hunk").to_s.presence || "(no hunk snapshot)")}
 
         Comment:
-        #{value(comment, "body")}
+        #{Truncate.text(value(comment, "body"), max_bytes: MAX_COMMENT_BYTES, label: "comment")}
       COMMENT
     end
 
