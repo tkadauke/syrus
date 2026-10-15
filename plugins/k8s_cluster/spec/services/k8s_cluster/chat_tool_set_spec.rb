@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::ChatToolSet do
-  let(:chat_session) { instance_double(ChatSession) }
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
 
   it "is unavailable when the plugin is disabled" do
     allow(K8sCluster).to receive(:enabled?).and_return(false)
@@ -81,7 +81,7 @@ RSpec.describe K8sCluster::ChatToolSet do
   it "dispatches to the matching tool class, passing string-keyed params through" do
     disabled = Factories.kubernetes_cluster(agentic_access_enabled: false)
 
-    response = described_class.new.handle("k8s_cluster_namespaces", { "cluster_id" => disabled.id }, {})
+    response = described_class.new.handle("k8s_cluster_namespaces", { "cluster_id" => disabled.id }, { chat_session: chat_session })
 
     expect(response.error?).to be(true)
     expect(response.content.first[:text]).to include("Agentic access is disabled")
