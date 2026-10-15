@@ -42,6 +42,29 @@ module TestEvidenceLookup
   def self.failed_test_summary_for(run, grader_name, limit: INLINE_TEST_FAILURE_LIMIT)
     return nil if run.nil? || grader_name.blank?
 
+    summaries = test_evidence_providers.filter_map do |provider|
+      next unless provider.respond_to?(:failed_test_summary)
+
+      provider.failed_test_summary(run: run, grader_name: grader_name, limit: limit)
+    end
+    return legacy_failed_test_summary(run, grader_name, limit) if summaries.empty?
+
+    failures = summaries.flat_map { |summary| Array(summary["failures"] || summary[:failures]) }
+      .map { |test_case| test_case.to_h.stringify_keys }
+      .uniq { |test_case| [ test_case["suite_name"], test_case["name"] ] }
+      .first(limit)
+    failed_count = summaries.sum { |summary| (summary["failed_count"] || summary[:failed_count]).to_i }
+    return nil if failed_count.zero?
+
+    {
+      "grader_name" => grader_name,
+      "failed_count" => failed_count,
+      "failures" => failures,
+      "omitted_count" => [ failed_count - failures.size, 0 ].max
+    }
+  end
+
+  def self.legacy_failed_test_summary(run, grader_name, limit)
     failures = failed_test_cases_for(run, grader_name)
     return nil if failures.empty?
 

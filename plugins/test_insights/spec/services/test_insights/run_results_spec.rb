@@ -151,6 +151,29 @@ RSpec.describe TestInsights::RunResults do
     expect(payload.fetch(:truncation)).to include(suite_cases_returned: 2, suite_cases_omitted: 2)
   end
 
+  it "batch-loads cases and suite counts across test runs" do
+    job = Factories.job(user: user, repository: repository)
+    5.times do |index|
+      test_run = build_test_run(run: job.initial_run, grader_name: "grader #{index}", total_count: 2, passed_count: 1, failed_count: 1)
+      build_test_case(test_run: test_run, name: "failure #{index}", status: "failed")
+      build_test_case(test_run: test_run, name: "pass #{index}")
+    end
+
+    case_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, data|
+      sql = data[:sql].to_s
+      case_selects << sql if sql.start_with?("SELECT") && sql.include?("test_insight_cases")
+    end
+
+    payload = described_class.for_job(job: job, include_suites: true)
+
+    expect(payload.fetch(:test_runs).size).to eq(5)
+    expect(case_selects.count { |sql| sql.include?("syrus_run_case_rank") }).to eq(1)
+    expect(case_selects.count { |sql| sql.include?("GROUP BY") && sql.include?("suite_name") }).to eq(1)
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "degrades a malformed test run instead of failing the whole payload" do
     job = Factories.job(user: user, repository: repository)
     run = job.initial_run
