@@ -11,12 +11,8 @@ import { type ChatQueryKey } from "./constants"
 import { ParticipantPickerModal } from "./ParticipantPicker"
 
 // Participant management for the chat header of a `conversation_kind: "group"`
-// chat: shows every current human participant as a chip, lets any current
-// participant add another (reopens the invite picker filtered via
-// excludeChatId) or remove one — including themselves, which reads as
-// "Leave" and, on success, navigates the leaving user away from a chat they
-// can no longer access (accessible_chat_sessions is derived from
-// chat_participants server-side).
+// chat: shows every current human participant as a chip. Owners may remove
+// members, while members may only remove themselves (leave).
 export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -76,12 +72,13 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       {participants.map((participant) => {
         const isSelf = participant.id === currentUserId
+        const canRemove = participant.role !== "owner" && (payload.chat.owned_by_current_user || isSelf)
         const actionLabel = isSelf ? t("leave_chat") : t("remove_participant", { name: participant.name })
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-1 pr-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={participant.id}>
             <Avatar avatarUrl={participant.avatar_url} name={participant.name} size="xs" />
             <span className="max-w-[8rem] truncate">{participant.name}</span>
-            <button
+            {canRemove ? <button
               aria-label={actionLabel}
               className="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               disabled={pendingRemovalId === participant.id}
@@ -90,7 +87,7 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
               type="button"
             >
               <CloseIcon className="h-3 w-3" />
-            </button>
+            </button> : null}
           </span>
         )
       })}

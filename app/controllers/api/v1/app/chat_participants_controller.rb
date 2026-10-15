@@ -39,6 +39,16 @@ module Api
             return
           end
 
+          unless chat_session.user_id == Current.user.id || target_participant.user_id == Current.user.id
+            render_error("forbidden", "Only the chat owner can remove another participant.", status: :forbidden)
+            return
+          end
+
+          if target_participant.role == "owner"
+            render_error("forbidden", "The chat owner cannot be removed.", status: :forbidden)
+            return
+          end
+
           if chat_session.chat_participants.count <= 1
             render_error("validation_failed", "A group chat must keep at least one participant.", status: :unprocessable_content)
             return

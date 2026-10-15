@@ -120,6 +120,28 @@ RSpec.describe "App API chat participants", type: :request do
       expect(chat.chat_participants.reload.pluck(:user_id)).to contain_exactly(user.id)
     end
 
+    it "forbids a member from removing the owner or another member" do
+      sign_in_as(other_user)
+      chat = group_chat(owner: user, members: [ other_user, third_user ])
+
+      delete participant_path(chat, user)
+      expect(response).to have_http_status(:forbidden)
+
+      delete participant_path(chat, third_user)
+      expect(response).to have_http_status(:forbidden)
+      expect(chat.chat_participants.reload.pluck(:user_id)).to contain_exactly(user.id, other_user.id, third_user.id)
+    end
+
+    it "forbids the owner participant from being removed" do
+      sign_in_as(user)
+      chat = group_chat(owner: user, members: [ other_user ])
+
+      delete participant_path(chat, user)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(chat.chat_participants.reload.pluck(:user_id)).to contain_exactly(user.id, other_user.id)
+    end
+
     it "404s for a direct chat" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user)
@@ -147,7 +169,7 @@ RSpec.describe "App API chat participants", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "422s when removal would leave the group with zero human participants" do
+    it "forbids removing the owner even when they are the last participant" do
       sign_in_as(user)
       chat = group_chat(owner: user, members: [ other_user ])
       chat.chat_participants.find_by(user: other_user).destroy!
@@ -156,7 +178,7 @@ RSpec.describe "App API chat participants", type: :request do
         delete participant_path(chat, user)
       }.not_to change(chat.chat_participants, :count)
 
-      expect(response).to have_http_status(:unprocessable_content)
+      expect(response).to have_http_status(:forbidden)
     end
   end
 end

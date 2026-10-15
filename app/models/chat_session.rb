@@ -151,8 +151,8 @@ class ChatSession < ApplicationRecord
     joins(:chat_attachments)
       .where(chat_attachments: { attachable_type: "Repository", attachable_id: repository.id })
   }
-  scope :visible, -> { where(hidden_at: nil) }
-  scope :hidden, -> { where.not(hidden_at: nil) }
+  scope :visible_to, ->(user) { where(chat_participants: { user_id: user.id, hidden_at: nil }) }
+  scope :hidden_to, ->(user) { where(chat_participants: { user_id: user.id }).where.not(chat_participants: { hidden_at: nil }) }
   scope :active, -> { where(deleted_at: nil) }
   scope :deleted, -> { where.not(deleted_at: nil) }
   scope :ordinary_chats, -> { where(system_kind: nil) }
@@ -607,7 +607,7 @@ class ChatSession < ApplicationRecord
   end
 
   def add_owner_participant
-    chat_participants.create!(user: user, role: "owner", joined_at: created_at)
+    chat_participants.create!(user: user, role: "owner", joined_at: created_at, hidden_at: hidden_at)
   end
 
   def default_artifacts

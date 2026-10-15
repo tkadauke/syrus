@@ -6396,17 +6396,17 @@ describe("group chat participants and composer hint", () => {
   })
 
   it("leaves the group chat when the current user removes themselves, navigating away", async () => {
-    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    const payload = chatPayload({ chat: { conversation_kind: "group", owned_by_current_user: false, participants: groupParticipants() } })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
+        return Promise.resolve(jsonResponse({ current_user: { id: 2, display_name: "Livia Drusilla" } }))
       }
-      if (path === "/api/v1/app/chats/8/participants/1" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[1]] }))
+      if (path === "/api/v1/app/chats/8/participants/2" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[0]] }))
       }
 
       return Promise.resolve(jsonResponse(payload))
@@ -6415,6 +6415,7 @@ describe("group chat participants and composer hint", () => {
     renderRouteWithLocation()
 
     await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Remove Marcus Cato" })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: "Leave chat" }))
 
     await waitFor(() => {
@@ -6992,6 +6993,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       id: 8,
       title: "Aqueduct planning",
       title_pending: false,
+      owned_by_current_user: true,
       pinned: false,
       pinned_context: null,
       chat_path: "/chats/8",

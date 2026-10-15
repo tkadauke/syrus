@@ -191,7 +191,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     [ payload.chat.pinned, payload.chat.system_kind, dynamicSkillCommands ]
   )
   const commandQuery = slashCommandQuery(text)
-  const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
+  const matchingCommands = useMemo(() => {
+    if (commandQuery == null) return []
+
+    const commands = filterSlashCommands(commandQuery, slashCommandContext)
+    return payload.chat.owned_by_current_user ? commands : commands.filter((command) => command.name !== "/clear")
+  }, [commandQuery, payload.chat.owned_by_current_user, slashCommandContext])
   const bangCommandModeActive = (payload.chat.mode === "coding" || payload.chat.mode === "local") && isBangCommandMode(text)
   const shellCommandRunning = shellCommand?.running ?? false
   const pendingProposals = useMemo(() => {
@@ -662,6 +667,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
 
     if (command.name === "/clear") {
+      if (!payload.chat.owned_by_current_user) return
       setText("")
       setClearConfirmationOpen(true)
       onNotice(null)
@@ -1737,7 +1743,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               {dictation.message}
             </div>
           ) : null}
-          {clearConfirmationOpen ? (
+          {clearConfirmationOpen && payload.chat.owned_by_current_user ? (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
               <span>{t("clear_confirm")}</span>
               <span className="flex gap-2">

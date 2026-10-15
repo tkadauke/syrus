@@ -1170,13 +1170,27 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat hidden.")
-    expect(chat.reload.hidden_at).to be_present
+    expect(chat.chat_participants.find_by!(user: user).hidden_at).to be_present
 
     patch "/api/v1/app/chats/#{chat.id}/unhide"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat restored.")
-    expect(chat.reload.hidden_at).to be_nil
+    expect(chat.chat_participants.find_by!(user: user).hidden_at).to be_nil
+  end
+
+  it "hides a group chat only for the requesting participant" do
+    owner = user
+    member = Factories.user
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Shared", last_message_at: Time.current)
+    chat.chat_participants.create!(user: member, role: "member")
+    sign_in_as(member)
+
+    patch "/api/v1/app/chats/#{chat.id}/hide"
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.chat_participants.find_by!(user: member).hidden_at).to be_present
+    expect(chat.chat_participants.find_by!(user: owner).hidden_at).to be_nil
   end
 
   it "lists hidden chats for recovery in hidden order with shared sidebar context" do
@@ -1368,6 +1382,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:not_found)
       expect(other_chat.reload.deleted_at).to be_nil
+    end
+
+    it "forbids a group member from deleting the chat" do
+      chat = ChatSession.create!(user: user)
+      member = Factories.user
+      chat.chat_participants.create!(user: member, role: "member")
+      sign_in_as(member)
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:forbidden)
+      expect(chat.reload.deleted_at).to be_nil
     end
 
     it "404s when the chat is already soft-deleted" do
@@ -5389,6 +5415,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(ChatMessage.count).to eq(1)
     expect(message.reload.deleted_at).to be_present
     expect(message.deleted_by_user).to eq(user)
+  end
+
+  it "forbids a group member from clearing chat history" do
+    chat = ChatSession.create!(user: user)
+    member = Factories.user
+    chat.chat_participants.create!(user: member, role: "member")
+    message = chat.messages.create!(role: "user", content: { "text" => "Keep this" })
+    sign_in_as(member)
+
+    delete "/api/v1/app/chats/#{chat.id}/messages"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(message.reload.deleted_at).to be_nil
   end
 
   it "excludes soft-deleted messages from the chat UI payload after clearing" do

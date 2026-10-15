@@ -300,8 +300,9 @@ module ChatSerialization
   end
 
   def hidden_chat_json(chat_session, context: nil)
+    hidden_at = current_participant_for(chat_session)&.hidden_at
     chat_index_json(chat_session, context: context).merge(
-      hidden_at: chat_session.hidden_at&.iso8601,
+      hidden_at: hidden_at&.iso8601,
       app_unhide_path: "/api/v1/app/chats/#{chat_session.id}/unhide"
     )
   end

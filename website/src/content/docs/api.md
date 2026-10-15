@@ -561,7 +561,8 @@ curl https://syrus.example.com/api/v1/app/shared_chats/8b0d6a08-6f8d-4a2e-b2d8-0
 ## Hide or Restore a Chat
 
 `PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's
-chat sessions from the default sidebar, search, and chat listing surfaces.
+chat sessions from their own default sidebar, search, and chat listing
+surfaces without hiding it for other participants.
 `PATCH /api/v1/app/chats/:id/unhide` restores it.
 
 ```bash

@@ -202,7 +202,7 @@ module Api
             return
           end
 
-          chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).visible.active.find(params[:chat_session_id])
+          chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).visible_to(Current.user).active.find(params[:chat_session_id])
           render json: {
             matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
           }
@@ -210,11 +210,11 @@ module Api
 
         def hidden
           page = [ Integer(params[:page], exception: false).to_i, 1 ].max
-          scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).hidden.active
+          scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).hidden_to(Current.user).active
           total = scope.count
           chats = scope
             .preload(repository_attachments: :attachable)
-            .order(hidden_at: :desc, id: :desc)
+            .order("chat_participants.hidden_at DESC", id: :desc)
             .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
             .limit(HIDDEN_CHATS_PAGE_SIZE)
           context = chat_index_context_for(chats)
@@ -496,6 +496,8 @@ module Api
         # turn is actively running.
         def destroy
           chat_session = find_chat_session
+          return unless require_chat_owner(chat_session)
+
           if chat_session.turn_in_flight? || chat_session.agent_busy?
             render_error(
               "turn_in_flight",
@@ -512,6 +514,8 @@ module Api
 
         def clear_messages
           chat_session = find_chat_session
+          return unless require_chat_owner(chat_session)
+
           ApplicationRecord.transaction do
             chat_session.messages.active.update_all(deleted_at: Time.current, deleted_by_user_id: Current.user.id)
             chat_session.chat_queued_messages.destroy_all
@@ -535,14 +539,14 @@ module Api
 
         def hide
           chat_session = find_chat_session
-          chat_session.update!(hidden_at: Time.current)
+          current_participant_for(chat_session).update!(hidden_at: Time.current)
 
           render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }
         end
 
         def unhide
           chat_session = find_chat_session
-          chat_session.update!(hidden_at: nil)
+          current_participant_for(chat_session).update!(hidden_at: nil)
 
           render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
         end
@@ -1837,6 +1841,7 @@ module Api
             id: chat_session.id,
             entity_revision: chat_session.entity_revision,
             current_user_id: Current.user.id,
+            owned_by_current_user: chat_session.user_id == Current.user.id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,
@@ -1925,6 +1930,13 @@ module Api
           SpawnedProcess.running
                         .where(kind: "agent", workdir: chat_session.workspace_root.to_s)
                         .find_each { |process| process.request_kill!(user: Current.user) }
+        end
+
+        def require_chat_owner(chat_session)
+          return true if chat_session.user_id == Current.user.id
+
+          render_error("forbidden", "Only the chat owner can perform this action.", status: :forbidden)
+          false
         end
 
         def retry_turn_error_status(result)

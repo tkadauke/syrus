@@ -720,6 +720,16 @@ describe("RecentChatsSidebar goal marker", () => {
 })
 
 describe("RecentChatsSidebar action and marker slot", () => {
+  it("keeps per-user hide available but hides owner-only pin and delete actions from members", () => {
+    renderSidebar([chatNav({ id: 8, title: "Shared chat", conversation_kind: "group", owned_by_current_user: false })])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Shared chat" }))
+
+    expect(screen.getByRole("button", { name: "Hide Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+  })
+
   it("uses the same fixed-width slot for section controls, markers, and row actions", () => {
     renderSidebar([], {
       groups: [
@@ -1036,6 +1046,7 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     id: 1,
     title: "Chat",
     title_pending: false,
+    owned_by_current_user: true,
     pinned: false,
     pinned_context: null,
     chat_provider: "claude",

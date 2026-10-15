@@ -11,7 +11,7 @@ module SlugRefs
       def self.record_for(id, user:)
         return nil unless user
 
-        user.accessible_chat_sessions.visible.active.find_by(id: id)
+        user.accessible_chat_sessions.visible_to(user).active.find_by(id: id)
       end
 
       def self.web_path(record)

@@ -1053,7 +1053,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
           )}
           <div className={SIDEBAR_DIVIDER_CLASS} />
-          <button
+          {chat.owned_by_current_user ? <button
             className={SIDEBAR_ACTION_BUTTON_CLASS}
             onClick={() => {
               onTogglePin()
@@ -1063,7 +1063,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           >
             <PinIcon className="h-4 w-4 shrink-0" />
             {chat.pinned ? t("chat:unpin") : t("chat:pin")}
-          </button>
+          </button> : null}
           <button
             className={SIDEBAR_ACTION_BUTTON_CLASS}
             disabled={markRead.isPending || markUnread.isPending}
@@ -1109,7 +1109,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             <HideIcon />
             <span>{t("chat:hide")}</span>
           </button>
-          <button
+          {chat.owned_by_current_user ? <button
             className={SIDEBAR_DANGER_BUTTON_CLASS}
             disabled={deleteDisabled}
             onClick={() => {
@@ -1120,7 +1120,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           >
             <CloseIcon className="h-4 w-4 shrink-0" />
             <span>{t("chat:delete")}</span>
-          </button>
+          </button> : null}
           </div>
         </FloatingPortal>
       ) : null}

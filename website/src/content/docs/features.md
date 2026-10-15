@@ -594,9 +594,10 @@ creation: the sidebar's **New group chat** picker starts a session with 2 or
 more humans from the outset, while an ordinary 1:1 chat can never gain a
 second participant later. In a group chat, the header lists every current
 participant and lets any of them add another (through the same picker,
-filtered to people not already in the chat) or remove one — removing someone
-else reads as "Remove", removing yourself reads as "Leave" and takes you back
-out of the chat. The message list labels each human message with its
+filtered to people not already in the chat). The owner may remove members;
+members may leave, but cannot remove the owner or other members. Hiding a chat
+and read/unread state are private to each participant, while deleting the chat
+or clearing its history is restricted to the owner. The message list labels each human message with its
 sender's name so a multi-person transcript stays readable, and because the
 agent only replies to a group chat message that explicitly mentions
 `@syrus`, the composer shows a lightweight reminder of that requirement

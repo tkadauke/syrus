@@ -31,7 +31,8 @@ their repository (or General/no repository) directly.
 Chat access is participant-based. `chat_participants` records every human who
 can open and post to a session, with `role` currently either `owner` or
 `member`; the owner is the convenience `chat.user` for legacy call sites.
-Per-user read state lives on `chat_participants.last_read_at`, and user-role
+Per-user read and sidebar visibility state lives on
+`chat_participants.last_read_at` / `hidden_at`, and user-role
 messages store `sender_user_id` so multi-human transcripts can attribute who
 spoke. When a session has more than one human participant, `ChatTurnJob`
 prefixes persisted user messages in fallback context with the sender's first
@@ -263,9 +264,10 @@ Only `group` chats support participant management:
 `member`, and `DELETE /api/v1/app/chats/:chat_id/participants/:user_id`
 removes one — both 404 for a `direct` chat and require the caller to already
 be a current participant (the same `accessible_chat_sessions`-scoped lookup
-`find_chat_session` uses elsewhere). Any current participant may add or remove
-any other participant, or remove themselves ("leave"); removal is rejected
-with 422 if it would leave the chat with zero human participants. Both
+`find_chat_session` uses elsewhere). Any current participant may add another.
+The owner may remove members, members may remove themselves ("leave"), and the
+owner participant cannot be removed. Removal is rejected with 422 if it would
+leave the chat with zero human participants. Both
 endpoints call `ChatSession#broadcast_participants_update!`, which fans out an
 `updated`/`chat`/`participants` app event to the resulting participant set —
 `broadcast_to_participants` accepts an explicit `recipients:` override so a
@@ -296,8 +298,8 @@ chat sidebar (`AppChromeV2`), which opens a participant picker
 backed by `GET /api/v1/app/users/invitable` and creates the session via
 `POST /api/v1/app/chats` with `participant_user_ids`. For an existing
 `conversation_kind: "group"` chat, the header (`GroupChatParticipants`) shows
-every current participant as a chip with a remove control — removing another
-participant reads as "Remove", removing yourself reads as "Leave" and
+every current participant as a chip. Owners get remove controls for members;
+members get a "Leave" control only for themselves. Leaving
 navigates away once the request succeeds, since `accessible_chat_sessions` no
 longer includes that chat. Both flows patch the chat's `participants` in the
 TanStack Query cache directly from each endpoint's response, and also apply
