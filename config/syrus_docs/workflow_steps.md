@@ -748,6 +748,15 @@ Before spending an agent turn, the step applies `visual_review.when_files_change
 
 If the reviewer agent finishes without calling its required MCP tool (`submit_adversarial_review` / `submit_visual_review`), the step raises and `RunFailureClassifier` records `missing_required_tool_call` (confidence 0.85, retryable). Both steps discard the reviewer's workspace changes before this failure is raised, so there is no partial state a retry could compound — `WorkEngine::RepairExecutor` picks it up on the normal 5m/20m/1h auto-retry backoff instead of surfacing as an operator-action-required stuck-job alarm.
 
+Required-tool validation reconciles parsed provider-transcript calls with
+completed, successful MCP usage receipts scoped to the same Run and tool. A
+persisted sidecar receipt therefore satisfies the gate when a provider changes
+its rollout event shape and transcript parsing misses an otherwise successful
+call; text that merely names the tool, failed receipts, and receipts from a
+different Run or tool do not. The `[mcp_required_health]` log entry reports the
+evidence source for each recognized call (`transcript`, `persisted_usage`, or
+both) so operators can distinguish a missing invocation from parser drift.
+
 ### visual_diff
 
 Agentic. Deferred before/after comparison over already captured visual-review screenshots. The workflow checks out the Job's merge-base against `Job#effective_base_branch` as the before revision, inspects the after-artifact provenance before prompting, starts the same preview/browser capture path from that baseline workspace, asks the agent to submit matching baseline screenshots with `submit_visual_artifact`, then pairs them with the prior visual-review after screenshots into a durable `visual_diff_comparison` typed artifact. If the after screenshots appear to be auth/sign-in/error-wall captures for a different changed surface, the workflow records the rejected artifact and skips instead of asking the agent to reproduce that wall as a meaningful baseline. Auth-page diffs still run when the Job itself targets the auth surface. It runs as its own low-priority `visual_diff` workflow, owns no Job lifecycle transition, and automatic instances skip or cancel once the Job is already approved, landing, or closed. A separate manual Job action can still dispatch it for explicit operator inspection.
