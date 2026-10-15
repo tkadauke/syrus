@@ -19,8 +19,11 @@ repository URL:
 - `https://raw.githubusercontent.com/OWNER/REPO/REF/path/to/runbook.md`
 
 If the runbook URL is absent, points at an unregistered repository, or the file
-cannot be read, the alert is ignored. That fail-closed behavior is the safety
-property: adding autonomy for an alert requires adding a reviewed runbook link.
+cannot be read, no Job is created. Failed resolutions are recorded for the
+fingerprint rate-limit window so an invalid alert does not repeatedly fetch the
+same runbook. One malformed alert does not prevent later alerts from being
+processed. That fail-closed behavior is the safety property: adding autonomy
+for an alert requires adding a reviewed runbook link.
 
 The prompt sent to `InvestigationJobs::Creator` contains the full alert payload
 and the resolved runbook. The resulting Job is a `direct` investigation Job, so
@@ -36,4 +39,8 @@ Two code-level guards limit noise and unsafe duplication:
   (`rate_limit_minutes`, default 30).
 - No second open investigation for the same host. The host is read from the
   configured host label (`host_label`, default `instance`) and then falls back
-  through common labels such as `host` and `node`.
+  through common labels such as `host` and `node`. Host names are compared
+  without a trailing metrics port.
+- At most `max_jobs_per_tick` Jobs (default 5) are created by one poll, and no
+  repository may have more than `max_open_jobs_per_repository` open alert
+  investigations (default 10).

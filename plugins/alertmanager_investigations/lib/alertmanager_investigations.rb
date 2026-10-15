@@ -47,6 +47,22 @@ module AlertmanagerInvestigations
         default: "instance",
         required: false,
         description: "Primary alert label used to prevent concurrent investigations for the same host."
+      },
+      {
+        key: "max_jobs_per_tick",
+        label: "Jobs per poll",
+        type: :integer,
+        default: 5,
+        required: false,
+        description: "Maximum investigation Jobs created during one Alertmanager poll."
+      },
+      {
+        key: "max_open_jobs_per_repository",
+        label: "Open Jobs per repository",
+        type: :integer,
+        default: 10,
+        required: false,
+        description: "Maximum open Alertmanager investigation Jobs for one repository."
       }
     ]
 
