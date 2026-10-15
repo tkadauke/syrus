@@ -96,6 +96,15 @@ describe("mysql_db_browser_execute_query tool card", () => {
     expect(screen.getByText("34")).toBeInTheDocument()
   })
 
+  it("renders legacy object rows from persisted query results", () => {
+    const legacyResult = { ...selectResult, rows: [ { id: 7, state: "succeeded" } ], row_count: 1 }
+
+    render(<>{executeQueryToolCard.renderExpanded(context({ parsedResult: legacyResult }))}</>)
+
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getByText("succeeded")).toBeInTheDocument()
+  })
+
   it("renders a wide result table with every column", () => {
     render(<>{executeQueryToolCard.renderExpanded(context({ parsedResult: wideSelectResult }))}</>)
 
