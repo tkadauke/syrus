@@ -60,17 +60,24 @@ module WorkUnits
     def revive_cancelled_tail_after!(step)
       cursor = step.next_step
       while cursor
-        if cursor.cancelled? && cursor.runs.none?
+        if terminal_workflow_cleanup_cancellation?(cursor) && cursor.runs.none?
           cursor.update_columns(
             state: "queued",
             started_at: nil,
             finished_at: nil,
             cancellation_reason: nil,
+            details: cursor.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS),
             updated_at: Time.current
           )
         end
         cursor = cursor.next_step
       end
+    end
+
+    def terminal_workflow_cleanup_cancellation?(step)
+      step.cancelled? &&
+        step.details.to_h["cancelled_by"] == "terminal_workflow_cleanup" &&
+        step.details.to_h["cancelled_workflow_id"] == workflow.id
     end
 
     def target_step
