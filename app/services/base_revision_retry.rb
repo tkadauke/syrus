@@ -21,6 +21,10 @@ class BaseRevisionRetry
   ].freeze
 
   Result = Data.define(:ran, :inherited, :reason, :command, :base_failed_identities, :introduced_failed_identities, :output)
+  CommandExecution = Data.define(:result, :skip_reason) do
+    def interrupted? = skip_reason.present?
+    def success? = result.success?
+  end
 
   def self.call(...)
     new(...).call
@@ -47,18 +51,20 @@ class BaseRevisionRetry
 
     output = +""
     parsed = nil
+    execution = nil
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
       git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
       begin
         @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)}: #{redacted_command(command)}")
-        status = run_command(command, checkout_path, output)
-        parsed = parse_result(output, checkout_path) if status
+        execution = run_command(command, checkout_path, output)
+        parsed = parse_result(output, checkout_path) unless execution.interrupted?
       ensure
         git("worktree", "remove", "--force", checkout_path.to_s)
       end
     end
 
+    return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
     return skipped("base_retry_output_not_parseable", command: command, output: output) unless parsed
 
     candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
@@ -88,19 +94,19 @@ class BaseRevisionRetry
     return skipped("no_grader_command") if command.blank?
 
     output = +""
-    status = nil
+    execution = nil
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
       git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
       begin
         @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)}: #{redacted_command(command)}")
-        status = run_command(command, checkout_path, output)
+        execution = run_command(command, checkout_path, output)
       ensure
         git("worktree", "remove", "--force", checkout_path.to_s)
       end
     end
 
-    return skipped("base_retry_full_command_timed_out", command: command, output: output) unless status
+    return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
 
     candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
     base_fingerprint = output_fingerprint(output)
@@ -112,11 +118,11 @@ class BaseRevisionRetry
     # exactly the case this whole-command strategy exists to cover. The
     # fingerprint match is still recorded (see full_command_reason) so the
     # UI can distinguish "same failure" from "also fails, differently."
-    inherited = status.present? && !status.success?
+    inherited = !execution.success?
     Result.new(
       ran: true,
       inherited: inherited,
-      reason: full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited),
+      reason: full_command_reason(execution, candidate_fingerprint, base_fingerprint, inherited),
       command: redacted_command(command),
       base_failed_identities: [],
       introduced_failed_identities: [],
@@ -196,11 +202,14 @@ class BaseRevisionRetry
 
     if result.timed_out?
       output << "\n[brr] timed out after #{TIMEOUT_SECONDS.to_i}s\n"
-      return nil
+      return CommandExecution.new(result: result, skip_reason: "base_retry_timed_out")
     end
-    return nil if result.operator_killed?
+    if result.operator_killed?
+      output << "\n[brr] operator killed\n"
+      return CommandExecution.new(result: result, skip_reason: "base_retry_operator_killed")
+    end
 
-    result
+    CommandExecution.new(result: result, skip_reason: nil)
   end
 
   def parse_result(output, checkout_path)

@@ -29,6 +29,26 @@ RSpec.describe BaseRevisionRetry do
     ]
   end
 
+  def command_execution(success: true, skip_reason: nil)
+    described_class::CommandExecution.new(
+      result: instance_double(Process::Status, success?: success),
+      skip_reason: skip_reason
+    )
+  end
+
+  def process_runner_result(timed_out: false, operator_killed: false, exit_status: nil)
+    ProcessRunner::Result.new(
+      exit_status: exit_status,
+      timed_out: timed_out,
+      stopped: false,
+      silent_timed_out: false,
+      operator_killed: operator_killed,
+      aliveness_failed: false,
+      duration_s: 0.1,
+      spawned_process_id: nil
+    )
+  end
+
   around do |example|
     Dir.mktmpdir("syrus-brr-spec-workspace") do |dir|
       @workspace_path = Pathname.new(dir)
@@ -84,6 +104,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 1 failure"
+      command_execution
     end
 
     result = retry_check.call
@@ -120,6 +141,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 0 failures"
+      command_execution
     end
 
     result = retry_check.call
@@ -152,6 +174,7 @@ RSpec.describe BaseRevisionRetry do
           </testcase>
         </testsuite>
       XML
+      command_execution
     end
 
     result = retry_check.call
@@ -175,7 +198,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Vitest failed before structured cases were stored\n"
-      instance_double(Process::Status, success?: false)
+      command_execution(success: false)
     end
 
     result = retry_check.call
@@ -199,7 +222,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Base passed\n"
-      instance_double(Process::Status, success?: true)
+      command_execution
     end
 
     result = retry_check.call
@@ -229,7 +252,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build failed: missing generated plugin data\n"
-      instance_double(Process::Status, success?: false)
+      command_execution(success: false)
     end
 
     result = retry_check.call
@@ -259,7 +282,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "1 scenario stuck: reason B\n"
-      instance_double(Process::Status, success?: false)
+      command_execution(success: false)
     end
 
     result = retry_check.call
@@ -289,7 +312,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build succeeded\n"
-      instance_double(Process::Status, success?: true)
+      command_execution
     end
 
     result = retry_check.call
@@ -334,7 +357,7 @@ RSpec.describe BaseRevisionRetry do
     end.to change(SpawnedProcess, :count).by(1)
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
-    expect(result).to have_attributes(ran: false, reason: "base_retry_full_command_timed_out")
+    expect(result).to have_attributes(ran: false, reason: "base_retry_timed_out")
     expect(elapsed).to be < 2.5
     expect(SpawnedProcess.order(:id).last).to have_attributes(
       kind: "grader",
@@ -349,6 +372,55 @@ RSpec.describe BaseRevisionRetry do
       false
     end
     expect(child_active).to be(false)
+  end
+
+  it "reports an operator-killed focused retry without parsing partial output" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    allow(ProcessRunner).to receive(:new).and_return(
+      instance_double(ProcessRunner, run: process_runner_result(operator_killed: true))
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
+    expect(retry_check).not_to receive(:parse_result)
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: false, reason: "base_retry_operator_killed")
+  end
+
+  it "reports an operator-killed full-command retry without calling it a timeout" do
+    grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "full_command" }))
+    allow(ProcessRunner).to receive(:new).and_return(
+      instance_double(ProcessRunner, run: process_runner_result(operator_killed: true))
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: false, reason: "base_retry_operator_killed")
   end
 
   # Regression. A focused retry runs `bin/rspec-worker` directly instead of the
@@ -397,6 +469,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 1 failure"
+      command_execution
     end
 
     result = retry_check.call
