@@ -34,7 +34,21 @@ import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
 const QUERY_KEY = ["admin", "build_cache"]
 const STATS_QUERY_KEY = ["admin", "build_cache", "stats"]
-const FILTER_FIELDS = ["state", "scope", "older_than_days", "reason", "user_id", "confirmed_since", "cancelled_since", "created_since", "updated_since", "result_status"] as const
+type BuildCacheTranslator = {
+  (key: string, options?: Record<string, unknown>): string
+}
+const FILTER_FIELDS = [
+  "state",
+  "scope",
+  "older_than_days",
+  "reason",
+  "user_id",
+  "confirmed_since",
+  "cancelled_since",
+  "created_since",
+  "updated_since",
+  "result_status"
+] as const
 
 export function AdminBuildCache() {
   const { t } = useT("build_cache")
@@ -71,7 +85,7 @@ function BuildCacheContent({ payload, search }: { payload: AdminBuildCachePayloa
   return (
     <>
       <StatsCard configured={payload.configured} initial={payload} />
-      {payload.pending_request ? <PendingRequestCard request={payload.pending_request} /> : <ClearRequestForm />}
+      {payload.pending_request ? <PendingRequestCard request={payload.pending_request} search={search} /> : <ClearRequestForm search={search} />}
       <AdminEventFilterBar
         buildLink={buildFlatFilterLink(FILTER_FIELDS)}
         clearLabel={t("build_cache.clear_filters")}
@@ -88,7 +102,11 @@ function BuildCacheContent({ payload, search }: { payload: AdminBuildCachePayloa
 
 function buildCacheFilterFields(t: (key: string) => string): AdminEventFilterField[] {
   return [
-    { name: "state", label: t("build_cache.filter_state"), options: ["pending", "confirmed", "cancelled"].map((value) => ({ label: t(`build_cache.state_${value}`), value })) },
+    {
+      name: "state",
+      label: t("build_cache.filter_state"),
+      options: ["pending", "confirmed", "cancelled"].map((value) => ({ label: t(`build_cache.state_${value}`), value }))
+    },
     { name: "scope", label: t("build_cache.filter_scope"), options: ["full", "partial"].map((value) => ({ label: t(`build_cache.scope_${value}`), value })) },
     { name: "older_than_days", label: t("build_cache.filter_older_than_days"), inputMode: "numeric" },
     { name: "reason", label: t("build_cache.filter_reason") },
@@ -97,7 +115,11 @@ function buildCacheFilterFields(t: (key: string) => string): AdminEventFilterFie
     { name: "cancelled_since", label: t("build_cache.filter_cancelled_since"), placeholder: "1h" },
     { name: "created_since", label: t("build_cache.filter_created_since"), placeholder: "1h" },
     { name: "updated_since", label: t("build_cache.filter_updated_since"), placeholder: "1h" },
-    { name: "result_status", label: t("build_cache.filter_result"), options: ["present", "empty", "truncated"].map((value) => ({ label: t(`build_cache.result_${value}`), value })) }
+    {
+      name: "result_status",
+      label: t("build_cache.filter_result"),
+      options: ["present", "empty", "truncated", "errors"].map((value) => ({ label: t(`build_cache.result_${value}`), value }))
+    }
   ]
 }
 
@@ -173,7 +195,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function ClearRequestForm() {
+function ClearRequestForm({ search }: { search: string }) {
   const { t } = useT("build_cache")
   const queryClient = useQueryClient()
   const [scope, setScope] = useState<BuildCacheClearRequestScope>("full")
@@ -188,7 +210,7 @@ function ClearRequestForm() {
         reason
       }),
     onSuccess: (updated) => {
-      queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
+      queryClient.setQueryData([...QUERY_KEY, search], updated)
       setReason("")
     }
   })
@@ -262,18 +284,21 @@ function ClearRequestForm() {
   )
 }
 
-function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
+function PendingRequestCard({ request, search }: { request: BuildCacheClearRequest; search: string }) {
   const { t } = useT("build_cache")
   const queryClient = useQueryClient()
   const { confirm, dialog } = useConfirm()
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
+    onSuccess: (updated) => {
+      queryClient.setQueryData([...QUERY_KEY, search], updated)
+      void queryClient.invalidateQueries({ queryKey: STATS_QUERY_KEY })
+    }
   })
   const cancelMutation = useMutation({
     mutationFn: () => cancelBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => queryClient.setQueriesData({ queryKey: QUERY_KEY }, updated)
+    onSuccess: (updated) => queryClient.setQueryData([...QUERY_KEY, search], updated)
   })
 
   async function onConfirmClick() {
@@ -404,7 +429,8 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       required: true,
       cellClassName: "align-top font-medium",
       sortKey: "scope",
-      renderCell: (request) => request.scope === "full" ? t("build_cache.scope_full") : t("build_cache.pending_scope_partial_value", { days: request.older_than_days })
+      renderCell: (request) =>
+        request.scope === "full" ? t("build_cache.scope_full") : t("build_cache.pending_scope_partial_value", { days: request.older_than_days })
     },
     {
       key: "state",
@@ -432,7 +458,7 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       key: "result",
       label: t("build_cache.col_result"),
       cellClassName: "align-top text-gray-600 dark:text-gray-300",
-      renderCell: (request) => request.result ? t("build_cache.result_summary", { count: request.result.deleted_count, size: formatBytes(request.result.bytes_freed) }) : "—"
+      renderCell: (request) => (request.result ? resultSummary(t, request.result) : "—")
     },
     {
       key: "result_status",
@@ -462,7 +488,7 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
       defaultVisible: false,
       sortKey: "confirmed_at",
-      renderCell: (request) => request.confirmed_at ? <RelativeTimestamp value={request.confirmed_at} /> : "—"
+      renderCell: (request) => (request.confirmed_at ? <RelativeTimestamp value={request.confirmed_at} /> : "—")
     },
     {
       key: "cancelled_at",
@@ -470,7 +496,7 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       cellClassName: "whitespace-nowrap align-top text-gray-600 dark:text-gray-300",
       defaultVisible: false,
       sortKey: "cancelled_at",
-      renderCell: (request) => request.cancelled_at ? <RelativeTimestamp value={request.cancelled_at} /> : "—"
+      renderCell: (request) => (request.cancelled_at ? <RelativeTimestamp value={request.cancelled_at} /> : "—")
     },
     {
       key: "updated_at",
@@ -481,6 +507,11 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
       renderCell: (request) => <RelativeTimestamp value={request.updated_at} />
     }
   ]
+}
+
+function resultSummary(t: BuildCacheTranslator, result: NonNullable<BuildCacheClearRequest["result"]>) {
+  const summary = t("build_cache.result_summary", { count: result.deleted_count, size: formatBytes(result.bytes_freed) })
+  return result.delete_error_count ? t("build_cache.result_summary_with_errors", { summary, count: result.delete_error_count }) : summary
 }
 
 function RequestStateBadge({ state }: { state: BuildCacheClearRequest["state"] }) {

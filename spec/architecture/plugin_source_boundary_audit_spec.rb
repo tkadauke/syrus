@@ -58,8 +58,8 @@ RSpec.describe "Plugin source boundaries" do
     expect(audit.core_violations.map(&:message)).to eq([])
   end
 
-  # app/assets/builds/spa.js is gitignored but present for anyone who has run
-  # a frontend build, and its minified contents match short plugin names.
+  # Vite entry bundles are gitignored but present for anyone who has run a
+  # frontend build, and their minified contents match short plugin names.
   # Scanning it turned a clean checkout into a failing audit.
   #
   # This used to write the fixture into the real app/services and delete it in

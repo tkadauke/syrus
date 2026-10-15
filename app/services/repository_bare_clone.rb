@@ -31,6 +31,7 @@ class RepositoryBareClone
   # Authenticates via `user` so private repos work.
   def sync!(user:)
     if path.exist?
+      scrub_remote_url!
       fetch!(user: user)
     else
       clone!(user: user)
@@ -64,6 +65,7 @@ class RepositoryBareClone
         url, path.to_s,
         env: @env
       )
+      scrub_remote_url!
     end
   end
 
@@ -77,5 +79,9 @@ class RepositoryBareClone
         env: @env
       )
     end
+  end
+
+  def scrub_remote_url!
+    @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: path.to_s, env: @env)
   end
 end

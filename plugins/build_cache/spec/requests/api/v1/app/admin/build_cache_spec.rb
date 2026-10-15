@@ -95,6 +95,8 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       wanted.update!(state: "confirmed", confirmed_at: 5.minutes.ago, result: { "deleted_count" => 2, "bytes_freed" => 1234, "truncated" => false })
       truncated = BuildCache::ClearRequest.create!(user: admin, scope: "partial", older_than_days: 30, reason: "stale compiler objects")
       truncated.update!(state: "confirmed", confirmed_at: 4.minutes.ago, result: { "deleted_count" => 20, "bytes_freed" => 4321, "truncated" => true })
+      errored = BuildCache::ClearRequest.create!(user: admin, scope: "partial", older_than_days: 30, reason: "stale compiler objects")
+      errored.update!(state: "confirmed", confirmed_at: 3.minutes.ago, result: { "deleted_count" => 1, "bytes_freed" => 100, "truncated" => false, "delete_error_count" => 2 })
       BuildCache::ClearRequest.create!(user: admin, scope: "full", reason: "different cleanup").update!(state: "cancelled", cancelled_at: 5.minutes.ago)
 
       get "/api/v1/app/admin/build_cache", params: {
@@ -140,6 +142,20 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       body = parse_body
       expect(body["recent_requests"].map { |request| request["id"] }).to eq([ truncated.id ])
       expect(body["recent_requests"].first).to include("result_status" => "truncated")
+
+      get "/api/v1/app/admin/build_cache", params: {
+        state: "confirmed",
+        scope: "partial",
+        older_than_days: "30",
+        reason: "compiler",
+        user_id: admin.id,
+        result_status: "errors"
+      }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["recent_requests"].map { |request| request["id"] }).to eq([ errored.id ])
+      expect(body["recent_requests"].first).to include("result_status" => "errors")
     end
 
     it "loads bucket stats from a separate endpoint" do

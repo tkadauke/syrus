@@ -498,11 +498,12 @@ and that plugin-to-plugin source references follow a declared dependency edge
 directly or transitively.
 
 The audit reads git-tracked source only. Untracked and gitignored files are
-skipped, because the working tree can contain build output — `app/assets/builds/spa.js`
-is gitignored but present after any frontend build, and its minified contents
-match short plugin names well enough to report a violation that does not exist
-in the source. When no git index is available (the `git archive` copy the
-physical-removal script builds), everything is scanned instead.
+skipped, because the working tree can contain build output — Vite entry bundles
+under `app/assets/builds/` are gitignored but present after any frontend build,
+and their minified contents match short plugin names well enough to report a
+violation that does not exist in the source. When no git index is available (the
+`git archive` copy the physical-removal script builds), everything is scanned
+instead.
 
 The stronger physical-absence check is manual for now:
 

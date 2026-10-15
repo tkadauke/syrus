@@ -38,7 +38,7 @@ RSpec.describe "assets:precompile" do
     Rake::Task["assets:precompile"].invoke
 
     expect(Syrus::SpaEntrypointPublisher).to have_received(:new).with(
-      source_path: Rails.root.join("app/assets/builds/spa.js"),
+      source_path: Rails.root.join("app/assets/builds/spa.digested.js"),
       output_path: output_path
     )
     expect(output_path.join("spa-entry-abc123.js.gz")).to exist

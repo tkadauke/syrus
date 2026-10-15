@@ -77,13 +77,15 @@ RSpec.describe GitHistory::RelayClient do
           entries: [ { sha: "a" * 40, author_name: "Ada", author_email: "ada@example.com",
                         committer_name: "Ada", committer_email: "ada@example.com",
                         authored_at: "2026-08-01T00:00:00Z", subject: "did a thing" } ],
-          has_more: true
+          has_more: true,
+          next_cursor: "#{"a" * 40}:1"
         }.to_json
       )
 
       page = client.fetch(cursor: nil, limit: 30)
 
       expect(page.has_more).to be true
+      expect(page.next_cursor).to eq("#{"a" * 40}:1")
       expect(page.entries).to contain_exactly(
         a_hash_including(sha: "a" * 40, subject: "did a thing", author_name: "Ada")
       )

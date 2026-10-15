@@ -236,7 +236,7 @@ module Android
         rm -f #{output};
         mkdir -p .syrus;
         mkdir -p #{Shellwords.escape(File.dirname(junit_output))};
-        find #{paths} -type f -name '*.xml' 2>/dev/null | sort > #{Shellwords.escape(file_list)} || true;
+        find #{paths} -type f -name '*.xml' 2>/dev/null | sort -u > #{Shellwords.escape(file_list)} || true;
         if [ -s #{Shellwords.escape(file_list)} ]; then
           { echo '<testsuites>'; while IFS= read -r file; do awk 'NR == 1 && $0 ~ /^<\\?xml/ { next } { print }' "$file"; done < #{Shellwords.escape(file_list)}; echo '</testsuites>'; } > #{output};
         fi

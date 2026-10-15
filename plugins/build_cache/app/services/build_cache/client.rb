@@ -1,4 +1,5 @@
 require "aws-sdk-s3"
+require "set"
 
 module BuildCache
   # Talks to the shared sccache compiler-cache bucket  directly
@@ -16,7 +17,8 @@ module BuildCache
 
     Stats = Data.define(:object_count, :total_size_bytes, :oldest_object, :newest_object, :truncated)
     ObjectSummary = Data.define(:key, :size, :last_modified)
-    ClearResult = Data.define(:deleted_count, :bytes_freed, :truncated)
+    ClearResult = Data.define(:deleted_count, :bytes_freed, :truncated, :delete_error_count)
+    DeleteResult = Data.define(:failed_keys, :error_count)
 
     class << self
       def configured?
@@ -46,18 +48,13 @@ module BuildCache
       total_size = 0
       oldest = nil
       newest = nil
-      truncated = false
 
-      each_object_batch do |batch|
+      truncated = each_object_batch do |batch|
         batch.each do |object|
           count += 1
           total_size += object.size.to_i
           oldest = object if oldest.nil? || object.last_modified < oldest.last_modified
           newest = object if newest.nil? || object.last_modified > newest.last_modified
-        end
-        if count >= MAX_OBJECTS_SCANNED
-          truncated = true
-          break
         end
       end
 
@@ -78,31 +75,38 @@ module BuildCache
     def delete_matching
       deleted_count = 0
       bytes_freed = 0
-      truncated = false
+      delete_error_count = 0
 
-      each_object_batch do |batch|
+      truncated = each_object_batch do |batch|
         matching = batch.select { |object| yield(object) }
         unless matching.empty?
-          delete_objects(matching.map(&:key))
-          deleted_count += matching.size
-          bytes_freed += matching.sum { |object| object.size.to_i }
-        end
-        if deleted_count >= MAX_OBJECTS_SCANNED
-          truncated = true
-          break
+          delete_result = delete_objects(matching.map(&:key))
+          successful = matching.reject { |object| delete_result.failed_keys.include?(object.key) }
+          deleted_count += successful.size
+          bytes_freed += successful.sum { |object| object.size.to_i }
+          delete_error_count += delete_result.error_count
         end
       end
 
-      ClearResult.new(deleted_count: deleted_count, bytes_freed: bytes_freed, truncated: truncated)
+      ClearResult.new(deleted_count: deleted_count, bytes_freed: bytes_freed, truncated: truncated, delete_error_count: delete_error_count)
     end
 
     def delete_objects(keys)
+      failed_keys = Set.new
+      error_count = 0
+
       keys.each_slice(1000) do |slice|
-        client.delete_objects(
+        response = client.delete_objects(
           bucket: @bucket,
           delete: { objects: slice.map { |key| { key: key } }, quiet: true }
         )
+        Array(response.errors).each do |error|
+          error_count += 1
+          failed_keys << error.key if error.key.present?
+        end
       end
+
+      DeleteResult.new(failed_keys: failed_keys, error_count: error_count)
     end
 
     def each_object_batch
@@ -110,10 +114,13 @@ module BuildCache
       continuation_token = nil
 
       loop do
+        remaining = MAX_OBJECTS_SCANNED - scanned
+        return true if remaining <= 0
+
         response = client.list_objects_v2(
           bucket: @bucket,
           prefix: @key_prefix,
-          max_keys: LIST_PAGE_SIZE,
+          max_keys: [ LIST_PAGE_SIZE, remaining ].min,
           continuation_token: continuation_token
         )
         objects = Array(response.contents).map do |o|
@@ -122,8 +129,8 @@ module BuildCache
         yield objects unless objects.empty?
 
         scanned += objects.size
-        break if scanned >= MAX_OBJECTS_SCANNED
-        break unless response.is_truncated
+        return response.is_truncated if scanned >= MAX_OBJECTS_SCANNED
+        return false unless response.is_truncated
 
         continuation_token = response.next_continuation_token
       end

@@ -191,6 +191,7 @@ RSpec.describe "Android Gradle grader types" do
       output = File.read(File.join(dir, ".syrus/grade-output/android-unit-test-junit.xml"))
       expect(output).to include("<testsuites>")
       expect(output).to include("<testsuite name=\"ExampleAndroidUnitTest\"")
+      expect(output.scan("<testcase ").size).to eq(1)
       expect(output).not_to include("<?xml")
     end
   end

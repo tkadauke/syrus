@@ -141,7 +141,7 @@ module GitHistory
       return not_found unless repository
 
       page = CommitLog.new(repository: repository).fetch(cursor: cursor.presence, limit: limit.to_i)
-      json_response(200, entries: page.entries, has_more: page.has_more)
+      json_response(200, entries: page.entries, has_more: page.has_more, next_cursor: page.next_cursor)
     end
 
     def find_repository(repository_id)

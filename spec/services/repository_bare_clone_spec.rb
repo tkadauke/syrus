@@ -12,6 +12,7 @@ RSpec.describe RepositoryBareClone, :ci_only do
     ENV["SYRUS_DATA_ROOT"] = syrus_data_root.to_s
     init_origin(origin_dir)
     allow_any_instance_of(Repository).to receive(:authenticated_push_url).and_return("file://#{origin_dir}")
+    allow_any_instance_of(Repository).to receive(:remote_url).and_return("https://github.com/acme/widgets.git")
   end
 
   after do
@@ -58,6 +59,32 @@ RSpec.describe RepositoryBareClone, :ci_only do
 
       expect(clone.path).to exist
       expect(clone.path.join("HEAD")).to exist
+    end
+
+    it "stores the anonymous repository URL after cloning" do
+      clone = described_class.new(repository)
+      clone.sync!(user: user)
+
+      remote_url = git("--git-dir=#{clone.path}", "config", "--get", "remote.origin.url")
+      expect(remote_url).to eq(repository.remote_url)
+      expect(remote_url).not_to include("x-access-token")
+      expect(remote_url).not_to include(user.github_token)
+    end
+
+    it "scrubs a credential-bearing origin URL from an existing clone before fetching" do
+      clone = described_class.new(repository)
+      clone.sync!(user: user)
+
+      credential_url = "https://x-access-token:#{user.github_token}@github.com/acme/widgets.git"
+      git("--git-dir=#{clone.path}", "remote", "set-url", "origin", credential_url)
+      add_commit("new commit after credentialed remote")
+
+      clone.sync!(user: user)
+
+      remote_url = git("--git-dir=#{clone.path}", "config", "--get", "remote.origin.url")
+      expect(remote_url).to eq(repository.remote_url)
+      expect(remote_url).not_to include("x-access-token")
+      expect(remote_url).not_to include(user.github_token)
     end
 
     it "fetches updates when the clone already exists" do

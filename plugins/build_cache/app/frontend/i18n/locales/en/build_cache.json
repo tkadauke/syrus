@@ -69,9 +69,11 @@
     "col_cancelled": "Cancelled",
     "col_updated": "Updated",
     "result_summary": "Deleted {{count}} objects, freed {{size}}",
+    "result_summary_with_errors": "{{summary}} ({{count}} delete errors)",
     "result_present": "Present",
     "result_empty": "Empty",
     "result_truncated": "Truncated",
+    "result_errors": "Errors",
     "state_pending": "Pending",
     "state_confirmed": "Cleared",
     "state_cancelled": "Cancelled"
