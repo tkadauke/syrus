@@ -2191,6 +2191,47 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       )
     end
 
+    it "reruns only failed graders after a confirmed-not-broken repair records the unchanged head" do
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+
+      handler.call
+      prior_graders = workflow.steps.where(kind: "grader", iteration: 1).index_by { |grader| grader.details["name"] }
+      prior_graders.fetch("tests").update_columns(state: "failed")
+      prior_graders.fetch("lint").update_columns(state: "succeeded")
+      repair_step = Step.create!(
+        workflow: workflow,
+        kind: "landing_fix",
+        position: 150,
+        iteration: 2,
+        loop_id: loop_id
+      )
+      repair_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        base_sha: "unchanged123",
+        head_sha: "unchanged123",
+        step_agent_diff: ""
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).pluck(:details)).to contain_exactly(
+        include("name" => "tests")
+      )
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
+        include("name" => "lint", "reason" => "passed before no-change repair retry")
+      )
+    end
+
     it "reruns every active grader when the repair Run for this iteration committed a real diff" do
       write_config(<<~YAML)
         grade:
@@ -2259,6 +2300,55 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
       expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to eq([])
+    end
+
+    it "reuses graders from the repair iteration on the following transient-only retry" do
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+      repair_step = Step.create!(
+        workflow: workflow,
+        kind: "landing_fix",
+        position: 150,
+        iteration: 2,
+        loop_id: loop_id
+      )
+      repair_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        base_sha: "before123",
+        head_sha: "fixed123",
+        step_agent_diff: "diff --git a/app.rb b/app.rb\n+fix"
+      )
+
+      build_iteration_two_handler.call
+      repaired_graders = workflow.steps.where(kind: "grader", iteration: 2).index_by { |grader| grader.details["name"] }
+      repaired_graders.fetch("tests").update_columns(state: "failed")
+      repaired_graders.fetch("lint").update_columns(state: "succeeded")
+      workflow.steps.find_by!(kind: "grader_collect", iteration: 2, loop_id: loop_id).update_columns(
+        state: "failed",
+        details: { Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true }
+      )
+
+      build_iteration_handler(3).call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 3).pluck(:details)).to contain_exactly(
+        include("name" => "tests")
+      )
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
+        include(
+          "name" => "lint",
+          "reason" => "passed before infrastructure-only retry",
+          "source_iteration" => 2
+        )
+      )
     end
 
     it "carries forward a previously passing required grader only when target health still proves the current fingerprints" do
