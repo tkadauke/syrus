@@ -10,6 +10,20 @@ module JavaScript
       new(grader_name: grader_name, grader_command: grader_command, failed_cases: failed_cases, base_retry: base_retry, project_path: project_path).command
     end
 
+    def self.isolated_command_for(grader_name:, grader_command:, test_case:)
+      attrs = test_case.to_h.stringify_keys
+      name = attrs["name"].presence
+      return nil unless name
+
+      command = new(
+        grader_name: grader_name,
+        grader_command: grader_command,
+        failed_cases: [ attrs ],
+        base_retry: { "strategy" => "plugin" }
+      ).command
+      "#{command} -t #{Shellwords.escape(name)}" if command.present?
+    end
+
     def initialize(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
       @grader_name = grader_name.to_s
       @grader_command = grader_command.to_s

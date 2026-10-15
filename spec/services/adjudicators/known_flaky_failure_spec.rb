@@ -5,13 +5,19 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   let(:job) { Factories.job(repository: repository) }
   let(:workflow) { job.workflows.first }
   let(:grader_step) do
-    workflow.steps.first.tap { |step| step.update!(details: { "name" => "rspec", "required" => true }) }
+    workflow.steps.first.tap { |step| step.update!(details: { "name" => "rspec", "required" => true, "exit_code" => 1 }) }
   end
 
-  def fake_provider(failed_test_cases:, scores: {})
+  let(:base_sha) { "b" * 40 }
+
+  def fake_provider(failed_test_cases:, scores: {}, signatures: nil, failure_explained: true)
+    failed_test_cases = failed_test_cases.map { |test_case| { "failure_message" => "historical failure" }.merge(test_case) }
+    signatures ||= failed_test_cases.to_h { |test_case| [ [ test_case["suite_name"], test_case["name"] ], test_case["failure_message"] ] }
     Module.new do
       define_singleton_method(:failed_test_cases) { |run:, grader_name:| failed_test_cases }
+      define_singleton_method(:grader_failure_explained_by_tests?) { |**| failure_explained }
       define_singleton_method(:flakiness_score) { |repository:, suite_name:, name:, exclude_workflow: nil| scores[[ suite_name, name ]] }
+      define_singleton_method(:historical_failure_signatures) { |repository:, suite_name:, name:, exclude_workflow: nil| Array(signatures[[ suite_name, name ]]) }
     end
   end
 
@@ -21,7 +27,9 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
   end
 
   def adjudicate
-    described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ])
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).with("diff", "--name-only", "#{base_sha}...HEAD", any_args).and_return("")
+    described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ], base_sha: base_sha)
   end
 
   it "declines for a problem that is not a grader failure" do
@@ -47,7 +55,7 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
 
   it "dismisses a failure whose every failing test is confirmed flaky" do
     stub_provider(fake_provider(
-      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing" } ],
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing", "failure_message" => "historical failure" } ],
       scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, failed_count: 4, total_count: 10, flaky: true } }
     ))
 
@@ -67,7 +75,9 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
       scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, flaky: true } }
     ))
 
-    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow)
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).and_return("")
+    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, base_sha: base_sha)
 
     expect(verdict).to be_dismiss
     expect(verdict.reason).to eq("known_flaky_failure")
@@ -148,6 +158,8 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
           @excluded_workflow = exclude_workflow
           { score: 0.4, failed_count: 4, total_count: 10, flaky: true }
         end
+
+        def grader_failure_explained_by_tests?(**) = true
       end
     end
     stub_provider(provider)
@@ -174,5 +186,37 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
 
     expect(verdict).to be_inconclusive
     expect(verdict.reason).to eq("no_flakiness_history")
+  end
+
+  it "declines when the PR changed the failing test file" do
+    test_case = { "suite_name" => "Foo", "name" => "bar", "file_path" => "spec/foo_spec.rb", "failure_message" => "boom" }
+    stub_provider(fake_provider(failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } }))
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).and_return("spec/foo_spec.rb\n")
+
+    verdict = described_class.adjudicate(
+      problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ], base_sha: base_sha
+    )
+    expect(verdict.reason).to eq("changed_failing_test")
+  end
+
+  it "declines when the current failure signature differs from history" do
+    test_case = { "suite_name" => "Foo", "name" => "bar", "failure_message" => "new regression" }
+    stub_provider(fake_provider(
+      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } },
+      signatures: { [ "Foo", "bar" ] => "old flaky failure" }
+    ))
+
+    expect(adjudicate.reason).to eq("no_flakiness_history")
+  end
+
+  it "declines when a mixed non-test cause means the parsed flaky case does not explain the grader exit" do
+    test_case = { "suite_name" => "Foo", "name" => "bar", "failure_message" => "known failure" }
+    stub_provider(fake_provider(
+      failed_test_cases: [ test_case ], scores: { [ "Foo", "bar" ] => { score: 0.2, flaky: true } },
+      failure_explained: false
+    ))
+
+    expect(adjudicate.reason).to eq("no_flakiness_history")
   end
 end

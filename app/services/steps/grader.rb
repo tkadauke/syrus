@@ -359,7 +359,8 @@ module Steps
       verdict = Adjudicators::KnownFlakyFailure.adjudicate(
         problem: Problem[:grader_failure, evidence: { grader_names: [ step.details.to_h["name"] ] }],
         workflow: workflow,
-        step: step
+        step: step,
+        base_sha: base_revision_sha
       )
       return false unless verdict.dismiss?
 

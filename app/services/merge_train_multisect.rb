@@ -222,7 +222,8 @@ class MergeTrainMultisect
     def reproducible?
       flaky = Adjudicators::KnownFlakyFailure.adjudicate(
         problem: Problem[:grader_failure],
-        workflow: workflow
+        workflow: workflow,
+        base_sha: workflow.artifact("merge_train_base_sha")
       )
       if flaky.dismiss?
         @payload = { "gate" => "known_flaky_failure", "verdict" => flaky.to_h }

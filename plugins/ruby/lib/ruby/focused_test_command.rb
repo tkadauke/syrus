@@ -15,6 +15,20 @@ module Ruby
       "if [ -x bin/rails ] && [ -f config/database.yml ]; then RAILS_ENV=test bin/rails db:test:prepare; fi"
     end
 
+    def self.isolated_command_for(grader_name:, grader_command:, test_case:)
+      file = test_case.to_h.stringify_keys["file_path"].presence || test_case.to_h.stringify_keys["suite_name"].presence
+      name = test_case.to_h.stringify_keys["name"].presence
+      return nil unless file.to_s.end_with?("_spec.rb") && name
+
+      command = new(
+        grader_name: grader_name,
+        grader_command: grader_command,
+        failed_cases: [ test_case ],
+        base_retry: { "strategy" => "plugin" }
+      ).command
+      "#{command} --example #{Shellwords.escape(name)}" if command.present?
+    end
+
     def initialize(grader_name:, grader_command:, failed_cases:, base_retry:)
       @grader_name = grader_name.to_s
       @grader_command = grader_command.to_s

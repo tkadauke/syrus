@@ -5,13 +5,15 @@ RSpec.describe Adjudicators::IsolatedReproDismissal do
   let(:job) { Factories.job(repository: repository) }
   let(:workflow) { job.workflows.first }
   let(:sha) { "a" * 40 }
+  let(:base_sha) { "b" * 40 }
   let(:grader_step) do
-    workflow.steps.first.tap { |step| step.update!(details: { "name" => "rspec", "required" => true }) }
+    workflow.steps.first.tap { |step| step.update!(details: { "name" => "rspec", "required" => true, "exit_code" => 1 }) }
   end
 
-  def fake_provider(failed_test_cases:, evidence: {})
+  def fake_provider(failed_test_cases:, evidence: {}, failure_explained: true)
     Module.new do
       define_singleton_method(:failed_test_cases) { |run:, grader_name:| failed_test_cases }
+      define_singleton_method(:grader_failure_explained_by_tests?) { |**| failure_explained }
       define_singleton_method(:isolated_repro_evidence) { |repository:, suite_name:, name:, sha:| evidence[[ suite_name, name, sha ]] }
     end
   end
@@ -33,7 +35,9 @@ RSpec.describe Adjudicators::IsolatedReproDismissal do
   # example itself performs its setup.
   def adjudicate(with_sha: true)
     workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, sha) if with_sha
-    described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ])
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).and_return("")
+    described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ], base_sha: base_sha)
   end
 
   it "declines for a problem that is not a grader failure" do
@@ -154,9 +158,34 @@ RSpec.describe Adjudicators::IsolatedReproDismissal do
       evidence: { [ "spec/foo_spec.rb", "does the thing", sha ] => { reproduced: false } }
     ))
 
-    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow)
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).and_return("")
+    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, base_sha: base_sha)
 
     expect(verdict).to be_dismiss
     expect(verdict.reason).to eq("isolated_repro_did_not_reproduce")
+  end
+
+
+  it "declines when the PR changed the failing test file" do
+    test_case = { "suite_name" => "Foo", "name" => "bar", "file_path" => "spec/foo_spec.rb" }
+    stub_provider(fake_provider(failed_test_cases: [ test_case ], evidence: { [ "Foo", "bar", sha ] => { reproduced: false } }))
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, sha)
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(Dir.tmpdir))
+    allow_any_instance_of(GitRunner).to receive(:run).and_return("spec/foo_spec.rb\n")
+
+    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow, step: [ grader_step ], base_sha: base_sha)
+    expect(verdict.reason).to eq("changed_failing_test")
+  end
+
+
+  it "declines when a mixed non-test cause means the parsed case does not explain the grader exit" do
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "Foo", "name" => "bar" } ],
+      evidence: { [ "Foo", "bar", sha ] => { reproduced: false } },
+      failure_explained: false
+    ))
+
+    expect(adjudicate.reason).to eq("no_isolated_repro_evidence")
   end
 end
