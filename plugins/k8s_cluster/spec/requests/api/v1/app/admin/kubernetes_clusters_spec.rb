@@ -274,10 +274,18 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       end
 
       it "tests an existing cluster using its stored credentials" do
+        repository = Factories.repository(user: admin)
         cluster = Factories.kubernetes_cluster
         cluster.token = "stored-token"
         cluster.save!
-        allow(K8sCluster::ConnectionTester).to receive(:test).with(cluster, context: instance_of(McpToolContext)).and_return({ success: true })
+        allow(K8sCluster::ConnectionTester).to receive(:test).with(
+          cluster,
+          context: satisfy do |context|
+            context.is_a?(McpToolContext) &&
+              context.user == admin &&
+              context.allowed_repository_ids.include?(repository.id)
+          end
+        ).and_return({ success: true })
 
         post "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/test"
 
