@@ -6,6 +6,7 @@ module Api
           class InvalidAudit < StandardError; end
 
           before_action :require_credential_store_enabled
+          rescue_from ::CredentialStore::Broker::Ambiguous, with: :render_ambiguous_credential
 
           def create
             context = current_invocation_context
@@ -162,6 +163,10 @@ module Api
 
           private
 
+          def render_ambiguous_credential(error)
+            render_error("conflict", error.message, status: :conflict)
+          end
+
           def require_credential_store_enabled
             return if ::CredentialStore.enabled?
 
@@ -273,9 +278,9 @@ module Api
           end
 
           def visible_credential!(ref)
-            relation = ::CredentialStore::Credential.all
-            relation = ref.to_s.match?(/\A\d+\z/) ? relation.where(id: ref) : relation.where(name: ref.to_s)
-            relation.detect { |credential| credential.scope_policy.usable_by?(credential, current_invocation_context) } || raise(ActiveRecord::RecordNotFound, "credential not found")
+            ::CredentialStore::Broker.resolve_credential!(context: current_invocation_context, credential_ref: ref)
+          rescue ::CredentialStore::Broker::NotFound
+            raise ActiveRecord::RecordNotFound, "credential not found"
           end
 
           def validate_completion_audit!(attrs, context:, expected_tool:)

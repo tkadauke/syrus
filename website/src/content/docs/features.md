@@ -1270,6 +1270,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   un-revocation during rotation. Runtime wrapper completion events must match
   an unexpired lease issued for the same credential, tool, and runtime context,
   and each lease accepts only one completion event.
+  Name-based leases ignore inactive credentials, prefer user scope over
+  repository, team, and instance scopes, and reject equally ranked ambiguous
+  matches. Personal user-scoped credentials remain private to their owner even
+  from other administrators' agent runs.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing
