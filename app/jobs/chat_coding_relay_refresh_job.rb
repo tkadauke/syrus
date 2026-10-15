@@ -12,11 +12,15 @@ class ChatCodingRelayRefreshJob < ApplicationJob
 
   def perform(chat_session_id)
     chat_session = ChatSession.find(chat_session_id)
+    return if chat_session.deleted?
+
     repository = chat_session.repository
     return unless repository
 
     path = ChatWorkspace.repo_path_for(chat_session, repository)
     if path.join(".git").directory?
+      return if chat_session.reload.deleted?
+
       ChatWorkspace.refresh_relay_credentials!(chat_session, repository)
       return
     end
@@ -33,6 +37,8 @@ class ChatCodingRelayRefreshJob < ApplicationJob
   # nothing about whether the checkout exists elsewhere. A mismatched key
   # means routing put us on the wrong worker; don't misreport that as loss.
   def record_missing_checkout!(chat_session, path)
+    return if chat_session.reload.deleted?
+
     expected_key = chat_session.workspace_storage_key
     return if expected_key.blank?
 

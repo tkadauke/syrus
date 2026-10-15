@@ -11,6 +11,7 @@ class SwitchChatProviderJob < ApplicationJob
 
   def perform(chat_session_id, provider)
     @chat = ChatSession.includes(:participants, :provider_session).find(chat_session_id)
+    return if @chat.deleted?
 
     if @chat.turn_in_flight? || @chat.agent_busy?
       @chat.messages.create!(role: "system", content: { "text" => "Cannot switch provider while a turn is in progress." })
@@ -31,13 +32,19 @@ class SwitchChatProviderJob < ApplicationJob
   private
 
   def switch_to!(provider)
+    return if @chat.reload.deleted?
+
     new_session_id = SecureRandom.uuid
     workspace_path = ChatWorkspace.path_for(@chat).to_s
     jsonl = rehydrate_for(provider, new_session_id, workspace_path)
+    return if @chat.reload.deleted?
 
     write_provider_session_to_disk!(workspace_path, new_session_id, jsonl) if provider == "claude" && jsonl.present?
 
     ApplicationRecord.transaction do
+      @chat.lock!
+      return if @chat.deleted?
+
       previous_provider = @chat.effective_chat_provider
       @chat.update!(chat_provider: provider)
 

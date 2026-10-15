@@ -72,16 +72,18 @@ class ChatStopReconciler
       closed_tool_calls = close_dangling_tool_calls!(chat, reason)
       if turn_in_flight || closed_tool_calls.positive?
         chat.fail_current_turn! if turn_in_flight
-        create_terminal_message!(chat, message)
+        create_terminal_message!(chat, message) unless chat.deleted?
       end
       chat.update!(stop_requested_at: nil) if chat.stop_requested_at?
       changed = true
     end
 
     @chat_session.reload
-    @chat_session.broadcast_controls
-    @chat_session.broadcast_app_header_update
-    ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
+    unless @chat_session.deleted?
+      @chat_session.broadcast_controls
+      @chat_session.broadcast_app_header_update
+      ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
+    end
     changed
   end
 

@@ -25,6 +25,27 @@ RSpec.describe ChatTitleJob do
     }.to have_enqueued_job(described_class).with(chat.id, message.id).on_queue("low_priority_maintenance")
   end
 
+  it "does not invoke the title agent or write a title for a deleted chat" do
+    message
+    chat.soft_delete_by!(user)
+    ChatTitleJob.agent_runner = ->(**_) { raise "title agent should not run" }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.title).to be_nil
+  end
+
+  it "does not write a title when the chat is deleted during generation" do
+    ChatTitleJob.agent_runner = ->(**_) {
+      chat.soft_delete_by!(user)
+      result('{"title":"Too Late"}')
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.title).to be_nil
+  end
+
   it "stores the generated title once" do
     ChatTitleJob.agent_runner = ->(**_) { result('{"title":"Habit Tracker"}') }
     allow(OperationalLogging).to receive(:ingest)
