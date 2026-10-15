@@ -347,8 +347,8 @@ class MainHealthChangedService
         job: job,
         artifacts: { "repair_reason" => "main branch recovered; PR checks were failing against the broken base" }
       )
-      WorkUnits::Launcher.start!(workflow)
-      rebased += 1
+      result = WorkUnits::Launcher.start!(workflow)
+      rebased += 1 if result.started?
     rescue WorkUnits::Launcher::LockConflict => e
       Rails.logger.info(
         "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
