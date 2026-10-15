@@ -544,17 +544,27 @@ class Workflow < ApplicationRecord
   # artifacts during a step before the step writes its own artifact, so merge
   # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
-    pending = (artifacts || {}).merge(key.to_s => value)
-
     self.class.transaction do
       locked = self.class.lock.find(id)
-      locked.artifacts = (locked.artifacts || {}).merge(pending)
+      locked.artifacts = (locked.artifacts || {}).merge(key.to_s => value)
       locked.save!
       self.artifacts = locked.artifacts
       # Already persisted through `locked`. Left dirty, this instance would
       # skip the save inside a later `attach` (Active Storage only saves a
       # record with no other pending changes), silently dropping e.g. the
       # coverage hit map.
+      clear_attribute_changes([ :artifacts ])
+    end
+  end
+
+  # Remove selected artifacts without replacing values concurrently written
+  # through another instance of this Workflow.
+  def delete_artifacts!(*keys)
+    self.class.transaction do
+      locked = self.class.lock.find(id)
+      locked.artifacts = (locked.artifacts || {}).except(*keys.map(&:to_s))
+      locked.save!
+      self.artifacts = locked.artifacts
       clear_attribute_changes([ :artifacts ])
     end
   end
