@@ -6,6 +6,8 @@ module Steps
   # skipped, keeping "rebase succeeded" and "branch was pushed" as
   # separate workflow facts.
   class ForcePush < Base
+    LS_REMOTE_OBJECT_ID_PATTERN = /\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/.freeze
+
     def call
       if already_landed_auto_rebase?
         log("force_push: skipped — the branch's work is already on the base; pushing would empty the PR")
@@ -169,11 +171,20 @@ module Steps
     end
 
     def current_remote_sha(git, push_url)
+      ref = "refs/heads/#{workspace.branch_name}"
       output = git.run(
-        "ls-remote", "--heads", push_url, "refs/heads/#{workspace.branch_name}",
+        "ls-remote", "--heads", push_url, ref,
         chdir: workspace.path.to_s
       )
-      output.to_s.split(/\s+/).first.to_s
+      output.to_s.each_line do |line|
+        fields = line.strip.split(/\s+/)
+        next unless fields.length == 2
+
+        sha, line_ref = fields
+        return sha if line_ref == ref && sha&.match?(LS_REMOTE_OBJECT_ID_PATTERN)
+      end
+
+      ""
     end
 
     def expected_remote_sha

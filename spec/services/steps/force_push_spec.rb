@@ -267,6 +267,7 @@ RSpec.describe Steps::ForcePush do
   end
 
   it "reads the remote tip and uses an explicit lease when auto-rebase did not record a SHA" do
+    remote_sha = "a" * 40
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "error",
       "succeeded" => false,
@@ -290,13 +291,17 @@ RSpec.describe Steps::ForcePush do
       "https://push.example/repo.git",
       "refs/heads/syrus/issue-42",
       chdir: "/tmp/workspace"
-    ).and_return("remote123\trefs/heads/syrus/issue-42\n")
+    ).and_return(<<~OUTPUT)
+      warning: failed to save credentials to the store
+      #{remote_sha}\trefs/heads/syrus/issue-42
+      warning: credential helper could not persist credentials
+    OUTPUT
 
     handler.call
 
     expect(git).to have_received(:run).with(
       "push",
-      "--force-with-lease=refs/heads/syrus/issue-42:remote123",
+      "--force-with-lease=refs/heads/syrus/issue-42:#{remote_sha}",
       "https://push.example/repo.git",
       "HEAD:refs/heads/syrus/issue-42",
       chdir: "/tmp/workspace"
