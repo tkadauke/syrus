@@ -11,12 +11,22 @@ module AlertmanagerInvestigations
     def call
       plugin_record.with_lock do
         @client.firing_alerts.each do |payload|
-          process(Alert.new(payload: payload, host_label: @configuration.host_label))
+          process_alert(payload)
         end
       end
     end
 
     private
+
+    def process_alert(payload)
+      alert = Alert.new(payload: payload, host_label: @configuration.host_label)
+      ApplicationRecord.transaction(requires_new: true) { process(alert) }
+    rescue StandardError => e
+      fingerprint = alert&.fingerprint || payload["fingerprint"].presence || "unknown"
+      Rails.logger.warn(
+        "[AlertmanagerInvestigations] alert #{fingerprint} failed: #{e.class}: #{e.message}"
+      )
+    end
 
     def process(alert)
       return unless alert.actionable?

@@ -57,6 +57,38 @@ RSpec.describe AlertmanagerInvestigations::Poller do
     expect(investigation.host).to eq("worker-1")
   end
 
+  it "records an alert failure by fingerprint and continues processing later alerts" do
+    alerts << alert_payload.deep_dup.tap do |payload|
+      payload["fingerprint"] = "def456"
+      payload["labels"]["instance"] = "worker-2"
+    end
+    calls = 0
+    allow(InvestigationJobs::Creator).to receive(:call).and_wrap_original do |original, **kwargs|
+      calls += 1
+      next InvestigationJobs::Creator::Result.new(job: nil, error: "broken runbook") if calls == 1
+
+      original.call(**kwargs)
+    end
+
+    expect(Rails.logger).to receive(:warn)
+      .with("[AlertmanagerInvestigations] alert abc123 failed: RuntimeError: broken runbook")
+
+    expect {
+      described_class.new(client: client, configuration: configuration).call
+    }.to change(Job.where(investigation: true), :count).by(1)
+      .and change(AlertmanagerInvestigations::Investigation, :count).by(1)
+
+    expect(AlertmanagerInvestigations::Investigation.sole.fingerprint).to eq("def456")
+  end
+
+  it "propagates client failures for the poll callback to handle" do
+    allow(client).to receive(:firing_alerts).and_raise(AlertmanagerInvestigations::Client::Error, "unavailable")
+
+    expect {
+      described_class.new(client: client, configuration: configuration).call
+    }.to raise_error(AlertmanagerInvestigations::Client::Error, "unavailable")
+  end
+
   it "creates nothing for a second firing inside the rate-limit window" do
     described_class.new(client: client, configuration: configuration).call
 
