@@ -26,6 +26,14 @@
 class ChatSessionCleanupJob < ApplicationJob
   queue_as :chat
 
+  # Cleanup must not race a turn or provider switch that already owns this
+  # chat. Deleted-session guards make queued work a no-op; this lock ensures
+  # an already-running agent has terminated before its files are removed.
+  limits_concurrency to: 1,
+                     group: ChatTurnJob::CONCURRENCY_GROUP,
+                     key: ->(chat_session_id, *) { "chat:#{chat_session_id}" },
+                     duration: 30.minutes
+
   def perform(chat_session_id, recorded_workspace_path = nil)
     id = Integer(chat_session_id, exception: false)
     return unless id&.positive?

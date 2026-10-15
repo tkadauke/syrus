@@ -195,7 +195,14 @@ class ChatSession < ApplicationRecord
   end
 
   def soft_delete_by!(actor)
-    update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+    now = Time.current
+    update!(
+      deleted_at: now,
+      deleted_by_user: actor.is_a?(User) ? actor : nil,
+      stop_requested_at: now,
+      current_turn_message_id: nil,
+      turn_in_flight: false
+    )
   end
 
   def ensure_agent_record!

@@ -808,6 +808,7 @@ RSpec.describe ChatSession do
         expect(session).to be_deleted
         expect(session.deleted_at).to be_present
         expect(session.deleted_by_user).to eq(actor)
+        expect(session.stop_requested_at).to be_present
       end
 
       it "sets deleted_at without deleted_by_user for a non-User actor" do
