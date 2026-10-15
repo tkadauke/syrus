@@ -34,6 +34,9 @@ import { buildFlatFilterLink } from "@app/lib/flatFilterLink"
 
 const QUERY_KEY = ["admin", "build_cache"]
 const STATS_QUERY_KEY = ["admin", "build_cache", "stats"]
+type BuildCacheTranslator = {
+  (key: string, options?: Record<string, unknown>): string
+}
 const FILTER_FIELDS = [
   "state",
   "scope",
@@ -506,7 +509,7 @@ function recentRequestColumns(t: (key: string, options?: Record<string, unknown>
   ]
 }
 
-function resultSummary(t: (key: string, options?: Record<string, unknown>) => string, result: NonNullable<BuildCacheClearRequest["result"]>) {
+function resultSummary(t: BuildCacheTranslator, result: NonNullable<BuildCacheClearRequest["result"]>) {
   const summary = t("build_cache.result_summary", { count: result.deleted_count, size: formatBytes(result.bytes_freed) })
   return result.delete_error_count ? t("build_cache.result_summary_with_errors", { summary, count: result.delete_error_count }) : summary
 }
