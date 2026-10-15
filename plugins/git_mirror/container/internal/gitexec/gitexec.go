@@ -15,7 +15,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
+	"time"
 )
+
+const defaultWaitDelay = 5 * time.Second
 
 // Credential is HTTP basic auth for a fetch.
 type Credential struct {
@@ -43,8 +47,9 @@ func (e *ExitError) Error() string {
 
 // Runner runs git with a fixed binary and home directory.
 type Runner struct {
-	Binary string
-	Home   string
+	Binary    string
+	Home      string
+	WaitDelay time.Duration
 }
 
 // Run executes git in dir (a bare repository, or "" for none).
@@ -56,6 +61,18 @@ func (r Runner) Run(ctx context.Context, dir string, cred *Credential, args ...s
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = dir
 	cmd.Env = r.env(cred)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		return err
+	}
+	cmd.WaitDelay = r.WaitDelay
+	if cmd.WaitDelay == 0 {
+		cmd.WaitDelay = defaultWaitDelay
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

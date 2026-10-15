@@ -101,6 +101,10 @@ type Disk struct {
 // have piled up, so this bounds disk growth at almost no cost.
 const MaintenanceInterval = 24 * time.Hour
 
+// syncWorkers bounds background fetch concurrency so one slow upstream does
+// not prevent unrelated repositories from being refreshed.
+const syncWorkers = 4
+
 // Entry is one path in a tree.
 type Entry struct {
 	Path      string `json:"path"`
@@ -306,20 +310,36 @@ func (s *Store) SyncAll(ctx context.Context) {
 		repos = append(repos, r)
 	}
 	s.mu.Unlock()
+	work := make(chan *repo)
+	var workers sync.WaitGroup
+	for range min(syncWorkers, len(repos)) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for r := range work {
+				if err := s.fetch(ctx, r); err != nil {
+					log.Printf("git-mirror: sync %s: %v", r.id, err)
+				}
+			}
+		}()
+	}
 	for _, r := range repos {
-		if ctx.Err() != nil {
-			return
-		}
 		r.mu.Lock()
 		registered := r.registered
 		r.mu.Unlock()
 		if !registered {
 			continue
 		}
-		if err := s.fetch(ctx, r); err != nil {
-			log.Printf("git-mirror: sync %s: %v", r.id, err)
+		select {
+		case work <- r:
+		case <-ctx.Done():
+			close(work)
+			workers.Wait()
+			return
 		}
 	}
+	close(work)
+	workers.Wait()
 }
 
 // Run syncs every SyncInterval until ctx is done.
