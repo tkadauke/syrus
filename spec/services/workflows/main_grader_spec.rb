@@ -175,13 +175,36 @@ RSpec.describe Workflows::MainGrader do
       expect(check.workflow).to eq(workflow)
     end
 
-    it "does not mark grader_health broken when setup fails before graders run" do
+    it "settles setup failures as inconclusive and prevents the next poll from re-enqueueing the SHA" do
       repository.update!(grader_health: "healthy", ci_health: "healthy")
+      allow(MainHealthChangedService).to receive(:on_health_change!)
 
-      expect(MainHealthChangedService).not_to receive(:on_health_change!)
       described_class.after_fail(workflow)
 
-      expect(repository.reload.grader_health).to eq("healthy")
+      repository.reload
+      expect(repository.grader_health).to eq("inconclusive")
+      expect(repository.last_graded_sha).to eq(sha)
+
+      check = MainBranchHealthCheck.last
+      expect(check).to have_attributes(
+        workflow: workflow,
+        sha: sha,
+        grader_health: "inconclusive",
+        grader_failed_names: nil
+      )
+
+      allow_any_instance_of(GithubClient).to receive(:repository_default_branch).and_return(repository.default_branch)
+      allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_return(sha)
+      allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for).and_return(
+        any?: true,
+        pending?: false,
+        any_failed?: false,
+        all_passed?: true
+      )
+
+      expect {
+        PollMainBranchHealthJob.perform_now(repository.id)
+      }.not_to have_enqueued_job(MainGraderWorkflowJob)
     end
 
     it "leaves grader_health unknown and retries when a required grader is interrupted by worker death" do
