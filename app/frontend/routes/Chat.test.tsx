@@ -1840,6 +1840,46 @@ describe("chat slash commands", () => {
     expect(JSON.parse(scheduleCall?.[1]?.body as string).scheduled_message.body).toBe("Check the landing queue")
   })
 
+  for (const action of ["pause", "resume", "stop"]) {
+    it(`treats bare /goal ${action} as a goal control`, async () => {
+      const fetchMock = mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal() }))
+      renderRoute()
+
+      await submitSlashCommand(`/goal ${action}`)
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/v1/app/chats/8/goal/${action}`,
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/app/chats/8/goal")).toBe(false)
+    })
+  }
+
+  for (const [prefix, objective] of [
+    ["pause", "pause polling for new issues"],
+    ["resume", "resume the migration work"],
+    ["stop", "stop flaky tests from failing CI"]
+  ] as const) {
+    it(`treats /goal ${prefix} with trailing text as a new objective`, async () => {
+      const fetchMock = mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal() }))
+      renderRoute()
+
+      await submitSlashCommand(`/goal ${objective}`)
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/v1/app/chats/8/goal",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+      const goalCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/app/chats/8/goal")
+      expect(JSON.parse(goalCall?.[1]?.body as string)).toEqual({ goal: { prompt: objective } })
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === `/api/v1/app/chats/8/goal/${prefix}`)).toBe(false)
+    })
+  }
+
   for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42"]) {
     it(`shows confirmation before executing ${command}`, async () => {
       const fetchMock = mockChatRouteFetch(chatPayload({
