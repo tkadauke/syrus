@@ -70,6 +70,17 @@ module TestInsights
       TestCase.flakiness_score(repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow)
     end
 
+    # A flaky identity is not enough: only the same failure mode may be
+    # dismissed. Compare the bounded signature used by failed_test_cases so
+    # current and historical evidence have identical normalization.
+    def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
+      scope = TestCase.score_scope_for(
+        repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow
+      ).scored.failure_like.where.not(failure_message: [ nil, "" ])
+      scope.limit(TestCase::FLAKINESS_LOOKBACK).pluck(:failure_message)
+           .filter_map { |message| failure_message_snippet(message) }.uniq
+    end
+
     # Backs Adjudicators::IsolatedReproDismissal. Writes into
     # test_insight_isolated_repro_attempts, an entirely separate table from
     # test_insight_cases -- deliberately: TestCase.flakiness_score's `scored`

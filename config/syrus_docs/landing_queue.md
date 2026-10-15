@@ -174,6 +174,10 @@ same retry loop cannot manufacture the history that dismisses their own
 failure. It reuses whatever `:test_evidence` plugin already answers "which
 tests failed in this run" and "what is this test's flakiness score" -- with
 no such plugin, or no scoring history yet, it declines rather than guessing.
+It also requires the current failure-message signature to match a historical
+failure for that test and declines if the candidate diff changed the failing
+test file. A flaky reputation alone therefore cannot excuse a new assertion
+or a newly introduced failure mode.
 
 Off by default, opted in per repository via
 `Repository#known_flaky_failure_dismissal_enabled` (same shape as
@@ -223,7 +227,11 @@ the exact commit the last grading iteration failed at -- which rejects both
 a repro run against the wrong commit and one recorded after the agent's own
 fix commits exist (either moves HEAD away from the graded commit) -- and
 requires the named test to be among what the grader Step actually reported
-failing, not merely asserted by the agent.
+failing, not merely asserted by the agent. Syrus then runs the submitted
+command itself in the workflow workspace, records the observed output and
+exit status, and rejects a claimed reproduced/non-reproduced result that does
+not agree with that exit status. The adjudicator also declines if the
+candidate diff changed the failing test file.
 
 `Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
 failing test in a required grader Step has a same-SHA, pre-fix "did not

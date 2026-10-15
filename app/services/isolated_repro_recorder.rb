@@ -1,3 +1,6 @@
+require "open3"
+require "timeout"
+
 # Validates and records one agent-run isolated repro attempt:
 # "I ran this exact failing example against this exact failing SHA in
 # isolation, and it did/did not reproduce." Backs the record_isolated_repro
@@ -20,10 +23,11 @@
 #     grader Step actually reported as failing -- not merely asserted by the
 #     agent -- so a record cannot be manufactured for a test that never
 #     failed.
-#   - The raw command and output are stored verbatim (via the :test_evidence
-#     provider), not a prose summary, so the record is auditable after the
-#     fact.
+#   - Syrus executes the submitted command itself. The provider stores the
+#     observed output and exit status, and a claimed result that disagrees
+#     with that exit status is rejected.
 class IsolatedReproRecorder
+  REPRO_TIMEOUT = 10.minutes
   Result = Struct.new(:ok, :error, :evidence, keyword_init: true) do
     def ok? = ok
   end
@@ -81,6 +85,12 @@ class IsolatedReproRecorder
     provider = TestEvidenceLookup.test_evidence_providers.find { |candidate| candidate.respond_to?(:record_isolated_repro!) }
     return failure("no test_evidence provider available to record isolated repro attempts") unless provider
 
+    observed_output, observed_exit_status = execute_repro
+    observed_reproduced = observed_exit_status != 0
+    return failure("reported reproduced result does not match Syrus-observed exit status") unless !!@reproduced == observed_reproduced
+    if !@exit_status.nil? && @exit_status.to_i != observed_exit_status
+      return failure("reported exit_status does not match Syrus-observed exit status")
+    end
     provider.record_isolated_repro!(
       repository: @repository,
       job: @job,
@@ -90,10 +100,10 @@ class IsolatedReproRecorder
       suite_name: @suite_name,
       name: @test_name,
       sha: current_sha,
-      reproduced: !!@reproduced,
+      reproduced: observed_reproduced,
       command: @command,
-      output: @output,
-      exit_status: @exit_status
+      output: observed_output,
+      exit_status: observed_exit_status
     )
 
     Result.new(ok: true, evidence: {
@@ -101,11 +111,24 @@ class IsolatedReproRecorder
       grader_name: @grader_name,
       suite_name: @suite_name,
       name: @test_name,
-      reproduced: !!@reproduced
+      reproduced: observed_reproduced
     })
   end
 
   private
+
+  def execute_repro
+    output = nil
+    status = nil
+    Timeout.timeout(REPRO_TIMEOUT) do
+      output, status = Open3.capture2e({ "RAILS_ENV" => "test" }, "bash", "-c", @command, chdir: WorkflowWorkspace.path_for(@workflow).to_s)
+    end
+    [ output.to_s, status.exitstatus ]
+  rescue Timeout::Error
+    [ "isolated repro timed out after #{REPRO_TIMEOUT.to_i}s", 124 ]
+  rescue SystemCallError => e
+    [ "isolated repro could not start: #{e.message}", 126 ]
+  end
 
   def failure(message)
     Result.new(ok: false, error: message)

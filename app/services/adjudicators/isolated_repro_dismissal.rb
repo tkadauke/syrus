@@ -13,19 +13,17 @@ module Adjudicators
   # those are a normal grading execution and belong in TestCase's `scored`
   # statistical pool, not this path.
   #
-  # This adjudicator trusts every record it finds because IsolatedReproRecorder
-  # (the only writer, behind the record_isolated_repro MCP tool) already
-  # rejected anything recorded against the wrong SHA or after the agent's own
-  # fix commits exist -- see that class for the guardrail. This class only
-  # has to check that a same-SHA "did not reproduce" record exists for every
-  # currently failing test.
+  # IsolatedReproRecorder (the only writer) independently executes the command
+  # and rejects a claimed result that disagrees with the observed exit status.
+  # This class additionally refuses evidence for a test file changed by the
+  # candidate diff.
   #
   # Opt-in per repository (Repository#isolated_repro_dismissal_enabled, off
   # by default) -- same posture as KnownFlakyFailure: dismissing a real
   # required-grader failure is a real risk even with strong per-occurrence
   # evidence.
   module IsolatedReproDismissal
-    def self.adjudicate(problem:, workflow: nil, step: nil, **)
+    def self.adjudicate(problem:, workflow: nil, step: nil, base_sha: nil, **)
       return Adjudication.inconclusive(adjudicator: name) unless problem&.code == "grader_failure"
       return Adjudication.inconclusive(adjudicator: name) unless workflow
 
@@ -38,7 +36,8 @@ module Adjudicators
       steps = Array(step || TestEvidenceLookup.failed_grader_steps(workflow)).select { |candidate| candidate.respond_to?(:details) }
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
-      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, sha) }
+      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, sha, workflow, base_sha) }
+      return Adjudication.inconclusive(adjudicator: name, reason: "changed_failing_test") if per_step_tests.any? { |result| result == :changed_test }
       return Adjudication.inconclusive(adjudicator: name, reason: "no_isolated_repro_evidence") if per_step_tests.any?(&:nil?)
 
       tests = per_step_tests.flatten(1)
@@ -58,7 +57,7 @@ module Adjudicators
     # enough evidence to say anything about this Step at all (no grader
     # name, no Run, no failing test cases recorded, or any one of them
     # missing a same-SHA isolated repro record).
-    def self.confirmed_tests_for(repository, grader_step, sha)
+    def self.confirmed_tests_for(repository, grader_step, sha, workflow, base_sha)
       grader_name = grader_step.details.to_h["name"].to_s.presence
       return nil unless grader_name
 
@@ -67,6 +66,8 @@ module Adjudicators
 
       failing_tests = TestEvidenceLookup.failed_test_cases_for(run, grader_name)
       return nil if failing_tests.empty?
+      changed = GraderFailureSafety.changed_test_files(workflow: workflow, base_sha: base_sha, test_cases: failing_tests)
+      return :changed_test if changed.any?
 
       failing_tests.map do |test_case|
         evidence = isolated_repro_evidence_for(repository, test_case, sha)

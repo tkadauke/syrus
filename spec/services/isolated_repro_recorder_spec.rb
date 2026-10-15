@@ -49,6 +49,8 @@ RSpec.describe IsolatedReproRecorder do
     allow(GitRunner).to receive(:new).and_return(git)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    status = instance_double(Process::Status, exitstatus: 0)
+    allow(Open3).to receive(:capture2e).and_return([ "1 example, 0 failures", status ])
   end
 
   def call(**overrides)
@@ -126,4 +128,17 @@ RSpec.describe IsolatedReproRecorder do
     expect(result.error).to match(/command is required/)
     expect(provider.recorded_args).to be_nil
   end
+
+
+  it "rejects an agent result that disagrees with the independently observed exit status" do
+    status = instance_double(Process::Status, exitstatus: 1)
+    allow(Open3).to receive(:capture2e).and_return([ "1 failure", status ])
+
+    result = call
+
+    expect(result).not_to be_ok
+    expect(result.error).to match(/reproduced result does not match/)
+    expect(provider.recorded_args).to be_nil
+  end
+
 end

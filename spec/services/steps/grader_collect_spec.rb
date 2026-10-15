@@ -389,11 +389,19 @@ RSpec.describe Steps::GraderCollect do
     )
     provider = Class.new do
       def self.failed_test_cases(run:, grader_name:)
-        [ { "suite_name" => "spec/services/steps/preflight_grader_fanout_spec.rb", "name" => "makes every preflight grader ready" } ]
+        [ {
+          "suite_name" => "spec/services/steps/preflight_grader_fanout_spec.rb",
+          "name" => "makes every preflight grader ready",
+          "failure_message" => "expected ready"
+        } ]
       end
 
       def self.flakiness_score(repository:, suite_name:, name:)
         { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+      end
+
+      def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
+        [ "expected ready" ]
       end
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original

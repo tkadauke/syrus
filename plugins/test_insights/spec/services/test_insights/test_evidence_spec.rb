@@ -145,4 +145,34 @@ RSpec.describe TestInsights::TestEvidence do
       expect(described_class.failed_test_cases(run: nil, grader_name: "rspec")).to eq([])
     end
   end
+
+
+  describe ".historical_failure_signatures" do
+    it "returns normalized historical failure messages while excluding the current workflow" do
+      other_job = Factories.job(repository: repo)
+      other_run = other_job.initial_run
+      other_test_run = TestInsights::TestRun.create!(
+        run: other_run, repository: repo, grader_name: "rspec",
+        total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: other_test_run, repository: repo, suite_name: "Foo", name: "bar",
+        status: "failed", failure_message: "expected old value\nbacktrace"
+      )
+      current_test_run = TestInsights::TestRun.create!(
+        run: run, repository: repo, grader_name: "rspec",
+        total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: current_test_run, repository: repo, suite_name: "Foo", name: "bar",
+        status: "failed", failure_message: "new regression"
+      )
+
+      signatures = described_class.historical_failure_signatures(
+        repository: repo, suite_name: "Foo", name: "bar", exclude_workflow: run.workflow
+      )
+
+      expect(signatures).to eq([ "expected old value" ])
+    end
+  end
 end
