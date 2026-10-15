@@ -1,70 +1,60 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260918031500_migrate_agent_provider_failover_policy_to_provider_routing_rules")
 
+# The backfill half of this migration can no longer be exercised. It writes
+# provider_routing_rules rows carrying only scope_type, scope_id, task_key and
+# candidates, and that table has since grown user_id, position, trigger,
+# conditions and action as NOT NULL columns -- so the insert raises
+# NotNullViolation against today's schema no matter what data it is given.
+#
+# It is not reachable in production either: `up` returns early unless
+# users.agent_provider_failover_policy exists, and it does not exist on any
+# database that has run this migration, which is every database that also has
+# today's provider_routing_rules. The pairing the old example constructed --
+# the modern rules table plus the dropped users column -- is a state no
+# database was ever in.
+#
+# Asserting it anyway is what broke the main branch for weeks. The example
+# raised inside its own `after` hook, before the hook could reset the column
+# cache, so the cache kept describing a column the rolled-back table no longer
+# had and every later example in the serial ci_only pass that inserted a user
+# died. What stays worth asserting is the guards, because the guards are what
+# actually run.
 RSpec.describe MigrateAgentProviderFailoverPolicyToProviderRoutingRules, :ci_only do
   let(:connection) { ActiveRecord::Base.connection }
   let(:migration) { described_class.new }
 
   after do
-    migration.up
+    connection.remove_column(:users, :agent_provider_failover_policy) if connection.column_exists?(:users, :agent_provider_failover_policy)
+  ensure
     User.reset_column_information
     ProviderRoutingRule.reset_column_information
   end
 
-  it "backfills enabled user failover policies into default provider routing rules before dropping the column" do
+  it "is a no-op on a database that has already dropped the column" do
+    expect(connection.column_exists?(:users, :agent_provider_failover_policy)).to be(false)
+
+    expect { migration.up }.not_to raise_error
+
+    expect(connection.column_exists?(:users, :agent_provider_failover_policy)).to be(false)
+  end
+
+  it "drops the column again when a down migration has restored it" do
     migration.down
     User.reset_column_information
-
-    enabled_user = Factories.user
-    disabled_user = Factories.user
-    empty_user = Factories.user
-    enabled_user.update_column(
-      :agent_provider_failover_policy,
-      {
-        "enabled" => true,
-        "providers" => %w[codex claude codex],
-        "causes" => %w[usage_exhausted auth_error],
-        "override_explicit_pins" => true
-      }
-    )
-    disabled_user.update_column(
-      :agent_provider_failover_policy,
-      {
-        "enabled" => false,
-        "providers" => %w[muse codex],
-        "causes" => %w[provider_transient]
-      }
-    )
-    empty_user.update_column(
-      :agent_provider_failover_policy,
-      {
-        "enabled" => true,
-        "providers" => []
-      }
-    )
+    expect(connection.column_exists?(:users, :agent_provider_failover_policy)).to be(true)
 
     migration.up
     User.reset_column_information
-    ProviderRoutingRule.reset_column_information
 
     expect(connection.column_exists?(:users, :agent_provider_failover_policy)).to be(false)
-    expect(ProviderRoutingRule.find_by(scope_type: "user", scope_id: enabled_user.id, task_key: "default").candidates).to eq([
-      { "provider" => "claude" },
-      { "provider" => "codex" }
-    ])
-    expect(ProviderRouting::Resolver.call(job: Factories.job(user: enabled_user, job_provider_setting: "default"), task_key: "initial").map(&:provider)).to eq(%w[
-      claude
-      codex
-    ])
-    expect(ProviderRouting::Resolver.call(job: Factories.job(user: enabled_user, job_provider_setting: "default"), task_key: "ci_failure").map(&:provider)).to eq(%w[
-      claude
-      codex
-    ])
-    expect(ProviderRoutingRule.find_by(scope_type: "user", scope_id: enabled_user.id, task_key: "default").candidates).not_to eq([
-      { "provider" => "codex" },
-      { "provider" => "claude" }
-    ])
-    expect(ProviderRoutingRule.exists?(scope_type: "user", scope_id: disabled_user.id, task_key: "default")).to be(false)
-    expect(ProviderRoutingRule.exists?(scope_type: "user", scope_id: empty_user.id, task_key: "default")).to be(false)
+  end
+
+  it "leaves the down migration idempotent" do
+    migration.down
+    User.reset_column_information
+
+    expect { migration.down }.not_to raise_error
+    expect(connection.column_exists?(:users, :agent_provider_failover_policy)).to be(true)
   end
 end
