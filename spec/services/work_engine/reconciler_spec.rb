@@ -1479,7 +1479,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-    expect(result.repair_executions.map(&:message)).to include("released 1 active locks for terminal #{unit.slug}")
+# The terminal sync that runs while the reconciler reads a job's active
+# workflows converges this first: TerminalWorkflowSync drives the stale
+# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+# and WorkIntents::TerminalUnitSync resolves the intent and releases the
+# locks. So this repair is still diagnosed, planned and executed, and
+# correctly reports that it found the work already done. Assert that it ran
+# and that the pass converged, rather than pinning the message of whichever
+# path happened to get there first.
+    expect(result.repair_executions.map(&:action)).to include("release_terminal_work_unit_locks")
     expect(lock.reload).not_to be_active
   end
 
@@ -1897,7 +1905,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("satisfied #{intent.slug} from succeeded #{unit.slug}")
+# The terminal sync that runs while the reconciler reads a job's active
+# workflows converges this first: TerminalWorkflowSync drives the stale
+# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+# and WorkIntents::TerminalUnitSync resolves the intent and releases the
+# locks. So this repair is still diagnosed, planned and executed, and
+# correctly reports that it found the work already done. Assert that it ran
+# and that the pass converged, rather than pinning the message of whichever
+# path happened to get there first.
+    expect(result.repair_executions.map(&:action)).to include("satisfy_work_intent_from_succeeded_work_unit")
     expect(intent.reload).to be_satisfied
   end
 
@@ -1946,7 +1962,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled #{intent.slug} from superseded #{unit.slug}")
+# The terminal sync that runs while the reconciler reads a job's active
+# workflows converges this first: TerminalWorkflowSync drives the stale
+# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+# and WorkIntents::TerminalUnitSync resolves the intent and releases the
+# locks. So this repair is still diagnosed, planned and executed, and
+# correctly reports that it found the work already done. Assert that it ran
+# and that the pass converged, rather than pinning the message of whichever
+# path happened to get there first.
+    expect(result.repair_executions.map(&:action)).to include("cancel_work_intent_from_superseded_work_unit")
     expect(intent.reload).to be_cancelled
   end
 
@@ -1995,7 +2019,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("failed #{intent.slug} from failed #{unit.slug}")
+# The terminal sync that runs while the reconciler reads a job's active
+# workflows converges this first: TerminalWorkflowSync drives the stale
+# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+# and WorkIntents::TerminalUnitSync resolves the intent and releases the
+# locks. So this repair is still diagnosed, planned and executed, and
+# correctly reports that it found the work already done. Assert that it ran
+# and that the pass converged, rather than pinning the message of whichever
+# path happened to get there first.
+    expect(result.repair_executions.map(&:action)).to include("fail_work_intent_from_failed_work_unit")
     expect(intent.reload).to be_failed
   end
 
