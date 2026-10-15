@@ -137,7 +137,7 @@ class ChatStopReconciler
     latest_user_message = latest_user_message(chat)
     return false unless latest_user_message
 
-    messages_after_latest_user = chat.messages.where(
+    messages_after_latest_user = chat.messages.active.where(
       "created_at > ? OR (created_at = ? AND id > ?)",
       latest_user_message.created_at,
       latest_user_message.created_at,
