@@ -74,6 +74,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
   it "stops background threads and marks daemon disconnected on unsubscribe" do
     enable_local_mode
     subscribe_to(daemon_session)
+    perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
 
     # Unsubscribed should call mark_disconnected!
     allow_any_instance_of(described_class).to receive(:stop_threads)
@@ -108,6 +109,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
     it "updates last_heartbeat_at on pong message" do
       subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
 
       freeze_time do
         perform :receive, { "type" => "pong" }
@@ -117,6 +119,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
     it "completes the matching tool call on tool_result message" do
       subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
       tool_call = LocalToolCall.create!(
         local_daemon_session: daemon_session,
         chat_session: chat,
@@ -138,6 +141,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
     it "fails the tool call when tool_result has no content" do
       subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
       tool_call = LocalToolCall.create!(
         local_daemon_session: daemon_session,
         chat_session: chat,
@@ -165,7 +169,6 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
     it "drains pending tool calls on connect and transmits them" do
       subscribe_to(daemon_session)
-      allow(daemon_session).to receive(:mark_connected!)
 
       # Restore real drain so we can observe it
       allow_any_instance_of(described_class).to receive(:drain_queued_tool_calls).and_call_original
@@ -189,6 +192,25 @@ RSpec.describe LocalTunnelChannel, type: :channel do
       )
       expect(tool_call.reload.state).to eq("dispatched")
     end
+
+    it "does not transmit a call already claimed by another dispatch path" do
+      subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "r", "branch" => "b" }
+      tool_call = LocalToolCall.create!(
+        local_daemon_session: daemon_session,
+        chat_session: chat,
+        tool_use_id: "call-once",
+        tool_name: "list_files",
+        tool_input: { path: "/repo" },
+        state: "pending"
+      )
+      already_claimed = LocalToolCall.find(tool_call.id)
+      expect(already_claimed.dispatch!).to be(true)
+
+      subscription.receive_from_subscription({ "type" => "dispatch", "tool_call_id" => tool_call.id })
+
+      expect(transmissions.count { |frame| frame["tool_use_id"] == "call-once" }).to eq(0)
+    end
   end
 
   describe "cancel broadcast (the chat shell-command cancellation feature `!` command stop control)" do
@@ -196,6 +218,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
     it "transmits cancel_tool_call for a dispatched call" do
       subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
       tool_call = LocalToolCall.create!(
         local_daemon_session: daemon_session,
         chat_session: chat,
@@ -256,14 +279,13 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     before { enable_local_mode }
 
     it "marks daemon disconnected and transmits a disconnected frame when heartbeat is stale" do
-      # Make the session appear old so heartbeat_stale? returns true immediately.
-      daemon_session.update_columns(updated_at: 2.minutes.ago)
-
       allow_any_instance_of(described_class).to receive(:start_heartbeat_thread).and_call_original
       stub_const("#{described_class}::HEARTBEAT_INTERVAL", 0.01.seconds)
 
       disconnected_frame = { "type" => "disconnected", "reason" => "heartbeat_timeout" }
       subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
+      daemon_session.update_columns(last_heartbeat_at: 2.minutes.ago, updated_at: 2.minutes.ago)
       Timeout.timeout(2) do
         sleep 0.01 until daemon_session.reload.disconnected_at.present? &&
                          transmissions.include?(disconnected_frame)
