@@ -103,10 +103,9 @@ module Steps
         return
       end
 
-      # A recorded success for this exact head SHA + grader set short-circuits
-      # the re-run. Safe alongside the skip above: the fingerprint is the full
-      # plan, so a full-plan success implies the active subset would pass too.
-      if grader_fanout_reuse_enabled? && (cache_hit = reusable_success(grader_fingerprint))
+      # A recorded success for this exact head SHA + plan short-circuits the
+      # re-run only when it covered every grader active in this invocation.
+      if grader_fanout_reuse_enabled? && (cache_hit = reusable_success(grader_fingerprint, active_graders))
         workflow.set_artifact!(
           GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY,
           {
@@ -559,14 +558,15 @@ module Steps
       end
     end
 
-    def reusable_success(grader_fingerprint)
+    def reusable_success(grader_fingerprint, active_graders)
       head_sha = current_head_sha
       return nil if head_sha.blank?
 
       GraderConclusionCache.latest_success(
         repository: repository,
         commit_sha: head_sha,
-        grader_fingerprint: grader_fingerprint
+        grader_fingerprint: grader_fingerprint,
+        required_grader_names: active_graders.map(&:name)
       )
     end
 

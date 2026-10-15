@@ -89,6 +89,7 @@ RSpec.describe Steps::GraderCollect do
       required: true,
       status: "passed"
     )
+    expect(aggregate.metadata).to include("grader_names" => [ "tests" ])
 
     target_health = TargetHealthRecord.where(workflow: workflow, target_label: "//cli:grade/tests").sole
     expect(target_health).to have_attributes(

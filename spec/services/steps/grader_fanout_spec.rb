@@ -1150,6 +1150,40 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
   end
 
+  it "does not reuse a subset-only success when the current changed files activate more graders" do
+    write_config(<<~YAML)
+      grade:
+        - name: backend
+          run: bin/rspec
+          when_files_changed:
+            - "app/**"
+        - name: frontend
+          run: npm test
+          when_files_changed:
+            - "web/**"
+    YAML
+    stub_changed_files("app/model.rb", "web/component.tsx")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      step: fanout,
+      run: run,
+      commit_sha: "abc123",
+      grader_fingerprint: current_fingerprint,
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "passed",
+      checked_at: 1.hour.ago,
+      metadata: { "grader_names" => [ "backend" ] }
+    )
+
+    expect { handler.call }.to change { workflow.steps.where(kind: "grader").count }.by(2)
+    expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
+    expect(workflow.steps.where(kind: "grader").order(:position).pluck(:details).map { |details| details["name"] })
+      .to eq(%w[backend frontend])
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
@@ -1962,7 +1996,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       grader_name: GraderConclusion::AGGREGATE_NAME,
       required: true,
       status: "passed",
-      checked_at: 1.hour.ago
+      checked_at: 1.hour.ago,
+      metadata: { "grader_names" => [ "tests" ] }
     )
 
     expect { handler.call }.not_to change { workflow.steps.where(kind: "grader").count }
