@@ -89,6 +89,20 @@ RSpec.describe ChatSessionRehydrator::Codex do
     expect(texts.first.data[:text]).to eq("Hello from Codex.")
   end
 
+  it "does not rehydrate deleted messages" do
+    create_message!(role: "assistant", content: [ { "type" => "text", "text" => "keep me" } ])
+    session.messages.create!(
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "deleted secret" } ],
+      deleted_at: Time.current
+    )
+
+    jsonl = described_class.new(session, session_id: "t1").call
+
+    expect(jsonl).to include("keep me")
+    expect(jsonl).not_to include("deleted secret")
+  end
+
   it "drops thinking blocks from assistant messages" do
     create_message!(role: "assistant", content: [
       { "type" => "thinking", "thinking" => "secret thoughts", "signature" => "sig" },

@@ -261,7 +261,7 @@ class McpInvocationContext
       # keep inferring for them rather than failing every one of their tokens.
       return unless chat_session.turn_in_flight? || chat_session.agent_busy?
 
-      chat_session.messages.where(role: "user").order(:created_at, :id).last&.id
+      chat_session.messages.active.where(role: "user").order(:created_at, :id).last&.id
     end
 
     def validate_run_expiry!(payload, run)

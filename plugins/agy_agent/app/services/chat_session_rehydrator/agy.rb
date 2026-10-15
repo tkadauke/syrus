@@ -46,7 +46,7 @@ class ChatSessionRehydrator::Agy
       return ChatContextCompactor.context_messages_for(@chat_session)
     end
 
-    @chat_session.messages.order(:id)
+    @chat_session.messages.active.order(:id)
   end
 
   def user_event(message)

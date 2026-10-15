@@ -89,8 +89,8 @@ class ChatDanglingToolCallCloser
   def messages_after_latest_user
     return @messages_after_latest_user if defined?(@messages_after_latest_user)
 
-    latest_user = @chat_session.messages.where(role: "user").order(:created_at, :id).last
-    scope = @chat_session.messages
+    latest_user = @chat_session.messages.active.where(role: "user").order(:created_at, :id).last
+    scope = @chat_session.messages.active
     @messages_after_latest_user = if latest_user
       scope.where(
         "created_at > ? OR (created_at = ? AND id > ?)",

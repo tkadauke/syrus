@@ -48,4 +48,14 @@ RSpec.describe ChatSessionRehydrator::Muse do
     expect(ClaudeTranscript.new(jsonl).summary.session_id).to eq("muse-session")
     expect(ClaudeTranscript.new(jsonl).summary.tool_call_counts).to include("syrus-chat-sidecar.read_job" => 1)
   end
+
+  it "does not rehydrate deleted messages" do
+    chat.messages.create!(role: "user", content: { "text" => "keep me" })
+    chat.messages.create!(role: "user", content: { "text" => "deleted secret" }, deleted_at: Time.current)
+
+    jsonl = described_class.new(chat, session_id: "muse-session", cwd: "/tmp/workspace").call
+
+    expect(jsonl).to include("keep me")
+    expect(jsonl).not_to include("deleted secret")
+  end
 end
