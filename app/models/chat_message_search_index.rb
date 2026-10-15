@@ -96,6 +96,109 @@ class ChatMessageSearchIndex < SearchRecord
       rows.map(&:symbolize_keys)
     end
 
+    def matching_chat_session_page(query, chat_session_ids:, limit:, offset:)
+      scoped_chat_session_ids = Array(chat_session_ids).compact_blank.uniq
+      return { chat_session_ids: [], total: 0 } if scoped_chat_session_ids.empty?
+
+      session_predicate = "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
+      query_bind = bind(parse_fts_query(query))
+      session_binds = scoped_chat_session_ids.map { |id| bind(id) }
+      total = connection.select_value(
+        <<~SQL.squish,
+          SELECT COUNT(DISTINCT chat_session_id)
+          FROM chat_message_fts
+          WHERE chat_message_fts MATCH ? AND #{session_predicate}
+        SQL
+        "ChatMessageSearchIndex Matching Session Count",
+        [ query_bind, *session_binds ]
+      ).to_i
+
+      rows = connection.exec_query(
+        <<~SQL.squish,
+          WITH matches AS (
+            SELECT
+              chat_session_id,
+              chat_message_id,
+              created_at,
+              bm25(chat_message_fts) AS rank
+            FROM chat_message_fts
+            WHERE chat_message_fts MATCH ? AND #{session_predicate}
+          ), ranked_matches AS (
+            SELECT
+              *,
+              ROW_NUMBER() OVER (
+                PARTITION BY chat_session_id
+                ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+              ) AS match_number
+            FROM matches
+          )
+          SELECT chat_session_id
+          FROM ranked_matches
+          WHERE match_number = 1
+          ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+          LIMIT ? OFFSET ?
+        SQL
+        "ChatMessageSearchIndex Matching Session Page",
+        [ query_bind, *session_binds, bind(limit.to_i), bind(offset.to_i) ]
+      )
+
+      { chat_session_ids: rows.map { |row| row.fetch("chat_session_id").to_i }, total: total }
+    end
+
+    def top_matches_by_chat_session(
+      query,
+      chat_session_ids:,
+      matches_per_session:,
+      snippet_start: "<mark>",
+      snippet_end: "</mark>",
+      snippet_tokens: 24
+    )
+      scoped_chat_session_ids = Array(chat_session_ids).compact_blank.uniq
+      return [] if scoped_chat_session_ids.empty?
+
+      session_predicate = "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
+      rows = connection.exec_query(
+        <<~SQL.squish,
+          WITH matches AS (
+            SELECT
+              chat_message_id,
+              chat_session_id,
+              user_id,
+              role,
+              created_at,
+              snippet(chat_message_fts, 0, ?, ?, '...', ?) AS snippet,
+              bm25(chat_message_fts) AS rank
+            FROM chat_message_fts
+            WHERE chat_message_fts MATCH ? AND #{session_predicate}
+          ), ranked_matches AS (
+            SELECT
+              *,
+              ROW_NUMBER() OVER (
+                PARTITION BY chat_session_id
+                ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+              ) AS match_number,
+              COUNT(*) OVER (PARTITION BY chat_session_id) AS match_count
+            FROM matches
+          )
+          SELECT *
+          FROM ranked_matches
+          WHERE match_number <= ?
+          ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+        SQL
+        "ChatMessageSearchIndex Top Matches By Session",
+        [
+          bind(snippet_start.to_s),
+          bind(snippet_end.to_s),
+          bind(snippet_tokens.to_i),
+          bind(parse_fts_query(query)),
+          *scoped_chat_session_ids.map { |id| bind(id) },
+          bind(matches_per_session.to_i)
+        ]
+      )
+
+      rows.map(&:symbolize_keys)
+    end
+
     def indexed?(message_id)
       connection.select_value(
         "SELECT 1 FROM chat_search_metadata WHERE key = ? LIMIT 1",
