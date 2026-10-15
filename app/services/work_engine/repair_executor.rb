@@ -146,6 +146,10 @@ module WorkEngine
           workflow&.slug || "Workflow missing"
         end
 
+        def cancelled_workflow_reason(workflow)
+          workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
+        end
+
         def workflow_id_label(id)
           id.present? ? "WF-#{id}" : "Workflow missing"
         end
@@ -2133,7 +2137,7 @@ module WorkEngine
 
           latest = job.latest_workflow
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?
-          return skipped("Latest Workflow was not cancelled by an Epic-wide workflow lock") unless latest.artifact("cancelled_reason") == EpicWorkflowLock::BLOCK_REASON
+          return skipped("Latest Workflow was not cancelled by an Epic-wide workflow lock") unless cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
           return skipped("Dependencies are still not ready for execution") unless job.dependencies_satisfied_for_execution?
 
@@ -2191,10 +2195,6 @@ module WorkEngine
           return true if workflow.artifact("retry_cancelled_reason").present?
 
           false
-        end
-
-        def cancelled_workflow_reason(workflow)
-          workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
         end
       end
 
