@@ -485,6 +485,8 @@
   "warning_prompt_label": "Prompt für den Fix-Job",
   "warning_file_fix_job": "Fix-Job anlegen",
   "warning_dismiss": "Verwerfen",
+  "warning_retry_review": "Prüfung wiederholen",
+  "warning_skip_review": "Bestätigen und überspringen",
   "warning_already_filed": "Für diese Warnung wurde bereits ein Fix-Job angelegt.",
   "artifact_header_diff": "Agent-Diff",
   "artifact_header_step_diff": "Step-Diff",

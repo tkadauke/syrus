@@ -2648,6 +2648,41 @@ describe("JobDetailView", () => {
     })
   })
 
+  it("renders retry and acknowledge controls for a failed post-implementation review", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Review retry enqueued." }))
+    renderJobDetail(jobPayload({
+      workflows: [workflow({ id: 8, steps: [step({
+        id: 13,
+        kind: "post_implementation_review",
+        display_name: "Post-implementation review",
+        warnings: [{
+          id: 5,
+          kind: "post_implementation_review_failed",
+          severity: "medium",
+          title: "Post-implementation review did not produce notes",
+          evidence: { required_mcp_tools: ["submit_review_notes"] },
+          suggested_prompt: null,
+          state: "pending",
+          created_job_id: null,
+          created_at: null
+        }]
+      })] })],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Post-implementation review/ }))
+    expect(screen.getByRole("button", { name: "Retry review" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Acknowledge and skip" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry review" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/workflow_warnings/5/retry_review",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("renders agent summary as markdown in the Summary tab", () => {
     renderJobDetail(
       jobPayload({

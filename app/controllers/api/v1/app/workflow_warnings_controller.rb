@@ -38,6 +38,32 @@ module Api
           }
         end
 
+        def retry_review
+          return unless job = find_mutable_job
+          return unless warning = find_warning(job)
+
+          result = PostImplementationReviewRecovery.retry(warning: warning, actor: Current.user)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render json: { message: "Post-implementation review retry enqueued.", warning: warning_json(result.warning.reload), workflow_id: result.workflow.id }
+        end
+
+        def skip_review
+          return unless job = find_mutable_job
+          return unless warning = find_warning(job)
+
+          result = PostImplementationReviewRecovery.skip(warning: warning, actor: Current.user)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render json: { message: "Post-implementation review acknowledged and skipped.", warning: warning_json(result.warning.reload) }
+        end
+
         private
 
         def find_mutable_job

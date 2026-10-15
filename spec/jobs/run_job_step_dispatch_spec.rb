@@ -113,6 +113,45 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_summarize.reload).to be_cancelled
   end
 
+  it "keeps a post-implementation review CannotProceed advisory" do
+    review_step = Step.create!(workflow: workflow, kind: "post_implementation_review", position: 3)
+    s_pr_open.update!(next_step: review_step)
+    advisory_handler = Class.new(Steps::Base) do
+      def call
+        raise Steps::Base::CannotProceed, "submit_review_notes is unavailable" if step.kind == "post_implementation_review"
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(advisory_handler)
+    run = StepDispatcher.start_workflow(workflow)
+
+    described_class.perform_now(run.id)
+
+    expect(review_step.reload).to be_skipped
+    expect(review_step.runs.last).to be_skipped
+    expect(workflow.reload).to be_succeeded
+    expect(job.reload).to be_implemented
+    expect(job).not_to be_needs_attention
+    expect(WorkflowWarning.where(step: review_step).last).to have_attributes(kind: PostImplementationReviewFailure::KIND, state: "pending")
+  end
+
+  it "keeps an ordinary post-implementation review exception advisory" do
+    review_step = Step.create!(workflow: workflow, kind: "post_implementation_review", position: 3)
+    s_pr_open.update!(next_step: review_step)
+    advisory_handler = Class.new(Steps::Base) do
+      def call
+        raise "review crashed" if step.kind == "post_implementation_review"
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(advisory_handler)
+    run = StepDispatcher.start_workflow(workflow)
+
+    expect { described_class.perform_now(run.id) }.not_to raise_error
+
+    expect(review_step.reload).to be_skipped
+    expect(workflow.reload).to be_succeeded
+    expect(WorkflowWarning.where(step: review_step).last.evidence).to include("reason" => "review crashed")
+  end
+
   it "marks a step-skipped handler outcome skipped and advances the workflow" do
     skipped_handler = Class.new(Steps::Base) do
       def call

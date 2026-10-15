@@ -134,7 +134,7 @@ RSpec.describe Workflow::TriggerKind do
   end
 
   describe ".non_approval_blocking?" do
-    let(:non_approval_blocking_kinds) { %w[rebase stack_rebase manual_visual_review visual_diff] }
+    let(:non_approval_blocking_kinds) { %w[rebase stack_rebase manual_visual_review manual_post_implementation_review visual_diff] }
 
     it "is true for maintenance/QA kinds that never change the diff under review" do
       non_approval_blocking_kinds.each do |kind|
