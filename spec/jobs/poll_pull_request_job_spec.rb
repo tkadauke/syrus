@@ -372,6 +372,12 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "attaches markdown images from PR feedback comments to the Job" do
+      # SsrfGuard fails closed on a host it cannot resolve, and
+      # uploads.example.com resolves nowhere -- so without this the ingestor
+      # declines the fetch and the example tests DNS rather than image
+      # ingestion. The guard's own behavior is covered by ssrf_guard_spec.
+      allow(SsrfGuard).to receive(:safe_host?).and_call_original
+      allow(SsrfGuard).to receive(:safe_host?).with("uploads.example.com").and_return(true)
       image_body = "\x89PNG\r\n\x1A\nreview-image".b
       stub_request(:get, "https://uploads.example.com/state.png").to_return(
         status: 200,
