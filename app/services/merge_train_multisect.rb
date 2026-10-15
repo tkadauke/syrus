@@ -379,7 +379,8 @@ class MergeTrainMultisect
       return files_as_args_command(context.step, context.failed_cases) if config.fetch("strategy") == "files_as_args"
 
       Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-        command = provider.command_for(
+        command = Syrus::Plugin::FocusedTestCommand.invoke(
+          provider,
           grader_name: context.name,
           grader_command: context.step.details.to_h["command"],
           failed_cases: context.failed_cases,
