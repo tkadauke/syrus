@@ -8,7 +8,7 @@ RSpec.describe Prompts::Truncate do
       result = described_class.text(text, max_bytes: 5, label: "example")
 
       expect(result).to start_with("éé")
-      expect(result).to include("[example truncated, 15 more bytes]")
+      expect(result).to include("[example truncated, 16 more bytes]")
       expect(result).to be_valid_encoding
     end
   end
@@ -34,6 +34,21 @@ RSpec.describe Prompts::Truncate do
 
       expect(result).to include("[comment thread entry truncated")
       expect(result).to be_valid_encoding
+    end
+
+    it "removes the last background entry before a preceding priority entry under byte pressure" do
+      items = %w[priority background]
+
+      result = described_class.collection(
+        items,
+        max_items: 1,
+        max_bytes: 8,
+        priority: ->(item) { item == "priority" }
+      ) { |item| item }
+
+      expect(result).to start_with("priority")
+      expect(result).not_to include("background")
+      expect(result).to include("1 comment omitted due to limits")
     end
   end
 end

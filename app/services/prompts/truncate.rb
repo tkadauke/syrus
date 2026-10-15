@@ -8,8 +8,9 @@ module Prompts
       value = value.to_s
       return value if value.bytesize <= max_bytes
 
-      marker = format(MARKER_TEMPLATE, label: label, bytes: value.bytesize - max_bytes)
-      "#{value.safe_byteslice(0, max_bytes)}#{marker}"
+      retained = value.safe_byteslice(0, max_bytes)
+      marker = format(MARKER_TEMPLATE, label: label, bytes: value.bytesize - retained.bytesize)
+      "#{retained}#{marker}"
     end
 
     # Prioritizes every important item (for example, [NEW] review comments),
@@ -25,12 +26,10 @@ module Prompts
       omitted_items = items.size - selected.size
 
       while joined_bytesize(rendered_items) > max_bytes
-        background_count = rendered_items.count { |item, _text| !priority.call(item) }
-        removable_index = if background_count > 1
+        removable_index = if rendered_items.size > 1
           rendered_items.index { |item, _text| !priority.call(item) }
-        elsif rendered_items.size > 1
-          0
         end
+        removable_index ||= 0 if rendered_items.size > 1
         break unless removable_index
 
         rendered_items.delete_at(removable_index)
@@ -47,7 +46,8 @@ module Prompts
       rendered = rendered_items.map(&:last).join("\n\n")
       return rendered if omitted_items.zero?
 
-      "#{rendered}\n\n...[#{omitted_items} comments omitted due to limits]"
+      noun = omitted_items == 1 ? "comment" : "comments"
+      "#{rendered}\n\n...[#{omitted_items} #{noun} omitted due to limits]"
     end
 
     def joined_bytesize(rendered_items)
