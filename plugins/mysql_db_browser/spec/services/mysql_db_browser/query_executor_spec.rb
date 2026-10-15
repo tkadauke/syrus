@@ -334,6 +334,31 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(MysqlQueryAudit.last(2).map(&:read_only)).to eq([ false, false ])
     end
 
+    it "rejects MySQL executable comments instead of treating their contents as inert" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+      statement = "WITH a AS (SELECT 1 /*!80000 ) DELETE FROM t -- */ ) SELECT 1"
+
+      expect {
+        described_class.new(connection).execute(statement, user: user)
+      }.to raise_error(described_class::WriteNotAllowed)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.statement).to eq(statement)
+      expect(audit.read_only).to be(false)
+      expect(audit.success).to be(false)
+    end
+
+    it "does not mistake an executable-comment marker inside a string or inert comment for executable SQL" do
+      client = fake_client(rows: [ { "value" => "/*!" } ])
+      stub_client_factory(client)
+
+      string_payload = described_class.new(connection).execute("SELECT '/*!' AS value", user: user)
+      comment_payload = described_class.new(connection).execute("SELECT 1 /* text /*! still inert */", user: user)
+
+      expect(string_payload[:read_only]).to be(true)
+      expect(comment_payload[:read_only]).to be(true)
+    end
+
     it "still treats comments containing unmatched parentheses and quotes inside a read-only CTE as read-only" do
       client = fake_client(rows: [ { "id" => 1 } ])
       stub_client_factory(client)
@@ -471,7 +496,10 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       payload = described_class.new(connection).execute("SELECT 'INTO OUTFILE' AS value", user: user)
 
       expect(payload[:read_only]).to be(true)
-      expect(client).to have_received(:query)
+      expect(client).to have_received(:query).with(
+        a_string_starting_with("SELECT /*+ MAX_EXECUTION_TIME("),
+        any_args
+      )
     end
 
     it "classifies FilesystemWriteNotAllowed as a WriteNotAllowed so existing callers' rescues still catch it" do
