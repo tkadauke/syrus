@@ -1383,10 +1383,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       preemption_reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       preempted_by_work_unit_id: newer_unit.id
     )
+    expect(older_unit.work_intent.reload).to be_cancelled
     expect(older_step.reload).to be_cancelled
     expect(older_run.reload).to be_cancelled
     expect(newer.reload).to be_queued
     expect(job.reload).to be_approved
+
+    newer_unit.mark_terminal!("succeeded")
+    newer.update_columns(state: "succeeded", finished_at: Time.current)
+    job.update_columns(state: "queued")
+
+    expect {
+      expect(WorkIntents::JobWakeup.call(job.reload)).to be(false)
+    }.not_to change { WorkUnit.count }
   end
 
   it "does not treat auxiliary visual diff workflows as superseding primary job work" do
