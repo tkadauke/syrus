@@ -143,6 +143,24 @@ RSpec.describe JobBundleDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "rechecks landing holds after locking members" do
+    approved_job(1)
+    held = approved_job(2)
+    assembly_count = 0
+    allow(LandingBundleAssembler).to receive(:for_repository).and_wrap_original do |method, *args|
+      result = method.call(*args)
+      assembly_count += 1
+      Job.where(id: held.id).update_all(manual_paused: true) if assembly_count == 2
+      result
+    end
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(held.reload).to be_manual_paused
+    expect(held.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not dispatch while a bundle member owner's landing queue is paused" do
     approved_job(1)
     approved_job(2)

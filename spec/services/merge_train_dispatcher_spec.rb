@@ -53,6 +53,26 @@ RSpec.describe MergeTrainDispatcher do
     expect(invalid.reload).to be_approved
   end
 
+  it "rechecks requested-changes attention after locking members" do
+    approved_child(1)
+    held = approved_child(2)
+    assembly_count = 0
+    allow(LandingBundleAssembler).to receive(:for_epic).and_wrap_original do |method, *args|
+      result = method.call(*args)
+      assembly_count += 1
+      if assembly_count == 2
+        Job.where(id: held.id).update_all(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+      end
+      result
+    end
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(held.reload.needs_attention_reason).to eq(Job::REQUESTED_CHANGES_ATTENTION_REASON)
+    expect(held.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "creates the train on the delivery track landing branch shared by the members" do
     a = approved_child(1)
     b = approved_child(2)
