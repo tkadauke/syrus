@@ -1,5 +1,7 @@
 module Prompts
   class MergeTrainAgent
+    include GithubContentTrust
+
     def initialize(train:, workflow:, failing_round:)
       @train = train
       @workflow = workflow
@@ -8,6 +10,7 @@ module Prompts
 
     def to_s
       [
+        github_content_trust_boundary,
         context_section,
         failure_section,
         action_contract_section,
@@ -32,19 +35,21 @@ module Prompts
       @train.members.includes(:job).map do |member|
         job = member.job
         pr = job.pr_number ? "PR ##{job.pr_number}" : "no PR"
-        "- #{job.slug}: #{job.title} (#{pr}, branch `#{job.branch_name}`, train position #{member.position})"
+        "- #{job.slug}: #{sanitize_github_content(job.title)} (#{pr}, branch `#{sanitize_github_content(job.branch_name)}`, train position #{member.position})"
       end
     end
 
     def failure_section
       grader_results = Array(@failing_round["grader_results"]).map do |result|
         tests = Array(result["failed_tests"]).filter_map { |test| test["identity"].presence || test["name"].presence }
-        "- #{result['name'] || 'grader'}: #{tests.presence&.join(', ') || result['output'].to_s.truncate(300)}"
+        summary = tests.presence&.map { |test| sanitize_github_content(test) }&.join(", ") ||
+          sanitize_github_content(result["output"]).truncate(300)
+        "- #{sanitize_github_content(result['name'].presence || 'grader')}: #{summary}"
       end
 
       <<~SECTION.strip
         Current failing identities:
-        #{Array(@failing_round["failing_set"]).presence&.map { |item| "- #{item}" }&.join("\n") || "- (none recorded)"}
+        #{Array(@failing_round["failing_set"]).presence&.map { |item| "- #{sanitize_github_content(item)}" }&.join("\n") || "- (none recorded)"}
 
         Failed grader summary:
         #{grader_results.presence&.join("\n") || "- (no grader summary recorded)"}
@@ -55,7 +60,7 @@ module Prompts
       <<~SECTION.strip
         Authority:
         - You may repair the integration branch in place, make focused ordering or integration edits, and run targeted checks.
-        - You may withdraw one suspected culprit only if the evidence is specific enough to name the member. Withdrawing clears that Job's approval and stops this train; Syrus will rederive any remaining train from the approved pool.
+        - You may request withdrawal only for a member already attributed by Syrus's deterministic multisect evidence to at least one current failing identity. Syrus enforces that attribution in code. Withdrawal fails that Job's landing attempt and stops this train; Syrus will rederive any remaining train from the approved pool.
         - You do not decide to merge. After a repair, Syrus will run prepare and the normal graders again before any landing step is reachable.
         - Do not delete or weaken tests to make the grader green. Fix the work, or withdraw the culprit.
         - Keep the attempt bounded. If the evidence is insufficient, make no speculative changes and report that you could not safely act.

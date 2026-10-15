@@ -15,7 +15,8 @@ RSpec.describe Prompts::ReviewFeedback do
 
     out = described_class.new(intro: "Reviewer flagged issues:", iterations: iterations).to_s
 
-    expect(out).to start_with("Reviewer flagged issues:")
+    expect(out).to start_with(Prompts::GithubContentTrust::MARKER)
+    expect(out).to include("Reviewer flagged issues:")
     expect(out).to include("Iteration 1:\nThe rescue clause swallows a real error.")
     expect(out).to include("Iteration 2:\nMissing a regression test for the timeout path.")
   end

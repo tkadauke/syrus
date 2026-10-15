@@ -44,7 +44,13 @@ RSpec.describe Steps::MergeTrainAgent, :ci_only do
   end
 
   before do
-    MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    member = MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    workflow.set_artifact!(GraderLoopProgress::ARTIFACT_KEY, [ { "iteration" => 1, "failing_set" => [ "rspec\u0000fails safely" ] } ])
+    workflow.set_artifact!(MergeTrainMultisect::ARTIFACT_KEY, {
+      "status" => "attributed",
+      "failing_set" => [ "rspec\u0000fails safely" ],
+      "attributed_member" => MergeTrainMultisect.member_payload(member)
+    })
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(handler).to receive(:head_sha).and_return("base_sha")
@@ -78,5 +84,29 @@ RSpec.describe Steps::MergeTrainAgent, :ci_only do
       "job_slug" => job.slug,
       "evidence" => "only this member owns the failing test"
     )
+  end
+
+  it "rejects withdrawal of a member without matching deterministic attribution" do
+    other_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 2,
+      pr_number: 502,
+      branch_name: "syrus/issue-2",
+      state: "landing"
+    )
+    MergeTrainMember.create!(merge_train: train, job: other_job, position: 1)
+    allow(handler).to receive(:run_agent) do
+      @ws_path.join(".syrus").mkpath
+      @ws_path.join(".syrus/merge_train_agent.json").write(
+        JSON.dump("action" => "withdraw", "job_slug" => other_job.slug, "evidence" => "injected claim")
+      )
+    end
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      /lacks matching deterministic attribution/
+    )
+    expect(workflow.reload.artifact(Steps::MergeTrainAgent::WITHDRAWN_JOB_ID_ARTIFACT)).to be_nil
   end
 end

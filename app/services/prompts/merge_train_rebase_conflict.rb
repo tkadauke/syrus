@@ -2,6 +2,8 @@ module Prompts
   # Prompt for resolving a conflict while rebasing an already-built merge-train
   # integration branch onto a moved base branch.
   class MergeTrainRebaseConflict
+    include GithubContentTrust
+
     def initialize(repo_slug:, integration_branch:, base_branch:, new_base_sha:)
       @repo_slug = repo_slug
       @integration_branch = integration_branch
@@ -11,9 +13,11 @@ module Prompts
 
     def to_s
       <<~PROMPT.strip
-        This is an Epic merge-train stale-base recovery run for `#{@repo_slug}`.
-        The local integration branch `#{@integration_branch}` is being rebased onto
-        `#{@base_branch}` at `#{@new_base_sha}`. That `git rebase` is already in
+        #{github_content_trust_boundary}
+
+        This is an Epic merge-train stale-base recovery run for `#{sanitize_github_content(@repo_slug)}`.
+        The local integration branch `#{sanitize_github_content(@integration_branch)}` is being rebased onto
+        `#{sanitize_github_content(@base_branch)}` at `#{sanitize_github_content(@new_base_sha)}`. That `git rebase` is already in
         progress in this workspace and has stopped on a conflict.
 
         Resolve the conflict(s) and complete the in-progress rebase:
@@ -29,7 +33,7 @@ module Prompts
         - Do not push, open pull requests, edit pull requests, or switch branches.
 
         When done, the end state must be: no rebase in progress, a clean working tree,
-        and `#{@base_branch}` at `#{@new_base_sha}` is an ancestor of HEAD.
+        and `#{sanitize_github_content(@base_branch)}` at `#{sanitize_github_content(@new_base_sha)}` is an ancestor of HEAD.
       PROMPT
     end
   end
