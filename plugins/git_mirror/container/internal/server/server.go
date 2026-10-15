@@ -3,6 +3,7 @@
 //
 //	GET    /healthz
 //	GET    /v1/repositories
+//	GET    /v1/repositories/page?after=&limit=
 //	PUT    /v1/repositories/{id}                     register, refresh credential
 //	DELETE /v1/repositories/{id}
 //	GET    /v1/repositories/{id}/resolve?ref=&max_age=
@@ -55,6 +56,7 @@ type Store interface {
 	Register(ctx context.Context, id string, reg mirror.Registration) error
 	Remove(id string) error
 	List() []mirror.Status
+	ListPage(after string, limit int) ([]mirror.Status, bool)
 	Disk() mirror.Disk
 	Resolve(ctx context.Context, id, ref string, maxAge time.Duration) (string, time.Time, error)
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
@@ -83,6 +85,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	mux.Handle("GET /v1/repositories", s.auth(s.list))
+	mux.Handle("GET /v1/repositories/page", s.auth(s.listPage))
 	mux.Handle("PUT /v1/repositories/{id}", s.auth(s.register))
 	mux.Handle("DELETE /v1/repositories/{id}", s.auth(s.remove))
 	mux.Handle("GET /v1/repositories/{id}/resolve", s.auth(s.resolve))
@@ -159,6 +162,24 @@ func (s *server) auth(next http.HandlerFunc) http.Handler {
 
 func (s *server) list(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"repositories": s.store.List(), "disk": s.store.Disk()})
+}
+
+func (s *server) listPage(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 1000 {
+			writeError(w, http.StatusBadRequest, "bad_request", "limit must be between 1 and 1000")
+			return
+		}
+		limit = parsed
+	}
+	repositories, hasMore := s.store.ListPage(r.URL.Query().Get("after"), limit)
+	nextCursor := ""
+	if hasMore && len(repositories) > 0 {
+		nextCursor = repositories[len(repositories)-1].ID
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"repositories": repositories, "has_more": hasMore, "next_cursor": nextCursor})
 }
 
 func (s *server) register(w http.ResponseWriter, r *http.Request) {

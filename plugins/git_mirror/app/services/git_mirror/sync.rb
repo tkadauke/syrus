@@ -9,8 +9,28 @@ module GitMirror
   class Sync
     BATCH_SIZE = 100
     CURSOR_KEY = "sync_repository_cursor".freeze
+    PHASE_KEY = "sync_phase".freeze
+    PRUNE_CURSOR_KEY = "sync_prune_cursor".freeze
 
     Result = Data.define(:registered, :skipped, :removed, :failed)
+
+    class Phase
+      def self.for(name)
+        { "inventory" => Inventory, "prune" => Prune }.fetch(name)
+      end
+
+      def initialize(sync)
+        @sync = sync
+      end
+
+      class Inventory < Phase
+        def run = @sync.run_inventory
+      end
+
+      class Prune < Phase
+        def run = @sync.run_prune
+      end
+    end
 
     def self.run!(client: nil)
       endpoint = ContentProvider.endpoint
@@ -24,6 +44,10 @@ module GitMirror
     end
 
     def run!
+      Phase.for(phase_name).new(self).run
+    end
+
+    def run_inventory
       registered = []
       skipped = []
       failed = []
@@ -39,10 +63,37 @@ module GitMirror
         Rails.logger.warn("[GitMirror] could not register #{repository.slug}: #{e.class}: #{e.message}")
       end
 
-      removed = complete ? remove_stale : []
-      write_cursor(complete ? nil : batch.last.id, from: starting_cursor)
+      if complete
+        write_state(from_phase: "inventory", from_cursor: starting_cursor, phase: "prune", cursor: nil)
+      else
+        write_state(from_phase: "inventory", from_cursor: starting_cursor, phase: "inventory", cursor: batch.last.id)
+      end
 
-      Result.new(registered:, skipped:, removed:, failed:)
+      Result.new(registered:, skipped:, removed: [], failed:)
+    end
+
+    def run_prune
+      starting_cursor = prune_cursor
+      page = @client.list_page(cursor: starting_cursor.presence, limit: BATCH_SIZE)
+      mirrored_ids = page.fetch("repositories").map { |entry| entry.fetch("id") }
+      active_ids = Repository.active.git.where(id: mirrored_ids).pluck(:id).map(&:to_s)
+      removed = (mirrored_ids - active_ids).filter_map do |id|
+        @client.remove(id)
+        id
+      rescue StandardError => e
+        Rails.logger.warn("[GitMirror] could not remove #{id}: #{e.class}: #{e.message}")
+        nil
+      end
+
+      if page.fetch("has_more")
+        write_state(from_phase: "prune", from_cursor: starting_cursor, phase: "prune", cursor: page.fetch("next_cursor"))
+      else
+        write_state(from_phase: "prune", from_cursor: starting_cursor, phase: "inventory", cursor: nil)
+      end
+      Result.new(registered: [], skipped: [], removed:, failed: [])
+    rescue StandardError => e
+      Rails.logger.warn("[GitMirror] could not prune the mirror: #{e.class}: #{e.message}")
+      Result.new(registered: [], skipped: [], removed: [], failed: [])
     end
 
     private
@@ -58,14 +109,29 @@ module GitMirror
       plugin_record.config.to_h[CURSOR_KEY].to_i
     end
 
+    def prune_cursor
+      plugin_record.config.to_h[PRUNE_CURSOR_KEY].to_s
+    end
+
+    def phase_name
+      plugin_record.config.to_h.fetch(PHASE_KEY, "inventory")
+    end
+
     # Concurrent ticks may repeat a page, but must never move the durable
     # cursor backwards after another tick has already advanced it.
-    def write_cursor(value, from:)
+    def write_state(from_phase:, from_cursor:, phase:, cursor:)
       plugin_record.with_lock do
         config = plugin_record.config.to_h
-        return unless config[CURSOR_KEY].to_i == from
+        current_phase = config.fetch(PHASE_KEY, "inventory")
+        cursor_key = current_phase == "prune" ? PRUNE_CURSOR_KEY : CURSOR_KEY
+        current_cursor = current_phase == "prune" ? config[cursor_key].to_s : config[cursor_key].to_i
+        return unless current_phase == from_phase && current_cursor == from_cursor
 
-        value ? config[CURSOR_KEY] = value : config.delete(CURSOR_KEY)
+        config[PHASE_KEY] = phase
+        config.delete(CURSOR_KEY)
+        config.delete(PRUNE_CURSOR_KEY)
+        target_key = phase == "prune" ? PRUNE_CURSOR_KEY : CURSOR_KEY
+        config[target_key] = cursor if cursor.present?
         plugin_record.update!(config: config)
       end
     end
@@ -74,18 +140,5 @@ module GitMirror
       @plugin_record ||= PluginRecord.find_or_create_by!(name: "git_mirror")
     end
 
-    # Only after a successful listing, and never a repository that is still
-    # active: a failed registration is a reason to try again next tick, not
-    # to throw away the mirror.
-    def remove_stale
-      mirrored_ids = @client.list.map { |entry| entry.fetch("id") }
-      active_ids = Repository.active.git.where(id: mirrored_ids).pluck(:id).map(&:to_s)
-      (mirrored_ids - active_ids).each do |id|
-        @client.remove(id)
-      end
-    rescue StandardError => e
-      Rails.logger.warn("[GitMirror] could not prune the mirror: #{e.class}: #{e.message}")
-      []
-    end
   end
 end

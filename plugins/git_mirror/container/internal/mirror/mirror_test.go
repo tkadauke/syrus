@@ -11,6 +11,26 @@ import (
 	"time"
 )
 
+func TestListPageUsesTheSortedRepositoryIndex(t *testing.T) {
+	s := &Store{
+		repos: map[string]*repo{
+			"10": {id: "10"},
+			"2":  {id: "2"},
+			"30": {id: "30"},
+		},
+		repoIDs: []string{"10", "2", "30"},
+	}
+
+	page, more := s.ListPage("10", 1)
+	if len(page) != 1 || page[0].ID != "2" || !more {
+		t.Fatalf("first page = %+v, more=%v", page, more)
+	}
+	page, more = s.ListPage("2", 1)
+	if len(page) != 1 || page[0].ID != "30" || more {
+		t.Fatalf("last page = %+v, more=%v", page, more)
+	}
+}
+
 // upstream is a real git repository the mirror fetches from over file://.
 type upstream struct {
 	t   *testing.T
