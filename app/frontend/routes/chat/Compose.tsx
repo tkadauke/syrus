@@ -94,6 +94,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const [composerHistory, setComposerHistory] = useState<string[]>(() => readComposerHistory(chatId))
   const [historyMode, setHistoryMode] = useState<ComposerHistoryMode | null>(null)
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
+  const submittedDraftRef = useRef<ComposerDraftSnapshot | null>(null)
+  const currentDraftRef = useRef<ComposerDraftSnapshot>({ composerText: text, attachments })
+  currentDraftRef.current = { composerText: text, attachments }
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -221,8 +224,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   useEffect(() => {
     if (historyMode) return
 
-    if (text.length > 0) {
-      storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, text)
+    const draftText = text.length > 0 ? text : submittedDraftRef.current?.composerText || ""
+    if (draftText.length > 0) {
+      storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, draftText)
       return
     }
 
@@ -252,7 +256,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
   useEffect(() => {
-    setDraftAttachments(chatId, attachments)
+    const draftAttachments = attachments.length > 0 ? attachments : submittedDraftRef.current?.attachments || []
+    setDraftAttachments(chatId, draftAttachments)
   }, [chatId, attachments])
 
   // Unblocks the composer once ChatShellCommandJob's completion message shows
@@ -271,15 +276,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (finished) setShellCommand(null)
   }, [payload.messages, shellCommand])
 
-  function clearComposerDraft() {
+  function clearComposerDraft({ preserveStoredDraft = false } = {}) {
     setText("")
     setAttachments([])
     setAttachmentError(null)
     setHistoryMode(null)
-    try {
-      window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
-    } catch (_error) {
-      // Local storage can be unavailable in hardened browser modes.
+    if (!preserveStoredDraft) {
+      try {
+        window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
+      } catch (_error) {
+        // Local storage can be unavailable in hardened browser modes.
+      }
     }
   }
 
@@ -293,6 +300,20 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setAttachmentError(null)
   }
 
+  function persistComposerDraft(draft: ComposerDraftSnapshot) {
+    if (draft.composerText.length > 0) storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, draft.composerText)
+    setDraftAttachments(chatId, draft.attachments)
+  }
+
+  function discardStoredComposerDraft() {
+    try {
+      window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
+    } catch (_error) {
+      // Local storage can be unavailable in hardened browser modes.
+    }
+    setDraftAttachments(chatId, [])
+  }
+
   function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
     const draft = {
       messageText,
@@ -300,7 +321,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       attachments,
       chatProvider: newChatForm ? selectedChatProvider : null
     }
-    clearComposerDraft()
+    submittedDraftRef.current = draft
+    persistComposerDraft(draft)
+    clearComposerDraft({ preserveStoredDraft: true })
     setHistoryMode(null)
     setPendingConfirmation(null)
     send.mutate(draft)
@@ -315,6 +338,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
     onSuccess: (updated, draft) => {
+      submittedDraftRef.current = null
+      discardStoredComposerDraft()
       rememberSubmittedPrompt(draft.messageText)
       onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
       queryClient.setQueryData(queryKey, updated)
@@ -323,7 +348,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       onNotice(null)
     },
     onError: (error, draft) => {
-      restoreComposerDraft(draft)
+      const currentDraft = currentDraftRef.current
+      const draftToKeep = currentDraft.composerText.length > 0 || currentDraft.attachments.length > 0 ? currentDraft : draft
+      submittedDraftRef.current = null
+      persistComposerDraft(draftToKeep)
+      if (draftToKeep === draft) restoreComposerDraft(draft)
       onNotice(errorMessage(error, "Message could not be sent."))
     }
   })
