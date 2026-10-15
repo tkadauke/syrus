@@ -127,6 +127,8 @@ class LandingQueueProcessor
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
     release_urgent_blocked_landing_slots_for_urgent_job!(job) if job.priority == "urgent"
     return if landing_in_progress_for_job?(job)
+    return unless job.approved?
+    return unless landing_approval_satisfied?(job)
 
     # When merge-trains are on, an Epic child lands only as part of its
     # Epic's atomic train — never individually (that would create a
@@ -138,8 +140,6 @@ class LandingQueueProcessor
     # the repo's single landing slot.
     return JobBundleDispatcher.try_dispatch!(job.repository) if bundle_eligible_epicless_job?(job)
 
-    return unless job.approved?
-    return unless landing_approval_satisfied?(job)
     return unless blockage_for(job)[:blocked_reason].blank?
 
     land(job)
@@ -164,10 +164,12 @@ class LandingQueueProcessor
 
       workflow = if merge_train_unit?(first_entry)
         next if first_entry.blocker_jobs.any?
+        next if unit_entries.any? { |entry| entry.blocked_reason&.dig(:key) == "approval_not_satisfied" }
 
         MergeTrainDispatcher.try_dispatch!(first_entry.job.epic)
       elsif bundle_eligible_epicless_job?(first_entry.job)
         next if first_entry.blocker_jobs.any?
+        next if unit_entries.any? { |entry| entry.blocked_reason&.dig(:key) == "approval_not_satisfied" }
 
         JobBundleDispatcher.try_dispatch!(first_entry.job.repository)
       else
@@ -767,6 +769,7 @@ class LandingQueueProcessor
       return override_or_block(job, { key: "urgent_job_active" }, consume: consume_override)
     end
     return override_or_block(job, { key: "waiting_epic_release" }, consume: consume_override) if job.blocked_by_epic_before_execution?
+    return blocked({ key: "approval_not_satisfied" }) unless landing_approval_satisfied?(job)
     # With merge-trains on, Epic children never land via the per-Job
     # path — they land atomically as part of their Epic's train. Keep
     # them in :approved with a clear reason; MergeTrainDispatcher picks

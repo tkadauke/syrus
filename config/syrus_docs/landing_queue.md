@@ -100,6 +100,12 @@ for rows written before the code existed.
 Putting a new failure path on the wrong side of that split costs an operator a
 round of re-approving, potentially every member of a merge train.
 
+Before dispatch, the queue re-evaluates the repository's current delivery
+approval policy. If an approver has lost repository access, an approval was
+withdrawn, or the policy has tightened since the Job entered `approved`, the
+Job remains approved with the non-overridable `approval_not_satisfied` blocker.
+This applies equally to solo landing, Epic merge trains, and Job bundles.
+
 ## Failing PR checks: inherited vs. introduced
 
 A Job whose GitHub checks are red is held out of landing, but *why* they are red

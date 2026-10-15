@@ -1907,7 +1907,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         expect(job.reload).to be_landing
       end
 
-      it "blocks landing when the required peer approval is missing" do
+      it "blocks the recurring queue tick when the required peer approval is missing" do
         job = approval_configured_job(syrus_yml: <<~YAML)
           approval:
             job:
@@ -1917,8 +1917,10 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         YAML
         JobApproval.create!(job: job, user: user, approved_at: Time.current)
 
-        expect(described_class.try_land!(job)).to be_nil
+        expect(described_class.call).to be_nil
         expect(job.reload).to be_approved
+        expect(job.landing_queue_blocked_reason).to eq({ "key" => "approval_not_satisfied" })
+        expect(LandingBlockerOverride.overridable?("approval_not_satisfied")).to be(false)
       end
 
       it "does not count a peer approval from someone without repository access" do
