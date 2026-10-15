@@ -172,8 +172,7 @@ RSpec.describe PendingActions::RepairQueueAffinity do
 
   it "deletes only Solid Queue RunJob rows whose serialized arguments identify the Run" do
     matching_global_id = solid_queue_run_job_with_arguments([ { "_aj_globalid" => "gid://syrus/Run/#{run.id}" } ])
-    other_run_id = run.id + 10
-    non_matching = solid_queue_run_job_with_arguments([ other_run_id ])
+    non_matching = solid_queue_run_job_with_arguments([ "#{run.id}0" ])
     action = pending_action_for
 
     expect {

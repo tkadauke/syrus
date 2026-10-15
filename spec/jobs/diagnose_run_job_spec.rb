@@ -141,6 +141,40 @@ RSpec.describe DiagnoseRunJob do
         expect(snapshot.sq_error_class).to eq("RuntimeError")
         expect(snapshot.hint).to include("Retry")
       end
+
+      it "finds a failed Solid Queue job with an integer Active Job argument" do
+        ensure_solid_queue_test_tables!
+        clear_solid_queue_test_tables!
+        run = running_run
+        queue_job = SolidQueue::Job.create!(
+          class_name: "RunJob",
+          queue_name: "runs",
+          priority: 0,
+          arguments: JSON.generate("arguments" => [ run.id ]),
+          created_at: Time.current,
+          updated_at: Time.current
+        )
+        SolidQueue::FailedExecution.create!(
+          job_id: queue_job.id,
+          error: {
+            "exception_class" => "RuntimeError",
+            "message" => "queue failure",
+            "backtrace" => [ "example.rb:1" ]
+          },
+          created_at: Time.current
+        )
+
+        build_job.perform(run.id)
+
+        snapshot = run.run_health_snapshots.last
+        expect(snapshot.sq_job_state).to eq("failed")
+        expect(snapshot.sq_error_class).to eq("RuntimeError")
+        expect(snapshot.sq_error_message).to eq("queue failure")
+        expect(snapshot.health_status).to eq("critical")
+        expect(snapshot.hint).to include("Retry")
+      ensure
+        clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+      end
     end
 
     context "owning host not live (cross-pod fallback)" do

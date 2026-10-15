@@ -61,12 +61,11 @@ class DiagnoseRunJob < ApplicationJob
   # ── SolidQueue signals ───────────────────────────────────────────────────
 
   def capture_sq_signals(snapshot, run)
-    sq_job = SolidQueue::Job
+    scope = SolidQueue::Job
       .where(class_name: "RunJob")
-      .where("arguments LIKE ?", "%\"#{run.id}\"%")
       .includes(:claimed_execution, :failed_execution)
       .order(id: :desc)
-      .first
+    sq_job = SolidQueueRunJobQuery.matching(scope: scope, run_id: run.id).first
 
     if sq_job.nil?
       snapshot.sq_job_state = "missing"
