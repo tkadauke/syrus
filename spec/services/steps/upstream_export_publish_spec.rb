@@ -21,6 +21,7 @@ RSpec.describe Steps::UpstreamExportPublish do
   before do
     allow(GithubClient).to receive(:for).with(repository: canonical, user: user).and_return(client)
     allow(client).to receive(:open_pull_request_for_head).and_return(nil)
+    allow(client).to receive(:pull_request).and_return(OpenStruct.new(state: "open", merged: false, merged_at: nil))
   end
 
   it "raises StepFailed when the repository has no in-instance upstream_repository" do
@@ -129,6 +130,44 @@ RSpec.describe Steps::UpstreamExportPublish do
 
       expect(client).not_to have_received(:create_pull_request)
       expect(job.pr_links.find_by!(role: JobPrLink::ROLE_UPSTREAM_EXPORT).pr_number).to eq(900)
+    end
+
+    it "records and closes a Job whose recorded upstream PR was already merged" do
+      stub_policy(target_branch: "develop")
+      JobPrLink.record!(
+        job: job, role: JobPrLink::ROLE_UPSTREAM_EXPORT,
+        source_repository_id: repository.id, source_ref: "syrus/issue-9",
+        target_repository_id: canonical.id, target_ref: "develop",
+        pr_number: 900, metadata: { "pr_state" => "open" }
+      )
+      allow(client).to receive(:pull_request).with(canonical.slug, 900, bypass_cache: true)
+        .and_return(OpenStruct.new(state: "closed", merged: true, merged_at: Time.current))
+
+      handler.call
+
+      expect(job.pr_links.find_by!(role: JobPrLink::ROLE_UPSTREAM_EXPORT).metadata).to eq("pr_state" => "merged")
+      expect(job.reload).to be_closed
+      expect(job.closure_reason).to eq("pr_merged")
+    end
+
+    it "opens a replacement when the recorded upstream PR was closed without merging" do
+      stub_policy(target_branch: "develop")
+      JobPrLink.record!(
+        job: job, role: JobPrLink::ROLE_UPSTREAM_EXPORT,
+        source_repository_id: repository.id, source_ref: "syrus/issue-9",
+        target_repository_id: canonical.id, target_ref: "develop",
+        pr_number: 800, metadata: { "pr_state" => "open" }
+      )
+      allow(client).to receive(:pull_request).with(canonical.slug, 800, bypass_cache: true)
+        .and_return(OpenStruct.new(state: "closed", merged: false, merged_at: nil))
+      allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 901))
+
+      handler.call
+
+      expect(client).to have_received(:create_pull_request)
+      link = job.pr_links.find_by!(role: JobPrLink::ROLE_UPSTREAM_EXPORT)
+      expect(link.pr_number).to eq(901)
+      expect(link.metadata).to eq("pr_state" => "open")
     end
   end
 end
