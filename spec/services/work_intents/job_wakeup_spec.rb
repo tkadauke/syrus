@@ -85,6 +85,34 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(unit.workflow.first_step.runs.last).to be_queued
   end
 
+  it "batches persisted intents without sorting their payload artifacts" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec",
+      payload_artifacts: { "diagnostic" => "x" * 1_000_000 }
+    )
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements << payload[:sql] if payload[:sql].include?("work_intents")
+    end
+
+    described_class.call(job)
+
+    batch_query = statements.find do |sql|
+      sql.match?(/ORDER BY .*work_intents.*id/i) && sql.match?(/scope_type/i)
+    end
+    expect(batch_query).to match(/SELECT .*work_intents.*id/i)
+    expect(batch_query).not_to include("payload_artifacts")
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "does not raise when a ready persisted intent races an already-active unit" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
     owner_job = Factories.job_record(user: user, repository: repository, state: "queued")
