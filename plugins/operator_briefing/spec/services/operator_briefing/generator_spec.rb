@@ -58,6 +58,68 @@ RSpec.describe OperatorBriefing::Generator do
     ).twice
   end
 
+  it "does not relaunch when a scheduled generation wins a race with an on-demand request" do
+    request_started_at = Time.zone.parse("2026-10-05 09:15:00 UTC")
+    on_demand_request = described_class.new(
+      user: user,
+      repository: repository,
+      mode: :on_demand,
+      now: request_started_at
+    )
+
+    travel_to(request_started_at + 1.second) do
+      Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Fresh activity",
+        priority: "low"
+      )
+      scheduled = described_class.generate!(
+        user: user,
+        repository: repository,
+        mode: :scheduled,
+        now: request_started_at
+      )
+
+      result = on_demand_request.generate!
+
+      expect(scheduled).to be_created
+      expect(result).to be_skipped
+      expect(result.reason).to eq("generation_already_started")
+      expect(result.briefing).to be_nil
+      expect(WorkUnits::Launcher).to have_received(:create_and_start!).once
+    end
+  end
+
+  it "does not relaunch when an on-demand generation wins a race with a scheduled request" do
+    now = Time.zone.parse("2026-10-05 09:15:00 UTC")
+
+    travel_to(now - 1.second) do
+      Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Fresh activity",
+        priority: "low"
+      )
+    end
+
+    travel_to(now) do
+      on_demand = described_class.generate!(user: user, repository: repository, mode: :on_demand, now: now)
+      scheduled = described_class.generate!(user: user, repository: repository, mode: :scheduled, now: now)
+
+      expect(on_demand).to be_created
+      expect(scheduled).to be_skipped
+      expect(scheduled.reason).to eq("no_activity")
+      expect(WorkUnits::Launcher).to have_received(:create_and_start!).once
+    end
+  end
+
   it "creates a scheduled briefing when activity happened since the last closed briefing" do
     closed_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
     closed_job.close_with_reason!("briefing_superseded") if closed_job.may_close?
