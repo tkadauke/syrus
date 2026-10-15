@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -611,6 +612,44 @@ func TestCheckoutCommandRejectsWrongRepository(t *testing.T) {
 	want := "Current git remote origin (https://github.com/other/repo.git) does not match job repository acme/widgets."
 	if err.Error() != want {
 		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestCheckoutCommandAcceptsCredentialedGitHubRemote(t *testing.T) {
+	runner := func(ctx context.Context, dir string, args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "remote get-url origin":
+			return "https://x-access-token:ghs_SECRET@github.com/acme/widgets.git\n", nil
+		case "fetch origin +refs/heads/topic:refs/remotes/origin/topic":
+			return "", errors.New("stop after repository validation")
+		default:
+			t.Fatalf("unexpected git command: %v", args)
+			return "", nil
+		}
+	}
+
+	err := checkoutJobBranch(context.Background(), runner, "acme/widgets", "topic")
+	if err == nil || !strings.Contains(err.Error(), "stop after repository validation") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCheckoutRepositoryMismatchRedactsCredentials(t *testing.T) {
+	runner := func(ctx context.Context, dir string, args ...string) (string, error) {
+		if strings.Join(args, " ") == "rev-parse --is-inside-work-tree" {
+			return "true\n", nil
+		}
+		return "https://x-access-token:ghs_SECRET@github.com/other/repo.git\n", nil
+	}
+
+	err := checkoutJobBranch(context.Background(), runner, "acme/widgets", "topic")
+	if err == nil || strings.Contains(err.Error(), "ghs_SECRET") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "https://github.com/other/repo.git") {
+		t.Fatalf("error = %q", err)
 	}
 }
 
