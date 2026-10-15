@@ -1,12 +1,15 @@
 require "shellwords"
 require "tempfile"
 require "digest"
+require "ipaddr"
 
 module CredentialStore
   class SshExec
     SSH_PRIVATE_KEY_TYPE = "ssh_private_key".freeze
     TOOL_NAME = "credential_store_ssh_exec".freeze
     MAX_OUTPUT_BYTES = 64.kilobytes
+    USER_PATTERN = /\A[A-Za-z0-9_][A-Za-z0-9._-]*\z/.freeze
+    HOSTNAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9.-]*\z/.freeze
 
     class Error < StandardError
       attr_reader :audit_metadata
@@ -45,8 +48,8 @@ module CredentialStore
     def initialize(context:, credential:, host:, user:, command:, port:, allow_unconstrained_host:, allow_risky_command:, connect_timeout:)
       @context = context
       @credential = credential
-      @host = host.to_s.strip
-      @user = user.to_s.strip
+      @host = host.to_s
+      @user = user.to_s
       @command = command.to_s
       @port = normalized_port(port)
       @allow_unconstrained_host = allow_unconstrained_host == true
@@ -94,6 +97,8 @@ module CredentialStore
       raise_audited InvalidTarget, "host is required" if host.blank?
       raise_audited InvalidTarget, "user is required" if user.blank?
       raise_audited InvalidTarget, "command is required" if command.blank?
+      raise_audited InvalidTarget, "host must be a hostname or IP address" unless valid_host?
+      raise_audited InvalidTarget, "user contains invalid characters" unless user.match?(USER_PATTERN)
       raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
       raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
       raise_audited RiskyCommand, "command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
@@ -170,15 +175,19 @@ module CredentialStore
     def ssh_argv(key_path:, known_hosts_path:, passphrase:)
       argv = [
         "ssh",
+        "-F", "/dev/null",
         "-i", key_path,
         "-o", "IdentitiesOnly=yes",
         "-o", "BatchMode=#{passphrase ? 'no' : 'yes'}",
         "-o", "LogLevel=ERROR",
-        "-o", "StrictHostKeyChecking=yes"
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", "ProxyCommand=none",
+        "-o", "PermitLocalCommand=no"
       ]
       argv.concat([ "-o", "UserKnownHostsFile=#{known_hosts_path}" ]) if known_hosts_path
       argv.concat([ "-o", "ConnectTimeout=#{connect_timeout}" ]) if connect_timeout
       argv.concat([ "-p", port.to_s ]) if port
+      argv << "--"
       argv << "#{user}@#{host}"
       argv << command
       argv
@@ -260,6 +269,19 @@ module CredentialStore
       RiskyCommandClassifier.risky?(command)
     end
 
+    def valid_host?
+      return false unless host.match?(HOSTNAME_PATTERN) || ip_address?(host)
+
+      !host.start_with?("-") && !host.match?(/[[:space:][:cntrl:]]/)
+    end
+
+    def ip_address?(value)
+      IPAddr.new(value)
+      true
+    rescue IPAddr::InvalidAddressError
+      false
+    end
+
     class RiskyCommandClassifier
       COMMAND_SEPARATORS = %w[; & |].freeze
       ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
@@ -329,6 +351,7 @@ module CredentialStore
 
     def normalized_port(value)
       return nil if value.blank?
+      raise InvalidTarget, "port must be between 1 and 65535" unless value.to_s.match?(/\A[0-9]+\z/)
 
       Integer(value).tap do |integer|
         raise InvalidTarget, "port must be between 1 and 65535" unless integer.between?(1, 65_535)
@@ -339,6 +362,7 @@ module CredentialStore
 
     def normalized_timeout(value)
       return nil if value.blank?
+      raise InvalidTarget, "connect_timeout must be between 1 and 120" unless value.to_s.match?(/\A[0-9]+\z/)
 
       Integer(value).tap do |integer|
         raise InvalidTarget, "connect_timeout must be between 1 and 120" unless integer.between?(1, 120)
