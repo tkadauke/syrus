@@ -69,6 +69,8 @@ const ADMISSION_REASON_COPY: Record<string, string> = {
   predicted_budget_pressure_high: "Predicted workflow cost would exceed the worker budget.",
   pending_high_cost_work: "High-cost work is already pending.",
   repository_concurrency_budget_exhausted: "This repository already has enough active workflow work.",
+  in_flight_workflow_limit: "Enough work is already in flight; this attempt starts once some of it finishes.",
+  landing_queue_capacity_reserved: "The next slot is reserved for landing work that is waiting.",
   conservative_default_estimate: "Syrus is using a conservative default estimate.",
   bootstrap_missing_profiles: "Syrus is still building resource profiles for this workflow.",
   minimum_progress_floor: "Syrus is preserving worker capacity for minimum progress.",

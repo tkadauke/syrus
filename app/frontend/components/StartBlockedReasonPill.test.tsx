@@ -94,6 +94,25 @@ describe("StartBlockedReasonPill", () => {
     expect(title).not.toContain("delay_until")
   })
 
+  it("explains an in-flight work limit instead of showing its raw reason", () => {
+    render(
+      <StartBlockedReasonPill
+        details={{
+          action: "delay_until",
+          reason: "in_flight_workflow_limit",
+          details: {
+            decision_basis: "in_flight_workflow_limit"
+          }
+        }}
+        reason="workflow_admission_budget"
+      />
+    )
+
+    const title = screen.getByText("Workflow admission delayed").closest("[data-status-pill]")?.getAttribute("title")
+    expect(title).toContain("Enough work is already in flight")
+    expect(title).not.toContain("in_flight_workflow_limit")
+  })
+
   it("notes when an admission delay was decided without worker telemetry", () => {
     render(
       <StartBlockedReasonPill
