@@ -1261,7 +1261,11 @@ Each user owns their own profile, credentials, defaults, and preferences:
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
-  process-local material, redaction, cleanup, and access audit events.
+  process-local material, redaction, cleanup, and access audit events. The MCP
+  SSH tool accepts a restricted ASCII account name plus an ASCII hostname or
+  raw IP address (including an unbracketed IPv6 address); it rejects
+  option-like targets, whitespace, and control characters before invoking
+  OpenSSH.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing
