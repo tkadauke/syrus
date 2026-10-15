@@ -236,6 +236,45 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "returns indexed jobs and epics from a repository shared with the current user" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "widgets")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    job = Factories.job_record(user: owner, repository: shared_repository, issue_title: "Shared needle job", state: "running")
+    epic = Factories.epic(user: owner, repository: shared_repository, title: "Shared needle epic", state: "in_progress")
+    GlobalSearch::JobIndex.upsert(job)
+    GlobalSearch::EpicIndex.upsert(epic)
+
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+    get "/api/v1/app/search", params: { query: "needle", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id, "repository_slug" => "shared/widgets"))
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "epic", "id" => epic.id, "repository_slug" => "shared/widgets"))
+  end
+
+  it "returns exact job and epic slugs from a repository shared with the current user" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "slugs")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    job = Factories.job_record(user: owner, repository: shared_repository, issue_title: "Shared slug job")
+    epic = Factories.epic(user: owner, repository: shared_repository, title: "Shared slug epic")
+
+    get "/api/v1/app/search", params: { query: job.slug, types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id, "slug" => job.slug))
+
+    get "/api/v1/app/search", params: { query: epic.slug, types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "epic", "id" => epic.id, "slug" => epic.slug))
+  end
+
   it "groups chat message matches by chat session" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     best_message = ChatMessage.create!(chat_session: chat_session, role: "assistant", content: { "text" => "deploy deploy deploy transcript" }, created_at: 5.minutes.ago)
