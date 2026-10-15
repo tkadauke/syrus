@@ -6,6 +6,17 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA" || payload[:cached]
+
+      queries << payload[:sql].to_s
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   def enable_plugin!
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
   end
@@ -95,6 +106,20 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       cluster = parse_body.fetch("kubernetes_clusters").first
       expect(cluster["credential_kind"]).to eq("token")
       expect(response.body).not_to include("s3cret-token")
+    end
+
+    it "preloads team membership counts for credential scope options" do
+      3.times do |index|
+        team = Team.create!(name: "Team #{index}")
+        team.team_memberships.create!(user: Factories.user(admin: false), role: "member")
+      end
+
+      queries = capture_sql { get "/api/v1/app/admin/kubernetes_clusters" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("credential_scope_options", "teams").pluck("detail")).to all(eq("1 members"))
+      expect(queries.grep(/COUNT\([^)]*\).*team_memberships/i)).to be_empty
+      expect(queries.grep(/FROM ["`]?team_memberships["`]?/i).size).to eq(1)
     end
 
     it "creates a cluster by parsing a pasted kubeconfig" do
