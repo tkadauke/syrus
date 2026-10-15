@@ -23,7 +23,7 @@ module Adjudicators
     DEFAULT_MIN_SCORE = 0.1
     DEFAULT_MAX_DISMISSIBLE_SCORE = 0.5
 
-    def self.adjudicate(problem:, workflow: nil, step: nil, **)
+    def self.adjudicate(problem:, workflow: nil, step: nil, base_sha: nil, **)
       return Adjudication.inconclusive(adjudicator: name) unless problem&.code == "grader_failure"
       return Adjudication.inconclusive(adjudicator: name) unless workflow
 
@@ -34,7 +34,8 @@ module Adjudicators
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
       min_score = repository.known_flaky_failure_min_score || DEFAULT_MIN_SCORE
-      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, min_score, workflow) }
+      per_step_tests = steps.map { |grader_step| confirmed_tests_for(repository, grader_step, min_score, workflow, base_sha) }
+      return Adjudication.inconclusive(adjudicator: name, reason: "changed_failing_test") if per_step_tests.any? { |result| result == :changed_test }
       return Adjudication.inconclusive(adjudicator: name, reason: "no_flakiness_history") if per_step_tests.any?(&:nil?)
 
       tests = per_step_tests.flatten(1)
@@ -52,7 +53,7 @@ module Adjudicators
     # flakiness verdicts -- or nil when there is not enough evidence to say
     # anything about this Step at all (no grader name, no Run, no failing
     # test cases recorded, or any one of them missing scoring history).
-    def self.confirmed_tests_for(repository, grader_step, min_score, workflow)
+    def self.confirmed_tests_for(repository, grader_step, min_score, workflow, base_sha)
       grader_name = grader_step.details.to_h["name"].to_s.presence
       return nil unless grader_name
 
@@ -61,10 +62,18 @@ module Adjudicators
 
       failing_tests = TestEvidenceLookup.failed_test_cases_for(run, grader_name)
       return nil if failing_tests.empty?
+      return nil unless GraderFailureSafety.failure_explained_by_tests?(
+        grader_step: grader_step, run: run, grader_name: grader_name, test_cases: failing_tests
+      )
+      changed = GraderFailureSafety.changed_test_files(workflow: workflow, base_sha: base_sha, test_cases: failing_tests)
+      return :changed_test if changed.any?
 
       failing_tests.map do |test_case|
         score = flakiness_score_for(repository, test_case, workflow)
         return nil if score.nil?
+        signatures = failure_signatures_for(repository, test_case, workflow)
+        signature = test_case["failure_message"].to_s.presence
+        return nil if signature.blank? || !signatures.include?(signature)
         mostly_failing = score[:score] > DEFAULT_MAX_DISMISSIBLE_SCORE
 
         {
@@ -73,10 +82,23 @@ module Adjudicators
           score: score[:score],
           failed_count: score[:failed_count],
           total_count: score[:total_count],
+          failure_signature: signature,
           mostly_failing: mostly_failing,
           confirmed_flaky: !mostly_failing && score[:flaky] && score[:score] >= min_score
         }
       end
+    end
+
+    def self.failure_signatures_for(repository, test_case, workflow)
+      TestEvidenceLookup.test_evidence_providers.each do |provider|
+        next unless provider.respond_to?(:historical_failure_signatures)
+
+        signatures = Array(provider.historical_failure_signatures(
+          repository: repository, suite_name: test_case["suite_name"], name: test_case["name"], exclude_workflow: workflow
+        )).filter_map { |value| value.to_s.presence }
+        return signatures if signatures.any?
+      end
+      []
     end
 
     def self.flakiness_score_for(repository, test_case, workflow)

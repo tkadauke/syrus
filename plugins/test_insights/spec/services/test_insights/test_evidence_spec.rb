@@ -145,4 +145,78 @@ RSpec.describe TestInsights::TestEvidence do
       expect(described_class.failed_test_cases(run: nil, grader_name: "rspec")).to eq([])
     end
   end
+
+
+  describe ".historical_failure_signatures" do
+    it "returns normalized historical failure messages while excluding the current workflow" do
+      other_job = Factories.job(repository: repo)
+      other_run = other_job.initial_run
+      other_test_run = TestInsights::TestRun.create!(
+        run: other_run, repository: repo, grader_name: "rspec",
+        total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: other_test_run, repository: repo, suite_name: "Foo", name: "bar",
+        status: "failed", failure_message: "expected old value\nbacktrace"
+      )
+      current_test_run = TestInsights::TestRun.create!(
+        run: run, repository: repo, grader_name: "rspec",
+        total_count: 1, passed_count: 0, failed_count: 1, skipped_count: 0, error_count: 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: current_test_run, repository: repo, suite_name: "Foo", name: "bar",
+        status: "failed", failure_message: "new regression"
+      )
+
+      signatures = described_class.historical_failure_signatures(
+        repository: repo, suite_name: "Foo", name: "bar", exclude_workflow: run.workflow
+      )
+
+      expect(signatures).to eq([ "expected old value" ])
+    end
+  end
+
+
+  describe ".grader_failure_explained_by_tests?" do
+    def create_evidence_run(total_count:, failed_count:, error_count: 0)
+      TestInsights::TestRun.create!(
+        run: run, repository: repo, grader_name: "rspec",
+        total_count: total_count, passed_count: 0, failed_count: failed_count,
+        skipped_count: 0, error_count: error_count
+      )
+    end
+
+    it "accepts complete aggregates whose failing cases exactly match" do
+      test_run = create_evidence_run(total_count: 1, failed_count: 1)
+      TestInsights::TestCase.create!(
+        test_run: test_run, repository: repo, suite_name: "Foo", name: "bar", status: "failed"
+      )
+
+      expect(described_class.grader_failure_explained_by_tests?(
+        run: run, grader_name: "rspec", failed_test_cases: [ { "suite_name" => "Foo", "name" => "bar" } ]
+      )).to be(true)
+    end
+
+    it "rejects partial output whose aggregate reports unpersisted cases" do
+      test_run = create_evidence_run(total_count: 2, failed_count: 1)
+      TestInsights::TestCase.create!(
+        test_run: test_run, repository: repo, suite_name: "Foo", name: "bar", status: "failed"
+      )
+
+      expect(described_class.grader_failure_explained_by_tests?(
+        run: run, grader_name: "rspec", failed_test_cases: [ { "suite_name" => "Foo", "name" => "bar" } ]
+      )).to be(false)
+    end
+
+    it "rejects aggregates whose failure count exceeds the parsed failing rows" do
+      test_run = create_evidence_run(total_count: 1, failed_count: 2)
+      TestInsights::TestCase.create!(
+        test_run: test_run, repository: repo, suite_name: "Foo", name: "bar", status: "failed"
+      )
+
+      expect(described_class.grader_failure_explained_by_tests?(
+        run: run, grader_name: "rspec", failed_test_cases: [ { "suite_name" => "Foo", "name" => "bar" } ]
+      )).to be(false)
+    end
+  end
 end
