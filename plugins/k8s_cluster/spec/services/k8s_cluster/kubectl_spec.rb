@@ -193,6 +193,9 @@ RSpec.describe K8sCluster::Kubectl do
       [ "get", "secrets", "-o=jsonpath={.data.token}" ],
       [ "get", "secrets", "--output=jsonpath={.data.token}" ],
       [ "get", "secrets", "-oyaml" ],
+      [ "get", "secret", "prod-token", "-o", "custom-columns=TOKEN:.data.token" ],
+      [ "get", "secret", "prod-token", "-ocustom-columns=TOKEN:.data.token" ],
+      [ "get", "secret", "prod-token", "--output=custom-columns-file=columns.txt" ],
       [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
       [ "get", "--raw=/api/v1/namespaces/default/secrets/prod-token?watch=false" ],
       [ "describe", "secret", "prod-token" ]
@@ -272,6 +275,21 @@ RSpec.describe K8sCluster::Kubectl do
     expect(result[:ok]).to be(true)
   end
 
+  it "classifies auth reconcile as a mutating kubectl command" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(
+        context: context,
+        credential: credential.id,
+        kube_context: "prod",
+        args: [ "auth", "--request-timeout=5s", "reconcile", "-f", "rbac.yaml" ]
+      )
+    }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /risky-command allowance/)
+    expect(runner).not_to have_received(:call)
+  end
+
   it "does not let chat or workflow callers self-authorize risky commands or secret output" do
     credential = create_credential(allowed_surfaces: [ "chat" ])
 
@@ -348,7 +366,7 @@ RSpec.describe K8sCluster::Kubectl do
         context: admin_context,
         credential: credential.id,
         kube_context: "prod",
-        args: [ "delete", "pod", "web" ],
+        args: [ "auth", "reconcile", "-f", "rbac.yaml" ],
         allow_risky_command: true
       )
     }.to raise_error(CredentialStore::Broker::Denied, /write access is disabled/)
@@ -358,7 +376,7 @@ RSpec.describe K8sCluster::Kubectl do
       context: admin_context,
       credential: credential.id,
       kube_context: "prod",
-      args: [ "delete", "pod", "web" ],
+      args: [ "auth", "reconcile", "-f", "rbac.yaml" ],
       allow_risky_command: true
     )
 
