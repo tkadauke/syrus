@@ -35,7 +35,7 @@ module Steps
     def files_match?(globs, files)
       return true if globs.nil? || globs.empty?
 
-      files.any? { |file| globs.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
+      files.any? { |file| RepositoryContent::Glob.match?(globs, file) }
     end
 
     def load_syrus_yml

@@ -249,6 +249,14 @@ RSpec.describe TargetGraph do
       expect(graph.affected(label, changed_files: [ "web/app.js" ]).affected).to be(false)
     end
 
+    it "matches files directly inside a double-star scope's directory" do
+      graph.add_project(TargetGraph::Project.new(id: "cli", path: "cli"))
+      label = TargetGraph::Label.parse("//cli:grade/tests")
+      graph.add_target(TargetGraph::Target.new(label: label, kind: "grader", project_id: "cli", source_scope: [ "cli/**/*" ]))
+
+      expect(graph.affected(label, changed_files: [ "cli/main.go" ]).affected).to be(true)
+    end
+
     it "selects only the affected side of a mixed root+nested graph" do
       graph.add_project(TargetGraph::Project.new(id: "cli", path: "cli"))
       root_label = TargetGraph::Label.parse("//:grade/rspec")

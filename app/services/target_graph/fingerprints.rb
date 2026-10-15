@@ -153,7 +153,7 @@ class TargetGraph
       paths = if patterns.empty?
         repository_files
       else
-        repository_files.select { |path| patterns.any? { |pattern| File.fnmatch(pattern, path, File::FNM_DOTMATCH) } }
+        repository_files.select { |path| RepositoryContent::Glob.match?(patterns, path) }
       end
 
       file_entries(paths)

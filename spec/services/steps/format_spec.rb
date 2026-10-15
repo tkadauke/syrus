@@ -207,6 +207,19 @@ RSpec.describe Steps::Format do
   end
 
   describe "explicit .syrus.yml formatters:" do
+    it "runs a formatter for a file directly inside a double-star pattern's directory" do
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: echo frontend-fixed
+            files: "app/frontend/**/*.ts"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/frontend/index.ts" ])
+
+      handler.call
+
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("$ echo frontend-fixed")
+    end
+
     it "runs only formatters whose files glob matches the diff, skipping the rest" do
       write_syrus_yml(<<~YAML)
         formatters:
