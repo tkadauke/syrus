@@ -25,7 +25,7 @@ module AlertmanagerInvestigations
       return if Investigation.recent_for_fingerprint(alert.fingerprint, since: @now - @configuration.rate_limit_window).exists?
       return if Investigation.open_for_host(alert.host).exists?
 
-      runbook = RunbookResolver.call(alert.runbook_url)
+      runbook = RunbookResolver.call(alert.runbook_url, configuration: @configuration)
       return unless runbook
       return unless runbook.repository.user
 

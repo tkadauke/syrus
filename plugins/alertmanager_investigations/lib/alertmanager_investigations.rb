@@ -5,8 +5,8 @@ module AlertmanagerInvestigations
     display_name "Alertmanager Investigations"
     description "Polls Alertmanager firing alerts and files read-only investigation Jobs for alerts with git-backed runbooks."
     long_description "Alertmanager Investigations polls the Alertmanager API for firing alerts. " \
-      "Alerts are escalated only when their runbook annotation resolves to a file in a registered " \
-      "repository, so enabling autonomy for an alert is an explicit runbook change. The plugin " \
+      "Alerts are escalated only when their runbook annotation matches an operator allowlist and " \
+      "resolves to an opted-in file on the repository's default branch. The plugin " \
       "deduplicates by Alertmanager fingerprint and blocks concurrent investigations for the same host."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/alertmanager_investigations.svg"
@@ -47,6 +47,13 @@ module AlertmanagerInvestigations
         default: "instance",
         required: false,
         description: "Primary alert label used to prevent concurrent investigations for the same host."
+      },
+      {
+        key: "allowed_runbooks",
+        label: "Allowed runbooks",
+        type: :string,
+        required: true,
+        description: "Newline-separated OWNER/REPO:path/prefix entries. Only opted-in runbooks on each repository's default branch are accepted."
       }
     ]
 
