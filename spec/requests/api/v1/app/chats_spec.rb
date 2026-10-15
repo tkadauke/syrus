@@ -5391,6 +5391,25 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(message.deleted_by_user).to eq(user)
   end
 
+  it "invalidates context checkpoints when clearing chat history" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Clear compacted history")
+    message = chat.messages.create!(role: "user", content: { "text" => "Compacted secret" })
+    chat.context_checkpoints.create!(
+      compacted_through_message_id: message.id,
+      source_message_count: 1,
+      summary_version: 1,
+      summary: "user ##{message.id}: Compacted secret"
+    )
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/messages"
+    }.to change { chat.context_checkpoints.count }.from(1).to(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatContextCompactor.context_messages_for(chat.reload).to_a).to be_empty
+  end
+
   it "excludes soft-deleted messages from the chat UI payload after clearing" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current)
