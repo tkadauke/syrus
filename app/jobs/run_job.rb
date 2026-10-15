@@ -140,6 +140,12 @@ class RunJob < ApplicationJob
       Thread.current[:syrus_current_run] = @run
     end
   rescue StandardError => e
+    if PostImplementationReviewFailure.optional_step?(@step)
+      log("WARNING: optional post-implementation review failed: #{e.class}: #{e.message}", kind: "system")
+      PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
+      return
+    end
+
     handle_failure(e)
     if workflow_controlled_failure?
       continue_inline_after_controlled_failure
@@ -425,6 +431,11 @@ class RunJob < ApplicationJob
     begin
       @handler.call
     rescue Steps::Base::CannotProceed => e
+      if PostImplementationReviewFailure.optional_step?(@step)
+        log("WARNING: optional post-implementation review could not proceed: #{e.reason}", kind: "system")
+        PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
+        return
+      end
       block_after_cannot_proceed!(e.reason)
       return
     rescue Steps::Base::StepSkipped => e

@@ -90,4 +90,40 @@ RSpec.describe "App API workflow warnings", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  describe "post-implementation review recovery" do
+    let(:review_warning) do
+      warning.update!(kind: PostImplementationReviewFailure::KIND, suggested_prompt: nil)
+      warning
+    end
+
+    before do
+      job.update!(state: "implemented", pr_number: 42)
+    end
+
+    it "authorizes and enqueues a retry scoped to the review" do
+      post "/api/v1/app/jobs/#{job.id}/workflow_warnings/#{review_warning.id}/retry_review", as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.workflows.where(trigger_kind: "manual_post_implementation_review").count).to eq(1)
+      expect(parse_body["workflow_id"]).to be_present
+    end
+
+    it "acknowledges and skips the review" do
+      post "/api/v1/app/jobs/#{job.id}/workflow_warnings/#{review_warning.id}/skip_review", as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(review_warning.reload).to be_dismissed
+      expect(review_warning.evidence["resolution"]).to eq("skipped")
+    end
+
+    it "does not allow another user to act on the warning" do
+      sign_in_as(Factories.user)
+
+      post "/api/v1/app/jobs/#{job.id}/workflow_warnings/#{review_warning.id}/skip_review", as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(review_warning.reload).to be_pending
+    end
+  end
 end

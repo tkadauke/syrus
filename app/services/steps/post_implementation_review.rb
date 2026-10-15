@@ -12,12 +12,22 @@ module Steps
       workspace.setup
       active_providers = providers
       if active_providers.empty?
+        if workflow.artifact("post_implementation_review_retry").present?
+          raise CannotProceed, "no enabled provider is available to retry post-implementation review"
+        end
+
         log("[post_implementation_review] no enabled providers requested review notes - skipping")
         return
       end
 
       run.update!(prompt: prompt_for(active_providers)) if run.prompt.blank?
       tools = required_mcp_tools_for(active_providers)
+      workflow.set_artifact!("post_implementation_review_context", {
+        "provider_classes" => active_providers.map { |provider| provider.respond_to?(:name) ? provider.name : provider.class.name }.compact_blank,
+        "required_mcp_tools" => tools,
+        "run_id" => run.id,
+        "step_id" => step.id
+      })
       log("invoking agent for post_implementation_review step (#{workflow.slug})")
 
       run_agent(
@@ -26,9 +36,29 @@ module Steps
         required_mcp_tools: tools.presence,
         enforce_required_mcp_tools: tools.present?
       )
+
+      resolve_retried_warning!
     end
 
     private
+
+    def resolve_retried_warning!
+      warning_id = workflow.artifact("post_implementation_review_retry").to_h["warning_id"]
+      return if warning_id.blank?
+
+      warning = job.workflow_warnings.find_by(id: warning_id, kind: "post_implementation_review_failed")
+      return unless warning&.pending?
+
+      warning.update!(
+        state: "dismissed",
+        evidence: warning.evidence.to_h.merge(
+          "resolution" => "retry_succeeded",
+          "resolved_at" => Time.current.iso8601,
+          "retry_workflow_id" => workflow.id,
+          "retry_run_id" => run.id
+        )
+      )
+    end
 
     def providers
       Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).select do |provider|

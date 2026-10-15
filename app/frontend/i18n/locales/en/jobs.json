@@ -491,6 +491,8 @@
   "warning_prompt_label": "Fix Job prompt",
   "warning_file_fix_job": "File a fix Job",
   "warning_dismiss": "Dismiss",
+  "warning_retry_review": "Retry review",
+  "warning_skip_review": "Acknowledge and skip",
   "warning_already_filed": "A fix Job has already been filed for this warning.",
   "artifact_header_diff": "Agent diff",
   "artifact_header_step_diff": "Step diff",
