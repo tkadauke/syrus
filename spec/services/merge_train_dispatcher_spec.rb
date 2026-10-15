@@ -39,6 +39,20 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  it "does not dispatch when any member no longer satisfies delivery approval" do
+    valid = approved_child(1)
+    invalid = approved_child(2)
+    allow(LandingApprovalGate).to receive(:satisfied?) { |job, **| job != invalid }
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(valid, policy: instance_of(DeliveryPolicy))
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(invalid, policy: instance_of(DeliveryPolicy))
+    expect(MergeTrain.count).to eq(0)
+    expect(valid.reload).to be_approved
+    expect(invalid.reload).to be_approved
+  end
+
   it "creates the train on the delivery track landing branch shared by the members" do
     a = approved_child(1)
     b = approved_child(2)
@@ -46,6 +60,7 @@ RSpec.describe MergeTrainDispatcher do
     b.update!(delivery_track: "hotfix")
     policy = instance_double(DeliveryPolicy)
     allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:approval_configured?).and_return(false)
     allow(policy).to receive(:job_landing_branch).and_return("release")
 
     workflow = described_class.try_dispatch!(epic)
@@ -60,6 +75,7 @@ RSpec.describe MergeTrainDispatcher do
     a.update!(delivery_track: "hotfix")
     policy = instance_double(DeliveryPolicy)
     allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:approval_configured?).and_return(false)
     allow(policy).to receive(:job_landing_branch) do |job|
       job.delivery_track == "hotfix" ? "release" : repository.default_branch
     end

@@ -601,21 +601,10 @@ class LandingQueueProcessor
     @delivery_policies_by_repository_id[job.repository_id] ||= DeliveryPolicy.for(repository: job.repository)
   end
 
-  # For jobs that went through a human review flow (job_approvals exist) or
-  # whose repository has an explicit `approval:` policy configured, re-verify
-  # the policy is still satisfied — e.g. a final approver may have been
-  # removed after the job reached :approved, or a configured owner/peer
-  # approval has since been withdrawn. Jobs approved by Syrus's auto-rule carry
-  # that approval intent in approved_via/approval_evidence rather than
-  # JobApproval rows, so they bypass the human-approval row check.
   def landing_approval_satisfied?(job)
     return true if job.approved_via_auto_rule?
 
-    policy = delivery_policy_for(job)
-    return policy.job_approval_satisfied?(job) if policy.approval_configured?
-    return true unless job.job_approvals.exists?
-
-    job.approval_satisfied?
+    LandingApprovalGate.satisfied?(job, policy: delivery_policy_for(job))
   end
 
   def release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
