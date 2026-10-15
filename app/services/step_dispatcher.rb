@@ -527,49 +527,54 @@ class StepDispatcher
   # explicitly. trigger_kind is denormalized from Workflow until
   # commit 9's cleanup migration drops Run.trigger_kind entirely.
   def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil, check_phase_admission: true)
-    step.with_lock do
-      workflow.reload
-      step.reload
+    # Workflow cancellation takes these same locks in workflow -> step order.
+    # Keep creation in that order too so admission writes cannot deadlock with
+    # cancellation while each transaction waits for the other's row lock.
+    workflow.with_lock do
+      step.with_lock do
+        workflow.reload
+        step.reload
 
-      return nil if step.terminal?
-      return nil if step.runs.active.exists?
+        return nil if step.terminal?
+        return nil if step.runs.active.exists?
 
-      if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
-        return nil
+        if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
+          return nil
+        end
+        clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
+
+        if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
+          return nil
+        end
+
+        refresh_default_workflow_agent_provider!(workflow)
+        run_provider_candidate = run_provider_candidate_for(step, workflow)
+
+        if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
+          return nil
+        end
+        workflow.reload
+        run_provider_candidate = run_provider_candidate_for(step, workflow)
+
+        if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
+          return nil
+        end
+
+        if check_phase_admission && phase_admission_deferred?(step, workflow)
+          return nil
+        end
+
+        step.runs.create!(
+          job: workflow.job,
+          trigger_kind: workflow.trigger_kind,
+          agent_provider: run_provider_candidate.provider,
+          model: run_provider_candidate.model,
+          effort_level: run_provider_candidate.effort_level,
+          iteration: step.iteration,
+          parent_session_id: parent_session_id,
+          prompt: prompt
+        )
       end
-      clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
-
-      if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
-        return nil
-      end
-
-      refresh_default_workflow_agent_provider!(workflow)
-      run_provider_candidate = run_provider_candidate_for(step, workflow)
-
-      if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
-        return nil
-      end
-      workflow.reload
-      run_provider_candidate = run_provider_candidate_for(step, workflow)
-
-      if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
-        return nil
-      end
-
-      if check_phase_admission && phase_admission_deferred?(step, workflow)
-        return nil
-      end
-
-      step.runs.create!(
-        job: workflow.job,
-        trigger_kind: workflow.trigger_kind,
-        agent_provider: run_provider_candidate.provider,
-        model: run_provider_candidate.model,
-        effort_level: run_provider_candidate.effort_level,
-        iteration: step.iteration,
-        parent_session_id: parent_session_id,
-        prompt: prompt
-      )
     end
   end
 
