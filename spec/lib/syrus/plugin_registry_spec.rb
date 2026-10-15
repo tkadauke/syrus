@@ -390,6 +390,25 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(NotImplementedError, /command_for is required/)
     end
 
+    it "invokes providers with the original exact keyword signature without project_path" do
+      provider = Class.new do
+        def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
+          [ grader_name, grader_command, failed_cases, base_retry ]
+        end
+      end
+
+      result = Syrus::Plugin::FocusedTestCommand.invoke(
+        provider,
+        grader_name: "vitest",
+        grader_command: "npx vitest run",
+        failed_cases: [],
+        base_retry: { "strategy" => "plugin" },
+        project_path: "frontend"
+      )
+
+      expect(result).to eq([ "vitest", "npx vitest run", [], { "strategy" => "plugin" } ])
+    end
+
     it "maps :workspace_tab to Syrus::Plugin::WorkspaceTab" do
       expect(described_class::INTERFACE_FOR[:workspace_tab].call).to eq(Syrus::Plugin::WorkspaceTab)
     end

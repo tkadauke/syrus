@@ -140,7 +140,8 @@ class BaseRevisionRetry
     return files_as_args_command if config.fetch("strategy") == "files_as_args"
 
     Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-      command = provider.command_for(
+      command = Syrus::Plugin::FocusedTestCommand.invoke(
+        provider,
         grader_name: grader_name,
         grader_command: @grader_step.details.to_h["command"],
         failed_cases: @failed_cases,
