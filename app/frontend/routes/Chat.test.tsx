@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import tailwindConfigSource from "../../../config/tailwind.config.js?raw"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, chatQueryKey, contextFindSurface } from "./Chat"
@@ -15,7 +15,7 @@ import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
-import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
+import { __resetDraftAttachmentsForTests, getDraftAttachments, setDraftAttachments } from "./chat/attachmentDraftStore"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import type { ChatPayload } from "../api/chats"
 
@@ -1203,7 +1203,7 @@ describe("chat compose drafts", () => {
     fireEvent.click(sendButton)
 
     await waitFor(() => expect(textarea).toHaveValue(""))
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Please investigate the slow turn start.")
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((call) =>
         String(call[0]) === "/api/v1/app/chats/8/message" &&
@@ -1228,6 +1228,44 @@ describe("chat compose drafts", () => {
       })))
       await messageRequest
     })
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+  }, 30000)
+
+  it("keeps a failed send draft for its chat after the composer unmounts", async () => {
+    const attachment = { name: "failure.png", mimeType: "image/png", dataUrl: "data:image/png;base64,ZmFpbHVyZQ==", size: 7 }
+    setDraftAttachments("8", [attachment])
+    let resolveMessage: ((response: Response) => void) | null = null
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return messageRequest
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Keep this failed message with chat eight." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) =>
+      String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST"
+    )).toBe(true))
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this failed message with chat eight.")
+    expect(getDraftAttachments("8")).toEqual([attachment])
+
+    cleanup()
+    await act(async () => {
+      resolveMessage?.(jsonResponse({ error: "send failed" }, 500))
+      await messageRequest
+    })
+
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this failed message with chat eight.")
+    expect(getDraftAttachments("8")).toEqual([attachment])
   }, 30000)
 
   it("adds submitted messages to composer history and recalls the latest prompt with ArrowUp", async () => {
