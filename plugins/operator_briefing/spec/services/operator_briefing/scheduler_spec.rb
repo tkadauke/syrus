@@ -36,6 +36,31 @@ RSpec.describe OperatorBriefing::Scheduler do
     expect(OperatorBriefing::BriefingSettings.find_by!(user: user).last_scheduled_at).to eq(now)
   end
 
+  it "rechecks whether the user is due after claiming their settings" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+    settings = OperatorBriefing::BriefingSettings.for_user(user)
+    allow(OperatorBriefing::BriefingSettings).to receive(:for_user).with(user).and_return(settings)
+    allow(settings).to receive(:with_lock) do |&block|
+      settings.last_scheduled_at = now
+      block.call
+    end
+
+    described_class.run!(now: now)
+
+    expect(OperatorBriefing::Generator).not_to have_received(:generate!)
+  end
+
+  it "stays due when every repository generation fails" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+    allow(OperatorBriefing::Generator).to receive(:generate!).and_raise("transient failure")
+
+    described_class.run!(now: now)
+
+    settings = OperatorBriefing::BriefingSettings.find_by!(user: user)
+    expect(settings.last_scheduled_at).to be_nil
+    expect(settings).to be_due(now: now)
+  end
+
   it "disables enabled subscriptions for repositories the user can no longer access" do
     owner = Factories.user
     revoked_repository = Factories.repository(user: owner)

@@ -33,6 +33,16 @@ RSpec.describe OperatorBriefing::Generator do
     )
   end
 
+  it "claims the user's settings while generating on demand" do
+    settings = OperatorBriefing::BriefingSettings.for_user(user)
+    allow(OperatorBriefing::BriefingSettings).to receive(:for_user).with(user).and_return(settings)
+    allow(settings).to receive(:with_lock).and_call_original
+
+    described_class.generate!(user: user, repository: repository, mode: :on_demand)
+
+    expect(settings).to have_received(:with_lock)
+  end
+
   it "starts another generation workflow on the current live briefing for on-demand regeneration" do
     first = described_class.generate!(user: user, repository: repository, mode: :on_demand)
 
