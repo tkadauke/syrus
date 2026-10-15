@@ -153,5 +153,4 @@ RSpec.describe IsolatedReproRecorder do
     expect(result.error).to match(/reproduced result does not match/)
     expect(provider.recorded_args).to be_nil
   end
-
 end
