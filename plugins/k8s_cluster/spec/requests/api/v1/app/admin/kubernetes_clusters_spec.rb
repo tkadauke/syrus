@@ -284,6 +284,22 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
         expect(response).to have_http_status(:ok)
         expect(parse_body["success"]).to be(true)
       end
+
+      it "allows the admin context to lease repository-scoped credentials" do
+        repository = Factories.repository(user: admin)
+        cluster = Factories.kubernetes_cluster
+        context_with_repository = satisfy do |context|
+          context.user == admin && context.allowed_repository_ids.include?(repository.id)
+        end
+        allow(K8sCluster::ConnectionTester).to receive(:test)
+          .with(cluster, context: context_with_repository)
+          .and_return({ success: true })
+
+        post "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/test"
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["success"]).to be(true)
+      end
     end
   end
 end
