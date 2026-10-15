@@ -7342,7 +7342,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     let(:owner) { Factories.user(claude_oauth_token: "oat-owner") }
     let(:participant) { Factories.user(claude_oauth_token: "oat-participant") }
     let(:stranger) { Factories.user }
-    let(:owner_chat) { ChatSession.create!(user: owner, title: "Multi-party planning") }
+    let(:owner_repository) { Factories.repository(user: owner) }
+    let(:owner_chat) { ChatSession.create!(user: owner, repository: owner_repository, title: "Multi-party planning") }
 
     before { owner_chat.chat_participants.create!(user: participant, role: "member") }
 
@@ -7365,6 +7366,31 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       message = owner_chat.messages.where(role: "user").last
       expect(message.sender_user_id).to eq(participant.id)
+    end
+
+    it "does not let a participant reject the owner's pending action" do
+      action = owner_chat.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      sign_in_as(participant)
+
+      delete "/api/v1/app/chats/#{owner_chat.id}/pending_actions/#{action.id}"
+
+      expect(response).to have_http_status(:not_found)
+      expect(action.reload).to be_pending
+    end
+
+    it "does not let a participant reject the owner's pending action group" do
+      job = Factories.job_record(repository: owner_repository, state: "closed")
+      group = PendingActionGroup.create_with_members!(
+        chat_session: owner_chat,
+        member_attributes: [ { action: "reopen_job", payload: { "job_id" => job.id } } ]
+      )
+      sign_in_as(participant)
+
+      post "/api/v1/app/chats/#{owner_chat.id}/pending_action_groups/#{group.id}/reject"
+
+      expect(response).to have_http_status(:not_found)
+      expect(group.reload).to be_pending
+      expect(group.chat_pending_actions.first).to be_pending
     end
 
     it "returns 404 for a user who is not a participant" do

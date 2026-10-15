@@ -173,6 +173,18 @@ RSpec.describe PendingActionGroup do
       expect(job_two.reload).to be_closed
     end
 
+    it "does not let another user reject the group" do
+      job = closed_job
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat_session,
+        member_attributes: reopen_job_members(job)
+      )
+
+      expect { group.reject_all!(user: Factories.user) }.to raise_error(ActiveRecord::RecordNotFound)
+      expect(group.reload).to be_pending
+      expect(group.chat_pending_actions.first).to be_pending
+    end
+
     it "does not reject an already rejected group" do
       job = closed_job
       group = PendingActionGroup.create_with_members!(

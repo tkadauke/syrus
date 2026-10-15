@@ -28,6 +28,16 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(job.reload).to be_open
   end
 
+  it "does not let another user reject a pending action" do
+    action = chat_session.pending_actions.create!(
+      action: "pause_landing_queue",
+      payload: {}
+    )
+
+    expect { action.reject!(user: Factories.user) }.to raise_error(ActiveRecord::RecordNotFound)
+    expect(action.reload).to be_pending
+  end
+
   it "broadcasts a pending_action_updated event after creation" do
     expected_user = user
     expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
