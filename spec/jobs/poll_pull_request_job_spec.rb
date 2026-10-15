@@ -1040,6 +1040,37 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
+    it "does not let a blocked CI repair suppress a new repair for the same base" do
+      other = Factories.job_record(repository: repository, issue_number: 44, state: "approved")
+      workflow = Workflow.create!(job: other, trigger_kind: "ci_failure", state: "blocked", artifacts: { "base_sha" => base_sha })
+      intent = WorkIntent.create!(
+        kind: "ci_failure",
+        state: "requested",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "ci_failure",
+        state: "blocked",
+        blocked_reason: "preempted",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: other, role: "primary")
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+    end
+
     it "defers autonomous CI repair for approved Epic children to the merge train" do
       AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")

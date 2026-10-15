@@ -189,6 +189,29 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     )
   end
 
+  it "lets only the oldest of two queued CI repairs reserve the same base" do
+    older_job = Factories.job_record(user: user, repository: repository, issue_number: 45, state: "approved", commits_behind_base: 0)
+    older = ci_unit_for(older_job)
+    newer = ci_unit_for(job)
+
+    expect(described_class.call(older)).to be_pass
+
+    result = described_class.call(newer)
+    expect(result).to be_blocked
+    expect(result.details).to include(
+      "kind" => "duplicate_active_ci_repair",
+      "duplicate_workflow_id" => older.workflow_id
+    )
+  end
+
+  it "does not let a blocked CI repair reserve its base" do
+    other = Factories.job_record(user: user, repository: repository, issue_number: 46, state: "approved", commits_behind_base: 0)
+    ci_unit_for(other, state: "blocked")
+    unit = ci_unit_for(job)
+
+    expect(described_class.call(unit)).to be_pass
+  end
+
   it "ignores unowned queued CI repair workflows when checking for duplicates" do
     other = Factories.job_record(user: user, repository: repository, issue_number: 44, state: "approved", commits_behind_base: 0)
     Workflow.create!(
