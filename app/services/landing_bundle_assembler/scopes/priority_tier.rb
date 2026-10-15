@@ -90,8 +90,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
   def eligible_candidates(priority)
     candidates = @repository.jobs
       .approved
-      .not_manually_paused
-      .without_requested_changes_attention
+      .without_landing_holds
       .where(epic_id: nil, priority: priority)
       .where.not(kind: "external_pr")
       .includes(:parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
