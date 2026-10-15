@@ -6,7 +6,6 @@
 module ChatSessionLifecycle
   private
 
-  CHAT_TURN_ENQUEUE_RETRY_DELAYS = [ 0.05, 0.2 ].freeze
   BRANCH_TITLE_SUFFIX = " (branch)".freeze
 
   def most_recent_chat_repository
@@ -138,18 +137,7 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_turn(chat_session, user_message)
-    retry_delays = CHAT_TURN_ENQUEUE_RETRY_DELAYS.dup
-
-    begin
-      ChatTurnJob.perform_later(chat_session.id, user_message.id)
-    rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
-      raise unless transient_chat_lock_error?(e) && retry_delays.any?
-
-      delay = retry_delays.shift
-      Rails.logger.warn("Retrying ChatTurnJob enqueue after transient database lock: #{e.class}: #{e.message}")
-      sleep(delay) if delay.positive?
-      retry
-    end
+    ChatSessions::Creator.enqueue_turn(chat_session, user_message)
   end
 
   def find_chat_session
