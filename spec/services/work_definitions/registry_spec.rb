@@ -106,6 +106,7 @@ RSpec.describe WorkDefinitions do
       retry
       checkpoint_resume
       manual_visual_review
+      manual_post_implementation_review
       visual_diff
       manual
       resume
@@ -180,6 +181,7 @@ RSpec.describe WorkDefinitions do
       merge_train_validation
       job_bundle_validation
       manual_visual_review
+      manual_post_implementation_review
       visual_diff
     ]
 

@@ -481,6 +481,8 @@
   "warning_prompt_label": "Promptus Operis Emendationis",
   "warning_file_fix_job": "Opus Emendationis Crea",
   "warning_dismiss": "Dimitte",
+  "warning_retry_review": "Recensionem itera",
+  "warning_skip_review": "Confirma et omitte",
   "warning_already_filed": "Opus emendationis iam pro hac monitione institutum est.",
   "artifact_header_diff": "Diff agentis",
   "artifact_header_step_diff": "Diff Gradus",

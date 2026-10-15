@@ -85,6 +85,7 @@ class Workflow
       Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", escalation_urgency: "low"),
       Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "manual_post_implementation_review", template: "ManualPostImplementationReview", label: "Retry post-implementation review", style: "bg-amber-100 text-amber-700", retry_label: nil, feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "visual_diff",   template: "VisualDiff",  label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "child", owns_job_lifecycle: true),
       Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "legacy"),
       Entry.new(kind: "manual",             template: "Manual",           label: "Manual",             style: "bg-gray-100 text-gray-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("Manual run")),
@@ -121,7 +122,7 @@ class Workflow
     # being queued/running against an already-`implemented` Job must not hide
     # the Approve button, unlike an in-flight implementation workflow whose
     # diff isn't settled yet.
-    NON_APPROVAL_BLOCKING_VALUES = %w[rebase stack_rebase manual_visual_review visual_diff].freeze
+    NON_APPROVAL_BLOCKING_VALUES = %w[rebase stack_rebase manual_visual_review manual_post_implementation_review visual_diff].freeze
 
     module_function
 

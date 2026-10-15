@@ -1104,6 +1104,24 @@ revision after the latest fix.
 
 Non-agentic. Pushes the branch and opens the PR using the title/body from workflow artifacts. Falls back to `PrSummarizer`, then to a templated default if no agent-authored copy is available.
 
+### post_implementation_review
+
+Agentic and advisory. Enabled review-note providers inspect the already-published
+implementation and submit notes through their plugin tools. A missing or
+uncalled submission tool, `CannotProceed`, or another review exception records
+a structured `post_implementation_review_failed` workflow warning with the
+provider/tool contract and Run, Step, and Workflow identifiers. The Run and
+Step are shown as skipped, while the implementation Workflow and WorkUnit still
+succeed and the Job remains implemented.
+
+The warning exposes two operator actions on Job workflow detail. **Retry
+review** starts a standalone `manual_post_implementation_review` workflow whose
+chain is only `prepare → post_implementation_review`; concurrent clicks reuse
+the active retry and never rerun implementation or publish the branch. A
+successful retry resolves the warning. **Acknowledge and skip** resolves it
+without another agent run. Both resolutions retain timestamps, actor or retry
+identifiers, and the original failure evidence in the warning audit record.
+
 When a duplicate retry workflow reaches `pr_open` after a newer workflow has
 already published the same PR branch, Syrus marks the older workflow
 superseded/cancelled instead of surfacing a nonretryable branch-divergence
