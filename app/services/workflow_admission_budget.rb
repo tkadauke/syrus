@@ -751,6 +751,8 @@ class WorkflowAdmissionBudget
   end
 
   def hard_host_pressure_reason
+    return if host_pressure.dig("locality", "healthy_alternatives_present")
+
     return "worker_memory_exhausted" if host_pressure.fetch("max_memory_used_percent") >= HARD_MEMORY_USED_PERCENT
     return "worker_disk_exhausted" if host_pressure.fetch("max_data_root_used_percent") >= HARD_DATA_ROOT_USED_PERCENT
 
