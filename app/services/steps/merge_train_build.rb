@@ -223,6 +223,15 @@ module Steps
     # member is touched, the failure is still attributed to the members' code
     # rather than to the stuck checkout that actually caused it.
     #
+    # Discarding is safe *here* even though `git_state_corrupt` is deliberately
+    # non-retryable elsewhere (Problem::Kind) on the grounds that a corrupt
+    # workspace may hold unpushed agent work worth an operator's review. This
+    # build reconstructs the integration branch from FETCH_HEAD and re-integrates
+    # every member from its pushed branch on each run, and `reset --hard` leaves
+    # committed work reachable, so the only thing given up is a half-finished
+    # conflict resolution that the retry redoes from scratch anyway -- and whose
+    # presence is the very thing stopping the retry from starting.
+    #
     # This build recreates the integration branch from FETCH_HEAD, so nothing
     # in the worktree is worth preserving. Abandon whatever was in flight and
     # reset to a state that can be checked out. Untracked files do not block
