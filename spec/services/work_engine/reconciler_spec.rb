@@ -3483,7 +3483,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :capture_run_diagnostics)).to have_attributes(auto_executable: false, target_id: run.id)
   end
 
-  it "surfaces an operator-visible warning when an orphaned running Run repair cannot schedule follow-up work" do
+  it "surfaces an operator-visible warning when an orphaned running Run repair declines to add work" do
     ensure_solid_queue_test_tables!
     step.update_columns(kind: "implement")
     run.update_columns(
@@ -3534,7 +3534,13 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
 
     expect(issue.safe_to_auto_repair).to eq(true)
-    expect(execution.message).to include("provider circuit is open for claude")
+    # The repair still skips and still records a warn-severity event, which is
+    # what this example is for. The reason has changed: an agentic Step gets
+    # in-place replacement work from worker-death propagation, so follow-up
+    # work already exists and the repair declines to add more rather than
+    # reporting the open circuit. The circuit stubs stay to show that
+    # existing replacement work takes precedence over the circuit check.
+    expect(execution.message).to include("already created active replacement work")
     expect(event).to have_attributes(
       severity: "warn",
       run_id: run.id
@@ -4885,6 +4891,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
     parent.unapprove!
     parent.approve!(via: "operator")
+    # The block being repaired is the Workflow artifact, not the approval: the
+    # stored start_blocked_reason still says the parent's approval was
+    # withdrawn, and that is no longer true. For the block to be *stale* the
+    # dependency also has to be satisfiable again, and approval alone does not
+    # do that outside a shared Epic -- SatisfactionModes::Success wants the
+    # parent closed successfully (or same_epic_dependency_approved?). So land
+    # the parent, leaving the withdrawn-approval artifact behind as the one
+    # obsolete thing for the reconciler to clear.
+    parent.update_columns(state: "closed", finished_at: 1.minute.ago, closure_reason: "pr_merged")
     JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
     run.destroy!
     workflow.update_columns(
