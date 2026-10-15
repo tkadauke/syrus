@@ -26,12 +26,12 @@ module Syrus
       end
 
       module ClassMethods
-        def command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
+        def command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
           raise NotImplementedError, "#{self}.command_for is required"
         end
       end
 
-      def command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
+      def command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
         raise NotImplementedError, "#{self.class}#command_for is required"
       end
     end

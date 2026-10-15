@@ -12,6 +12,13 @@ module JavaScript
       [ "package.json",      "npm install" ]
     ].freeze
 
+    FRESHNESS_MARKERS = {
+      "yarn.lock" => "node_modules/.yarn-integrity",
+      "pnpm-lock.yaml" => "node_modules/.modules.yaml",
+      "package-lock.json" => "node_modules/.package-lock.json",
+      "package.json" => "node_modules/.package-lock.json"
+    }.freeze
+
     def self.detect?(repo_path)
       !matching_entry(repo_path).nil?
     end
@@ -34,6 +41,16 @@ module JavaScript
     def self.shell_install_command
       clauses = PRIORITY.each_with_index.map do |(file, command), index|
         "#{index.zero? ? "if" : "elif"} [ -f #{file} ]; then #{command};"
+      end
+      "#{clauses.join(' ')} fi"
+    end
+
+    def self.shell_fresh_install_command
+      clauses = PRIORITY.each_with_index.map do |(file, command), index|
+        marker = FRESHNESS_MARKERS.fetch(file)
+        stale = "[ ! -d node_modules/.bin ] || [ ! -f #{marker} ] || [ #{file} -nt #{marker} ]"
+        stale += " || [ package.json -nt #{marker} ]" unless file == "package.json"
+        "#{index.zero? ? 'if' : 'elif'} [ -f #{file} ]; then if #{stale}; then #{command}; fi;"
       end
       "#{clauses.join(' ')} fi"
     end

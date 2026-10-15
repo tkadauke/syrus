@@ -328,6 +328,7 @@ module JavaScript
           "grader_type" => self.class.type_name,
           "grader_framework" => "vitest",
           "grader_mode" => mode,
+          "project_path" => project_path,
           "result_outputs" => [ { "artifact" => junit_output, "format" => "junit" } ],
           "coverage_outputs" => coverage? ? [ { "artifact" => "coverage/lcov.info", "format" => "lcov" } ] : [],
           "filter_capabilities" => {
