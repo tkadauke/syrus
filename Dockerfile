@@ -27,7 +27,7 @@ WORKDIR /rails
 #     shells out to it for every clone / commit / push.
 #   - `nodejs` + `npm` are required to install the npm-packaged agent CLIs,
 #     which the agent worker spawns per Run via AgentInvocation. Muse Code is
-#     installed below through Meta's launcher so it can fetch its native binary.
+#     installed only in the worker stage from checksum-pinned artifacts.
 #   - `gnupg` and `ca-certificates` are needed for NodeSource's apt repo.
 #   - `ffmpeg` extracts still frames from walkthrough videos at the
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
@@ -37,9 +37,9 @@ WORKDIR /rails
 #     (PreparedWorkspaceArchive); it falls back to plain `gzip -1` when
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
+ARG NODESOURCE_KEY_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
 ARG CLAUDE_CODE_VERSION=2.1.296
 ARG CODEX_CLI_VERSION=0.162.1
-ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
 ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
@@ -51,14 +51,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips pigz && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.key && \
+    test "$(gpg --show-keys --with-colons /tmp/nodesource.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${NODESOURCE_KEY_FINGERPRINT}" && \
+    gpg --dearmor -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.key && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
+    rm -f /tmp/nodesource.key && \
+    apt-get update -qq && \
     apt-get install --no-install-recommends -y nodejs && \
     npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_CLI_VERSION} && \
-    mkdir -p /opt/muse/bin && \
-    curl -fsSL "${MUSE_LAUNCHER_URL}" -o /opt/muse/bin/muse && \
-    chmod 0755 /opt/muse/bin/muse && \
-    MUSE_LAUNCHER_INSTALL=1 /opt/muse/bin/muse && \
-    MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version && \
     case "$(dpkg --print-architecture)" in \
       amd64) antigravity_dir=x64; antigravity_arch=x64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_AMD64_SHA512}" ;; \
       arm64) antigravity_dir=arm; antigravity_arch=arm64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_ARM64_SHA512}" ;; \
@@ -78,9 +78,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # BUNDLE_WITHOUT excludes both groups so test-only gems (capybara, vcr,
 # webmock, selenium-webdriver, rspec-rails, brakeman) don't ship in the
 # image. Single colon-separated string per Bundler's docs.
-ENV PATH="/opt/muse/bin:${PATH}" \
-    MUSE_NO_AUTO_UPDATE="1" \
-    RAILS_ENV="production" \
+ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
@@ -274,8 +272,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # `docker run --rm debian:bookworm-slim` + this install line) rather than
 # floating to latest.
 ARG MISE_VERSION="v2026.6.14"
-RUN curl -fsSL https://mise.jdx.dev/install.sh | \
-      MISE_VERSION="$MISE_VERSION" MISE_INSTALL_PATH=/usr/local/bin/mise sh
+ARG MISE_LINUX_AMD64_SHA256=c5bb4546ba2d5154e9c8236e2774bd8289b64c409330ed41cb6d6b8ebc31fb56
+ARG MISE_LINUX_ARM64_SHA256=6d71ba01f20bb7cc7bfffac5214e9e788a08fa517c075eb955a5b31dca667ca7
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) mise_arch=x64; mise_sha256="$MISE_LINUX_AMD64_SHA256" ;; \
+      arm64) mise_arch=arm64; mise_sha256="$MISE_LINUX_ARM64_SHA256" ;; \
+      *) echo "unsupported architecture for mise: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    mise_tarball=/tmp/mise.tar.gz; \
+    curl -fsSL "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-${mise_arch}.tar.gz" -o "$mise_tarball"; \
+    echo "$mise_sha256  $mise_tarball" | sha256sum -c -; \
+    tar -xzf "$mise_tarball" -C /tmp; \
+    install -m 0755 "/tmp/mise/bin/mise" /usr/local/bin/mise; \
+    rm -rf "$mise_tarball" /tmp/mise
 
 FROM runtime-base AS runtime-ruby-cache
 
@@ -341,8 +351,12 @@ USER root
 
 ARG POETRY_VERSION=2.4.1
 ARG UV_VERSION=0.12.3
+ARG YARN_VERSION=1.22.22
+ARG PNPM_VERSION=12.11.2
+ARG PIP_VERSION=26.2.1
 ARG MISE_GO_VERSION="1.26.5"
 ARG MULL_LLVM_VERSION=18
+ARG MULL_APT_KEY_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
 ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902
 ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
 ARG ANDROID_PLATFORM_VERSION=android-36
@@ -374,8 +388,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eu; \
     . /etc/os-release; \
-    curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key | \
-      gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg; \
+    curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key -o /tmp/mull.key; \
+    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${MULL_APT_KEY_FINGERPRINT}"; \
+    gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg /tmp/mull.key; \
+    rm -f /tmp/mull.key; \
     echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \
       > /etc/apt/sources.list.d/mull-project-mull-stable.list; \
     apt-get update -qq && \
@@ -438,16 +454,19 @@ RUN set -eu; \
 # per-pod disk cache when SCCACHE_BUCKET is unset, so this is safe to ship
 # before the operator provisions a bucket.
 ARG SCCACHE_VERSION=0.17.0
+ARG SCCACHE_LINUX_AMD64_SHA256=67c4a96dd237c1f518f6b36083f270f9976d516f1e57fce891755ea782e50006
+ARG SCCACHE_LINUX_ARM64_SHA256=821a86343191aa1cbab74bd42f9e93c9a63bf85e4742945f40d3ae84193c1c77
 RUN set -eu; \
     case "$(dpkg --print-architecture)" in \
-      amd64) sccache_arch=x86_64-unknown-linux-musl ;; \
-      arm64) sccache_arch=aarch64-unknown-linux-musl ;; \
+      amd64) sccache_arch=x86_64-unknown-linux-musl; sccache_sha256="$SCCACHE_LINUX_AMD64_SHA256" ;; \
+      arm64) sccache_arch=aarch64-unknown-linux-musl; sccache_sha256="$SCCACHE_LINUX_ARM64_SHA256" ;; \
       *) echo "unsupported architecture for sccache: $(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
     sccache_dir="sccache-v${SCCACHE_VERSION}-${sccache_arch}"; \
     sccache_tarball="${sccache_dir}.tar.gz"; \
     curl -fsSL -o "/tmp/${sccache_tarball}" \
       "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${sccache_tarball}"; \
+    echo "$sccache_sha256  /tmp/${sccache_tarball}" | sha256sum -c -; \
     tar -xzf "/tmp/${sccache_tarball}" -C /tmp; \
     install -m 0755 "/tmp/${sccache_dir}/sccache" /usr/local/bin/sccache; \
     rm -rf "/tmp/${sccache_tarball}" "/tmp/${sccache_dir}"; \
@@ -496,9 +515,9 @@ RUN chown -R 1000:1000 /opt/mise-seed /opt/mise
 # Package managers that don't ship with their default runtime. Python
 # tools live in an isolated venv so `poetry` stays executable without
 # relying on Debian's PEP-668-protected system site-packages.
-RUN npm install -g yarn pnpm && npm cache clean --force && \
+RUN npm install -g "yarn@${YARN_VERSION}" "pnpm@${PNPM_VERSION}" && npm cache clean --force && \
     python3 -m venv /opt/python-tools && \
-    /opt/python-tools/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/python-tools/bin/pip install --no-cache-dir "pip==${PIP_VERSION}" && \
     /opt/python-tools/bin/pip install --no-cache-dir \
       poetry==${POETRY_VERSION} \
       uv==${UV_VERSION} && \
@@ -509,6 +528,32 @@ ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platf
     MISE_DATA_DIR=/opt/mise \
     MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml \
     SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}
+
+# Muse is an agent-only tool, so keep it out of the web image. Both the
+# launcher and the native binary it dispatches to are immutable build inputs.
+ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
+ARG MUSE_LAUNCHER_SHA256=c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc
+ARG MUSE_VERSION=1.4.9-R6297.1
+ARG MUSE_LINUX_AMD64_SHA256=a228010021276e112aa8422eb56ae82c0375405701950f6529bed4c9fe8abe05
+ARG MUSE_LINUX_ARM64_SHA256=d64c61f4357b246fb46ab4f01332b36066bb4ac17541a88f520680354a32e06a
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) muse_arch=x86; muse_sha256="$MUSE_LINUX_AMD64_SHA256" ;; \
+      arm64) muse_arch=aarch64; muse_sha256="$MUSE_LINUX_ARM64_SHA256" ;; \
+      *) echo "unsupported architecture for Muse: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /opt/muse/bin; \
+    curl -fsSL "$MUSE_LAUNCHER_URL" -o /opt/muse/bin/muse; \
+    echo "$MUSE_LAUNCHER_SHA256  /opt/muse/bin/muse" | sha256sum -c -; \
+    muse_binary="/opt/muse/bin/muse-bin-${MUSE_VERSION}"; \
+    curl -fsSL "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=${MUSE_VERSION}&file=muse-${muse_arch}-linux" -o "$muse_binary"; \
+    echo "$muse_sha256  $muse_binary" | sha256sum -c -; \
+    chmod 0755 /opt/muse/bin/muse "$muse_binary"; \
+    printf '%s\n' "$MUSE_VERSION" > /opt/muse/bin/.muse-version; \
+    MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version
+
+ENV PATH="/opt/muse/bin:${PATH}" \
+    MUSE_NO_AUTO_UPDATE="1"
 
 # Headless Chrome + Playwright, for the SyrusBrowser MCP tool set the
 # visual_review agent drives against its own in-step preview (127.0.0.1
