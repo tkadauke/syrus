@@ -204,10 +204,30 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("jobs", "publish-website", "if")).to include("review_notes != 'true'")
   end
 
+  it "promotes latest images only after publishing a stable release" do
+    workflow = YAML.safe_load(release_workflow)
+    steps = workflow.dig("jobs", "publish", "steps")
+    step_by_name = steps.to_h { |step| [step["name"], step] }
+    publish_index = steps.index(step_by_name.fetch("Publish the release"))
+
+    promotion_names = [
+      "Move image :latest to the released version",
+      "Move plugin images :latest to the released version"
+    ]
+
+    promotion_names.each do |name|
+      promotion = step_by_name.fetch(name)
+
+      expect(promotion.fetch("if")).to include("prerelease != 'true'")
+      expect(promotion.fetch("if")).to include("review_notes != 'true'")
+      expect(steps.index(promotion)).to be > publish_index
+    end
+  end
+
   it "release publish is near-atomic: draft release, then flip, with rollback" do
-    # The only visible go-live is flipping the draft to published; everything
-    # before it is invisible (draft) or reversible (:latest), and a failure
-    # rolls it all back — no half-published state.
+    # The release is flipped from draft before stable :latest pointers move,
+    # and a failure rolls the release and pointers back — no half-published
+    # state.
     expect(release_workflow).to match(/release create "\$TAG" --draft/)
     # The `release create` subcommand lives in the args array, so the call must
     # be `gh "${args[@]}"` — never `gh release create "${args[@]}"`, which would
