@@ -1476,11 +1476,13 @@ class StepDispatcher
   end
 
   def enqueue_try_failure_branch!(branch_nodes, failure_code)
-    continuation = @from_step.next_step
-    insertion_position = @from_step.position + 1
-
     @workflow.with_lock do
+      @from_step.reload
+      next if @from_step.details.to_h["try_branch_expanded"]
+
       Step.transaction do
+        continuation = @from_step.next_step
+        insertion_position = @from_step.position + 1
         step_count = branch_nodes.sum { |node| materialized_step_kinds_for(node).size }
         shift_steps_after_branch!(from_position: insertion_position, by: step_count)
         new_steps = materialize_branch_steps!(branch_nodes, insertion_position)
@@ -1566,19 +1568,20 @@ class StepDispatcher
   end
 
   def enqueue_next_loop_iteration!(loop_node)
-    current_grade = @from_step
-    return if next_loop_iteration_already_materialized?(current_grade)
-
-    continuation = current_grade.next_step
-    insertion_position = current_grade.position + 1
-    next_iteration = current_grade.iteration + 1
-    loop_steps = loop_step_kinds(loop_node)
-    loop_steps = loop_steps.first(loop_steps.size - 1) if final_review_iteration?(loop_node, next_iteration)
-    if skip_repair_for_transient_grader_failure?(current_grade, loop_node)
-      loop_steps = Array(loop_node["check"]).map(&:to_s)
-      record_transient_grader_repair_skip!(current_grade)
-    end
     @workflow.with_lock do
+      current_grade = @from_step.reload
+      next if next_loop_iteration_already_materialized?(current_grade)
+
+      continuation = current_grade.next_step
+      insertion_position = current_grade.position + 1
+      next_iteration = current_grade.iteration + 1
+      loop_steps = loop_step_kinds(loop_node)
+      loop_steps = loop_steps.first(loop_steps.size - 1) if final_review_iteration?(loop_node, next_iteration)
+      if skip_repair_for_transient_grader_failure?(current_grade, loop_node)
+        loop_steps = Array(loop_node["check"]).map(&:to_s)
+        record_transient_grader_repair_skip!(current_grade)
+      end
+
       Step.transaction do
         loop_step_count = loop_steps.size
         @workflow.steps.where("position >= ?", insertion_position).update_all(
