@@ -722,7 +722,7 @@ class WorkflowAdmissionBudget
   def eligible_healthy_host_alternative?
     return false unless host_pressure.dig("locality", "healthy_alternatives_present")
 
-    live_workers = RunQueueResolver.resolve_candidate(workflow:, step:).details.fetch("live_workers", [])
+    live_workers = RunQueueResolver.resolve_candidate(workflow:, step: step || workflow.first_step).details.fetch("live_workers", [])
     return true if live_workers.empty?
 
     eligible_storage_keys = live_workers.filter_map do |worker|

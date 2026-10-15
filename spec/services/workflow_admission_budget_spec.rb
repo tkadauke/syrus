@@ -603,7 +603,7 @@ RSpec.describe WorkflowAdmissionBudget do
     workflow = workflow_for
     workflow.update!(planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
 
-    decision = described_class.call(workflow: workflow, step: workflow.first_step)
+    decision = described_class.call(workflow: workflow)
 
     expect(decision.action).to eq("requires_override")
     expect(decision.reason).to eq("worker_disk_exhausted")
