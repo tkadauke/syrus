@@ -40,7 +40,7 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 | `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. Build metadata such as `1.2.3+meta` is rejected because `+` is not valid in a Docker tag. The version must be greater than the latest stable tag. |
 | `force_lower` | Emergency-only escape hatch allowing an explicit `version` at or below the latest stable tag. Leave this off for normal releases: publishing a lower version also moves the backend `:latest` tag backward. |
 | `dry_run` | Build and stage **everything** (image built + integration-tested, app **signed + notarized**, CLI cross-compiled, worker source packaged) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-cli` / `staged-macos-worker`) are downloadable from the run for inspection. |
-| `review_notes` | Hold the release as a **draft** so you can read the (LLM-written) notes before it goes public. Everything runs — build, sign, generate notes, move image `:latest` — but the final draft→published flip is skipped; you edit the notes and click **Publish** in the GitHub UI when ready. Default off (auto-publish). |
+| `review_notes` | Hold the release as a **draft** so you can read the (LLM-written) notes before it goes public. The build pushes versioned images but leaves `:latest` unchanged. Edit the notes and click **Publish** in the GitHub UI; the publication event then promotes the stable backend and plugin images and deploys the website. Default off (auto-publish). |
 
 ### The pipeline (`.github/workflows/release.yml`)
 
@@ -71,8 +71,8 @@ prepare ── build  (uses ./.github/workflows/_build-app.yml — the SHARED sp
                  publish   (NEAR-ATOMIC draft-release flow:
                             snapshot :latest, create an invisible DRAFT
                             release with every staged artifact + generated
-                            notes, move image :latest → :X.Y.Z, then flip
-                            the draft to published as the go-live — and roll
+                            notes, flip the draft to published, then move stable
+                            image :latest → :X.Y.Z — and roll
                             back the draft + tag + :latest if anything fails)
                     ▼
              publish-website  (calls the shared deploy-website workflow — stub)
@@ -130,13 +130,13 @@ other. **Prerequisite:** the account/plan must have arm64 hosted runners enabled
 
 `publish` is **near-atomic**, not perfectly atomic. It builds the whole
 release as an invisible **draft** first — the tag, every staged asset, and
-the generated notes all land inside a draft nobody can see — then moves the
-image `:latest` pointer, and only then flips the draft to published
-(`gh release edit --draft=false`), a single tiny go-live as the last
-irreversible action. If any step fails, a `Roll back on failure` step deletes
-the draft release + tag (`gh release delete --cleanup-tag`) and reverts
-`:latest` to the digest it snapshotted at the start, so a failed run leaves
-**no half-published state**. The one residue is the *versioned* backend image
+the generated notes all land inside a draft nobody can see — then publishes
+it (`gh release edit --draft=false`) and moves the stable image `:latest`
+pointers. Prereleases never move `:latest`. If any step fails, a `Roll back on
+failure` step deletes the release + tag (`gh release delete --cleanup-tag`)
+and reverts `:latest` to the digest it snapshotted at the start, so a failed
+run leaves **no half-published state**. The one residue is the *versioned*
+backend image
 that `merge-backend` already assembled before `publish` ran — a tested,
 unreferenced orphan tag (`:latest` never pointed at it), harmless and
 overwritten on the next attempt.
@@ -342,8 +342,12 @@ phrasing are where teams keep a human in the loop). Syrus is private and
 low-stakes, so **auto-publish is the default** and notes stay editable after
 the fact. When you want the human beat, check **`review_notes`** at dispatch:
 the release is built and its notes generated, but it's left as a **draft** for
-you to read and Publish. This is the classic draft → review → publish flow, and
-it costs nothing because the pipeline already builds a draft.
+you to read and Publish. While it is a draft, `:latest` remains on the prior
+stable release. Publishing it triggers `promote-release-images.yml`, which
+promotes the stable backend and plugin images, advances the `release` tag, and
+deploys the website. Prereleases retain only their versioned image tags. This
+is the classic draft → review → publish flow, and it costs nothing because the
+pipeline already builds a draft.
 
 To regenerate notes on your own machine: `bin/release-notes vX.Y.Z` (writes
 `dist/releases/<version>/RELEASE_NOTES.md`) or `--stdout` to print them.

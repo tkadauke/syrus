@@ -22,6 +22,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
   let(:app_updates) { read(desktop_root, "electron/appUpdates.ts") }
   let(:main_process) { read(desktop_root, "electron/main.ts") }
   let(:release_workflow) { read(repo_root, ".github/workflows/release.yml") }
+  let(:promotion_workflow) { read(repo_root, ".github/workflows/promote-release-images.yml") }
   # The build/sign spine (build-backend, merge-backend, build-cli, build-mac)
   # lives in the reusable module both Release and Test build call; release.yml
   # is the thin caller that owns prepare + publish. Assertions about how a
@@ -252,6 +253,24 @@ RSpec.describe "desktop auto-update and release pipeline" do
       expect(promotion.fetch("if")).to include("review_notes != 'true'")
       expect(steps.index(promotion)).to be > publish_index
     end
+  end
+
+  it "promotes a stable draft's images when a maintainer publishes it" do
+    workflow = YAML.safe_load(promotion_workflow)
+    promotion = workflow.dig("jobs", "promote-images")
+
+    expect(promotion_workflow).to include("types: [published]")
+    expect(promotion.fetch("if")).to eq("github.event.release.prerelease == false")
+    expect(promotion_workflow).to match(/RELEASE_TAG:.*release\.tag_name/)
+    expect(promotion_workflow).to include('VERSION="${RELEASE_TAG#v}"')
+    expect(promotion_workflow).to include('imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"')
+    expect(promotion_workflow).to include('imagetools create -t "$PLUGIN_IMAGE:latest" "$PLUGIN_IMAGE:$VERSION"')
+
+    rollback = promotion_workflow[/name: Roll back image promotion on failure[\s\S]{0,900}/]
+    expect(rollback).to include("if: failure()")
+    expect(rollback).to include('imagetools create -t "$IMAGE:latest" "$IMAGE@$OLD_LATEST"')
+    expect(rollback).to include('imagetools create -t "$plugin_image:latest" "$plugin_image@$old"')
+    expect(workflow.dig("jobs", "publish-website", "needs")).to eq("promote-images")
   end
 
   it "release publish is near-atomic: draft release, then flip, with rollback" do
