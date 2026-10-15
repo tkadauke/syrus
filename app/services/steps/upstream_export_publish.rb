@@ -7,11 +7,9 @@ module Steps
   # PullRequestOpener's cross-repo `head_repository:` support the same way
   # ForkReviewApprover does.
   #
-  # Idempotent: a JobPrLink (role: "upstream_export") already carrying a
-  # pr_number means the PR was already opened — the same branch head keeps
-  # the existing PR current without any further action needed here. Persists
-  # `metadata: { "pr_state" => "open" }` either way, which is what
-  # DeliveryStatus reads to surface :waiting_for_upstream_approval.
+  # Idempotent across retries: reuses an open linked PR, replaces one closed
+  # without merging, and records/finishes an export GitHub already merged.
+  # DeliveryStatus reads the persisted PR state to surface export progress.
   class UpstreamExportPublish < Base
     def call
       canonical = repository.upstream_repository
@@ -21,16 +19,22 @@ module Steps
       target_branch = policy.upstream_export_target_branch(job)
       raise StepFailed, "upstream_export_publish: could not resolve an upstream_export target branch on #{canonical.slug}" if target_branch.blank?
 
-      pr_number = open_or_update_pr!(canonical: canonical, target_branch: target_branch)
-      record_upstream_export_link!(canonical: canonical, target_branch: target_branch, pr_number: pr_number)
+      existing = existing_pr(canonical)
+      if existing.state == :merged
+        record_upstream_export_link!(canonical: canonical, target_branch: target_branch, pr_number: existing.number, pr_state: "merged")
+        job.close_with_reason!("pr_merged") if job.may_close?
+        return
+      end
+
+      pr_number = open_or_update_pr!(canonical: canonical, target_branch: target_branch, existing: existing)
+      record_upstream_export_link!(canonical: canonical, target_branch: target_branch, pr_number: pr_number, pr_state: "open")
       log("upstream_export_publish: #{repository.slug}:#{job.branch_name} -> #{canonical.slug}:#{target_branch} (PR ##{pr_number})")
     end
 
     private
 
-    def open_or_update_pr!(canonical:, target_branch:)
-      existing = existing_pr_number
-      return existing if existing.present?
+    def open_or_update_pr!(canonical:, target_branch:, existing:)
+      return existing.number if existing.state == :open
 
       client = GithubClient.for(repository: canonical, user: job.user)
       PullRequestOpener.new(
@@ -45,11 +49,15 @@ module Steps
       )
     end
 
-    def existing_pr_number
-      job.pr_links.find_by(role: JobPrLink::ROLE_UPSTREAM_EXPORT)&.pr_number
+    def existing_pr(canonical)
+      LinkedPullRequest.new(
+        link: job.pr_links.find_by(role: JobPrLink::ROLE_UPSTREAM_EXPORT),
+        repository: canonical,
+        user: job.user
+      ).resolve
     end
 
-    def record_upstream_export_link!(canonical:, target_branch:, pr_number:)
+    def record_upstream_export_link!(canonical:, target_branch:, pr_number:, pr_state:)
       JobPrLink.record!(
         job: job,
         role: JobPrLink::ROLE_UPSTREAM_EXPORT,
@@ -58,7 +66,7 @@ module Steps
         target_repository_id: canonical.id,
         target_ref: target_branch,
         pr_number: pr_number,
-        metadata: { "pr_state" => "open" }
+        metadata: { "pr_state" => pr_state }
       )
     end
 

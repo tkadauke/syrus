@@ -99,8 +99,15 @@ module Steps
     end
 
     def publish_via_pull_request!(mode:, auto_merge:)
+      existing = existing_hotfix_sync_pr
+      if existing.state == :merged
+        record_hotfix_sync_link!(pr_number: existing.number, pr_state: "merged")
+        close_job!("hotfix_sync_landed")
+        return
+      end
+
       expected_sha = push_integration_branch!
-      pr_number = open_or_update_pr!
+      pr_number = open_or_update_pr!(existing)
       record_hotfix_sync_link!(pr_number: pr_number, pr_state: "open")
 
       if auto_merge
@@ -116,11 +123,15 @@ module Steps
         git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
       end
       git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+    rescue GitRunner::GitError => e
+      raise unless push_rejected?(e)
+
+      raise StepFailed,
+            "hotfix_sync_publish: integration branch #{workspace.branch_name} moved since this hotfix sync started; refusing to overwrite newer remote work. #{e.message}"
     end
 
-    def open_or_update_pr!
-      existing = existing_hotfix_sync_pr_number
-      return existing if existing.present?
+    def open_or_update_pr!(existing)
+      return existing.number if existing.state == :open
 
       client = GithubClient.for(repository: repository, user: job.user)
       pr_number = PullRequestOpener.new(repository, client: client).open(
@@ -138,8 +149,12 @@ module Steps
         "Review carefully — this branch was assembled and, if needed, repaired by an LLM."
     end
 
-    def existing_hotfix_sync_pr_number
-      job.pr_links.find_by(role: JobPrLink::ROLE_HOTFIX_SYNC)&.pr_number
+    def existing_hotfix_sync_pr
+      LinkedPullRequest.new(
+        link: job.pr_links.find_by(role: JobPrLink::ROLE_HOTFIX_SYNC),
+        repository: repository,
+        user: job.user
+      ).resolve
     end
 
     def merge_pull_request!(pr_number:, expected_sha:)
