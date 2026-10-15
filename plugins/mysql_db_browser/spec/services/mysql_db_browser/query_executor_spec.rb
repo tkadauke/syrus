@@ -313,7 +313,8 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       [
         "SELECT 'x' INTO/**/OUTFILE '/tmp/x'",
         "SELECT 'x' INTO # comment\nOUTFILE '/tmp/x'",
-        "SELECT 'x' INTO /*! */DUMPFILE '/tmp/x'"
+        "SELECT 'x' INTO /*! */DUMPFILE '/tmp/x'",
+        "SELECT 'x' INTO /*!50000 OUTFILE */ '/tmp/x'"
       ].each do |statement|
         expect {
           described_class.new(connection).execute(statement, user: user)
@@ -322,10 +323,10 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
     end
 
     it "does not treat comment markers inside string literals as token separators" do
-      client = fake_client(rows: [ { "value" => "INTO/**/OUTFILE" } ])
+      client = fake_client(rows: [ { "value" => "INTO OUTFILE" } ])
       stub_client_factory(client)
 
-      payload = described_class.new(connection).execute("SELECT 'INTO/**/OUTFILE' AS value", user: user)
+      payload = described_class.new(connection).execute("SELECT 'INTO OUTFILE' AS value", user: user)
 
       expect(payload[:read_only]).to be(true)
       expect(client).to have_received(:query)
