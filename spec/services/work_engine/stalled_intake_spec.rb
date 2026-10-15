@@ -193,6 +193,42 @@ RSpec.describe "Stalled intake reconciliation" do
       expect(issue(reconcile)).to be_nil
     end
 
+    it "uses recent Job activity when the latest classifier attempt is older" do
+      stall!
+      job.classification_attempts.create!(started_at: 20.minutes.ago, agent_provider: job.agent_provider)
+      job.update_columns(updated_at: 1.minute.ago)
+
+      expect(issue(reconcile)).to be_nil
+    end
+
+    it "loads latest classifier attempt timestamps in one query for the batch" do
+      second_job = Factories.job_record
+      [ job, second_job ].each do |stalled_job|
+        stalled_job.update_columns(
+          state: "triaging", triaging_reason: "classifier_pending",
+          created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+        )
+        stalled_job.classification_attempts.create!(
+          started_at: 20.minutes.ago,
+          agent_provider: stalled_job.agent_provider
+        )
+      end
+      attempt_queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+
+        sql = payload[:sql].to_s
+        attempt_queries << sql if sql.include?("job_classification_attempts")
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        WorkEngine::Reconciler.call(source: "stalled_intake_spec")
+      end
+
+      expect(attempt_queries.size).to eq(1)
+      expect(attempt_queries.first).to include("MAX")
+    end
+
     it "continues the batch when one classifier enqueue is blocked" do
       stalled_jobs = [ job, Factories.job_record ]
       stalled_jobs.each do |stalled_job|

@@ -2613,9 +2613,20 @@ module WorkEngine
     CLASSIFIER_PENDING_STUCK_AFTER = 10.minutes
 
     def classify_stalled_classifier_pending_jobs
-      stalled = jobs.select do |job|
-        next false unless job.state == "triaging"
-        last_classification_activity_at = job.classification_attempts.maximum(:started_at) || job.updated_at || job.created_at
+      candidates = jobs.select { |job| job.state == "triaging" }
+      return [] if candidates.empty?
+
+      latest_attempt_at_by_job_id = JobClassificationAttempt
+        .where(job_id: candidates.map(&:id))
+        .group(:job_id)
+        .maximum(:started_at)
+
+      stalled = candidates.select do |job|
+        last_classification_activity_at = [
+          latest_attempt_at_by_job_id[job.id],
+          job.updated_at,
+          job.created_at
+        ].compact.max
         next false unless last_classification_activity_at.present?
         next false unless last_classification_activity_at < now - CLASSIFIER_PENDING_STUCK_AFTER
 
