@@ -307,6 +307,30 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       }.to raise_error(described_class::FilesystemWriteNotAllowed)
     end
 
+    it "rejects filesystem writes when MySQL comments separate INTO from OUTFILE or DUMPFILE" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      [
+        "SELECT 'x' INTO/**/OUTFILE '/tmp/x'",
+        "SELECT 'x' INTO # comment\nOUTFILE '/tmp/x'",
+        "SELECT 'x' INTO /*! */DUMPFILE '/tmp/x'"
+      ].each do |statement|
+        expect {
+          described_class.new(connection).execute(statement, user: user)
+        }.to raise_error(described_class::FilesystemWriteNotAllowed), statement
+      end
+    end
+
+    it "does not treat comment markers inside string literals as token separators" do
+      client = fake_client(rows: [ { "value" => "INTO/**/OUTFILE" } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT 'INTO/**/OUTFILE' AS value", user: user)
+
+      expect(payload[:read_only]).to be(true)
+      expect(client).to have_received(:query)
+    end
+
     it "classifies FilesystemWriteNotAllowed as a WriteNotAllowed so existing callers' rescues still catch it" do
       expect(described_class::FilesystemWriteNotAllowed.ancestors).to include(described_class::WriteNotAllowed)
     end

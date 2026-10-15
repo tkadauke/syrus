@@ -125,7 +125,42 @@ module MysqlDbBrowser
     # user has the FILE privilege, which is outside this console's safe
     # read-only envelope regardless of the connection's allow_writes flag.
     def filesystem_write_statement?(statement)
-      statement.match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
+      sql_without_comments(statement).match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
+    end
+
+    # MySQL treats block comments and its two line-comment forms as token
+    # whitespace. Normalize them before applying security classifications,
+    # while preserving comment-like text inside quoted values/identifiers.
+    def sql_without_comments(statement)
+      normalized = +""
+      i = 0
+
+      while i < statement.length
+        char = statement[i]
+
+        if [ "'", "\"", "`" ].include?(char)
+          closing_index = skip_quoted(statement, i, char)
+          normalized << statement[i..closing_index]
+          i = closing_index + 1
+        elsif statement[i, 2] == "/*"
+          closing_index = statement.index("*/", i + 2)
+          normalized << " "
+          i = closing_index ? closing_index + 2 : statement.length
+        elsif char == "#"
+          newline_index = statement.index("\n", i + 1)
+          normalized << " "
+          i = newline_index || statement.length
+        elsif statement[i, 2] == "--" && statement[i + 2]&.match?(/\s/)
+          newline_index = statement.index("\n", i + 3)
+          normalized << " "
+          i = newline_index || statement.length
+        else
+          normalized << char
+          i += 1
+        end
+      end
+
+      normalized
     end
 
     def explain_statement?(statement)
