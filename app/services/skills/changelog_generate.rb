@@ -41,6 +41,7 @@ module Skills
     MERGE_COMMIT_PATTERN = /\AMerge pull request #(\d+) from\s/
 
     ENTRY_DISPLAY_LIMIT = 50
+    REF_PATTERN = /\A[\w.\/@^~-]+\z/
 
     DEFAULT_FORMAT = <<~FORMAT.strip
       Keep a Changelog style: a `## [Unreleased]` heading at the top of the
@@ -63,7 +64,7 @@ module Skills
     def self.parameter_schema
       [
         { key: "since", type: "string", required: false,
-          label: "Since (tag, ref, or date — optional, defaults to the last git tag)" },
+          label: "Since (tag or ref — optional, defaults to the last git tag)" },
         { key: "format", type: "text", required: false, label: "Changelog format", default: DEFAULT_FORMAT },
         { key: "dry_run", type: "boolean", required: false, label: "Dry run", default: false }
       ]
@@ -110,6 +111,23 @@ module Skills
       @since_value = since_param || last_tag
     end
 
+    def since_commit
+      return @since_commit if defined?(@since_commit)
+      return @since_commit = nil if since_value.blank?
+      return @since_commit = nil unless valid_ref?(since_value)
+
+      @since_commit = git.run(
+        "rev-parse", "--verify", "--end-of-options", "#{since_value}^{commit}",
+        chdir: @workspace_path
+      ).strip.presence
+    rescue GitRunner::GitError
+      @since_commit = nil
+    end
+
+    def valid_ref?(value)
+      value.match?(REF_PATTERN) && !value.start_with?("-")
+    end
+
     def since_source
       if since_param
         "given `since` parameter"
@@ -134,9 +152,10 @@ module Skills
     # a git checkout); [] is the distinct "ran fine, nothing found" case.
     def candidate_entries
       return @candidate_entries if defined?(@candidate_entries)
+      return @candidate_entries = nil if since_value.present? && since_commit.blank?
 
       args = [ "log", "--first-parent" ]
-      args << "#{since_value}..HEAD" if since_value.present?
+      args << "#{since_commit}..HEAD" if since_commit.present?
       args << "--pretty=format:%H%x09%s%x09%b%x00"
 
       output = git.run(*args, chdir: @workspace_path)
@@ -228,9 +247,11 @@ module Skills
       <<~INSTRUCTIONS.strip
         ## Step 1 — resolve the starting point
 
-        If `{{since}}` is set, use it verbatim as the git starting point —
-        it may be a tag, a branch/commit ref, or a date understood by
-        `git log --since=`.
+        If `{{since}}` is set, treat it as a tag, branch, or commit ref.
+        Resolve it to a commit with `git rev-parse --verify --end-of-options
+        "<since>^{commit}"`, then use the resulting SHA as the git starting
+        point. Never pass the parameter itself to `git log` as an option or
+        revision range.
 
         If `{{since}}` is not set, find the most recent tag reachable from
         the current branch with `git describe --tags --abbrev=0`. If that
