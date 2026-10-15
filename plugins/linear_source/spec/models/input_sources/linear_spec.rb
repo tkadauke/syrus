@@ -161,6 +161,44 @@ RSpec.describe InputSources::Linear do
       expect(repository.reload.last_poll_error).to include("unauthorized")
     end
 
+    it "quarantines a poison issue and continues ingesting later issues" do
+      poison = linear_issue(id: "poison-id", identifier: "LIN-41", title: "Poison")
+      valid = linear_issue(id: "valid-id", identifier: "LIN-42", title: "Valid")
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ poison, valid ])
+      allow(Job).to receive(:create!).and_wrap_original do |original, attrs|
+        if attrs[:external_ref] == "poison-id"
+          invalid = Job.new(attrs)
+          invalid.errors.add(:base, "invalid Linear issue")
+          raise ActiveRecord::RecordInvalid.new(invalid)
+        end
+
+        original.call(attrs)
+      end
+
+      expect { source.poll! }.to change(Job, :count).by(1)
+
+      expect(Job.find_by!(input_source: source).external_ref).to eq("valid-id")
+      expect(repository.reload.last_poll_status).to eq("ok")
+      expect(repository.poll_issue_errors).to contain_exactly(
+        include(
+          "issue_number" => "LIN-41",
+          "issue_title" => "Poison",
+          "error_class" => "ActiveRecord::RecordInvalid",
+          "error_message" => include("invalid Linear issue")
+        )
+      )
+    end
+
+    it "clears a quarantined Linear issue after a later successful ingestion" do
+      issue = linear_issue(id: "retry-id", identifier: "LIN-43", title: "Retry")
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ issue ])
+      repository.record_poll_issue_error!(issue_number: "LIN-43", issue_title: "Retry", error: StandardError.new("temporary"))
+
+      expect { source.poll! }.to change(Job, :count).by(1)
+
+      expect(repository.reload.poll_issue_errors).to eq([])
+    end
+
     it "returns early without error when LinearClient returns nil (rate-limited)" do
       allow_any_instance_of(LinearClient).to receive(:issues).and_return(nil)
       expect { source.poll! }.not_to raise_error

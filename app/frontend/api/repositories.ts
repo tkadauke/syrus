@@ -432,7 +432,7 @@ export type RepositoryDetailRecord = {
 }
 
 export type RepositoryPollIssueError = {
-  issue_number: number
+  issue_number: number | string
   issue_title: string
   error_class: string
   error_message: string
