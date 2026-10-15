@@ -41,9 +41,15 @@ module ApplicationCable
       def set_current_user
         if session = Session.find_by(id: cookies.signed[:session_id])
           self.current_user = session.user
-        elsif token = request.params[:api_token].presence
+        # Query authentication remains temporarily compatible with older CLI
+        # releases; current clients send the token only in this header.
+        elsif token = bearer_token || request.params[:api_token].presence
           self.current_user = User.find_by(api_token: token)
         end
+      end
+
+      def bearer_token
+        request.authorization.to_s[/\ABearer\s+(.+)\z/i, 1]&.strip.presence
       end
 
       def track_connected!

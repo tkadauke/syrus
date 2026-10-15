@@ -31,7 +31,9 @@ tunnel can be authorized. The flow is:
    Only the chat owner may create or remove this pairing session; other group
    chat participants can see its connection status but cannot redirect or
    terminate the owner's daemon tunnel.
-2. **The operator runs the command** in their local repository checkout.
+2. **The operator runs the command** in their local repository checkout. The
+   CLI authenticates the WebSocket handshake with `Authorization: Bearer
+   <api_token>`; the account token is never placed in the request URL.
 3. **The CLI subscribes to `LocalTunnelChannel`** over Action Cable, sending
    `chat_session_id` and `tunnel_token` (the pairing session's `auth_token`)
    in the subscribe identifier. `LocalTunnelChannel#subscribed` looks up a

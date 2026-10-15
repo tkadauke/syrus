@@ -511,7 +511,9 @@ connected, Syrus shows a banner with the exact `syrus local --chat
 <chat_session_id> --token <auth_token>` command to copy and run. Running it
 opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
 backend and reconnects automatically (with backoff) if the connection
-drops; press Ctrl+C to disconnect cleanly.
+drops; press Ctrl+C to disconnect cleanly. The CLI authenticates the WebSocket
+handshake with an HTTP authorization header so the long-lived account token is
+not included in the request URL or exposed to proxy access logs.
 
 In a group chat, only the chat owner can create or remove this daemon pairing.
 Other participants can see whether Local Mode is connected, but cannot attach
