@@ -37,37 +37,48 @@ class LocalDaemonSession < ApplicationRecord
     )
   end
 
-  def mark_connected!(repo:, branch:)
-    now = Time.current
-    update!(
-      daemon_repo: repo,
-      daemon_branch: branch,
-      last_heartbeat_at: now,
-      disconnected_at: nil
-    )
-    chat_session.update!(
-      daemon_connected: true,
-      daemon_repo: repo,
-      daemon_branch: branch,
-      local_daemon_state: "connected",
-      local_daemon_repo: repo,
-      local_daemon_branch: branch
-    )
-    chat_session.broadcast_daemon_status("connected", repo: repo, branch: branch)
+  def mark_connected!(repo:, branch:, connection_id: SecureRandom.uuid)
+    with_lock do
+      now = Time.current
+      update!(
+        daemon_repo: repo,
+        daemon_branch: branch,
+        connection_id: connection_id,
+        last_heartbeat_at: now,
+        disconnected_at: nil
+      )
+      chat_session.update!(
+        daemon_connected: true,
+        daemon_repo: repo,
+        daemon_branch: branch,
+        local_daemon_state: "connected",
+        local_daemon_repo: repo,
+        local_daemon_branch: branch
+      )
+      chat_session.broadcast_daemon_status("connected", repo: repo, branch: branch)
+    end
   end
 
-  def mark_disconnected!
-    return if disconnected?
+  def mark_disconnected!(connection_id: nil)
+    with_lock do
+      return false if disconnected?
+      return false if connection_id && self.connection_id != connection_id
 
-    fail_outstanding_tool_calls!
-    update!(disconnected_at: Time.current)
-    chat_session.update!(
-      daemon_connected: false,
-      local_daemon_state: "disconnected",
-      local_daemon_repo: nil,
-      local_daemon_branch: nil
-    )
-    chat_session.broadcast_daemon_status("disconnected")
+      fail_outstanding_tool_calls!
+      update!(disconnected_at: Time.current, connection_id: nil)
+      chat_session.update!(
+        daemon_connected: false,
+        local_daemon_state: "disconnected",
+        local_daemon_repo: nil,
+        local_daemon_branch: nil
+      )
+      chat_session.broadcast_daemon_status("disconnected")
+    end
+    true
+  end
+
+  def current_connection?(candidate_connection_id)
+    connected? && connection_id == candidate_connection_id
   end
 
   def record_heartbeat!
