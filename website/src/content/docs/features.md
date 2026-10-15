@@ -1264,10 +1264,12 @@ Each user owns their own profile, credentials, defaults, and preferences:
   are unrestricted, while present empty constraints deny access; URL prefixes
   require the same HTTP(S) origin and a traversal-safe path-boundary match.
   Wrappers use temporary process-local material, redaction, cleanup, and access
-  audit events. SSH
-  execution runs only read-only diagnostic commands by default; other commands
-  and unsafe shell syntax require explicit workflow authorization that chat
-  callers cannot grant themselves.
+  audit events. The MCP SSH tool accepts a restricted ASCII account name plus
+  an ASCII hostname or raw IP address (including an unbracketed IPv6 address);
+  it rejects option-like targets, whitespace, and control characters before
+  invoking OpenSSH. SSH execution runs only read-only diagnostic commands by
+  default; other commands and unsafe shell syntax require explicit workflow
+  authorization that chat callers cannot grant themselves.
   The audit trail includes denied SSH attempts, bounded command evidence and
   completion status, credential create/update policy changes, and explicit
   un-revocation during rotation. Runtime wrapper completion events must match

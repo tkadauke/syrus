@@ -302,6 +302,15 @@ file only for the duration of the SSH process, and returns sanitized
 with `private_key` and optional `passphrase`; passphrases are passed through a
 temporary askpass helper and redacted from results.
 
+SSH targets use a deliberately narrow syntax. `user` must begin with an ASCII
+letter, digit, or underscore and may then contain only ASCII letters, digits,
+underscores, dots, or hyphens. `host` must be an ASCII hostname beginning with
+a letter or digit, or a raw IPv4 or unbracketed IPv6 address. Option-like
+values, whitespace, and control characters are rejected rather than passed to
+OpenSSH. `port` and `connect_timeout`, when supplied, must contain decimal
+digits only; `port` is limited to `1..65535` and `connect_timeout` to
+`1..120` seconds.
+
 Use target policy on SSH credentials:
 
 - Set `safe_metadata.host` and `safe_metadata.username` when a key belongs to
