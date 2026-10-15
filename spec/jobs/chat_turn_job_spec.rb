@@ -16,6 +16,18 @@ RSpec.describe ChatTurnJob, :ci_only do
     }.to have_enqueued_job(described_class).with(chat.id, user_message.id).on_queue("chat")
   end
 
+  it "does not run an agent turn for a soft-deleted chat" do
+    message = user_message
+    chat.update_column(:deleted_at, Time.current)
+    agent_called = false
+    ChatTurnJob.agent_runner = ->(**_) { agent_called = true }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(agent_called).to be(false)
+    expect(ChatWorkspace).not_to have_received(:ensure_root!)
+  end
+
   it "sizes persistent chat MCP invocation tokens to the agent turn ceiling" do
     job = described_class.new
     job.instance_variable_set(:@chat, chat)
