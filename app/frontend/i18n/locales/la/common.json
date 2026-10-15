@@ -344,6 +344,7 @@
     "waiting_epicless_bundle": "Exspectatur fasciculus operum",
     "blocked_by_active_landing_unit": "Ab unitate descensus activa impeditur",
     "auto_merge_not_enabled": "Coniunctio automatica repositorio non permissa",
+    "approval_not_satisfied": "Approbatio traditionis iam non sufficit",
     "review_requested_changes": "Recensio mutationes postulavit",
     "missing_pull_request": "Petitio extrahendi deest",
     "active_workflow": "Cursus activus",

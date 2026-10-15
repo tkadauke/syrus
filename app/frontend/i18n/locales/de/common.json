@@ -344,6 +344,7 @@
     "waiting_epicless_bundle": "Warte auf Job-Bündel",
     "blocked_by_active_landing_unit": "Von aktiver Landing-Einheit blockiert",
     "auto_merge_not_enabled": "Auto-Merge für Repository nicht aktiviert",
+    "approval_not_satisfied": "Lieferfreigabe nicht mehr erfüllt",
     "review_requested_changes": "Review hat Änderungen angefordert",
     "missing_pull_request": "Pull Request fehlt",
     "active_workflow": "Aktiver Workflow",
