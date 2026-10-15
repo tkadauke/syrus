@@ -11,6 +11,22 @@ RSpec.describe "Docker image scripts" do
   let(:test_docker) { File.read(File.join(root, "bin/test-docker")) }
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
 
+  it "waits for the release stack and uses an enabled provider in chat smoke tests" do
+    expect(test_docker).to include('curl -fsS "http://127.0.0.1:${PORT}/readyz"')
+    expect(test_docker).to include('Web container did not become ready within 90s.')
+    expect(test_docker).not_to match(/setup service \(depends_on: completed\).*sleep 3/m)
+    expect(test_docker).to include('PluginRecord.find_or_create_by!(name: "claude_agent").update!(enabled: true)')
+    expect(test_docker).to include("provider = User.chat_providers.first")
+    expect(test_docker).to include('ChatSession.create!(repository: r, user: u, chat_provider: provider)')
+  end
+
+  it "disables host-native whisper tuning in portable plugin images" do
+    dockerfile = File.read(File.join(root, "plugins/whisper_stt/container/Dockerfile"))
+
+    expect(dockerfile).to include("-DBUILD_SHARED_LIBS=OFF")
+    expect(dockerfile).to include("-DGGML_NATIVE=OFF")
+  end
+
   it "stages native macOS worker artifacts alongside release components" do
     build_yml = File.read(File.join(root, ".github/workflows/_build-app.yml"))
     releasing = File.read(File.join(root, "docs/releasing.md"))

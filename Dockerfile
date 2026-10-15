@@ -417,11 +417,11 @@ RUN set -eu; \
     rm -f "${cmdline_zip}"; \
     rm -rf /tmp/android-cmdline-tools; \
     yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null; \
-    "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
-      "platform-tools" \
-      "emulator" \
-      "platforms;${ANDROID_PLATFORM_VERSION}" \
-      "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"; \
+    android_packages="platform-tools platforms;${ANDROID_PLATFORM_VERSION} build-tools;${ANDROID_BUILD_TOOLS_VERSION}"; \
+    if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+      android_packages="${android_packages} emulator"; \
+    fi; \
+    "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ${android_packages}; \
     chown -R 1000:1000 "${ANDROID_SDK_ROOT}" "${ANDROID_USER_HOME}"
 
 # sccache — transparent remote compiler cache for C/C++ builds .

@@ -90,10 +90,23 @@ if ! compose -p "$PROJECT" up -d; then
   compose -p "$PROJECT" logs setup 2>&1 | tail -30
   exit 1
 fi
-# `up -d` only returns once the setup service (depends_on: completed) has run, so
-# the databases are already prepared here. Give the web container a beat to be
-# exec-able.
-sleep 3
+# `up -d` only waits for setup. Do not launch another Rails process while web
+# and worker are both still booting: on a small runner that startup burst can
+# kill the first probe without producing Ruby output.
+ready=""
+deadline=$((SECONDS + 90))
+while [ "$SECONDS" -lt "$deadline" ]; do
+  if curl -fsS "http://127.0.0.1:${PORT}/readyz" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 2
+done
+if [ -z "$ready" ]; then
+  echo "Web container did not become ready within 90s." >&2
+  compose -p "$PROJECT" logs web setup 2>&1 | tail -80
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 note "a) Database (primary schema + Solid Cache + Solid Queue)"
@@ -224,10 +237,13 @@ fi
 cs="$(in_service worker '
   require "json"
   require "open3"
+  PluginRecord.find_or_create_by!(name: "claude_agent").update!(enabled: true)
+  provider = User.chat_providers.first
+  raise "no enabled chat provider is available in the release image" unless provider
   u = User.find_by(email_address: "itest-mcp@example.com") ||
       User.create!(email_address: "itest-mcp@example.com", password: "itest-password-123")
   r = u.repositories.first || u.repositories.create!(owner: "itest", name: "repo")
-  c = ChatSession.create!(repository: r, user: u)
+  c = ChatSession.create!(repository: r, user: u, chat_provider: provider)
   m = c.messages.create!(role: "user", content: { text: "startability" })
   j = ChatTurnJob.new
   j.instance_variable_set(:@chat, c)

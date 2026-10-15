@@ -20,7 +20,9 @@ WORKDIR /src
 RUN git clone --depth 1 --branch "${WHISPER_CPP_VERSION}" https://github.com/ggml-org/whisper.cpp.git . && \
     cmake -B build \
       -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=OFF \
       -DGGML_CUDA=OFF \
+      -DGGML_NATIVE=OFF \
       -DWHISPER_BUILD_EXAMPLES=ON && \
     cmake --build build --config Release --target whisper-server -j"$(nproc)" && \
     ./models/download-ggml-model.sh base.en
