@@ -4,6 +4,11 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
   PER_COMMAND_TIMEOUT = 10.minutes.to_i
 
+  limits_concurrency to: 1,
+                     group: ChatTurnJob::CONCURRENCY_GROUP,
+                     key: ->(chat_session_id, *) { "chat:#{chat_session_id}" },
+                     duration: 30.minutes
+
   def perform(chat_session_id, repository_id)
     chat_session = ChatSession.find(chat_session_id)
     return if chat_session.deleted?

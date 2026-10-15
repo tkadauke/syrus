@@ -1504,6 +1504,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
       chat.messages.create!(role: "user", content: { "text" => "Still thinking..." })
+      prepare_process = SpawnedProcess.create!(
+        kind: "chat_prepare",
+        command: "bundle install",
+        hostname: "worker-1",
+        started_at: Time.current,
+        pid: 1234,
+        chat_session: chat
+      )
 
       delete "/api/v1/app/chats/#{chat.id}"
 
@@ -1511,6 +1519,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["message"]).to eq("Chat deleted.")
       expect(chat.reload.deleted_at).to be_present
       expect(chat.stop_requested_at).to be_present
+      expect(prepare_process.reload.kill_requested_at).to be_present
+      expect(prepare_process.kill_requested_by_user).to eq(user)
     end
 
     it "404s for another user's chat" do

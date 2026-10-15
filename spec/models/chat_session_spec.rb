@@ -851,14 +851,18 @@ RSpec.describe ChatSession do
         expect(fired.reload).to be_fired
       end
 
-      it "does not delete when a turn claim won the row lock" do
+      it "deletes and stops the turn when a turn claim won the row lock" do
         session = described_class.create!(repository: repo, user: repo.user)
         stale_delete_session = described_class.find(session.id)
         message = session.messages.create!(role: "user", content: { "text" => "Started" }, skip_turn_trigger: true)
         session.begin_turn_for!(message)
 
-        expect(stale_delete_session.soft_delete_by!(actor)).to be(false)
-        expect(session.reload).not_to be_deleted
+        stale_delete_session.soft_delete_by!(actor)
+
+        expect(session.reload).to be_deleted
+        expect(session).not_to be_turn_in_flight
+        expect(session.current_turn_message_id).to be_nil
+        expect(session.stop_requested_at).to be_present
       end
 
       it "enqueues the workspace/search cleanup job post-commit, same as a hard destroy" do
