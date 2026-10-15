@@ -48,4 +48,20 @@ RSpec.describe DeployContinuousTrigger do
         .not_to have_enqueued_job(MaybeDeployJob)
     end
   end
+
+  describe ".after_deploy!" do
+    it "enqueues a convergence check when deploy.mode is continuous" do
+      stub_syrus_yml("deploy:\n  run: bin/deploy\n  mode: continuous\n")
+
+      expect { described_class.after_deploy!(repo) }
+        .to have_enqueued_job(MaybeDeployJob).with(repo.id)
+    end
+
+    it "does not enqueue a convergence check in manual mode" do
+      stub_syrus_yml("deploy:\n  run: bin/deploy\n")
+
+      expect { described_class.after_deploy!(repo) }
+        .not_to have_enqueued_job(MaybeDeployJob)
+    end
+  end
 end
