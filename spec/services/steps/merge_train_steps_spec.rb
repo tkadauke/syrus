@@ -228,6 +228,90 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .and_return(authenticated_fetch_url)
     end
 
+    # Regression. `integrate!` leaves a conflicted rebase in progress on
+    # purpose when it hands a member to the agent. An attempt that dies before
+    # that rebase is resolved leaves the index unmerged in a workspace later
+    # attempts reuse, and from then on the build's first `git checkout -B`
+    # exits 1 with "you need to resolve your current index first" -- naming
+    # db/schema.rb, the file nearly every migration touches. This was the
+    # largest single cause of merge-train failures, and because the checkout
+    # dies before any member is touched it was still attributed to the
+    # members' code.
+    #
+    # Real git here rather than the double: the point is that git itself
+    # refuses the checkout in this state, which a stub cannot express.
+    it "recovers a workspace whose index was left unmerged by an abandoned rebase" do
+      Dir.mktmpdir("merge-train-poisoned-index") do |dir|
+        sh = ->(cmd) { raise "setup failed: git #{cmd}" unless system("git -C #{dir} #{cmd} >/dev/null 2>&1") }
+        system("git init --quiet -b main #{dir} >/dev/null 2>&1")
+        sh.call("config user.email t@example.com")
+        sh.call("config user.name T")
+        FileUtils.mkdir_p(File.join(dir, "db"))
+
+        File.write(File.join(dir, "db/schema.rb"), "base\n")
+        sh.call("add .")
+        sh.call("commit --quiet -m base")
+        sh.call("checkout --quiet -b member")
+        File.write(File.join(dir, "db/schema.rb"), "member\n")
+        sh.call("commit --quiet -am member")
+        sh.call("checkout --quiet main")
+        File.write(File.join(dir, "db/schema.rb"), "main\n")
+        sh.call("commit --quiet -am main")
+
+        # Leave a conflicted rebase in flight, as an abandoned agent-assisted
+        # member integration does.
+        system("git -C #{dir} rebase member >/dev/null 2>&1")
+        expect(File.read(File.join(dir, "db/schema.rb"))).to include("<<<<<<<")
+
+        git = GitRunner.new
+        expect { git.run("checkout", "-B", "syrus/job-bundle-x", "HEAD", chdir: dir) }
+          .to raise_error(GitRunner::GitError, /resolve your current index first/)
+
+        handler = step_handler(described_class, "merge_train_build",
+                               build_train([ member_job(issue_number: 1) ]),
+                               member_job(issue_number: 2))
+        handler.instance_variable_set(:@git, git)
+        handler.instance_variable_set(:@chdir, dir)
+        handler.send(:discard_unfinished_integration!)
+
+        expect { git.run("checkout", "-B", "syrus/job-bundle-x", "HEAD", chdir: dir) }.not_to raise_error
+      end
+    end
+
+    it "discards an unmerged index before starting the integration branch" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(git).to receive(:run).with("ls-files", "--unmerged", chdir: "/tmp/ws")
+        .and_return("100644 abc123 1\tdb/schema.rb\n100644 def456 2\tdb/schema.rb\n")
+      allow(handler).to receive(:run_agent)
+
+      handler.call
+
+      expect(git).to have_received(:run).with("rebase", "--abort", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("merge", "--abort", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("cherry-pick", "--abort", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("reset", "--hard", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("checkout", "-B", train.integration_branch, "FETCH_HEAD", chdir: "/tmp/ws")
+    end
+
+    # The other half of the contract: a clean workspace must not be touched,
+    # so this stays clear of the step's own deliberate abort_rebase! calls.
+    it "leaves a clean workspace alone" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(git).to receive(:run).with("ls-files", "--unmerged", chdir: "/tmp/ws").and_return("")
+      allow(handler).to receive(:run_agent)
+
+      handler.call
+
+      expect(git).not_to have_received(:run).with("reset", "--hard", chdir: "/tmp/ws")
+      expect(git).not_to have_received(:run).with("merge", "--abort", chdir: "/tmp/ws")
+    end
+
     it "rebases each member onto the integration tip (mechanically) and marks the train grading" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)

@@ -32,6 +32,7 @@ module Steps
       fetch_branch!(train.base_branch)
       base_sha = @git.run("rev-parse", "FETCH_HEAD", chdir: @chdir).strip
       workflow.set_artifact!("merge_train_base_sha", base_sha)
+      discard_unfinished_integration!
       @git.run("checkout", "-B", @integration, "FETCH_HEAD", chdir: @chdir)
       log("merge_train: integration branch #{@integration} started at #{train.base_branch}@#{base_sha.first(9)}")
 
@@ -208,6 +209,58 @@ module Steps
       @git.run("rebase", "--abort", chdir: @chdir)
     rescue GitRunner::GitError
       nil
+    end
+
+    # `integrate!` deliberately leaves a conflicted rebase in progress when it
+    # hands a member to the agent to resolve. An attempt that dies before that
+    # rebase is finished -- a cancelled run, a replaced pod, a failed agent --
+    # leaves the index unmerged in a workspace that later attempts reuse. From
+    # then on the build's very first `git checkout -B` exits 1 with "you need
+    # to resolve your current index first", naming whichever file is still
+    # unmerged: db/schema.rb, most often, since nearly every migration touches
+    # it. The workspace cannot recover on its own, so the train fails
+    # identically on every retry -- and because the checkout dies before any
+    # member is touched, the failure is still attributed to the members' code
+    # rather than to the stuck checkout that actually caused it.
+    #
+    # This build recreates the integration branch from FETCH_HEAD, so nothing
+    # in the worktree is worth preserving. Abandon whatever was in flight and
+    # reset to a state that can be checked out. Untracked files do not block
+    # `checkout -B` and are deliberately left alone: `git clean -x` here would
+    # discard vendor/bundle and node_modules and make every attempt pay for a
+    # full dependency install.
+    def discard_unfinished_integration!
+      unmerged = unmerged_index_paths
+      return if unmerged.empty?
+
+      log("merge_train: workspace index was left unmerged by an earlier attempt " \
+          "(#{unmerged.first(5).join(', ')}#{unmerged.size > 5 ? ", +#{unmerged.size - 5} more" : ''}); " \
+          "discarding it before rebuilding the integration branch")
+
+      %w[rebase merge cherry-pick].each do |operation|
+        begin
+          @git.run(operation, "--abort", chdir: @chdir)
+        rescue GitRunner::GitError
+          nil # No such operation in progress, which is the normal case.
+        end
+      end
+
+      begin
+        @git.run("reset", "--hard", chdir: @chdir)
+      rescue GitRunner::GitError
+        nil
+      end
+    end
+
+    # The precise condition that makes `git checkout -B` refuse: entries left
+    # in the index at a stage other than 0. Checking this rather than aborting
+    # unconditionally keeps the happy path untouched -- and keeps this out of
+    # the way of the step's own, deliberate `abort_rebase!` calls.
+    def unmerged_index_paths
+      @git.run("ls-files", "--unmerged", chdir: @chdir)
+          .to_s.split("\n").filter_map { |line| line.split("\t").last&.strip }.uniq
+    rescue GitRunner::GitError
+      []
     end
 
     def conflict_prompt(member, branch)
