@@ -109,9 +109,11 @@ class TouchedTestRepeatGate
   def interpolate_explicit_command(template)
     return nil if template.blank?
 
-    template.to_s
-      .gsub("{files}", Shellwords.join(@touched_files))
-      .gsub("{failed_count}", @touched_files.size.to_s)
+    FocusedTestCommandTemplate.interpolate(
+      template,
+      files: @touched_files,
+      failed_count: @touched_files.size
+    )
   end
 
   def files_as_args_command
