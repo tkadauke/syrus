@@ -197,9 +197,13 @@ class ChatSession < ApplicationRecord
   def soft_delete_by!(actor)
     transaction do
       lock!
+      return false if turn_in_flight?
+
       update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
       wakeups.pending.update_all(state: "cancelled", updated_at: Time.current)
     end
+
+    true
   end
 
   def ensure_agent_record!
@@ -325,9 +329,16 @@ class ChatSession < ApplicationRecord
   # message (a proposal confirmation, for example) and system messages are
   # appended throughout a turn.
   def begin_turn_for!(message)
-    update_columns(current_turn_message_id: message.id, turn_in_flight: true)
-    self.current_turn_message_id = message.id
-    self.turn_in_flight = true
+    transaction do
+      lock!
+      return false if deleted?
+
+      update_columns(current_turn_message_id: message.id, turn_in_flight: true)
+      self.current_turn_message_id = message.id
+      self.turn_in_flight = true
+    end
+
+    true
   end
 
   def end_turn_for!(message)
