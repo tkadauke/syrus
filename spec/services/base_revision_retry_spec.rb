@@ -159,7 +159,7 @@ RSpec.describe BaseRevisionRetry do
     expect(result.command).to eq("bin/rspec-fast spec/models/widget_spec.rb")
   end
 
-  it "falls back to the full grader command when files_as_args has no failed cases" do
+  it "does not run the full grader command when a focused strategy has no structured failed cases" do
     grader_step.update!(
       details: grader_step.details.merge(
         "output" => "Vitest failed before structured cases were stored\n",
@@ -173,22 +173,19 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: [],
       log: ->(_message) { }
     )
-    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
-      output << "Vitest failed before structured cases were stored\n"
-      instance_double(Process::Status, success?: false)
-    end
+    expect(retry_check).not_to receive(:run_command)
 
     result = retry_check.call
 
     expect(result).to have_attributes(
-      ran: true,
-      inherited: true,
-      reason: "base_retry_full_command_failed_same_output",
-      command: "bin/rspec-fast"
+      ran: false,
+      inherited: false,
+      reason: "no_structured_cases",
+      command: nil
     )
   end
 
-  it "falls back to the full grader command when files_as_args cannot synthesize a focused command" do
+  it "does not run the full grader command when files_as_args cannot synthesize a focused command" do
     grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "files_as_args" }))
     retry_check = described_class.new(
       workflow: workflow,
@@ -197,18 +194,15 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: failed_cases.map { |test_case| test_case.except("file_path") },
       log: ->(_message) { }
     )
-    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
-      output << "Base passed\n"
-      instance_double(Process::Status, success?: true)
-    end
+    expect(retry_check).not_to receive(:run_command)
 
     result = retry_check.call
 
     expect(result).to have_attributes(
-      ran: true,
+      ran: false,
       inherited: false,
-      reason: "base_retry_full_command_base_passed",
-      command: "bin/rspec-fast"
+      reason: "focused_command_unavailable",
+      command: nil
     )
   end
 
