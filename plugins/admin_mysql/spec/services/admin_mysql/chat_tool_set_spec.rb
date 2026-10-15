@@ -3,7 +3,16 @@ require "rails_helper"
 RSpec.describe AdminMysql::ChatToolSet do
   let(:admin) { Factories.user(admin: true) }
   let(:admin_chat) { ChatSession.create!(user: admin) }
-  let(:regular_chat) { instance_double(ChatSession, user: instance_double(User, admin?: false)) }
+  let(:regular_chat) do
+    instance_double(
+      ChatSession,
+      user: instance_double(User, admin?: false),
+      coding?: false,
+      mode: "planner",
+      repository: nil,
+      attached_repositories: double(ids: [])
+    )
+  end
 
   it "is unavailable outside MySQL even for admins" do
     allow(AdminMysql).to receive(:mysql?).and_return(false)
