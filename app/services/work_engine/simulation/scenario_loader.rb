@@ -41,6 +41,7 @@ module WorkEngine
           configure_features!(data.fetch("features", {}))
           configure_plugins!(data.fetch("plugins", {}))
           configure_app_settings!(data.fetch("app_settings", {}))
+          seed_provider_availability!(user)
           repository = create_repository!(user, data.fetch("repository", {}))
           create_main_branch_health_checks!(repository, data.fetch("main_branch_health_checks", []))
           epics = create_epics!(user, repository, data.fetch("epics", {}))
@@ -109,6 +110,31 @@ module WorkEngine
           codex_api_key: attrs.fetch("codex_api_key", "simulation-codex-key"),
           claude_oauth_token: attrs.fetch("claude_oauth_token", "simulation-claude-token")
         )
+      end
+
+      # The placeholder credentials in create_user! are only safe while every
+      # provider fact a scenario can observe is injected as data. One was not:
+      # the admission path asks each provider to refresh stale usage, and the
+      # Claude probe answers that by POSTing to api.anthropic.com. So a
+      # simulation run made a live API call with the placeholder token, stored
+      # the 401 it got back as auth_error evidence, and blocked admission for a
+      # reason no scenario had declared -- which made a scenario's outcome
+      # depend on the credentials of the machine running it.
+      #
+      # Seed a fresh probe result per provider instead. It answers the
+      # staleness check, so no request is made, and it gives every provider a
+      # declared starting state that a scenario's own usage events override by
+      # being observed later.
+      def seed_provider_availability!(user)
+        User.agent_providers.each do |provider|
+          ProviderAvailabilityEvidence.create!(
+            user: user,
+            provider: provider,
+            status: "available",
+            source: ProviderAvailabilityEvidence::PROBE_SOURCES.first,
+            observed_at: Time.current
+          )
+        end
       end
 
       def configure_app_settings!(attrs)
