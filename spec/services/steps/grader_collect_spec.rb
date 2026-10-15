@@ -419,6 +419,58 @@ RSpec.describe Steps::GraderCollect do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("treating as known-flaky:")
   end
 
+  it "fails for infrastructure when the other required failure is dismissed as flaky" do
+    job.repository.update!(known_flaky_failure_dismissal_enabled: true)
+    flaky_step = workflow.steps.find_by!(kind: "grader")
+    flaky_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    flaky_step.update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+    infrastructure_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      details: { "name" => "lint", "required" => true }
+    )
+    infrastructure_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+      .create_run_failure_classification!(
+        classification: "worker_died",
+        confidence: 0.95,
+        retryable: true,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+    provider = Class.new do
+      def self.failed_test_cases(run:, grader_name:)
+        return [] unless grader_name == "rspec"
+
+        [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "occasionally flakes" } ]
+      end
+
+      def self.flakiness_score(repository:, suite_name:, name:)
+        { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed,
+      "required graders failed due to infrastructure: lint"
+    )
+
+    expect(flaky_step.reload.details.fetch("accepted_failure")).to include(
+      "adjudicator" => Adjudicators::KnownFlakyFailure.name
+    )
+    expect(step.reload.details).to include(
+      Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true
+    )
+  end
+
   it "does not dismiss a required grader failure whose test has no confirmed-flaky history" do
     job.repository.update!(known_flaky_failure_dismissal_enabled: true)
     grader_step = workflow.steps.find_by!(kind: "grader")
