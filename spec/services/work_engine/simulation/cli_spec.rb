@@ -20,6 +20,35 @@ RSpec.describe WorkEngine::Simulation::Cli do
     path
   end
 
+  it "runs every scenario in the default directory when no path is supplied" do
+    first = write_scenario("a_first.yml", "name: first scenario\n")
+    second = write_scenario("b_second.yml", "name: second scenario\nexpected_status: stuck\n")
+    stub_const("WorkEngine::Simulation::Cli::DEFAULT_SCENARIO_PATH", Pathname(@dir))
+
+    calls = []
+    allow(WorkEngine::Simulation::ScenarioRunner).to receive(:call) do |path:, max_ticks:|
+      calls << [ path, max_ticks ]
+      WorkEngine::Simulation::Result.new(
+        scenario: path == first ? "first scenario" : "second scenario",
+        ticks: 1,
+        status: path == first ? "success" : "stuck",
+        events: [],
+        stuck_reasons: path == second ? [ "expected diagnostic" ] : [],
+        wait_reasons: [],
+        job_ids: [],
+        epic_ids: [],
+        work_intent_ids: []
+      )
+    end
+
+    status = described_class.new(argv: [], out: out, err: err).call
+
+    expect(status).to eq(0)
+    expect(calls).to eq([ [ first, nil ], [ second, nil ] ])
+    expect(out.string).to include("first scenario: success", "second scenario: stuck")
+    expect(out.string).to include("work-engine simulations passed (2 scenarios)")
+  end
+
   it "reports a scenario-level exception as that scenario's failure instead of aborting the rest of the batch" do
     write_scenario("a_good.yml", "name: good scenario\n")
     write_scenario("b_broken.yml", "name: broken scenario\n")
