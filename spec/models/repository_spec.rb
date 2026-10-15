@@ -52,6 +52,18 @@ RSpec.describe Repository do
       expect(repo.reload.last_poll_status).to eq("ok")
       expect(repo.last_poll_error).to be_nil
     end
+
+    it "tracks opaque external issue identifiers independently" do
+      repo.record_poll_issue_error!(issue_number: "LIN-41", issue_title: "First", error: StandardError.new("first"))
+      repo.record_poll_issue_error!(issue_number: "LIN-42", issue_title: "Second", error: StandardError.new("second"))
+
+      expect(repo.reload.poll_issue_errors.pluck("issue_number")).to contain_exactly("LIN-41", "LIN-42")
+
+      repo.clear_poll_issue_error!(issue_number: "LIN-41")
+
+      expect(repo.reload.poll_issue_errors.pluck("issue_number")).to eq([ "LIN-42" ])
+      expect(repo.poll_issue_numbers_due_for_retry).to eq([])
+    end
   end
 
   it "allows a repository-level default agent override" do
