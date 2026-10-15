@@ -7,6 +7,8 @@ RSpec.describe "parameter log filtering" do
       "credential" => { "payload" => "private-key" },
       "kubernetes_cluster" => { "kubeconfig" => "cluster-credentials" },
       "authorization" => "Bearer request-token",
+      "Authorization" => "Bearer request-token",
+      "api_token" => "api-token",
       "code" => "oauth-code"
     }
 
@@ -19,6 +21,8 @@ RSpec.describe "parameter log filtering" do
       "credential" => { "payload" => "[FILTERED]" },
       "kubernetes_cluster" => { "kubeconfig" => "[FILTERED]" },
       "authorization" => "[FILTERED]",
+      "Authorization" => "[FILTERED]",
+      "api_token" => "[FILTERED]",
       "code" => "[FILTERED]"
     )
   end

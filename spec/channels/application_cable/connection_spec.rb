@@ -1,6 +1,28 @@
 require "rails_helper"
 
 RSpec.describe ApplicationCable::Connection, type: :channel do
+  it "connects with an API token in the Authorization header" do
+    user = Factories.user(api_token: "syrus_desktop_token")
+
+    connect "/cable", headers: { "Authorization" => "Bearer syrus_desktop_token" }
+
+    expect(connection.current_user).to eq(user)
+  end
+
+  it "rejects an invalid API token in the Authorization header" do
+    expect {
+      connect "/cable", headers: { "Authorization" => "Bearer invalid" }
+    }.to have_rejected_connection
+  end
+
+  it "does not fall back to a query token when an Authorization header is present" do
+    Factories.user(api_token: "valid_query_token")
+
+    expect {
+      connect "/cable?api_token=valid_query_token", headers: { "Authorization" => "Bearer invalid" }
+    }.to have_rejected_connection
+  end
+
   it "connects with an API token query parameter" do
     user = Factories.user(api_token: "syrus_desktop_token")
 
