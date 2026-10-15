@@ -99,13 +99,18 @@ module ScheduledTasks
       when :date                      then @fired_at.utc.to_date.iso8601
       when :last_fired_at             then @task.last_fired_at&.utc&.iso8601 || "never"
       when :last_successful_fire_at   then @task.last_successful_fire_at&.utc&.iso8601 || "never"
-      when :last_pr_number            then last_pr_job ? last_pr_job.pr_number.to_s : "none"
+      when :last_pr_number            then last_pr_number || "none"
       when :last_pr_state             then last_pr_job ? pr_state_label(last_pr_job) : "none"
       end
     end
 
     def last_pr_job
       @last_pr_job ||= @task.last_pr_job
+    end
+
+    def last_pr_number
+      job = last_pr_job
+      job&.pr_number || job&.external_pr_number
     end
 
     def pr_state_label(job)
@@ -115,7 +120,7 @@ module ScheduledTasks
     def last_pr_summary
       job = last_pr_job
       return "none" unless job
-      "##{job.pr_number} (#{pr_state_label(job)})"
+      "##{last_pr_number} (#{pr_state_label(job)})"
     end
   end
 end

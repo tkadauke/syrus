@@ -79,6 +79,16 @@ RSpec.describe ScheduledTasks::Prompt do
       expect(output).to include("Last PR: #42 (open)")
     end
 
+    it "shows an external PR number when the latest job tracks an external PR" do
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "external_pr", state: "implemented",
+        scheduled_task_id: task.id, external_pr_number: 43
+      )
+      output = described_class.new(scheduled_task: task, fired_at: fired_at).to_s
+      expect(output).to include("Last PR: #43 (open)")
+    end
+
     it "shows 'merged' when the last PR job was closed with pr_merged" do
       job = task.jobs.create!(
         user: user, repository: repository,
@@ -129,6 +139,17 @@ RSpec.describe ScheduledTasks::Prompt do
       task.update!(prompt: "Last PR: {{last_pr_number}}.")
       output = described_class.new(scheduled_task: task, fired_at: fired_at).to_s
       expect(output).to include("Last PR: 55.")
+    end
+
+    it "renders the external PR number when an external PR job exists" do
+      task.jobs.create!(
+        user: user, repository: repository,
+        kind: "external_pr", state: "implemented",
+        scheduled_task_id: task.id, external_pr_number: 56
+      )
+      task.update!(prompt: "Last PR: {{last_pr_number}}.")
+      output = described_class.new(scheduled_task: task, fired_at: fired_at).to_s
+      expect(output).to include("Last PR: 56.")
     end
   end
 
