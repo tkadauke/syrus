@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "json"
+require "fileutils"
+require "open3"
+require "tmpdir"
 require "yaml"
 require "spec_helper"
 
@@ -25,6 +28,33 @@ RSpec.describe "desktop auto-update and release pipeline" do
   # component is built read the module; publish assertions read release.yml.
   let(:build_workflow) { read(repo_root, ".github/workflows/_build-app.yml") }
   let(:ci_workflow) { read(repo_root, ".github/workflows/desktop-ci.yml") }
+
+  def run_release_version_compute(version:, force_lower: false, latest_tag: "v1.4.0")
+    workflow = YAML.safe_load(release_workflow)
+    script = workflow.dig("jobs", "prepare", "steps").find { |step| step["id"] == "compute" }.fetch("run")
+
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "desktop"))
+      File.write(File.join(dir, "desktop/package.json"), JSON.generate(version: "0.0.0"))
+      system("git", "init", "-q", chdir: dir, exception: true)
+      system("git", "config", "user.email", "release-spec@example.com", chdir: dir, exception: true)
+      system("git", "config", "user.name", "Release Spec", chdir: dir, exception: true)
+      system("git", "add", "desktop/package.json", chdir: dir, exception: true)
+      system("git", "commit", "-qm", "fixture", chdir: dir, exception: true)
+      system("git", "tag", latest_tag, chdir: dir, exception: true)
+
+      env = {
+        "BUMP" => "patch",
+        "OVERRIDE" => version,
+        "FORCE_LOWER" => force_lower.to_s,
+        "DRY" => "false",
+        "REVIEW" => "false",
+        "GITHUB_OUTPUT" => File.join(dir, "output"),
+        "GITHUB_STEP_SUMMARY" => File.join(dir, "summary")
+      }
+      Open3.capture3(env, "bash", "-c", script, chdir: dir)
+    end
+  end
 
   it "keeps auto-update inert for unsigned dev builds, test runs, and the test channel" do
     expect(app_updates).to include("app.isPackaged &&")
@@ -254,9 +284,26 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(compute.dig("env", "FORCE_LOWER")).to eq("${{ inputs.force_lower }}")
     expect(compute["run"]).to include('^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$')
     expect(compute["run"]).not_to include("[-+][0-9A-Za-z.-]+")
-    expect(compute["run"]).to include('sort -V | tail -1')
-    expect(compute["run"]).to include('[ "$FORCE_LOWER" != "true" ]')
-    expect(compute["run"]).to include("must be greater than latest stable tag")
+
+    docker_stdout, docker_stderr, docker_status = run_release_version_compute(version: "1.5.0+meta")
+    expect(docker_status).not_to be_success
+    expect(docker_stdout + docker_stderr).to include("build metadata with '+' is unsupported")
+
+    lower_stdout, lower_stderr, lower_status = run_release_version_compute(version: "1.3.9")
+    expect(lower_status).not_to be_success
+    expect(lower_stdout + lower_stderr).to include("must be greater than latest stable tag '1.4.0'")
+  end
+
+  it "uses SemVer precedence for prerelease overrides and permits an explicit emergency override" do
+    prerelease_stdout, prerelease_stderr, prerelease_status = run_release_version_compute(version: "1.4.0-beta.1")
+    expect(prerelease_status).not_to be_success
+    expect(prerelease_stdout + prerelease_stderr).to include("must be greater than latest stable tag '1.4.0'")
+
+    _stdout, _stderr, higher_status = run_release_version_compute(version: "1.5.0-beta.1")
+    expect(higher_status).to be_success
+
+    _stdout, _stderr, forced_status = run_release_version_compute(version: "1.3.9", force_lower: true)
+    expect(forced_status).to be_success
   end
 
   it "release workflow guarantees the bundled CLI: Go on both desktop runners, presence asserted" do
