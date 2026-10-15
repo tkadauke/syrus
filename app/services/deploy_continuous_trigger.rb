@@ -15,8 +15,8 @@ class DeployContinuousTrigger
   end
 
   # A landing trigger can be consumed while its predecessor is still
-  # deploying. Recheck after that deploy succeeds; MaybeDeployJob compares
-  # the deployed SHA with current HEAD and only launches when HEAD advanced.
+  # deploying. Recheck after that deploy finishes; MaybeDeployJob compares
+  # the attempted SHA with current HEAD and only launches when HEAD advanced.
   def self.after_deploy!(repository)
     enqueue_if_continuous!(repository)
   end
