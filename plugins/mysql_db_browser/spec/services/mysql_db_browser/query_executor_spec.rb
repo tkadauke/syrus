@@ -207,6 +207,23 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(MysqlQueryAudit.last).to have_attributes(success: false, error_message: a_string_including("fields"))
     end
 
+    it "safely bounds an oversized error message without masking the original exception" do
+      failure = RuntimeError.new("é" * 40_000)
+      client = instance_double(Mysql2::Client, close: nil)
+      allow(client).to receive(:query).and_raise(failure)
+      stub_client_factory(client)
+
+      expect {
+        described_class.new(connection).execute("SELECT 1", user: user)
+      }.to raise_error { |error| expect(error).to equal(failure) }
+
+      audit = MysqlQueryAudit.last
+      expect(audit.success).to be(false)
+      expect(audit.error_message.bytesize).to be <= MysqlDbBrowser::QueryAudit::MAX_ERROR_MESSAGE_BYTES
+      expect(audit.error_message).to be_valid_encoding
+      expect(audit.error_message).not_to eq(MysqlDbBrowser::QueryAudit::PENDING_MESSAGE)
+    end
+
     it "fails closed when no acting user is available" do
       client = fake_client(rows: [ { "id" => 1 } ])
       stub_client_factory(client)
