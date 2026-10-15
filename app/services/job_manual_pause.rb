@@ -16,7 +16,7 @@ class JobManualPause
     units.each do |unit|
       was_manual_pause_blocked = unit.blocked? && unit.blocked_reason == WorkUnits::Gates::ManualPause::REASON
       unit.clear_pause!
-      unit.unblock! if was_manual_pause_blocked
+      unit.resume_for_workflow! if was_manual_pause_blocked
     end
   end
 
