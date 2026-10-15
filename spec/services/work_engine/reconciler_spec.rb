@@ -1343,6 +1343,33 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "does not synchronize terminal WorkUnit ownership during a diagnostic pass" do
+    workflow.update_columns(state: "queued", started_at: nil)
+    step.update_columns(state: "queued", started_at: nil)
+    run.update_columns(state: "queued", started_at: nil)
+    unit = workflow.work_unit
+    unit.mark_terminal!("cancelled")
+
+    expect(WorkUnits::TerminalWorkflowSync).not_to receive(:for_job)
+
+    reconcile(job_id: job.id, execute_repairs: false)
+
+    expect(workflow.reload).to be_queued
+    expect(unit.reload).to be_cancelled
+  end
+
+  it "memoizes the active runtime predicate for each job during a reconcile pass" do
+    job.update_columns(state: "queued")
+    workflow.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    step.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    run.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    workflow.work_unit.mark_terminal!("cancelled")
+
+    expect(WorkUnits::Ownership).to receive(:active_for_job?).once.and_call_original
+
+    reconcile(job_id: job.id)
+  end
+
   it "cancels older active workflows when a newer workflow is already active for the same job" do
     older = workflow
     older_step = step
