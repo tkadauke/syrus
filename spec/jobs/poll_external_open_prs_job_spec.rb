@@ -108,6 +108,44 @@ RSpec.describe PollExternalOpenPrsJob do
       }.to change(Job, :count).by(2)
     end
 
+    it "quarantines a malformed PR and continues ingesting the batch" do
+      malformed = pr(number: 13, title: "Malformed")
+      valid = pr(number: 14, title: "Valid")
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([ malformed, valid ])
+      allow(PrProvenanceClassifier).to receive(:classify).and_call_original
+      allow(PrProvenanceClassifier).to receive(:classify)
+        .with(repository: repository, pr: malformed)
+        .and_raise(NoMethodError, "malformed provenance")
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change { Job.where(repository: repository, external_pr_number: 14).count }.from(0).to(1)
+
+      expect(Job.find_by(repository: repository, external_pr_number: 13)).to be_nil
+      expect(repository.reload.poll_external_pr_errors).to contain_exactly(
+        include(
+          "pr_number" => 13,
+          "error_class" => "NoMethodError",
+          "error_message" => "malformed provenance"
+        )
+      )
+    end
+
+    it "propagates poll-wide GitHub failures instead of quarantining them" do
+      github_error = Octokit::TooManyRequests.new
+      candidate = pr(number: 15)
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([ candidate ])
+      allow(PrProvenanceClassifier).to receive(:classify)
+        .with(repository: repository, pr: candidate)
+        .and_raise(github_error)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to raise_error(github_error)
+
+      expect(repository.reload.poll_external_pr_errors).to be_empty
+    end
+
     it "skips PRs whose head branch starts with 'syrus/'" do
       allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
         pr(number: 20, head_ref: "syrus/direct-99"),

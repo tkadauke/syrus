@@ -2757,6 +2757,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.bigint "upstream_repository_id"
     t.integer "user_id"
     t.datetime "last_full_poll_at"
+    t.json "poll_external_pr_errors"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
