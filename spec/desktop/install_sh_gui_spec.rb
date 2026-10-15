@@ -852,6 +852,7 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         expect(events.last).to include("event" => "error", "code" => 30, "step" => "image_pull")
 
         env = File.read(File.join(target, ".env"), encoding: "UTF-8")
+        expect(env).to include("SYRUS_BIND=127.0.0.1")
         expect(env).to include("SYRUS_PORT=4321")
         expect(env).to include("SYRUS_APP_HOST=localhost:4321")
         expect(env).to include("SYRUS_IMAGE=ghcr.io/example/pinned:9.9.9")
