@@ -20,6 +20,9 @@ RSpec.describe MysqlDbBrowser::SchemaInspector do
   end
 
   let(:connection) { Factories.mysql_connection(host: "db.internal", port: 3307, username: "app", password: "s3cret", default_database: "app_prod") }
+  let(:user) { Factories.user }
+
+  before { Current.api_user = user }
 
   it "builds its Mysql2::Client from the connection's configured credentials, not ActiveRecord::Base.connection" do
     client = fake_client(rows_by_sql: { /information_schema\.SCHEMATA/ => [] })
@@ -187,5 +190,31 @@ RSpec.describe MysqlDbBrowser::SchemaInspector do
     hinted = described_class.new(connection).send(:mysql_timeout_hint, "SELECT * FROM information_schema.TABLES")
 
     expect(hinted).to eq("SELECT /*+ MAX_EXECUTION_TIME(3000) */ * FROM information_schema.TABLES")
+  end
+
+  it "audits schema statements before execution and records their outcome" do
+    client = fake_client(rows_by_sql: { /information_schema\.SCHEMATA/ => [] })
+    allow(client).to receive(:query) do
+      expect(MysqlQueryAudit.last).to have_attributes(user: user, success: false, error_message: MysqlDbBrowser::QueryAudit::PENDING_MESSAGE)
+      []
+    end
+    original = stub_client_factory(client)
+
+    described_class.new(connection).databases
+
+    expect(MysqlQueryAudit.last).to have_attributes(user: user, success: true, row_count: 0, error_message: nil)
+  ensure
+    described_class.client_factory = original
+  end
+
+  it "fails closed without querying MySQL when a schema audit cannot be created" do
+    client = fake_client(rows_by_sql: { /information_schema\.SCHEMATA/ => [] })
+    original = stub_client_factory(client)
+    allow(MysqlQueryAudit).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+
+    expect { described_class.new(connection).databases }.to raise_error(ActiveRecord::RecordInvalid)
+    expect(client).not_to have_received(:query)
+  ensure
+    described_class.client_factory = original
   end
 end
