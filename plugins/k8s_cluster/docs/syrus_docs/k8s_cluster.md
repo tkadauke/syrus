@@ -317,10 +317,13 @@ broker can validate target constraints. It also blocks `kubectl config ...`,
 streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 `port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
 `delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and
-similar), and Secret-value exposure patterns such as `get secrets -o yaml`,
-`get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
-API paths whose segments target `secrets`, unless explicit allowance is
-supplied on a non-chat surface. Chat calls cannot self-authorize those
+similar), and Secret-value exposure patterns. Secret resources are recognized
+in named forms such as `secrets/prod-token`, comma-separated resource lists,
+and version-qualified forms. Secret `get`/`describe` calls require explicit
+allowance except for `get ... -o name`; custom-column output and client
+verbosity at level 6 or higher are never treated as name-only reads. Raw
+Kubernetes API paths whose segments target `secrets` also require explicit
+allowance on a non-chat surface. Chat calls cannot self-authorize those
 high-risk allowances. The local runner also enforces a timeout so a missed
 policy case cannot keep the temporary kubeconfig materialized indefinitely.
 
