@@ -547,6 +547,18 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
         "mode" => "file-env"
       )
     )
+
+    post "/api/v1/app/credential_store/exec/audit",
+      params: {
+        credential_exec_audit: {
+          credential: credential.name, lease_id: lease_id,
+          tool_name: "credential.exec", exit_status: 0
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(CredentialStore::CredentialAccessEvent.where(completion_of_event_id: CredentialStore::CredentialAccessEvent.find_by!(lease_id: lease_id).id).count).to eq(1)
   end
 
   it "issues SSH agent material only through runtime CLI authentication without writing payload into lease metadata" do

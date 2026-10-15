@@ -19,13 +19,13 @@ module CredentialStore
     class ExecutionError < Error; end
 
     class << self
-      def with_credential_file(context:, credential:, type:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil)
-        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator)
+      def with_credential_file(context:, credential:, type:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
           .with_file { |path, metadata| yield path, metadata }
       end
 
-      def with_credential_env(context:, credential:, type:, env_key:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil)
-        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator)
+      def with_credential_env(context:, credential:, type:, env_key:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
           .with_env(env_key: env_key) { |env, metadata| yield env, metadata }
       end
 
@@ -34,7 +34,7 @@ module CredentialStore
       end
     end
 
-    def initialize(context:, credential_ref:, type:, purpose:, tool_name:, target:, expires_in:, credential_validator:)
+    def initialize(context:, credential_ref:, type:, purpose:, tool_name:, target:, expires_in:, credential_validator:, attempt_metadata:)
       @context = context
       @credential_ref = credential_ref
       @type = type.to_s
@@ -43,6 +43,7 @@ module CredentialStore
       @target = (target || {}).to_h.symbolize_keys
       @expires_in = expires_in
       @credential_validator = credential_validator
+      @attempt_metadata = (attempt_metadata || {}).to_h
     end
 
     def with_file
@@ -73,7 +74,7 @@ module CredentialStore
 
     private
 
-    attr_reader :context, :credential_ref, :type, :purpose, :tool_name, :target, :expires_in, :credential_validator
+    attr_reader :context, :credential_ref, :type, :purpose, :tool_name, :target, :expires_in, :credential_validator, :attempt_metadata
 
     def authorized_credential!
       credential = resolve_credential
@@ -187,8 +188,13 @@ module CredentialStore
         purpose: purpose,
         result: result,
         denial_reason: denial_reason,
-        metadata: metadata
+        metadata: sanitized_metadata(credential, metadata),
+        lease_id: result == "allowed" ? metadata[:lease_id] : nil
       )
+    end
+
+    def sanitized_metadata(credential, metadata)
+      Redaction.scrub_object(attempt_metadata.merge(metadata), credentials: Array(credential))
     end
 
     def event_surface

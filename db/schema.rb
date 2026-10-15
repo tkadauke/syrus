@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_043510) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_054507) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -978,11 +978,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_043510) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.json "metadata", null: false
+    t.string "lease_id"
+    t.integer "completion_of_event_id"
     t.index ["chat_session_id", "created_at", "id"], name: "idx_credential_store_access_chat_time"
     t.index ["chat_session_id"], name: "idx_on_chat_session_id_a1b0bedb87"
+    t.index ["completion_of_event_id"], name: "idx_credential_store_access_events_completion", unique: true
     t.index ["credential_id", "created_at", "id"], name: "idx_credential_store_access_credential_time"
     t.index ["credential_id"], name: "idx_on_credential_id_db7bd8d2f4"
     t.index ["job_id"], name: "index_credential_store_credential_access_events_on_job_id"
+    t.index ["lease_id"], name: "idx_credential_store_access_events_lease_id", unique: true
     t.index ["repository_id"], name: "idx_on_repository_id_8d397b8213"
     t.index ["run_id", "created_at", "id"], name: "idx_credential_store_access_run_time"
     t.index ["run_id"], name: "index_credential_store_credential_access_events_on_run_id"

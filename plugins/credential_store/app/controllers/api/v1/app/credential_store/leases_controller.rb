@@ -114,7 +114,8 @@ module Api
               action: "use",
               purpose: exec_audit_attrs[:purpose].presence || "credential exec command",
               result: exit_status.zero? ? "allowed" : "failed",
-              metadata: exec_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status)
+              metadata: exec_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status),
+              completion_of_event: lease_event
             )
 
             head :no_content
@@ -122,6 +123,8 @@ module Api
             render_error("not_found", e.message, status: :not_found)
           rescue InvalidAudit => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
+          rescue ActiveRecord::RecordNotUnique
+            render_error("validation_failed", "lease completion was already recorded", status: :unprocessable_content)
           end
 
           def ssh_agent_audit
@@ -144,7 +147,8 @@ module Api
               action: "use",
               purpose: ssh_agent_audit_attrs[:purpose].presence || "ssh-agent command",
               result: exit_status.zero? ? "allowed" : "failed",
-              metadata: ssh_agent_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status)
+              metadata: ssh_agent_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status),
+              completion_of_event: lease_event
             )
 
             head :no_content
@@ -152,6 +156,8 @@ module Api
             render_error("not_found", e.message, status: :not_found)
           rescue InvalidAudit => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
+          rescue ActiveRecord::RecordNotUnique
+            render_error("validation_failed", "lease completion was already recorded", status: :unprocessable_content)
           end
 
           private
@@ -281,10 +287,12 @@ module Api
             raise InvalidAudit, "exit_status must be an integer" if exit_status.nil?
 
             credential = visible_credential!(attrs.fetch(:credential))
-            event = credential.access_events.where(action: "lease", result: "allowed", tool_name: expected_tool)
-              .order(id: :desc).limit(100).detect { |candidate| candidate.metadata["lease_id"] == lease_id }
+            event = credential.access_events.find_by(
+              action: "lease", result: "allowed", tool_name: expected_tool, lease_id: lease_id
+            )
             raise InvalidAudit, "lease was not issued for this credential and tool" unless event
             raise InvalidAudit, "lease does not belong to this runtime context" unless audit_context_matches?(event, context)
+            raise InvalidAudit, "lease completion was already recorded" if ::CredentialStore::CredentialAccessEvent.exists?(completion_of_event: event)
 
             expires_at = Time.iso8601(event.metadata.fetch("expires_at"))
             raise InvalidAudit, "lease has expired" if Time.current >= expires_at
