@@ -44,7 +44,23 @@ module Steps
         rewrite_implement_commit_message!
         return
       end
-      raise StepFailed, "#{workflow.slug} has no completed implement run to summarize" if missing_required_implement_run?
+      if missing_required_implement_run?
+        # A cancelled implement means the chain was already terminated on
+        # purpose -- there is no work to describe, and failing here invents a
+        # second failure that then becomes the workflow's reported cause. A
+        # main-branch repair did exactly that: implement was cancelled, the
+        # chain carried on, and the workflow surfaced as "summarize failed"
+        # with the real event buried. A *failed* implement is still a genuine
+        # failure and keeps raising below.
+        if cancelled_implement_step?
+          raise StepSkipped.new(
+            "#{workflow.slug} has no implement run to summarize because its implement step was cancelled",
+            reason: "implement_cancelled"
+          )
+        end
+
+        raise StepFailed, "#{workflow.slug} has no completed implement run to summarize"
+      end
 
       restore_run_checkpoint_if_needed!(successful_implement_run, context: "summarize")
       assert_workspace_contains_successful_implement_head!
@@ -88,6 +104,10 @@ module Steps
 
     def successful_implement_run
       latest_succeeded_run_for(UPSTREAM_AGENT_STEP_KINDS)
+    end
+
+    def cancelled_implement_step?
+      workflow.steps.where(kind: UPSTREAM_AGENT_STEP_KINDS).where.not(state: "cancelled").none?
     end
 
     def missing_required_implement_run?

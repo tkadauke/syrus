@@ -11,7 +11,7 @@ and `kotlin`.
 |---|---|
 | `:prepare_detector` | Detects Android Gradle Plugin declarations (`com.android.application`, `com.android.library`, `com.android.test`, dynamic feature and asset-pack plugins), Android Kotlin plugin declarations, `com.android.tools.build:gradle` buildscript classpath entries, and conventional `AndroidManifest.xml` paths. It returns no prepare command by detection alone, so generic Linux workers do not invent project-specific Android Gradle work. It reuses `.java-version` as the JVM version file and adds Android Gradle, `adb`, emulator, `sdkmanager`, and `avdmanager` command-span labels for worker-health diagnostics. |
 | `:step_environment` | Forwards `ANDROID_HOME` and `ANDROID_SDK_ROOT` from the worker image into prepare/grader subprocesses and computes per-workspace `ANDROID_USER_HOME`, `ANDROID_PREFS_ROOT`, and `ANDROID_AVD_HOME` under `.syrus/android`. This keeps SDK installation global while Android user state, repositories, and AVD metadata stay scoped to the workflow workspace. |
-| `:grader_type` | Expands `type: android-assemble`, `type: android-unit-test`, `type: android-instrumented-test`, and `type: android-managed-device` into wrapper-aware Gradle graders. Generated steps declare Linux execution capabilities, use Android source/manifest/Gradle file scopes, aggregate Android/JUnit XML reports when present, and expose package, report, managed-device, and log paths in grader metadata. |
+| `:grader_type` | Expands `type: android-assemble`, `type: android-unit-test`, `type: android-instrumented-test`, and `type: android-managed-device` into wrapper-aware Gradle graders. Generated steps declare Linux plus `toolchain: android` execution capabilities, use Android source/manifest/Gradle file scopes, aggregate Android/JUnit XML reports when present, and expose package, report, managed-device, and log paths in grader metadata. |
 | `:runtime_session_provider` | Adds the `android_emulator` Coding Mode Runtime Session provider. It starts an isolated emulator/AVD, builds and installs APKs through Gradle/ADB, launches apps, captures PNG frames, inspects the UI hierarchy, pages logcat, and delivers lease-gated touch/key/text input through the standard Runtime UI. |
 | `:prompt_injector` | Tells agents to keep Java/Kotlin/JVM conventions in the Java/Kotlin plugins, treat Android Gradle Plugin, SDK, emulator/device, artifact, and runtime behavior as Android-owned, run Android work on Linux execution capabilities, and use Runtime Sessions' provider-neutral visual frame/input contract for live emulator viewing and control. |
 | `:review_criteria_provider` | Adds review criteria for declared worker capabilities, APK/AAB variant/signing distinctions, and avoiding Android-specific bypasses around Runtime Session visual frame/input. |
@@ -27,6 +27,20 @@ behavior, and mobile runtime behavior.
 Android execution uses Linux capabilities. Do not introduce an `os: android`
 target for Android work; workers that can build or run Android should advertise
 Linux plus the relevant Android SDK/emulator/device capabilities.
+
+Concretely, the generated Gradle graders declare `os: linux` **and**
+`toolchain: android`, so a worker must advertise `toolchain=android` (via
+`SYRUS_WORKER_CAPABILITIES` or a local probe) to receive them. Without that,
+`RunQueueResolver` blocks the step with `no_capable_worker` rather than
+starting it.
+
+That declaration is not cosmetic. These graders shell out to the SDK and the
+Gradle wrapper, so on a worker without them every task exits 127 -- "command
+not found" -- which Syrus records as an ordinary grader failure,
+indistinguishable from a real test failure. Because the same graders also run
+as preflight graders, that silently held the main-branch repair gate red:
+repair jobs ran the full grader set for about an hour each and never reached
+`implement`. A blocked step names the real problem; exit 127 does not.
 
 Interactive Android support is owned by the `android_emulator` Runtime Session
 provider. The provider implements the existing `:runtime_session_provider`

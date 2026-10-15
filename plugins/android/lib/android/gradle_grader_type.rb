@@ -79,8 +79,22 @@ module Android
     def default_artifact_paths = []
     def default_log_paths = []
 
+    # These graders shell out to the Android SDK and the Gradle wrapper. On a
+    # worker without them every task exits 127 -- "command not found" -- which
+    # Syrus records as an ordinary grader failure, indistinguishable from a
+    # real test failure. Because they also run as preflight graders, that made
+    # the main-branch repair gate permanently red: two repair jobs each spent
+    # about an hour running the full grader set and never reached `implement`,
+    # and a third was queued behind them.
+    #
+    # Declaring the toolchain makes RunQueueResolver route these to a worker
+    # that advertises it, and block with `no_capable_worker` when none is
+    # live. Blocked is an infrastructure state the engine understands; exit
+    # 127 is a lie about the code under test. It also means that installing
+    # the SDK and advertising `toolchain=android` is all that is needed to
+    # start running them again -- no change here.
     def linux_capabilities
-      ::TargetGraph::ExecutionCapabilities.new(os: "linux")
+      ::TargetGraph::ExecutionCapabilities.new(os: "linux", toolchain: "android")
     end
 
     def name

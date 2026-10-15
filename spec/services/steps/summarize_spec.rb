@@ -95,6 +95,28 @@ RSpec.describe Steps::Summarize, :ci_only do
     end
   end
 
+  describe "when there is no implement run to summarize" do
+    # A cancelled implement means the chain was already terminated on purpose.
+    # Failing here invents a second failure that then becomes the workflow's
+    # reported cause -- a main-branch repair surfaced as "summarize failed"
+    # while the real event, a cancelled implement, was buried.
+    it "skips rather than failing when the implement step was cancelled" do
+      Step.create!(workflow: workflow, kind: "implement", position: 0, state: "cancelled", next_step_id: step.id)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepSkipped) { |error|
+        expect(error.reason).to eq("implement_cancelled")
+        expect(error.message).to include("implement step was cancelled")
+      }
+    end
+
+    # A failed implement is a real failure and must stay one.
+    it "still fails when the implement step failed" do
+      Step.create!(workflow: workflow, kind: "implement", position: 0, state: "failed", next_step_id: step.id)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /no completed implement run to summarize/)
+    end
+  end
+
   describe "skipping agent when implement step already submitted summary" do
     let(:implement_step) do
       Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)

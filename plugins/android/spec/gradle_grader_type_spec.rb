@@ -25,7 +25,7 @@ RSpec.describe "Android Gradle grader types" do
       phases: %w[review landing ci],
       timeout_minutes: 30,
       junit_output: nil,
-      capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
+      capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux", toolchain: "android")
     )
     expect(step.run).to include("gradle --no-daemon assembleDebug")
     expect(step.when_files_changed).to include("**/src/androidTest/**/*", "**/AndroidManifest.xml", "**/build.gradle.kts")
@@ -50,7 +50,7 @@ RSpec.describe "Android Gradle grader types" do
       run: include("./gradlew --no-daemon testDebugUnitTest"),
       timeout_minutes: 25,
       junit_output: ".syrus/grade-output/android-unit-test-junit.xml",
-      capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux")
+      capabilities: TargetGraph::ExecutionCapabilities.new(os: "linux", toolchain: "android")
     )
     expect(step.run).to include("build/test-results/testDebugUnitTest")
     expect(step.run).to include("*/build/test-results/test*UnitTest")
@@ -121,7 +121,7 @@ RSpec.describe "Android Gradle grader types" do
     expect(step.required).to be(false)
   end
 
-  it "expands Android types through .syrus.yml parsing with Linux capabilities" do
+  it "expands Android types through .syrus.yml parsing with Linux and Android-toolchain capabilities" do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([
       Android::AssembleGraderType,
       Android::UnitTestGraderType,
@@ -145,7 +145,8 @@ RSpec.describe "Android Gradle grader types" do
       "android-unit-test",
       "android-managed-device"
     ])
-    expect(config.grade.steps.map { |step| step.capabilities.to_h }).to all(eq("os" => [ "linux" ]))
+    expect(config.grade.steps.map { |step| step.capabilities.to_h })
+      .to all(eq("os" => [ "linux" ], "toolchain" => [ "android" ]))
     expect(config.grade.steps.last.run).to include("pixel2api30DebugAndroidTest")
   end
 
