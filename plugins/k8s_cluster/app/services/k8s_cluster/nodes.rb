@@ -18,6 +18,7 @@ module K8sCluster
     end
 
     def describe(name)
+      validate_identifiers!(name: name)
       with_client(api_client.core) do |client|
         { available: true, generated_at: Time.current.iso8601, node: client.get_node(name) }
       end
@@ -28,6 +29,7 @@ module K8sCluster
     # already-running pods - it only stops the scheduler from placing new
     # ones there.
     def set_cordon(name, cordoned:)
+      validate_identifiers!(name: name)
       with_client(api_client.core) do |client|
         before = client.get_node(name)
         after = client.patch_node(name, { spec: { unschedulable: cordoned } })

@@ -83,6 +83,12 @@ RSpec.describe K8sCluster::Deployments do
       expect(payload[:before][:restarted_at]).to be_nil
       expect(payload[:after][:restarted_at]).to eq("2026-09-05T00:00:00Z")
     end
+
+    it "rejects a name that addresses another apps resource kind" do
+      expect {
+        described_class.new(cluster).restart_rollout("web/statefulsets/db?", namespace: "default")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /name/)
+    end
   end
 
   describe "#scale" do
@@ -103,6 +109,12 @@ RSpec.describe K8sCluster::Deployments do
       expect {
         described_class.new(cluster).scale("web", namespace: "default", replicas: -1)
       }.to raise_error(K8sCluster::ResourceService::InvalidArgument)
+    end
+
+    it "rejects a namespace that addresses another apps resource kind" do
+      expect {
+        described_class.new(cluster).scale("db", namespace: "default/statefulsets?", replicas: 2)
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /namespace/)
     end
   end
 end

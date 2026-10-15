@@ -12,6 +12,7 @@ module Api
         class KubernetesResourcesController < BaseController
           before_action :require_k8s_cluster_enabled
           before_action :set_cluster
+          before_action :validate_resource_identifiers
 
           DEFAULT_TAIL_LINES = 200
 
@@ -152,6 +153,16 @@ module Api
 
             render_error("namespace_required", "namespace is required to describe a specific resource", status: :unprocessable_content)
             nil
+          end
+
+          def validate_resource_identifiers
+            ::K8sCluster::ResourceService.validate_identifiers!(
+              name: params[:name],
+              namespace: params[:namespace],
+              container: params[:container]
+            )
+          rescue ::K8sCluster::ResourceService::InvalidArgument => e
+            render_error("invalid_argument", e.message, status: :unprocessable_content)
           end
 
           def render_unavailable(error)

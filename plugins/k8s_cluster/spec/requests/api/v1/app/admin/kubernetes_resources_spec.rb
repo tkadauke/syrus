@@ -181,6 +181,16 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("pod", "metadata", "name")).to eq("web-1")
     end
 
+    it "rejects invalid resource identifiers before dispatching to a service" do
+      expect(K8sCluster::Pods).not_to receive(:new)
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods",
+        params: { name: "x", namespace: "default/secrets/mysecret?" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_argument")
+    end
+
     it "returns pod logs" do
       pods = instance_double(K8sCluster::Pods)
       stub_admin_resource_service(K8sCluster::Pods, pods)

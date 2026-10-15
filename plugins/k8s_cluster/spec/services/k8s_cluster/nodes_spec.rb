@@ -64,6 +64,12 @@ RSpec.describe K8sCluster::Nodes do
 
       expect(payload[:node]["metadata"]["name"]).to eq("node-1")
     end
+
+    it "rejects a proxy path embedded in the node name" do
+      expect {
+        described_class.new(cluster).describe("node-1/proxy/configz")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /name/)
+    end
   end
 
   describe "#set_cordon" do

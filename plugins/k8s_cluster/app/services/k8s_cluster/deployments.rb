@@ -4,6 +4,7 @@ module K8sCluster
     RESTART_ANNOTATION = "kubectl.kubernetes.io/restartedAt"
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.apps) do |client|
         items = client.get_deployments(namespace_scope(namespace)).fetch("items", [])
 
@@ -17,6 +18,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.apps) do |client|
         { available: true, generated_at: Time.current.iso8601, deployment: client.get_deployment(name, namespace) }
       end
@@ -27,6 +29,7 @@ module K8sCluster
     # causes the deployment controller to roll every pod even though no
     # actual spec content changed.
     def restart_rollout(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.apps) do |client|
         before = client.get_deployment(name, namespace)
         patch = { spec: { template: { metadata: { annotations: { RESTART_ANNOTATION => Time.current.iso8601 } } } } }
@@ -45,6 +48,7 @@ module K8sCluster
 
     def scale(name, namespace:, replicas:)
       raise ResourceService::InvalidArgument, "replicas must be a non-negative integer" unless valid_replicas?(replicas)
+      validate_identifiers!(name: name, namespace: namespace)
 
       with_client(api_client.apps) do |client|
         before = client.get_deployment(name, namespace)

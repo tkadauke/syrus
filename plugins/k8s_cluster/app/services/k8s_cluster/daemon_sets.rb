@@ -3,6 +3,7 @@ module K8sCluster
     MAX_DAEMON_SETS = 1_000
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.apps) do |client|
         items = client.get_daemon_sets(namespace_scope(namespace)).fetch("items", [])
 
@@ -16,6 +17,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.apps) do |client|
         { available: true, generated_at: Time.current.iso8601, daemon_set: client.get_daemon_set(name, namespace) }
       end
