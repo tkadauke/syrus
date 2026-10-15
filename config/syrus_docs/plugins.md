@@ -1400,10 +1400,16 @@ the failed cases from the candidate run, then returns a shell command that runs
 only those tests on a temporary worktree checked out at the base SHA:
 
 ```ruby
-.command_for(grader_name:, grader_command:, failed_cases:, base_retry:) # => String or nil
+.command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil) # => String or nil
 ```
 
 Return `nil` when the provider cannot derive a deterministic focused command.
+`project_path` is the grader project's workspace-relative directory when the
+provider declares that optional keyword. Core detects support before passing
+it, so providers implementing the original exact keyword signature remain
+compatible. Project-aware providers should run dependency setup and tests from
+that directory while keeping result artifacts addressable from the workspace
+root.
 The command should emit normal test output and, when possible, write a JUnit XML
 file to the grader's configured `junit_output` path so core can compare exact
 failed test identities. Core also supports `base_retry: { strategy:

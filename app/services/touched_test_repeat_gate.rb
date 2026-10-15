@@ -122,7 +122,8 @@ class TouchedTestRepeatGate
 
   def plugin_command
     Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-      command = provider.command_for(
+      command = Syrus::Plugin::FocusedTestCommand.invoke(
+        provider,
         grader_name: grader_name,
         grader_command: grader_command,
         failed_cases: @touched_files.map { |path| { "file_path" => path } },
