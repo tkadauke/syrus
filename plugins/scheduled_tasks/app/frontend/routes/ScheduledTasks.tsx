@@ -195,6 +195,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
               fromTemplate={fromTemplate}
               id={Number(id)}
               initial={initial}
+              key={`${mode}:${id || repositoryId}:${fromTemplate || ""}:${preset || ""}`}
               mode={mode}
               options={options}
               repositoryId={repositoryId}
@@ -589,11 +590,6 @@ function ScheduledTaskForm({
   const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
   const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
   const previewSource = previewMatchesInput ? preview.data?.source : null
-
-  useEffect(() => {
-    setValues(initial)
-    setTaskSource(initial.skill_name ? "skill" : "prompt")
-  }, [initial])
 
   useEffect(() => {
     if (values.kind !== "cron" || !values.schedule_input.trim()) return
