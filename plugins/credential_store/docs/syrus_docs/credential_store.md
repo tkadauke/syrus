@@ -176,6 +176,17 @@ job/workflow/run/repository/user context, wrapper command namespace, child exit
 status, and duration. It does not print private keys, passphrases, raw payload
 material, or child command arguments.
 
+Completion audit submissions are accepted only for an unexpired lease issued
+to the same credential, wrapper tool, and runtime context. Exit status must be
+an integer, and wrapper tool names cannot be overridden by the child process.
+Direct SSH execution records a SHA-256 command digest, a bounded command
+preview, duration, and exit status; rejected input and policy checks are also
+recorded as denied attempts. Creating or editing a credential records an admin
+audit row with the non-secret scope, surface, tool, and target-constraint
+changes. Payload replacement is recorded only as a boolean, never as payload
+material, and rotating a revoked credential explicitly records that it was
+un-revoked.
+
 ## Repository-Owned Script Policy
 
 Repository-owned deploy/debug scripts should call credential wrappers from the

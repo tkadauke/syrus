@@ -30,6 +30,7 @@ module Api
               last_rotated_at: Time.current
             ))
             if credential.save
+              record_change!(credential, "create", before: nil, after: audit_snapshot(credential), payload_replaced: true)
               render json: payload_for(visible_credentials.reload).merge(message: "Credential created."), status: :created
             else
               render_error("validation_failed", credential.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -46,7 +47,9 @@ module Api
               return
             end
             attrs[:last_rotated_at] = Time.current if attrs.key?(:payload)
+            before = audit_snapshot(credential)
             if credential.update(attrs)
+              record_change!(credential, "update", before: before, after: audit_snapshot(credential), payload_replaced: attrs.key?(:payload))
               render json: payload_for(visible_credentials.reload).merge(message: "Credential updated.")
             else
               render_error("validation_failed", credential.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -63,13 +66,15 @@ module Api
               return
             end
 
+            was_revoked = credential.revoked?
             if credential.update(payload: payload, last_rotated_at: Time.current, revoked_at: nil)
               ::CredentialStore::CredentialAccessEvent.record!(
                 credential: credential,
                 user: Current.user,
                 surface: "admin",
                 action: "rotate",
-                result: "allowed"
+                result: "allowed",
+                metadata: { payload_replaced: true, unrevoked: was_revoked }
               )
               render json: payload_for(visible_credentials.reload).merge(message: "Credential rotated.")
             else
@@ -142,6 +147,17 @@ module Api
             raw[:scope_id] = nil if raw[:scope_type].to_s == "instance" || raw[:scope_id].blank?
             raw.delete(:payload) if !require_payload && raw[:payload].blank?
             raw
+          end
+
+          def audit_snapshot(credential)
+            credential.slice(:scope_type, :scope_id, :allowed_surfaces, :allowed_tools, :target_constraints, :revoked_at)
+          end
+
+          def record_change!(credential, action, before:, after:, payload_replaced:)
+            ::CredentialStore::CredentialAccessEvent.record!(
+              credential: credential, user: Current.user, surface: "admin", action: action, result: "allowed",
+              metadata: { before: before, after: after, payload_replaced: payload_replaced }
+            )
           end
         end
       end

@@ -81,8 +81,13 @@ RSpec.describe CredentialStore::SshExec do
       repository: repository,
       run: run,
       tool_name: "credential_store_ssh_exec",
-      action: "lease",
+      action: "use",
       result: "allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include(
+      "command_sha256" => Digest::SHA256.hexdigest("uptime"),
+      "command" => "uptime",
+      "exit_status" => 0
     )
   end
 
@@ -214,6 +219,8 @@ RSpec.describe CredentialStore::SshExec do
         allow_unconstrained_host: true
       )
     }.to raise_error(CredentialStore::SshExec::OperatorConfirmationRequired, /unconstrained hosts/)
+
+    expect(CredentialStore::CredentialAccessEvent.where(result: "denied").count).to eq(2)
   end
 
   it "refuses risky command patterns unless explicitly allowed" do
@@ -222,6 +229,9 @@ RSpec.describe CredentialStore::SshExec do
     expect {
       described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "rm -rf /tmp/app")
     }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential, result: "denied", denial_reason: "command requires explicit risky-command allowance"
+    )
 
     allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
 
