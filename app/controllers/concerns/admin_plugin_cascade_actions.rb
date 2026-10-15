@@ -12,30 +12,15 @@ module AdminPluginCascadeActions
 
   def enable
     plugin = find_plugin_record
-    manifests = Syrus::PluginRegistry.all_plugins
-    manifest = manifests.find { |candidate| candidate.name == plugin.name }
-    dependency_names = manifest ? ::Admin::PluginDependencyGraph.new(manifests).dependencies_for(manifest.name) : []
-    blocked_experimental = blocked_experimental_plugins(manifests, [ plugin.name, *dependency_names ])
-    if blocked_experimental.any?
-      render json: {
-        error: {
-          code: "beta_mode_not_enabled",
-          message: "This plugin is available in this Syrus build, but this instance has not enabled beta mode."
-        },
-        blocked_experimental_plugins: blocked_experimental.map { |blocked| { name: blocked.name, display_name: blocked.display_name.presence || blocked.name.to_s.titleize } },
-        message: "This plugin is available in this Syrus build, but this instance has not enabled beta mode."
-      }, status: :unprocessable_content
-      return
-    end
-
-    ActiveRecord::Base.transaction do
-      plugin.update!(enabled: true)
-      PluginRecord.where(name: dependency_names).find_each do |record|
-        record.update!(enabled: true) unless record.enabled?
-      end
-    end
+    ::Admin::PluginEnabler.enable!(plugin)
 
     render json: ::Admin::PluginsPayload.new.as_json
+  rescue ::Admin::PluginEnabler::ExperimentalPluginsBlocked => e
+    render json: {
+      error: { code: "beta_mode_not_enabled", message: e.message },
+      blocked_experimental_plugins: e.plugins.map { |blocked| { name: blocked.name, display_name: blocked.display_name.presence || blocked.name.to_s.titleize } },
+      message: e.message
+    }, status: :unprocessable_content
   end
 
   def disable
@@ -65,12 +50,5 @@ module AdminPluginCascadeActions
 
   def confirm_cascade?
     ActiveModel::Type::Boolean.new.cast(params[:confirm_cascade])
-  end
-
-  def blocked_experimental_plugins(manifests, names)
-    return [] if AppSetting.beta_mode_enabled?
-
-    by_name = manifests.index_by(&:name)
-    names.filter_map { |name| by_name[name] }.select(&:experimental?)
   end
 end

@@ -781,6 +781,19 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(parse_body.dig("error", "code")).to eq("unauthorized")
     end
 
+    it "rejects a non-admin who has not completed onboarding, enabling nothing" do
+      PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+      user
+      non_admin = Factories.user(admin: false)
+      sign_in_as(non_admin)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(false)
+    end
+
     it "enables exactly the plugin backing the connected provider, leaving other agent-provider plugins untouched" do
       PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
       claude_agent = PluginRecord.find_by!(name: "claude_agent")
