@@ -73,6 +73,7 @@ class Repository < ApplicationRecord
   attribute :external_pr_ingestion_enabled, :boolean, default: false
   attribute :distributed_workflow_dag_enabled, :boolean, default: false
   attribute :poll_issue_errors, :json, default: []
+  attribute :poll_external_pr_errors, :json, default: []
 
   attr_accessor :main_branch_repair_enabled_explicit
 
@@ -213,6 +214,27 @@ class Repository < ApplicationRecord
 
     update_columns(poll_issue_errors: next_errors)
     assign_attributes(poll_issue_errors: next_errors)
+  end
+
+  def record_poll_external_pr_error!(pr_number:, error:)
+    existing_errors = Array(poll_external_pr_errors)
+    entry = {
+      "pr_number" => pr_number,
+      "error_class" => error.class.name,
+      "error_message" => error.message.to_s,
+      "recorded_at" => Time.current.iso8601
+    }
+    next_errors = [ entry, *existing_errors.reject { |existing| existing["pr_number"].to_i == pr_number.to_i } ].first(MAX_POLL_ISSUE_ERRORS)
+    update_columns(poll_external_pr_errors: next_errors)
+    assign_attributes(poll_external_pr_errors: next_errors)
+  end
+
+  def clear_poll_external_pr_error!(pr_number:)
+    next_errors = Array(poll_external_pr_errors).reject { |entry| entry["pr_number"].to_i == pr_number.to_i }
+    return if next_errors == Array(poll_external_pr_errors)
+
+    update_columns(poll_external_pr_errors: next_errors)
+    assign_attributes(poll_external_pr_errors: next_errors)
   end
 
   def poll_issue_retry_due?(entry, at:)
