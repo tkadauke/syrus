@@ -46,6 +46,29 @@ RSpec.describe "desktop native-notification fallback gating" do
     expect(on_closed).to include("webAppNotificationsLive = false")
   end
 
+  it "resets the liveness flag when the renderer process exits" do
+    handler = main[/webContents\.on\("render-process-gone"[\s\S]{0,250}/]
+    expect(handler).not_to be_nil
+    expect(handler).to include("webAppNotificationsLive = false")
+  end
+
+  it "resets the liveness flag before a full main-frame navigation" do
+    handler = main[/webContents\.on\("did-start-navigation"[\s\S]{0,700}/]
+    expect(handler).not_to be_nil
+    expect(handler).to match(/if \(isMainFrame && !isInPlace\) \{\s*webAppNotificationsLive = false/)
+  end
+
+  it "resets the liveness flag as soon as a main-frame server load fails" do
+    window = read("electron/windows/webAppWindow.ts")
+    failure_handler = window[/webContents\.on\("did-fail-load"[\s\S]{0,650}/]
+    expect(failure_handler).not_to be_nil
+    expect(failure_handler).to match(/onRendererUnavailable\(\)\s*void loadFallback\(window\)\.then\(onLoadFailed\)/)
+
+    options = main[/webAppWindow = createWebAppWindow\(\{[\s\S]{0,1500}/]
+    expect(options).not_to be_nil
+    expect(options).to match(/onRendererUnavailable: \(\) => \{\s*webAppNotificationsLive = false/)
+  end
+
   it "requires BOTH reported liveness AND real-time window visibility before treating the web app as handling notifications" do
     helper = main[/const webAppWindowHandlingNotifications = \(\): boolean => \{[\s\S]{0,400}/]
     expect(helper).not_to be_nil
