@@ -899,6 +899,33 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result.duration_s).to be < 5
   end
 
+  it "counts changing out-of-band activity as output for the silent timeout" do
+    activity_path = File.join(@dir, "session.jsonl")
+    File.write(activity_path, "")
+    toucher = Thread.new do
+      6.times do
+        sleep 0.15
+        FileUtils.touch(activity_path)
+      end
+    end
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 0.8" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { File.mtime(activity_path) }
+    ).run
+
+    expect(result).to be_success
+    expect(result).not_to be_silent_timed_out
+  ensure
+    toucher&.join
+  end
+
   it "detects a parent that exits while a child holds the stdout pipe open" do
     # Reproduces today's edge case: the agent process exits but a
     # child it spawned inherits the stdout fd and keeps the pipe

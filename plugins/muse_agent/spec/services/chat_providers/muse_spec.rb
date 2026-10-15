@@ -43,6 +43,34 @@ RSpec.describe ChatProviders::Muse do
   end
 
   describe "#invoke" do
+    it "waits for a live Muse process and returns a distinct failure while it still holds the session" do
+      stub_const("ChatProviders::Muse::HELD_SESSION_WAIT_SECONDS", 0.01)
+      stub_const("ChatProviders::Muse::HELD_SESSION_POLL_SECONDS", 0.001)
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "muse exec --session-id muse-thread-1",
+        hostname: "worker-1",
+        pid: 123,
+        started_at: Time.current,
+        chat_session: chat
+      )
+
+      expect(MuseInvocation).not_to receive(:new)
+      result = described_class.new(chat: chat).invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "Do not lose this message",
+        log_sink: ->(*, **) { },
+        mcp_config: "/unused",
+        resume_session_id: "muse-thread-1",
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(result.outcome).to eq("muse_session_held")
+      expect(result.final_text).to include("still running", "message was not sent")
+      expect(result).not_to be_success
+    end
+
     it "preserves required and optional chat MCP tiers when building the Muse invocation" do
       mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
       mcp_config.write({
