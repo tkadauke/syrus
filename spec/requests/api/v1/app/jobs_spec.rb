@@ -388,6 +388,20 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(ids).to contain_exactly(idle.id, active.id)
   end
 
+  it "filters compact job results to jobs with pull requests before applying the limit" do
+    user.update!(api_token: "syrus_cli_token")
+    without_pr = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Newest without PR", state: "implemented")
+    with_pr = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Older with PR", state: "implemented")
+    with_pr.update!(pr_number: 12, updated_at: 1.day.ago)
+    without_pr.update!(updated_at: Time.current)
+
+    get "/api/v1/app/jobs", params: { with_pr: "true", include_active_work: "true", limit: 1 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("jobs").map { |payload| payload.fetch("id") }).to eq([ with_pr.id ])
+  end
+
   it "returns the latest run transcript for CLI clients" do
     user.update!(api_token: "syrus_cli_token")
     run = job.initial_run

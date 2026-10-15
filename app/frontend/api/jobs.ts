@@ -1740,10 +1740,12 @@ export type PickerJobsPayload = {
   jobs: PickerJobRecord[]
 }
 
-export function fetchPickerJobs(params: { state?: string; repo?: string; limit?: number } = {}) {
+export function fetchPickerJobs(params: { state?: string; repo?: string; q?: string; withPr?: boolean; limit?: number } = {}) {
   const searchParams = new URLSearchParams()
   if (params.state) searchParams.set("state", params.state)
   if (params.repo) searchParams.set("repo", params.repo)
+  if (params.q) searchParams.set("q", params.q)
+  if (params.withPr) searchParams.set("with_pr", "true")
   searchParams.set("include_active_work", "true")
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)

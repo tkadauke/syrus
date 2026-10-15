@@ -342,6 +342,7 @@ module Api
             pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
+          scope = scope.with_pr if ActiveModel::Type::Boolean.new.cast(params[:with_pr])
           scope
         end
 
