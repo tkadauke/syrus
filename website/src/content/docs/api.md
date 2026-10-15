@@ -352,8 +352,10 @@ Optional fields are `github_issue_url`, `owner_user_id`, and
 `auto_approve_mode`.
 
 User-scoped clients can also create Epics through the app API with any
-user API token. Use `repository`/`repo` as an `owner/name` slug, or
-`repository_id` when the caller already has the database id:
+user API token when the caller has write-tier repository access (directly,
+through a team grant, or as a global admin). Use `repository`/`repo` as an
+`owner/name` slug, or `repository_id` when the caller already has the database
+id:
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/epics \
@@ -620,8 +622,8 @@ curl "https://syrus.example.com/api/v1/app/chats/search/messages?chat_session_id
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
-The app Epic detail API also supports dependency management for Epics owned
-by the authenticated user:
+The app Epic detail API also supports dependency management when the
+authenticated user has write-tier access to the Epic's repository:
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/epics/456/dependencies \
@@ -634,6 +636,10 @@ curl -X POST https://syrus.example.com/api/v1/app/epics/456/dependencies \
 payload, including `dependencies` and `dependents`. It rejects cycles.
 `DELETE /api/v1/app/epics/:id/dependencies/:depends_on_epic_id` removes that
 edge and is idempotent.
+
+All app API mutations of an existing Epic—including edits, archive, ownership,
+state/start, and dependency changes—require the same effective repository
+write access. Read-tier access remains sufficient for viewing Epics.
 
 ## Update Theme Preference
 
