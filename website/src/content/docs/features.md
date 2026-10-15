@@ -1265,7 +1265,8 @@ Each user owns their own profile, credentials, defaults, and preferences:
   The audit trail includes denied SSH attempts, bounded command evidence and
   completion status, credential create/update policy changes, and explicit
   un-revocation during rotation. Runtime wrapper completion events must match
-  an unexpired lease issued for the same credential, tool, and runtime context.
+  an unexpired lease issued for the same credential, tool, and runtime context,
+  and each lease accepts only one completion event.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing

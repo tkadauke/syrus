@@ -63,7 +63,8 @@ module CredentialStore
         purpose: "ssh exec #{user}@#{host}",
         tool_name: TOOL_NAME,
         target: target,
-        credential_validator: method(:validate_credential_attempt!)
+        credential_validator: method(:validate_credential_attempt!),
+        attempt_metadata: command_metadata
       ) do |credential_env, metadata|
         credential_metadata = metadata.fetch(:safe_metadata, {})
         key_material = SshKeyMaterial.from_payload(credential_env.fetch("SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD"))
@@ -124,21 +125,24 @@ module CredentialStore
 
     def run_ssh(key_path:, known_hosts_path:, askpass_env:, metadata:, credential_metadata:, extra_secrets:)
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      result = self.class.runner.call(
-        env: ssh_env.merge(askpass_env),
-        argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
-      )
+      result = begin
+        self.class.runner.call(
+          env: ssh_env.merge(askpass_env),
+          argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
+        )
+      rescue StandardError => e
+        record_completion!(metadata, nil, started_at, error: e)
+        raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
+      end
 
       record_completion!(metadata, result.status.to_i, started_at)
       payload = payload_for(result, metadata: metadata, credential_metadata: credential_metadata, known_hosts_enforced: known_hosts_path.present?)
       CredentialStore::Broker.redact(payload, extra_secrets: extra_secrets)
-    rescue StandardError => e
-      record_completion!(metadata, nil, started_at, error: e) if started_at
-      raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
     end
 
     def record_completion!(lease_metadata, exit_status, started_at, error: nil)
       credential_record = Credential.find(lease_metadata.fetch(:credential_id))
+      lease_event = CredentialAccessEvent.find_by!(lease_id: lease_metadata.fetch(:lease_id))
       CredentialAccessEvent.record!(
         credential: credential_record,
         user: context.user, repository: context.repository, job: context.job,
@@ -150,7 +154,8 @@ module CredentialStore
           lease_id: lease_metadata.fetch(:lease_id), exit_status: exit_status,
           duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
           error_class: error&.class&.name
-        ).compact
+        ).compact,
+        completion_of_event: lease_event
       )
     end
 
