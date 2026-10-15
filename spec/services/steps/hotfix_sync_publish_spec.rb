@@ -41,6 +41,7 @@ RSpec.describe Steps::HotfixSyncPublish do
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:access_token).and_return("token")
     allow(client).to receive(:open_pull_request_for_head).and_return(nil)
+    allow(client).to receive(:pull_request).and_return(OpenStruct.new(state: "open", merged: false, merged_at: nil))
     allow(repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
   end
 
@@ -115,6 +116,24 @@ RSpec.describe Steps::HotfixSyncPublish do
       handler.call
 
       expect(client).not_to have_received(:create_pull_request)
+    end
+
+    it "finishes a retry when GitHub already merged the recorded PR" do
+      JobPrLink.record!(
+        job: job, role: JobPrLink::ROLE_HOTFIX_SYNC,
+        source_repository_id: repository.id, source_ref: "main",
+        target_repository_id: repository.id, target_ref: "develop",
+        pr_number: 501, metadata: { "pr_state" => "open" }
+      )
+      allow(client).to receive(:pull_request).with(repository.slug, 501, bypass_cache: true)
+        .and_return(OpenStruct.new(state: "closed", merged: true, merged_at: Time.current))
+      allow(client).to receive(:merge_pull_request)
+
+      handler.call
+
+      expect(client).not_to have_received(:merge_pull_request)
+      expect(job.pr_links.find_by!(role: JobPrLink::ROLE_HOTFIX_SYNC).metadata).to eq("pr_state" => "merged")
+      expect(job.reload).to be_closed
     end
   end
 
