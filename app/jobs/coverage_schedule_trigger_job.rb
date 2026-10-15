@@ -16,30 +16,40 @@ class CoverageScheduleTriggerJob < ApplicationJob
 
     return unless plan&.on_miss == "schedule" && plan.schedule_prompt.present?
 
-    existing = user.jobs
-                   .where(repository: repo, kind: "direct")
-                   .where.not(state: "closed")
-                   .where(created_at: 24.hours.ago..)
-                   .joins(job_tags: :tag)
-                   .where(tags: { name: "coverage-improvement" })
-                   .exists?
-    return if existing
+    job = repo.with_lock do
+      next if recent_coverage_job_exists?(user:, repo:)
 
-    job = user.jobs.create!(
-      repository: repo,
-      kind: "direct",
-      issue_number: nil,
-      issue_title: "Improve test coverage",
-      title_pending: false,
-      issue_body: plan.schedule_prompt,
-      agent_provider: repo.effective_agent_provider
-    )
+      created_job = user.jobs.create!(
+        repository: repo,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Improve test coverage",
+        title_pending: false,
+        issue_body: plan.schedule_prompt,
+        agent_provider: repo.effective_agent_provider
+      )
 
-    tag = user.tags.find_or_create_by!(name: "coverage-improvement") { |t| t.color = "gray" }
-    job.job_tags.find_or_create_by!(tag: tag)
+      tag = user.tags.find_or_create_by!(name: "coverage-improvement") { |t| t.color = "gray" }
+      created_job.job_tags.find_or_create_by!(tag: tag)
 
-    job.advance_after_triage! if job.may_advance_after_triage?
+      created_job.advance_after_triage! if created_job.may_advance_after_triage?
+      created_job
+    end
+
+    return unless job
 
     Rails.logger.info("[CoverageScheduleTrigger] created #{job.slug} for Workflow ##{workflow_id}")
+  end
+
+  private
+
+  def recent_coverage_job_exists?(user:, repo:)
+    user.jobs
+        .where(repository: repo, kind: "direct")
+        .where.not(state: "closed")
+        .where(created_at: 24.hours.ago..)
+        .joins(job_tags: :tag)
+        .where(tags: { name: "coverage-improvement" })
+        .exists?
   end
 end
