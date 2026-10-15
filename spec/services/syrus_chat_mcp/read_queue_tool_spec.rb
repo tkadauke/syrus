@@ -89,13 +89,30 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
     solid_queue_process(hostname: "mac-mini-a", pid: 101, metadata: { "queues" => "runs-macos-arm64" })
     WorkerHostHealthSample.create!(
       hostname: "mac-mini-a",
-      worker_storage_key: "storage-mac",
+      worker_storage_key: "storage-old",
       role: "worker",
       version: "abc123",
-      observed_at: Time.current,
+      observed_at: 2.minutes.ago,
+      cpu_used_percent: 20,
+      capabilities: { "os" => [ "linux" ] },
+      capability_diagnostics: { "xcode" => false }
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "mac-mini-a",
+      worker_storage_key: "storage-new",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
       cpu_used_percent: 20,
       capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] },
       capability_diagnostics: { "xcode" => true }
+    )
+    MacosWorkerDrain.create!(
+      worker_storage_key: "storage-new",
+      hostname: "mac-mini-a",
+      state: "draining",
+      drain_started_at: Time.current,
+      desired_git_sha: "newsha"
     )
 
     payload = response_payload(call_tool)
@@ -103,7 +120,8 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
     expect(payload.dig(:active_workers, :workers).first).to include(
       hostname: "mac-mini-a",
       capabilities: { os: [ "macos" ], arch: [ "arm64" ] },
-      capability_diagnostics: { xcode: true }
+      capability_diagnostics: { xcode: true },
+      macos_worker_drain: include(state: "draining")
     )
   end
 
