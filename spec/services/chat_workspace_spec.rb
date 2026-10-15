@@ -1136,6 +1136,39 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(remote_has_ref?(wip_tag_ref)).to be(false)
     end
 
+    it "preserves a clean checkout when the remote WIP tag lookup fails" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url)
+        .and_return("file:///nonexistent/repo.git")
+
+      expect {
+        described_class.reclaim_coding_checkout!(chat_session)
+      }.to raise_error(GitRunner::GitError)
+
+      expect(coding_path.join(".git")).to exist
+    end
+
+    it "preserves a clean checkout when deleting a stale WIP tag fails" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      head = `git -C #{coding_path} rev-parse HEAD`.strip
+      sh("git -C #{coding_path} push -q origin #{head}:#{wip_tag_ref}")
+      git = GitRunner.new
+      allow(git).to receive(:run).and_wrap_original do |original, *args, **kwargs|
+        if args.first == "push" && args.include?("--delete")
+          raise GitRunner::GitError.new(args, 1, "simulated tag deletion failure")
+        end
+
+        original.call(*args, **kwargs)
+      end
+
+      expect {
+        described_class.new(chat_session, git: git).reclaim_coding_checkout!(repository)
+      }.to raise_error(GitRunner::GitError)
+
+      expect(coding_path.join(".git")).to exist
+      expect(remote_has_ref?(wip_tag_ref)).to be(true)
+    end
+
     it "transparently re-materializes a reclaimed checkout on the next turn" do
       described_class.ensure_coding_checkout!(chat_session, repository)
       File.write(coding_path.join("feature.rb"), "puts 1\n")
