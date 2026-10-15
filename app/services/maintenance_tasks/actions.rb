@@ -52,27 +52,11 @@ module MaintenanceTasks
         @task.reload
         raise ArgumentError, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
 
-        remaining = @task.definition.estimate_total_units
-        if remaining.zero?
-          @task.update!(
-            state: "not_needed",
-            total_units: 0,
-            completed_units: 0,
-            failed_units: 0,
-            current_step_key: nil,
-            current_step_title: nil,
-            eta_seconds: 0,
-            last_error: nil,
-            finished_at: Time.current
-          )
-          @task.log!("No matching maintenance work remains.")
-          return @task
-        end
-
-        total = [ @task.total_units.to_i, @task.completed_units.to_i + remaining ].max
+        # Definitions may inspect worker-local storage. The web process handling
+        # this action must not override discovery's result with its own view;
+        # the queued runner is the authority on whether work remains.
         @task.update!(
           state: "running",
-          total_units: total,
           batch_size: @task.definition.batch_size,
           max_parallelism: @task.definition.max_parallelism,
           requested_by_user: @user,
