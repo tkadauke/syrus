@@ -46,11 +46,13 @@ class PendingActionGroup < ApplicationRecord
     PendingActionGroups::ConfirmResult.new(group: self, member_results: member_results)
   end
 
-  def reject_all!
+  def reject_all!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action group belongs to another user" if user && self.user != user
+
     should_reject = with_lock do
       return false unless pending?
 
-      chat_pending_actions.pending.find_each { |member| reject_member(member) }
+      chat_pending_actions.pending.find_each { |member| reject_member(member, user: user) }
       update!(state: "rejected", rejected_at: Time.current)
       true
     end
@@ -92,9 +94,9 @@ class PendingActionGroup < ApplicationRecord
     PendingActionGroups::MemberResult.new(pending_action: member, success: false, error: e.message)
   end
 
-  def reject_member(member)
+  def reject_member(member, user:)
     member.suppress_outcome_notification = true
-    member.reject!
+    member.reject!(user: user)
   end
 
   def notify_chat_of_outcome(text, outcome:)
