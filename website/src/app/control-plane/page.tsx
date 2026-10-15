@@ -84,6 +84,21 @@ const loopSteps = [
   },
 ];
 
+const pageCopy = {
+  pipelineLabel:
+    "Syrus control plane showing intake, workflow, review, and landing state",
+  heroAccent: "Syrus lands work.",
+  comparisonTitle:
+    "The agent session is powerful. The system around it makes the work durable.",
+  comparisonSubtitle:
+    "Syrus does not assume agents are helpless without tools. It gives teams a repeatable place for state, permissions, review, repair, and landing to live after the model turn ends.",
+  pluginsSubtitle:
+    "Adapters, browser context, source providers, review surfaces, and operational briefings plug into the same Job model instead of becoming separate side channels.",
+  workflowTitle: "One loop from intake to landing.",
+  workflowSubtitle:
+    "Every entry point runs through the same lifecycle, so operators can see where work is, why it is blocked, and what happens next.",
+} as const;
+
 function MiniPipeline() {
   const stages = [
     ["Intake", "GitHub issue"],
@@ -95,7 +110,7 @@ function MiniPipeline() {
   return (
     <div
       role="img"
-      aria-label="Syrus control plane showing intake, workflow, review, and landing state"
+      aria-label={pageCopy.pipelineLabel}
       className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-ink-soft to-ink shadow-[0_40px_130px_-54px_rgba(0,0,0,0.9)]"
     >
       <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
@@ -195,7 +210,7 @@ export default function ControlPlanePage() {
               </span>
               <h1 className="mt-7 text-balance text-[2.7rem] font-semibold leading-[1.04] text-cream sm:text-6xl">
                 Agents write code.{" "}
-                <span className="clay-text">Syrus lands work.</span>
+                <span className="clay-text">{pageCopy.heroAccent}</span>
               </h1>
               <p className="mt-6 max-w-2xl text-pretty text-[1.04rem] leading-relaxed text-cream-dim sm:text-[1.13rem]">
                 Claude Code, Codex, Muse Code, Antigravity, and skills can all
@@ -238,8 +253,8 @@ export default function ControlPlanePage() {
             <SectionHeader
               align="left"
               eyebrow="Control plane comparison"
-              title="The agent session is powerful. The system around it makes the work durable."
-              subtitle="Syrus does not assume agents are helpless without tools. It gives teams a repeatable place for state, permissions, review, repair, and landing to live after the model turn ends."
+              title={pageCopy.comparisonTitle}
+              subtitle={pageCopy.comparisonSubtitle}
             />
 
             <RevealGroup className="mt-12 grid gap-4 lg:grid-cols-2">
@@ -301,7 +316,7 @@ export default function ControlPlanePage() {
             <SectionHeader
               eyebrow="Bundled control-plane capabilities"
               title="Plugins add hands; Syrus keeps the lifecycle coherent."
-              subtitle="Adapters, browser context, source providers, review surfaces, and operational briefings plug into the same Job model instead of becoming separate side channels."
+              subtitle={pageCopy.pluginsSubtitle}
             />
 
             <RevealGroup className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -354,8 +369,8 @@ export default function ControlPlanePage() {
           <div className="wrap">
             <SectionHeader
               eyebrow="Product loop"
-              title="One loop from intake to landing."
-              subtitle="Every entry point runs through the same lifecycle, so operators can see where work is, why it is blocked, and what happens next."
+              title={pageCopy.workflowTitle}
+              subtitle={pageCopy.workflowSubtitle}
             />
 
             <RevealGroup className="mt-12 grid gap-3 lg:grid-cols-5">

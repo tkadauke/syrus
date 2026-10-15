@@ -53,6 +53,7 @@ module Filters
 
         def match(values)
           return scope.none if values.empty?
+          return scope.where(state: values) if values.all? { |value| literal_state?(value) }
 
           scope.where(id: union_scope(values))
         end
@@ -77,6 +78,10 @@ module Filters
           when "backlog" then scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
           else scope.where(state: value)
           end
+        end
+
+        def literal_state?(value)
+          !value.to_s.in?(%w[open backlog])
         end
       end
     end
