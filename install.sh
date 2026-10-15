@@ -337,6 +337,7 @@ run_docker() {
   # writing next to the bundled script would break the code signature.
   if [ -n "$TARGET_DIR" ]; then
     mkdir -p "$TARGET_DIR"
+    chmod 700 "$TARGET_DIR"
     # Keep the compose file in sync with this installer's version on every run,
     # and stamp the channel's project name into it so a plain `docker compose`
     # run from this state dir resolves to <PROJECT> — NOT the compose file's
@@ -417,6 +418,12 @@ run_docker() {
   fi
   emit_step env_check ok
 
+  # Everything written from this point into .env contains instance secrets.
+  # Keep both first writes and atomic replacement files private regardless of
+  # the invoking user's default umask.
+  umask 077
+  if [ -f .env ]; then chmod 600 .env; fi
+
   if [ ! -f .env ]; then
     step "Generating .env with fresh secrets"
     emit_step env_generate start
@@ -428,11 +435,12 @@ run_docker() {
       -e "s|^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=.*|ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(gen 32)|" \
       -e "s|^SYRUS_PLUGIN_RUNTIME_TOKEN=.*|SYRUS_PLUGIN_RUNTIME_TOKEN=$(gen 32)|" \
       "$ASSETS_DIR/compose.env.example" > .env
+    chmod 600 .env
     if [ -n "$PORT_OVERRIDE" ]; then
       sed \
         -e "s|^SYRUS_PORT=.*|SYRUS_PORT=$PORT_OVERRIDE|" \
         -e "s|^SYRUS_APP_HOST=.*|SYRUS_APP_HOST=localhost:$PORT_OVERRIDE|" \
-        .env > .env.tmp && mv .env.tmp .env
+        .env > .env.tmp && mv .env.tmp .env && chmod 600 .env
     fi
     # Seed repository polling paused on a test stack so it does not race
     # production to file Jobs. The backend reads this only when it first
@@ -463,7 +471,7 @@ run_docker() {
       if [ "$current_pin" != "$IMAGE_OVERRIDE" ]; then
         info "Updating the SYRUS_IMAGE pin: ${current_pin:-<empty>} -> $IMAGE_OVERRIDE"
         emit_log env "SYRUS_IMAGE pin updated: ${current_pin:-<empty>} -> $IMAGE_OVERRIDE"
-        sed -e "s|^SYRUS_IMAGE=.*|SYRUS_IMAGE=$IMAGE_OVERRIDE|" .env > .env.tmp && mv .env.tmp .env
+        sed -e "s|^SYRUS_IMAGE=.*|SYRUS_IMAGE=$IMAGE_OVERRIDE|" .env > .env.tmp && mv .env.tmp .env && chmod 600 .env
       fi
     else
       printf 'SYRUS_IMAGE=%s\n' "$IMAGE_OVERRIDE" >> .env
@@ -476,15 +484,16 @@ run_docker() {
   # image pin follows the backend pin whenever that moves.
   ensure_env_value() { # ensure_env_value KEY VALUE
     if grep -qE "^$1=." .env && ! grep -qE "^$1=generate-me\$" .env; then return 0; fi
-    { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env
+    { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
   }
   ensure_env_value SYRUS_PLUGIN_RUNTIME_TOKEN "$(openssl rand -hex 32)"
   ensure_env_value SYRUS_PLUGIN_RUNTIME_URL "http://plugin-runtime:8080"
   if [ -n "$IMAGE_OVERRIDE" ]; then
-    { grep -vE '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env || true; printf 'SYRUS_PLUGIN_RUNTIME_IMAGE=%s\n' "$SYRUS_PLUGIN_RUNTIME_IMAGE"; } > .env.tmp && mv .env.tmp .env
+    { grep -vE '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env || true; printf 'SYRUS_PLUGIN_RUNTIME_IMAGE=%s\n' "$SYRUS_PLUGIN_RUNTIME_IMAGE"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
   else
     ensure_env_value SYRUS_PLUGIN_RUNTIME_IMAGE "$SYRUS_PLUGIN_RUNTIME_IMAGE"
   fi
+  chmod 600 .env
   # .env is now the source of truth; the export above would otherwise win
   # over an operator's own value in it.
   SYRUS_PLUGIN_RUNTIME_IMAGE="$(grep -E '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env | tail -1 | cut -d= -f2-)"
