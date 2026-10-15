@@ -286,6 +286,20 @@ class AutoRetryJob < ApplicationJob
   end
 
   def stale_attempt?(attempt)
+    # A workflow that succeeded has nothing left to retry: whatever step this
+    # attempt was raised for was already recovered or skipped on the way to
+    # success.
+    #
+    # This has to be checked explicitly because
+    # `superseded_by_successful_workflow?` only looks for a *later* successful
+    # workflow, never at the source succeeding on its own. The reconciler's
+    # CancelStaleAutoRetryWorkflow repair does treat that as superseded, so
+    # the two disagreed: a retry whose own source then succeeded passed this
+    # check, started, and was cancelled moments later -- and the cancellation
+    # left a requested WorkIntent behind for the launcher to materialize
+    # again. Three intents produced fourteen cancelled workflows that way.
+    return true if attempt.workflow&.succeeded?
+
     Workflows::ValidationSupersession.superseded_by_successful_workflow?(attempt.workflow)
   end
 

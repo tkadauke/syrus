@@ -2503,6 +2503,42 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded")
   end
 
+  # Cancelling the workflow and its WorkUnit is not the whole repair. A
+  # requested WorkIntent is exactly what the launcher materializes the next
+  # WorkUnit from, so leaving it behind rebuilds the same stale retry on the
+  # next pass. Three intents produced fourteen cancelled workflows this way,
+  # each leaving a workspace on disk.
+  it "retires the WorkIntent behind a cancelled stale auto-retry" do
+    source = workflow
+    source.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+    job.update!(state: "implemented")
+    attempt = AutoRetryAttempt.create!(
+      job: job, workflow: source, run: run, agent_provider: "claude",
+      failure_classification: "missing_required_tool_call", retry_kind: "resume_failed_step",
+      attempt_number: 1, scheduled_at: 9.minutes.ago, performed_at: 8.minutes.ago
+    )
+    stale = Workflows::Retry.instantiate(
+      job: job,
+      artifacts: { "auto_retry_attempt_id" => attempt.id },
+      agent_provider: "claude"
+    )
+    unit = attach_work_unit(stale, state: "queued", kind: "retry")
+    stale.update_columns(created_at: 8.minutes.ago)
+    StepDispatcher.start_workflow(stale)
+    stale.reload
+    stale.first_step.runs.first.update_columns(created_at: 8.minutes.ago, updated_at: 8.minutes.ago)
+    intent = unit.work_intent
+    expect(intent.reload.state).to eq("requested")
+
+    reconcile_and_execute(job_id: job.id)
+
+    expect(stale.reload).to be_cancelled
+    expect(intent.reload.state).to eq("cancelled")
+    expect(intent.cancelled_at).to be_present
+  end
+
   it "cancels stale queued auto-retry workflows after branch divergence recovery supersedes the source" do
     source = workflow
     job.update!(

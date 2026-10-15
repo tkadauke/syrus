@@ -932,12 +932,35 @@ module WorkEngine
               artifacts: workflow.artifacts
             )
             attempt.update!(skipped_reason: "source workflow was already superseded") if attempt.skipped_reason.blank?
+            cancel_requesting_intent!(workflow)
           end
           WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job)
           success("cancelled stale auto-retry #{workflow_label(workflow)}")
         end
 
         private
+
+        # Cancelling the workflow and its WorkUnit is not enough on its own.
+        # The WorkIntent behind the unit stays `requested`, and a requested
+        # intent is exactly what the launcher materializes a WorkUnit from --
+        # so the next pass builds another retry workflow, this repair cancels
+        # that one too, and the pair loops. One intent produced seven
+        # workflows this way in half an hour, each leaving a workspace behind.
+        #
+        # Only retired once the unit this repair just cancelled is terminal, so
+        # the intent is never cancelled out from under work that is still
+        # live. (`work_units.active_dedup_key` already forbids a second
+        # non-terminal unit in the same scope, so that unit is the only one
+        # this intent can have in flight.)
+        def cancel_requesting_intent!(workflow)
+          unit = WorkUnit.where(workflow_id: workflow.id).order(:id).last
+          intent = unit&.work_intent
+          return if intent.nil?
+          return unless intent.requested? || intent.waiting?
+          return unless unit.terminal?
+
+          intent.cancel!
+        end
 
         def source_superseded?(job, source)
           return false unless job && source

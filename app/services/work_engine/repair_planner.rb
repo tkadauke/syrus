@@ -530,7 +530,7 @@ module WorkEngine
             "cancel_stale_auto_retry_workflow",
             primary_workflow,
             "The auto-retry workflow was created from a failure that a newer successful workflow already superseded.",
-            execution_steps: [ "Workflow#cancel!", "WorkUnit#preempt!" ],
+            execution_steps: [ "Workflow#cancel!", "WorkUnit#preempt!", "WorkIntent#cancel!" ],
             preconditions: {
               workflow_state: "queued",
               trigger_kind: "retry",

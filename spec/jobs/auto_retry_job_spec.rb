@@ -383,6 +383,23 @@ RSpec.describe AutoRetryJob do
     expect(RetryWorkflowEnqueuer).not_to have_received(:call)
   end
 
+  # Regression: this check only looked for a *later* successful workflow, so a
+  # retry whose own source then succeeded passed it, started, and was
+  # cancelled by the reconciler moments later -- leaving a requested
+  # WorkIntent behind that the launcher materialized again and again.
+  it "skips an attempt whose own source workflow has since succeeded" do
+    attempt = failed_attempt!(retry_kind: "resume_failed_step")
+    workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    job.update_columns(state: "approved")
+    allow(RetryFailedStepEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded by a successful workflow")
+    expect(attempt.performed_at).to be_nil
+    expect(RetryFailedStepEnqueuer).not_to have_received(:call)
+  end
+
   it "skips stale attempts after a newer workflow has already succeeded" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     Workflow.create!(
