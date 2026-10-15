@@ -8,6 +8,18 @@ require "tmpdir"
 class BaseRevisionRetry
   TIMEOUT_SECONDS = 10.minutes
   OUTPUT_INLINE_BYTES = 16 * 1024
+  # Where a focused retry's machine-readable result can land. The grader step's
+  # own `junit_output` is written by the grader's full command (for rspec, the
+  # pass that merges per-worker XML); a focused retry runs `bin/rspec-worker`
+  # directly instead, which writes to its own RSPEC_JUNIT_DIR and never
+  # produces that merged file. Searching only the grade-output directory
+  # therefore found nothing and fell through to parsing progress-formatter
+  # dots, which carry no per-case results. A focused retry is a single
+  # process, so there is exactly one file to find here.
+  JUNIT_SEARCH_GLOBS = [
+    ".syrus/rspec-junit/**/*.xml",
+    ".syrus/grade-output/**/*.{xml,junit}"
+  ].freeze
 
   Result = Data.define(:ran, :inherited, :reason, :command, :base_failed_identities, :introduced_failed_identities, :output)
 
@@ -206,10 +218,12 @@ class BaseRevisionRetry
       path = checkout_path.join(junit_path)
       return JunitXmlParser.parse(path.read) if path.file?
     end
-    Dir.glob(checkout_path.join(".syrus/grade-output/**/*.{xml,junit}").to_s).sort.each do |path|
-      return JunitXmlParser.parse(File.read(path))
-    rescue JunitXmlParser::ParseError
-      next
+    JUNIT_SEARCH_GLOBS.each do |glob|
+      Dir.glob(checkout_path.join(glob).to_s).sort.each do |path|
+        return JunitXmlParser.parse(File.read(path))
+      rescue JunitXmlParser::ParseError
+        next
+      end
     end
 
     parse_output(output)

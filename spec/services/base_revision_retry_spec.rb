@@ -321,4 +321,61 @@ RSpec.describe BaseRevisionRetry do
     expect(output).to include("started")
     expect(output).to include("[brr] timed out")
   end
+
+  # Regression. A focused retry runs `bin/rspec-worker` directly instead of the
+  # grader's full command, so it never writes the merged junit file the grader
+  # step advertises -- rspec-worker writes one per-worker file under
+  # .syrus/rspec-junit/. Searching only .syrus/grade-output/ found nothing and
+  # fell through to parsing progress-formatter dots, which carry no per-case
+  # results, so every rspec base retry reported
+  # `base_retry_output_not_parseable`. With no base comparison the grader could
+  # never apply `allow_inherited`, and the main branch stayed red.
+  it "finds the junit that a focused rspec-worker retry actually writes" do
+    worker_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 2,
+      state: "failed",
+      details: {
+        "name" => "rspec-ci",
+        "command" => "bundle exec parallel_rspec --exec-args bin/rspec-worker",
+        # Written by the grader's own merge pass, never by a focused retry.
+        "junit_output" => ".syrus/grade-output/rspec-ci-junit.xml",
+        "base_retry" => { "strategy" => "plugin" }
+      }
+    )
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-worker spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: worker_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      path = chdir.join(".syrus/rspec-junit/rspec-junit-_syrus_flaky_abc12345.xml")
+      FileUtils.mkdir_p(path.dirname)
+      path.write(<<~XML)
+        <testsuite name="spec/models/widget_spec.rb">
+          <testcase classname="spec/models/widget_spec.rb" name="Widget fails">
+            <failure message="same failure">same failure</failure>
+          </testcase>
+        </testsuite>
+      XML
+      output << "1 example, 1 failure"
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_failed_cases_match"
+    )
+  end
 end

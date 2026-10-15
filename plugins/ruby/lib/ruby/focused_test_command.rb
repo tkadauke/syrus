@@ -74,9 +74,45 @@ module Ruby
           args.concat(Shellwords.split(token.delete_prefix("RSPEC_TAG_ARGS=")))
         end
       end
-      args.presence
+      deconflicted_tag_args(args)
     rescue ArgumentError
       nil
+    end
+
+    # A generated grader command can hold more than one rspec invocation. The
+    # rspec-ci grader runs the parallel pass with `--tag ~ci_only` and then the
+    # serial ci-only pass with `--tag ci_only`, so scraping every `--tag` out of
+    # it yields `--tag ~ci_only --tag ci_only`. Handing both to a single rspec
+    # run asks for examples that are ci_only and not ci_only at once, which
+    # matches nothing: the focused base-revision retry ran zero examples,
+    # produced no parseable result, and was recorded as
+    # `base_retry_output_not_parseable`. With no base comparison the grader
+    # could never apply its `allow_inherited` policy, so an inherited or flaky
+    # failure was never dismissed and the main branch stayed red.
+    #
+    # Scraped tags are only a hint about what the grader meant. When they
+    # contradict themselves, drop them and fall back to the tag implied by the
+    # grader's own identity, which cannot contradict itself.
+    def deconflicted_tag_args(args)
+      return nil if args.blank?
+
+      tags = []
+      rest = []
+      index = 0
+      while index < args.length
+        if args[index] == "--tag" && args[index + 1].present?
+          tags << args[index + 1]
+          index += 2
+        else
+          rest << args[index]
+          index += 1
+        end
+      end
+
+      by_name = tags.group_by { |tag| tag.to_s.delete_prefix("~") }
+      return nil if by_name.any? { |_, group| group.map { |tag| tag.to_s.start_with?("~") }.uniq.size > 1 }
+
+      (tags.uniq.flat_map { |tag| [ "--tag", tag ] } + rest).presence
     end
 
     def ci_only_env

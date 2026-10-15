@@ -56,6 +56,39 @@ RSpec.describe Ruby::FocusedTestCommand do
     expect(command).to eq("export RAILS_ENV=test RUN_CI_ONLY_SPECS=false COVERAGE=false TEST_ENV_NUMBER=${TEST_ENV_NUMBER:-_syrus_flaky_9ce22ed4}; (#{bundle_prefix} bundle check || #{bundle_prefix} bundle install --jobs \"${BUNDLE_INSTALL_JOBS:-1}\") && if [ -x bin/rails ] && [ -f config/database.yml ]; then bin/rails db:test:prepare; fi && #{bundle_prefix} bin/rspec-worker --tag \\~ci_only plugins/muse_agent/spec/services/muse_invocation_spec.rb")
   end
 
+  # Regression. The rspec-ci grader command holds two rspec invocations: the
+  # parallel pass filtered with `--tag ~ci_only` and the serial ci-only pass
+  # filtered with `--tag ci_only`. Scraping every `--tag` out of it produced
+  # `--tag ~ci_only --tag ci_only`, which asks one rspec run for examples that
+  # are ci_only and not ci_only at the same time. Nothing matches, so the
+  # focused base-revision retry ran zero examples and reported
+  # `base_retry_output_not_parseable` -- and with no base comparison the
+  # grader could never apply `allow_inherited`, leaving main red indefinitely.
+  it "falls back to the grader's own tag when the scraped filters contradict each other" do
+    composite = 'bundle exec parallel_rspec -n 6 --exec-args bin/rspec-worker --tag ~ci_only && ' \
+                'RUN_CI_ONLY_SPECS=true bundle exec rspec --tag ci_only'
+
+    command = described_class.command_for(
+      grader_name: "rspec-ci",
+      grader_command: composite,
+      failed_cases: [ { "file_path" => "spec/models/widget_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(rspec_tags_in(command)).to eq([ "ci_only" ])
+  end
+
+  it "keeps several non-contradicting tag filters and drops duplicates" do
+    command = described_class.command_for(
+      grader_name: "rspec",
+      grader_command: "bundle exec rspec --tag ~ci_only --tag ~work_engine_simulation_assertions --tag ~ci_only",
+      failed_cases: [ { "file_path" => "spec/models/widget_spec.rb" } ],
+      base_retry: { "strategy" => "plugin" }
+    )
+
+    expect(rspec_tags_in(command)).to eq([ "~ci_only", "~work_engine_simulation_assertions" ])
+  end
+
   it "declines when the grader did not opt into plugin strategy" do
     command = described_class.command_for(
       grader_name: "rspec",
@@ -89,5 +122,11 @@ RSpec.describe Ruby::FocusedTestCommand do
     )
 
     expect(command).to be_nil
+  end
+
+  # Reads the tag filters back out of the generated shell command, so the
+  # assertions do not depend on how Shellwords escaped `~`.
+  def rspec_tags_in(command)
+    Shellwords.split(command).each_cons(2).filter_map { |flag, value| value if flag == "--tag" }
   end
 end
