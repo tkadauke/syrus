@@ -144,18 +144,20 @@ RSpec.describe "queue partitioning" do
 
   # The check above only sees `queue_as` in app/jobs. Framework jobs subclass
   # ActiveJob::Base directly, so they miss ApplicationJob's `queue_as
-  # :control_plane` and fall back to :default — which no worker consumes, so
-  # they are enqueued and then never claimed. This caught Active Storage
-  # silently stranding every attachment analysis in production.
+  # :control_plane` and use framework-owned defaults such as :default or
+  # :mailers — which no worker consumes, so they are enqueued and then never
+  # claimed. This caught Active Storage silently stranding every attachment
+  # analysis in production.
   it "does not leave framework-owned jobs on queues no worker consumes" do
     framework_jobs = [
-      ActiveStorage::AnalyzeJob,
-      ActiveStorage::PurgeJob
+      ActionMailer::MailDeliveryJob.new("PasswordsMailer", "reset", "deliver_now", args: []),
+      ActiveStorage::AnalyzeJob.new,
+      ActiveStorage::PurgeJob.new
     ]
 
-    stranded = framework_jobs.filter_map do |klass|
-      queue = klass.new.queue_name.to_s
-      [ klass.name, queue ] unless BASE_APP_QUEUES.include?(queue)
+    stranded = framework_jobs.filter_map do |job|
+      queue = job.queue_name.to_s
+      [ job.class.name, queue ] unless BASE_APP_QUEUES.include?(queue)
     end
 
     message = "framework jobs resolve to unconsumed queues: " \
