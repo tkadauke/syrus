@@ -4750,7 +4750,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       }
     )
     step.update_columns(state: "queued")
-    attach_work_unit(
+    unit = attach_work_unit(
       workflow,
       blocked_reason: StepDispatcher::MANUAL_PAUSE_REASON,
       blocked_until: nil,
@@ -4771,7 +4771,13 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       check_after: nil
     )
     expect(issue.evidence.fetch("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
-    expect(plan(result, :wait_for_main_health)).to have_attributes(auto_executable: false, target_id: workflow.id)
+    # A waiting plan's target is the owning WorkUnit when the Workflow has one:
+    # the pause lives on the unit, and the unit is what an operator resumes.
+    expect(plan(result, :wait_for_main_health)).to have_attributes(
+      auto_executable: false,
+      target_type: "WorkUnit",
+      target_id: unit.id
+    )
     expect(plan(result, :start_workflow)).to be_nil
   end
 
