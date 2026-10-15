@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +22,32 @@ import (
 // ---------------------------------------------------------------------------
 
 var wsUpgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+func TestGetLocalRepoSlugHandlesAndRedactsCredentialedRemotes(t *testing.T) {
+	repoRoot := t.TempDir()
+	if output, err := exec.Command("git", "-C", repoRoot, "init").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
+	if output, err := exec.Command("git", "-C", repoRoot, "remote", "add", "origin", "https://x-access-token:ghs_SECRET@github.com/acme/repo.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote add: %v: %s", err, output)
+	}
+
+	slug, err := getLocalRepoSlug(context.Background(), repoRoot)
+	if err != nil || slug != "acme/repo" {
+		t.Fatalf("getLocalRepoSlug() = %q, %v", slug, err)
+	}
+
+	if output, err := exec.Command("git", "-C", repoRoot, "remote", "set-url", "origin", "https://user:ghs_SECRET@example.com/acme/repo.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote set-url: %v: %s", err, output)
+	}
+	_, err = getLocalRepoSlug(context.Background(), repoRoot)
+	if err == nil || strings.Contains(err.Error(), "ghs_SECRET") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "https://example.com/acme/repo.git") {
+		t.Fatalf("error = %q", err)
+	}
+}
 
 // newLocalWSServer starts a test WebSocket server. handler receives the
 // upgraded connection and can exchange messages with the client.
