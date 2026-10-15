@@ -1898,7 +1898,6 @@ RSpec.describe StepDispatcher, :ci_only do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)
       grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
-      competing_grade = Step.find(grade.id)
       summarize = loop_wf.steps.find_by!(kind: "summarize")
       run = implement.runs.create!(job: job, trigger_kind: "manual")
       ProviderSession.create!(run: run, session_id: "S-iter-1", transcript_jsonl: "{}\n")
@@ -1916,14 +1915,94 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(new_steps.last.next_step).to eq(summarize)
       expect(new_steps.first.runs.last.parent_session_id).to eq("S-iter-1")
       expect(new_steps.first.runs.last.iteration).to eq(2)
+    end
 
-      step_count = loop_wf.steps.count
-      run_count = Run.count
+    it "materializes exactly one loop iteration when failure propagation races" do
+      loop_wf = workflow_with_loop(max_iterations: 3)
+      grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
+      lock_attempts = Set.new
+      guard_entries = Set.new
+      guard_completions = Set.new
+      mutex = Mutex.new
+      condition = ConditionVariable.new
+      loop_node = described_class.new(loop_wf, advancing_from: grade).send(:loop_node_for, grade)
 
-      described_class.fail_from(competing_grade)
+      # Isolate the materialization race from the progress/activity writes that
+      # precede it and can themselves serialize SQLite. Both threads still use
+      # the public failure-propagation entry point.
+      allow_any_instance_of(Workflow).to receive(:terminal?).and_return(false)
+      allow_any_instance_of(described_class).to receive(:handle_loop_iteration).and_wrap_original do |original|
+        original.receiver.send(:enqueue_next_loop_iteration!, loop_node)
+      end
+      allow_any_instance_of(Workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        mutex.synchronize do
+          lock_attempts << Thread.current.object_id
+          condition.broadcast
+        end
+        original.call(*args, &block)
+      end
+      allow_any_instance_of(described_class)
+        .to receive(:next_loop_iteration_already_materialized?)
+        .and_wrap_original do |original, *args|
+          actor = Thread.current.object_id
+          mutex.synchronize do
+            guard_entries << actor
+            wait_for_concurrent_dispatcher!(condition, mutex) do
+              guard_entries.size >= 2 || lock_attempts.size >= 2
+            end
+          end
 
-      expect(loop_wf.steps.count).to eq(step_count)
-      expect(Run.count).to eq(run_count)
+          result = original.call(*args)
+
+          mutex.synchronize do
+            guard_completions << actor
+            condition.broadcast
+            # Without the production lock, hold both callers after the guard
+            # until both observed the old continuation. This deterministically
+            # reproduces the check-then-act race the row lock prevents.
+            if lock_attempts.empty?
+              wait_for_concurrent_dispatcher!(condition, mutex) { guard_completions.size >= 2 }
+            end
+          end
+          result
+        end
+
+      errors = Queue.new
+      ready = Queue.new
+      start = Queue.new
+      threads = 2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            competing_grade = Step.find(grade.id)
+            competing_grade.workflow
+            ready << true
+            start.pop
+            described_class.fail_from(competing_grade)
+          rescue StandardError => error
+            errors << error
+          end
+        end
+      end
+      2.times { ready.pop }
+      2.times { start << true }
+      threads.each { |thread| thread.join(10) || raise("concurrent fail_from timed out") }
+      raise errors.pop unless errors.empty?
+
+      iteration_steps = loop_wf.steps.where(loop_id: grade.loop_id, iteration: 2).order(:position)
+      expect(iteration_steps.pluck(:kind)).to eq(%w[ implement grade ])
+      expect(iteration_steps.sum { |step| step.runs.count }).to eq(1)
+    ensure
+      threads&.each(&:kill)
+    end
+
+    def wait_for_concurrent_dispatcher!(condition, mutex)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+      until yield
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise "concurrent fail_from coordination timed out" unless remaining.positive?
+
+        condition.wait(mutex, remaining)
+      end
     end
 
     it "spends the loop budget before failing the workflow after repeated grade failures" do
