@@ -245,6 +245,20 @@ RSpec.describe "desktop auto-update and release pipeline" do
     end
   end
 
+  it "rejects Docker-incompatible and stale explicit release versions before building" do
+    workflow = YAML.safe_load(release_workflow)
+    inputs = workflow.dig(true, "workflow_dispatch", "inputs")
+    compute = workflow.dig("jobs", "prepare", "steps").find { |step| step["id"] == "compute" }
+
+    expect(inputs.dig("force_lower", "default")).to eq(false)
+    expect(compute.dig("env", "FORCE_LOWER")).to eq("${{ inputs.force_lower }}")
+    expect(compute["run"]).to include('^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$')
+    expect(compute["run"]).not_to include("[-+][0-9A-Za-z.-]+")
+    expect(compute["run"]).to include('sort -V | tail -1')
+    expect(compute["run"]).to include('[ "$FORCE_LOWER" != "true" ]')
+    expect(compute["run"]).to include("must be greater than latest stable tag")
+  end
+
   it "release workflow guarantees the bundled CLI: Go on both desktop runners, presence asserted" do
     # 0.1.1/0.1.2 shipped with NO Resources/cli: macos-15 has no Go, and
     # stage-cli.mjs exited 0 after wiping the staging dir, so every in-app

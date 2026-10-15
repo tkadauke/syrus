@@ -50,6 +50,10 @@ on:
         description: "Explicit version override, e.g. 1.2.3 or 1.2.3-beta.1 (optional)"
         type: string
         default: ""
+      force_lower:
+        description: "Allow an explicit version at or below the latest stable tag (emergency use only)"
+        type: boolean
+        default: false
       dry_run:
         description: "Dry run — build + stage everything, publish nothing"
         type: boolean
@@ -92,17 +96,18 @@ jobs:
         env:
           BUMP: ${{ inputs.bump }}
           OVERRIDE: ${{ inputs.version }}
+          FORCE_LOWER: ${{ inputs.force_lower }}
           DRY: ${{ inputs.dry_run }}
           REVIEW: ${{ inputs.review_notes }}
         run: |
           set -euo pipefail
           git fetch --tags --quiet || true
           pkg="$(node -p "require('./desktop/package.json').version")"
+          latest_tag="$(git tag --list 'v*' | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' | sort -V | tail -1)"
 
           if [ -n "$OVERRIDE" ]; then
             ver="${OVERRIDE#v}"
           else
-            latest_tag="$(git tag --list 'v*' | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' | sort -V | tail -1)"
             # The git tag is the source of truth. desktop/package.json stays a
             # 0.0.0 dev sentinel (never hand-bumped), so base is normally just
             # the newest tag; the pkg floor only matters if someone raises it.
@@ -117,8 +122,18 @@ jobs:
             ver="$MA.$MI.$PA"
           fi
 
-          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::computed version '$ver' is not valid semver"; exit 1
+          # This SemVer subset is also a valid Docker tag. SemVer build
+          # metadata uses '+', which Docker tags reject, so fail before the
+          # shared build spine starts rather than after images are built.
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::computed version '$ver' must be SemVer compatible with a Docker tag (build metadata with '+' is unsupported)"; exit 1
+          fi
+
+          if [ -n "$OVERRIDE" ] && [ -n "$latest_tag" ] && [ "$FORCE_LOWER" != "true" ]; then
+            newest="$(printf '%s\n%s\n' "$latest_tag" "$ver" | sort -V | tail -1)"
+            if [ "$newest" != "$ver" ] || [ "$ver" = "$latest_tag" ]; then
+              echo "::error::explicit version '$ver' must be greater than latest stable tag '$latest_tag' (set force_lower only for an intentional emergency release)"; exit 1
+            fi
           fi
 
           prerelease=false
