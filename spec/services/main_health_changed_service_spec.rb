@@ -1335,6 +1335,9 @@ RSpec.describe MainHealthChangedService, :ci_only do
     end
 
     context "rebasing PRs left with failing CI" do
+      let(:started_launch_result) { instance_double(WorkUnits::Launcher::Result, started?: true) }
+      let(:blocked_launch_result) { instance_double(WorkUnits::Launcher::Result, started?: false) }
+
       it "dispatches a mechanical rebase for an open Job with pr_checks_state == failing" do
         failing_job = Factories.job_record(
           repository: repository,
@@ -1346,7 +1349,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
 
         rebase_workflow = instance_double(Workflow)
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(rebase_workflow)
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
@@ -1423,7 +1426,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         end
 
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
@@ -1439,10 +1442,33 @@ RSpec.describe MainHealthChangedService, :ci_only do
           pr_checks_state: "failing"
         )
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
+        expect(Notification.last.body).to include("1 PR rebased")
+      end
+
+      it "does not count blocked launches toward the rebase count or fan-out cap" do
+        (MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times do |i|
+          Factories.job_record(
+            repository: repository,
+            state: "implemented",
+            branch_name: "syrus/issue-blocked-#{i}",
+            pr_number: 200 + i,
+            pr_checks_state: "failing"
+          )
+        end
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(
+          *Array.new(MainHealthChangedService::MAX_RECOVERY_RETRIES, blocked_launch_result),
+          started_launch_result
+        )
+
+        described_class.recovered!(repository)
+
+        expect(WorkUnits::Launcher).to have_received(:start!)
+          .exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times
         expect(Notification.last.body).to include("1 PR rebased")
       end
 
@@ -1475,7 +1501,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
           .with(job: remaining_job, artifacts: hash_including("repair_reason"))
           .and_return(remaining_workflow)
         allow(WorkUnits::Launcher).to receive(:start!).with(conflicting_workflow).and_raise(conflict)
-        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow).and_return(started_launch_result)
 
         expect {
           described_class.recovered!(repository)
@@ -1508,7 +1534,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         allow(RebaseWorkflowSelector).to receive(:instantiate)
           .with(job: remaining_job, artifacts: hash_including("repair_reason"))
           .and_return(remaining_workflow)
-        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow).and_return(started_launch_result)
         allow(Rails.logger).to receive(:error)
 
         expect {
