@@ -1262,6 +1262,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
   process-local material, redaction, cleanup, and access audit events.
+  Name-based leases ignore inactive credentials, prefer user scope over
+  repository, team, and instance scopes, and reject equally ranked ambiguous
+  matches. Personal user-scoped credentials remain private to their owner even
+  from other administrators' agent runs.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing
