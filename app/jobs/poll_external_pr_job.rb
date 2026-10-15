@@ -1,8 +1,14 @@
 class PollExternalPrJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
   include GithubPrPollHelpers
 
   queue_as :polling
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Octokit::ServerError,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
 
   # One concurrent poll per Job — prevents races on the closure write.
   limits_concurrency to: 1, key: ->(job_id, *) { "external_pr_poll:#{job_id}" }
@@ -12,20 +18,24 @@ class PollExternalPrJob < ApplicationJob
     return unless @job&.open? && @job.external_pr_number.present?
     return if !@job.external_pr? && @job.pr_number.present?
     return if @job.repository.archived?
-    return if @job.repository.github_api_rate_limited_for?(user: @job.user)
+    return if github_polling_rate_limited?(@job.repository, user: @job.user, retry_args: [ job_id ])
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
-    @slug = @job.repository.slug
-    @pr = @client.pull_request(@slug, @job.external_pr_number)
-    @client.clear_api_blocked!
+    with_github_polling_rate_limit_backoff(@job.repository, user: @job.user, retry_args: [ job_id ]) do
+      @client = GithubClient.for(repository: @job.repository, user: @job.user)
+      @slug = @job.repository.slug
+      @pr = @client.pull_request(@slug, @job.external_pr_number)
+      @client.clear_api_blocked!
 
-    return close_with("external_pr_merged") if @pr.merged
-    return close_with("external_pr_closed") if @pr.state == "closed"
+      return close_with("external_pr_merged") if @pr.merged
+      return close_with("external_pr_closed") if @pr.state == "closed"
 
-    return unless @job.external_pr?
+      return unless @job.external_pr?
 
-    react_to_pr_reviews
-    ingest_pr_comments
+      react_to_pr_reviews
+      ingest_pr_comments
+    end
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    Rails.logger.warn("[PollExternalPrJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
   end
 
   private

@@ -3473,6 +3473,73 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 30000)
 
+  it("reenables bulk job actions after the action succeeds", async () => {
+    let resolveBulkAction: ((response: Response) => void) | undefined
+    const bulkActionResponse = new Promise<Response>((resolve) => {
+      resolveBulkAction = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                total: 1,
+                items: [
+                  dashboardJobItem({
+                    bulk_actions: {
+                      retry: true,
+                      close: true
+                    }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard/jobs/bulk") return bulkActionResponse
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByLabelText("Select Repair aqueduct"))
+    const retryButton = screen.getByRole("button", { name: "Retry" })
+    const closeButton = screen.getByRole("button", { name: "Close" })
+    fireEvent.click(retryButton)
+
+    await waitFor(() => {
+      expect(retryButton).toBeDisabled()
+      expect(closeButton).toBeDisabled()
+    })
+
+    resolveBulkAction?.(
+      new Response(JSON.stringify({ message: "Retry enqueued for 1 job." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(retryButton).toBeEnabled()
+      expect(closeButton).toBeEnabled()
+    })
+  })
+
   it("shows only bulk job actions that apply to every selected dashboard row", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
@@ -10497,7 +10564,7 @@ describe("App", () => {
             path: "/api/v1/app/jobs/42/run_again"
           },
           retry_failed_step_action: null,
-          retry_agent_options: ["codex"],
+          retry_agent_options: ["claude"],
           can_restart: true,
           can_cancel: true,
           can_open_in_coding_mode: true,
@@ -10542,8 +10609,6 @@ describe("App", () => {
       ["Retry PR ingestion", "POST", "/api/v1/app/jobs/42/retry_pr_ingestion"],
       ["Run visual review", "POST", "/api/v1/app/jobs/42/visual_review"],
       ["Run before/after comparison", "POST", "/api/v1/app/jobs/42/visual_diff"],
-      ["Retry implementation", "POST", "/api/v1/app/jobs/42/run_again"],
-      ["Retry with Codex", "POST", "/api/v1/app/jobs/42/run_again"],
       ["Start over", "POST", "/api/v1/app/jobs/42/restart"],
       ["Unapprove", "POST", "/api/v1/app/jobs/42/unapprove"],
       ["Reopen", "POST", "/api/v1/app/jobs/42/reopen"],
@@ -10565,10 +10630,7 @@ describe("App", () => {
       "Retry PR ingestion",
       "Run visual review",
       "Run before/after comparison",
-      "Retry implementation",
-      "Retry with Codex",
-      "Retry with feedback",
-      "Retry with Codex and feedback",
+      "Retry with ...",
       "Start over",
       "Unapprove",
       "Reopen",
@@ -10584,7 +10646,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "More actions" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
     expect(within(screen.getByRole("menu")).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(overflowLabels)
-    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with ..." })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     await waitFor(() => {
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()
@@ -10613,6 +10675,22 @@ describe("App", () => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
     }
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with ..." }))
+    const retryDialog = await screen.findByRole("dialog", { name: "Retry with feedback" })
+    fireEvent.change(within(retryDialog).getByLabelText("Provider"), { target: { value: "claude" } })
+    fireEvent.change(within(retryDialog).getByLabelText("Feedback"), { target: { value: "Try the waterwheel route." } })
+    fireEvent.click(within(retryDialog).getByRole("button", { name: "Retry" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/run_again",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ agent_provider: "claude", retry_context: "Try the waterwheel route." })
+        })
+      )
+    })
   }, 60000)
 
   it("labels approval as reapproval after a landing failure", async () => {
@@ -10700,7 +10778,7 @@ describe("App", () => {
             path: "/api/v1/app/jobs/42/run_again"
           },
           retry_failed_step_action: null,
-          retry_agent_options: ["codex"],
+          retry_agent_options: ["claude"],
           can_approve: false,
           can_poll_feedback: false,
           can_rebase: false,
@@ -10719,11 +10797,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("button", { name: "Retry implementation" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
-    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with Codex and feedback" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Retry with ..." }))
 
     const dialog = screen.getByRole("dialog", { name: "Retry with feedback" })
+    fireEvent.change(within(dialog).getByLabelText("Provider"), { target: { value: "claude" } })
     fireEvent.change(within(dialog).getByLabelText("Feedback"), { target: { value: "Please use the marble route this time." } })
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
 
@@ -10732,7 +10809,7 @@ describe("App", () => {
         "/api/v1/app/jobs/42/run_again",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ agent_provider: "codex", retry_context: "Please use the marble route this time." })
+          body: JSON.stringify({ agent_provider: "claude", retry_context: "Please use the marble route this time." })
         })
       )
     })
@@ -12120,6 +12197,7 @@ describe("App", () => {
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
+      expect(within(mobileTabsShell).queryByText("Tokens: 12.4k in / 3.2k out · $0.0123")).not.toBeInTheDocument()
       expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
       expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
@@ -12129,6 +12207,7 @@ describe("App", () => {
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
+      expect(within(mobileTabsShell).getByText("Tokens: 12.4k in / 3.2k out · $0.0123")).toBeInTheDocument()
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
       expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
     } finally {

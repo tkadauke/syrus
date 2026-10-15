@@ -118,8 +118,13 @@ RSpec.describe RepositoryCommitDistance do
 
       second_distance = described_class.new(repository, bare_clone: bare_clone)
       second = Thread.new { second_distance.commits_behind(base_sha: "base2", head_sha: "head2", user: user) }
-      sleep 0.05
-      release_sync << true
+      begin
+        Timeout.timeout(2) do
+          sleep 0.001 until lookups["coalesced_wait"] == 1
+        end
+      ensure
+        release_sync << true
+      end
 
       expect(first.value).to eq(3)
       expect(second.value).to eq(1)

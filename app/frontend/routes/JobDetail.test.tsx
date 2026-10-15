@@ -1056,6 +1056,43 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("menuitem", { name: "Give feedback" })).toBeInTheDocument()
   })
 
+  it("combines retry implementation provider and feedback variants into one modal action", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retrying." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        retry_failed_step_action: { key: "retry_failed_step", label: "Retry failed step", path: "/api/v1/app/jobs/1/retry_failed_step" },
+        retry_implementation_action: { key: "retry_implementation", label: "Retry implementation", path: "/api/v1/app/jobs/1/retry_implementation" },
+        retry_agent_options: ["claude"]
+      }
+    })
+
+    openOverflowMenu()
+
+    expect(screen.getByRole("menuitem", { name: "Retry with ..." })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Retry implementation" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Retry with Claude" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Retry with Claude and feedback" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Retry with ..." }))
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.change(within(dialog).getByLabelText("Provider"), { target: { value: "claude" } })
+    fireEvent.change(within(dialog).getByPlaceholderText("What should the retry focus on?"), { target: { value: "Try the simpler API path." } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/retry_implementation",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ agent_provider: "claude", retry_context: "Try the simpler API path." })
+        })
+      )
+    })
+  })
+
   it("hides the Give feedback action for other job states", () => {
     renderJobDetail(
       jobPayload({
@@ -4829,7 +4866,7 @@ describe("Job Detail keyboard shortcuts", () => {
     })
   })
 
-  it("falls back to retry_implementation_action for the retry shortcut when no failed step is retryable", async () => {
+  it("opens the retry modal from the retry shortcut when no failed step is retryable", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retrying." }))
     const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
     renderJobDetail({
@@ -4842,11 +4879,14 @@ describe("Job Detail keyboard shortcuts", () => {
 
     fireEvent.keyDown(window, { key: "r", altKey: true })
 
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_implementation", expect.objectContaining({ method: "POST" }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/retry_implementation",
+        expect.objectContaining({ method: "POST", body: JSON.stringify({}) })
+      )
     })
   })
 

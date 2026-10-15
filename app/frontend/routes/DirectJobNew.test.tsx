@@ -60,10 +60,21 @@ function renderRoute(payload = formPayload()) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return client
 }
 
 describe("DirectJobNew agent provider icon", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("preserves an unsaved prompt when the form payload refetches", async () => {
+    const client = renderRoute()
+
+    const prompt = await screen.findByRole("textbox", { name: "Prompt" })
+    fireEvent.change(prompt, { target: { value: "Unsaved prompt" } })
+    client.setQueryData(["direct_jobs", "new", ""], formPayload({ selected_repository_id: null }))
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("Unsaved prompt"))
+  })
 
   it("renders the selected provider's icon at the expected size", async () => {
     renderRoute(formPayload({

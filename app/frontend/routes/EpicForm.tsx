@@ -2,7 +2,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   createEpic,
@@ -34,7 +34,7 @@ export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
     <main aria-label={mode === "new" ? t("new_epic") : t("edit_epic")} className="mx-auto max-w-2xl space-y-6 p-6">
       {form.isPending ? <PanelMessage>{t("form_loading")}</PanelMessage> : null}
       {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t("form_load_error"))}</PanelMessage> : null}
-      {form.isSuccess ? <EpicForm mode={mode} payload={form.data} prefix={prefix} /> : null}
+      {form.isSuccess ? <EpicForm key={`${mode}:${id}`} mode={mode} payload={form.data} prefix={prefix} /> : null}
     </main>
   )
 }
@@ -52,10 +52,6 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
       navigate(withRoutePrefix(saved.redirect_to, prefix))
     }
   })
-
-  useEffect(() => {
-    setValues(inputFromPayload(payload))
-  }, [payload])
 
   // The form's default submission (Enter key included) is always a plain
   // create/save. Empty Epics cannot start implementing until they have child Jobs.

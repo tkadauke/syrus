@@ -40,6 +40,7 @@ class AppSetting < ApplicationRecord
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
   validates :merge_train_failure_policy, inclusion: { in: MERGE_TRAIN_FAILURE_POLICIES }
+  validates :report_issue_repo_slug, presence: true
   validates :singleton_key, inclusion: { in: [ SINGLETON_KEY ] }
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true

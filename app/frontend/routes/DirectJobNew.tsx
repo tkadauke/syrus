@@ -2,7 +2,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { DragEvent, FormEvent, ReactNode } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
@@ -56,7 +56,7 @@ export function DirectJobNewRoute() {
 
       {form.isPending ? <PanelMessage>{t("direct_job_loading")}</PanelMessage> : null}
       {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t("direct_job_load_error"))}</PanelMessage> : null}
-      {form.isSuccess ? <DirectJobForm payload={form.data} prefix={prefix} /> : null}
+      {form.isSuccess ? <DirectJobForm key={location.search} payload={form.data} prefix={prefix} /> : null}
     </main>
   )
 }
@@ -102,13 +102,6 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       }))
     }
   })
-
-  useEffect(() => {
-    setValues(initialValues(payload))
-    setFiles([])
-    setNotice(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }, [payload])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
