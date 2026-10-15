@@ -159,6 +159,27 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect { described_class.new(workflow).setup }
         .to raise_error(described_class::RequiredBranchUnavailable, /must be on/)
     end
+
+    it "preserves a conflicted rebase so the following agent step can resolve it" do
+      seed_remote_branch(required, "integration work")
+      ws = described_class.new(workflow)
+      ws.setup
+
+      run_git(ws.path, "checkout", "-b", "moved-base", "origin/main")
+      File.write(ws.path.join("integration.txt"), "moved base\n")
+      run_git(ws.path, "add", "integration.txt")
+      run_git(ws.path, "commit", "-m", "'move base'")
+      run_git(ws.path, "checkout", required)
+      expect(system("git", "-C", ws.path.to_s, "rebase", "moved-base", out: File::NULL, err: File::NULL)).to be(false)
+
+      conflict = ws.path.join("integration.txt").read
+      expect(conflict).to include("<<<<<<<")
+
+      expect { described_class.new(workflow).setup }.not_to raise_error
+      expect(current_branch(ws)).to eq("HEAD")
+      expect(ws.path.join("integration.txt").read).to eq(conflict)
+      expect(ws.path.join(".git", "rebase-merge")).to exist
+    end
   end
 
   describe "#setup" do
