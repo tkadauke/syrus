@@ -1460,6 +1460,13 @@ deletion, no CRD/RBAC changes, no arbitrary manifest `apply`, no
 exec-into-pod — and every write call is audit-logged with a before/after
 summary of what changed.
 
+The plugin also offers credential-backed `kubectl` for explicitly authorized
+Credential Store records. When such a credential belongs to a registered
+cluster, the cluster's agentic-access opt-in applies to every command and its
+write opt-in additionally applies to mutations. Workflow and chat agents
+cannot grant themselves the tool's risky-command or Secret-output overrides;
+those overrides require an operator-controlled caller.
+
 ## GitHub App And PAT Behavior
 
 For most API operations (reading issues, checking CI status, listing PRs,

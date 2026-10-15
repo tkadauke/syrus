@@ -37,11 +37,11 @@ module K8sCluster
         },
         allow_risky_command: {
           type: "boolean",
-          description: "Explicitly allow mutating kubectl commands such as apply, delete, exec, cp, patch, rollout, scale, or drain. Chat-surface calls cannot use this self-authorization flag."
+          description: "Operator-only allowance for mutating kubectl commands such as apply, delete, exec, cp, patch, rollout, scale, or drain. Agent calls cannot use this self-authorization flag, and registered clusters must also enable allow_writes."
         },
         allow_secret_output: {
           type: "boolean",
-          description: "Explicitly allow commands likely to print Secret values, such as get secrets -o yaml or describe secret. Chat-surface calls cannot use this self-authorization flag."
+          description: "Operator-only allowance for commands likely to print Secret values, such as get secrets -o yaml or describe secret. Agent calls cannot use this self-authorization flag."
         }
       }
     )
