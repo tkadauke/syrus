@@ -383,6 +383,19 @@ class Workflow < ApplicationRecord
     Workflows::JobLifecyclePropagation.new(self).pr_publication_missing_after_success?
   end
 
+  def terminal_descendant_outcome
+    return :failed if uncleared_retry_until_barrier?
+
+    terminal_step = steps
+      .reorder(position: :desc, id: :desc)
+      .detect { |step| !step.superseded_retry_until_failure? }
+
+    return :succeeded if terminal_step&.succeeded?
+    return :failed if terminal_step&.failed?
+
+    nil
+  end
+
   def uncleared_retry_until_barrier?
     steps
       .where.not(loop_id: [ nil, "" ])

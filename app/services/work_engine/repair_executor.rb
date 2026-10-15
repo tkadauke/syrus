@@ -1000,37 +1000,24 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
           return skipped("Workflow still has active descendants") if workflow.active_descendants?
 
-          outcome = orphaned_workflow_outcome(workflow)
-          return skipped("No terminal outcome could be inferred") unless outcome
+          outcome = workflow.terminal_descendant_outcome
+          return failure("No terminal outcome could be inferred; operator review is required") unless outcome
 
           with_transition_reason do
             if outcome == :succeeded
-              return skipped("Workflow cannot transition to succeeded") unless workflow.may_succeed?
-
-              workflow.succeed!
+              StepDispatcher.finish_workflow!(workflow)
             else
               return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
               workflow.fail!
+              workflow.save!
             end
-            workflow.save!
           end
-          success("marked #{workflow_label(workflow)} #{outcome}")
-        end
 
-        private
+          workflow.reload
+          return skipped("Workflow completion remains blocked") if workflow.running?
 
-        def orphaned_workflow_outcome(workflow)
-          return :failed if workflow.uncleared_retry_until_barrier?
-
-          terminal_positions = workflow.steps.reject(&:superseded_retry_until_failure?).map { |step| [ step.state, step.position ] }
-          last_succeeded = terminal_positions.filter_map { |state, position| position if state == "succeeded" }.max
-          last_failed = terminal_positions.filter_map { |state, position| position if state == "failed" }.max
-
-          return :succeeded if last_succeeded && (last_failed.nil? || last_succeeded > last_failed)
-          return :failed if last_failed && (last_succeeded.nil? || last_failed > last_succeeded)
-
-          nil
+          success("marked #{workflow_label(workflow)} #{workflow.state}")
         end
       end
 
