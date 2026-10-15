@@ -121,7 +121,7 @@ class ChatEventEvaluator
   end
 
   def messages_scope
-    scope = ChatMessage.where(chat_session_id: @chat_session.id)
+    scope = ChatMessage.active.where(chat_session_id: @chat_session.id)
     return scope unless mysql_adapter?
 
     scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))
