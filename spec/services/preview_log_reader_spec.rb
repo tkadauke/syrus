@@ -83,6 +83,22 @@ RSpec.describe PreviewLogReader do
     FileUtils.rm_f(outside_path) if outside_path
   end
 
+  it "ignores a configured log symlink whose target escapes the preview workspace" do
+    FileUtils.mkdir_p(File.join(workspace_path, "log"))
+    outside_path = File.join(Dir.tmpdir, "preview-log-reader-symlink-target.log")
+    File.write(outside_path, "outside\n")
+    FileUtils.ln_s(outside_path, File.join(workspace_path, "log/development.log"))
+    source = instance_double(
+      PreviewCommandSource,
+      resolve: preview_config(log_paths: [ "log/development.log" ])
+    )
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+
+    expect(described_class.call(preview_environment(workspace_path))).to eq([])
+  ensure
+    FileUtils.rm_f(outside_path) if outside_path
+  end
+
   it "clamps requested line counts to at least one line" do
     FileUtils.mkdir_p(File.join(workspace_path, "log"))
     File.write(File.join(workspace_path, "log/development.log"), "first\nlast\n")

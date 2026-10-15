@@ -82,21 +82,20 @@ module Mcp::Tools
         [[Integer(lines.to_i), 1].max, MAX_LINES].min
       end
 
-      # Agent-supplied paths are restricted to within the workspace (path
-      # traversal guard). Config-supplied log_paths may be absolute (operator-
-      # controlled), so they're trusted as-is; relative config paths are
-      # expanded against the workspace root.
       def resolve_log_path(path, workspace_path, preview_env)
         if path.present?
-          resolved       = File.expand_path(path, workspace_path)
-          safe_workspace = File.expand_path(workspace_path)
-          return nil unless resolved.start_with?(safe_workspace + "/") || resolved == safe_workspace
-          resolved
+          PreviewLogPath.resolve(workspace_path, path, allow_missing: true)
         else
           source   = preview_command_source(workspace_path, preview_env).resolve
           raw_path = source&.log_paths&.first
           return nil unless raw_path.present?
-          Pathname.new(raw_path).absolute? ? raw_path : File.expand_path(raw_path, preview_workdir(workspace_path, preview_env))
+
+          PreviewLogPath.resolve(
+            workspace_path,
+            raw_path,
+            base_path: preview_workdir(workspace_path, preview_env),
+            allow_missing: true
+          )
         end
       end
 
