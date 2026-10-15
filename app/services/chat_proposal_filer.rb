@@ -19,13 +19,20 @@ class ChatProposalFiler
     jobs = []
     epics = []
     github_issue_numbers = {}
-    warnings = self.class.warnings_for(ordered)
+    github_issue_proposals = []
+    warnings = []
 
     ApplicationRecord.transaction do
+      ordered = lock_ordered_proposals(ordered)
+      ensure_repository_scope!(ordered)
+      warnings = self.class.warnings_for(ordered)
       job_by_proposal_id = existing_jobs_for(ordered)
 
       ordered.each do |proposal|
-        next unless proposal.proposed?
+        unless proposal.proposed?
+          github_issue_proposals << proposal if needs_github_issue_filing?(proposal)
+          next
+        end
 
         materialized = create_record_for(proposal)
         proposal_attrs = {
@@ -46,7 +53,7 @@ class ChatProposalFiler
           attach_to_chat_session!(proposal, materialized)
           epics << materialized
         when nil
-          github_issue_numbers[proposal.id] = proposal.github_issue_number
+          github_issue_proposals << proposal
         end
 
         proposal.update!(proposal_attrs)
@@ -60,6 +67,11 @@ class ChatProposalFiler
         # upstream deps existed, ignoring the chain.
         materialized.advance_after_triage! if materialized.is_a?(Job) && should_advance_after_triage?(proposal, materialized)
       end
+    end
+
+    github_issue_proposals.each do |proposal|
+      issue_number = file_github_issue(proposal)
+      github_issue_numbers[proposal.id] = issue_number
     end
 
     Result.new(proposals: ordered, jobs: jobs, epics: epics, github_issue_numbers: github_issue_numbers, warnings: warnings)
@@ -88,6 +100,16 @@ class ChatProposalFiler
 
   attr_reader :user, :repository
 
+  def lock_ordered_proposals(proposals)
+    ids = proposals.map(&:id)
+    locked = ChatProposal.lock.where(id: ids).index_by(&:id)
+    ids.map { |id| locked.fetch(id) }
+  end
+
+  def needs_github_issue_filing?(proposal)
+    proposal.github_issue? && proposal.confirmed? && proposal.github_issue_number.blank?
+  end
+
   def ensure_repository_scope!(proposals)
     raise ArgumentError, "repository #{repository.slug} is archived" if repository.archived?
 
@@ -104,7 +126,7 @@ class ChatProposalFiler
   KIND_DISPATCH = {
     "syrus_issue" => :create_direct_job,
     "job"         => :create_direct_job,
-    "github_issue" => :create_github_issue_returning_nil,
+    "github_issue" => :reserve_github_issue_returning_nil,
     "epic"        => :create_epic
   }.freeze
 
@@ -115,8 +137,7 @@ class ChatProposalFiler
     send(method_name, proposal)
   end
 
-  def create_github_issue_returning_nil(proposal)
-    file_github_issue(proposal)
+  def reserve_github_issue_returning_nil(_proposal)
     nil
   end
 
@@ -230,18 +251,44 @@ class ChatProposalFiler
   end
 
   def file_github_issue(proposal)
-    issue = GithubClient.for(repository: repository, user: user).create_issue(
-      repository.slug,
-      title: proposal.title,
-      body: proposal.body,
-      labels: github_labels_for(proposal)
-    )
-    proposal.github_issue_number = issue.number
+    ApplicationRecord.transaction do
+      proposal = ChatProposal.lock.find(proposal.id)
+      if proposal.github_issue_number.present?
+        proposal.github_issue_number
+      else
+        client = GithubClient.for(repository: repository, user: user)
+        issue = existing_github_issue_for(proposal, client) || client.create_issue(
+          repository.slug,
+          title: proposal.title,
+          body: proposal.body,
+          labels: github_labels_for(proposal)
+        )
+        proposal.update!(github_issue_number: issue.number)
+        issue.number
+      end
+    end
   end
 
   def github_labels_for(proposal)
     labels = parse_labels(proposal.labels)
     (labels + [ repository.trigger_label ]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  end
+
+  def existing_github_issue_for(proposal, client)
+    expected_labels = github_labels_for(proposal)
+    client.issues_with_label(repository.slug, repository.trigger_label, state: "all").find do |issue|
+      next false if issue.respond_to?(:pull_request) && issue.pull_request
+
+      issue.title == proposal.title &&
+        issue.body.to_s == proposal.body.to_s &&
+        (expected_labels - issue_label_names(issue)).empty?
+    end
+  end
+
+  def issue_label_names(issue)
+    Array(issue.labels).map do |label|
+      label.respond_to?(:name) ? label.name : label.to_s
+    end.map(&:to_s).map(&:strip).reject(&:blank?)
   end
 
   def parse_labels(value)

@@ -705,6 +705,20 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result).to be_nil
     end
 
+    it "returns nil for symlinks that escape the checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      outside = Pathname.new(Dir.mktmpdir("syrus-chatws-secret"))
+      File.write(outside.join("secret.txt").to_s, "host secret")
+      FileUtils.ln_s(outside.join("secret.txt").to_s, checkout_path.join("secret-link.txt").to_s)
+
+      result = described_class.file_content(chat_session, repository, "secret-link.txt")
+
+      expect(result).to be_nil
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
     it "returns nil when the checkout does not exist" do
       result = described_class.file_content(chat_session, repository, "README.md")
 

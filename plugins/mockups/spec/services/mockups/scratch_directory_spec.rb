@@ -46,6 +46,29 @@ RSpec.describe Mockups::ScratchDirectory do
       expect { scratch.write("", "content") }.to raise_error(described_class::InvalidPath, /required/)
     end
 
+    it "rejects a path with a symlinked directory component" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-preview-outside"))
+      FileUtils.mkdir_p(scratch.root)
+      FileUtils.ln_s(outside.to_s, scratch.root.join("linked-dir").to_s)
+
+      expect { scratch.write("linked-dir/secret.txt", "pwned") }.to raise_error(described_class::InvalidPath, /outside/)
+      expect(outside.join("secret.txt").exist?).to be(false)
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
+    it "rejects an existing symlinked file" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-preview-outside"))
+      File.write(outside.join("secret.txt").to_s, "secret")
+      FileUtils.mkdir_p(scratch.root)
+      FileUtils.ln_s(outside.join("secret.txt").to_s, scratch.root.join("secret-link.txt").to_s)
+
+      expect { scratch.write("secret-link.txt", "pwned") }.to raise_error(described_class::InvalidPath, /outside/)
+      expect(File.read(outside.join("secret.txt").to_s)).to eq("secret")
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
     it "rejects content over the size limit" do
       huge = "a" * (described_class::MAX_FILE_BYTES + 1)
 
@@ -83,6 +106,17 @@ RSpec.describe Mockups::ScratchDirectory do
     it "raises when the file does not exist yet" do
       expect { scratch.edit("missing.html", "a", "b") }.to raise_error(described_class::InvalidPath, /does not exist/)
     end
+
+    it "rejects an existing symlinked file" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-preview-outside"))
+      File.write(outside.join("secret.txt").to_s, "hello")
+      FileUtils.ln_s(outside.join("secret.txt").to_s, scratch.root.join("secret-link.txt").to_s)
+
+      expect { scratch.edit("secret-link.txt", "hello", "goodbye") }.to raise_error(described_class::InvalidPath, /outside/)
+      expect(File.read(outside.join("secret.txt").to_s)).to eq("hello")
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
   end
 
   describe "#exist?" do
@@ -99,6 +133,17 @@ RSpec.describe Mockups::ScratchDirectory do
     it "is false (not raising) for a path outside the scratch directory" do
       expect(scratch.exist?("../../etc/passwd")).to be false
     end
+
+    it "is false for a symlink to a file outside the scratch directory" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-preview-outside"))
+      File.write(outside.join("secret.txt").to_s, "secret")
+      FileUtils.mkdir_p(scratch.root)
+      FileUtils.ln_s(outside.join("secret.txt").to_s, scratch.root.join("secret-link.txt").to_s)
+
+      expect(scratch.exist?("secret-link.txt")).to be false
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
   end
 
   describe "#files" do
@@ -112,6 +157,17 @@ RSpec.describe Mockups::ScratchDirectory do
 
       expect(scratch.files.keys.sort).to eq(%w[css/app.css index.html])
       expect(File.read(scratch.files["index.html"])).to eq("<h1>hi</h1>")
+    end
+
+    it "omits symlinks that point outside the scratch directory" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-preview-outside"))
+      File.write(outside.join("secret.txt").to_s, "secret")
+      FileUtils.mkdir_p(scratch.root)
+      FileUtils.ln_s(outside.join("secret.txt").to_s, scratch.root.join("secret-link.txt").to_s)
+
+      expect(scratch.files).to eq({})
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
     end
   end
 end

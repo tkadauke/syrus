@@ -20,9 +20,11 @@ module Mockups
 
     # Resolves relative_path within root, raising InvalidPath for anything
     # blank, empty after cleaning, or that escapes root (absolute paths,
-    # "../" traversal).
+    # "../" traversal, or any existing symlink component).
     def resolve(relative_path)
-      Syrus::PathJail.resolve!(root, relative_path)
+      path = Syrus::PathJail.resolve!(root, relative_path)
+      reject_symlink_components!(path)
+      path
     rescue Syrus::PathJail::PathEscape => e
       case e.reason
       when :blank
@@ -81,10 +83,28 @@ module Mockups
       return {} unless root.directory?
 
       Pathname.glob(root.join("**", "*"), File::FNM_DOTMATCH)
-        .select(&:file?)
+        .select { |file| regular_file_without_symlinks?(file) }
         .each_with_object({}) do |file, acc|
           acc[file.relative_path_from(root).to_s] = file
         end
+    end
+
+    private
+
+    def reject_symlink_components!(path)
+      relative_path = path.relative_path_from(root)
+      current = root
+      relative_path.each_filename do |part|
+        current = current.join(part)
+        raise InvalidPath, "#{relative_path} resolves outside the panel's scratch directory" if current.symlink?
+      end
+    end
+
+    def regular_file_without_symlinks?(path)
+      resolve(path.relative_path_from(root).to_s)
+      path.lstat.file?
+    rescue InvalidPath, Errno::ENOENT
+      false
     end
   end
 end

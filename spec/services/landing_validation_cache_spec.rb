@@ -275,11 +275,37 @@ RSpec.describe LandingValidationCache do
       expect(described_class.valid_head_for?(job: job, head_sha: "abc")).to be true
     end
 
+    it "returns true when the matching exact-head artifact has grader fingerprints" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "abc",
+        "base_sha" => "base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => changed_files_fingerprint
+      } })
+
+      expect(described_class.valid_head_for?(job: job, head_sha: "abc")).to be true
+    end
+
     it "returns false when no workflow matches the head SHA" do
       job = make_job
       make_workflow(job, artifacts: { "landing_validation" => { "required_graders_passed" => true, "head_sha" => "abc" } })
 
       expect(described_class.valid_head_for?(job: job, head_sha: "xyz")).to be false
+    end
+
+    it "returns false when the exact-head artifact is stale" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "abc",
+        "grader_fingerprint" => "fp",
+        "checked_at" => 8.days.ago.iso8601
+      } })
+
+      expect(described_class.valid_head_for?(job: job, head_sha: "abc")).to be false
     end
   end
 

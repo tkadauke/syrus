@@ -185,7 +185,7 @@ RSpec.describe ChatTurnAutoRetryReconciler do
   end
 
   it "exhausts the budget once and posts the terminal failure message" do
-    chat, root_message = create_stuck_chat
+    chat, root_message = create_stuck_chat(message_created_at: 10.minutes.ago)
 
     ChatTurnAutoRetryAttempt::MAX_ATTEMPTS.times do |index|
       retry_status_message = chat.messages.create!(
@@ -203,6 +203,12 @@ RSpec.describe ChatTurnAutoRetryReconciler do
         performed_at: (18 - index).minutes.ago
       )
     end
+    turn_message = chat.messages.create!(
+      role: "system",
+      content: { "text" => "Confirmed.", "source" => "pending_action_outcome" },
+      created_at: 3.minutes.ago
+    )
+    chat.begin_turn_for!(turn_message)
     chat.update!(last_message_at: 2.minutes.ago, turn_in_flight: true)
 
     expect {
@@ -213,6 +219,10 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     }.by(1)
 
     expect(chat.reload).not_to be_turn_in_flight
+    expect(chat.current_turn_message_id).to be_nil
     expect(ChatTurnAutoRetryAttempt.where(root_user_message: root_message).where.not(exhausted_at: nil).count).to eq(1)
+
+    chat.messages.create!(role: "system", content: { "text" => "A later status update." })
+    expect(chat.reload).not_to be_turn_in_flight
   end
 end

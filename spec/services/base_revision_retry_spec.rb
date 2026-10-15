@@ -284,4 +284,25 @@ RSpec.describe BaseRevisionRetry do
       reason: "base_retry_full_command_base_passed"
     )
   end
+
+  it "kills a hung base command when the timeout expires" do
+    stub_const("#{described_class}::TIMEOUT_SECONDS", 0.2)
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    output = +""
+
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    status = retry_check.send(:run_command, "printf 'started\\n'; sleep 5", @workspace_path, output)
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+
+    expect(status).to be_nil
+    expect(elapsed).to be < 1.5
+    expect(output).to include("started")
+    expect(output).to include("[brr] timed out")
+  end
 end

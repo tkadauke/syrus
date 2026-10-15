@@ -184,8 +184,9 @@ class ChatTurnAutoRetryReconciler
       .last
       &.update!(exhausted_at: now)
     close_dangling_tool_calls!(chat)
+    chat.fail_current_turn!
     chat.messages.create!(role: "system", content: { "text" => FAILED_MESSAGE })
-    chat.update!(turn_in_flight: false, stop_requested_at: nil, last_message_at: now)
+    chat.update!(stop_requested_at: nil, last_message_at: now)
   end
 
   def perform_attempt_result!(attempt, allow_early:)
