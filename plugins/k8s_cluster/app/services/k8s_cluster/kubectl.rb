@@ -32,7 +32,10 @@ module K8sCluster
       taint
       uncordon
     ].freeze
-    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template].freeze
+    WRITE_SUBCOMMANDS = {
+      "auth" => %w[reconcile]
+    }.freeze
+    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template custom-columns custom-columns-file].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
@@ -226,7 +229,7 @@ module K8sCluster
     end
 
     def risky_command?
-      WRITE_COMMANDS.include?(command)
+      WRITE_COMMANDS.include?(command) || WRITE_SUBCOMMANDS.fetch(command, []).intersect?(normalized_args.drop(1))
     end
 
     def streaming_command?
