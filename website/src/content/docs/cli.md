@@ -246,8 +246,12 @@ every chat your account can see. `chat new` creates a chat attached to the
 current repository by default; pass `--repo owner/name` to choose one or
 `--no-repo` for an unattached chat. Both commands support `--json`.
 
-When a chat turn proposes a Job or Epic, the CLI pauses and asks whether
-to confirm (`c`) or skip (`s`) the proposal before returning to the input.
+When an interactive chat turn proposes a Job or Epic, the CLI pauses and asks
+whether to confirm (`c`) or skip (`s`) the proposal before returning to the
+input. Other answers re-display the prompt. With piped input, proposal prompts
+never consume the next message: Syrus leaves each proposal pending and prints
+its slug. The one-shot `syrus chat` command exits non-zero when it leaves a
+proposal pending so scripts cannot mistake the turn for a confirmed proposal.
 
 ## Inbox
 
