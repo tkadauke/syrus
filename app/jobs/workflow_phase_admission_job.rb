@@ -24,7 +24,14 @@ class WorkflowPhaseAdmissionJob < ApplicationJob
   end
 
   def perform(workflow_id, step_id = nil)
+    self.class.release_dedupe(workflow_id, step_id)
     WorkUnits::DeferredPhaseResume.call(workflow_id, step_id)
+  end
+
+  def self.release_dedupe(workflow_id, step_id)
+    Rails.cache.delete(dedupe_key(workflow_id, step_id))
+  rescue StandardError => e
+    Rails.logger.warn("[WorkflowPhaseAdmissionJob] dedupe release unavailable: #{e.class}: #{e.message}")
   end
 
   def self.duplicate_suppressed?(workflow_id, step_id, wait:, wait_until:)
