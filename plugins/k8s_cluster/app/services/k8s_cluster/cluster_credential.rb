@@ -34,21 +34,21 @@ module K8sCluster
     class MissingCredential < StandardError; end
 
     class << self
-      def upsert!(cluster:, kubeconfig:, user:)
+      def upsert!(cluster:, kubeconfig:, user:, scope_type: "instance", scope_id: nil)
         raise DependencyDisabled, "credential_store plugin must be enabled to store Kubernetes cluster credentials" unless credential_store_enabled?
 
         parsed = KubeconfigParser.parse(kubeconfig)
         credential = credential_record_for(cluster) || CredentialStore::Credential.new(
           created_by: user,
           owner_user: user,
-          scope_type: "instance"
+          scope_type: scope_type
         )
         credential.assign_attributes(
           name: credential_name_for(cluster),
           description: "Kubeconfig for Kubernetes cluster #{cluster.label}",
           credential_type: CREDENTIAL_TYPE,
-          scope_type: "instance",
-          scope_id: nil,
+          scope_type: scope_type,
+          scope_id: scope_type == "instance" ? nil : scope_id,
           payload: kubeconfig,
           safe_metadata: safe_metadata_for(parsed),
           target_constraints: {},
@@ -71,6 +71,17 @@ module K8sCluster
         else
           yield legacy_material_for(cluster)
         end
+      end
+
+      def credential_for(cluster)
+        credential_record_for(cluster)
+      end
+
+      def credentials_by_id_for(clusters)
+        ids = clusters.filter_map(&:credential_store_credential_id).uniq
+        return {} if ids.empty?
+
+        CredentialStore::Credential.where(id: ids).index_by(&:id)
       end
 
       def build_kubeconfig(api_server_url:, credentials:)

@@ -8,6 +8,9 @@ export type KubernetesClusterRow = {
   allow_writes: boolean
   insecure_skip_tls_verify: boolean
   credential_kind: "token" | "client_cert" | null
+  credential_scope_type: CredentialScopeType | null
+  credential_scope_id: number | null
+  legacy_credentials: boolean
   created_at: string
   updated_at: string
 }
@@ -18,6 +21,17 @@ export type KubernetesClusterInput = {
   allow_writes: boolean
   insecure_skip_tls_verify: boolean
   kubeconfig?: string
+  credential_scope_type: CredentialScopeType
+  credential_scope_id?: number
+}
+
+export type CredentialScopeType = "user" | "repository" | "team" | "instance"
+export type CredentialScopeTarget = { id: number; label: string; detail?: string | null }
+export type CredentialScopeOptions = {
+  scopes: Array<{ value: CredentialScopeType; label: string }>
+  users: CredentialScopeTarget[]
+  repositories: CredentialScopeTarget[]
+  teams: CredentialScopeTarget[]
 }
 
 export type KubernetesClusterTestResult = {
@@ -26,7 +40,7 @@ export type KubernetesClusterTestResult = {
 }
 
 export function fetchKubernetesClusters() {
-  return getJson<{ kubernetes_clusters: KubernetesClusterRow[] }>("/api/v1/app/admin/kubernetes_clusters")
+  return getJson<{ kubernetes_clusters: KubernetesClusterRow[]; credential_scope_options: CredentialScopeOptions }>("/api/v1/app/admin/kubernetes_clusters")
 }
 
 export function createKubernetesCluster(values: KubernetesClusterInput) {

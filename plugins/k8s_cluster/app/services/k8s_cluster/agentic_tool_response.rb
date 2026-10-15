@@ -20,11 +20,18 @@ module K8sCluster
       MissingNamespace
     ].freeze
 
+    # A real MCP invocation always carries either a chat session or run. This
+    # helper is public so focused tool specs can build that same shape without
+    # duplicating context setup in every resource-tool example.
+    def agentic_context_from(server_context)
+      McpToolContext.from_server_context(server_context)
+    end
+
     def respond_with(cluster_id:, params:, server_context: nil)
       Mcp::Tools.with_database_connection do
         previous_context = Thread.current[:k8s_cluster_mcp_context]
         previous_tool_name = Thread.current[:k8s_cluster_mcp_tool_name]
-        Thread.current[:k8s_cluster_mcp_context] = McpToolContext.from_server_context(server_context) if server_context.present?
+        Thread.current[:k8s_cluster_mcp_context] = agentic_context_from(server_context)
         Thread.current[:k8s_cluster_mcp_tool_name] = tool_name
         result = yield
         AgenticAudit.log!(cluster_id: cluster_id, tool_name: tool_name, params: params, result: result)

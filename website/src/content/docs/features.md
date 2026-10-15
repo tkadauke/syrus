@@ -69,11 +69,11 @@ sparse samples.
 
 Job kinds:
 
-| Kind | Source |
-| --- | --- |
-| `issue` | An input-source issue selected by a configured source such as GitHub or Linear. |
-| `cron` | A scheduled task fire. |
-| `direct` | An operator-created prompt with no GitHub issue. |
+| Kind     | Source                                                                          |
+| -------- | ------------------------------------------------------------------------------- |
+| `issue`  | An input-source issue selected by a configured source such as GitHub or Linear. |
+| `cron`   | A scheduled task fire.                                                          |
+| `direct` | An operator-created prompt with no GitHub issue.                                |
 
 ## Notifications
 
@@ -358,10 +358,10 @@ application — not a preview, a real deployment:
 
 ```yaml
 deploy:
-  mode: manual               # or continuous — default manual
-  run: "bin/deploy"          # required
-  allow_unapproved: false    # default false
-  min_interval_minutes: 15   # optional, continuous-only
+  mode: manual # or continuous — default manual
+  run: "bin/deploy" # required
+  allow_unapproved: false # default false
+  min_interval_minutes: 15 # optional, continuous-only
 ```
 
 Once configured, a Job's detail page shows a **Deploy** button next to
@@ -547,10 +547,10 @@ issue-to-PR pipeline on a scheduled branch.
 
 Supported schedule kinds:
 
-| Kind | Meaning |
-| --- | --- |
-| `cron` | Recurring schedule interpreted in UTC, limited to at most one fire per hour. |
-| `one_shot` | A single future fire time. |
+| Kind       | Meaning                                                                      |
+| ---------- | ---------------------------------------------------------------------------- |
+| `cron`     | Recurring schedule interpreted in UTC, limited to at most one fire per hour. |
+| `one_shot` | A single future fire time.                                                   |
 
 Cron schedules can be entered as a five-field cron expression (`0 9 * * 1`)
 or as simple cadence text (`Every Monday at 9:00 AM`, `Every day at 10 am`,
@@ -1328,7 +1328,7 @@ after each poll cycle. On application boot, registered workers are started
 automatically when `SYRUS_ROLE` is set — core connectors and plugin-provided
 connectors both start automatically, but a plugin's connector only starts
 while its plugin is enabled. Administrators can also trigger a manual start
-of core *and* plugin connectors (e.g. Discord's Gateway listener) via the
+of core _and_ plugin connectors (e.g. Discord's Gateway listener) via the
 admin API:
 
 ```
@@ -1351,7 +1351,6 @@ visible in the logs even if no administrator happens to hit the manual
 restart button. Every listener discussed here — Telegram's long-poller and
 Discord's Gateway connection alike — runs in-process inside a Solid Queue
 worker pod; there is no separate bot daemon to restart.
-
 
 Credentials are stored with Active Record Encryption in the Syrus database,
 so every web, worker, console, and migration context that reads users needs
@@ -1428,9 +1427,13 @@ disabled by default from **Admin → Plugins**.
 
 Register a cluster by pasting its kubeconfig — Syrus resolves the
 current-context's cluster and user, then stores only the API server URL and
-whichever credentials it needs (a bearer token, or a client
-certificate/key pair), encrypted at rest. The raw kubeconfig itself is
-discarded once parsed. A **Test** button checks connectivity before saving,
+non-secret connection metadata on the cluster record. The kubeconfig is
+encrypted at rest in Credential Store. Admins choose whether its credential
+is usable by one user, a repository, a team, or the whole instance; chat and
+workflow agents only see the cluster when their user and run context can use
+that credential. Existing instance-scoped clusters keep their visibility,
+while legacy inline credentials remain admin-only until migrated. A **Test**
+button checks connectivity before saving,
 and an explicit `insecure_skip_tls_verify` opt-in skips certificate
 verification for a self-signed k3s API server.
 
@@ -1480,7 +1483,7 @@ wins over the shared App installation whenever one is connected, so
 commits and PRs are attributed to the actual human rather than the shared
 bot. The App identity is used only when the owner has no PAT connected, or
 for infrastructure/system-initiated Jobs (main-branch grading and repair,
-deploys, and similar) that have no real human requester — the *git commit*
+deploys, and similar) that have no real human requester — the _git commit_
 for those always carries the bot's name and email, regardless of what PAT
 the nominal Job owner happens to have connected, since that's just local
 metadata and needs no live credential. Opening the PR still needs a real
@@ -1747,7 +1750,7 @@ through over multiple ticks.
 When approval propagation is enabled, Syrus mirrors eligible Job approvals as
 GitHub PR reviews. It posts as the approving user's own connected GitHub
 account whenever their GitHub identity differs from the PR's author; when the
-approver *is* the PR's own author (a true GitHub self-review, which GitHub
+approver _is_ the PR's own author (a true GitHub self-review, which GitHub
 always rejects from the same identity), Syrus posts the review as the GitHub
 App instead, crediting the real approving human in the review body.
 
