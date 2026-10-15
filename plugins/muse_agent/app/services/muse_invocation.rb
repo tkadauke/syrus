@@ -118,6 +118,7 @@ class MuseInvocation
           network: "agent",
           timeout: timeout,
           silent_timeout: AgentInvocation::SILENT_TIMEOUT_SECONDS,
+          activity_probe: muse_session_activity_probe(session_id),
           kind: "agent",
           run: current_run,
           workflow: current_run&.workflow,
@@ -403,7 +404,7 @@ class MuseInvocation
       log_sink.call(text, kind: "assistant_text") if text.present?
       text.present? ? { final_text: text } : nil
     when "task.lifecycle.failed"
-      detail = sanitized_event_detail(payload, fallback: "Muse task lifecycle failed.")
+      detail = diagnostic_event_detail(payload, fallback: "Muse task lifecycle failed.")
       log_sink.call("[muse diagnostic] #{detail}", kind: "system")
       nil
     when "run.terminal.completed"
@@ -734,10 +735,11 @@ class MuseInvocation
 
   def log_terminal_result(payload, log_sink)
     usage = usage_updates(payload)
-    log_sink.call(
-      "[muse result] outcome=#{payload['outcome'].presence || payload['status'].presence || 'success'}, turns=#{payload['turns'] || payload['num_turns']}, input_tokens=#{usage[:input_tokens]}, output_tokens=#{usage[:output_tokens]}",
-      kind: "system"
-    )
+    message = "[muse result] outcome=#{payload['outcome'].presence || payload['status'].presence || 'success'}, turns=#{payload['turns'] || payload['num_turns']}, input_tokens=#{usage[:input_tokens]}, output_tokens=#{usage[:output_tokens]}"
+    if (payload["turns"] || payload["num_turns"]).nil? && usage.values.all?(&:nil?)
+      message << ", payload_keys=#{payload.keys.map(&:to_s).sort.join(',')}"
+    end
+    log_sink.call(message, kind: "system")
   end
 
   def sanitized_event_detail(payload, fallback:)
@@ -748,6 +750,30 @@ class MuseInvocation
         payload_text(payload).presence ||
         fallback
     )
+  end
+
+  def diagnostic_event_detail(payload, fallback:)
+    detail = sanitized_event_detail(payload, fallback: nil)
+    return detail if detail.present?
+
+    keys = payload.keys.map(&:to_s).sort
+    sanitize("#{fallback} payload_keys=#{keys.join(',')} payload=#{payload.to_json}")
+  end
+
+  def muse_session_activity_probe(session_id)
+    return nil if @muse_home.blank? || session_id.blank?
+
+    sessions_root = File.join(@muse_home, ".local", "share", "muse", "sessions")
+    lambda do
+      paths = Dir.glob(File.join(sessions_root, "**", session_id.to_s, "session.jsonl"))
+      paths.filter_map { |path| session_log_mtime(path) }.max
+    end
+  end
+
+  def session_log_mtime(path)
+    File.mtime(path)
+  rescue SystemCallError
+    nil
   end
 
   def classified_failure(detail, payload: {})
