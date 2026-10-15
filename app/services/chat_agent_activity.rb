@@ -24,8 +24,12 @@ class ChatAgentActivity
 
   ToolEvent = Data.define(:id, :name, :started_at)
 
-  def self.for(chat_session, now: Time.current)
-    new(chat_session, now: now).call
+  # `active` lets a caller that has already decided whether the agent is
+  # working pass that in. Without it this recomputed `agent_busy?`, a second
+  # EXISTS against spawned_processes for an answer the chat payload had just
+  # worked out one line earlier.
+  def self.for(chat_session, now: Time.current, active: nil)
+    new(chat_session, now: now, active: active).call
   end
 
   def self.extract(provider:, jsonl:, now: Time.current, stat: nil)
@@ -40,13 +44,20 @@ class ChatAgentActivity
     }.fetch(provider.to_s, Adapters::Unknown)
   end
 
-  def initialize(chat_session, now:)
+  def initialize(chat_session, now:, active: nil)
     @chat_session = chat_session
     @now = now
+    @active = active
+  end
+
+  def agent_working?
+    return @active unless @active.nil?
+
+    chat_session.turn_in_flight? || chat_session.agent_busy?
   end
 
   def call
-    return unless chat_session.turn_in_flight? || chat_session.agent_busy?
+    return unless agent_working?
 
     path = transcript_path
     return if path.blank?

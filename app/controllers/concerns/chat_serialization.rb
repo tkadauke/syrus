@@ -33,7 +33,7 @@ module ChatSerialization
         ::App::ChatTurnRetryState.for(chat_session)
       end
       agent_activity = PerformanceLogging.phase("chat_payload.agent_activity", chat_id: chat_session.id) do
-        ChatAgentActivity.for(chat_session)&.as_json
+        ChatAgentActivity.for(chat_session, active: turn_in_flight || agent_busy)&.as_json
       end
       chat_shell_command_in_flight = PerformanceLogging.phase("chat_payload.chat_shell_command_in_flight", chat_id: chat_session.id) do
         # Coding Mode and Local Mode only (the chat shell-command cancellation feature); skip the query for every other chat.

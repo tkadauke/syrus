@@ -714,7 +714,16 @@ RSpec.describe Run, :ci_only do
       expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
-    it "does not in-place retry fanout steps that dynamically insert downstream steps" do
+    # A worker disappearing mid-fanout used to hard-fail the Workflow and take
+    # whole merge trains with it, so
+    # StepDispatcher#retry_step_after_infrastructure_failure! now reopens the
+    # Step and gives it a fresh Run. Re-running the fanout is safe: it reuses an
+    # already-materialized grader chain rather than inserting a second one
+    # (Steps::GraderFanout), and the retry is bounded by
+    # INFRASTRUCTURE_STEP_RETRY_LIMIT. The AutoRetryAttempt path stays declined
+    # for this kind, which is what NON_IDEMPOTENT_IN_PLACE_RETRY_STEP_KINDS is
+    # for -- the two mechanisms are separate.
+    it "retries a worker-died fanout step in place rather than failing the workflow" do
       fanout_step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "running")
       run = fanout_step.runs.create!(job: job, trigger_kind: "initial", state: "running")
       run.agent_outcome = "worker_died"
@@ -722,8 +731,11 @@ RSpec.describe Run, :ci_only do
       run.fail!
       run.save!
 
-      expect(fanout_step.reload).to be_failed
-      expect(fanout_step.runs.where(state: "queued").count).to eq(0)
+      expect(run.reload).to be_failed
+      expect(fanout_step.reload).to be_queued
+      expect(fanout_step.runs.where(state: "queued").count).to eq(1)
+      expect(workflow.reload).not_to be_failed
+      expect(AutoRetryAttempt.count).to eq(0)
     end
 
     it "does not retry failed grader commands just because process cleanup looks stopped" do
