@@ -1463,6 +1463,16 @@ deletion, no CRD/RBAC changes, no arbitrary manifest `apply`, no
 exec-into-pod — and every write call is audit-logged with a before/after
 summary of what changed.
 
+For ad hoc read-only inspection, the plugin also provides a credential-backed
+`k8s_cluster_kubectl` tool. It leases a scoped `k8s_cluster.kubeconfig`
+credential and accepts only `get`, `describe`, `logs`, `top`, `events`,
+`api-resources`, `api-versions`, `version`, `explain`, `wait`, and `diff`, plus
+`auth can-i` and `auth whoami`. Mutating commands and arbitrary kubectl plugins
+are rejected even if the deprecated risky-command input is supplied. Kubectl
+runs with only `KUBECONFIG`, `PATH`, and `HOME` in its environment, under a
+timeout with stdout and stderr bounded to 64 KiB each. Pod-log reads cap the
+requested tail at 1,000 lines and 64 KiB.
+
 ## GitHub App And PAT Behavior
 
 For most API operations (reading issues, checking CI status, listing PRs,
