@@ -29,8 +29,8 @@ module SyrusRails
     def parse
       context_stack = []  # stack of { prefix:, module: } hashes
       @content.each_line do |raw|
-        line = raw.strip
-        next if line.start_with?("#") || line.empty?
+        line = strip_comment(raw).strip
+        next if line.empty?
 
         if closes_block?(line) && context_stack.any?
           context_stack.pop
@@ -49,6 +49,27 @@ module SyrusRails
     end
 
     private
+
+    def strip_comment(line)
+      quote = nil
+      escaped = false
+
+      line.each_char.with_index do |char, index|
+        if escaped
+          escaped = false
+        elsif quote && char == "\\"
+          escaped = true
+        elsif quote
+          quote = nil if char == quote
+        elsif char == '"' || char == "'"
+          quote = char
+        elsif char == "#"
+          return line[0...index]
+        end
+      end
+
+      line
+    end
 
     def parse_line(line, prefix, mod, stack)
       if (m = line.match(/\bresources\s+:(\w+)(.*)/))

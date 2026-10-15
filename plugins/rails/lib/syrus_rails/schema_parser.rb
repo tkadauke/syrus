@@ -27,7 +27,7 @@ module SyrusRails
       current_table = nil
 
       @content.each_line do |raw|
-        line = raw.strip
+        line = strip_comment(raw).strip
 
         if (m = line.match(/\bcreate_table\s+["'](\w+)["']/))
           current_table = m[1]
@@ -53,6 +53,27 @@ module SyrusRails
     end
 
     private
+
+    def strip_comment(line)
+      quote = nil
+      escaped = false
+
+      line.each_char.with_index do |char, index|
+        if escaped
+          escaped = false
+        elsif quote && char == "\\"
+          escaped = true
+        elsif quote
+          quote = nil if char == quote
+        elsif char == '"' || char == "'"
+          quote = char
+        elsif char == "#"
+          return line[0...index]
+        end
+      end
+
+      line
+    end
 
     def parse_column(line, table_name)
       # t.string "name", null: false, default: "x"

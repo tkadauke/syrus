@@ -164,6 +164,28 @@ RSpec.describe SyrusRails::McpToolSet do
       end
     end
 
+    it "closes tables whose end statement has a trailing comment" do
+      schema = <<~RUBY
+        ActiveRecord::Schema[8.1].define do
+          create_table "events" do |t|
+            t.string "anchor", default: "#top"
+          end # events table
+          add_index "events", ["anchor"], name: "index_events_on_anchor"
+          add_foreign_key "events", "categories"
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("db").mkpath
+        ws.join("db/schema.rb").write(schema)
+        table = JSON.parse(tool_set.handle("read_schema", {}, ctx).content.first[:text])["tables"].first
+
+        expect(table["columns"].first["default"]).to eq("#top")
+        expect(table["indexes"]).to include(include("name" => "index_events_on_anchor"))
+        expect(table["foreign_keys"]).to include(include("from_column" => "category_id"))
+      end
+    end
+
     it "returns an error response when db/schema.rb is missing" do
       with_workspace do |ctx, _ws|
         response = tool_set.handle("read_schema", {}, ctx)
@@ -374,7 +396,7 @@ RSpec.describe SyrusRails::McpToolSet do
               collection do
                 get :active
               end
-              constraints format: :json do
+              constraints format: :json do # JSON only
                 resources :notes, only: %i[index]
               end
             end
