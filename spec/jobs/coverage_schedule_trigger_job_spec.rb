@@ -41,6 +41,32 @@ RSpec.describe CoverageScheduleTriggerJob do
   end
 
   context "idempotency" do
+    it "creates only one Job when two triggers run concurrently" do
+      ready = Queue.new
+      start = Queue.new
+
+      invoke = lambda do
+        ActiveRecord::Base.connection_pool.with_connection do
+          ready << true
+          start.pop
+          described_class.perform_now(workflow.id)
+        end
+      end
+
+      threads = 2.times.map { Thread.new { invoke.call } }
+      2.times { ready.pop }
+
+      expect {
+        2.times { start << true }
+        threads.each(&:value)
+      }.to change { Job.where(kind: "direct", repository: repository).count }.by(1)
+
+      created = Job.where(kind: "direct", repository: repository).sole
+      expect(created.tags.pluck(:name)).to contain_exactly("coverage-improvement")
+    ensure
+      threads&.each(&:kill)
+    end
+
     it "does not create a second Job within 24 hours when the first is still open" do
       described_class.perform_now(workflow.id)
 
