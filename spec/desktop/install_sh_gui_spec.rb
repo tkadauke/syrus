@@ -858,13 +858,17 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         expect(env).to include("SYRUS_IMAGE=ghcr.io/example/pinned:9.9.9")
         expect(env).not_to match(/=generate-me$/)
         expect(File.exist?(File.join(target, "docker-compose.yml"))).to be(true)
+        expect(File.stat(target).mode & 0o777).to eq(0o700)
+        expect(File.stat(File.join(target, ".env")).mode & 0o777).to eq(0o600)
 
         # Re-running must adopt the existing .env, never regenerate secrets.
+        File.chmod(0o644, File.join(target, ".env"))
         rerun_out, _err2, = run_install(*args, stub_dir: stub_dir)
         expect(parse_events(rerun_out)).to include(
           hash_including("event" => "step", "id" => "env_generate", "status" => "skipped")
         )
         expect(File.read(File.join(target, ".env"), encoding: "UTF-8")).to eq(env)
+        expect(File.stat(File.join(target, ".env")).mode & 0o777).to eq(0o600)
       end
     end
   end
@@ -881,11 +885,13 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         write_docker_stub(stub_dir, volume_exists: false)
         base = ["--docker", "--json", "--non-interactive", "--skip-runtime-install", "--target-dir", target]
         run_install(*base, "--image", "ghcr.io/example/pinned:1", stub_dir: stub_dir)
+        File.chmod(0o644, File.join(target, ".env"))
         out, _err, = run_install(*base, "--image", "ghcr.io/example/pinned:2", stub_dir: stub_dir)
 
         env = File.read(File.join(target, ".env"), encoding: "UTF-8")
         expect(env).to include("SYRUS_IMAGE=ghcr.io/example/pinned:2")
         expect(env).not_to include("pinned:1")
+        expect(File.stat(File.join(target, ".env")).mode & 0o777).to eq(0o600)
         expect(parse_events(out)).to include(
           hash_including(
             "event" => "log", "stream" => "env",
