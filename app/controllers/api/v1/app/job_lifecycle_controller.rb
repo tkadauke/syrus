@@ -425,6 +425,7 @@ module Api
         # below then distinguishes read access from write access.
         def find_mutable_job
           scope = Current.user.admin? ? Job.all : policy_scope(Job)
+          scope = restrict_invocation_relation(scope)
           find_job_by_ref(scope.includes(:repository), params[:job_id])
         end
 

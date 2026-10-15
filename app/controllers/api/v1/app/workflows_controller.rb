@@ -63,7 +63,8 @@ module Api
           else
             Job.where(user: Current.user).or(Job.accessible_to(Current.user))
           end
-          Workflow.joins(:job).merge(readable_jobs).find(params[:workflow_id])
+          workflow_scope = Workflow.joins(:job).merge(restrict_invocation_relation(readable_jobs))
+          restrict_invocation_relation(workflow_scope).find(params[:workflow_id])
         end
       end
     end

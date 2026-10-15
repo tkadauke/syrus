@@ -968,6 +968,20 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(other_job.reload).to be_manual_paused
   end
 
+  it "does not let a global-admin run token mutate a job outside its invocation scope", :skip_sign_in do
+    admin = Factories.user(admin: true)
+    admin_repo = Factories.repository(user: admin, owner: "admin", name: "scoped")
+    current_job = Factories.job_with_run(repository: admin_repo, issue_number: 100, run_attrs: { state: "running" })
+    other_job = Factories.job_record(user: admin, repository: admin_repo, issue_number: 101, state: "queued")
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+    allow_any_instance_of(AppApi::InternalCliInvocation).to receive(:allowed?).and_return(true)
+
+    post "/api/v1/app/jobs/#{other_job.slug}/pause", headers: { "Authorization" => "Bearer #{token}" }, as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(other_job.reload).not_to be_manual_paused
+  end
+
   describe "lifecycle mutations with a repository member who does not own the job" do
     let(:read_member) { Factories.user }
     let(:write_member) { Factories.user }
