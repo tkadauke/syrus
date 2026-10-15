@@ -307,6 +307,15 @@ class Workflow < ApplicationRecord
   # Skips for auto_merge so Workflow#start on auto_merge doesn't
   # spuriously try to transition an :approved Job to :running.
   def propagate_start_to_job!
+    # A Workflow driven through start! only to reach a terminal state from
+    # :queued is not actually starting: WorkUnits::TerminalWorkflowSync does
+    # that to match an already-terminal WorkUnit, because AASM has no
+    # queued -> succeeded edge. Propagating it moves the Job out of
+    # :implemented, and the succeed! that immediately follows then sees a Job
+    # it is willing to mark_failed! when no PR was published -- so repairing a
+    # stale Workflow could fail a Job that was perfectly fine.
+    return if work_unit&.terminal?
+
     Workflows::JobLifecyclePropagation.start!(self)
   end
 
