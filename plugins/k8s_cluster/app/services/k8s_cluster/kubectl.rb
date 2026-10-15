@@ -238,7 +238,7 @@ module K8sCluster
       return true if command == "describe"
       return true if high_verbosity?
 
-      !SECRET_SAFE_OUTPUT_FORMATS.include?(output_format)
+      output_formats != SECRET_SAFE_OUTPUT_FORMATS
     end
 
     def secret_resource?
@@ -256,6 +256,8 @@ module K8sCluster
           normalized_args[index + 1]
         elsif arg.match?(/\A(?:-v|--v)=/)
           arg.split("=", 2).last
+        elsif (match = arg.match(/\A-v(\d+)\z/))
+          match[1]
         end
 
         value.to_i >= 6 if value&.match?(/\A\d+\z/)
@@ -286,14 +288,16 @@ module K8sCluster
       end
     end
 
-    def output_format
-      normalized_args.each_with_index do |arg, index|
-        return arg.split("=", 2).last if arg.start_with?("--output=")
-        return arg.split("=", 2).last if arg.start_with?("-o=")
-        return arg.delete_prefix("-o") if arg.start_with?("-o") && arg.length > 2
-        return normalized_args[index + 1].to_s if %w[--output -o].include?(arg)
+    def output_formats
+      normalized_args.each_with_index.filter_map do |arg, index|
+        if arg.start_with?("--output=") || arg.start_with?("-o=")
+          arg.split("=", 2).last
+        elsif arg.start_with?("-o") && arg.length > 2
+          arg.delete_prefix("-o")
+        elsif %w[--output -o].include?(arg)
+          normalized_args[index + 1].to_s
+        end
       end
-      nil
     end
 
     def contains_watch_flag?
