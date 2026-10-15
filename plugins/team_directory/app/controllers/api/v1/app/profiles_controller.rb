@@ -5,12 +5,12 @@ module Api
         RECENT_LIMIT = 8
 
         def index
-          users = User.order(Arel.sql("LOWER(email_address) ASC"), :id)
-                      .includes(:repositories, :epics, :jobs)
+          users = User.order(Arel.sql("LOWER(email_address) ASC"), :id).to_a
+          counts_by_user_id = directory_counts(users)
 
           render json: {
             team_user_count: User.count,
-            profiles: users.map { |user| directory_user_json(user) }
+            profiles: users.map { |user| directory_user_json(user, counts: counts_by_user_id.fetch(user.id)) }
           }
         end
 
@@ -25,7 +25,7 @@ module Api
 
         private
 
-        def directory_user_json(user)
+        def directory_user_json(user, counts:)
           {
             id: user.id,
             display_name: user.team_display_name,
@@ -35,7 +35,7 @@ module Api
             role_label: role_label(user),
             avatar_url: user.avatar_url,
             bio_excerpt: user.profile_bio.to_s.truncate(160),
-            counts: counts_json(user),
+            counts: counts,
             profile_path: profile_path(user)
           }
         end
@@ -69,6 +69,23 @@ module Api
             jobs: user.jobs.count,
             open_jobs: user.jobs.where.not(state: "closed").count
           }
+        end
+
+        def directory_counts(users)
+          user_ids = users.map(&:id)
+          repository_counts = Repository.active.where(user_id: user_ids).group(:user_id).count
+          epic_counts = Epic.where(user_id: user_ids).where.not(state: Epic::ARCHIVED_STATE).group(:user_id).count
+          job_counts = Job.where(user_id: user_ids).group(:user_id).count
+          open_job_counts = Job.where(user_id: user_ids).where.not(state: "closed").group(:user_id).count
+
+          user_ids.index_with do |user_id|
+            {
+              repositories: repository_counts.fetch(user_id, 0),
+              epics: epic_counts.fetch(user_id, 0),
+              jobs: job_counts.fetch(user_id, 0),
+              open_jobs: open_job_counts.fetch(user_id, 0)
+            }
+          end
         end
 
         def role_label(user)
