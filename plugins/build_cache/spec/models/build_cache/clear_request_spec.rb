@@ -65,6 +65,24 @@ RSpec.describe BuildCache::ClearRequest do
     expect(second.errors[:base]).to include("another clear request is already pending")
   end
 
+  it "enforces one pending request at the database level" do
+    described_class.create!(user: user, scope: "full", reason: "first")
+    conflicting = described_class.new(user: user, scope: "full", reason: "racing request")
+    conflicting.pending_uniqueness_key = described_class::PENDING_UNIQUENESS_KEY
+
+    expect { conflicting.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    expect(described_class.pending.count).to eq(1)
+  end
+
+  it "releases the database uniqueness key when a request leaves pending" do
+    first = described_class.create!(user: user, scope: "full", reason: "first")
+    first.cancel!
+
+    expect(first.reload.pending_uniqueness_key).to be_nil
+    expect { described_class.create!(user: user, scope: "full", reason: "second") }
+      .to change(described_class.pending, :count).by(1)
+  end
+
   describe "#confirm!" do
     it "executes a full clear, records the result, and logs an AdminAction" do
       stub_s3(objects: [ { key: "a", size: 100, last_modified: 3.days.ago } ])
