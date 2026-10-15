@@ -17,6 +17,7 @@ module K8sCluster
     end
 
     def describe(name)
+      validate_identifiers!(name: name)
       with_client(api_client.core) do |client|
         { available: true, generated_at: Time.current.iso8601, namespace: client.get_namespace(name) }
       end

@@ -8,6 +8,7 @@ module K8sCluster
     MAX_INGRESSES = 1_000
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.networking) do |client|
         items = client.get_ingresses(namespace_scope(namespace)).fetch("items", [])
 
@@ -21,6 +22,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.networking) do |client|
         { available: true, generated_at: Time.current.iso8601, ingress: client.get_ingress(name, namespace) }
       end
