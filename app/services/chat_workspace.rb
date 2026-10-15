@@ -854,7 +854,7 @@ class ChatWorkspace
     current = self.class.git_value(path, "branch", "--show-current").presence || branch
 
     if current == repository.default_branch
-      backup_default_branch_checkout!(url, path, repository.default_branch)
+      backup_default_branch_checkout!(repository, url, path, repository.default_branch)
       return current
     end
 
@@ -864,39 +864,48 @@ class ChatWorkspace
     # Snapshot uncommitted work (git status --porcelain includes untracked;
     #    .gitignored files like node_modules are excluded, so deps aren't backed
     #    up — they're re-installed on restore).
-    return current unless self.class.uncommitted_changes?(path)
+    unless self.class.uncommitted_changes?(path)
+      delete_remote_wip_tag!(url, path) if remote_wip_tag_exists?(repository)
+      return current
+    end
 
-    @git.run("add", "-A", chdir: path.to_s, env: @env)
-    @git.run(
-      "-c", "user.email=syrus@localhost", "-c", "user.name=Syrus",
-      "commit", "-m", "syrus wip backup", "--no-verify",
-      chdir: path.to_s, env: @env
-    )
-    wip_sha, = Open3.capture2e(@env, "git", "rev-parse", "HEAD", chdir: path.to_s)
-    @git.run("push", url, "#{wip_sha.strip}:refs/tags/#{wip_tag}", chdir: path.to_s, env: @env)
+    push_wip_snapshot!(url, path)
     current
   end
 
   # For default-branch chat work, never push `HEAD:refs/heads/<default>`.
   # Committed chat changes and an optional final WIP commit are instead stored
   # under the per-chat backup tag and restored into the local checkout later.
-  def backup_default_branch_checkout!(url, path, default_branch)
+  def backup_default_branch_checkout!(repository, url, path, default_branch)
     clean = !self.class.uncommitted_changes?(path)
-    return if clean && rev_parse_path(path, "HEAD") == rev_parse_path(path, "refs/remotes/origin/#{default_branch}")
-
-    backup_sha = if !clean
-      @git.run("add", "-A", chdir: path.to_s, env: @env)
-      @git.run(
-        "-c", "user.email=syrus@localhost", "-c", "user.name=Syrus",
-        "commit", "-m", "syrus wip backup", "--no-verify",
-        chdir: path.to_s, env: @env
-      )
-      rev_parse_path(path, "HEAD")
-    else
-      rev_parse_path(path, "HEAD")
+    if clean && rev_parse_path(path, "HEAD") == rev_parse_path(path, "refs/remotes/origin/#{default_branch}")
+      delete_remote_wip_tag!(url, path) if remote_wip_tag_exists?(repository)
+      return
     end
 
-    @git.run("push", url, "#{backup_sha}:refs/tags/#{wip_tag}", chdir: path.to_s, env: @env)
+    clean ? push_wip_tag!(url, path, rev_parse_path(path, "HEAD")) : push_wip_snapshot!(url, path)
+  end
+
+  # Create the synthetic commit only long enough to push it. In particular,
+  # leave it off the checked-out branch when the push fails so a retry cannot
+  # publish the backup commit as an ordinary branch commit.
+  def push_wip_snapshot!(url, path)
+    original_head = rev_parse_path(path, "HEAD")
+    committed = false
+    @git.run("add", "-A", chdir: path.to_s, env: @env)
+    @git.run(
+      "-c", "user.email=syrus@localhost", "-c", "user.name=Syrus",
+      "commit", "-m", "syrus wip backup", "--no-verify",
+      chdir: path.to_s, env: @env
+    )
+    committed = true
+    push_wip_tag!(url, path, rev_parse_path(path, "HEAD"))
+  ensure
+    @git.run("reset", original_head, chdir: path.to_s, env: @env) if committed
+  end
+
+  def push_wip_tag!(url, path, sha)
+    @git.run("push", url, "+#{sha}:refs/tags/#{wip_tag}", chdir: path.to_s, env: @env)
   end
 
   # Re-materializes a reclaimed coding checkout from the remote, transparently
@@ -931,11 +940,12 @@ class ChatWorkspace
       @git.run("cherry-pick", "--quit", chdir: path.to_s, env: @env) rescue nil
     end
 
-    begin
-      @git.run("push", url, "--delete", "refs/tags/#{wip_tag}", chdir: path.to_s, env: @env)
-    rescue StandardError
-    end
+    delete_remote_wip_tag!(url, path)
     @git.run("tag", "-d", wip_tag, chdir: path.to_s, env: @env) rescue nil
+  end
+
+  def delete_remote_wip_tag!(url, path)
+    @git.run("push", url, "--delete", "refs/tags/#{wip_tag}", chdir: path.to_s, env: @env)
   end
 
   def restore_default_branch_wip_tag!(path)
