@@ -150,7 +150,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(document.reload).to be_present
   end
 
-  it "serves a repository document's raw file inline" do
+  it "downloads a repository document's non-previewable raw file with restrictive browser headers" do
     sign_in_as(user)
     document = repository.repository_documents.create!(
       user: user,
@@ -163,7 +163,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.headers["Content-Type"]).to include("text/markdown")
-    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body).to eq("# Notes")
   end
 

@@ -672,7 +672,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body["message"]).to eq("Document removed.")
   end
 
-  it "serves a personal document's raw file inline" do
+  it "downloads a personal document's non-previewable raw file with restrictive browser headers" do
     sign_in_as(user)
     document = user.documents.build(kind: "file", user: user)
     document.file.attach(upload_file(name: "notes.txt", content_type: "text/plain", content: "hello world"))
@@ -682,7 +682,9 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.headers["Content-Type"]).to include("text/plain")
-    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body).to eq("hello world")
   end
 
