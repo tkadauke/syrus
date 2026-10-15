@@ -126,6 +126,28 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       expect(credential.allowed_tools).not_to include("credential.exec")
     end
 
+    it "persists an authorized backing credential scope and exposes manageable options" do
+      repository = Factories.repository(user: admin)
+
+      post "/api/v1/app/admin/kubernetes_clusters", params: {
+        kubernetes_cluster: {
+          label: "Repo cluster", kubeconfig: token_kubeconfig,
+          credential_scope_type: "repository", credential_scope_id: repository.id
+        }
+      }
+
+      expect(response).to have_http_status(:created)
+      cluster = KubernetesCluster.find(parse_body.dig("kubernetes_cluster", "id"))
+      credential = CredentialStore::Credential.find(cluster.credential_store_credential_id)
+      expect(credential).to have_attributes(scope_type: "repository", scope_id: repository.id)
+
+      get "/api/v1/app/admin/kubernetes_clusters"
+      expect(parse_body.fetch("credential_scope_options").fetch("scopes").pluck("value")).to include("user", "repository", "instance")
+      expect(parse_body.fetch("kubernetes_clusters").first).to include(
+        "credential_scope_type" => "repository", "credential_scope_id" => repository.id, "legacy_credentials" => false
+      )
+    end
+
     it "rejects creation without a kubeconfig" do
       post "/api/v1/app/admin/kubernetes_clusters", params: { kubernetes_cluster: { label: "Prod" } }
 

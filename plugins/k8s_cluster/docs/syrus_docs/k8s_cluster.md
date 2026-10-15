@@ -464,7 +464,15 @@ target warnings; pod-log cards keep the raw result available while showing a
 searchable preview. Secret cards only render server-redacted metadata and key
 names, never secret data values.
 
-**Gating is per-cluster, not per-repository or admin-only.** There is no
+**Gating combines each cluster's flags with its backing credential scope.**
+Admins choose a user, repository, team, or instance scope when registering a
+cluster. Agents only see or use a cluster when their current chat/workflow
+context can use that credential; repository-scoped workflow access is also
+narrowed by the run token's allowed repositories. Existing instance-scoped
+credentials keep their prior visibility, while legacy inline credentials are
+admin-only until migrated. Cluster management remains admin-only.
+
+There is no
 framework hook to resolve an individual tool call's params from
 `available_for?`/`available_for_context?` - those are only checked once, at
 MCP manifest-build time, before any call happens. So `available_for?`/
@@ -481,8 +489,9 @@ first-party tools. `AgenticAccess.cluster!`/`.cluster_with_write_access!`
 delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
 concern (`lib/syrus/plugin/agentic_connection.rb`), which
 `MysqlDbBrowser::AgenticAccess` also extends - the two plugins' near-identical
-find-by-id/raise-if-disabled classes were extracted into that one concern
-rather than left as parallel, drifting implementations.
+find-by-id/raise-if-disabled classes and credential visibility predicate live
+in that one concern rather than parallel, drifting implementations. A cluster
+hidden by credential scope raises the same not-found error as an unknown id.
 `K8sCluster::ResourceService::Unavailable`/`NotFound` and
 a missing-namespace validation error are all normalized into an
 `MCP::Tool::Response` with `error: true` rather than raising out of the MCP

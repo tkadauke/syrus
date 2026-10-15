@@ -77,9 +77,7 @@ module MysqlDbBrowser
     end
 
     def self.usable_by?(connection, context, credential:)
-      return context&.user&.admin? if connection.credential_store_credential_id.blank?
-
-      credential.present? && context.present? && credential.scope_policy.usable_by?(credential, context)
+      agentic_credential_usable_by?(connection.credential_store_credential_id, context, credential: credential)
     end
   end
 end

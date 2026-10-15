@@ -1,10 +1,12 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::RestartRolloutTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   let(:cluster) { Factories.kubernetes_cluster(agentic_access_enabled: true, allow_writes: true) }
 
   def call(cluster_id:, namespace: "default", name: "web")
-    described_class.call(server_context: {}, cluster_id: cluster_id, namespace: namespace, name: name)
+    described_class.call(server_context: { chat_session: chat_session }, cluster_id: cluster_id, namespace: namespace, name: name)
   end
 
   it "restarts the deployment's rollout" do
