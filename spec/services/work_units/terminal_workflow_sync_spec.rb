@@ -125,6 +125,35 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     expect(workflow.artifact("cancelled_reason")).to eq("terminal_work_unit")
   end
 
+  # Regression: AASM has no queued -> succeeded edge, so a queued Workflow
+  # behind a succeeded WorkUnit is driven through `start!` first. That start is
+  # bookkeeping, and both of its listeners used to take it literally.
+  #
+  # WorkUnits::WorkflowLifecycle marked the already-terminal unit running,
+  # which reclaims its active dedup slot -- and with a sibling unit for the
+  # same job and kind holding that slot, the UNIQUE index on
+  # work_units.active_dedup_key raised RecordNotUnique. This sync runs inside
+  # the reconciler's own `active_runtime_workflows_for_job` read, so the
+  # exception escaped a query and aborted a whole reconciliation pass.
+  #
+  # Workflow#propagate_start_to_job! took it literally too, moving the Job out
+  # of :implemented, and the `succeed!` immediately after was then willing to
+  # mark_failed! a Job with no published PR.
+  it "does not reactivate the WorkUnit or move the Job when driving a queued workflow to succeeded" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "queued")
+    workflow.work_unit.mark_terminal!("succeeded")
+    sibling = WorkUnits::Launcher.instantiate(kind: "initial", job: job.reload)
+    job.update_columns(state: "implemented")
+
+    expect { described_class.call(workflow) }.not_to raise_error
+
+    expect(workflow.reload).to be_succeeded
+    expect(workflow.work_unit.reload).to have_attributes(state: "succeeded")
+    expect(sibling.work_unit.reload).to be_active
+    expect(job.reload).to be_implemented
+  end
+
   it "leaves active workflows with terminal WorkUnits reportable for closed jobs" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     workflow.update_columns(state: "queued")

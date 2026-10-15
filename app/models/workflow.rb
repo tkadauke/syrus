@@ -309,13 +309,16 @@ class Workflow < ApplicationRecord
   # spuriously try to transition an :approved Job to :running.
   def propagate_start_to_job!
     # A Workflow driven through start! only to reach a terminal state from
-    # :queued is not actually starting: WorkUnits::TerminalWorkflowSync does
-    # that to match an already-terminal WorkUnit, because AASM has no
-    # queued -> succeeded edge. Propagating it moves the Job out of
-    # :implemented, and the succeed! that immediately follows then sees a Job
-    # it is willing to mark_failed! when no PR was published -- so repairing a
-    # stale Workflow could fail a Job that was perfectly fine.
-    return if work_unit&.terminal?
+    # :queued is not actually starting -- WorkUnits::TerminalWorkflowSync does
+    # that to match an already-terminal WorkUnit. Propagating it moved the Job
+    # out of :implemented, and the succeed! that immediately follows then saw a
+    # Job it was willing to mark_failed! when no PR was published, so repairing
+    # a stale Workflow could fail a Job that was perfectly fine.
+    #
+    # Keyed on that synchronization, like WorkUnits::WorkflowLifecycle, and not
+    # on the WorkUnit being terminal: a genuine reopen of a failed Workflow has
+    # a terminal unit too, and it really is starting work.
+    return if syncing_from_terminal_work_unit
 
     Workflows::JobLifecyclePropagation.start!(self)
   end
