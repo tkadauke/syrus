@@ -20,6 +20,12 @@ module Prompts
   class PrFeedback
     include GithubContentTrust
 
+    MAX_ISSUE_BODY_BYTES = 20_000
+    MAX_COMMENT_BYTES = 4_000
+    MAX_COMMENTS = 20
+    MAX_COMMENTS_BYTES = 30_000
+    MAX_SUMMARIES_BYTES = 20_000
+
     def initialize(issue:, comments:, cutoff: nil, prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @comments = comments
@@ -56,7 +62,7 @@ module Prompts
       <<~SECTION.strip
         Original issue (Issue author, unverified GitHub user): #{@issue.title}
 
-        #{@issue.body}
+        #{Truncate.text(@issue.body, max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
       SECTION
     end
 
@@ -80,11 +86,12 @@ module Prompts
       lines = @prior_summaries.each_with_index.map do |summary, index|
         "Round #{index + 1}:\n#{summary}"
       end
+      summaries = Truncate.text(lines.join("\n\n"), max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries")
 
       <<~SECTION.strip
         What you've done on this PR in previous review rounds:
 
-        #{lines.join("\n\n")}
+        #{summaries}
       SECTION
     end
 
@@ -137,7 +144,12 @@ module Prompts
     end
 
     def render_blocks
-      @comments.map { |c| render(c) }.join("\n\n")
+      Truncate.collection(
+        @comments,
+        max_items: MAX_COMMENTS,
+        max_bytes: MAX_COMMENTS_BYTES,
+        priority: method(:new_comment?)
+      ) { |comment| render(comment) }
     end
 
     def render(comment)
@@ -168,12 +180,13 @@ module Prompts
         #{indent(comment.diff_hunk.to_s)}
 
         Comment:
-        #{comment.body}
+        #{Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment")}
       BLOCK
     end
 
     def render_conversation(comment)
-      "[Conversation comment from @#{comment.user.login} (#{trust_label_for(comment_attribution(comment))}) at #{comment.created_at}]\n#{comment.body}"
+      body = Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment")
+      "[Conversation comment from @#{comment.user.login} (#{trust_label_for(comment_attribution(comment))}) at #{comment.created_at}]\n#{body}"
     end
 
     def comment_attribution(comment)

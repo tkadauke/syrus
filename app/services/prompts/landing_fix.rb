@@ -6,6 +6,8 @@ module Prompts
   class LandingFix
     include GithubContentTrust
 
+    MAX_ISSUE_BODY_BYTES = 20_000
+
     def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @pr_number = pr_number
@@ -43,7 +45,7 @@ module Prompts
       <<~SECTION.strip
         Original issue: #{@issue.title}
 
-        #{@issue.body.to_s.strip.presence || "(empty)"}
+        #{Truncate.text(@issue.body.to_s.strip.presence || "(empty)", max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
       SECTION
     end
 
