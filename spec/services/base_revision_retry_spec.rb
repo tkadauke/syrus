@@ -169,6 +169,44 @@ RSpec.describe BaseRevisionRetry do
     expect(result.introduced_failed_identities).to eq([ "spec/models/widget_spec.rb\0Widget fails" ])
   end
 
+  it "keeps the failure when the matching base test errors in the temporary worktree" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      path = chdir.join(".syrus/grade-output/rspec-junit.xml")
+      FileUtils.mkdir_p(path.dirname)
+      path.write(<<~XML)
+        <testsuite name="spec/models/widget_spec.rb">
+          <testcase classname="spec/models/widget_spec.rb" name="Widget fails">
+            <error message="Missing generated schema">LoadError: cannot load generated/schema</error>
+          </testcase>
+        </testsuite>
+      XML
+      output << "1 example, 1 error"
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: false,
+      reason: "base_retry_found_introduced_cases",
+      base_failed_identities: [],
+      introduced_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ]
+    )
+  end
+
   it "appends failed test files when configured for files_as_args" do
     grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "files_as_args" }))
     retry_check = described_class.new(
