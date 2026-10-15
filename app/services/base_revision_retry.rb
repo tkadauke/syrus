@@ -63,7 +63,12 @@ class BaseRevisionRetry
     return skipped("base_retry_output_not_parseable", command: command, output: output) unless parsed
 
     candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
-    base = parsed.cases.select { |test_case| %w[failed error].include?(test_case.status) }
+    # A base-side error can be caused by the temporary worktree lacking
+    # prepared dependencies or generated artifacts. The candidate evidence
+    # carries identities but no normalized status or failure signature, so an
+    # error with the same identity is not enough to prove the PR failure was
+    # inherited.
+    base = parsed.cases.select { |test_case| test_case.status == "failed" }
                  .map { |test_case| [ test_case.suite_name, test_case.name ].join(0.chr) }
                  .uniq
                  .sort
