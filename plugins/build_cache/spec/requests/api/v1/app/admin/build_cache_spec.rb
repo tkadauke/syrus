@@ -207,6 +207,19 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
       expect(BuildCache::ClearRequest.count).to eq(1)
     end
+
+    it "reports a validation error when a concurrent insert wins the database race" do
+      sign_in_as(admin)
+      allow_any_instance_of(BuildCache::ClearRequest).to receive(:save)
+        .and_raise(ActiveRecord::RecordNotUnique.new("duplicate pending request"))
+
+      post "/api/v1/app/admin/build_cache/clear_requests",
+           params: { admin_build_cache_clear_request: { scope: "full", reason: "racing request" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to eq("Another clear request is already pending.")
+    end
   end
 
   describe "POST clear_requests/:id/confirm" do

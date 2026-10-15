@@ -25,6 +25,8 @@ module Api
             else
               render_error("validation_failed", request.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
+          rescue ActiveRecord::RecordNotUnique
+            render_error("validation_failed", "Another clear request is already pending.", status: :unprocessable_content)
           end
 
           def confirm_clear_request

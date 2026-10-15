@@ -12,12 +12,14 @@ module BuildCache
 
     SCOPES = %w[ full partial ].freeze
     STATES = %w[ pending confirmed cancelled ].freeze
+    PENDING_UNIQUENESS_KEY = "pending".freeze
 
     belongs_to :user
 
     enum :state, STATES.index_with(&:itself), validate: true
 
     before_validation :normalize_older_than_days
+    before_validation :sync_pending_uniqueness_key
 
     validates :scope, inclusion: { in: SCOPES }
     validates :reason, presence: true
@@ -84,6 +86,10 @@ module BuildCache
 
     def normalize_older_than_days
       self.older_than_days = nil unless partial?
+    end
+
+    def sync_pending_uniqueness_key
+      self.pending_uniqueness_key = pending? ? PENDING_UNIQUENESS_KEY : nil
     end
 
     def bucket_configured
