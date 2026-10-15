@@ -64,6 +64,24 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(Epic.order(:id).last.repository_id).to eq(team_repository.id)
   end
 
+  it "loads the writable repository picker with bounded access queries" do
+    owner = Factories.user(email_address: "picker-repo-owner@example.com")
+    team = Team.create!(name: "Picker writers #{SecureRandom.hex(4)}")
+    team.team_memberships.create!(user: user, role: "member")
+    4.times do |index|
+      shared_repository = Factories.repository(user: owner, owner: "shared", name: "picker-#{index}")
+      team.team_repositories.create!(repository: shared_repository, role: "write")
+    end
+    sign_in_as(user)
+
+    queries = capture_sql { get "/api/v1/app/epics/new" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"].size).to eq(4)
+    access_queries = queries.grep(/repository_memberships|team_memberships|team_repositories/i)
+    expect(access_queries.size).to eq(1), access_queries.join("\n")
+  end
+
   it "includes all active repositories for global admins and permits creating an Epic" do
     admin = Factories.user(email_address: "epic-admin@example.com", admin: true)
     other_repository = Factories.repository(user: user, owner: "shared", name: "admin-writable")

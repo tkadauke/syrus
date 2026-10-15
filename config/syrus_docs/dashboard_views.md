@@ -84,6 +84,20 @@ Single-Job lifecycle endpoints:
 - `PATCH /api/v1/app/jobs/:job_id/owner` assigns or reassigns `owner_user_id`. The selected owner must be a repository member with read access. This does not claim the Job for active work.
 - `POST /api/v1/app/jobs/:job_id/claim` and `DELETE /api/v1/app/jobs/:job_id/claim` operate only on the work-claim overlay. A Job claimed by another user cannot be claimed, and only the current claimant can release their claim.
 
+## Epic access and mutations
+
+Repository visibility and mutation access are intentionally different for
+Epics. A read-tier direct membership or team grant can view an Epic, but every
+mutation of an existing Epic requires effective write-tier access to its
+repository. This covers edits, archive, claim/unclaim/reassign, start, state
+transitions (including overrides), and dependency additions or removals.
+Starting an Epic can release child Jobs, so it uses the same write boundary as
+other execution-triggering actions.
+
+Creating an Epic, moving one to another repository, and the repository picker
+also use effective write access. Direct write/admin memberships and write/admin
+team grants qualify; global admins bypass repository membership requirements.
+
 The `Triaging` smart folder surfaces user-facing Jobs currently sitting in the `triaging` AASM state (across any of the current user's repositories) so classifier delays or stuck intake are visible without a manual filter. Like `Invalid` and `Awaiting Epic`, it only appears in the sidebar when at least one matching Job exists.
 
 The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, accept classifier-uncertain triage decisions, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.

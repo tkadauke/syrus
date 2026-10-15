@@ -272,9 +272,7 @@ module Api
         class UnavailableTransition < StandardError; end
 
         def form_payload(epic)
-          repository_scope = Current.user.admin? ? Repository.all : Repository.accessible_to(Current.user)
-          accessible_repos = repository_scope.active.order(:owner, :name)
-                                             .select { |repository| repository.member_at_least?(Current.user, "write") }
+          accessible_repos = Repository.writable_by(Current.user).active.order(:owner, :name)
           {
             epic: epic_json(epic),
             repositories: accessible_repos.map { |repository| repository_json(repository) },

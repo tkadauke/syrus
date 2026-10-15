@@ -475,6 +475,19 @@ class Repository < ApplicationRecord
     where(id: direct_ids).or(where(id: team_repo_ids)).select(:id)
   end
 
+  # Repositories where `user` has effective write access, expressed as one
+  # relation so repository pickers do not resolve direct and team roles once
+  # per row. Global admins can write every repository.
+  def self.writable_by(user)
+    return none unless user
+    return all if user.admin?
+
+    direct_ids = RepositoryMembership.at_least("write").where(user: user).select(:repository_id)
+    team_ids = TeamMembership.where(user: user).select(:team_id)
+    team_repo_ids = TeamRepository.at_least("write").where(team_id: team_ids).select(:repository_id)
+    where(id: direct_ids).or(where(id: team_repo_ids))
+  end
+
   def effective_prepare_enabled
     prepare_enabled?
   end
