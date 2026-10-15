@@ -188,7 +188,31 @@ RSpec.describe CredentialStore::Broker do
       ) { |env, _metadata| env }
     }.to raise_error(CredentialStore::Broker::NotFound)
 
-    expect(CredentialStore::CredentialAccessEvent.where(credential: credential)).to be_empty
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "credential scope not usable"
+    )
+  end
+
+  it "audits unknown credential attempts without changing the not-found response" do
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: "missing-credential",
+        type: "credential_store.generic",
+        env_key: "TOKEN",
+        purpose: "deploy",
+        tool_name: "git.push"
+      ) { raise "must not yield" }
+    }.to raise_error(CredentialStore::Broker::NotFound, "credential not found")
+
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: nil,
+      result: "denied",
+      denial_reason: "credential not found"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("credential_ref" => "missing-credential")
   end
 
   it "authorizes team-scoped credentials through team repository membership" do
