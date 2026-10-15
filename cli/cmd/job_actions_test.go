@@ -662,6 +662,40 @@ func TestJobCheckoutRunsProjectHooksAgainstEffectiveBaseBranch(t *testing.T) {
 	}
 }
 
+func TestJobCheckoutSkipsPostCheckoutHooksForExternalPR(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"kind":"external_pr","branch_name":"contributor/change"},"repository":{"slug":"acme/widgets"}}`)
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	previousDetectCurrentRepoSlug := cliplugin.DetectCurrentRepoSlug
+	cliplugin.DetectCurrentRepoSlug = func() string { return "acme/widgets" }
+	t.Cleanup(func() { cliplugin.DetectCurrentRepoSlug = previousDetectCurrentRepoSlug })
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "contributor/change", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("external PR hook command should not run")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "checkout", "456"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !reflect.DeepEqual(calls, checkoutGitBranchCalls("contributor/change")) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
 func TestJobOpenUsesConfiguredInstanceURL(t *testing.T) {
 	writeJobActionTestCredentials(t, "https://syrus.example.test/")
 	var opened string

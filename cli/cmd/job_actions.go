@@ -474,7 +474,7 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, repo, branch); err != nil {
 		return err
 	}
-	if !noHooks {
+	if !noHooks && postCheckoutHooksAllowed(job.Job) {
 		hookOptions := postCheckoutHookOptions{
 			baseBranch:    job.Job.EffectiveBaseBranch,
 			defaultBranch: job.Repository.DefaultBranch,

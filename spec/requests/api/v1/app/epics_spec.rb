@@ -180,6 +180,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(body["dependents"]).to eq([])
     expect(body["jobs"]).to include(include(
       "id" => job.id,
+      "kind" => "issue",
       "slug" => job.slug,
       "label" => "#12",
       "title" => "Survey forum",
