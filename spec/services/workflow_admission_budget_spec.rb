@@ -552,6 +552,23 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("host", "headroom", "memory_used_percent")).to eq(0.0)
   end
 
+  it "admits work when hard pressure is isolated to one worker with a healthy alternative" do
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-disk-full", worker_storage_key: "storage-full", disk: 97.0)
+    worker_sample(hostname: "worker-healthy", worker_storage_key: "storage-healthy", disk: 25.0)
+    workflow = workflow_for
+
+    decision = described_class.call(workflow: workflow)
+
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("within_budget")
+    expect(decision.details.fetch("soft_pressure_gates_present")).to eq([ "localized_worker_host_pressure_high" ])
+    expect(decision.pressure.dig("host", "locality")).to include(
+      "scope" => "localized",
+      "healthy_alternatives_present" => true
+    )
+  end
+
   it "does not bypass hard worker exhaustion when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
     WorkerHostHealthSample.create!(
