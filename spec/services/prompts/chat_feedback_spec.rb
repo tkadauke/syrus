@@ -73,6 +73,21 @@ RSpec.describe Prompts::ChatFeedback do
     expect(out).to include("Handle nil here.")
   end
 
+  it "caps issue, feedback, summary, and anchored-comment content" do
+    large_issue = Struct.new(:title, :body).new("Large", "i" * (described_class::MAX_ISSUE_BODY_BYTES + 1))
+    out = described_class.new(
+      issue: large_issue,
+      feedback: "f" * (described_class::MAX_FEEDBACK_BYTES + 1),
+      prior_summaries: [ "s" * (described_class::MAX_SUMMARIES_BYTES + 1) ],
+      diff_comments: [ { path: "a.rb", line: 1, side: "right", body: "c" * (described_class::MAX_COMMENT_BYTES + 1) } ]
+    ).to_s
+
+    expect(out).to include("[issue body truncated")
+    expect(out).to include("[feedback truncated")
+    expect(out).to include("[prior summaries truncated")
+    expect(out).to include("[comment truncated")
+  end
+
   describe "memory context" do
     it "includes memory context before the directives section when the store has some" do
       user = Factories.user

@@ -138,6 +138,29 @@ RSpec.describe Prompts::PrFeedback do
     expect(inline_first.index("This breaks when")).to be < inline_first.index("Could you also")
   end
 
+  it "keeps all new comments plus only the newest historical comments and caps their bytes" do
+    historical = 22.times.map do |index|
+      Struct.new(:user, :body, :created_at).new(user_login, "historical-#{index}", Time.parse("2026-05-02 03:#{index.to_s.rjust(2, '0')}:00 UTC"))
+    end
+    new_comment = Struct.new(:user, :body, :created_at).new(
+      user_login,
+      "n" * (described_class::MAX_COMMENT_BYTES + 10),
+      Time.parse("2026-05-02 05:00:00 UTC")
+    )
+
+    out = described_class.new(
+      issue: issue,
+      comments: historical + [ new_comment ],
+      cutoff: Time.parse("2026-05-02 04:00:00 UTC")
+    ).to_s
+
+    expect(out).to include("[NEW] [Conversation comment")
+    expect(out).to include("[comment truncated, 10 more bytes]")
+    expect(out).to include("[2 comments omitted due to limits]")
+    expect(out).not_to include("historical-0\n")
+    expect(out).to include("historical-21")
+  end
+
   describe "injected_context" do
     it "is omitted when not provided" do
       out = described_class.new(issue: issue, comments: [ conversation ]).to_s
