@@ -123,6 +123,23 @@ RSpec.describe K8sCluster::KubeconfigParser do
 
       expect { described_class.parse(yaml) }.to raise_error(described_class::ParseError, /no server URL/)
     end
+
+    it "rejects cluster server values that are not absolute HTTP(S) URLs" do
+      invalid_servers = [ "not a url", "/relative/path", "https://", "ftp://k8s.example.com" ]
+
+      invalid_servers.each do |server|
+        yaml = kubeconfig(cluster_overrides: { "server" => server }, user_attrs: { "token" => "abc123" })
+
+        expect { described_class.parse(yaml) }
+          .to raise_error(described_class::ParseError, /server must be (?:a valid|an absolute) HTTP\(S\) URL/), server.inspect
+      end
+    end
+
+    it "returns the host from a valid HTTPS server URL with a port" do
+      yaml = kubeconfig(user_attrs: { "token" => "abc123" })
+
+      expect(described_class.parse(yaml).host).to eq("k8s.example.com")
+    end
   end
 
   describe "unsupported auth" do
