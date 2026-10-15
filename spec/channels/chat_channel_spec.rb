@@ -27,7 +27,7 @@ RSpec.describe ChatChannel, type: :channel do
     subscribe(chat_id: chat_session.id)
 
     expect(subscription).to be_confirmed
-    expect(subscription).to have_stream_from("chat_resource:#{chat_session.id}")
+    expect(subscription).to have_stream_from("chat_resource:#{chat_session.id}:user:#{user.id}")
   end
 
   it "rejects subscriptions for a soft-deleted chat" do
@@ -47,6 +47,6 @@ RSpec.describe ChatChannel, type: :channel do
     subscribe(chat_id: chat_session.id)
 
     expect(subscription).to be_confirmed
-    expect(subscription).to have_stream_from("chat_resource:#{chat_session.id}")
+    expect(subscription).to have_stream_from("chat_resource:#{chat_session.id}:user:#{member.id}")
   end
 end

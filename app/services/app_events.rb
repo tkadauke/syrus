@@ -72,10 +72,10 @@ class AppEvents
   end
 
   def self.broadcast_chat_resource(chat_session_id:, type:, resource:, id:, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
-    ActionCable.server.broadcast(
-      ChatChannel.stream_name(chat_session_id),
-      resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
-    )
+    event = resource_event(type: type, resource: resource, id: id, changed: changed, payload: payload, revision: revision, occurred_at: occurred_at)
+    ChatParticipant.where(chat_session_id: chat_session_id).pluck(:user_id).each do |user_id|
+      ActionCable.server.broadcast(ChatChannel.stream_name(chat_session_id, user_id), event)
+    end
     record_delivery(resource)
   end
 

@@ -3,7 +3,7 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
 import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, TouchEvent as ReactTouchEvent, UIEvent, WheelEvent as ReactWheelEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
@@ -179,6 +179,7 @@ export function ChatRoute() {
   const { isDisconnected } = useConnectionContext()
   const queryKey = chatQueryKey(id, location.search)
   const prefix = routePrefix(location.pathname)
+  const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
   const chat = useQuery({
@@ -206,6 +207,15 @@ export function ChatRoute() {
   })
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
+
+  useEffect(() => {
+    if (!chat.isSuccess || chat.data.chat.conversation_kind !== "group") return
+
+    const currentUserId = chat.data.chat.current_user_id
+    if (currentUserId == null || chat.data.chat.participants?.some((participant) => participant.id === currentUserId)) return
+
+    navigate(`${prefix}/dashboard/jobs`, { replace: true })
+  }, [chat.data, chat.isSuccess, navigate, prefix])
 
   useEffect(() => {
     if (!id) return
