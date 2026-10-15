@@ -46,7 +46,11 @@ function parseOutcome(context: ToolCardContext): QueryOutcome | null {
   if (!Array.isArray(parsed.rows)) return null
 
   const columns = Array.isArray(parsed.columns) ? parsed.columns.filter((c): c is string => typeof c === "string") : []
-  const rows = parsed.rows.filter((row): row is unknown[] => Array.isArray(row))
+  const rows = parsed.rows.flatMap((row) => {
+    if (Array.isArray(row)) return [row]
+    if (isPlainObject(row)) return [columns.map((column) => row[column])]
+    return []
+  })
 
   return {
     kind: "select",
@@ -192,6 +196,22 @@ export const examples = [
       row_count: 241,
       truncated: true,
       duration_ms: 812.6
+    }
+  },
+  {
+    id: "legacy_select_rows",
+    label: "Legacy SELECT with object rows",
+    description: "Persisted tool results from before positional rows remain renderable.",
+    input: { sql: "SELECT id, state FROM jobs LIMIT 1" },
+    parsedResult: {
+      available: true,
+      read_only: true,
+      statement: "SELECT id, state FROM jobs LIMIT 1",
+      columns: ["id", "state"],
+      rows: [{ id: 71, state: "succeeded" }],
+      row_count: 1,
+      truncated: false,
+      duration_ms: 3.1
     }
   },
   {
