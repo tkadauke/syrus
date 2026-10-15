@@ -111,6 +111,15 @@ RSpec.describe GlobalSearch::EpicIndex do
     expect(results.first[:rank]).to be < results.second[:rank]
   end
 
+  it "supports bounded result pagination" do
+    newer = Factories.epic(user: user, repository: repo, title: "paged needle", created_at: 1.minute.ago)
+    older = Factories.epic(user: user, repository: repo, title: "paged needle", created_at: 2.minutes.ago)
+    described_class.upsert(newer)
+    described_class.upsert(older)
+
+    expect(described_class.search("needle", limit: 1, offset: 1).map { |row| row[:epic_id] }).to eq([ older.id ])
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS epic_fts")
     SearchRecord.connection.execute(<<~SQL)
