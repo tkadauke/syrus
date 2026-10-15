@@ -21,7 +21,14 @@ function renderPicker(props: React.ComponentProps<typeof JobEpicPickerPopup>) {
 const sampleJobs = {
   count: 2,
   jobs: [
-    { id: 101, title: "Fix authentication bug", issue_title: "Fix authentication bug", state: "open", repository_slug: "acme/repo", pr_url: "https://github.com/acme/repo/pull/5" },
+    {
+      id: 101,
+      title: "Fix authentication bug",
+      issue_title: "Fix authentication bug",
+      state: "open",
+      repository_slug: "acme/repo",
+      pr_url: "https://github.com/acme/repo/pull/5"
+    },
     { id: 202, title: "Add dark mode", issue_title: "Add dark mode", state: "open", repository_slug: "acme/repo", pr_url: null }
   ]
 }
@@ -66,6 +73,21 @@ describe("JobEpicPickerPopup — jobs mode", () => {
 
     expect(screen.getByText("Fix authentication bug")).toBeInTheDocument()
     expect(screen.queryByText("Add dark mode")).not.toBeInTheDocument()
+  })
+
+  it("searches the server for jobs outside the initial result page", async () => {
+    vi.spyOn(jobsApi, "fetchPickerJobs").mockImplementation(async ({ q }) =>
+      q === "999"
+        ? { count: 1, jobs: [{ id: 999, title: "Older job", issue_title: "Older job", state: "open", repository_slug: "acme/repo", pr_url: null }] }
+        : sampleJobs
+    )
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", onSelect: vi.fn(), onCancel: vi.fn() })
+
+    await screen.findByText("Fix authentication bug")
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "999" } })
+
+    expect(await screen.findByText("Older job")).toBeInTheDocument()
+    expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ q: "999" }))
   })
 
   it("calls onSelect with the job id string when a row is clicked", async () => {
@@ -123,12 +145,8 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: "acme/repo", onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: "acme/repo" })
-      )
-      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
-        expect.objectContaining({ state: expect.anything() })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ repo: "acme/repo" }))
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(expect.objectContaining({ state: expect.anything() }))
     })
   })
 
@@ -136,12 +154,8 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: null, onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: undefined })
-      )
-      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
-        expect.objectContaining({ state: expect.anything() })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ repo: undefined }))
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(expect.objectContaining({ state: expect.anything() }))
     })
   })
 
@@ -171,9 +185,7 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: "acme/repo", jobState: "implemented", onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ state: "implemented", repo: "acme/repo" })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ state: "implemented", repo: "acme/repo" }))
     })
   })
 })
@@ -188,6 +200,7 @@ describe("JobEpicPickerPopup — filterByPr", () => {
 
     expect(await screen.findByText("Fix authentication bug")).toBeInTheDocument()
     expect(screen.queryByText("Add dark mode")).not.toBeInTheDocument()
+    expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ withPr: true }))
   })
 
   it("shows all jobs when filterByPr is false", async () => {
