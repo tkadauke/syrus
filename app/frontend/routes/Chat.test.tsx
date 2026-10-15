@@ -1268,6 +1268,105 @@ describe("chat compose drafts", () => {
     expect(getDraftAttachments("8")).toEqual([attachment])
   }, 30000)
 
+  it("does not discard newer typing when an earlier send succeeds", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return messageRequest
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Send this first." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+
+    fireEvent.change(textarea, { target: { value: "This is the next draft." } })
+    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("This is the next draft."))
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse(chatPayload()))
+      await messageRequest
+    })
+
+    expect(textarea).toHaveValue("This is the next draft.")
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("This is the next draft.")
+  }, 30000)
+
+  it("does not overwrite newer typing when an earlier send fails", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return messageRequest
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "This request will fail." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    fireEvent.change(textarea, { target: { value: "Keep this newer draft." } })
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse({ error: "send failed" }, 500))
+      await messageRequest
+    })
+
+    expect(textarea).toHaveValue("Keep this newer draft.")
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer draft.")
+  }, 30000)
+
+  it("keeps a failed goal command draft after the composer unmounts", async () => {
+    const attachment = { name: "goal.png", mimeType: "image/png", dataUrl: "data:image/png;base64,Z29hbA==", size: 4 }
+    setDraftAttachments("8", [attachment])
+    let resolveGoal: ((response: Response) => void) | null = null
+    const goalRequest = new Promise<Response>((resolve) => {
+      resolveGoal = resolve
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH") return goalRequest
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/goal preserve this objective" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) =>
+      String(call[0]) === "/api/v1/app/chats/8/goal" && (call[1] as RequestInit)?.method === "PATCH"
+    )).toBe(true))
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("/goal preserve this objective")
+    expect(getDraftAttachments("8")).toEqual([attachment])
+
+    cleanup()
+    await act(async () => {
+      resolveGoal?.(jsonResponse({ error: "goal failed" }, 500))
+      await goalRequest
+    })
+
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("/goal preserve this objective")
+    expect(getDraftAttachments("8")).toEqual([attachment])
+  }, 30000)
+
   it("adds submitted messages to composer history and recalls the latest prompt with ArrowUp", async () => {
     const fetchMock = mockChatRouteFetch()
     renderRoute()
