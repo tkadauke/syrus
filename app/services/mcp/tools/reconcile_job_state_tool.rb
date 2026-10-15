@@ -53,6 +53,8 @@ module Mcp::Tools
 
         unless bulk
           job = jobs.first
+          preflight = RepairPreflight.reconcile_job_state(job: job, mode: mode)
+          return Mcp::Tools.invalid(preflight.rejection_message) unless preflight.eligible?
           return create_pending_admin_action(
             server_context: server_context,
             chat_session: chat_session,
@@ -62,6 +64,12 @@ module Mcp::Tools
             message: "Reconcile #{job.slug} using mode #{mode}?"
           )
         end
+
+        ineligible = jobs.filter_map do |job|
+          plan = RepairPreflight.reconcile_job_state(job: job, mode: "auto")
+          "#{job.slug}: #{plan.rejection_message}" unless plan.eligible?
+        end
+        return Mcp::Tools.invalid(ineligible.join("; ")) if ineligible.any?
 
         group = create_pending_action_group!(
           server_context: server_context,

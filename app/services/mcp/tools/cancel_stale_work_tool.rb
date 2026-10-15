@@ -27,6 +27,8 @@ module Mcp::Tools
         return job_id if job_id.is_a?(MCP::Tool::Response)
         job = Job.find_by(id: job_id)
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
+        preflight = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+        return Mcp::Tools.invalid(preflight.rejection_message) unless preflight.eligible?
 
         create_pending_admin_action(
           server_context: server_context,

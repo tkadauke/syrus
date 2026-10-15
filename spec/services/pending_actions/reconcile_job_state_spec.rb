@@ -29,6 +29,7 @@ RSpec.describe PendingActions::ReconcileJobState do
     member = Factories.user
     member_repository = Factories.repository(user: member)
     job = Factories.job_record(state: "failed", repository: member_repository, user: member)
+    terminal_workflow_for(job)
     action = pending_action_for(member, member_repository, "job_id" => job.id, "mode" => "auto")
 
     expect { action.confirm!(user: member) }.to raise_error(ArgumentError, /Admin access required/)
@@ -47,6 +48,26 @@ RSpec.describe PendingActions::ReconcileJobState do
   end
 
   describe "auto mode" do
+    it "rejects creation when there is no applicable state-drift plan" do
+      job = build_job("implemented")
+      terminal_workflow_for(job)
+
+      expect {
+        pending_action_for(admin, admin_repository, "job_id" => job.id, "mode" => "auto")
+      }.to raise_error(ActiveRecord::RecordInvalid, /no applicable state-drift plan/)
+    end
+
+    it "revalidates when state drift disappears before confirmation" do
+      job = build_job("running", pr_number: 1)
+      terminal_workflow_for(job)
+      action = pending_action_for(admin, admin_repository, "job_id" => job.id, "mode" => "auto")
+      job.update_columns(state: "implemented")
+
+      expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /no applicable state-drift plan/)
+      expect(action.reload).to be_failed
+      expect(action.payload["repair_outcome"]).to eq("rejected")
+    end
+
     it "runs the real, unstubbed WorkEngine reconciler and applies a repair end to end" do
       job = Factories.job(user: admin, repository: admin_repository, agent_provider: "claude")
       run = job.initial_run

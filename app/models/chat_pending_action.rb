@@ -50,6 +50,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    retire_terminal_work_unit
     reenqueue_work
     repair_queue_affinity
     force_landing_recheck
@@ -97,6 +98,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    retire_terminal_work_unit
     reenqueue_work
     repair_queue_affinity
     rerun_ci_repair
@@ -215,6 +217,8 @@ class ChatPendingAction < ApplicationRecord
     if command.repair_action?
       update_confirmation_progress!("running", "Capturing after snapshot...")
       update!(after_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+      outcome = payload.to_h["repair_outcome"].presence || (before_snapshot == after_snapshot ? "noop" : "applied")
+      update!(payload: payload.to_h.merge("repair_outcome" => outcome))
     end
 
     record_repair_admin_action!(record) if command.repair_action?
@@ -222,7 +226,7 @@ class ChatPendingAction < ApplicationRecord
       state: "confirmed",
       confirmed_at: Time.current,
       execution_status: "done",
-      execution_step: "Done.",
+      execution_step: payload.to_h["repair_outcome"] == "noop" ? "No changes were needed." : "Done.",
       execution_error: nil,
       execution_finished_at: Time.current
     }
@@ -230,6 +234,7 @@ class ChatPendingAction < ApplicationRecord
     update!(updates)
     true
   rescue StandardError => e
+    update_column(:payload, payload.to_h.merge("repair_outcome" => "rejected")) if defined?(command) && command&.repair_action?
     fail_confirmation!(e)
     raise if raise_on_error
 

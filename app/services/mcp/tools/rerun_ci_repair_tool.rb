@@ -32,6 +32,8 @@ module Mcp::Tools
 
         refresh = CiRepair::CheckRefresh.call(job)
         return Mcp::Tools.invalid("Current PR checks are #{refresh.state}; no failing checks are available for a CI repair rerun.") unless refresh.state == "failing"
+        preflight = RepairPreflight.job_locks(job: job, operation: "rerun_ci_repair")
+        return Mcp::Tools.invalid(preflight.rejection_message) unless preflight.eligible?
 
         create_pending_admin_action(
           server_context: server_context,

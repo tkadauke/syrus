@@ -15,11 +15,11 @@ module Admin
     def call
       payload = {
         job: job_payload,
-        stuck: stuck_items.any? || epic_release_state_drift?,
+        stuck: stuck_items.any? || epic_release_state_drift? || terminal_workflow_lock_leaks.any?,
         issues: issues_payload,
         stuck_list: stuck_list_payload,
         current_intent: current_intent_payload,
-        work_units: work_units_payload,
+        work_units: work_units_payload.merge(terminal_workflow_lock_leaks: terminal_workflow_lock_leaks),
         workflows: workflows_payload,
         runs: runs_payload,
         dependencies: dependencies_payload,
@@ -497,6 +497,13 @@ module Admin
     end
 
     def recommended_action(payload)
+      if (leak = terminal_workflow_lock_leaks.first)
+        return action(
+          "retire_terminal_work_unit",
+          "A terminal Workflow still has a nonterminal WorkUnit owning active locks.",
+          work_unit_id: leak[:work_unit_id], workflow_id: leak[:workflow_id], lock_ids: leak[:lock_ids], lock_keys: leak[:lock_keys]
+        )
+      end
       return action("inspect_logs", "A running Run has a stale heartbeat.", run_id: stale_heartbeat_run_id(payload)) if stale_heartbeat_run_id(payload)
       if no_effective_ci_repair?
         if rebase_recommended?(payload)
@@ -555,6 +562,22 @@ module Admin
 
     def blocked_work_unit(payload)
       payload.dig(:work_units, :active).to_a.find { |unit| unit[:state] == "blocked" && unit[:blocked_reason].present? }
+    end
+
+    def terminal_workflow_lock_leaks
+      @terminal_workflow_lock_leaks ||= WorkUnit
+        .joins(:work_unit_members, :workflow, :work_unit_locks)
+        .where(work_unit_members: { job_id: job.id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+        .where(workflows: { state: %w[succeeded failed cancelled blocked] }, work_unit_locks: { released_at: nil })
+        .distinct
+        .map do |unit|
+          locks = unit.work_unit_locks.active.order(:id)
+          {
+            work_unit_id: unit.id, workflow_id: unit.workflow_id, workflow_state: unit.workflow.state,
+            lock_ids: locks.pluck(:id), lock_keys: locks.pluck(:lock_key),
+            eligible_repair: WorkUnits::TerminalLockCleanup.preflight(unit).as_json
+          }
+        end
     end
 
     def stale_heartbeat_run_id(payload)

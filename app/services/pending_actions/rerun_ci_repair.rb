@@ -3,9 +3,12 @@ module PendingActions
     action_key "rerun_ci_repair"
 
     def perform
+      job = repair_action_job
+      preflight = RepairPreflight.job_locks(job: job, operation: "rerun_ci_repair")
+      raise ArgumentError, preflight.rejection_message unless preflight.eligible?
       progress!("Creating CI repair rerun...")
       result = CiRepair::ManualRerun.call(
-        job: repair_action_job,
+        job: job,
         reason: reason,
         clear_handled_sha: payload.fetch("clear_handled_sha", true),
         instructions: payload["instructions"],
@@ -17,6 +20,7 @@ module PendingActions
         "reran CI repair for #{result.refresh.head_sha}; cleared_handled_sha=#{result.cleared_handled_sha}",
         run: result.run
       )
+      action.update!(payload: payload.merge("repair_outcome" => "applied", "mutation_counts" => { "workflows" => 1, "work_units" => 1 }))
       result.workflow
     end
 
@@ -27,6 +31,10 @@ module PendingActions
     def validate_payload(errors)
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:reason, "is required") if reason.blank?
+      return unless action.new_record? && payload["job_id"].present? && (job = repair_action_job_or_nil)
+
+      preflight = RepairPreflight.job_locks(job: job, operation: "rerun_ci_repair")
+      errors.add(:payload, preflight.rejection_message) unless preflight.eligible?
     end
 
     def action_detail

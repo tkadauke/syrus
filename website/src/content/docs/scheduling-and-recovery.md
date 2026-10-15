@@ -72,6 +72,16 @@ The reconciler records what it found and what repair it applied. This is the
 best audit trail when something gets unstuck without an operator clicking a
 button.
 
+Operator repair actions are preflighted before Syrus presents a confirmation
+and revalidated when confirmation executes. State reconciliation is only
+offered for an actual state-drift plan; stale-work cancellation requires a Run
+or Workflow that can transition. If a terminal Workflow is paired with a
+nonterminal Work Unit that still owns locks, the dedicated terminal-ownership
+repair can retire only that Work Unit and release its locks without changing
+the Job, pull request, or Workflow history. A dry run reports the affected
+records and expected mutation counts first. Repair results distinguish applied
+changes, no-ops, and rejected attempts in the audit payload.
+
 ## Retry Semantics
 
 Syrus prefers the smallest safe retry:
