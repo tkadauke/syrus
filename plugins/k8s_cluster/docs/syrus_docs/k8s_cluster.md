@@ -316,18 +316,19 @@ Operators adding a k3s credential should create a Credential Store record:
 - Allowed surfaces: choose `workflow`, `chat`, or both based on where agents
   should use the credential.
 
-The tool rejects the `kubectl` executable, leading global flags,
-`--kubeconfig`, `--context`, `--namespace`, and direct credential flags in
-`args`; callers pass context and namespace through the dedicated inputs so the
-broker can validate target constraints. Only the read commands `get`,
-`describe`, `logs`, `top`, `events`, `api-resources`, `api-versions`, `version`,
-`explain`, `wait`, and `diff` are allowed; `auth` is limited to `can-i` and
-`whoami`. This allowlist also prevents execution of arbitrary `kubectl-<name>`
-plugins. Streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
-`port-forward`, interactive `exec`, and similar), all mutating commands, and
- Secret-value exposure patterns such as `get secrets -o yaml`, named or
- comma-separated Secret resources, `get secrets -o=jsonpath=...`, Secret projections via
-`custom-columns`/`custom-columns-file`, `describe secret`, or `get --raw` Kubernetes
+The tool rejects the `kubectl` executable, leading global flags, and flags in
+`args` that can override the kubeconfig, API server, context, cluster, user,
+impersonated identity, TLS settings, proxy, cache directory, or profiling
+output. Callers pass context and namespace through the dedicated inputs so the
+broker can validate target constraints; `-A`/`--all-namespaces` cannot override
+ a supplied namespace. Only the read commands `get`, `describe`, `logs`, `top`,
+ `events`, `api-resources`, `api-versions`, `version`, `explain`, `wait`, and
+ `diff` are allowed; `auth` is limited to `can-i` and `whoami`. This allowlist
+ also prevents arbitrary `kubectl-<name>` plugins, configuration commands,
+ streaming or interactive modes, and all mutating commands. Secret-value
+ exposure patterns such as `get secrets -o yaml`, named or comma-separated
+ Secret resources, `get secrets -o=jsonpath=...`, Secret projections via
+ `custom-columns`/`custom-columns-file`, `describe secret`, or `get --raw` Kubernetes
 API paths whose segments target `secrets`, unless explicit allowance is
  supplied by a non-agent caller. `get ... -o name` is the only Secret-read
  exception; client verbosity at level 6 or higher remains protected. Chat and workflow agents cannot self-authorize

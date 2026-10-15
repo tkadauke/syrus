@@ -24,8 +24,29 @@ module K8sCluster
     SECRET_RESOURCES = %w[secret secrets].freeze
     SECRET_SAFE_OUTPUT_FORMATS = %w[name].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
-    FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
+    FORBIDDEN_FLAGS = %w[
+      --kubeconfig
+      --token
+      --password
+      --username
+      --client-key
+      --client-certificate
+      --certificate-authority
+      --server
+      --user
+      --cluster
+      --as
+      --as-group
+      --as-uid
+      --insecure-skip-tls-verify
+      --tls-server-name
+      --proxy-url
+      --cache-dir
+      --profile
+      --profile-output
+    ].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
+    FORBIDDEN_SHORT_FLAG_PREFIXES = %w[-s].freeze
     FORBIDDEN_CONTEXT_PREFIXES = %w[--context= --namespace=].freeze
     FORBIDDEN_NAMESPACE_PREFIXES = %w[--namespace= -n].freeze
 
@@ -97,7 +118,8 @@ module K8sCluster
       raise InvalidCommand, "omit the kubectl executable from args" if command == "kubectl"
       raise InvalidCommand, "pass context via kube_context, not kubectl args" if contains_context_flag?
       raise InvalidCommand, "pass namespace via namespace, not kubectl args" if contains_namespace_flag?
-      raise InvalidCommand, "kubectl credential flags are not allowed" if contains_forbidden_credential_flag?
+      raise InvalidCommand, "kubectl connection, identity, and output flags are not allowed" if contains_forbidden_flag?
+      raise InvalidCommand, "all-namespaces cannot override the validated namespace" if namespace && contains_all_namespaces_flag?
       raise RiskyCommand, "kubectl command is not in the read-only allowlist" unless allowed_read_command?
       raise RiskyCommand, "streaming or interactive kubectl commands are not allowed" if streaming_command?
       raise OperatorConfirmationRequired, "agent kubectl calls cannot self-authorize secret output" if agent_context? && allow_secret_output
@@ -208,9 +230,18 @@ module K8sCluster
       normalized_args.any? { |arg| arg == "--namespace" || FORBIDDEN_NAMESPACE_PREFIXES.any? { |prefix| arg.start_with?(prefix) } }
     end
 
-    def contains_forbidden_credential_flag?
+    def contains_forbidden_flag?
       normalized_args.any? do |arg|
-        FORBIDDEN_FLAGS.include?(arg) || FORBIDDEN_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) }
+        FORBIDDEN_FLAGS.include?(arg) ||
+          FORBIDDEN_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) } ||
+          FORBIDDEN_SHORT_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) }
+      end
+    end
+
+    def contains_all_namespaces_flag?
+      normalized_args.any? do |arg|
+        arg.start_with?("-a") ||
+          arg == "--all-namespaces" || arg.start_with?("--all-namespaces=")
       end
     end
 
