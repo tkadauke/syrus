@@ -170,8 +170,14 @@ const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
 const DIFF_INLINE_REVIEW_PANEL_BASE_CLASS =
   "box-border min-w-0 w-[min(44rem,calc(100vw-3rem))] max-w-[min(44rem,calc(100vw-3rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+// Sticky for the same reason the desktop variant is: the panel sits in a cell
+// of a horizontally scrollable diff table, so without it a sideways scroll
+// carries the panel out of the viewport with the code. The mobile variant kept
+// its narrower width but lost the stickiness, which left the line-comment
+// composer at a negative offset once the diff had been scrolled -- off-screen,
+// on the viewport where there is no room to scroll back casually.
 const DIFF_INLINE_REVIEW_PANEL_MOBILE_CODE_COLUMN_CLASS =
-  "box-border min-w-0 w-[min(44rem,calc(100vw-5rem))] max-w-[min(44rem,calc(100vw-5rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
+  "sticky left-0 z-[1] box-border min-w-0 w-[min(44rem,calc(100vw-5rem))] max-w-[min(44rem,calc(100vw-5rem))] md:w-[min(44rem,100cqw,calc(100vw-3rem))] md:max-w-[min(44rem,100cqw,calc(100vw-3rem))]"
 const DIFF_INLINE_REVIEW_PANEL_STICKY_CLASS = `sticky left-0 z-[1] ${DIFF_INLINE_REVIEW_PANEL_BASE_CLASS}`
 const DIFF_FILE_HEADER_CONTROL_BASE_CLASS =
   "shrink-0 rounded border border-border font-sans font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
