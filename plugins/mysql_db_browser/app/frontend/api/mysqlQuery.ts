@@ -12,7 +12,7 @@ export type MysqlQueryResult = {
   statement: string
   read_only: boolean
   columns: string[]
-  rows: Array<Record<string, unknown>>
+  rows: unknown[][]
   row_count: number
   truncated: boolean
   duration_ms: number
