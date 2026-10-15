@@ -277,6 +277,14 @@ RSpec.describe "Docker image scripts" do
     expect(compose_yml).not_to include("syrus-search:/home/rails/.syrus-search:ro")
   end
 
+  it "publishes the web port on loopback unless remote access is explicitly enabled" do
+    compose_env = File.read(File.join(root, "compose.env.example"))
+
+    expect(compose_yml).to include('"${SYRUS_BIND:-127.0.0.1}:${SYRUS_PORT:-3000}:80"')
+    expect(compose_yml).not_to include('"${SYRUS_PORT:-3000}:80"')
+    expect(compose_env).to include("SYRUS_BIND=127.0.0.1")
+  end
+
   it "sets SYRUS_ROLE on web, worker, and preview so instance telemetry populates" do
     web_section = compose_yml[/^  web:.*?(?=^  \w)/m] || ""
     worker_section = compose_yml[/^  worker:.*?(?=^  \w)/m] || ""

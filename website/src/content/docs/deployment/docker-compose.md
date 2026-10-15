@@ -52,9 +52,11 @@ The installer:
 4. Starts the stack: a one-shot **setup** task (prepares the SQLite
    databases and fixes volume ownership), then **web** and **worker**.
 
-When it finishes, open **http://localhost:3000**. The first signup becomes
-the admin, and the first-run wizard walks you through GitHub credentials,
-the agent, a repository, and a guided chat to land your first Epic.
+When it finishes, open **http://localhost:3000**. The web port binds to
+`127.0.0.1` by default, so only this machine can reach the first-account flow.
+The first signup becomes the admin, and the first-run wizard walks you through
+GitHub credentials, the agent, a repository, and a guided chat to land your
+first Epic.
 
 ```bash
 docker compose logs -f web worker   # follow logs
@@ -344,6 +346,9 @@ and fills the secrets. Notable values:
 - `SYRUS_TERMINAL_HOST=worker` — set by `docker-compose.yml` on the worker
   service so terminal relay sockets advertise an address reachable by the web
   container through Docker's internal DNS. The value stays blank in `.env`.
+- `SYRUS_BIND=127.0.0.1` — host interface for the web port. Keep the loopback
+  default for local use. Remote access requires an explicit bind override and
+  should be protected by HTTPS; see [TLS](#tls).
 - `SYRUS_PORT=3000` — host port mapped to the container.
 - `SYRUS_PLUGIN_RUNTIME_URL`, `SYRUS_PLUGIN_RUNTIME_TOKEN` — how web and
   worker reach the plugin-runtime container. The installer generates the
@@ -417,10 +422,13 @@ Syrus…** in the app menu drives the same teardown — see the
 
 Compose doesn't own TLS. For a local install you don't need it (plain HTTP on
 `localhost`). To expose it, put Caddy, Traefik, or nginx in front of the web
-service and terminate HTTPS there, and set `SYRUS_APP_HOST` /
-`SYRUS_ASSUME_SSL=true` accordingly. If the proxy serves additional hostnames,
-list them in `SYRUS_ALLOWED_HOSTS`; the canonical `SYRUS_APP_HOST` remains
-allowed even when extras are configured.
+service and terminate HTTPS there. Set `SYRUS_BIND=0.0.0.0` only when the proxy
+must connect through a non-loopback host interface, and do not open the port to
+an untrusted network: until setup is complete, the first visitor can create the
+admin account. Set `SYRUS_APP_HOST` and `SYRUS_ASSUME_SSL=true` for the public
+HTTPS origin. If the proxy serves additional hostnames, list them in
+`SYRUS_ALLOWED_HOSTS`; the canonical `SYRUS_APP_HOST` remains allowed even when
+extras are configured.
 
 ## Health Check
 
