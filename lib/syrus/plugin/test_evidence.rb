@@ -18,6 +18,7 @@ module Syrus
     #
     #   .failed_test_cases(run:, grader_name:) => Array<Hash> ("suite_name", "name", "file_path", "identity",
     #                                                          "failure_message" [optional, short/bounded])
+    #   .failed_test_summary(run:, grader_name:, limit:) => Hash ("failed_count", "failures")
     #   .flakiness_score(repository:, suite_name:, name:, exclude_workflow: nil)
     #     => Hash (:score, :failed_count, :total_count, :flaky) or nil
     #
