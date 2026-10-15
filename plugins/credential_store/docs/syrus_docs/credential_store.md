@@ -90,6 +90,12 @@ expiry. A successful call issues a short-lived local lease, materializes the
 payload only inside the block as either a restrictive temporary file or a
 per-call env hash, and cleans that local material in `ensure`.
 
+Name lookup considers active credentials only and resolves scopes in user,
+repository, team, then instance order. Names must be unique among active
+credentials within the same scope; an equally ranked match across multiple
+accessible repositories or teams is rejected as ambiguous. Admin status does
+not make another user's user-scoped credential available.
+
 Target constraints are deliberately small and broker-owned. Supported keys are
 `allowed_hosts`, `allowed_url_prefixes`, `allowed_kube_contexts`,
 `allowed_kube_clusters`, and `allowed_kube_namespaces`. Dependent tools pass a

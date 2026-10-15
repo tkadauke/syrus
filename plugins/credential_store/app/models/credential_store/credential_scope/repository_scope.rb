@@ -17,6 +17,8 @@ module CredentialStore
           TeamRepository.where(repository_id: repository_id, team_id: TeamMembership.where(user: context.user).select(:team_id)).exists?
       end
 
+      def resolution_precedence = 1
+
       private
 
       def model_class = ::Repository

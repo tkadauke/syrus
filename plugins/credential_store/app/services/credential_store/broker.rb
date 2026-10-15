@@ -8,6 +8,7 @@ module CredentialStore
 
     class Error < StandardError; end
     class NotFound < Error; end
+    class Ambiguous < Error; end
     class Denied < Error
       attr_reader :reason
 
@@ -31,6 +32,34 @@ module CredentialStore
 
       def redact(value, credentials: [], extra_secrets: [])
         Redaction.scrub_object(value, credentials: credentials, extra_secrets: extra_secrets)
+      end
+
+      def resolve_credential!(context:, credential_ref:)
+        candidates = Credential.all
+        if integer_ref?(credential_ref)
+          credential = candidates.find_by(id: credential_ref)
+          return credential if credential&.scope_policy&.usable_by?(credential, context)
+
+          raise NotFound, "credential not found"
+        end
+
+        candidates = candidates
+          .where(name: credential_ref.to_s, revoked_at: nil)
+          .where("expires_at IS NULL OR expires_at > ?", Time.current)
+          .select { |candidate| candidate.scope_policy.usable_by?(candidate, context) }
+        raise NotFound, "credential not found" if candidates.empty?
+
+        grouped = candidates.group_by { |candidate| candidate.scope_policy.resolution_precedence }
+        matches = grouped.fetch(grouped.keys.min)
+        raise Ambiguous, "credential name is ambiguous in the selected scope" if matches.many?
+
+        matches.first
+      end
+
+      private
+
+      def integer_ref?(credential_ref)
+        credential_ref.is_a?(Integer) || credential_ref.to_s.match?(/\A\d+\z/)
       end
     end
 
@@ -88,14 +117,7 @@ module CredentialStore
     end
 
     def resolve_credential
-      relation = Credential.all
-      relation = relation.where(id: credential_ref) if integer_ref?
-      relation = relation.where(name: credential_ref.to_s) unless integer_ref?
-      relation.detect { |candidate| candidate.scope_policy.usable_by?(candidate, context) }
-    end
-
-    def integer_ref?
-      credential_ref.is_a?(Integer) || credential_ref.to_s.match?(/\A\d+\z/)
+      self.class.resolve_credential!(context: context, credential_ref: credential_ref)
     end
 
     def denial_reason_for(credential)

@@ -9,6 +9,8 @@ module CredentialStore
         context.user.present?
       end
 
+      def resolution_precedence = 3
+
       def record_for(_scope_id)
         nil
       end
