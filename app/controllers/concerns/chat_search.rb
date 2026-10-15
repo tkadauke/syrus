@@ -11,24 +11,24 @@ module ChatSearch
 
   SEARCH_PAGE_SIZE = 20
   SEARCH_TOP_MATCHES = 3
-  SEARCH_MATCH_LIMIT = 1_000
 
   def search_payload_for_query(scope, query, page)
-    allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i).to_set
-    grouped_matches = []
-    matches_by_chat = {}
-
-    chat_search_rows(query, chat_session_ids: allowed_session_ids.to_a, limit: SEARCH_MATCH_LIMIT).each do |row|
-      chat_session_id = row.fetch(:chat_session_id).to_i
-      next unless allowed_session_ids.include?(chat_session_id)
-
-      grouped_matches << chat_session_id unless matches_by_chat.key?(chat_session_id)
-      matches_by_chat[chat_session_id] ||= []
-      matches_by_chat[chat_session_id] << row
-    end
-
-    total = grouped_matches.length
-    paged_chat_ids = grouped_matches.slice(search_offset(page), SEARCH_PAGE_SIZE) || []
+    allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i)
+    session_page = ChatMessageSearchIndex.matching_chat_session_page(
+      query,
+      chat_session_ids: allowed_session_ids,
+      limit: SEARCH_PAGE_SIZE,
+      offset: search_offset(page)
+    )
+    paged_chat_ids = session_page.fetch(:chat_session_ids)
+    matches_by_chat = ChatMessageSearchIndex.top_matches_by_chat_session(
+      query,
+      chat_session_ids: paged_chat_ids,
+      matches_per_session: SEARCH_TOP_MATCHES,
+      snippet_start: "<b>",
+      snippet_end: "</b>",
+      snippet_tokens: 50
+    ).group_by { |row| row.fetch(:chat_session_id).to_i }
     sessions_by_id = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
       .where(id: paged_chat_ids)
       .preload(repository_attachments: :attachable)
@@ -38,7 +38,7 @@ module ChatSearch
       results: paged_chat_ids.filter_map do |chat_session_id|
         chat_search_result_json(sessions_by_id[chat_session_id], matches_by_chat.fetch(chat_session_id))
       end,
-      total: total,
+      total: session_page.fetch(:total),
       page: page,
       per_page: SEARCH_PAGE_SIZE
     }
@@ -133,8 +133,8 @@ module ChatSearch
       best_snippet: top_matches.first&.fetch(:snippet),
       best_match_message_id: top_matches.first&.fetch(:message_id),
       top_matches: top_matches,
-      total_match_count: rows.length,
-      has_more_matches: rows.length > SEARCH_TOP_MATCHES
+      total_match_count: rows.first.fetch(:match_count).to_i,
+      has_more_matches: rows.first.fetch(:match_count).to_i > SEARCH_TOP_MATCHES
     }
   end
 

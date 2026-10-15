@@ -1126,6 +1126,37 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body).to include("results" => [], "total" => 0)
     end
+
+    it "does not let a dense matching chat hide another matching chat" do
+      dense_chat = ChatSession.create!(user: user, repository: repository, title: "Dense")
+      other_chat = ChatSession.create!(user: user, repository: repository, title: "Other")
+      other_message = create_indexed_message(other_chat, text: "overflowneedle other result")
+      connection = SearchRecord.connection
+      values = 1_001.times.map do |index|
+        [
+          connection.quote("overflowneedle overflowneedle overflowneedle dense #{index}"),
+          user.id,
+          dense_chat.id,
+          1_000_000 + index,
+          connection.quote("assistant"),
+          connection.quote(index.seconds.ago.iso8601)
+        ].then { |columns| "(#{columns.join(', ')})" }
+      end
+      connection.execute(<<~SQL.squish)
+        INSERT INTO chat_message_fts
+          (content, user_id, chat_session_id, chat_message_id, role, created_at)
+        VALUES #{values.join(', ')}
+      SQL
+
+      get "/api/v1/app/chats/search", params: { q: "overflowneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["total"]).to eq(2)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => dense_chat.id, "total_match_count" => 1_001, "has_more_matches" => true),
+        include("chat_session_id" => other_chat.id, "best_match_message_id" => other_message.id)
+      )
+    end
   end
 
   it "marks a chat read for the signed-in user" do
