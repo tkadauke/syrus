@@ -400,6 +400,40 @@ RSpec.describe CredentialStore::SshExec do
     expect(runner).not_to have_received(:call)
   end
 
+  it "does not trust allowlisted basenames from caller-controlled paths" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      "./uptime",
+      "/tmp/uptime",
+      "command /tmp/uptime"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/), command
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "requires explicit allowance for commands with execution-capable options" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(
+        context: context,
+        credential: credential.id,
+        host: "app.example.com",
+        user: "deploy",
+        command: "rg --pre=/bin/rm needle /tmp/victim"
+      )
+    }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+
+    expect(runner).not_to have_received(:call)
+  end
+
   it "requires explicit allowance for execution context modifiers" do
     credential = create_credential
     allow(runner).to receive(:call)
