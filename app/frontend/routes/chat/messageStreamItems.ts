@@ -41,7 +41,7 @@ export function renderItemKey(item: ChatStreamItem) {
   if (item.type === "pending_action_group") return `pending-action-group-${item.pendingActionGroup.id}`
   if (item.type === "message") return `message-${item.id}`
 
-  return `tool-${item.calls.map((call) => call.message_id).join("-")}`
+  return `tool-${item.calls[0]?.message_id ?? item.tool}`
 }
 
 export function chatStreamItemsSignature(items: ChatStreamItem[]) {

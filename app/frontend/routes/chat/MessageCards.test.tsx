@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, SharedMessageRenderer, shouldRenderUserMarkdown, ToolGroup } from "./MessageCards"
+import { renderItemKey } from "./messageStreamItems"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
@@ -743,6 +744,49 @@ describe("tool result rendering", () => {
     expandToolGroup("Bash")
 
     expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
+  it("keeps an expanded tool group open when a streamed call joins it", () => {
+    const firstCall = {
+      message_id: 1,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail: "first.rb",
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: {},
+      result_body: "first result",
+      result_error: false,
+      result_kind: "text" as const,
+      result_summary: "first result"
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read",
+      calls: [firstCall]
+    }
+    const { rerender } = render(<ToolGroup item={item} key={renderItemKey(item)} />)
+
+    expandToolGroup("Read")
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+
+    const nextItem: ChatToolGroupItem = {
+      ...item,
+      calls: [
+        firstCall,
+        {
+          ...firstCall,
+          message_id: 2,
+          detail: "second.rb",
+          result_body: "",
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ]
+    }
+    rerender(<ToolGroup item={nextItem} key={renderItemKey(nextItem)} />)
+
+    expect(screen.getAllByText("Raw details")).toHaveLength(2)
   })
 
   it("keeps a reused collapsed group closed when a streamed result turns it into a failure", () => {
