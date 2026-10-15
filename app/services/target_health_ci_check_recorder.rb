@@ -10,14 +10,16 @@ class TargetHealthCiCheckRecorder
 
     with_graph(job: job, head_sha: head_sha, graph: graph, workspace_path: workspace_path) do |resolved_graph, resolved_workspace_path|
       index = TargetIndex.new(resolved_graph)
-      checks.filter_map do |check|
-        target = index.target_for(check)
-        next unless target
+      pending_targets = pending_checks(detail).filter_map { |check| index.target_for(check) }.to_set
 
-        record_check!(
+      checks.group_by { |check| index.target_for(check) }.filter_map do |target, target_checks|
+        next unless target
+        next if pending_targets.include?(target)
+
+        record_checks!(
           job: job,
           head_sha: head_sha,
-          check: check,
+          checks: target_checks,
           target: target,
           graph: resolved_graph,
           workspace_path: resolved_workspace_path,
@@ -33,7 +35,15 @@ class TargetHealthCiCheckRecorder
   private
 
   def completed_checks(detail)
-    Array(detail[:completed_checks] || detail["completed_checks"]).map { |check| check.to_h.deep_stringify_keys }
+    normalized_checks(detail[:completed_checks] || detail["completed_checks"])
+  end
+
+  def pending_checks(detail)
+    normalized_checks(detail[:pending_checks] || detail["pending_checks"])
+  end
+
+  def normalized_checks(checks)
+    Array(checks).map { |check| check.to_h.deep_stringify_keys }
   end
 
   def with_graph(job:, head_sha:, graph:, workspace_path:)
@@ -62,7 +72,7 @@ class TargetHealthCiCheckRecorder
     raise "tar extract failed: #{stderr.presence || status.exitstatus}" unless status.success?
   end
 
-  def record_check!(job:, head_sha:, check:, target:, graph:, workspace_path:, checked_at:)
+  def record_checks!(job:, head_sha:, checks:, target:, graph:, workspace_path:, checked_at:)
     fingerprints = TargetGraph::Fingerprints.for_target(
       workspace_path: workspace_path,
       graph: graph,
@@ -77,25 +87,37 @@ class TargetHealthCiCheckRecorder
       input_fingerprint: fingerprints.input_fingerprint,
       command_fingerprint: fingerprints.command_fingerprint,
       environment_fingerprint: fingerprints.environment_fingerprint,
-      status: status_for(check),
+      status: aggregate_status(checks),
       checked_at: checked_at,
-      artifacts: artifacts_for(check),
-      metadata: metadata_for(check: check, target: target, fingerprints: fingerprints)
+      artifacts: artifacts_for(checks),
+      metadata: metadata_for(checks: checks, target: target, fingerprints: fingerprints)
     )
   end
 
-  def status_for(check)
-    ConclusionStatus.for(check["conclusion"]).target_health_status
+  def aggregate_status(checks)
+    checks.map { |check| ConclusionStatus.for(check["conclusion"]) }.max.status
   end
 
-  def artifacts_for(check)
+  def artifacts_for(checks)
+    check = worst_check(checks)
     {
+      "summary" => check["summary"],
+      "html_url" => check["html_url"] || check["url"],
+      "checks" => checks.map { |entry| artifacts_for_single_check(entry) }
+    }.compact
+  end
+
+  def artifacts_for_single_check(check)
+    {
+      "name" => check["name"],
+      "conclusion" => check["conclusion"],
       "summary" => check["summary"],
       "html_url" => check["html_url"] || check["url"]
     }.compact
   end
 
-  def metadata_for(check:, target:, fingerprints:)
+  def metadata_for(checks:, target:, fingerprints:)
+    check = worst_check(checks)
     {
       "health_source" => "ci_check",
       "provenance" => "ci_check",
@@ -104,9 +126,15 @@ class TargetHealthCiCheckRecorder
       "check_conclusion" => check["conclusion"],
       "check_url" => check["html_url"] || check["url"],
       "check_app_slug" => check["app_slug"],
+      "check_names" => checks.map { |entry| entry["name"] },
+      "check_conclusions" => checks.to_h { |entry| [ entry["name"], entry["conclusion"] ] },
       "target_kind" => target.kind,
       "fingerprint_metadata" => fingerprints.metadata
     }.compact
+  end
+
+  def worst_check(checks)
+    checks.max_by { |check| ConclusionStatus.for(check["conclusion"]) }
   end
 
   class TargetIndex
@@ -155,14 +183,31 @@ class TargetHealthCiCheckRecorder
   end
 
   class ConclusionStatus
+    include Comparable
+
     PASSING = %w[success neutral].freeze
     FAILED = %w[failure action_required].freeze
+    PRIORITY = {
+      "passed" => 0,
+      "skipped" => 1,
+      "inconclusive" => 2,
+      "cancelled" => 3,
+      "stale" => 4,
+      "timed_out" => 5,
+      "failed" => 6
+    }.freeze
 
     def self.for(conclusion) = new(conclusion)
 
     def initialize(conclusion)
       @conclusion = conclusion.to_s
     end
+
+    def <=>(other)
+      PRIORITY.fetch(status) <=> PRIORITY.fetch(other.status)
+    end
+
+    def status = target_health_status
 
     def target_health_status
       return "passed" if PASSING.include?(@conclusion)
