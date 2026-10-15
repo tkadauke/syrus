@@ -179,7 +179,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 		if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, epic.MergeTrainBranch); err != nil {
 			return err
 		}
-		if !noHooks {
+		if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
 			if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 				return err
 			}
@@ -218,7 +218,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, tip); err != nil {
 		return err
 	}
-	if !noHooks && postCheckoutHooksAllowed(epicJobForBranch(epic.Jobs, tip)) {
+	if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
 		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 			return err
 		}
@@ -508,13 +508,13 @@ func postCheckoutHooksAllowed(job api.JobItem) bool {
 	return job.Kind != "external_pr"
 }
 
-func epicJobForBranch(jobs []api.JobItem, branch string) api.JobItem {
+func postCheckoutHooksAllowedForEpic(jobs []api.JobItem) bool {
 	for _, job := range jobs {
-		if job.BranchName == branch {
-			return job
+		if !postCheckoutHooksAllowed(job) {
+			return false
 		}
 	}
-	return api.JobItem{}
+	return true
 }
 
 func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName string, stderr io.Writer) error {

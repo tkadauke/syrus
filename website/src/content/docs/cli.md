@@ -403,6 +403,10 @@ stops if one fails. It skips hooks for external-PR Jobs because their branches
 may contain contributor-controlled configuration. Pass `--no-hooks` to skip
 hooks for any other Job checkout.
 
+For `syrus checkout EPIC-N --complete`, hooks run only when every child Job is
+trusted. A merge train or linear stack containing an external-PR Job skips
+hooks even when the final branch belongs to another Job.
+
 If `<arg>` doesn't resolve to a Job or Epic (the API responds 404), `syrus
 checkout` falls back to treating it as a plain git branch name — e.g. `syrus
 checkout main` or `syrus checkout a-teammates-feature-branch`. This fallback
