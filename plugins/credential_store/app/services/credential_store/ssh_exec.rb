@@ -222,7 +222,7 @@ module CredentialStore
       UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\\r\n]/.freeze
       READ_ONLY_COMMANDS = %w[
         arch basename cat cut df dirname du file free grep head id jq ls
-        lsb_release nproc pgrep ps pwd readlink realpath rg stat tail test true
+        lsb_release nproc pgrep ps pwd readlink realpath stat tail test true
         uname uptime wc which who whoami
       ].freeze
       COMMAND_WRAPPERS = %w[command].freeze
@@ -258,9 +258,9 @@ module CredentialStore
 
           words = segment
           words = unwrap_command_wrapper(words)
-          executable = command_name(words.first)
+          executable = words.first.to_s
 
-          executable.present? && READ_ONLY_COMMANDS.include?(executable)
+          executable == command_name(executable) && READ_ONLY_COMMANDS.include?(executable.downcase)
         end
 
         def nested_command_fragment?(token)
