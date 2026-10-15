@@ -26,5 +26,17 @@ RSpec.describe ExternalPrIngestions::ExternalUnknown do
       expect(job.epic_id).to be_nil
       expect(Workflow.last.trigger_kind).to eq("external_pr_ingest")
     end
+
+    it "rejects a leading-dash external head before persisting or launching work" do
+      pr.head.ref = "-detach"
+      job_count = Job.count
+      workflow_count = Workflow.count
+
+      expect {
+        described_class.new.ingest!(repository: repository, pr: pr, fork_pr: true)
+      }.to raise_error(ArgumentError, "external PR head is not a valid branch name")
+      expect(Job.count).to eq(job_count)
+      expect(Workflow.count).to eq(workflow_count)
+    end
   end
 end

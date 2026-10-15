@@ -387,7 +387,7 @@ class WorkflowWorkspace
             "but is on '#{head}', and that branch does not exist in the workspace"
     end
 
-    @git.run("checkout", @required_branch, chdir: path.to_s)
+    @git.run("switch", "--", @required_branch, chdir: path.to_s)
     Rails.logger.info(
       "[WorkflowWorkspace] Workflow ##{@workflow.id} moved from '#{head}' to required branch '#{@required_branch}'"
     )
@@ -551,7 +551,7 @@ class WorkflowWorkspace
           )
         end
       end
-      @git.run("checkout", @branch_name, chdir: path.to_s)
+      @git.run("switch", "--", @branch_name, chdir: path.to_s)
     elsif @required_branch.present?
       # A required branch is one an earlier Step *built*. Creating an empty
       # one off the base tip would look identical to the real thing to every
@@ -667,7 +667,7 @@ class WorkflowWorkspace
     authenticated_git("git_workflow_fetch_checkpoint") do |url|
       @git.run("fetch", url, "#{checkpoint_ref}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env)
     end
-    @git.run("checkout", @branch_name, chdir: path.to_s)
+    @git.run("switch", "--", @branch_name, chdir: path.to_s)
   end
 
   # Distinguishes a genuinely empty/uninitialized remote (zero branches —
@@ -994,7 +994,7 @@ class WorkflowWorkspace
       "+#{pr_ref}:refs/heads/#{@branch_name}",
       chdir: path.to_s, env: @env
     )
-    @git.run("checkout", @branch_name, chdir: path.to_s)
+    @git.run("switch", "--", @branch_name, chdir: path.to_s)
   end
 
   def base_on_upstream_default?
@@ -1075,7 +1075,7 @@ class WorkflowWorkspace
       env: @env
     )
     if source_branch == @branch_name
-      @git.run("checkout", @branch_name, chdir: path.to_s)
+      @git.run("switch", "--", @branch_name, chdir: path.to_s)
     else
       @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
     end

@@ -876,7 +876,7 @@ module Steps
     end
 
     def checkout_workflow_branch!
-      streaming_git.run("checkout", workspace.branch_name, chdir: workspace.path.to_s)
+      streaming_git.run("switch", "--", workspace.branch_name, chdir: workspace.path.to_s)
     end
 
     # True when the workflow branch holds any work of its own. A fresh clone that
