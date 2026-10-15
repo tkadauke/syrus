@@ -58,6 +58,9 @@ GET   /api/v1/app/repositories/:id/build_cache_settings
 PATCH /api/v1/app/repositories/:id/build_cache_settings   { "basedirs_safe": true }
 ```
 
+Any repository member can read the setting. Changing this repository-wide
+safety opt-in requires repository admin access.
+
 When `basedirs_safe` is true, `BuildCache::RuntimeEnv` forwards `SCCACHE_BASEDIRS=<this scope's workspace path>` for that repository's `prepare`/`grader` subprocesses (and, for Coding Mode, chat workspace prepare and `!` shell commands), for the whole scope — not scoped to a single grader command, since the opt-in itself is a repository-wide claim ("I have proved every coverage-relevant compile in this repo is path-remapped/stable"), and the daemon can only be configured once per scope regardless. Every other repository keeps sccache's default exact-path-match behavior. **Only set this after completing the two-path validation below** — an unproven repository that opts in gets exactly the `.gcno` cross-Workflow corruption risk this whole section exists to prevent.
 
 ### Why hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work
