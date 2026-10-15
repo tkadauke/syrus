@@ -32,8 +32,16 @@ namespace :e2e do
     settings.update!(
       github_app_id: nil,
       github_app_slug: nil,
-      github_app_registered_at: nil
+      github_app_registered_at: nil,
+      # The suite drives experimental surfaces, and
+      # PluginRegistry#plugin_enabled? refuses an experimental plugin outright
+      # while beta mode is off -- before it reads the `enabled` column. Without
+      # this, the Agent Insights spec enables the plugin from the admin page,
+      # the toggle reports success, and the plugin stays effectively disabled,
+      # so neither the Disable button nor the repository's Insights tab appears.
+      beta_mode_enabled: true
     )
+    Syrus::PluginRegistry.clear_plugin_record_cache!
     Feature.find_or_create_by!(slug: "coding_mode") do |feature|
       feature.category = "Labs"
       feature.name = "Coding Mode"

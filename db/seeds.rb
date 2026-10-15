@@ -793,6 +793,22 @@ if Rails.env.development?
   insight_plugin_was_enabled = insight_plugin.enabled
   insight_plugin.update!(enabled: true) unless insight_plugin_was_enabled
 
+  # Flipping the row is not enough, and this is the "repeatedly not taken
+  # effect" the comment above describes. agent_insights is an experimental
+  # plugin, and PluginRegistry#plugin_enabled? rejects an experimental plugin
+  # outright while beta mode is off -- it returns false before it ever reads
+  # the `enabled` column. So the plugin stayed effectively disabled, Job::Kind
+  # never gained `agent_insight`, the precondition below raised, and the
+  # fixture was skipped on every seed. Beta mode has to be on for the same
+  # window as the plugin.
+  insight_settings = AppSetting.current
+  beta_mode_was_enabled = insight_settings.beta_mode_enabled
+  insight_settings.update!(beta_mode_enabled: true) unless beta_mode_was_enabled
+  # The installer only reinstalls plugin-contributed kinds when the registry's
+  # generation moves, and that normally rides PluginRecord's after_commit hook.
+  # Bump it directly, as e2e:seed already does for the chat provider plugins.
+  Syrus::PluginRegistry.clear_plugin_record_cache!
+
   begin
     # Enabling the record above is supposed to install the plugin's kinds into
     # Job::Kind. In a preview that has repeatedly not taken effect, and the
@@ -836,7 +852,9 @@ if Rails.env.development?
   rescue StandardError => e
     warn "[seeds] skipping Agent Insights fixture: #{e.class}: #{e.message}"
   ensure
+    insight_settings.update!(beta_mode_enabled: false) unless beta_mode_was_enabled
     insight_plugin.update!(enabled: false) unless insight_plugin_was_enabled
+    Syrus::PluginRegistry.clear_plugin_record_cache!
   end
 
   # Test Insights sample data. The plugin is enabled by default, but it only
