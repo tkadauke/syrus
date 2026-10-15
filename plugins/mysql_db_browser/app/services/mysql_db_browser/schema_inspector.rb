@@ -119,7 +119,24 @@ module MysqlDbBrowser
     end
 
     def query(client, sql)
-      client.query(mysql_timeout_hint(sql)).to_a
+      audit = QueryAudit.start!(connection: connection, user: audit_user, statement: sql, read_only: true)
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      begin
+        rows = client.query(mysql_timeout_hint(sql)).to_a
+        QueryAudit.succeed!(audit, row_count: rows.length, duration_ms: elapsed_ms(started_at))
+        rows
+      rescue StandardError => e
+        QueryAudit.fail!(audit, error_message: e.message, duration_ms: elapsed_ms(started_at))
+        raise
+      end
+    end
+
+    def audit_user
+      context&.user || Current.user
+    end
+
+    def elapsed_ms(started_at)
+      ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
     end
 
     # Guards against a slow/unreachable external host hanging a request, same

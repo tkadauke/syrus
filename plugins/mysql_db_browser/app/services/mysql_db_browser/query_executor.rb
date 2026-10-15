@@ -25,6 +25,7 @@ module MysqlDbBrowser
     DEFAULT_LIMIT = 100
     MAX_LIMIT = 500
     MAX_VALUE_BYTES = 2_000
+    MAX_RESULT_BYTES = 1_000_000
 
     class Unavailable < StandardError; end
     class WriteNotAllowed < StandardError; end
@@ -100,15 +101,20 @@ module MysqlDbBrowser
     end
 
     def run_and_audit(client, statement, read_only:, user:, limit:)
+      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
       started_at = monotonic_now
-      payload = read_only ? run_select(client, statement, clamp_limit(limit)) : run_write(client, statement)
-      duration_ms = elapsed_ms(started_at)
-      audit!(statement: statement, read_only: read_only, user: user, success: true, row_count: payload[:row_count], duration_ms: duration_ms)
-      payload.merge(statement: statement, read_only: read_only, duration_ms: duration_ms, generated_at: Time.current.iso8601)
-    rescue Mysql2::Error => e
-      duration_ms = elapsed_ms(started_at)
-      audit!(statement: statement, read_only: read_only, user: user, success: false, error_message: e.message, duration_ms: duration_ms)
-      { available: false, statement: statement, read_only: read_only, error: error_payload(e), duration_ms: duration_ms, generated_at: Time.current.iso8601 }
+      begin
+        payload = read_only ? run_select(client, statement, clamp_limit(limit)) : run_write(client, statement)
+        duration_ms = elapsed_ms(started_at)
+        QueryAudit.succeed!(audit, row_count: payload[:row_count], duration_ms: duration_ms)
+        payload.merge(statement: statement, read_only: read_only, duration_ms: duration_ms, generated_at: Time.current.iso8601)
+      rescue StandardError => e
+        duration_ms = elapsed_ms(started_at)
+        QueryAudit.fail!(audit, error_message: e.message, duration_ms: duration_ms)
+        raise unless e.is_a?(Mysql2::Error)
+
+        { available: false, statement: statement, read_only: read_only, error: error_payload(e), duration_ms: duration_ms, generated_at: Time.current.iso8601 }
+      end
     end
 
     def read_only_statement?(statement)
@@ -308,23 +314,27 @@ module MysqlDbBrowser
       result = client.query(mysql_timeout_hint(statement), stream: true, cache_rows: false, as: :hash)
       columns = result.fields
       rows = []
+      result_bytes = 0
+      truncated = false
 
       result.each do |row|
-        rows << row
-        next unless rows.length > limit
+        truncated_row = truncate_row(row)
+        row_bytes = retained_bytes(truncated_row)
+        if rows.length >= limit || result_bytes + row_bytes > MAX_RESULT_BYTES
+          truncated = true
+          client.abandon_results! if client.respond_to?(:abandon_results!)
+          break
+        end
 
-        client.abandon_results! if client.respond_to?(:abandon_results!)
-        break
+        rows << truncated_row
+        result_bytes += row_bytes
       end
-
-      truncated = rows.length > limit
-      limited_rows = rows.first(limit).map { |row| truncate_row(row) }
 
       {
         available: true,
-        columns: columns.presence || limited_rows.first&.keys || [],
-        rows: limited_rows,
-        row_count: limited_rows.length,
+        columns: columns.presence || rows.first&.keys || [],
+        rows: rows,
+        row_count: rows.length,
         truncated: truncated
       }
     end
@@ -366,6 +376,10 @@ module MysqlDbBrowser
       "#{value.safe_byteslice(0, MAX_VALUE_BYTES)}…"
     end
 
+    def retained_bytes(row)
+      row.sum { |key, value| key.to_s.bytesize + value.to_s.bytesize }
+    end
+
     def error_payload(error)
       message = error.message.to_s
       payload = { class: error.class.name, message: message }
@@ -380,18 +394,12 @@ module MysqlDbBrowser
     end
 
     def audit!(statement:, read_only:, user:, success:, row_count: nil, error_message: nil, duration_ms: nil)
-      MysqlQueryAudit.create!(
-        mysql_connection: connection,
-        user: user,
-        statement: statement,
-        read_only: read_only,
-        success: success,
-        row_count: row_count,
-        error_message: error_message,
-        duration_ms: duration_ms
-      )
-    rescue StandardError => e
-      Rails.logger.error("MysqlDbBrowser::QueryExecutor audit failed: #{e.class}: #{e.message}")
+      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      if success
+        QueryAudit.succeed!(audit, row_count: row_count, duration_ms: duration_ms)
+      else
+        QueryAudit.fail!(audit, error_message: error_message, duration_ms: duration_ms)
+      end
     end
 
     def monotonic_now
