@@ -303,7 +303,7 @@ RSpec.describe K8sCluster::Kubectl do
 
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "get", "pods", "--kubeconfig=/tmp/config" ])
-    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /credential flags/)
+    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /connection, identity, and output flags/)
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "--context", "staging", "get", "pods" ])
     }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /global flags/)
@@ -317,6 +317,62 @@ RSpec.describe K8sCluster::Kubectl do
       described_class.call(context: context, credential: credential.id, kube_context: "prod", namespace: "default", args: [ "get", "pods", "-n=prod" ])
     }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /namespace/)
 
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "rejects flags that can override the server, identity, transport, cache, or profile output" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+    access_event_count = CredentialStore::CredentialAccessEvent.count
+    forbidden_args = [
+      [ "--server", "https://attacker.example" ],
+      [ "-shttps://attacker.example" ],
+      [ "--insecure-skip-tls-verify" ],
+      [ "--tls-server-name=attacker.example" ],
+      [ "--proxy-url", "https://attacker.example" ],
+      [ "--user=other-user" ],
+      [ "--cluster", "other-cluster" ],
+      [ "--as=system:admin" ],
+      [ "--as-group", "system:masters" ],
+      [ "--as-uid=0" ],
+      [ "--cache-dir", "/tmp/kubectl-cache" ],
+      [ "--profile=cpu" ],
+      [ "--profile-output", "/tmp/profile.pprof" ]
+    ]
+
+    forbidden_args.each do |flags|
+      expect {
+        described_class.call(
+          context: context,
+          credential: credential.id,
+          kube_context: "prod",
+          args: [ "get", "pods", *flags ]
+        )
+      }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /connection, identity, and output flags/), "expected #{flags.inspect} to be rejected"
+    end
+
+    expect(CredentialStore::CredentialAccessEvent.count).to eq(access_event_count)
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "rejects all-namespaces flags when a validated namespace is supplied" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+    access_event_count = CredentialStore::CredentialAccessEvent.count
+
+    [ [ "-A" ], [ "-A=true" ], [ "-Ao", "yaml" ], [ "--all-namespaces" ], [ "--all-namespaces=true" ] ].each do |flags|
+      expect {
+        described_class.call(
+          context: context,
+          credential: credential.id,
+          kube_context: "prod",
+          namespace: "default",
+          args: [ "get", "configmaps", *flags ]
+        )
+      }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /all-namespaces/), "expected #{flags.inspect} to be rejected"
+    end
+
+    expect(CredentialStore::CredentialAccessEvent.count).to eq(access_event_count)
     expect(runner).not_to have_received(:call)
   end
 
