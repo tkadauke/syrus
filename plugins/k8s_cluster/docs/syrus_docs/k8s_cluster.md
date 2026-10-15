@@ -317,9 +317,10 @@ broker can validate target constraints. It also blocks `kubectl config ...`,
 streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 `port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
 `delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and
-similar), and Secret-value exposure patterns such as `get secrets -o yaml`,
-`get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
-API paths whose segments target `secrets`, unless explicit allowance is
+`auth reconcile`), and Secret-value exposure patterns such as
+`get secrets -o yaml`, `get secrets -o=jsonpath=...`, Secret projections via
+`custom-columns`/`custom-columns-file`, `describe secret`, or `get --raw`
+Kubernetes API paths whose segments target `secrets`, unless explicit allowance is
 supplied by a non-agent caller. Chat and workflow agents cannot self-authorize
 those high-risk allowances. When the credential belongs to a registered
 cluster, every command also requires that cluster's `agentic_access_enabled`
