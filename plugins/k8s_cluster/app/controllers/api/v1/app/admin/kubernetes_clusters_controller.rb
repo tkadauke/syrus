@@ -174,7 +174,10 @@ module Api
           end
 
           def admin_context
-            McpToolContext.new(surface: :admin, role: nil, user: Current.user)
+            McpToolContext.new(
+              surface: :admin, role: nil, user: Current.user,
+              allowed_repository_ids: Repository.ids
+            )
           end
 
           def require_k8s_cluster_enabled

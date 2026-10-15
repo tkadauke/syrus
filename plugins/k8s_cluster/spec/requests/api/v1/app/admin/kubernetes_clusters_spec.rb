@@ -284,6 +284,30 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
         expect(response).to have_http_status(:ok)
         expect(parse_body["success"]).to be(true)
       end
+
+      it "tests an existing repository-scoped cluster through a broker lease" do
+        repository = Factories.repository(user: admin)
+        post "/api/v1/app/admin/kubernetes_clusters", params: {
+          kubernetes_cluster: {
+            label: "Repo cluster", kubeconfig: token_kubeconfig,
+            credential_scope_type: "repository", credential_scope_id: repository.id
+          }
+        }
+        cluster = KubernetesCluster.find(parse_body.dig("kubernetes_cluster", "id"))
+        allow_any_instance_of(K8sCluster::ConnectionTester).to receive(:test).and_return({ success: true })
+
+        post "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/test"
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["success"]).to be(true)
+        expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+          credential: K8sCluster::ClusterCredential.credential_for(cluster),
+          user: admin,
+          surface: "admin",
+          action: "lease",
+          result: "allowed"
+        )
+      end
     end
   end
 end
