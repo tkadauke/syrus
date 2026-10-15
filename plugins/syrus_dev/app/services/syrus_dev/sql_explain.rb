@@ -80,11 +80,13 @@ module SyrusDev
     def validate!
       raise Error, "SQL is required" if sql.blank?
       raise Error, "SQL is too large to explain safely" if sql.bytesize > MAX_SQL_BYTES
-      raise Error, "Only a single statement can be explained" if executable_tokens.include?(";")
-      raise Error, "Only SELECT/CTE statements can be explained" unless %w[select with].include?(executable_tokens.first)
-      raise Error, "MySQL executable comments are not accepted for explain requests" if executable_tokens.include?("/*!")
-      raise Error, "Statement contains non-read-only SQL" if (executable_tokens & NON_READ_ONLY_KEYWORDS).any?
-      raise Error, "Statement contains user variables, which are not safe for EXPLAIN ANALYZE" if analyze? && executable_tokens.include?("@")
+      tokens = executable_tokens
+      raise Error, "Quoted SQL contains an ambiguous backslash escape" if @ambiguous_quote_escape
+      raise Error, "Only a single statement can be explained" if tokens.include?(";")
+      raise Error, "Only SELECT/CTE statements can be explained" unless %w[select with].include?(tokens.first)
+      raise Error, "MySQL executable comments are not accepted for explain requests" if tokens.include?("/*!")
+      raise Error, "Statement contains non-read-only SQL" if (tokens & NON_READ_ONLY_KEYWORDS).any?
+      raise Error, "Statement contains user variables, which are not safe for EXPLAIN ANALYZE" if analyze? && tokens.include?("@")
       if analyze? && analyze_unsafe?
         raise Error, "Statement contains SQL that is not safe for EXPLAIN ANALYZE"
       end
@@ -240,7 +242,12 @@ module SyrusDev
     def skip_quoted(index, quote)
       index += 1
       while index < sql.length
-        if sql[index] == "\\" && index + 1 < sql.length
+        if sql[index] == "\\" && sql[index + 1] == quote
+          # The quote is escaped in MySQL's default mode but terminates the
+          # value under NO_BACKSLASH_ESCAPES, so no single tokenization is safe.
+          @ambiguous_quote_escape = true
+          index += 2
+        elsif sql[index] == "\\" && index + 1 < sql.length
           index += 2
         elsif sql[index] == quote
           if sql[index + 1] == quote
