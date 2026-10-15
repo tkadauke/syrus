@@ -29,7 +29,7 @@ RSpec.describe RunPreAdmissionSkip do
         delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, merge_train: nil, project: nil, targets: [], target_graph: nil, scripts: {},
         visual_review: SyrusYml::VisualReviewConfig.new(
           enabled: true, rounds: 1,
-          when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
+          when_files_changed: [ "{app/frontend,plugins/global_search/app/frontend}/**/*" ],
           seed_notes: nil, required: false
         )
       )
@@ -54,6 +54,19 @@ RSpec.describe RunPreAdmissionSkip do
       step_agent_diff: <<~DIFF
         diff --git a/app/services/search_filter.rb b/app/services/search_filter.rb
         +filter
+      DIFF
+    )
+
+    result = described_class.call(run: run)
+
+    expect(result).not_to be_skip
+  end
+
+  it "admits visual review for a file directly inside a brace-expanded pattern directory" do
+    implement_run.update!(
+      agent_diff: <<~DIFF
+        diff --git a/app/frontend/index.ts b/app/frontend/index.ts
+        +export const search = true
       DIFF
     )
 
