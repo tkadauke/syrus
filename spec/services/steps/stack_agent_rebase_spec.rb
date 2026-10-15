@@ -26,6 +26,29 @@ RSpec.describe Steps::StackAgentRebase do
   let(:step) { workflow.steps.find_by!(kind: "stack_agent_rebase") }
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "stack_rebase") }
 
+  it "fails when the agent leaves a pending stack branch unchanged" do
+    workflow.set_artifact!(
+      StackRebasePlan::AGENT_PENDING_ARTIFACT,
+      [ { "branch_name" => job.branch_name, "base_branch" => "main" } ]
+    )
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(workspace).to receive(:setup)
+    allow(handler).to receive(:fetch_pending_branches)
+    allow(handler).to receive(:run_agent)
+    allow(handler).to receive(:rev_parse).with(job.branch_name).and_return("same-sha")
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/workspace").and_return("")
+    allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/workspace").and_return("")
+    allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/workspace").and_return("")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /did not move after rebase/)
+    expect(workflow.artifact(StackRebasePlan::AGENT_PUSHES_ARTIFACT)).to be_nil
+  end
+
   it "detaches before resetting pending stack branches for an agent stack rebase retry" do
     workflow.set_artifact!(
       StackRebasePlan::AGENT_PENDING_ARTIFACT,
