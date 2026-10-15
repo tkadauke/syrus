@@ -476,17 +476,34 @@ module Steps
       transcript = run.reload.provider_session&.transcript_jsonl.to_s
       summary = ClaudeTranscript.new(transcript).summary
       available = Array(summary.available_tools_at_init).map(&:to_s)
-      called = required_tools.select { |tool| mcp_tool_called?(summary.tool_call_counts.keys, tool) }
+      transcript_calls = required_tools.select { |tool| mcp_tool_called?(summary.tool_call_counts.keys, tool) }
+      persisted_calls = completed_persisted_mcp_tools(required_tools)
+      called = required_tools.select { |tool| transcript_calls.include?(tool) || persisted_calls.key?(tool) }
       missing = required_tools - called
       status = missing.empty? ? "ok" : "missing"
+      evidence = required_tools.filter_map do |tool|
+        sources = []
+        sources << "transcript" if transcript_calls.include?(tool)
+        if (usage = persisted_calls[tool])
+          sources << "persisted_usage(#{usage.sidecar_mode || 'unknown_mode'})"
+        end
+        "#{tool}:#{sources.join('+')}" if sources.any?
+      end
       log(
-        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",
+        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} evidence=#{evidence.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",
         kind: "system"
       )
       missing
     rescue StandardError => e
       log("[mcp_required_health] failed to inspect transcript: #{e.class}: #{e.message}", kind: "system")
       required_tools
+    end
+
+    def completed_persisted_mcp_tools(required_tools)
+      run.mcp_tool_usages
+        .where(surface: "workflow", status: "completed", error: false, normalized_tool_name: required_tools)
+        .order(created_at: :desc)
+        .each_with_object({}) { |usage, matches| matches[usage.normalized_tool_name] ||= usage }
     end
 
     def mcp_tool_available?(available_tools, required_tool)
