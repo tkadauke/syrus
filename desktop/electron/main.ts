@@ -217,8 +217,9 @@ let webAppWindow: WebAppWindowHandle | null = null
 // native-notification dispatch (app/frontend/lib/nativeNotifications.ts).
 // Combined with a live window-visibility check (webAppWindowHandlingNotifications)
 // to decide whether main's own dispatchNativeNotification call is redundant.
-// Reset to false whenever the web-app window closes so a new window starts
-// unconfirmed until its renderer reports in again — see webAppWindow's onClosed.
+// Reset to false whenever the renderer goes away, starts a full navigation,
+// fails its main-frame load, or the window closes. A new document starts
+// unconfirmed until its renderer reports in again.
 let webAppNotificationsLive = false
 // The red-pen annotation overlay controller (labs feature of the walkthrough
 // recorder). Lazily created the first time the web app calls annotation:enable
@@ -1981,6 +1982,9 @@ const showWebAppWindow = async () => {
     savedBounds: store.get("webAppWindowBounds", null),
     loadFallback: (window) => loadBackendStatus(window, getBackendMode() === "remote" ? "remote" : "local"),
     onBoundsChanged: (bounds) => store.set("webAppWindowBounds", bounds),
+    onRendererUnavailable: () => {
+      webAppNotificationsLive = false
+    },
     onLoadFailed: () => startBackendRecoveryPolling(),
     onClosed: () => {
       webAppWindow = null
@@ -2034,6 +2038,7 @@ const showWebAppWindow = async () => {
   // the overlay must never outlive the renderer that armed it. disable() is
   // idempotent, so these are harmless no-ops when nothing is armed.
   handle.window.webContents.on("render-process-gone", () => {
+    webAppNotificationsLive = false
     annotationController?.disable()
     recorderHudController?.hide()
   })
@@ -2043,6 +2048,7 @@ const showWebAppWindow = async () => {
     // keep it, and the React unmount handles those, so ignore them (isInPlace
     // is Electron's isSameDocument).
     if (isMainFrame && !isInPlace) {
+      webAppNotificationsLive = false
       annotationController?.disable()
       recorderHudController?.hide()
     }

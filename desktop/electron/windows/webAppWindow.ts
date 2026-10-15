@@ -23,6 +23,10 @@ type WebAppWindowOptions = {
   // main process polling /up and calling loadServerUrl() again.
   loadFallback: (window: BrowserWindow) => Promise<void>
   onBoundsChanged: (bounds: WindowBounds) => void
+  // Fires as soon as a qualifying main-frame server load fails, before the
+  // fallback page is loaded. Main uses this to discard renderer-owned state
+  // that the failed document can no longer maintain.
+  onRendererUnavailable: () => void
   onLoadFailed: () => void
   onClosed: () => void
 }
@@ -40,6 +44,7 @@ export const createWebAppWindow = ({
   savedBounds,
   loadFallback,
   onBoundsChanged,
+  onRendererUnavailable,
   onLoadFailed,
   onClosed
 }: WebAppWindowOptions): WebAppWindowHandle => {
@@ -165,6 +170,7 @@ export const createWebAppWindow = ({
       return
     }
 
+    onRendererUnavailable()
     void loadFallback(window).then(onLoadFailed)
   })
 
