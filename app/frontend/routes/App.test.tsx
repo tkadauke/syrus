@@ -12627,7 +12627,8 @@ describe("App", () => {
   })
 
   it("resizes the chat shell from the visual viewport when the mobile keyboard opens", async () => {
-    const viewport = stubVisualViewport(720)
+    const restoreHeight = setViewportHeight(820)
+    const viewport = stubVisualViewport(680)
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
@@ -12642,7 +12643,7 @@ describe("App", () => {
       )
 
       const chatMain = await screen.findByRole("main", { name: "Chat" })
-      expect(chatMain).toHaveStyle({ "--chat-visual-viewport-height": "720px" })
+      expect(chatMain).toHaveStyle({ "--chat-visual-viewport-height": "680px" })
 
       viewport.setHeight(420)
       viewport.dispatch("resize")
@@ -12651,13 +12652,15 @@ describe("App", () => {
         expect(chatMain).toHaveStyle({ "--chat-visual-viewport-height": "420px" })
       })
     } finally {
+      restoreHeight()
       viewport.restore()
     }
   })
 
-  it("resizes the root mobile chrome from the visual viewport after landscape rotation", async () => {
+  it("tracks the root visual viewport while the mobile keyboard is open", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const viewport = stubVisualViewport({ height: 812, width: 375 })
+    const restoreHeight = setViewportHeight(812)
+    const viewport = stubVisualViewport({ height: 602, width: 375 })
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
@@ -12673,7 +12676,7 @@ describe("App", () => {
 
       const chromeRoot = await screen.findByTestId("app-chrome-root")
       expect(chromeRoot).toHaveClass("h-[var(--syrus-app-viewport-height,100dvh)]", "overflow-hidden")
-      expect(chromeRoot).toHaveStyle({ "--syrus-app-viewport-height": "812px", "--syrus-app-viewport-width": "375px" })
+      expect(chromeRoot).toHaveStyle({ "--syrus-app-viewport-height": "602px", "--syrus-app-viewport-width": "375px" })
 
       viewport.setMetrics({ height: 402, width: 750, offsetTop: 48, offsetLeft: 7 })
       window.dispatchEvent(new Event("orientationchange"))
@@ -12694,13 +12697,15 @@ describe("App", () => {
       expect(document.documentElement.style.getPropertyValue("--syrus-app-viewport-offset-top")).toBe("48px")
     } finally {
       restoreMedia()
+      restoreHeight()
       viewport.restore()
     }
   })
 
-  it("applies visual viewport sizing at the app chrome level outside chat routes", async () => {
+  it("ignores rubber-band offsets and removes keyboard viewport styles when the viewport expands", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const viewport = stubVisualViewport({ height: 402, offsetLeft: 3, offsetTop: 24, width: 750 })
+    const restoreHeight = setViewportHeight(812)
+    const viewport = stubVisualViewport({ height: 602, offsetLeft: 3, offsetTop: 24, width: 375 })
 
     try {
       render(
@@ -12713,15 +12718,49 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(await screen.findByTestId("app-chrome-root")).toHaveStyle({
-        "--syrus-app-viewport-height": "402px",
-        "--syrus-app-viewport-offset-left": "3px",
-        "--syrus-app-viewport-offset-top": "24px",
-        "--syrus-app-viewport-width": "750px"
+      const chromeRoot = await screen.findByTestId("app-chrome-root")
+      expect(chromeRoot).toHaveStyle({
+        "--syrus-app-viewport-height": "602px",
+        position: "fixed"
       })
+
+      viewport.setMetrics({ height: 800, offsetTop: 12 })
+      viewport.dispatch("scroll")
+
+      await waitFor(() => expect(chromeRoot).not.toHaveStyle({ position: "fixed" }))
+      expect(chromeRoot).toHaveClass("h-[var(--syrus-app-viewport-height,100dvh)]")
+      expect(document.documentElement.style.getPropertyValue("--syrus-app-viewport-height")).toBe("")
+      expect(document.documentElement.style.getPropertyValue("--syrus-app-viewport-offset-top")).toBe("")
       expect(screen.getByText("Dashboard content")).toBeInTheDocument()
     } finally {
       restoreMedia()
+      restoreHeight()
+      viewport.restore()
+    }
+  })
+
+  it("does not resize or reposition the app chrome while pinch zoomed", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const restoreHeight = setViewportHeight(812)
+    const viewport = stubVisualViewport({ height: 402, offsetLeft: 7, offsetTop: 48, scale: 2, width: 188 })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+              <main>Dashboard content</main>
+            </AppChromeV2>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const chromeRoot = await screen.findByTestId("app-chrome-root")
+      expect(chromeRoot).not.toHaveStyle({ position: "fixed" })
+      expect(document.documentElement.style.getPropertyValue("--syrus-app-viewport-height")).toBe("")
+    } finally {
+      restoreMedia()
+      restoreHeight()
       viewport.restore()
     }
   })
@@ -17959,6 +17998,15 @@ function setViewportWidth(width: number) {
   }
 }
 
+function setViewportHeight(height: number) {
+  const originalHeight = window.innerHeight
+  Object.defineProperty(window, "innerHeight", { configurable: true, writable: true, value: height })
+
+  return () => {
+    Object.defineProperty(window, "innerHeight", { configurable: true, writable: true, value: originalHeight })
+  }
+}
+
 function mockClipboardWrite() {
   const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
   const writeText = vi.fn().mockImplementation(async () => undefined)
@@ -17979,12 +18027,12 @@ function mockClipboardWrite() {
   return writeText
 }
 
-function stubVisualViewport(initialMetrics: number | { height: number; offsetLeft?: number; offsetTop?: number; width?: number }) {
+function stubVisualViewport(initialMetrics: number | { height: number; offsetLeft?: number; offsetTop?: number; scale?: number; width?: number }) {
   const original = Object.getOwnPropertyDescriptor(window, "visualViewport")
   const listeners = new Map<string, Set<EventListenerOrEventListenerObject>>()
   let metrics = typeof initialMetrics === "number"
-    ? { height: initialMetrics, offsetLeft: 0, offsetTop: 0, width: window.innerWidth }
-    : { offsetLeft: 0, offsetTop: 0, width: window.innerWidth, ...initialMetrics }
+    ? { height: initialMetrics, offsetLeft: 0, offsetTop: 0, scale: 1, width: window.innerWidth }
+    : { offsetLeft: 0, offsetTop: 0, scale: 1, width: window.innerWidth, ...initialMetrics }
   const viewport = {
     get height() {
       return metrics.height
@@ -17994,6 +18042,9 @@ function stubVisualViewport(initialMetrics: number | { height: number; offsetLef
     },
     get offsetTop() {
       return metrics.offsetTop
+    },
+    get scale() {
+      return metrics.scale
     },
     get width() {
       return metrics.width
