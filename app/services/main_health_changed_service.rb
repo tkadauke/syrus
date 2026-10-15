@@ -361,6 +361,16 @@ class MainHealthChangedService
       )
       WorkUnits::Launcher.start!(workflow)
       rebased += 1
+    rescue WorkUnits::Launcher::LockConflict => e
+      Rails.logger.info(
+        "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
+        "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
+    rescue StandardError => e
+      Rails.logger.error(
+        "[MainHealthChangedService] #{@repository.slug} failed to dispatch recovery rebase for #{job.slug}: " \
+        "#{e.class}: #{e.message}"
+      )
     end
 
     rebased
