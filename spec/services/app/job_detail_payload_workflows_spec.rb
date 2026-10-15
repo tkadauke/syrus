@@ -1406,6 +1406,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         state: "succeeded",
         artifacts: {
           "summary" => "Done",
+          "grader_loop_progress" => { "output" => "large duplicate" },
           "iterations" => [ { "name" => "rspec", "output" => "large" } ],
           "coverage" => {
             "summary" => { "lines_pct" => 90.0 },
@@ -1419,10 +1420,44 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       artifacts = workflows_payload_for(job).dig(:workflows, 0, :artifacts)
 
       expect(artifacts).to include("summary" => "Done")
+      expect(artifacts).not_to have_key("grader_loop_progress")
       expect(artifacts).not_to have_key("iterations")
       expect(artifacts.dig("coverage", "summary")).to eq("lines_pct" => 90.0)
       expect(artifacts["coverage"]).not_to have_key("diff_annotations")
       expect(artifacts["coverage"]).not_to have_key("pr_comment_body")
+    end
+
+    it "omits raw grader output from step details while preserving display metadata" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "failed",
+        details: {
+          "name" => "tests",
+          "target_label" => "//:grade/tests",
+          "command" => "bin/test",
+          "description" => "Runs the test suite",
+          "required" => true,
+          "output" => "x" * 50_000,
+          "output_tail" => "failure details",
+          "log_path" => "/tmp/grader.log",
+          "log_bytes" => 50_000
+        }
+      )
+
+      details = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :details)
+
+      expect(details).to include(
+        "name" => "tests",
+        "target_label" => "//:grade/tests",
+        "command" => "bin/test",
+        "description" => "Runs the test suite",
+        "required" => true
+      )
+      expect(details).not_to include("output", "output_tail", "log_path", "log_bytes")
     end
 
     it "preloads workflow work units for merge-train labels" do

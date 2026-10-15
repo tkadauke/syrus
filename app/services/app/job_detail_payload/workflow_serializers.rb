@@ -16,6 +16,12 @@ module App
       MAX_COMMAND_SPANS_PER_RUN = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_COMMAND_SPANS_PER_RUN"], exception: false) || 50, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
       ACTIVE_STEP_STATES = %w[queued running].freeze
+      GRADER_DETAIL_EXCLUDED_KEYS = %w[
+        log_bytes
+        log_path
+        output
+        output_tail
+      ].freeze
       # Common grader-name segments whose title-cased form reads wrong
       # ("Rspec", "Ci") -- everything else falls back to plain capitalization.
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
@@ -246,7 +252,7 @@ module App
             provider_failover: App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: @job.workflow_agent_provider),
             state: workflow.state,
             failure_count: workflow.failure_count,
-            artifacts: enrich_artifacts(workflow.artifacts),
+            artifacts: workflow_artifacts_json(workflow),
             cleaned_up_at: iso8601(workflow.cleaned_up_at),
             retry_available: workflow_retry_available?(workflow),
             started_at: iso8601(workflow.started_at),
@@ -445,7 +451,7 @@ module App
             updated_at: iso8601(step.updated_at),
             placement: step_placement_json(step, workflow: workflow),
             dependencies: step_dependencies_json(step, workflow: workflow),
-            details: step.details.presence,
+            details: step_details_json(step),
             warnings: warnings_for(step).map { |warning| workflow_warning_json(warning) },
             latest: step == latest_step,
             runs_total: run_counts_by_step_id.fetch(step.id, runs.size),
@@ -536,12 +542,21 @@ module App
       end
 
       def accepted_grader_failure_artifacts(workflow)
-        %w[
+        @accepted_grader_failure_artifacts_by_workflow_id ||= {}
+        @accepted_grader_failure_artifacts_by_workflow_id[workflow.id] ||= %w[
           inherited_main_branch_grader_failure
           main_concern_verified_grader_failure
           known_flaky_grader_failure
           isolated_repro_grader_failure
         ].filter_map { |key| workflow.artifact(key) }
+      end
+
+      def step_details_json(step)
+        details = step.details
+        return unless details.present?
+        return details unless step.kind.in?(%w[grader preflight_grader])
+
+        details.except(*GRADER_DETAIL_EXCLUDED_KEYS).presence
       end
 
       def current_projected_step(workflow)
@@ -777,7 +792,7 @@ module App
         artifacts = workflow.artifacts
         return artifacts unless artifacts.is_a?(Hash)
 
-        artifacts.slice(
+        safe = artifacts.slice(
           "adversarial_review_iterations",
           "visual_review_iterations",
           "auto_rebase_reason",
@@ -787,15 +802,17 @@ module App
           "branch_divergence_recovery_error",
           "branch_divergence_recovery_pending",
           "chat_feedback",
+          "detected_plugins",
           "feedback_source",
           "no_pr_reason",
           "pr_body",
           "pr_title",
           "summary",
           "test_plan"
-        ).tap do |safe|
-          safe["coverage"] = coverage_artifact_json(artifacts["coverage"]) if artifacts["coverage"].is_a?(Hash)
-        end
+        )
+        safe["coverage"] = coverage_artifact_json(artifacts["coverage"]) if artifacts["coverage"].is_a?(Hash)
+        safe["typed_artifacts"] = TypedArtifactRenderer.enrich(artifacts["typed_artifacts"]) if artifacts["typed_artifacts"].is_a?(Array)
+        safe
       end
 
       def coverage_artifact_json(coverage)
@@ -1276,27 +1293,6 @@ module App
           transcript_bytes: session.transcript_bytes,
           transcript_lines: session.transcript_lines
         }
-      end
-
-      ARTIFACTS_EXCLUDED_KEYS = %w[iterations].freeze
-      COVERAGE_EXCLUDED_KEYS = %w[diff_annotations pr_comment_body].freeze
-
-      # Returns a filtered, enriched artifacts hash for the detail UI.
-      # Strips large/internal keys (iterations, coverage diff_annotations, etc.),
-      # then injects renderer_type into typed_artifact entries.
-      def enrich_artifacts(artifacts)
-        return artifacts unless artifacts.is_a?(Hash)
-
-        filtered = artifacts.except(*ARTIFACTS_EXCLUDED_KEYS)
-
-        if filtered["coverage"].is_a?(Hash)
-          filtered = filtered.merge("coverage" => filtered["coverage"].except(*COVERAGE_EXCLUDED_KEYS))
-        end
-
-        typed = filtered["typed_artifacts"]
-        return filtered unless typed.is_a?(Array)
-
-        filtered.merge("typed_artifacts" => TypedArtifactRenderer.enrich(typed))
       end
 
       def app_grade_log_path(run, workflow:, step: nil)

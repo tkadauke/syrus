@@ -15,7 +15,7 @@ module App
   # internals) gated on @user.admin?, so a cached admin payload must never be
   # handed to a non-admin request or vice versa.
   class JobWorkflowsSnapshotCache
-    CACHE_NAMESPACE = "job_workflows_snapshot/v1".freeze
+    CACHE_NAMESPACE = "job_workflows_snapshot/v2".freeze
     CACHE_TTL = 1.hour
 
     def self.declare_metrics!
