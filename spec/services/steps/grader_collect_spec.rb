@@ -458,12 +458,24 @@ RSpec.describe Steps::GraderCollect do
       def self.failed_test_cases(run:, grader_name:)
         return [] unless grader_name == "rspec"
 
-        [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "occasionally flakes" } ]
+        [
+          {
+            "suite_name" => "spec/models/widget_spec.rb",
+            "name" => "occasionally flakes",
+            "failure_message" => "expected ready"
+          }
+        ]
       end
 
       def self.flakiness_score(repository:, suite_name:, name:)
         { score: 0.3, failed_count: 3, total_count: 10, flaky: true }
       end
+
+      def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
+        [ "expected ready" ]
+      end
+
+      def self.grader_failure_explained_by_tests?(**) = true
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
