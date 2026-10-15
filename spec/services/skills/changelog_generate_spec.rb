@@ -213,6 +213,15 @@ RSpec.describe Skills::ChangelogGenerate do
         expect(instructions).to match(/PR #101/)
       end
 
+      it "rejects an option-like since argument without allowing git log to write a file" do
+        output_path = File.join(@dir, "git-log-output")
+
+        instructions = instructions_for(args: { "since" => "--output=#{output_path}" })
+
+        expect(instructions).to match(/could not run `git log`/)
+        expect(File).not_to exist("#{output_path}..HEAD")
+      end
+
       it "reports no candidates when nothing has landed since the starting point" do
         instructions = instructions_for(args: { "since" => "HEAD" })
 
