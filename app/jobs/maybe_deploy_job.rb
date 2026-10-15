@@ -64,7 +64,7 @@ class MaybeDeployJob < ApplicationJob
 
     sha = current_default_branch_sha(repository)
     return if sha.blank?
-    return if latest_successful_deploy_sha(repository) == sha
+    return if latest_finished_deploy_sha(repository) == sha
 
     Job.transaction do
       job = Job.create!(
@@ -85,9 +85,10 @@ class MaybeDeployJob < ApplicationJob
     end
   end
 
-  def latest_successful_deploy_sha(repository)
+  def latest_finished_deploy_sha(repository)
     Workflow.joins(:job)
-      .where(trigger_kind: "deploy", state: "succeeded", jobs: { repository_id: repository.id })
+      .where(trigger_kind: "deploy", jobs: { repository_id: repository.id })
+      .where.not(finished_at: nil)
       .order(finished_at: :desc, id: :desc)
       .first
       &.artifact("deploy_sha")
