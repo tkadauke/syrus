@@ -435,8 +435,8 @@ class Workflow < ApplicationRecord
 
       runs.active.find_each do |run|
         if run.may_cancel?
+          run.finished_at = Time.current
           run.cancel!
-          run.save!
         end
       end
 
@@ -446,8 +446,8 @@ class Workflow < ApplicationRecord
 
           step.cancellation_reason = reason
           step.details = step.details.to_h.merge(cancellation_details)
+          step.finished_at = Time.current
           step.cancel!
-          step.save!
         end
       end
     end

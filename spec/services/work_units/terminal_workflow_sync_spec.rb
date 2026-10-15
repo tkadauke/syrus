@@ -41,9 +41,27 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     workflow.update_columns(state: "running", started_at: 5.minutes.ago)
     workflow.work_unit.mark_terminal!("failed")
 
+    expect(workflow).to receive(:schedule_auto_retry!).and_call_original
+    expect(workflow).to receive(:enforce_job_workflow_runaway_limits_on_fail!).and_call_original
+
     described_class.call(workflow)
 
     expect(workflow.reload).to be_failed
+    expect(workflow.finished_at).to be_present
+  end
+
+  it "runs completion callbacks when a WorkUnit succeeds a queued Workflow" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.update_columns(state: "queued", started_at: nil)
+    workflow.work_unit.mark_terminal!("succeeded")
+
+    expect(workflow).to receive(:wake_workflow_admission_after_completion!).and_call_original
+    expect(workflow).to receive(:record_workflow_activity_state_change!).and_call_original
+
+    described_class.call(workflow)
+
+    expect(workflow.reload).to be_succeeded
+    expect(workflow).to have_attributes(started_at: be_present, finished_at: be_present)
   end
 
   it "cancels an active Workflow when its WorkUnit is already cancelled" do
