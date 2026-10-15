@@ -172,8 +172,7 @@ RSpec.describe PendingActions::RepairQueueAffinity do
 
   it "deletes only Solid Queue RunJob rows whose serialized arguments identify the Run" do
     matching_global_id = solid_queue_run_job_with_arguments([ { "_aj_globalid" => "gid://syrus/Run/#{run.id}" } ])
-    other_run_id = run.id + 10
-    non_matching = solid_queue_run_job_with_arguments([ other_run_id ])
+    non_matching = solid_queue_run_job_with_arguments([ "#{run.id}0" ])
     action = pending_action_for
 
     expect {
@@ -184,6 +183,30 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     expect(SolidQueue::ReadyExecution.where(job_id: matching_global_id.id)).to be_empty
     expect(SolidQueue::Job.where(id: non_matching.id)).to exist
     expect(SolidQueue::ReadyExecution.where(job_id: non_matching.id)).to exist
+  end
+
+  it "finds a matching queue row after more than 2,000 unrelated rows" do
+    now = Time.current
+    SolidQueue::Job.insert_all!(
+      2_001.times.map do
+        {
+          class_name: "RunJob",
+          queue_name: "runs",
+          priority: 0,
+          arguments: JSON.generate("arguments" => [ run.id + 1 ]),
+          created_at: now,
+          updated_at: now
+        }
+      end
+    )
+    stale_queue_job = solid_queue_run_job(run)
+    action = pending_action_for
+
+    expect {
+      expect(action.confirm!(user: admin)).to be true
+    }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+    expect(SolidQueue::Job.where(id: stale_queue_job.id)).to be_empty
   end
 
   it "does not let an affinity re-stamp during repair leave the replacement wedged" do
