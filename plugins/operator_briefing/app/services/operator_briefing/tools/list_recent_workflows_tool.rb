@@ -18,7 +18,7 @@ module OperatorBriefing
           },
           page: {
             type: "integer",
-            description: "Page number, 1-based. Defaults to 1."
+            description: "Page number, 1-based. Defaults to 1, capped at 10,000."
           }
         }
       )
@@ -33,7 +33,7 @@ module OperatorBriefing
           run = Mcp::Tools.run_from_context(server_context)
           briefing = Briefing.find_by!(job: run.job)
           per_page = normalized_limit(limit)
-          page_num = normalized_page(page)
+          page_num = Mcp::Pagination.normalize_page(page)
           scope = workflow_scope(briefing)
 
           total = scope.count
@@ -132,10 +132,6 @@ module OperatorBriefing
         def normalized_limit(value)
           n = Integer(value.presence || DEFAULT_LIMIT, exception: false)
           n ? n.clamp(1, MAX_LIMIT) : DEFAULT_LIMIT
-        end
-
-        def normalized_page(value)
-          [ Integer(value.presence || 1, exception: false) || 1, 1 ].max
         end
 
         def total_pages(total, per)

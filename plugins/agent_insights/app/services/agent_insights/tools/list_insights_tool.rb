@@ -34,7 +34,7 @@ module AgentInsights
           },
           page: {
             type: "integer",
-            description: "Page number, 1-based (default: 1)."
+            description: "Page number, 1-based (default: 1, max: 10,000)."
           }
         }
       )
@@ -54,7 +54,7 @@ module AgentInsights
           scope = scope.where(state: state_s) unless state_s == "all"
 
           per_page = normalized_limit(limit, default: DEFAULT_LIMIT, max: MAX_LIMIT)
-          page_num = [Integer(page.presence || 1, exception: false) || 1, 1].max
+          page_num = Mcp::Pagination.normalize_page(page)
           offset   = (page_num - 1) * per_page
 
           insights = scope

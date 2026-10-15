@@ -12,7 +12,7 @@ module Mcp::Tools
     input_schema(
       properties: {
         chat_session_id: { type: "integer", description: "Chat session id to read." },
-        page: { type: "integer", description: "One-based page number. Defaults to 1." }
+        page: { type: "integer", description: "One-based page number. Defaults to 1, capped at 10,000." }
       },
       required: %w[chat_session_id]
     )
@@ -21,7 +21,7 @@ module Mcp::Tools
       def call(server_context:, chat_session_id:, page: 1)
         chat_session = find_chat_session!(chat_session_id)
 
-        page = normalize_page(page)
+        page = Mcp::Pagination.normalize_page(page)
         messages, has_more = page_messages(chat_session, page)
 
         payload = {
@@ -37,10 +37,6 @@ module Mcp::Tools
       end
 
       private
-
-      def normalize_page(value)
-        [ value.to_i, 1 ].max
-      end
 
       def page_messages(chat_session, page)
         ids = message_id_scope(chat_session)
