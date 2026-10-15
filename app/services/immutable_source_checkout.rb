@@ -896,12 +896,25 @@ class ImmutableSourceCheckout
     }.freeze
 
     def atomic_exchange!(first_path, second_path)
-      syscall = RENAMEAT2_SYSCALLS[RbConfig::CONFIG["host_cpu"]]
+      syscall = renameat2_syscall
       raise "atomic prepare cache exchange is unsupported on this platform" unless syscall
 
       Kernel.syscall(syscall, -100, first_path.to_s, -100, second_path.to_s, RENAME_EXCHANGE)
-    rescue SystemCallError => e
+    rescue SystemCallError, NotImplementedError => e
       raise "atomic prepare cache exchange failed: #{e.class}: #{e.message}"
+    end
+
+    # renameat2 is a Linux syscall and its number varies by CPU, so the CPU
+    # table says which number to use, not whether the host has the call. macOS
+    # on arm64 matched the table and then raised NotImplementedError out of
+    # Kernel.syscall -- neither the clear "unsupported platform" error this is
+    # meant to raise nor anything a caller can act on. Workers run Linux, so
+    # this only ever bit a developer machine, which is exactly where an
+    # unhelpful error costs the most time.
+    def renameat2_syscall
+      return nil unless RbConfig::CONFIG["host_os"].to_s.include?("linux")
+
+      RENAMEAT2_SYSCALLS[RbConfig::CONFIG["host_cpu"]]
     end
 
     def marker_matches?

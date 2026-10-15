@@ -196,15 +196,26 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
 
     second_checkout.setup
 
+    # A published cache entry is a symlink to the concrete
+    # `.<name>.version-<pid>-<hex>` directory PrepareCache#store_from! built,
+    # so the overlay mounts -- and records -- the version it resolved to rather
+    # than the symlink that names it. Pinning the resolved directory is the
+    # point of publishing atomically: the symlink can be repointed under a
+    # reader, the directory it resolved to cannot.
+    # Resolve only the symlink itself, not the whole path: realpath would also
+    # rewrite macOS's /var -> /private/var and stop matching what the code saw.
+    published = Pathname.new(first_cache_details.fetch("cache_path"))
+    resolved_cache_path = published.dirname.join(File.readlink(published))
+
     expect(ImmutableSourceCheckoutOverlay).to have_received(:mount).with(
-      lower_path: Pathname.new(first_cache_details.fetch("cache_path")),
+      lower_path: resolved_cache_path,
       mount_path: second_checkout.path,
       log: anything
     )
     expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
     expect(second_step.reload.details.fetch("immutable_source_workspace")).to include(
       "strategy" => "overlay",
-      "lower_path" => first_cache_details.fetch("cache_path"),
+      "lower_path" => resolved_cache_path.to_s,
       "mount_path" => second_checkout.path.to_s
     )
     expect(second_step.reload.details.fetch("prepare_cache")).to include("status" => "hit")
@@ -213,7 +224,12 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
 
   it "falls back to the byte-identical full copy and records the overlay reason when mounting is unavailable" do
     described_class.new(step).setup
-    cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    # As in the overlay-mount example above: the published cache entry is a
+    # symlink, and the code works with the concrete version directory it
+    # resolves to. Resolve the link itself rather than calling realpath, which
+    # would also rewrite macOS /var -> /private/var.
+    published_cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    cache_path = published_cache_path.dirname.join(File.readlink(published_cache_path))
 
     copy_step = Step.create!(
       workflow: workflow,
@@ -253,7 +269,12 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
 
   it "keeps overlay materialization diagnostics scoped to each grader Run across retries" do
     described_class.new(step).setup
-    cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    # As in the overlay-mount example above: the published cache entry is a
+    # symlink, and the code works with the concrete version directory it
+    # resolves to. Resolve the link itself rather than calling realpath, which
+    # would also rewrite macOS /var -> /private/var.
+    published_cache_path = Pathname.new(step.reload.details.dig("prepare_cache", "cache_path"))
+    cache_path = published_cache_path.dirname.join(File.readlink(published_cache_path))
     enable_grader_fanout_overlay!
     retry_step = Step.create!(
       workflow: workflow,
@@ -369,6 +390,10 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
   end
 
   it "atomically replaces a legacy directory cache entry without exposing a missing path" do
+    # The atomic swap uses renameat2/RENAME_EXCHANGE, which is Linux-only.
+    # Workers run Linux; a developer machine cannot exercise this path, and
+    # asserting it there only produces a failure nobody can act on.
+    skip "renameat2 RENAME_EXCHANGE is Linux-only" unless RbConfig::CONFIG["host_os"].to_s.include?("linux")
     cache = test_prepare_cache
     source = Dir.mktmpdir("syrus-prepare-cache-source")
     FileUtils.mkdir_p(cache.path)
