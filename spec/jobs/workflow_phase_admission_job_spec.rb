@@ -36,4 +36,16 @@ RSpec.describe WorkflowPhaseAdmissionJob do
       described_class.enqueue_once(123, wait_until: wait_until, priority: 10)
     }.to have_enqueued_job(described_class).with(123).at(wait_until).on_queue("control_plane")
   end
+
+  it "releases the debounce key before resuming so blocked work can enqueue its next recheck" do
+    described_class.enqueue_once(123)
+    clear_enqueued_jobs
+    allow(WorkUnits::DeferredPhaseResume).to receive(:call) do
+      described_class.enqueue_once(123, wait: 1.minute)
+    end
+
+    expect {
+      described_class.perform_now(123)
+    }.to have_enqueued_job(described_class).with(123).once
+  end
 end
