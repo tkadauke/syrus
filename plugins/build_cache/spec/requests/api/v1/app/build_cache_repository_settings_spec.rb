@@ -40,10 +40,30 @@ RSpec.describe "App API build cache repository settings", type: :request do
       expect(parse_body["basedirs_safe"]).to be true
     end
 
-    it "returns 404 for a repository not belonging to the user" do
+    it "returns the setting for a non-owner repository member" do
+      member = Factories.user
+      repository.repository_memberships.create!(user: member, role: "read")
+      BuildCache::RepositorySettings.create!(repository: repository, basedirs_safe: true)
+      sign_in_as(member)
+
+      get "/api/v1/app/repositories/#{repository.id}/build_cache_settings"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["basedirs_safe"]).to be true
+    end
+
+    it "returns 404 for an inaccessible repository" do
       other_repo = Factories.repository(user: Factories.user)
 
       get "/api/v1/app/repositories/#{other_repo.id}/build_cache_settings"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404 for an archived repository" do
+      repository.update!(archived_at: Time.current)
+
+      get "/api/v1/app/repositories/#{repository.id}/build_cache_settings"
 
       expect(response).to have_http_status(:not_found)
     end
@@ -73,7 +93,33 @@ RSpec.describe "App API build cache repository settings", type: :request do
       expect(settings.reload.basedirs_safe?).to be false
     end
 
-    it "returns 404 for a repository not belonging to the user" do
+    it "allows a non-owner repository admin to update the setting" do
+      repository_admin = Factories.user
+      repository.repository_memberships.create!(user: repository_admin, role: "admin")
+      sign_in_as(repository_admin)
+
+      patch "/api/v1/app/repositories/#{repository.id}/build_cache_settings",
+            params: { basedirs_safe: true }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(BuildCache::RepositorySettings.basedirs_safe_for?(repository)).to be true
+    end
+
+    it "returns 403 for a readable member without repository admin access" do
+      member = Factories.user
+      repository.repository_memberships.create!(user: member, role: "write")
+      sign_in_as(member)
+
+      expect {
+        patch "/api/v1/app/repositories/#{repository.id}/build_cache_settings",
+              params: { basedirs_safe: true }, as: :json
+      }.not_to change(BuildCache::RepositorySettings, :count)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
+
+    it "returns 404 for an inaccessible repository" do
       other_repo = Factories.repository(user: Factories.user)
 
       patch "/api/v1/app/repositories/#{other_repo.id}/build_cache_settings",
