@@ -46,7 +46,7 @@ module TestInsights
       TestRun.joins(run: { step: :workflow })
         .where(workflows: { id: workflow.id })
         .then { |scope| apply_grader_filter(scope) }
-        .includes(:test_cases, run: { step: :workflow })
+        .includes(run: { step: :workflow })
         .order(:grader_name, :id)
         .to_a
     end
@@ -54,7 +54,7 @@ module TestInsights
     def test_runs_for_run(run)
       TestRun.for_run(run)
         .then { |scope| apply_grader_filter(scope) }
-        .includes(:test_cases, run: { step: :workflow })
+        .includes(run: { step: :workflow })
         .order(:grader_name, :id)
         .to_a
     end
@@ -66,7 +66,8 @@ module TestInsights
     end
 
     def payload_for(test_runs, job:, workflow:, run: nil)
-      all_cases = test_runs.flat_map(&:test_cases)
+      cases_by_run = test_runs.index_with { |test_run| selected_cases(test_run) }
+      all_cases = cases_by_run.values.flatten
       flakiness_by_pair = TestCase.batch_flakiness(job.repository, all_cases)
 
       {
@@ -75,8 +76,8 @@ module TestInsights
         workflow_id: workflow&.id,
         run_id: run&.id,
         grader_name: @grader_name,
-        test_runs: test_runs.map { |test_run| safe_test_run_payload(test_run, flakiness_by_pair) },
-        truncation: truncation_payload(test_runs)
+        test_runs: test_runs.map { |test_run| safe_test_run_payload(test_run, cases_by_run.fetch(test_run), flakiness_by_pair) },
+        truncation: truncation_payload(test_runs, cases_by_run)
       }
     end
 
@@ -100,8 +101,7 @@ module TestInsights
       }
     end
 
-    def test_run_payload(test_run, flakiness_by_pair)
-      cases = ordered_cases(test_run)
+    def test_run_payload(test_run, cases, flakiness_by_pair)
       failing_cases = cases.select { |test_case| test_case.status.in?(%w[failed error]) }
       slow_cases = cases.reject { |test_case| test_case.duration_ms.nil? }
                         .sort_by { |test_case| [ -test_case.duration_ms, test_case.suite_name, test_case.name, test_case.id ] }
@@ -120,42 +120,60 @@ module TestInsights
         workflow_id: test_run.run.workflow_id,
         job_id: test_run.run.job_id,
         failed_error_cases: failing_cases.first(@case_limit).map { |test_case| test_case_payload(test_case, flakiness_by_pair, include_failure: true) },
-        failed_error_case_count: failing_cases.size,
-        failed_error_cases_omitted: omitted_count(failing_cases.size)
+        failed_error_case_count: test_run.failed_count.to_i + test_run.error_count.to_i,
+        failed_error_cases_omitted: omitted_count(test_run.failed_count.to_i + test_run.error_count.to_i)
       }
 
       if @include_slow_cases
+        slow_case_count = test_run.test_cases.where.not(duration_ms: nil).count
         payload[:slow_cases] = slow_cases.first(@case_limit).map { |test_case| test_case_payload(test_case, flakiness_by_pair, include_failure: false) }
-        payload[:slow_case_count] = slow_cases.size
-        payload[:slow_cases_omitted] = omitted_count(slow_cases.size)
+        payload[:slow_case_count] = slow_case_count
+        payload[:slow_cases_omitted] = omitted_count(slow_case_count)
       end
 
-      payload[:suites] = suite_payloads(cases, flakiness_by_pair) if @include_suites
+      payload[:suites] = suite_payloads(test_run, cases, flakiness_by_pair) if @include_suites
       payload
     end
 
     # A single malformed TestRun must not 500 the whole job/run payload --
     # mirrors Admin::JobStateSerializer's per-record degrade shape.
-    def safe_test_run_payload(test_run, flakiness_by_pair)
-      test_run_payload(test_run, flakiness_by_pair)
+    def safe_test_run_payload(test_run, cases, flakiness_by_pair)
+      test_run_payload(test_run, cases, flakiness_by_pair)
     rescue StandardError => e
       Rails.logger.warn("[test_insights/run_results] failed to serialize TestRun##{test_run.id}: #{e.class}: #{e.message}")
       { id: test_run.id, type: "TestRun", grader_name: test_run.grader_name, error_serializing: "#{e.class}: #{e.message}" }
     end
 
-    def ordered_cases(test_run)
-      test_run.test_cases.sort_by { |test_case| [ test_case.suite_name, test_case.name, test_case.id ] }
+    def selected_cases(test_run)
+      scope = test_run.test_cases
+      selected = if @include_suites
+        scope.order(Arel.sql("CASE WHEN status IN ('failed', 'error') THEN 0 ELSE 1 END"), :suite_name, :name, :id).limit(@case_limit).to_a
+      else
+        scope.failure_like.order(:suite_name, :name, :id).limit(@case_limit).to_a
+      end
+      if @include_slow_cases
+        selected.concat(scope.where.not(duration_ms: nil).order(duration_ms: :desc, suite_name: :asc, name: :asc, id: :asc).limit(@case_limit))
+      end
+      selected.uniq(&:id)
     end
 
-    def suite_payloads(cases, flakiness_by_pair)
-      cases.group_by(&:suite_name).sort_by { |suite_name, _cases| suite_name.to_s }.map do |suite_name, suite_cases|
+    def suite_payloads(test_run, cases, flakiness_by_pair)
+      suite_cases = cases.sort_by do |test_case|
+        [ test_case.status.in?(%w[failed error]) ? 0 : 1, test_case.suite_name.to_s, test_case.name.to_s, test_case.id ]
+      end.first(@case_limit)
+      cases_by_suite = suite_cases.group_by(&:suite_name)
+      counts_by_suite = test_run.test_cases.where(suite_name: cases_by_suite.keys)
+        .group(:suite_name, :status).count
+
+      cases_by_suite.sort_by { |suite_name, _cases| suite_name.to_s }.map do |suite_name, suite_cases|
+        status_count = ->(status) { counts_by_suite.fetch([ suite_name, status ], 0) }
         {
           suite_name: suite_name,
-          total_count: suite_cases.size,
-          passed_count: suite_cases.count { |test_case| test_case.status == "passed" },
-          failed_count: suite_cases.count { |test_case| test_case.status == "failed" },
-          skipped_count: suite_cases.count { |test_case| test_case.status == "skipped" },
-          error_count: suite_cases.count { |test_case| test_case.status == "error" },
+          total_count: TestCase::STATUSES.sum { |status| status_count.call(status) },
+          passed_count: status_count.call("passed"),
+          failed_count: status_count.call("failed"),
+          skipped_count: status_count.call("skipped"),
+          error_count: status_count.call("error"),
           test_cases: suite_cases.map { |test_case| test_case_payload(test_case, flakiness_by_pair, include_failure: true, legacy_failure_fields: true) }
         }
       end
@@ -177,9 +195,9 @@ module TestInsights
 
       if legacy_failure_fields
         payload.merge!(
-          failure_message: test_case.failure_message,
-          failure_backtrace: test_case.failure_backtrace,
-          output: test_case.output,
+          failure_message: truncate_legacy(test_case.failure_message),
+          failure_backtrace: truncate_legacy(test_case.failure_backtrace),
+          output: truncate_legacy(test_case.output),
           flakiness_score: fdata&.dig(:score),
           flakiness_failed_count: fdata&.dig(:failed_count),
           flakiness_total_count: fdata&.dig(:total_count),
@@ -210,16 +228,16 @@ module TestInsights
       }.compact
     end
 
-    def truncation_payload(test_runs)
+    def truncation_payload(test_runs, cases_by_run)
       failed_error_returned = 0
       failed_error_omitted = 0
       slow_returned = 0
       slow_omitted = 0
 
       test_runs.each do |test_run|
-        cases = test_run.test_cases.to_a
-        failed_error_count = cases.count { |test_case| test_case.status.in?(%w[failed error]) }
-        slow_count = cases.count { |test_case| test_case.duration_ms.present? }
+        cases = cases_by_run.fetch(test_run)
+        failed_error_count = test_run.failed_count.to_i + test_run.error_count.to_i
+        slow_count = @include_slow_cases ? test_run.test_cases.where.not(duration_ms: nil).count : 0
 
         failed_error_returned += returned_count(failed_error_count)
         failed_error_omitted += omitted_count(failed_error_count)
@@ -233,7 +251,9 @@ module TestInsights
         failed_error_cases_returned: failed_error_returned,
         failed_error_cases_omitted: failed_error_omitted,
         slow_cases_returned: @include_slow_cases ? slow_returned : 0,
-        slow_cases_omitted: @include_slow_cases ? slow_omitted : slow_returned + slow_omitted,
+        slow_cases_omitted: @include_slow_cases ? slow_omitted : 0,
+        suite_cases_returned: @include_suites ? test_runs.sum { |test_run| returned_count(test_run.total_count.to_i) } : 0,
+        suite_cases_omitted: @include_suites ? test_runs.sum { |test_run| omitted_count(test_run.total_count.to_i) } : 0,
         suites_included: @include_suites
       }
     end
@@ -245,6 +265,10 @@ module TestInsights
       return nil if text.blank?
 
       Mcp::Tools.truncate_text(Mcp::Tools.utf8(text), FAILURE_SNIPPET_BYTES)
+    end
+
+    def truncate_legacy(text)
+      truncate(text)&.fetch(:text)
     end
 
     def clamp_case_limit(value)

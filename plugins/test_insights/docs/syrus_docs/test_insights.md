@@ -239,10 +239,13 @@ results without an N+1.
   oldest; the duration graph independently plots up to the most recent
   `TestIdentity::HISTORY_LIMIT` (100) runs regardless of the history page.
 - **Job test results** — `GET /api/v1/app/jobs/:job_id/test_results`
-  (`Api::V1::App::JobTestResultsController`) returns every `TestInsights::TestRun`/`TestInsights::TestCase`
+  (`Api::V1::App::JobTestResultsController`) returns each `TestInsights::TestRun`
   ingested for a Job's most recent Workflow that has test data, grouped by
-  grader and suite, each case annotated with its current flakiness score via
-  `TestCase.batch_flakiness`.
+  grader and suite. Case detail is capped at 20 cases per run by default (100
+  maximum through `case_limit`), with failures prioritized and omission counts
+  in `truncation`. Failure message, backtrace, and output fields are each
+  limited to 2 KiB. Returned cases are annotated with their current flakiness
+  score via bounded, batched history lookups.
 - **Flaky badge on failing test cases** — `app/frontend/routes/JobDetail.tsx`
   (around line 1251) renders an amber "flaky" badge with a `failed/total`
   sparkline next to a failing test case's name when its `flakiness_score` is
@@ -349,7 +352,8 @@ general admin API auth model):
 - `GET /api/v1/admin/jobs/:job_id/test_results` — the admin twin of
   `read_job_test_results`, backed by `TestInsights::RunResults.for_job`. Same
   compact-by-default shape: pass `include_suites`/`include_slow_cases` to opt
-  into more detail, `grader_name` to scope to one grader.
+  into more detail, `grader_name` to scope to one grader, and `case_limit` to
+  select up to 100 detailed cases per run.
 
 All three are plugin-owned routes (`plugins/test_insights/app/controllers/api/v1/admin/`);
 with the plugin disabled they answer `plugin_disabled` like every other
