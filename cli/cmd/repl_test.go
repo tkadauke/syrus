@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -95,6 +96,52 @@ func TestRunChatREPLRendersToolActivityDuringLiveTurn(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "read_job") || !strings.Contains(got, "Job JOB-42 open") {
 		t.Fatalf("output = %q, expected live tool_use and tool_result activity", got)
+	}
+}
+
+func TestRunChatREPLDoesNotConsumePipedMessagesAsProposalDecisions(t *testing.T) {
+	var messages []string
+	var rejected bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/chats/42/message":
+			var payload struct {
+				Content string `json:"content"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			messages = append(messages, payload.Content)
+			w.Header().Set("Content-Type", "text/event-stream")
+			if len(messages) == 1 {
+				w.Write([]byte("event: proposal\ndata: {\"proposal\":{\"id\":5,\"slug\":\"first-proposal\",\"title\":\"First proposal\",\"app_reject_path\":\"/reject\"}}\n\n"))
+			}
+			w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+		case "/reject":
+			rejected = true
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := api.NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	reader := bufio.NewReader(strings.NewReader("msg1\nmsg2\n"))
+	if err := runChatREPL(context.Background(), client, "42", reader, out, &bytes.Buffer{}); err != nil {
+		t.Fatalf("runChatREPL returned error: %v", err)
+	}
+	if !reflect.DeepEqual(messages, []string{"msg1", "msg2"}) {
+		t.Fatalf("messages = %#v", messages)
+	}
+	if rejected {
+		t.Fatal("proposal was rejected by the following piped message")
+	}
+	if got := out.String(); !strings.Contains(got, "Left pending: first-proposal") {
+		t.Fatalf("output = %q, expected pending proposal reference", got)
 	}
 }
 

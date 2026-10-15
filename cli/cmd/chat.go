@@ -128,10 +128,20 @@ func streamTurn(parent context.Context, chatID string, message string, in io.Rea
 		return err
 	}
 
-	return streamTurnWithClient(parent, client, chatID, message, bufio.NewReader(in), out, errOut)
+	reader := bufio.NewReader(in)
+	if terminalReader(in) {
+		return streamTurnWithClient(parent, client, chatID, message, proposalHandler(client, reader, out), out, errOut)
+	}
+
+	pending := false
+	err = streamTurnWithClient(parent, client, chatID, message, pendingProposalHandler(out, &pending), out, errOut)
+	if err == nil && pending {
+		return errors.New("proposal left pending; confirm or skip it from an interactive Syrus client")
+	}
+	return err
 }
 
-func streamTurnWithClient(parent context.Context, client *api.Client, chatID string, message string, reader *bufio.Reader, out, errOut io.Writer) error {
+func streamTurnWithClient(parent context.Context, client *api.Client, chatID string, message string, handler func(context.Context, api.ChatProposal) error, out, errOut io.Writer) error {
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
 
@@ -148,7 +158,7 @@ func streamTurnWithClient(parent context.Context, client *api.Client, chatID str
 		Out:             streamOut,
 		DebugOut:        debugOut,
 		Renderer:        render.NewMarkdownRenderer(out),
-		ProposalHandler: proposalHandler(client, reader, streamOut),
+		ProposalHandler: handler,
 	})
 	if errors.Is(err, context.Canceled) {
 		fmt.Fprintln(errOut, "Cancelling chat turn...")
@@ -158,6 +168,11 @@ func streamTurnWithClient(parent context.Context, client *api.Client, chatID str
 		return nil
 	}
 	return err
+}
+
+func terminalReader(in io.Reader) bool {
+	file, ok := in.(interface{ Fd() uintptr })
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 type chatStreamWriter struct {
@@ -314,35 +329,54 @@ func proposalHandler(client *api.Client, reader *bufio.Reader, out io.Writer) fu
 
 func handleChatProposal(ctx context.Context, client *api.Client, reader *bufio.Reader, out io.Writer, proposal api.ChatProposal) error {
 	renderProposal(out, proposal)
-	fmt.Fprint(out, "[c]onfirm  [s]kip: ")
-	line, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
+	for {
+		fmt.Fprint(out, "[c]onfirm  [s]kip: ")
+		line, err := reader.ReadString('\n')
+		if errors.Is(err, io.EOF) && strings.TrimSpace(line) == "" {
+			writePendingProposal(out, proposal)
+			return errors.New("proposal decision requires interactive input")
+		}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
 
-	choice := strings.ToLower(strings.TrimSpace(line))
-	switch choice {
-	case "c", "confirm":
-		if proposal.ConfirmPath == "" {
-			return errors.New("proposal cannot be confirmed from the stream payload")
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "c", "confirm":
+			if proposal.ConfirmPath == "" {
+				return errors.New("proposal cannot be confirmed from the stream payload")
+			}
+			if err := client.ConfirmChatProposal(ctx, proposal.ConfirmPath); err != nil {
+				return err
+			}
+			fmt.Fprintln(out, "Filed.")
+			return nil
+		case "s", "skip":
+			if err := skipChatProposal(ctx, client, proposal); err != nil {
+				return err
+			}
+			fmt.Fprintln(out, "Skipped.")
+			return nil
+		default:
+			fmt.Fprintln(out, "Choose c to confirm or s to skip.")
 		}
-		if err := client.ConfirmChatProposal(ctx, proposal.ConfirmPath); err != nil {
-			return err
-		}
-		fmt.Fprintln(out, "Filed.")
-	case "s", "skip":
-		if err := skipChatProposal(ctx, client, proposal); err != nil {
-			return err
-		}
-		fmt.Fprintln(out, "Skipped.")
-	default:
-		fmt.Fprintln(out, "Choose c to confirm or s to skip. Skipping.")
-		if err := skipChatProposal(ctx, client, proposal); err != nil {
-			return err
-		}
-		fmt.Fprintln(out, "Skipped.")
 	}
-	return nil
+}
+
+func pendingProposalHandler(out io.Writer, pending *bool) func(context.Context, api.ChatProposal) error {
+	return func(_ context.Context, proposal api.ChatProposal) error {
+		*pending = true
+		renderProposal(out, proposal)
+		writePendingProposal(out, proposal)
+		return nil
+	}
+}
+
+func writePendingProposal(out io.Writer, proposal api.ChatProposal) {
+	reference := strings.TrimSpace(proposal.Slug)
+	if reference == "" {
+		reference = fmt.Sprintf("proposal %d", proposal.ID)
+	}
+	fmt.Fprintf(out, "Left pending: %s\n", reference)
 }
 
 func skipChatProposal(ctx context.Context, client *api.Client, proposal api.ChatProposal) error {
