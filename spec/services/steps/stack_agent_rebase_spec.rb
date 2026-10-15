@@ -100,4 +100,37 @@ RSpec.describe Steps::StackAgentRebase do
     )
     expect(git).to have_received(:run).with("switch", "--", job.branch_name, chdir: "/tmp/workspace")
   end
+
+  it "resolves a legacy leading-dash branch through its fully qualified ref" do
+    entry = {
+      "job_id" => job.id,
+      "pr_number" => job.pr_number,
+      "branch_name" => "-detach",
+      "base_branch" => "main",
+      "parent_job_id" => nil
+    }
+    workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ entry ])
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:fetch_pending_branches)
+    allow(handler).to receive(:compose_prompt).and_return("stack prompt")
+    allow(handler).to receive(:run_agent)
+    allow(GitRunner).to receive(:new).and_return(git)
+    expect(git).to receive(:run)
+      .with("rev-parse", "--verify", "refs/heads/-detach", chdir: "/tmp/workspace")
+      .twice
+      .and_return("abc123\n")
+
+    handler.call
+
+    expect(workflow.reload.artifact(StackRebasePlan::AGENT_PRE_SHAS_ARTIFACT)).to eq("-detach" => "abc123")
+    expect(workflow.artifact(StackRebasePlan::AGENT_PUSHES_ARTIFACT).first).to include(
+      "branch_name" => "-detach",
+      "pre_sha" => "abc123",
+      "post_sha" => "abc123"
+    )
+  end
 end
