@@ -9,6 +9,18 @@ RSpec.describe Job, :ci_only do
     clear_enqueued_jobs
   end
 
+  describe "branch name validation" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "rejects branch names that Git could interpret as options" do
+      job = Job.new(user: user, repository: repository, issue_number: 1, branch_name: "-detach")
+
+      expect(job).not_to be_valid
+      expect(job.errors[:branch_name]).to include("is not a valid branch name")
+    end
+  end
+
   describe "#slug" do
     it "returns the canonical Job slug" do
       job = Factories.job_record

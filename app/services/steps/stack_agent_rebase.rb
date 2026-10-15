@@ -45,9 +45,9 @@ module Steps
       detach_worktree(git) if pending_entries.any?
       pending_entries.each do |entry|
         branch = entry.fetch("branch_name")
-        git.run("branch", "-f", branch, "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+        git.run("branch", "-f", "--", branch, "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
       end
-      git.run("checkout", pending_entries.first.fetch("branch_name"), chdir: workspace.path.to_s) if pending_entries.any?
+      git.run("switch", "--", pending_entries.first.fetch("branch_name"), chdir: workspace.path.to_s) if pending_entries.any?
     end
 
     def fetch_remote_branch_once(git, push_url, branch, fetched_branches)
