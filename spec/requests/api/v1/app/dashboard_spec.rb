@@ -2629,6 +2629,20 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
+    it "starts a teammate's Epic for a write-tier repository member" do
+      writer = Factories.user
+      repo.repository_memberships.create!(user: writer, role: "write")
+      ready = Factories.epic(user: user, repository: repo, title: "Shared aqueduct", state: "ready")
+      sign_in_as(writer)
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ ready.id ], bulk_action: "start" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(ready.reload).to be_in_progress
+    end
+
     it "rejects product-owner bulk starts" do
       user.update!(role: "product_owner")
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
@@ -2669,6 +2683,34 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "message" => "Epic auto-approval updated.",
         "epic" => include("id" => epic.id, "auto_approve_mode" => "if_graders_pass")
       )
+    end
+
+    it "updates a teammate's Epic for a write-tier repository member" do
+      writer = Factories.user
+      repo.repository_memberships.create!(user: writer, role: "write")
+      epic = Factories.epic(user: user, repository: repo, state: "ready", title: "Shared aqueduct")
+      sign_in_as(writer)
+
+      patch "/api/v1/app/dashboard/epics/#{epic.id}/auto_approval",
+            params: { epic: { auto_approve_mode: "if_graders_pass" } },
+            as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(epic.reload.auto_approve_mode).to eq("if_graders_pass")
+    end
+
+    it "forbids a read-tier repository member from updating auto-approval" do
+      reader = Factories.user
+      repo.repository_memberships.create!(user: reader, role: "read")
+      epic = Factories.epic(user: user, repository: repo, state: "ready", title: "Shared aqueduct")
+      sign_in_as(reader)
+
+      patch "/api/v1/app/dashboard/epics/#{epic.id}/auto_approval",
+            params: { epic: { auto_approve_mode: "if_graders_pass" } },
+            as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(epic.reload.auto_approve_mode).to eq("never")
     end
 
     it "does not expose another user's Epic" do
