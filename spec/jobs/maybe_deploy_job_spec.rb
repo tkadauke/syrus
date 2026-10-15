@@ -76,7 +76,7 @@ RSpec.describe MaybeDeployJob do
       expect(StepDispatcher).to have_received(:start_workflow).once
     end
 
-    it "does not redeploy a sha that was already deployed successfully" do
+    it "does not redeploy a sha whose latest deploy attempt already finished" do
       configure_continuous_deploy!
       deployed_job = Job.create!(
         user: user, repository: repository, kind: "deploy",
@@ -136,6 +136,30 @@ RSpec.describe MaybeDeployJob do
       end.to change(Job, :count).by(1)
 
       expect(Workflow.order(:id).last.artifact("deploy_sha")).to eq(sha)
+    end
+
+    it "deploys the newer HEAD after the active deploy fails" do
+      expect { described_class.perform_now(repository.id) }.not_to change(Job, :count)
+      @active_workflow.update!(state: "failed", finished_at: Time.current)
+
+      expect do
+        perform_enqueued_jobs(only: MaybeDeployJob) do
+          Workflows::Deploy.after_fail(@active_workflow)
+        end
+      end.to change(Job, :count).by(1)
+
+      expect(Workflow.order(:id).last.artifact("deploy_sha")).to eq(sha)
+    end
+
+    it "does not retry a failed deploy when HEAD has not advanced" do
+      allow(github_client).to receive(:branch_head_sha).and_return("previous")
+      @active_workflow.update!(state: "failed", finished_at: Time.current)
+
+      expect do
+        perform_enqueued_jobs(only: MaybeDeployJob) do
+          Workflows::Deploy.after_fail(@active_workflow)
+        end
+      end.not_to change(Job, :count)
     end
   end
 
