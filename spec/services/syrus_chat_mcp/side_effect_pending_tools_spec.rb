@@ -119,6 +119,46 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     expect(ScheduledTasks::Fire).to have_received(:new).with(task)
   end
 
+  it "lets an admin create and confirm firing another user's scheduled task" do
+    admin = Factories.user(admin: true)
+    owner = Factories.user
+    owner_repository = Factories.repository(user: owner)
+    task = ScheduledTasks::Task.create!(
+      repository: owner_repository,
+      user: owner,
+      kind: "cron",
+      name: "Owner task",
+      prompt: "Review the repository.",
+      cron_expression: "0 9 * * *",
+      pr_pileup_policy: "skip"
+    )
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ ScheduledTasks::McpTools::FireScheduledTaskNowTool ],
+      server_context: { chat_session: admin_session }
+    )
+    result = ScheduledTasks::Fire::Result.new(
+      job: Factories.job_record(user: owner, repository: owner_repository, kind: "cron", scheduled_task_id: task.id, issue_number: nil),
+      skipped: false,
+      reason: nil
+    )
+    allow(ScheduledTasks::Fire).to receive(:new).with(task).and_return(instance_double(ScheduledTasks::Fire, call: result))
+
+    raw = admin_server.handle_json({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "fire_scheduled_task_now", arguments: { scheduled_task_id: task.id } }
+    }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+    action_id = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_confirmation_id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(admin_session.pending_actions.find(action_id).confirm!).to be true
+    expect(ScheduledTasks::Fire).to have_received(:new).with(task)
+  end
+
   it "creates and confirms a create_repo_document action" do
     response = call_tool("create_repo_document", repository_id: repository.id, title: "Runbook", body: "Ship safely.")
     action = pending_action_from(response)
