@@ -27,6 +27,8 @@ class MuseInvocation
   OPTIONAL_SERVER_MODE = "optional"
   MUSE_RULES_CONTEXT_LIMIT_BYTES = 65_536
   MUSE_RULES_CONTEXT_OUTCOME = "muse_rules_context_too_large".freeze
+  SESSION_LOG_DISCOVERY_INTERVAL_SECONDS = 5
+  SESSION_ID_PATTERN = /\A[0-9A-Za-z._-]+\z/
 
   def initialize(workspace_path, prompt:, api_key:,
                  log_sink: ->(*, **) { },
@@ -761,12 +763,23 @@ class MuseInvocation
   end
 
   def muse_session_activity_probe(session_id)
-    return nil if @muse_home.blank? || session_id.blank?
+    normalized_session_id = session_id.to_s
+    return nil if @muse_home.blank? || !SESSION_ID_PATTERN.match?(normalized_session_id)
 
     sessions_root = File.join(@muse_home, ".local", "share", "muse", "sessions")
+    session_log_path = nil
+    next_discovery_at = nil
     lambda do
-      paths = Dir.glob(File.join(sessions_root, "**", session_id.to_s, "session.jsonl"))
-      paths.filter_map { |path| session_log_mtime(path) }.max
+      unless session_log_path
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        if next_discovery_at.nil? || now >= next_discovery_at
+          session_log_path = Dir.glob(
+            File.join(sessions_root, "*", "*", "*", normalized_session_id, "session.jsonl")
+          ).first
+          next_discovery_at = now + SESSION_LOG_DISCOVERY_INTERVAL_SECONDS
+        end
+      end
+      session_log_mtime(session_log_path) if session_log_path
     end
   end
 
