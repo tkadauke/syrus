@@ -1,0 +1,99 @@
+name: Promote published release images
+
+# Publishing a draft in the GitHub UI is a separate event from the Release
+# workflow run that created it. Complete that deferred stable release here.
+# Releases published by release.yml with GITHUB_TOKEN do not recursively start
+# this workflow; their image promotion remains in release.yml.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: promote-release-images-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  promote-images:
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Snapshot current :latest digests
+        id: snap
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
+          OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          echo "old_latest=$OLD" >> "$GITHUB_OUTPUT"
+          : > "$RUNNER_TEMP/plugin-latest-before"
+          . bin/docker-image-lib
+          while read -r _dir PLUGIN_IMAGE; do
+            OLD="$(docker buildx imagetools inspect "$PLUGIN_IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+            echo "$PLUGIN_IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"
+          done < <(syrus_plugin_images ghcr.io/tkadauke)
+
+      - name: Promote backend and plugin images
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::published release tag '$RELEASE_TAG' is not a stable Syrus version"
+            exit 1
+          fi
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          . bin/docker-image-lib
+          while read -r _dir PLUGIN_IMAGE; do
+            docker buildx imagetools create -t "$PLUGIN_IMAGE:latest" "$PLUGIN_IMAGE:$VERSION"
+          done < <(syrus_plugin_images ghcr.io/tkadauke)
+
+      - name: Advance 'release' deployment tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git tag -f release "$RELEASE_TAG"
+          git push --force origin release
+        continue-on-error: true
+
+      - name: Roll back image promotion on failure
+        if: failure()
+        env:
+          OLD_LATEST: ${{ steps.snap.outputs.old_latest }}
+        run: |
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
+          echo "::warning::Image promotion failed — restoring previous :latest digests."
+          if [ -n "${OLD_LATEST:-}" ]; then
+            docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE@$OLD_LATEST" || true
+          fi
+          if [ -f "$RUNNER_TEMP/plugin-latest-before" ]; then
+            while read -r plugin_image old; do
+              [ -n "$old" ] && docker buildx imagetools create -t "$plugin_image:latest" "$plugin_image@$old" || true
+            done < "$RUNNER_TEMP/plugin-latest-before"
+          fi
+
+  publish-website:
+    needs: promote-images
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-website.yml
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
