@@ -1993,10 +1993,10 @@ RSpec.describe RunJob, :ci_only do
       result = nil
       expect {
         result = run_job.send(:next_inline_run)
-      # Re-enqueued onto the workflow's resume queue rather than the generic
-      # merges queue: RunQueueResolver routes a Run whose Workflow owns
-      # on-disk storage to the worker holding it, which is the whole reason
-      # this successor is not inlined here.
+        # Re-enqueued onto the workflow's resume queue rather than the generic
+        # merges queue: RunQueueResolver routes a Run whose Workflow owns
+        # on-disk storage to the worker holding it, which is the whole reason
+        # this successor is not inlined here.
       }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("resume-storage-main")
 
       expect(result).to be_nil
