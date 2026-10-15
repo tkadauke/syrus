@@ -535,7 +535,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const stash = useMutation({
-    mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text, content == null ? attachments : []),
+    mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text, attachments),
     onSuccess: (updated) => {
       mergeChatPayloadUpdate(queryClient, queryKey, updated)
       setText("")
