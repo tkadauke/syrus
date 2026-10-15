@@ -87,8 +87,17 @@ class MainHealthChangedService
     return unless @repository.main_branch_repair_enabled?
     return unless @repository.main_health_broken?
     if (job = blocking_fix_job)
+      # Decide staleness BEFORE refreshing. refresh_repair_context! writes the
+      # prompt back to the Job, which bumps updated_at to now, and
+      # stuck_blocking_repair_job asks whether updated_at is at least
+      # STUCK_REPAIR_ALERT_AFTER old. Refreshing first therefore reset the very
+      # clock the check reads, so the alarm that escalates a wedged
+      # main-branch repair could never fire: every health signal rearmed it.
+      # A repair Job parked in triaging stayed invisible while main stayed
+      # broken.
+      stuck_job = stuck_blocking_repair_job
       refresh_repair_context!(job)
-      warn_if_blocking_repair_stuck!(job)
+      surface_stuck_blocking_repair!(stuck_job) if stuck_job
       return
     end
     if !force && (job = failed_fix_job_for_current_sha)
@@ -471,9 +480,9 @@ class MainHealthChangedService
     end
   end
 
-  def warn_if_blocking_repair_stuck!(job)
-    return unless stuck_blocking_repair_job
-
+  # Takes the Job that stuck_blocking_repair_job already identified, read before
+  # the context refresh moved its updated_at.
+  def surface_stuck_blocking_repair!(job)
     Rails.logger.warn(
       "[MainHealthChangedService] #{@repository.slug} main remains broken, but repair job #{job.slug} " \
       "has been #{job.state} since #{job.updated_at&.iso8601}; surfacing it through stuck-item reconciliation"

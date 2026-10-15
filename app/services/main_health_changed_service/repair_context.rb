@@ -29,7 +29,16 @@ class MainHealthChangedService
     end
 
     def refresh_repair_context!(job)
-      job.update!(issue_body: fix_job_prompt)
+      # Deliberately not `job.update!`. updated_at is the progress clock that
+      # MainHealthChangedService#stuck_blocking_repair_job reads to decide
+      # whether a repair Job has been parked in needs_triage/triaging/queued for
+      # STUCK_REPAIR_ALERT_AFTER -- and rewriting the prompt is not progress.
+      # Touching it made a wedged repair look freshly active on every health
+      # signal, so the alarm meant to escalate it could never fire and a repair
+      # stuck in triage stayed invisible while main stayed broken. Skip the
+      # write entirely when the prompt has not changed, which is the usual case.
+      prompt = fix_job_prompt
+      job.update_columns(issue_body: prompt) unless job.issue_body == prompt
       remove_repair_context_attachments!(job)
       attach_repair_context!(job)
     rescue StandardError => e
