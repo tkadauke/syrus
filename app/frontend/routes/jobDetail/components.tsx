@@ -32,8 +32,8 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the run-transcript log stream. Kept in a leaf module so both the route file and
 // the workflow/step/run render subtree can import them without a circular edge.
 
-export function SmallPill({ children, tone = "neutral", ...props }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success" } & HTMLAttributes<HTMLSpanElement>) {
-  return <Pill tone={tone} {...props}>{children}</Pill>
+export function SmallPill({ children, tone = "neutral", wrap = false, ...props }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success"; wrap?: boolean } & HTMLAttributes<HTMLSpanElement>) {
+  return <Pill tone={tone} wrap={wrap} {...props}>{children}</Pill>
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
