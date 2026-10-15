@@ -1260,8 +1260,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   scripts, and `syrus credential exec` for non-SSH script credentials. Wrapper
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
   handles, never payload material. The broker enforces scope, surface, tool,
-  type, target constraints, expiry, and revocation; wrappers use temporary
-  process-local material, redaction, cleanup, and access audit events. SSH
+  type, target constraints, expiry, and revocation. Omitted target constraints
+  are unrestricted, while present empty constraints deny access; URL prefixes
+  require the same HTTP(S) origin and a path-boundary match. Wrappers use
+  temporary process-local material, redaction, cleanup, and access audit events. SSH
   execution runs only read-only diagnostic commands by default; other commands
   and unsafe shell syntax require explicit workflow authorization that chat
   callers cannot grant themselves.
