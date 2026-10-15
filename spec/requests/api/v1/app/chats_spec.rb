@@ -2007,7 +2007,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "retries a transient Solid Queue lock when creating the first turn" do
     sign_in_as(user)
-    stub_const("Api::V1::App::ChatsController::CHAT_TURN_ENQUEUE_RETRY_DELAYS", [ 0 ])
+    stub_const("ChatSessions::Creator::CHAT_TURN_ENQUEUE_RETRY_DELAYS", [ 0 ])
     enqueue_attempts = 0
     lock_error = SolidQueue::Job::EnqueueError.new("ActiveRecord::StatementTimeout: SQLite3::BusyException: database is locked")
 
