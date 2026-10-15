@@ -109,6 +109,56 @@ RSpec.describe TargetHealthCiCheckRecorder do
     expect(passed.artifacts).to include("summary" => "retry passed")
   end
 
+  it "records the worst result once when several checks map to one target, regardless of order" do
+    write(".syrus.yml", <<~YAML)
+      targets:
+        - name: backend
+          kind: repo_check
+          run: bin/check-backend
+          ci_checks: ["Ruby 3.3", "Ruby 3.4"]
+    YAML
+
+    [
+      [
+        { name: "Ruby 3.3", status: "completed", conclusion: "failure" },
+        { name: "Ruby 3.4", status: "completed", conclusion: "success" }
+      ],
+      [
+        { name: "Ruby 3.4", status: "completed", conclusion: "success" },
+        { name: "Ruby 3.3", status: "completed", conclusion: "failure" }
+      ]
+    ].each do |checks|
+      records = record_checks(checks)
+
+      expect(records.one?).to be(true)
+      expect(records.first).to have_attributes(status: "failed", target_label: "//:backend")
+      expect(records.first.metadata).to include(
+        "check_names" => contain_exactly("Ruby 3.3", "Ruby 3.4"),
+        "check_name" => "Ruby 3.3"
+      )
+    end
+
+    expect(TargetHealthRecord.count).to eq(1)
+  end
+
+  it "does not record a target while one of its mapped checks is pending" do
+    write(".syrus.yml", <<~YAML)
+      targets:
+        - name: backend
+          kind: repo_check
+          run: bin/check-backend
+          ci_checks: ["Ruby 3.3", "Ruby 3.4"]
+    YAML
+
+    records = record_checks(
+      [ { name: "Ruby 3.3", status: "completed", conclusion: "success" } ],
+      pending_checks: [ { name: "Ruby 3.4", status: "in_progress" } ]
+    )
+
+    expect(records).to be_empty
+    expect(TargetHealthRecord).not_to exist
+  end
+
   it "falls back to exact executable target names when no explicit check mapping exists" do
     write(".syrus.yml", <<~YAML)
       targets:
@@ -124,11 +174,11 @@ RSpec.describe TargetHealthCiCheckRecorder do
     expect(records.first.target_label).to eq("//:backend")
   end
 
-  def record_checks(checks)
+  def record_checks(checks, pending_checks: [])
     described_class.record!(
       job: job,
       head_sha: head_sha,
-      detail: { completed_checks: checks },
+      detail: { completed_checks: checks, pending_checks: pending_checks },
       graph: TargetGraph::Compiler.compile(@dir),
       workspace_path: @dir.to_s
     )
