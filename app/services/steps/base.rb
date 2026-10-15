@@ -476,17 +476,21 @@ module Steps
       transcript = run.reload.provider_session&.transcript_jsonl.to_s
       summary = ClaudeTranscript.new(transcript).summary
       available = Array(summary.available_tools_at_init).map(&:to_s)
-      recorded = recorded_mcp_tool_names
-      called = required_tools.select do |tool|
-        mcp_tool_called?(summary.tool_call_counts.keys, tool) || mcp_tool_called?(recorded, tool)
-      end
+      transcript_calls = required_tools.select { |tool| mcp_tool_called?(summary.tool_call_counts.keys, tool) }
+      persisted_calls = completed_persisted_mcp_tools(required_tools)
+      called = required_tools.select { |tool| transcript_calls.include?(tool) || persisted_calls.key?(tool) }
       missing = required_tools - called
       status = missing.empty? ? "ok" : "missing"
+      evidence = required_tools.filter_map do |tool|
+        sources = []
+        sources << "transcript" if transcript_calls.include?(tool)
+        if (usage = persisted_calls[tool])
+          sources << "persisted_usage(#{usage.sidecar_mode || 'unknown_mode'})"
+        end
+        "#{tool}:#{sources.join('+')}" if sources.any?
+      end
       log(
-        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} " \
-        "missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} " \
-        "mcp_tool_called=#{summary.mcp_tool_called?} recorded=#{recorded.join(',')} " \
-        "session_id=#{summary.session_id || '(none)'}",
+        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} evidence=#{evidence.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",
         kind: "system"
       )
       missing
@@ -500,21 +504,11 @@ module Steps
       []
     end
 
-    # Tool calls Syrus itself recorded for this Run, which is a first-hand
-    # fact rather than an inference from a provider's transcript format.
-    #
-    # The transcript parse is still consulted first because it is the older,
-    # broader signal, but it cannot be the only one: a provider that changes
-    # its rollout format silently stops reporting tool calls, and the check
-    # then fails every run of a step whose work actually completed. That is
-    # exactly what happened when the Codex default model moved to a newer
-    # release -- `post_implementation_review` failed 56 times in eight hours
-    # with `submit_review_notes` recorded as called in the same Run.
-    def recorded_mcp_tool_names
-      McpToolUsage.where(run_id: run.id).distinct.pluck(:tool_name).compact.map(&:to_s)
-    rescue StandardError => e
-      Rails.logger.warn("[Steps::Base] recorded MCP tool lookup failed for Run ##{run.id}: #{e.class}: #{e.message}")
-      []
+    def completed_persisted_mcp_tools(required_tools)
+      run.mcp_tool_usages
+        .where(surface: "workflow", status: "completed", error: false, normalized_tool_name: required_tools)
+        .order(created_at: :desc)
+        .each_with_object({}) { |usage, matches| matches[usage.normalized_tool_name] ||= usage }
     end
 
     def mcp_tool_available?(available_tools, required_tool)
