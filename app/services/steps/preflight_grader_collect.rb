@@ -14,8 +14,10 @@ module Steps
   #   retry_until_barrier_superseded so Workflow#uncleared_retry_until_barrier?
   #   doesn't hard-fail this otherwise-successful workflow.
   #
-  # - Any required preflight grader failed: logs the failures and returns
-  #   normally so the chain continues to implement → grade loop.
+  # - Any required preflight grader did not succeed: logs the non-passing
+  #   results and returns normally so the chain continues to implement →
+  #   grade loop. This includes failed, cancelled, blocked, and skipped
+  #   graders: none of those states proves main is healthy.
   #
   # - No preflight grader steps exist: logs the missing evidence and returns
   #   normally so the chain continues to implement → grade loop.
@@ -32,11 +34,11 @@ module Steps
         return
       end
 
-      failed_required = preflight_steps.select do |g|
-        g.details && g.details["required"] && g.state == "failed"
+      nonpassing_required = preflight_steps.select do |grader_step|
+        grader_step.details && grader_step.details["required"] && grader_step.state != "succeeded"
       end
 
-      if failed_required.empty?
+      if nonpassing_required.empty?
         log("[preflight_grader_collect] all required graders passed (#{preflight_steps.size} grader step(s)) — skipping implement")
         workflow.set_artifact!("preflight_passed", true)
         cancel_downstream!(
@@ -44,9 +46,9 @@ module Steps
           supersede_retry_until_barriers: true
         )
       else
-        workflow.set_artifact!("preflight_failures", preflight_failure_entries(failed_required))
-        failed_names = failed_required.map { |g| g.details["name"] }.join(", ")
-        log("[preflight_grader_collect] preflight graders failed: #{failed_names} — proceeding to implement")
+        workflow.set_artifact!("preflight_failures", preflight_failure_entries(nonpassing_required))
+        nonpassing_results = nonpassing_required.map { |grader_step| "#{grader_step.details["name"]} (#{grader_step.state})" }.join(", ")
+        log("[preflight_grader_collect] required preflight graders did not pass: #{nonpassing_results} — proceeding to implement")
       end
     end
 
@@ -56,8 +58,8 @@ module Steps
       workflow.steps.where(kind: "preflight_grader").order(:position).to_a
     end
 
-    def preflight_failure_entries(failed_required)
-      failed_required.map do |grader_step|
+    def preflight_failure_entries(nonpassing_required)
+      nonpassing_required.map do |grader_step|
         details = grader_step.details.to_h
         {
           "name" => details["name"],
@@ -65,7 +67,7 @@ module Steps
           "capabilities" => details["capabilities"],
           "required_capabilities" => details["required_capabilities"],
           "required" => details["required"],
-          "status" => "failed",
+          "status" => grader_step.state,
           "exit_code" => details["exit_code"],
           "duration_s" => details["duration_s"],
           "timed_out" => details["timed_out"],
