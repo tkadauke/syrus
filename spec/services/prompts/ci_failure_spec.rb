@@ -30,6 +30,12 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("Structured error context:")
   end
 
+  it "caps an oversized issue body" do
+    large_issue = Struct.new(:title, :body).new("Large issue", "i" * (described_class::MAX_ISSUE_BODY_BYTES + 1))
+
+    expect(build(issue: large_issue).to_s).to include("[issue body truncated, 1 more bytes]")
+  end
+
   it "tells the agent to fix the failure and not silence it" do
     out = build.to_s
     expect(out).to match(/Do \*\*not\*\* silence them/)

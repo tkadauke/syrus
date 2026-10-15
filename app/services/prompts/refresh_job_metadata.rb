@@ -6,6 +6,11 @@ module Prompts
   class RefreshJobMetadata
     include GithubContentTrust
 
+    MAX_BODY_BYTES = 20_000
+    MAX_FEEDBACK_BYTES = 10_000
+    MAX_SUMMARIES_BYTES = 20_000
+    MAX_DIFF_BYTES = 30_000
+
     def initialize(job:, current_pr: nil, prior_summaries: [], feedback: nil, diff: nil)
       @job = job
       @current_pr = current_pr
@@ -24,7 +29,7 @@ module Prompts
         #{@job.title}
 
         Original Job prompt/body:
-        #{@job.issue_body}
+        #{Truncate.text(@job.issue_body, max_bytes: MAX_BODY_BYTES, label: "issue body")}
 
         Current PR title:
         #{current_pr_title}
@@ -33,7 +38,7 @@ module Prompts
         #{current_pr_body}
 
         Operator input handled in this workflow:
-        #{@feedback.presence || "(none recorded)"}
+        #{Truncate.text(@feedback.presence || "(none recorded)", max_bytes: MAX_FEEDBACK_BYTES, label: "feedback")}
 
         Prior workflow summaries:
         #{prior_summary_text}
@@ -65,17 +70,20 @@ module Prompts
     end
 
     def current_pr_body
-      @current_pr&.body.to_s.presence || "(no managed PR body available)"
+      body = @current_pr&.body.to_s.presence || "(no managed PR body available)"
+      Truncate.text(body, max_bytes: MAX_BODY_BYTES, label: "PR body")
     end
 
     def prior_summary_text
       return "(none)" if @prior_summaries.empty?
 
-      @prior_summaries.each_with_index.map { |summary, index| "Round #{index + 1}: #{summary}" }.join("\n")
+      text = @prior_summaries.each_with_index.map { |summary, index| "Round #{index + 1}: #{summary}" }.join("\n")
+      Truncate.text(text, max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries")
     end
 
     def diff_text
-      @diff.to_s.presence || "(no diff captured)"
+      diff = @diff.to_s.presence || "(no diff captured)"
+      Truncate.text(diff, max_bytes: MAX_DIFF_BYTES, label: "diff")
     end
   end
 end
