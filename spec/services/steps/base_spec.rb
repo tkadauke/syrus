@@ -448,13 +448,13 @@ RSpec.describe Steps::Base, :ci_only do
         run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", tool_input: {}
       )
       McpToolUsageRecorder.record_workflow_tool_result(
-        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", content: { ok: true }
+        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", content: { ok: true }, error: false
       )
       McpToolUsageRecorder.record_workflow_tool_call(
         run: run, tool_name: "submit_summary", tool_use_id: "other-tool", tool_input: {}
       )
       McpToolUsageRecorder.record_workflow_tool_result(
-        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", content: { ok: true }
+        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", content: { ok: true }, error: false
       )
 
       expect(handler.send(:log_mcp_required_tool_health, %w[submit_review_notes])).to eq(%w[submit_review_notes])
