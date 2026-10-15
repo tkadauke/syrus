@@ -8,6 +8,12 @@ RSpec.describe AlertmanagerInvestigations::Engine do
     expect(manifest.default_enabled?).to eq(false)
     expect(manifest.tick_interval).to eq(1.minute)
     expect(Array(manifest.provides[:callbacks])).to include(AlertmanagerInvestigations::Callbacks)
-    expect(manifest.config_schema.map { |entry| entry[:key] }).to include("base_url", "rate_limit_minutes", "host_label")
+    expect(manifest.config_schema.map { |entry| entry[:key] }).to include(
+      "base_url",
+      "rate_limit_minutes",
+      "host_label",
+      "max_jobs_per_tick",
+      "max_open_jobs_per_repository"
+    )
   end
 end

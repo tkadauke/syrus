@@ -165,16 +165,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
 
   create_table "alertmanager_investigations", force: :cascade do |t|
     t.string "fingerprint", null: false
-    t.string "host", null: false
-    t.string "runbook_url", null: false
+    t.text "host", null: false
+    t.text "runbook_url", null: false
     t.string "runbook_repository"
-    t.string "runbook_ref"
-    t.string "runbook_path"
+    t.text "runbook_ref"
+    t.text "runbook_path"
     t.json "alert_payload"
     t.integer "repository_id"
     t.integer "job_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "resolution_status", default: "created", null: false
+    t.text "resolution_error"
     t.index ["fingerprint", "created_at"], name: "idx_alertmanager_investigations_fingerprint_time"
     t.index ["host", "created_at"], name: "idx_alertmanager_investigations_host_time"
     t.index ["job_id"], name: "index_alertmanager_investigations_on_job_id"

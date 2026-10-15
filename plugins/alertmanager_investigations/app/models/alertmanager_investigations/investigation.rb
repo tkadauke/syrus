@@ -16,5 +16,9 @@ module AlertmanagerInvestigations
     scope :open_for_host, ->(host) {
       joins(:job).merge(Job.open_threads).where(host: host)
     }
+
+    scope :open_for_repository, ->(repository) {
+      joins(:job).merge(Job.open_threads).where(repository: repository)
+    }
   end
 end
