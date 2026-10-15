@@ -189,12 +189,21 @@ class Job < ApplicationRecord
   scope :without_requested_changes_attention, -> {
     where(needs_attention_reason: nil).or(where.not(needs_attention_reason: REQUESTED_CHANGES_ATTENTION_REASON))
   }
+  scope :without_landing_holds, -> { not_manually_paused.without_requested_changes_attention }
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
   scope :direct_kind, -> { where(kind: "direct") }
   scope :external_pr_kind, -> { where(kind: "external_pr") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
+
+  def landing_held?
+    manual_paused? || needs_attention_reason == REQUESTED_CHANGES_ATTENTION_REASON
+  end
+
+  def eligible_for_landing_dispatch?
+    approved? && may_start_landing? && !landing_held?
+  end
 
   # Unified free-text search, mirroring PluginRecord.search's FULLTEXT-in-
   # production / LIKE-in-dev-test pattern: MySQL gets a real FULLTEXT
