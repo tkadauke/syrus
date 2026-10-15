@@ -991,6 +991,27 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(ready.reload).to be_approved
   end
 
+  it "continues to non-overridable gates after matching an earlier override" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    user.update!(landing_paused: true)
+    job.update!(
+      pr_checks_sha: "abc123",
+      pr_checks_state: "failing",
+      pr_checks_checked_at: Time.current,
+      landing_blocker_override_key: "landing_paused",
+      landing_blocker_override_reason: "operator verified pause metadata is stale",
+      landing_blocker_override_requested_at: Time.current,
+      landing_blocker_override_requested_by_user_id: user.id
+    )
+
+    entry = described_class.entries(Job.where(id: job.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
+    expect(described_class.call).to be_nil
+    expect(job.reload).to be_approved
+    expect(job.landing_blocker_override_used_at).to be_nil
+  end
+
   it "does not bypass non-overridable PR check blockers" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.update!(
