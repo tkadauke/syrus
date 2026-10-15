@@ -1465,7 +1465,9 @@ Credential Store records. When such a credential belongs to a registered
 cluster, the cluster's agentic-access opt-in applies to every command and its
 write opt-in additionally applies to mutations. Workflow and chat agents
 cannot grant themselves the tool's risky-command or Secret-output overrides;
-those overrides require an operator-controlled caller.
+those overrides require an operator-controlled caller. Only audited built-in
+kubectl commands are accepted, so external kubectl plugins cannot bypass
+those classifications.
 
 ## GitHub App And PAT Behavior
 
