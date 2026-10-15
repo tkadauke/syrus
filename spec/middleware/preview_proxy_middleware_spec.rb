@@ -160,6 +160,25 @@ RSpec.describe PreviewProxyMiddleware do
       expect(headers["content-type"]).to eq("text/html")
     end
 
+    it "preserves multiple Set-Cookie headers from the upstream response" do
+      stub_request(:get, "http://127.0.0.1:25000/")
+        .to_return(status: 200, body: "", headers: {
+          "Set-Cookie" => [
+            "session=abc123; Path=/; HttpOnly",
+            "csrf=def456; Path=/; SameSite=Lax"
+          ]
+        })
+
+      _, headers, _ = middleware.call(preview_env_for(preview_env))
+
+      expect(headers["set-cookie"]).to include(
+        "session=abc123; Path=/; HttpOnly",
+        "csrf=def456; Path=/; SameSite=Lax"
+      )
+      access_cookies = headers["set-cookie"].grep(/\A#{described_class::PREVIEW_ACCESS_COOKIE}=/)
+      expect(access_cookies.size).to eq(1)
+    end
+
     it "uses preview-safe browser policy headers instead of restrictive upstream headers" do
       stub_request(:get, "http://127.0.0.1:25000/")
         .to_return(status: 200, body: "preview", headers: {
