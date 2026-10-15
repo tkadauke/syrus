@@ -343,6 +343,9 @@ syrus job test-plan 456
 syrus job open 456
 ```
 
+`syrus job log` follows the current Run across workflow step boundaries and
+exits when the Job closes. Use `--json` for a single transcript snapshot.
+
 Job listing defaults to `--state open`, which is an alias for active
 work. Use a concrete state such as `queued`, `running`, `implemented`,
 `failed`, `approved`, `landing`, or `closed`, or use `--state all` to

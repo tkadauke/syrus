@@ -248,7 +248,7 @@ module Api
             job_id: job.id,
             run_id: run.id,
             state: run.state,
-            complete: run.finished_at.present?,
+            complete: job.closed?,
             lines: run.job_logs.order(:sequence).pluck(:chunk).map(&:to_s)
           }
         end
