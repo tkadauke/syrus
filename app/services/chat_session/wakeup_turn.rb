@@ -9,6 +9,8 @@ class ChatSession::WakeupTurn
 
     ApplicationRecord.transaction do
       locked_chat = ChatSession.lock.find(@chat_session.id)
+      return if locked_chat.deleted?
+
       content = {
         "text" => @wakeup.prompt,
         "requested_by" => "wakeup",

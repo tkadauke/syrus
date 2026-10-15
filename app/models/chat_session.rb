@@ -195,7 +195,10 @@ class ChatSession < ApplicationRecord
   end
 
   def soft_delete_by!(actor)
-    update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+    transaction do
+      update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+      wakeups.pending.update_all(state: "cancelled", updated_at: Time.current)
+    end
   end
 
   def ensure_agent_record!

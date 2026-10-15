@@ -32,13 +32,16 @@ class ChatTurnJob < ApplicationJob
   SIDECAR_ENV_FORWARD = AgentProviders::Base::SIDECAR_ENV_FORWARD
 
   def perform(chat_session_id, user_message_id)
-    @chat = ChatSession.includes(
+    chat = ChatSession.includes(
       :user,
       :attached_repositories,
       :attached_jobs,
       :attached_repository_documents,
       attached_epics: [ :repository, { jobs: :repository } ]
     ).find(chat_session_id)
+    return if chat.deleted?
+
+    @chat = chat
     @user_message = @chat.messages.find(user_message_id)
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
