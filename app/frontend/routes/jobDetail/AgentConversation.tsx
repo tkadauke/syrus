@@ -10,7 +10,7 @@ import { Select } from "../../components/Select"
 import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
-import { PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
+import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
   avatarColorClass,
   buildConversationRows,
@@ -198,10 +198,12 @@ function AgentSessionCard({ node, onOpenTranscript, transcriptOpen }: { node: Ag
 // clicked, dismissed via the X button or the backdrop click.
 function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: AgentConversationNode | null; onClose: () => void }) {
   const { t } = useT("jobs")
+  const [page, setPage] = useState(1)
   const artifactsPath = node?.run_id != null ? `/api/v1/app/jobs/${jobId}/runs/${node.run_id}/artifacts` : null
+  useEffect(() => setPage(1), [node?.run_id])
   const transcript = useQuery({
-    queryKey: ["job_run_artifacts", String(jobId), String(node?.run_id)],
-    queryFn: () => fetchJobRunArtifacts(artifactsPath as string),
+    queryKey: ["job_run_artifacts", String(jobId), String(node?.run_id), "transcript", page],
+    queryFn: () => fetchJobRunArtifacts(artifactsPath as string, "transcript", page),
     enabled: node != null && artifactsPath != null
   })
 
@@ -226,12 +228,13 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
           {transcript.isPending ? <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("run_loading")}</p> : null}
           {transcript.isError ? <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p> : null}
           {transcript.data ? (
-            transcript.data.logs.length > 0 ? (
+            transcript.data.logs && transcript.data.logs.length > 0 ? (
               <RunTranscriptLogs fillHeight logs={transcript.data.logs} />
             ) : (
               <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
             )
           ) : null}
+          {transcript.data ? <TranscriptPagination hasOlder={transcript.data.logs_has_older || false} onPageChange={setPage} page={transcript.data.logs_page || 1} totalPages={transcript.data.logs_total_pages || 1} /> : null}
         </div>
       </aside>
     </>

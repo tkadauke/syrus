@@ -47,6 +47,7 @@ class GithubClient
           refresh_attempted: true,
           refresh_succeeded: false
         )
+        raise if actor.blank? || actor.github_token.blank?
       end
     end
 
@@ -242,11 +243,6 @@ class GithubClient
     raise
   end
 
-  # Deletes a branch ref. 422 (protected branch) and 404 (branch never
-  # existed or already gone) are suppressed and logged as warnings —
-  # GitHub may have auto-deleted the branch after merge. Octokit's
-  # delete_branch uses boolean_from_response, which catches 404
-  # internally and returns false; 422 raises Octokit::UnprocessableEntity.
   # Force-updates a branch ref to `sha`, but only while the branch still points
   # at `expected_sha`. This is the GitHub-API equivalent of
   # `git push --force-with-lease=<branch>:<expected_sha>`, and exists so a
@@ -273,17 +269,26 @@ class GithubClient
   end
 
   def delete_branch(repo_slug, branch_name)
+    # A missing ref is treated as successfully deleted so callers can finish
+    # cleanup when GitHub auto-deleted the branch after merge. Octokit's
+    # delete_branch catches 404 internally and returns false; a missing ref can
+    # also surface as 422.
     attempts = 0
 
     begin
       deleted = @client.delete_branch(repo_slug, branch_name)
       unless deleted
-        Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (branch not found or already deleted)")
-        return false
+        Rails.logger.info("[GithubClient] #{@user&.email_address} found #{repo_slug}@#{branch_name} already deleted")
+        return true
       end
 
       true
     rescue Octokit::UnprocessableEntity => e
+      if e.message.match?(/reference does not exist/i)
+        Rails.logger.info("[GithubClient] #{@user&.email_address} found #{repo_slug}@#{branch_name} already deleted")
+        return true
+      end
+
       Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} (suppressed): #{e.message}")
       false
     rescue Octokit::TooManyRequests => e
@@ -895,8 +900,7 @@ class GithubClient
   # newest-first. GitHub's compare API lists at most 250 commits; `truncated`
   # says the list is incomplete (compared against `total_commits`, which
   # GitHub still reports in full even when `commits` is capped). Returns
-  # empty commits + nil merge_base_sha if the head branch doesn't exist yet
-  # (Octokit::NotFound).
+  # Octokit::NotFound when either revision does not exist.
   def compare_commits(repo_slug, base, head)
     result = track_rate_limits { @client.compare(repo_slug, base, head) }
     commits = Array(result.commits).map { |c|
@@ -909,8 +913,6 @@ class GithubClient
     }.reverse
     truncated = result.respond_to?(:total_commits) && result.total_commits.to_i > commits.size
     { commits: commits, merge_base_sha: result.merge_base_commit.sha, status: result.status.to_s.presence, truncated: truncated }
-  rescue Octokit::NotFound
-    { commits: [], merge_base_sha: nil, status: nil, truncated: false }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
     raise
@@ -1207,10 +1209,19 @@ class GithubClient
     record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
     mark_successful_pat_fallback!
     result
-  rescue Octokit::Unauthorized, Octokit::NotFound => e
+  rescue Octokit::Unauthorized
     raise unless installation_auth?
 
-    result = retry_with_refreshed_installation_or_fallback!(e) { yield }
+    result = retry_with_refreshed_installation_or_fallback!(repo_slug: repo_slug) { yield }
+    response = response_client.call.last_response
+    persist_rate_limit_headers!(response&.headers)
+    record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
+    mark_successful_pat_fallback!
+    result
+  rescue Octokit::NotFound => e
+    raise unless installation_auth?
+
+    result = recover_from_installation_not_found!(e, repo_slug: repo_slug) { yield }
     response = response_client.call.last_response
     persist_rate_limit_headers!(response&.headers)
     record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
@@ -1232,7 +1243,7 @@ class GithubClient
   def inferred_operation
     caller_locations(2, 12)
       .map(&:base_label)
-      .reject { |label| label.in?(%w[track_rate_limits retry_with_refreshed_installation_or_fallback!]) }
+      .reject { |label| label.in?(%w[track_rate_limits recover_from_installation_not_found! retry_with_refreshed_installation_or_fallback!]) }
       .first
       .presence || "unknown"
   end
@@ -1263,40 +1274,91 @@ class GithubClient
     error.response_headers&.[]("status")&.to_i
   end
 
-  def retry_with_refreshed_installation_or_fallback!(original_error)
+  def recover_from_installation_not_found!(error, repo_slug:, refresh_attempted: false)
+    raise error if repo_slug.blank? || installation_can_access_repository?(repo_slug)
+
+    with_pat_fallback_after_installation_failure!(
+      @installation,
+      error,
+      original_access_token: @access_token,
+      refresh_attempted: refresh_attempted,
+      refresh_succeeded: refresh_attempted
+    ) { yield }
+  end
+
+  # GitHub deliberately returns 404 both for an absent resource and for a
+  # repository outside an installation's selection. Probe repository metadata
+  # once to tell those cases apart without retrying the failed resource call.
+  def installation_can_access_repository?(repo_slug)
+    @client.repository(repo_slug)
+    true
+  rescue Octokit::NotFound
+    false
+  end
+
+  def retry_with_refreshed_installation_or_fallback!(repo_slug:)
     original_installation = @installation
+    original_access_token = @access_token
 
     begin
       original_installation.invalidate_cached_token!
       refresh_installation_client!(original_installation)
-      yield
-    rescue Octokit::Unauthorized, Octokit::NotFound => retry_error
-      fallback_to_pat_after_installation_failure!(
-        original_installation,
-        retry_error,
-        refresh_attempted: true,
-        refresh_succeeded: true
-      )
-      yield
     rescue Octokit::Error, ArgumentError => refresh_error
-      fallback_to_pat_after_installation_failure!(
+      return with_pat_fallback_after_installation_failure!(
         original_installation,
         refresh_error,
+        original_access_token: original_access_token,
         refresh_attempted: true,
         refresh_succeeded: false
-      )
-      yield
+      ) { yield }
     end
-  rescue Octokit::Unauthorized, Octokit::NotFound => fallback_error
-    GithubAuthFallbackRecorder.record!(
-      repository: @repository,
-      installation: original_installation,
-      operation_type: "api",
-      error: fallback_error,
+
+    yield
+  rescue Octokit::NotFound => retry_error
+    recover_from_installation_not_found!(retry_error, repo_slug: repo_slug, refresh_attempted: true) { yield }
+  rescue Octokit::Unauthorized => retry_error
+    with_pat_fallback_after_installation_failure!(
+      original_installation,
+      retry_error,
+      original_access_token: original_access_token,
       refresh_attempted: true,
       refresh_succeeded: true
+    ) { yield }
+  end
+
+  def with_pat_fallback_after_installation_failure!(installation, error, original_access_token:, refresh_attempted:, refresh_succeeded:)
+    fallback_to_pat_after_installation_failure!(
+      installation,
+      error,
+      refresh_attempted: refresh_attempted,
+      refresh_succeeded: refresh_succeeded
+    )
+    yield
+  rescue Octokit::Unauthorized, Octokit::NotFound => fallback_error
+    # A missing fallback credential re-raises the original installation
+    # error before changing clients; it was already recorded above.
+    raise if installation_auth?
+
+    restore_installation_client!(installation, original_access_token)
+    GithubAuthFallbackRecorder.record!(
+      repository: @repository,
+      installation: installation,
+      operation_type: "api",
+      error: fallback_error,
+      refresh_attempted: refresh_attempted,
+      refresh_succeeded: refresh_succeeded
     )
     raise
+  end
+
+  def restore_installation_client!(installation, access_token)
+    @installation = installation
+    @auth_source = :installation
+    @access_token = access_token
+    @pat_fallback_from_installation = nil
+    @client = build_octokit_client
+    @uncached_client = nil
+    @actions_job_logs_connection = nil
   end
 
   def refresh_installation_client!(installation)
@@ -1318,7 +1380,7 @@ class GithubClient
       refresh_succeeded: refresh_succeeded
     )
     fallback_user = @user || @repository&.user
-    raise ArgumentError, "GitHub App installation was removed and no fallback github_token is available" if fallback_user.blank? || fallback_user.github_token.blank?
+    raise error if fallback_user.blank? || fallback_user.github_token.blank?
 
     @auth_source = :pat
     @installation = nil

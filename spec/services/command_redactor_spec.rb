@@ -31,12 +31,55 @@ RSpec.describe CommandRedactor do
     end
 
     it "redacts generic secret-shaped command assignments" do
-      text = "bin/deploy password=super-secret-token api_key=abc123 refresh_token=xyz789 --safe=true"
+      text = "bin/deploy authorization=bearer-value password=super-secret-token " \
+        "api_key=abc123 apikey=def456 refresh_token=xyz789 --safe=true"
 
       redacted = described_class.redact(text)
 
-      expect(redacted).to eq("bin/deploy password=[REDACTED] api_key=[REDACTED] refresh_token=[REDACTED] --safe=true")
-      expect(redacted).not_to include("super-secret-token", "abc123", "xyz789")
+      expect(redacted).to eq(
+        "bin/deploy authorization=[REDACTED] password=[REDACTED] " \
+          "api_key=[REDACTED] apikey=[REDACTED] refresh_token=[REDACTED] --safe=true"
+      )
+      expect(redacted).not_to include("bearer-value", "super-secret-token", "abc123", "def456", "xyz789")
+    end
+
+    it "redacts assignments with sensitive segments anywhere in compound keys" do
+      text = "SECRET_KEY_BASE=a RAILS_MASTER_KEY=b AWS_SECRET_ACCESS_KEY=c PRIVATE_KEY=d " \
+        "DATABASE_PASSWORD=e GITHUB_TOKEN=f OPENAI_API_KEY=g _PRIVATE_KEY=h"
+
+      expect(described_class.redact(text)).to eq(
+        "SECRET_KEY_BASE=[REDACTED] RAILS_MASTER_KEY=[REDACTED] AWS_SECRET_ACCESS_KEY=[REDACTED] " \
+          "PRIVATE_KEY=[REDACTED] DATABASE_PASSWORD=[REDACTED] GITHUB_TOKEN=[REDACTED] " \
+          "OPENAI_API_KEY=[REDACTED] _PRIVATE_KEY=[REDACTED]"
+      )
+    end
+
+    it "redacts option-style secret assignments while preserving their prefixes" do
+      text = 'bin/deploy --token=one --api-key="two" -password=three --safe=true'
+
+      expect(described_class.redact(text)).to eq(
+        'bin/deploy --token=[REDACTED] --api-key="[REDACTED]" -password=[REDACTED] --safe=true'
+      )
+    end
+
+    it "redacts complete quoted values containing spaces and ampersands" do
+      text = %(SECRET_KEY_BASE="super secret & value" AWS_SECRET_ACCESS_KEY='other secret & value' bin/rails)
+
+      expect(described_class.redact(text)).to eq(
+        %(SECRET_KEY_BASE="[REDACTED]" AWS_SECRET_ACCESS_KEY='[REDACTED]' bin/rails)
+      )
+    end
+
+    it "leaves already-redacted assignments intact inside serialized data" do
+      text = '{"command":"bin/deploy --api-key=[REDACTED]"}'
+
+      expect(described_class.redact_assignments(text)).to eq(text)
+    end
+
+    it "does not redact assignment keys that only contain sensitive-looking substrings" do
+      text = "SECRETARY_NAME=visible TOKENIZER_MODE=visible MONKEY_PATCH=visible"
+
+      expect(described_class.redact(text)).to eq(text)
     end
 
     it "redacts multiple occurrences in the same string" do

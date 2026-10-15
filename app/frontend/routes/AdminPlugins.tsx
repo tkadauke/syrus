@@ -22,6 +22,7 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { DataTable, Page } from "../components/ui"
 
 export function AdminPlugins() {
@@ -68,7 +69,9 @@ export function AdminPlugins() {
 
 export function AdminPluginDetail() {
   const { t } = useT("admin")
+  const location = useLocation()
   const { name = "" } = useParams()
+  const prefix = routePrefix(location.pathname)
   usePageTitle(t("page_title_plugin_detail"))
 
   const plugin = useQuery({
@@ -80,7 +83,7 @@ export function AdminPluginDetail() {
   return (
     <Page.Root aria-label={t("plugins.detail_aria")} gutter="responsive">
       <Page.Header>
-        <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">
+        <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/admin/plugins", prefix)}>
           {t("plugins.back_to_plugins")}
         </Link>
       </Page.Header>

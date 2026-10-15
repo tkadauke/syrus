@@ -69,12 +69,15 @@ RSpec.describe PlatformPollingJob do
       expect { concrete_class.new.perform }.not_to have_enqueued_job(concrete_class)
     end
 
-    it "logs errors from poll_once but still re-enqueues" do
+    it "logs errors from poll_once and re-enqueues after a delay" do
       allow_any_instance_of(concrete_class).to receive(:duplicate_running?).and_return(false)
       allow_any_instance_of(concrete_class).to receive(:poll_once).and_raise(RuntimeError, "oops")
 
       expect(Rails.logger).to receive(:error).with(include("oops"))
-      expect { concrete_class.new.perform }.to have_enqueued_job(concrete_class)
+      expect { concrete_class.new.perform }
+        .to have_enqueued_job(concrete_class).at(
+          a_value_within(1.second).of(PlatformPollingJob::ERROR_RETRY_DELAY.from_now)
+        )
     end
 
     it "re-enqueues with a subclass-provided delay" do

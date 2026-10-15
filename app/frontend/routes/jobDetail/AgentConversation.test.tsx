@@ -69,18 +69,21 @@ describe("AgentConversationTab", () => {
           ]
         })))
       }
-      if (path === "/api/v1/app/jobs/1/runs/501/artifacts") {
+      if (path.startsWith("/api/v1/app/jobs/1/runs/501/artifacts?artifact=transcript")) {
+        const page = new URL(path, "http://example.test").searchParams.get("page")
         return Promise.resolve(jsonResponse({
           job_id: 1,
           workflow_id: 9,
           run_id: 501,
           base_ref: null,
           head_ref: null,
-          agent_diff: null,
-          agent_diff_bytes: 0,
-          step_agent_diff: null,
-          logs_count: 1,
-          logs: [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Wrote the greeting helper.", created_at: null }]
+          artifact: "transcript",
+          logs_count: 101,
+          logs_page: Number(page),
+          logs_per_page: 100,
+          logs_total_pages: 2,
+          logs_has_older: page === "1",
+          logs: page === "1" ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Wrote the greeting helper.", created_at: null }] : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Started the implementation.", created_at: null }]
         }))
       }
       return Promise.reject(new Error(`unexpected fetch ${path}`))
@@ -99,6 +102,10 @@ describe("AgentConversationTab", () => {
     expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-h-0", "flex-1", "max-h-none")
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveClass("max-h-[32rem]")
     expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
+    expect(screen.getByText("Older transcript rows are not shown.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Older" }))
+    expect(await screen.findByText("Started the implementation.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Newer" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Close transcript" }))
     expect(sidebar).not.toBeInTheDocument()

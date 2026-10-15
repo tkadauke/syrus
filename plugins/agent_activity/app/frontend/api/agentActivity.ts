@@ -55,10 +55,12 @@ export type AgentActivityRunArtifacts = {
   run_id: number
   base_ref: string | null
   head_ref: string | null
-  agent_diff: string | null
-  agent_diff_bytes: number
-  step_agent_diff?: string | null
+  artifact: "transcript"
   logs_count: number
+  logs_page: number
+  logs_per_page: number
+  logs_total_pages: number
+  logs_has_older: boolean
   logs: Array<{ id: number; sequence: number; kind: string | null; chunk: string; created_at: string | null }>
 }
 
@@ -72,8 +74,9 @@ export function fetchAgentActivitySessions(scope: "mine" | "admin", search = "")
   return getJson<AgentActivitySessionsPayload>(`${path}${query ? `?${query}` : ""}`)
 }
 
-export function fetchAgentActivityTranscript(transcriptPath: string) {
-  return getJson<AgentActivityRunArtifacts>(transcriptPath)
+export function fetchAgentActivityTranscript(transcriptPath: string, page = 1) {
+  const separator = transcriptPath.includes("?") ? "&" : "?"
+  return getJson<AgentActivityRunArtifacts>(`${transcriptPath}${separator}artifact=transcript&page=${page}`)
 }
 
 export function recordAgentActivityFilterUsage(scope: "mine" | "admin", filter: Record<string, unknown>) {

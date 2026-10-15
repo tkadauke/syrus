@@ -196,13 +196,18 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          run = job.runs.includes(:step).find_by(id: params[:run_id])
+          run = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:step).find_by(id: params[:run_id])
           unless run
             render_error("not_found", "Run not found.", status: :not_found)
             return
           end
 
-          render json: ::App::RunArtifactsPayload.build(run: run)
+          render json: ::App::RunArtifactsPayload.build(
+            run: run,
+            artifact: params[:artifact],
+            page: params[:page],
+            per: params[:per]
+          )
         end
 
         def grade_log

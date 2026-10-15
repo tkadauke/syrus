@@ -1,6 +1,8 @@
 class PlatformPollingJob < ApplicationJob
   queue_as :polling
 
+  ERROR_RETRY_DELAY = 30.seconds
+
   @registry = []
 
   class << self
@@ -78,13 +80,15 @@ class PlatformPollingJob < ApplicationJob
   end
 
   def perform
+    poll_failed = false
     return unless configured?
     return if duplicate_running?
     poll_once
   rescue => e
+    poll_failed = true
     Rails.logger.error("#{self.class}: #{e}")
   ensure
-    reenqueue_polling_job if configured? && continue_polling?
+    reenqueue_polling_job(poll_failed:) if configured? && continue_polling?
   end
 
   private
@@ -94,8 +98,8 @@ class PlatformPollingJob < ApplicationJob
   def continue_polling? = true
   def polling_restart_delay = nil
 
-  def reenqueue_polling_job
-    delay = polling_restart_delay
+  def reenqueue_polling_job(poll_failed: false)
+    delay = poll_failed ? ERROR_RETRY_DELAY : polling_restart_delay
     if delay.present? && delay.to_f.positive?
       self.class.set(wait: delay).perform_later
     else

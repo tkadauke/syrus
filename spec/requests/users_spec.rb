@@ -155,6 +155,16 @@ RSpec.describe "User signup", type: :request do
       }.to change(User, :count).by(1)
       expect(invitation.reload).to be_accepted
     end
+
+    it "does not accept the invitation when user validation fails" do
+      expect {
+        post users_path, params: {
+          user: valid_attrs.merge(password_confirmation: "different", invitation_token: invitation.token)
+        }
+      }.not_to change(User, :count)
+
+      expect(invitation.reload).not_to be_accepted
+    end
   end
 
   describe "via expired or accepted invitation" do

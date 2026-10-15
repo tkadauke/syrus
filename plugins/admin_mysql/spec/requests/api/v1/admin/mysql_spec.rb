@@ -22,4 +22,14 @@ RSpec.describe "API: /api/v1/admin/mysql", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("mysql_unavailable")
   end
+
+  it "rejects non-decimal thread ids before executing a kill" do
+    PluginRecord.find_by!(name: "admin_mysql").update!(enabled: true)
+    allow(AdminMysql::Inspector).to receive(:mysql?).and_return(true)
+
+    post "/api/v1/admin/mysql/kill_query", params: { thread_id: "0x10" }, headers: auth(admin_token)
+
+    expect(response).to have_http_status(:bad_request)
+    expect(parse_body.dig("error", "message")).to include("positive decimal integer")
+  end
 end

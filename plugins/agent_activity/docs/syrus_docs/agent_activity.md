@@ -92,9 +92,11 @@ their own `transcript_path`:
   repositories the admin has no membership on and so cannot reuse the
   ownership-scoped Jobs route. Both routes render their JSON through the
   shared `App::RunArtifactsPayload.build(run:)` (`app/services/app/`), so
-  the payload shape (`job_id`, `workflow_id`, `run_id`, `base_ref`/
-  `head_ref`, `agent_diff`, `logs`) can't drift between the two routes --
-  only the authorization/lookup path differs.
+  the artifact-specific payload shape can't drift between the two routes --
+  only the authorization/lookup path differs. Transcript requests pass
+  `artifact=transcript` and receive the newest bounded page of log chunks,
+  `logs_count`, and page metadata without loading either Run diff blob. The
+  drawer exposes Older/Newer controls while additional transcript pages exist.
 
 Chat-backed session cards do not open an inline transcript drawer. They carry
 `chat_path: "/chats/:chat_session_id"` and deep-link to the live chat UI

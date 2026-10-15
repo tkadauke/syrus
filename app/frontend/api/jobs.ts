@@ -1444,11 +1444,17 @@ export type JobRunArtifactsPayload = {
   diff_review_version_id: number | null
   base_ref: string | null
   head_ref: string | null
-  agent_diff: string | null
-  agent_diff_bytes: number
-  step_agent_diff: string | null
-  logs_count: number
-  logs: Array<{
+  artifact: "transcript" | "agent_diff" | "step_agent_diff"
+  agent_diff?: string | null
+  agent_diff_bytes?: number
+  step_agent_diff?: string | null
+  step_agent_diff_bytes?: number
+  logs_count?: number
+  logs_page?: number
+  logs_per_page?: number
+  logs_total_pages?: number
+  logs_has_older?: boolean
+  logs?: Array<{
     id: number
     sequence: number
     kind: string | null
@@ -1610,8 +1616,9 @@ export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
 
-export function fetchJobRunArtifacts(path: string) {
-  return getJson<JobRunArtifactsPayload>(path)
+export function fetchJobRunArtifacts(path: string, artifact: JobRunArtifactsPayload["artifact"] = "transcript", page = 1) {
+  const separator = path.includes("?") ? "&" : "?"
+  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}`)
 }
 
 // ── Typed artifacts ───────────────────────────────────────────────────────────

@@ -19,6 +19,10 @@ import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["admin", "retention_settings"] as const
 
+function hasNumericValue(value: string): boolean {
+  return value.trim() !== ""
+}
+
 // Local TB/GB-capable variant, matching AdminOverview's own duplicate --
 // the shared lib/format.ts formatBytes caps out at MB, which reads oddly
 // for whole-instance available-space comparisons.
@@ -130,7 +134,7 @@ function AvailableSpaceCard({ payload, onNotice }: { payload: RetentionSettingsP
             value={overrideGb}
           />
           <Button
-            disabled={save.isPending}
+            disabled={save.isPending || !hasNumericValue(overrideGb)}
             onClick={() => { onNotice(null); save.mutate() }}
             type="button"
           >
@@ -230,7 +234,7 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
               onChange={(event) => setArchiveBeforeDelete(event.target.checked)}
             />
           ) : null}
-          <Button disabled={save.isPending} size="sm" type="submit">
+          <Button disabled={save.isPending || (!infinite && !hasNumericValue(value))} size="sm" type="submit">
             {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
           </Button>
           {validationError ? <p className="text-xs text-danger" role="alert">{validationError}</p> : null}

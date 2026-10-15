@@ -117,7 +117,7 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   return kind ? labels[kind] || kind : null
 }
 
-export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]; fillHeight?: boolean }) {
+export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>; fillHeight?: boolean }) {
   const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
@@ -142,6 +142,23 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
         <TranscriptMessageRow chunk={log.chunk} kind={log.kind} key={log.id} label={transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`} sequence={log.sequence} />
       ))}
     </ol>
+  )
+}
+
+export function TranscriptPagination({ hasOlder, onPageChange, page, totalPages }: { hasOlder: boolean; onPageChange: (page: number) => void; page: number; totalPages: number }) {
+  const { t } = useT("jobs")
+  if (totalPages <= 1) return null
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs">
+      <span className="text-text-muted">
+        {hasOlder ? t("transcript_older_rows_hidden") : t("transcript_page", { page, total: totalPages })}
+      </span>
+      <div className="flex gap-2">
+        {page > 1 ? <Button onClick={() => onPageChange(page - 1)} variant="secondary">{t("transcript_newer")}</Button> : null}
+        {hasOlder ? <Button onClick={() => onPageChange(page + 1)} variant="secondary">{t("transcript_older")}</Button> : null}
+      </div>
+    </div>
   )
 }
 

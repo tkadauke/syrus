@@ -98,6 +98,30 @@ RSpec.describe OperationalLogging do
     expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventsJob)
   end
 
+  it "redacts compound secret assignments in messages and context" do
+    event = described_class.ingest(
+      level: "warn",
+      source: "spec",
+      message: "SECRET_KEY_BASE=message-secret bin/rails server",
+      context: { command: "AWS_SECRET_ACCESS_KEY=context-secret bin/deploy" }
+    )
+
+    expect(event["message"]).to eq("SECRET_KEY_BASE=[REDACTED] bin/rails server")
+    expect(event.dig("context", "command")).to eq("AWS_SECRET_ACCESS_KEY=[REDACTED] bin/deploy")
+  end
+
+  it "redacts option-style secret assignments in messages and context" do
+    event = described_class.ingest(
+      level: "warn",
+      source: "spec",
+      message: "bin/deploy --token=message-secret",
+      context: { command: "bin/deploy --api-key=context-secret" }
+    )
+
+    expect(event["message"]).to eq("bin/deploy --token=[REDACTED]")
+    expect(event.dig("context", "command")).to eq("bin/deploy --api-key=[REDACTED]")
+  end
+
   it "deduplicates identical durable operational events before indexing" do
     prepare_search_tables
     occurred_at = Time.zone.parse("2026-09-01T09:30:24.245458Z")

@@ -17,7 +17,7 @@ import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
-import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
+import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
@@ -1361,6 +1361,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
   )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
+  const [transcriptPage, setTranscriptPage] = useState(1)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
@@ -1370,15 +1371,20 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
     }
   })
   const artifacts = useQuery({
-    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id)],
-    queryFn: () => fetchJobRunArtifacts(run.app_artifacts_path),
+    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id), artifactView, transcriptPage],
+    queryFn: () => fetchJobRunArtifacts(
+      run.app_artifacts_path,
+      artifactView === "diff" ? "agent_diff" : artifactView === "step_diff" ? "step_agent_diff" : "transcript",
+      transcriptPage
+    ),
     enabled: isRunArtifactView,
-    refetchInterval: artifactView === "transcript" && isActiveState(run.state) ? 2000 : false
+    refetchInterval: artifactView === "transcript" && transcriptPage === 1 && isActiveState(run.state) ? 2000 : false
   })
   const artifactsLoading = isRunArtifactView && artifacts.isFetching && !artifacts.data
 
   function showArtifacts(view: "transcript" | "diff" | "step_diff") {
     setGradeLogOpen(false)
+    if (view === "transcript") setTranscriptPage(1)
     setArtifactView((current) => current === view ? null : view)
   }
 
@@ -1514,7 +1520,7 @@ function RunRow({ run, payload, command, prefix, active = false, agentic = true,
         </div>
       </div>
       {artifacts.isError ? <Text className="mt-3 text-xs" tone="danger">{errorMessage(artifacts.error, t("run_artifacts_error"))}</Text> : null}
-      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
+      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} onTranscriptPageChange={setTranscriptPage} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
       {artifactView === "summary" && stepSummaryArtifact ? (
         <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
       ) : null}
@@ -1579,7 +1585,7 @@ function TestFailureLabel({ failure }: { failure: RunTestFailureSummary["failure
 // surface -- comment threads and "Submit feedback" belong to the Review
 // Workspace and Source tabs (see DiffReviewFeedback.tsx), so this panel never
 // wires up useDiffReviewFeedback.
-function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
+function RunArtifactsPanel({ payload, view, onClose, onTranscriptPageChange }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void; onTranscriptPageChange: (page: number) => void }) {
   const { t } = useT("jobs")
   const diffViewerClass = "max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col"
 
@@ -1618,7 +1624,8 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_transcript")}</ArtifactPanelHeader>
-      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
+      {payload.logs && payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
+      <TranscriptPagination hasOlder={payload.logs_has_older || false} onPageChange={onTranscriptPageChange} page={payload.logs_page || 1} totalPages={payload.logs_total_pages || 1} />
     </section>
   )
 }

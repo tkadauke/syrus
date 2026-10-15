@@ -59,13 +59,17 @@ module Api
 
         def create_user
           invitation = invitation_from_user_params
-          return render_signup_forbidden unless signup_allowed?(invitation)
+          result = Signups::Creator.call(
+            attributes: user_params.except(:invitation_token),
+            invitation: invitation
+          )
+          user = result.user
 
-          user = User.new(user_params.except(:invitation_token))
-          if user.save
-            invitation&.accept!
+          if result.created?
             start_new_session_for(user)
             render json: { redirect_to: after_authentication_path, message: signup_notice(user) }, status: :created
+          elsif result.forbidden?
+            render_signup_forbidden
           else
             render_error("validation_failed", user.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -84,7 +88,8 @@ module Api
 
         def update_password
           user = User.find_by_password_reset_token!(params[:token])
-          if user.update(params.permit(:password, :password_confirmation))
+          password_params = params.permit(:password, :password_confirmation)
+          if password_params[:password].present? && user.update(password_params)
             user.sessions.destroy_all
             render json: { message: I18n.t("api.auth.password_reset_success"), redirect_to: new_session_path }
           else

@@ -37,10 +37,27 @@ module AdminMysql
       end
     end
 
-    def kill_query(thread_id)
+    def process(thread_id)
       require_mysql!
-      thread_id = Integer(thread_id)
-      raise ArgumentError, "thread_id must be positive" unless thread_id.positive?
+      thread_id = normalize_thread_id(thread_id)
+
+      row = PerformanceLogging.suppress do
+        select_all("SHOW FULL PROCESSLIST").find { |candidate| candidate["Id"].to_i == thread_id }
+      end
+      normalize_process(row) if row
+    end
+
+    def kill_query(thread_id, expected_statement: nil)
+      require_mysql!
+      thread_id = normalize_thread_id(thread_id)
+
+      if expected_statement
+        current = process(thread_id)
+        raise ArgumentError, "MySQL thread #{thread_id} no longer exists" unless current
+        unless current[:info] == expected_statement
+          raise ArgumentError, "MySQL thread #{thread_id} is now running a different statement"
+        end
+      end
 
       PerformanceLogging.suppress do
         connection.execute("KILL QUERY #{thread_id}")
@@ -66,6 +83,17 @@ module AdminMysql
     end
 
     private
+
+    def normalize_thread_id(value)
+      thread_id = if value.is_a?(Integer)
+        value
+      elsif value.is_a?(String) && value.match?(/\A[0-9]+\z/)
+        Integer(value, 10)
+      end
+      raise ArgumentError, "thread_id must be a positive decimal integer" unless thread_id&.positive?
+
+      thread_id
+    end
 
     def require_mysql!
       raise Unavailable, "Admin MySQL is only available when Syrus is using the mysql2 adapter" unless self.class.mysql?
@@ -185,18 +213,22 @@ module AdminMysql
 
       rows.sort_by { |row| [ row["Command"].to_s.casecmp?("Sleep") ? 1 : 0, -row["Time"].to_i, row["Id"].to_i ] }
         .first(limit)
-        .map do |row|
-          {
-            id: row["Id"].to_i,
-            user: row["User"],
-            host: row["Host"],
-            database: row["db"],
-            command: row["Command"],
-            time_seconds: row["Time"].to_i,
-            state: row["State"],
-            info: redact_sql(row["Info"])
-          }
-        end
+        .map { |row| normalize_process(row, redact_info: true) }
+    end
+
+    def normalize_process(row, redact_info: false)
+      info = redact_info ? redact_sql(row["Info"]) : row["Info"].to_s.presence
+
+      {
+        id: row["Id"].to_i,
+        user: row["User"],
+        host: row["Host"],
+        database: row["db"],
+        command: row["Command"],
+        time_seconds: row["Time"].to_i,
+        state: row["State"],
+        info: info
+      }
     end
 
     def statement_digests(limit:)

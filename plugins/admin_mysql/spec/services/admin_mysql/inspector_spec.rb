@@ -67,6 +67,32 @@ RSpec.describe AdminMysql::Inspector do
     expect(redacted).to eq("SELECT ?")
   end
 
+  it "parses string thread ids as decimal and rejects non-decimal forms" do
+    inspector = described_class.new
+    connection = double(execute: true)
+    allow(described_class).to receive(:mysql?).and_return(true)
+    allow(inspector).to receive(:connection).and_return(connection)
+
+    expect(inspector.kill_query("010")).to include(killed: true, thread_id: 10)
+    expect(connection).to have_received(:execute).with("KILL QUERY 10")
+    expect { inspector.kill_query("0x10") }.to raise_error(ArgumentError, /positive decimal integer/)
+  end
+
+  it "revalidates the captured statement before killing a query" do
+    inspector = described_class.new
+    connection = spy
+    allow(described_class).to receive(:mysql?).and_return(true)
+    allow(inspector).to receive(:connection).and_return(connection)
+    allow(inspector).to receive(:select_all).with("SHOW FULL PROCESSLIST").and_return([
+      { "Id" => 42, "User" => "syrus", "Host" => "worker", "db" => "syrus", "Command" => "Query", "Time" => 1, "State" => "executing", "Info" => "UPDATE jobs SET state = 'running'" }
+    ])
+
+    expect {
+      inspector.kill_query(42, expected_statement: "SELECT * FROM jobs")
+    }.to raise_error(ArgumentError, /different statement/)
+    expect(connection).not_to have_received(:execute)
+  end
+
   it "adds a per-statement timeout hint to expensive diagnostic SELECTs" do
     hinted = described_class.new.send(:mysql_timeout_hint, "SELECT * FROM mysql.slow_log", timeout_ms: 750)
 

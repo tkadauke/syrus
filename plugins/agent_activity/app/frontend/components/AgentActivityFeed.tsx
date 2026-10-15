@@ -14,7 +14,7 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { RunTranscriptLogs } from "@app/routes/jobDetail/components"
+import { RunTranscriptLogs, TranscriptPagination } from "@app/routes/jobDetail/components"
 import {
   fetchAgentActivitySessions,
   fetchAgentActivityTranscript,
@@ -254,10 +254,11 @@ function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
   if (!session.transcript_path) return null
 
   const { t } = useT("agent_activity")
+  const [page, setPage] = useState(1)
   const transcriptPath = session.transcript_path
   const transcript = useQuery({
-    queryKey: [ "agent_activity", "transcript", transcriptPath ],
-    queryFn: () => fetchAgentActivityTranscript(transcriptPath)
+    queryKey: [ "agent_activity", "transcript", transcriptPath, page ],
+    queryFn: () => fetchAgentActivityTranscript(transcriptPath, page)
   })
 
   return (
@@ -274,6 +275,7 @@ function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
           <p className="px-4 pb-3 text-sm text-gray-400 dark:text-gray-500">{t("no_transcript")}</p>
         )
       ) : null}
+      {transcript.data ? <TranscriptPagination hasOlder={transcript.data.logs_has_older} onPageChange={setPage} page={transcript.data.logs_page} totalPages={transcript.data.logs_total_pages} /> : null}
     </div>
   )
 }

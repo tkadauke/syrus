@@ -101,6 +101,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
+import { invalidateJobSurfaces } from "../lib/jobQueryInvalidation"
 import { DataTable, Notice, Page, Section, usePageGutterRestoreClassName } from "../components/ui"
 import {
   jobNavigationHref,
@@ -1152,7 +1153,7 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
     mutationFn: (priority: string) => updateJobPriority(priorityPath, priority),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey })
-      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
     },
     onError: () => setError(t("priority_update_error"))
@@ -1299,7 +1300,7 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
     mutationFn: () => updateJobProviderSetting(providerPath, draft),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey })
-      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
     },
     onError: () => setError(t("provider_setting_update_error"))
