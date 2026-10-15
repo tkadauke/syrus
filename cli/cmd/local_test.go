@@ -893,6 +893,62 @@ func TestLocalConnectAndServeCancelsInFlightRunCommand(t *testing.T) {
 	}
 }
 
+func TestLocalConnectAndServeCancelsToolCallWhenConnectionDrops(t *testing.T) {
+	root := t.TempDir()
+	startedPath := filepath.Join(root, "started")
+	completedPath := filepath.Join(root, "completed")
+
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+
+		input, _ := json.Marshal(runCommandParams{Command: "touch started; sleep 1; touch completed"})
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message": map[string]any{
+				"type":        "tool_call",
+				"tool_use_id": "call-dropped-1",
+				"tool":        "run_command",
+				"input":       json.RawMessage(input),
+			},
+		})
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			if _, err := os.Stat(startedPath); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	startedAt := time.Now()
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc")
+	elapsed := time.Since(startedAt)
+
+	if err == nil {
+		t.Fatal("expected error when connection drops")
+	}
+	if elapsed > 3*time.Second {
+		t.Fatalf("connection drop did not cancel the in-flight command promptly: %v", elapsed)
+	}
+	if _, err := os.Stat(startedPath); err != nil {
+		t.Fatalf("command did not start before the connection dropped: %v", err)
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if _, err := os.Stat(completedPath); !os.IsNotExist(err) {
+		t.Fatalf("command survived the dropped connection: stat error = %v", err)
+	}
+}
+
 func TestLocalConnectAndServeReturnsErrorOnRejectSubscription(t *testing.T) {
 	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
 		conn.WriteJSON(map[string]string{"type": "welcome"})
