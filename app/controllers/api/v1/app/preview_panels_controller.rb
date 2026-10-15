@@ -44,7 +44,7 @@ module Api
 
           content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
           if ActiveModel::Type::Boolean.new.cast(params[:raw])
-            return send_data attachment.download, type: content_type, disposition: "inline", filename: File.basename(path)
+            return send_secure_file attachment.download, type: content_type, filename: File.basename(path)
           end
 
           if text_content_type?(content_type, path)

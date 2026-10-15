@@ -54,6 +54,9 @@ RSpec.describe "API: /api/v1/app/preview_panels", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to eq("<h1>hi</h1>")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
   end
 
   it "issues an access token for a private panel" do

@@ -57,7 +57,7 @@ RSpec.describe "App API job attachments", type: :request do
     expect(body["attachments"].first).not_to have_key("delete_path")
   end
 
-  it "serves uploaded attachment files through an authenticated app endpoint" do
+  it "downloads non-previewable attachment files with restrictive browser headers" do
     attachment = job.job_attachments.build(attachment_type: "uploaded_file")
     attachment.file.attach(
       io: StringIO.new("hello from storage"),
@@ -70,9 +70,45 @@ RSpec.describe "App API job attachments", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/plain")
-    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
     expect(response.headers["Content-Disposition"]).to include("notes.txt")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body).to eq("hello from storage")
+  end
+
+  {
+    "page.html" => "text/html",
+    "code.js" => "text/javascript",
+    "vector.svg" => "image/svg+xml"
+  }.each do |filename, content_type|
+    it "never serves #{content_type} attachments inline" do
+      attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+      attachment.file.attach(io: StringIO.new("unsafe"), filename: filename, content_type: content_type)
+      attachment.save!
+
+      get app_attachment_file_path(job, attachment), headers: { "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Content-Disposition"]).to include("attachment")
+      expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+      expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    end
+  end
+
+  %w[application/pdf image/gif image/jpeg image/png image/webp].each do |content_type|
+    it "allows #{content_type} attachments inline inside a sandbox" do
+      extension = Rack::Mime::MIME_TYPES.key(content_type)&.delete_prefix(".") || "bin"
+      attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+      attachment.file.attach(io: StringIO.new("preview"), filename: "preview.#{extension}", content_type: content_type)
+      attachment.save!
+
+      get app_attachment_file_path(job, attachment)
+
+      expect(response.headers["Content-Disposition"]).to include("inline")
+      expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+      expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    end
   end
 
   it "returns markdown attachment content as JSON for the shared file preview modal" do

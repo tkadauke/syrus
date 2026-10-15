@@ -7,11 +7,10 @@ module Api
           attachment = job.job_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
 
-          send_data(
+          send_secure_file(
             attachment.file.download,
             filename: attachment.filename || "attachment",
-            type: attachment.content_type || "application/octet-stream",
-            disposition: "inline"
+            type: attachment.content_type || "application/octet-stream"
           )
         end
 

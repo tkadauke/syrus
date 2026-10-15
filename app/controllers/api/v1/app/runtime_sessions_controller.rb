@@ -50,11 +50,10 @@ module Api
           document = Document.find_by(id: @runtime_session.metadata["latest_frame_document_id"])
           raise ActiveRecord::RecordNotFound, "No captured frame for this Runtime Session" unless document&.file&.attached?
 
-          send_data(
+          send_secure_file(
             document.file.download,
             filename: document.filename || "frame.png",
-            type: document.content_type || "image/png",
-            disposition: "inline"
+            type: document.content_type || "image/png"
           )
         end
 
