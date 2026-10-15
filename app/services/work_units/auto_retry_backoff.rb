@@ -37,7 +37,7 @@ module WorkUnits
       if terminal_state
         unit.mark_terminal!(terminal_state)
       else
-        unit.unblock!
+        unit.resume_for_workflow!
       end
     end
 

@@ -73,4 +73,18 @@ RSpec.describe WorkUnits::WorkflowBlockProjection do
     described_class.clear!(workflow, start_blocked_reason: StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
     expect(workflow.work_unit.reload).to have_attributes(state: "queued", blocked_reason: nil)
   end
+
+  it "restores a running unit when a mid-workflow projection clears" do
+    workflow.update!(state: "running", started_at: 2.minutes.ago)
+    workflow.work_unit.mark_running!
+    described_class.record!(
+      workflow,
+      start_blocked_reason: StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON,
+      blocked_until: 5.minutes.from_now
+    )
+
+    described_class.clear!(workflow, start_blocked_reason: StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
+
+    expect(workflow.work_unit.reload).to have_attributes(state: "running", blocked_reason: nil)
+  end
 end
