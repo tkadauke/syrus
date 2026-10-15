@@ -52,6 +52,35 @@ RSpec.describe OperatorBriefing::Payload do
     expect(repo_payload[:history].first[:slug]).to eq("BRIEFING-#{archived.id}")
   end
 
+  it "limits archived history in SQL" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+    (OperatorBriefing::Payload::HISTORY_LIMIT + 2).times do |index|
+      archived_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
+      archived_job.close_with_reason!("briefing_superseded") if archived_job.may_close?
+      OperatorBriefing::Briefing.create!(
+        job: archived_job,
+        owner_user: user,
+        repository: repository,
+        window_start: (index + 2).days.ago,
+        window_end: (index + 1).days.ago,
+        created_at: index.hours.ago
+      )
+    end
+
+    history_queries = []
+    subscriber = lambda do |*, payload|
+      sql = payload[:sql]
+      history_queries << sql if sql.include?(OperatorBriefing::Briefing.table_name) && sql.include?("jobs\".\"state")
+    end
+
+    payload = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.new(user: user).as_json
+    end
+
+    expect(payload[:repositories].sole[:history].size).to eq(OperatorBriefing::Payload::HISTORY_LIMIT)
+    expect(history_queries.one? { |sql| sql.match?(/LIMIT (?:\?|10)/) }).to eq(true)
+  end
+
   it "computes repository activity status without per-repository generators" do
     quiet_repository = Factories.repository(user: user, owner: "acme", name: "quiet")
     active_repository = Factories.repository(user: user, owner: "acme", name: "active")
@@ -71,6 +100,28 @@ RSpec.describe OperatorBriefing::Payload do
 
     expect(statuses.fetch(quiet_repository.slug)).to eq("no_activity")
     expect(statuses.fetch(active_repository.slug)).to eq("ready")
+  end
+
+  it "aggregates activity timestamps when a repository has no briefing anchor" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+    3.times do
+      Job.create!(user: user, owner_user: user, repository: repository, kind: "direct", priority: "low", issue_number: nil)
+    end
+
+    activity_queries = []
+    subscriber = lambda do |*, payload|
+      sql = payload[:sql]
+      activity_queries << sql if !sql.include?(OperatorBriefing::Briefing.table_name) &&
+        sql.match?(/SELECT .*MAX\(.*(?:jobs|workflows)\.(?:created_at|updated_at|finished_at)/m)
+    end
+
+    payload = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.new(user: user).as_json
+    end
+
+    expect(payload[:repositories].sole[:status][:kind]).to eq("ready")
+    expect(activity_queries.size).to eq(2)
+    expect(activity_queries).to all(include("GROUP BY"))
   end
 
   it "resolves artifact content blocks against existing workflow typed artifacts" do

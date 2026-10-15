@@ -126,13 +126,15 @@ module OperatorBriefing
     end
 
     def history_briefings
-      @history_briefings ||= Briefing
-        .joins(:job)
-        .where(owner_user: user, repository_id: enabled_repository_ids, jobs: { state: "closed" })
-        .includes(:job)
-        .order(created_at: :desc, id: :desc)
-        .group_by(&:repository_id)
-        .transform_values { |briefings| briefings.first(HISTORY_LIMIT) }
+      @history_briefings ||= enabled_repository_ids.index_with do |repository_id|
+        Briefing
+          .joins(:job)
+          .where(owner_user: user, repository_id: repository_id, jobs: { state: "closed" })
+          .includes(:job)
+          .order(created_at: :desc, id: :desc)
+          .limit(HISTORY_LIMIT)
+          .to_a
+      end
     end
 
     def all_serialized_briefings
@@ -277,7 +279,14 @@ module OperatorBriefing
     def job_activity_rows
       scope = Job.where(repository_id: enabled_repository_ids).where.not(kind: ActivityGate::EXCLUDED_JOB_KINDS)
       scope = scope.where("jobs.created_at > :since OR jobs.updated_at > :since OR jobs.finished_at > :since", since: activity_since_floor) if activity_since_floor.present?
-      scope.pluck(:repository_id, :created_at, :updated_at, :finished_at)
+      scope
+        .group(:repository_id)
+        .pluck(
+          :repository_id,
+          Arel.sql("MAX(jobs.created_at)"),
+          Arel.sql("MAX(jobs.updated_at)"),
+          Arel.sql("MAX(jobs.finished_at)")
+        )
     end
 
     def workflow_activity_rows
@@ -286,7 +295,14 @@ module OperatorBriefing
         .where(jobs: { repository_id: enabled_repository_ids })
         .where.not(jobs: { kind: ActivityGate::EXCLUDED_JOB_KINDS })
       scope = scope.where("workflows.created_at > :since OR workflows.updated_at > :since OR workflows.finished_at > :since", since: activity_since_floor) if activity_since_floor.present?
-      scope.pluck("jobs.repository_id", "workflows.created_at", "workflows.updated_at", "workflows.finished_at")
+      scope
+        .group("jobs.repository_id")
+        .pluck(
+          "jobs.repository_id",
+          Arel.sql("MAX(workflows.created_at)"),
+          Arel.sql("MAX(workflows.updated_at)"),
+          Arel.sql("MAX(workflows.finished_at)")
+        )
     end
   end
 end
