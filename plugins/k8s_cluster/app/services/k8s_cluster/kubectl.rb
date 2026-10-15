@@ -35,6 +35,52 @@ module K8sCluster
     WRITE_SUBCOMMANDS = {
       "auth" => %w[reconcile]
     }.freeze
+    BUILT_IN_COMMANDS = %w[
+      annotate
+      api-resources
+      api-versions
+      apply
+      attach
+      auth
+      autoscale
+      certificate
+      cluster-info
+      completion
+      config
+      cordon
+      cp
+      create
+      debug
+      delete
+      describe
+      diff
+      drain
+      edit
+      events
+      exec
+      explain
+      expose
+      get
+      kustomize
+      label
+      logs
+      options
+      patch
+      plugin
+      port-forward
+      proxy
+      replace
+      rollout
+      run
+      scale
+      set
+      taint
+      top
+      uncordon
+      version
+      wait
+      watch
+    ].freeze
     SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template custom-columns custom-columns-file].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
@@ -108,6 +154,7 @@ module K8sCluster
       raise InvalidCommand, "kubectl args cannot include blank values" if args.any?(&:blank?)
       raise InvalidCommand, "kubectl global flags must not precede the subcommand" if leading_global_flag?
       raise InvalidCommand, "omit the kubectl executable from args" if command == "kubectl"
+      raise InvalidCommand, "external kubectl plugins and unknown commands are not allowed" unless BUILT_IN_COMMANDS.include?(command)
       raise InvalidCommand, "pass context via kube_context, not kubectl args" if contains_context_flag?
       raise InvalidCommand, "pass namespace via namespace, not kubectl args" if contains_namespace_flag?
       raise InvalidCommand, "kubectl credential flags are not allowed" if contains_forbidden_credential_flag?

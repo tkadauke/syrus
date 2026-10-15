@@ -310,10 +310,13 @@ Operators adding a k3s credential should create a Credential Store record:
 - Allowed surfaces: choose `workflow`, `chat`, or both based on where agents
   should use the credential.
 
-The tool rejects the `kubectl` executable, leading global flags,
-`--kubeconfig`, `--context`, `--namespace`, and direct credential flags in
-`args`; callers pass context and namespace through the dedicated inputs so the
-broker can validate target constraints. It also blocks `kubectl config ...`,
+The tool accepts audited built-in kubectl commands only; it rejects unknown
+commands so executables discovered through kubectl's plugin mechanism cannot
+bypass write or Secret-output policy. It also rejects the `kubectl` executable,
+leading global flags, `--kubeconfig`, `--context`, `--namespace`, and direct
+credential flags in `args`; callers pass context and namespace through the
+dedicated inputs so the broker can validate target constraints. It also blocks
+`kubectl config ...`,
 streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 `port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
 `delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and

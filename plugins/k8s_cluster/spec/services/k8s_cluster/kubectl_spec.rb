@@ -290,6 +290,25 @@ RSpec.describe K8sCluster::Kubectl do
     expect(runner).not_to have_received(:call)
   end
 
+  it "rejects external kubectl plugins before requesting a credential lease" do
+    credential = create_credential
+    register_cluster_for(credential, allow_writes: false)
+    allow(runner).to receive(:call)
+
+    access_event_count = CredentialStore::CredentialAccessEvent.count
+    expect {
+      described_class.call(
+        context: context,
+        credential: credential.id,
+        kube_context: "prod",
+        args: [ "deploy", "production" ]
+      )
+    }.to raise_error(K8sCluster::Kubectl::InvalidCommand, /external kubectl plugins/)
+
+    expect(CredentialStore::CredentialAccessEvent.count).to eq(access_event_count)
+    expect(runner).not_to have_received(:call)
+  end
+
   it "does not let chat or workflow callers self-authorize risky commands or secret output" do
     credential = create_credential(allowed_surfaces: [ "chat" ])
 
