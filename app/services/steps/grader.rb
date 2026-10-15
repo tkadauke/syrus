@@ -153,7 +153,15 @@ module Steps
       # augmentation so fallback readers see the same actionable tail as
       # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
-      step.update!(details: definition.merge(
+      # Merge onto the Step's current details, not `definition`. That was read
+      # at the top of this method, before workspace.setup ran, and the setup
+      # writes its own diagnostics onto the Step -- prepare_cache and
+      # immutable_source_checkout for an immutable-source grader. Merging onto
+      # the stale snapshot silently erased them, so exactly the fields that
+      # explain where a grader ran and whether its prepare cache hit were gone
+      # by the time anyone read the Step. Same idiom as the other two detail
+      # writes in this file.
+      step.update!(details: step.details.to_h.merge(
         "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
