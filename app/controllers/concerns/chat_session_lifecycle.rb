@@ -38,6 +38,18 @@ module ChatSessionLifecycle
     additional_participants = group_participant_users_from_params
     return if performed?
 
+    if text.present? && additional_participants.nil?
+      result = ChatSessions::Creator.new(
+        user: Current.user,
+        prompt: text,
+        repository: repository,
+        provider: chat_provider,
+        content: content,
+        title_message_text: ChatGoalCommand.parse(text)&.then { |parsed| parsed.fetch(:args).presence if parsed.fetch(:action) == "start" }
+      ).call
+      return result.chat_session
+    end
+
     chat_session = nil
     user_message = nil
     turn_triggered = false

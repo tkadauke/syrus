@@ -29,6 +29,14 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".summaries" do
+    it "registers spawn_chats only on the deferred chat surface" do
+      chat_entry = described_class.summaries(surface: :chat).find { |entry| entry[:tool_name] == "spawn_chats" }
+
+      expect(chat_entry).to include(tier: :deferred, mutation: true)
+      expect(described_class.summaries(surface: :workflow).map { |entry| entry[:tool_name] }).not_to include("spawn_chats")
+      expect(described_class.summaries(surface: :agent_insight).map { |entry| entry[:tool_name] }).not_to include("spawn_chats")
+    end
+
     it "exposes introspectable metadata for docs and usage payloads" do
       summary = described_class.summaries(surface: :chat, tier: :essential).find { |entry| entry[:tool_name] == "submit_chat_feedback" }
 

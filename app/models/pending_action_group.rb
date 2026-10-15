@@ -71,6 +71,8 @@ class PendingActionGroup < ApplicationRecord
 
   def confirmed_notice
     members = chat_pending_actions.reload.to_a
+    return spawn_chats_confirmed_notice(members) if members.all? { |member| member.action == "spawn_chat" }
+
     failed = members.count(&:failed?)
     succeeded = members.count(&:confirmed?)
     return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
@@ -83,6 +85,20 @@ class PendingActionGroup < ApplicationRecord
   end
 
   private
+
+  def spawn_chats_confirmed_notice(members)
+    lines = members.map do |member|
+      if member.confirmed?
+        payload = member.payload.to_h
+        label = payload["spawned_chat_title"].presence || payload["prompt"].to_s.truncate(60)
+        "CHAT-#{payload['spawned_chat_id']} (#{payload['spawned_chat_provider']}): #{label}"
+      else
+        label = member.payload.to_h["title"].presence || member.payload.to_h["prompt"].to_s.truncate(60)
+        "Failed: #{label} — #{member.execution_error}"
+      end
+    end
+    ([ "Spawn chats confirmation result:" ] + lines).join("\n")
+  end
 
   def confirm_member(member, user:)
     member.suppress_outcome_notification = true

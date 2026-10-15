@@ -793,6 +793,16 @@ from the edit modal — only remove it.
 
 ## Cross-chat messaging bridge
 
+Chat agents can ask to create a coordinated batch of new threads with the
+deferred `spawn_chats` tool. A request contains one to ten initial prompts,
+with optional titles, configured chat providers, and accessible repository
+slugs. Syrus validates the entire request first and shows one grouped
+confirmation; rejecting it creates nothing. Confirmation creates each chat
+independently, starts its first agent turn through the normal message path,
+and posts every resulting `CHAT-<id>` back into the originating chat. A
+failure in one member is reported alongside the successfully created chats
+instead of rolling the batch back.
+
 `ChatBridgeThread` tracks a bounded exchange between two of the same
 operator's chat sessions: `origin_chat_session`, `target_chat_session`,
 `opened_by_user`, an open/closed `state`, and `hop_count`/`max_hops`
