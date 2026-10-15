@@ -1004,7 +1004,7 @@ class LandingQueueProcessor
   # never mixed-tier per LandingBundleAssembler's priority-tier scope) preempts non-urgent Jobs the
   # same way a lone urgent Job always has. Grouping (rather than checking
   # each urgent Job individually) matters once landing units exist: if
-  # `job` is a prerequisite for *any* member of an active urgent unit,
+  # `job` is a direct or transitive prerequisite for *any* member of an active urgent unit,
   # the whole unit is "related" and must not block `job` — blocking it
   # would deadlock the unit against its own prerequisite.
   def unrelated_urgent_job_active_for_repository?(job)
@@ -1012,7 +1012,28 @@ class LandingQueueProcessor
     return false if active_urgent_jobs.empty?
 
     active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.any? do |unit_jobs|
-      unit_jobs.none? { |urgent_job| landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
+      !transitive_landing_queue_prerequisite_ids(unit_jobs).include?(job.id)
+    end
+  end
+
+  def transitive_landing_queue_prerequisite_ids(jobs)
+    cache_key = jobs.map(&:id).sort
+    @transitive_landing_queue_prerequisite_ids_by_job_ids ||= {}
+    @transitive_landing_queue_prerequisite_ids_by_job_ids[cache_key] ||= begin
+      prerequisite_ids = Set.new
+      pending_ids = jobs.flat_map { |candidate| landing_queue_prerequisite_ids(candidate) }.uniq
+
+      until pending_ids.empty?
+        batch_ids = pending_ids - prerequisite_ids.to_a
+        break if batch_ids.empty?
+
+        prerequisite_ids.merge(batch_ids)
+        Job.where(id: batch_ids).includes(:dependencies).find_each do |prerequisite|
+          pending_ids.concat(landing_queue_prerequisite_ids(prerequisite))
+        end
+      end
+
+      prerequisite_ids
     end
   end
 
@@ -1033,6 +1054,7 @@ class LandingQueueProcessor
 
   def reset_blockage_caches!
     @active_urgent_jobs_by_repository_id = {}
+    @transitive_landing_queue_prerequisite_ids_by_job_ids = {}
     @epic_work_jobs_by_epic_id = {}
   end
 

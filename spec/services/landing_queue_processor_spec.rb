@@ -1596,6 +1596,25 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(entry.blocked_reason).to be_blank
     end
 
+    it "does not block transitive prerequisites of an active urgent job" do
+      root_prerequisite = queue_job(issue_number: 1, approved_at: 3.minutes.ago)
+      direct_prerequisite = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+      urgent = queue_job(issue_number: 3, approved_at: 1.minute.ago).tap { |job| job.update!(priority: "urgent") }
+      JobDependency.create!(job: direct_prerequisite, depends_on_job: root_prerequisite, source: "manual")
+      JobDependency.create!(job: urgent, depends_on_job: direct_prerequisite, source: "manual")
+
+      entries = described_class.entries(Job.where(id: [ root_prerequisite.id, direct_prerequisite.id, urgent.id ]))
+      workflow = described_class.call
+
+      expect(entries.map(&:job_id)).to eq([ root_prerequisite.id, direct_prerequisite.id, urgent.id ])
+      expect(entries.first.blocked_reason).to be_blank
+      expect(entries.second.blocked_reason).to eq(
+        { key: "waiting_to_merge", params: { slug: root_prerequisite.slug } }
+      )
+      expect(workflow.job).to eq(root_prerequisite)
+      expect(root_prerequisite.reload).to be_landing
+    end
+
     it "fetches active urgent jobs for a repository once per entries() call, not once per job" do
       queue_job(issue_number: 1, approved_at: 5.minutes.ago).tap { |j| j.update!(priority: "urgent") }
       non_urgent_a = queue_job(issue_number: 2, approved_at: 4.minutes.ago)
