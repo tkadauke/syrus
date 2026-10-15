@@ -253,7 +253,9 @@ class ChatPendingAction < ApplicationRecord
     )
   end
 
-  def reject!
+  def reject!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
+
     with_lock do
       return false unless pending?
 
