@@ -40,6 +40,55 @@ RSpec.describe GitMirror::Sync do
     expect(remove).to have_been_requested
   end
 
+  it "processes a bounded page and resumes from a durable cursor" do
+    stub_const("GitMirror::Sync::BATCH_SIZE", 2)
+    repositories = [ repository, Factories.repository, Factories.repository ].sort_by(&:id)
+    allow(RepositoryContent).to receive(:upstream_source_for).and_return(source)
+    register = stub_request(:put, %r{#{endpoint}/v1/repositories/\d+}).to_return(status: 200, body: "{}")
+
+    first = described_class.run!
+
+    expect(first.registered).to eq(repositories.first(2).map(&:id))
+    expect(first.removed).to eq([])
+    expect(register).to have_been_requested.times(2)
+    expect(PluginRecord.find_by!(name: "git_mirror").config.fetch("sync_repository_cursor")).to eq(repositories.second.id)
+
+    stub_list(repositories.map { |repo| repo.id.to_s })
+    second = described_class.run!
+
+    expect(second.registered).to eq([ repositories.last.id ])
+    expect(register).to have_been_requested.times(3)
+    expect(PluginRecord.find_by!(name: "git_mirror").config).not_to have_key("sync_repository_cursor")
+  end
+
+  it "filters inactive and non-git repositories in SQL" do
+    archived = Factories.repository(archived_at: Time.current)
+    non_git = Factories.repository(vcs: "mercurial")
+    register = stub_request(:put, %r{#{endpoint}/v1/repositories/\d+}).to_return(status: 200, body: "{}")
+    stub_list([ repository.id.to_s ])
+
+    result = described_class.run!
+
+    expect(result.registered).to eq([ repository.id ])
+    expect(register).to have_been_requested.once
+    expect(RepositoryContent).not_to have_received(:upstream_source_for).with(archived)
+    expect(RepositoryContent).not_to have_received(:upstream_source_for).with(non_git)
+  end
+
+  it "does not prune stale mirrors until a complete inventory pass" do
+    stub_const("GitMirror::Sync::BATCH_SIZE", 1)
+    Factories.repository
+    stub_request(:put, %r{#{endpoint}/v1/repositories/\d+}).to_return(status: 200, body: "{}")
+    list = stub_list([ repository.id.to_s, "999999" ])
+
+    expect(described_class.run!.removed).to eq([])
+    expect(list).not_to have_been_requested
+
+    remove = stub_request(:delete, "#{endpoint}/v1/repositories/999999").to_return(status: 204)
+    expect(described_class.run!.removed).to eq([ "999999" ])
+    expect(remove).to have_been_requested
+  end
+
   # A blip must not read as licence to throw a mirror away.
   it "keeps the mirror of a repository whose registration failed" do
     stub_request(:put, "#{endpoint}/v1/repositories/#{repository.id}").to_return(status: 503, body: { error: { code: "unavailable" } }.to_json)

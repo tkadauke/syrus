@@ -56,12 +56,14 @@ overrides the image Compose runs.
 
 ## How it stays in sync
 
-Once a minute, Syrus registers every active git repository with the mirror:
+Once a minute, Syrus registers a bounded batch of active git repositories with
+the mirror, continuing from a durable cursor on the next tick:
 its HTTPS fetch URL and a short-lived credential (for GitHub, the App
 installation token or the owner's PAT). The mirror keeps credentials in memory
 only -- never on disk, never on a command line -- and fetches every repository
 in the background every 30 seconds. Mirrors of repositories Syrus no longer
-works on are removed; a repository whose registration merely failed is kept.
+works on are removed only after a complete inventory pass; a repository whose
+registration merely failed is kept.
 
 Reads are keyed by commit, and a commit's contents never change, so the mirror
 answers exactly what the host would for any commit it has. A commit it has not
