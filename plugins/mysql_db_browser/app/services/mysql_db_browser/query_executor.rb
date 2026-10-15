@@ -112,9 +112,31 @@ module MysqlDbBrowser
     end
 
     def read_only_statement?(statement)
+      return false if executable_comment?(statement)
       return true if statement.match?(/\A(SELECT|SHOW|DESCRIBE|DESC)\b/i)
       return explain_statement?(statement) if statement.match?(/\AEXPLAIN\b/i)
       return read_only_with_statement?(statement) if statement.match?(/\AWITH\b/i)
+
+      false
+    end
+
+    # MySQL executes the contents of version-gated `/*! ... */` comments.
+    # Treat their presence outside strings and inert comments as potentially
+    # mutating instead of letting the CTE parser skip executable SQL.
+    def executable_comment?(statement)
+      i = 0
+
+      while i < statement.length
+        char = statement[i]
+        if [ "'", "\"", "`" ].include?(char)
+          i = skip_quoted(statement, i, char) + 1
+        else
+          return true if statement[i, 3] == "/*!"
+
+          comment_end = skip_comment(statement, i)
+          i = comment_end.is_a?(Integer) ? comment_end : i + 1
+        end
+      end
 
       false
     end
