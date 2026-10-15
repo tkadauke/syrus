@@ -21,6 +21,8 @@ class RunHostAdmission
   # agentic guard once the host stops looking idle.
   VISUAL_DIFF_STEP_KIND = "visual_diff"
   LIGHTWEIGHT_STEP_KINDS = %w[mergeability_preflight].freeze
+  # Pressure dimensions that describe disk contention rather than a hard limit.
+  IO_BOUND_DIMENSIONS = %i[io_pressure].freeze
 
   # Agentic starts are staggered so the next decision sees a sample reflecting
   # the previous one. Grader fanout is not staggered; its shared capacity budget
@@ -90,6 +92,9 @@ class RunHostAdmission
       "candidate_compute_units" => candidate_compute_units,
       "guarded_runs_per_host" => guarded_runs_per_host,
       "host_compute_capacity" => host_compute_capacity,
+      "capacity_available_to_candidate" => capacity_available_to_candidate,
+      "agentic_reserved_units" => grader_guard? ? agentic_reserved_units : nil,
+      "grader_memory_reserve_bytes" => grader_guard? ? grader_memory_reserve_bytes : nil,
       "host_memory_limit_bytes" => host_memory_limit_bytes,
       "host_memory_budget_bytes" => host_memory_budget_bytes,
       "current_memory_bytes" => current_memory_bytes,
@@ -142,8 +147,32 @@ class RunHostAdmission
     last_started > now - STAGGER_INTERVAL
   end
 
+  # IO pressure is produced by the disk-bound work on a host -- a grader
+  # installing dependencies, building assets and running a suite; a prepare
+  # doing the same. An agent turn is not that: it spends nearly all of its wall
+  # time waiting on a provider API. Refusing agent turns because the disk was
+  # busy grading inverted the priority -- a fleet running a large grader fanout
+  # kept every host at critical IO and stopped starting the very work the
+  # fanout was grading, leaving jobs parked mid-pipeline with their workspaces
+  # already prepared.
+  #
+  # So IO pressure alone no longer defers a provider-bound turn. Memory, disk
+  # space and CPU still defer everything: those are the limits whose overshoot
+  # kills a process instead of slowing it down, and visual_diff keeps its IO
+  # sensitivity because it drives a browser and a preview app of its own.
   def critical_local_pressure?
-    local_health.fetch(:level, local_health["level"]) == "critical"
+    return false unless local_health["level"] == "critical"
+    return true unless provider_bound_candidate?
+
+    (critical_health_dimensions - IO_BOUND_DIMENSIONS).any?
+  end
+
+  def provider_bound_candidate?
+    step.agentic? && !visual_diff_preview_step?(step)
+  end
+
+  def critical_health_dimensions
+    @critical_health_dimensions ||= local_sample ? WorkerHealthSampleAnalysis.critical_dimensions_for(local_sample) : []
   end
 
   def background_work_should_yield?
@@ -196,12 +225,41 @@ class RunHostAdmission
   end
 
   def resource_guard_full?
-    return true if active_compute_units + candidate_compute_units > host_compute_capacity
+    return true if active_compute_units + candidate_compute_units > capacity_available_to_candidate
     return true if memory_capacity_full?
     return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
     return active_visual_diff_preview_run_count >= io_intensive_runs_per_host if resource_guard_kind == "visual_diff_preview"
 
     false
+  end
+
+  # Graders are exempt from the global agent-run cap -- deliberately, so a user
+  # burst cannot starve main-branch health -- and a fanout can make dozens of
+  # siblings ready against one host at once. Nothing then stopped them from
+  # taking every unit the host had, which is how a fleet came to be running
+  # eleven graders and a single agent turn with 43 agent turns queued.
+  #
+  # Keep one agent turn's worth of the host budget out of their reach, in
+  # compute units and in memory alike, so the work being graded can still
+  # start. The floor keeps a lone grader admissible on a host too small to
+  # hold both.
+  def capacity_available_to_candidate
+    return host_compute_capacity unless grader_guard?
+
+    [ host_compute_capacity - agentic_reserved_units, candidate_compute_units ].max
+  end
+
+  def agentic_reserved_units
+    configured = ENV["SYRUS_AGENTIC_RESERVED_UNITS"]
+    return configured.to_i.clamp(0, host_compute_capacity - 1) if configured.present?
+
+    [ agentic_capacity_units, host_compute_capacity - 1 ].min
+  end
+
+  def grader_memory_reserve_bytes
+    return 0 unless grader_guard?
+
+    memory_unit_bytes.to_i * agentic_reserved_units
   end
 
   def guarded_runs_per_host
@@ -281,8 +339,9 @@ class RunHostAdmission
   def memory_capacity_full?
     return false unless host_memory_budget_bytes
 
-    reservation_full = active_reserved_memory_bytes + candidate_reserved_memory_bytes > host_memory_budget_bytes
-    measured_full = current_memory_bytes && current_memory_bytes + candidate_reserved_memory_bytes > host_memory_budget_bytes
+    budget = host_memory_budget_bytes - grader_memory_reserve_bytes
+    reservation_full = active_reserved_memory_bytes + candidate_reserved_memory_bytes > budget
+    measured_full = current_memory_bytes && current_memory_bytes + candidate_reserved_memory_bytes > budget
     reservation_full || measured_full
   end
 

@@ -55,6 +55,27 @@ RSpec.describe WorkerHealthSampleAnalysis do
     end
   end
 
+  describe ".critical_dimensions_for" do
+    it "names the saturated dimensions by key rather than by reason prose" do
+      sample = sample(cpu_used_percent: 99.0, io_pressure_some: 55.0, memory_used_percent: 10.0)
+
+      expect(described_class.critical_dimensions_for(sample)).to eq(%i[cpu io_pressure])
+    end
+
+    it "leaves out dimensions that are only at warning" do
+      sample = sample(io_pressure_some: 25.0, memory_used_percent: 90.0)
+
+      expect(described_class.critical_dimensions_for(sample)).to be_empty
+      expect(described_class.health_for(sample).fetch(:level)).to eq("warning")
+    end
+
+    it "reports corroborated CPU pressure as its own dimension" do
+      sample = sample(cpu_pressure_some: 67.4, cpu_pressure_full: 6.0)
+
+      expect(described_class.critical_dimensions_for(sample)).to eq([ :cpu_pressure ])
+    end
+  end
+
   describe ".summarize" do
     it "summarizes the wide sample fields consistently" do
       samples = [

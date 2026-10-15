@@ -42,6 +42,43 @@ RSpec.describe RunHostAdmission do
     )
   end
 
+  # A grader fanout saturates a host's disk, and that used to refuse the agent
+  # turns too -- so the fleet kept grading and never started the work it was
+  # grading for, leaving jobs parked mid-pipeline with prepared workspaces.
+  # An agent turn waits on a provider API; disk contention is not its
+  # constraint.
+  it "admits a provider-bound agent turn when disk contention is the only critical pressure" do
+    worker_sample(io_pressure_some: 55.0)
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("host_capacity_available")
+    expect(decision.details.fetch("sample_health")).to include("level" => "critical")
+  end
+
+  it "still defers an agent turn when a hard limit is critical, not just the disk" do
+    worker_sample(io_pressure_some: 55.0, memory_used_percent: 96.0)
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
+  end
+
+  it "keeps deferring disk-bound work while the disk is critical" do
+    worker_sample(io_pressure_some: 55.0)
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 97, details: { "name" => "rspec" })
+    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+    decision = described_class.call(run: grader_run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
+  end
+
   it "defers sticky resume work on a pressured host" do
     worker_sample(io_pressure_some: 55.0)
 
@@ -276,6 +313,14 @@ RSpec.describe RunHostAdmission do
     )
   end
 
+  def with_env(values)
+    previous = values.keys.index_with { |key| ENV[key] }
+    values.each { |key, value| ENV[key] = value }
+    yield
+  ensure
+    previous.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
+
   def running_grader_run(name:)
     other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + rand(1000))
     other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
@@ -344,7 +389,7 @@ RSpec.describe RunHostAdmission do
       expect(decision.details.fetch("candidate_reserved_memory_bytes")).to eq(6.gigabytes)
     end
 
-    it "uses the same host budget for graders and agentic runs" do
+    it "charges graders against the same host budget as agentic runs" do
       worker_sample(cpu_pressure_some: 1.0)
       saturate_guarded_slots!
 
@@ -445,6 +490,48 @@ RSpec.describe RunHostAdmission do
         "guarded_runs_per_host" => 6,
         "host_compute_capacity" => 6
       )
+    end
+
+    # Graders skip the global agent-run cap, so before this the only thing
+    # bounding a fanout on a host was the host's whole budget -- and a fanout
+    # that took all of it left no room for the agent turns being graded.
+    it "stops graders before they take the last agent turn's worth of a host" do
+      worker_sample(cpu_pressure_some: 1.0)
+      2.times { running_grader_run(name: "rspec") }
+
+      decision = described_class.call(run: grader_run(name: "rspec"))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "resource_guard_kind" => "grader",
+        "agentic_reserved_units" => 2,
+        "capacity_available_to_candidate" => 4,
+        "host_compute_capacity" => 6
+      )
+    end
+
+    it "keeps an agent turn admissible on a host graders have filled to their limit" do
+      worker_sample(cpu_pressure_some: 1.0)
+      2.times { running_grader_run(name: "rspec") }
+      run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+      decision = described_class.call(run: run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("host_capacity_available")
+    end
+
+    it "lets an operator spend the reserve on graders instead" do
+      worker_sample(cpu_pressure_some: 1.0)
+      2.times { running_grader_run(name: "rspec") }
+
+      decision = with_env("SYRUS_AGENTIC_RESERVED_UNITS" => "0") do
+        described_class.call(run: grader_run(name: "rspec"))
+      end
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("host_capacity_available")
     end
 
     it "defers a second process-attributed high-IO grader on a warning host" do

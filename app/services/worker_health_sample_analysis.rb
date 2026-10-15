@@ -19,12 +19,16 @@ class WorkerHealthSampleAnalysis
     "critical" => 3
   }.freeze
 
+  # Each entry carries a stable dimension key alongside the human-readable
+  # label: a caller that has to act on *which* resource is saturated (see
+  # RunHostAdmission) needs more than the prose in `reasons`.
   THRESHOLDS = [
-    [ "cpu", :cpu_used_percent, 90, 98 ],
-    [ "memory", :memory_used_percent, 85, 95 ],
-    [ "data root disk", :data_root_used_percent, DataRootDiskUsage::WARNING_USED_PERCENT, DataRootDiskUsage::CRITICAL_USED_PERCENT ],
-    [ "IO pressure", :io_pressure_some, 20, 50 ]
+    [ :cpu, "cpu", :cpu_used_percent, 90, 98 ],
+    [ :memory, "memory", :memory_used_percent, 85, 95 ],
+    [ :data_root_disk, "data root disk", :data_root_used_percent, DataRootDiskUsage::WARNING_USED_PERCENT, DataRootDiskUsage::CRITICAL_USED_PERCENT ],
+    [ :io_pressure, "IO pressure", :io_pressure_some, 20, 50 ]
   ].freeze
+  CPU_PRESSURE_DIMENSION = :cpu_pressure
   CPU_PRESSURE_SOME_WARNING = 20
   CPU_PRESSURE_SOME_CRITICAL = 50
   CPU_PRESSURE_FULL_CRITICAL = 5
@@ -48,15 +52,16 @@ class WorkerHealthSampleAnalysis
     end
 
     def health_for(sample)
-      level = "ok"
-      reasons = []
+      signals = signals_for(sample)
+      level = signals.reduce("ok") { |worst, signal| max_level(worst, signal.fetch(:level)) }
 
-      THRESHOLDS.each do |label, field, warning, critical|
-        level, reasons = apply_threshold(level, reasons, label, sample.public_send(field), warning: warning, critical: critical)
-      end
-      level, reasons = apply_cpu_pressure_threshold(level, reasons, sample)
+      { level: level, reasons: signals.map { |signal| signal.fetch(:reason) } }
+    end
 
-      { level: level, reasons: reasons }
+    # The dimension keys that are at `critical`, for a caller that needs to
+    # know what is saturated rather than how bad it is overall.
+    def critical_dimensions_for(sample)
+      signals_for(sample).select { |signal| signal.fetch(:level) == "critical" }.map { |signal| signal.fetch(:dimension) }
     end
 
     def max_level(left, right)
@@ -75,29 +80,39 @@ class WorkerHealthSampleAnalysis
       }
     end
 
-    def apply_threshold(level, reasons, label, value, warning:, critical:)
-      return [ level, reasons ] if value.nil?
+    # One evaluation that both the overall level and the per-dimension view are
+    # derived from, in threshold order, so the two can never disagree.
+    def signals_for(sample)
+      threshold_signals = THRESHOLDS.filter_map do |dimension, label, field, warning, critical|
+        threshold_signal(dimension, label, sample.public_send(field), warning: warning, critical: critical)
+      end
+
+      threshold_signals + [ cpu_pressure_signal(sample) ].compact
+    end
+
+    def threshold_signal(dimension, label, value, warning:, critical:)
+      return if value.nil?
 
       if value >= critical
-        [ max_level(level, "critical"), reasons + [ "#{label} #{value.round(2)}% >= #{critical}%" ] ]
+        signal(dimension, "critical", "#{label} #{value.round(2)}% >= #{critical}%")
       elsif value >= warning
-        [ max_level(level, "warning"), reasons + [ "#{label} #{value.round(2)}% >= #{warning}%" ] ]
-      else
-        [ level, reasons ]
+        signal(dimension, "warning", "#{label} #{value.round(2)}% >= #{warning}%")
       end
     end
 
-    def apply_cpu_pressure_threshold(level, reasons, sample)
+    def cpu_pressure_signal(sample)
       some = sample.cpu_pressure_some
-      return [ level, reasons ] if some.nil?
+      return if some.nil?
 
       if some >= CPU_PRESSURE_SOME_CRITICAL && cpu_pressure_corroborated?(sample)
-        [ max_level(level, "critical"), reasons + [ "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_CRITICAL}%" ] ]
+        signal(CPU_PRESSURE_DIMENSION, "critical", "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_CRITICAL}%")
       elsif some >= CPU_PRESSURE_SOME_WARNING
-        [ max_level(level, "warning"), reasons + [ "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_WARNING}%" ] ]
-      else
-        [ level, reasons ]
+        signal(CPU_PRESSURE_DIMENSION, "warning", "CPU pressure #{some.round(2)}% >= #{CPU_PRESSURE_SOME_WARNING}%")
       end
+    end
+
+    def signal(dimension, level, reason)
+      { dimension: dimension, level: level, reason: reason }
     end
 
     def cpu_pressure_corroborated?(sample)
