@@ -40,9 +40,14 @@ test("signed-in user can draw a shape on a chat's whiteboard and see it persist 
   await expect(page.getByText("1 canvas element")).toBeVisible()
 
   // Reload to prove the drawn shape (the Excalidraw scene) persisted
-  // server-side, not just in client-side React state. The workspace panel
-  // and active tab preferences are stored in localStorage, so both survive
-  // the reload without re-clicking.
+  // server-side, not just in client-side React state.
   await page.reload()
+  // The active tab is remembered in localStorage, but the panel's open state
+  // is not restored here: initialWorkspacePanelState forces it collapsed for a
+  // chat with no messages, whatever the stored preference, so the composer
+  // gets the room on a chat that has not started. This chat never sends one.
+  // Reopening is incidental -- what is under test is that the scene came back
+  // from the server.
+  await page.getByRole("button", { name: "Open workspace panel" }).click()
   await expect(page.getByText("1 canvas element")).toBeVisible()
 })

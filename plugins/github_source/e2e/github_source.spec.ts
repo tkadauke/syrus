@@ -45,7 +45,9 @@ test("signed-in user browses the fixture-backed source on a Job's Source tab", a
   // installation) still renders the source browser instead of the
   // "not configured" empty state.
   await page.getByRole("button", { name: "Source", exact: true }).click()
-  await expect(page).toHaveURL(/\/jobs\/\d+\?tab=source$/)
+  // The Source tab is its own route (App.tsx: "/jobs/:id/source"), not a
+  // ?tab= query parameter.
+  await expect(page).toHaveURL(/\/jobs\/\d+\/source$/)
   await expect(page.getByText("Viewing")).toBeVisible()
   await expect(page.getByText("GitHub token not configured. Add one in Settings to browse source.")).toHaveCount(0)
 
