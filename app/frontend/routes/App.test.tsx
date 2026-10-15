@@ -15663,7 +15663,7 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
   }
 }
 
-function appendBootstrapScript(payload = bootstrapPayload()) {
+function appendBootstrapScript(payload: unknown = bootstrapPayload()) {
   const script = document.createElement("script")
   script.id = "syrus-bootstrap-data"
   script.type = "application/json"

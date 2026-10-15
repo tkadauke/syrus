@@ -1413,7 +1413,7 @@ function SidebarContent({
                 <div
                   className={collapsed ? "" : `group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
                   draggable={!collapsed}
-                  onDragEnd={collapsed ? undefined : endNavItemDrag}
+                  onDragEnd={collapsed ? undefined : () => endNavItemDrag()}
                   onDragOver={collapsed ? undefined : (event) => dragOverNavItem(index, event)}
                   onDragStart={collapsed ? undefined : (event) => startNavItemDrag(index, event)}
                   onDrop={collapsed ? undefined : dropNavItem}

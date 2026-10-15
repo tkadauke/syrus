@@ -318,6 +318,7 @@ describe("AppChromeV2", () => {
           title: "Claude sign-in expired.",
           message: "Claude authentication failed for this account.",
           action_steps: ["Reconnect Claude here or open agent settings."],
+          cta: null,
           actions: [
             { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
           ]
