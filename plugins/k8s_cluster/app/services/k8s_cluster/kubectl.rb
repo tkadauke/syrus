@@ -7,31 +7,20 @@ module K8sCluster
     MAX_OUTPUT_BYTES = 64.kilobytes
     RUN_TIMEOUT_SECONDS = 30
 
-    WRITE_COMMANDS = %w[
-      apply
-      annotate
-      attach
-      autoscale
-      certificate
-      cordon
-      cp
-      create
-      debug
-      delete
-      drain
-      edit
-      exec
-      expose
-      label
-      patch
-      replace
-      rollout
-      run
-      scale
-      set
-      taint
-      uncordon
+    READ_COMMANDS = %w[
+      api-resources
+      api-versions
+      describe
+      diff
+      events
+      explain
+      get
+      logs
+      top
+      version
+      wait
     ].freeze
+    AUTH_READ_COMMANDS = %w[can-i whoami].freeze
     SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
@@ -108,20 +97,23 @@ module K8sCluster
       raise InvalidCommand, "pass context via kube_context, not kubectl args" if contains_context_flag?
       raise InvalidCommand, "pass namespace via namespace, not kubectl args" if contains_namespace_flag?
       raise InvalidCommand, "kubectl credential flags are not allowed" if contains_forbidden_credential_flag?
-      raise RiskyCommand, "kubectl config commands are not allowed" if command == "config"
+      raise RiskyCommand, "kubectl command is not in the read-only allowlist" unless allowed_read_command?
       raise RiskyCommand, "streaming or interactive kubectl commands are not allowed" if streaming_command?
-      raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
       raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize secret output" if context.chat? && allow_secret_output
-      raise RiskyCommand, "kubectl command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
       raise RiskyCommand, "kubectl command could expose secret values" if secret_output_command? && !allow_secret_output
     end
 
     def run_kubectl(kubeconfig_path:, metadata:)
       extra_secrets = sensitive_fragments_from(File.read(kubeconfig_path))
       result = self.class.runner.call(
-        env: { "KUBECONFIG" => kubeconfig_path },
+        env: {
+          "KUBECONFIG" => kubeconfig_path,
+          "PATH" => ENV.fetch("PATH", "/usr/local/bin:/usr/bin:/bin"),
+          "HOME" => ENV.fetch("HOME", "/tmp")
+        },
         argv: kubectl_argv,
-        timeout: RUN_TIMEOUT_SECONDS
+        timeout: RUN_TIMEOUT_SECONDS,
+        max_output_bytes: MAX_OUTPUT_BYTES
       )
 
       payload_for(result, metadata: metadata, extra_secrets: extra_secrets)
@@ -215,8 +207,10 @@ module K8sCluster
       args.first.to_s.start_with?("-")
     end
 
-    def risky_command?
-      WRITE_COMMANDS.include?(command)
+    def allowed_read_command?
+      return true if READ_COMMANDS.include?(command)
+
+      command == "auth" && AUTH_READ_COMMANDS.include?(normalized_args.second)
     end
 
     def streaming_command?
@@ -274,7 +268,10 @@ module K8sCluster
     end
 
     def contains_watch_flag?
-      normalized_args.any? { |arg| arg == "-w" || arg == "--watch" || arg.start_with?("--watch=") }
+      normalized_args.any? do |arg|
+        arg == "-w" || arg == "--watch" || arg == "--watch-only" ||
+          arg.start_with?("-w=") || arg.start_with?("--watch=") || arg.start_with?("--watch-only=")
+      end
     end
 
     def contains_follow_flag?

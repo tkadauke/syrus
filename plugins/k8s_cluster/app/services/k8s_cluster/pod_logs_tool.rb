@@ -35,7 +35,8 @@ module K8sCluster
         tail_lines: {
           type: "integer",
           minimum: 1,
-          description: "Number of trailing log lines to return (default #{DEFAULT_TAIL_LINES})."
+          maximum: Pods::MAX_LOG_TAIL_LINES,
+          description: "Number of trailing log lines to return (default #{DEFAULT_TAIL_LINES}, maximum #{Pods::MAX_LOG_TAIL_LINES})."
         },
         previous: {
           type: "boolean",

@@ -37,7 +37,7 @@ module K8sCluster
         },
         allow_risky_command: {
           type: "boolean",
-          description: "Explicitly allow mutating kubectl commands such as apply, delete, exec, cp, patch, rollout, scale, or drain. Chat-surface calls cannot use this self-authorization flag."
+          description: "Deprecated compatibility input. Mutating commands are never permitted by the read-only command allowlist."
         },
         allow_secret_output: {
           type: "boolean",
