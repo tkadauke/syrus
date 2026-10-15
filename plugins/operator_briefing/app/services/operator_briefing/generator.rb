@@ -20,6 +20,10 @@ module OperatorBriefing
     end
 
     def generate!
+      settings.with_lock { generate_under_lock! }
+    end
+
+    def generate_under_lock!
       return regenerate_current_briefing! if on_demand? && current_live_briefing
       return skipped("no_activity") unless on_demand? || activity_since_last_generation?
 
@@ -46,6 +50,8 @@ module OperatorBriefing
     end
 
     private
+
+    private :generate_under_lock!
 
     attr_reader :user, :repository, :mode, :now
 
