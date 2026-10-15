@@ -29,8 +29,12 @@ module K8sCluster
       updated_at
     ].freeze
 
-    def self.safe_cluster_metadata
-      KubernetesCluster.order(:label, :id).map do |cluster|
+    def self.safe_cluster_metadata(context:)
+      clusters = KubernetesCluster.where(agentic_access_enabled: true).order(:label, :id).to_a
+      credentials = ClusterCredential.credentials_by_id_for(clusters)
+      clusters.filter_map do |cluster|
+        next unless usable_by?(cluster, context, credential: credentials[cluster.credential_store_credential_id])
+
         {
           id: cluster.id,
           label: cluster.label,
@@ -42,7 +46,12 @@ module K8sCluster
       end
     end
 
-    def self.cluster!(id)
+    def self.cluster!(id, context: Thread.current[:k8s_cluster_mcp_context])
+      cluster = KubernetesCluster.find_by(id: id)
+      unless cluster && usable_by?(cluster, context, credential: ClusterCredential.credential_for(cluster))
+        raise ClusterNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
+      end
+
       find_agentic!(
         KubernetesCluster, id,
         resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
@@ -56,13 +65,13 @@ module K8sCluster
     # agent that finds a read-enabled-but-write-disabled cluster gets an
     # actionable "turn on allow_writes" message instead of the generic
     # AccessDisabled wording, which talks about read access.
-    def self.cluster_with_write_access!(id)
-      find_agentic_with_write_access!(
-        KubernetesCluster, id,
-        resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
-        not_found_error: ClusterNotFound, access_disabled_error: AccessDisabled,
-        write_access_disabled_error: WriteAccessDisabled
-      )
+    def self.cluster_with_write_access!(id, context: Thread.current[:k8s_cluster_mcp_context])
+      cluster = cluster!(id, context: context)
+      require_write_access!(cluster, resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION, write_access_disabled_error: WriteAccessDisabled)
+    end
+
+    def self.usable_by?(cluster, context, credential:)
+      agentic_credential_usable_by?(cluster.credential_store_credential_id, context, credential: credential)
     end
   end
 end

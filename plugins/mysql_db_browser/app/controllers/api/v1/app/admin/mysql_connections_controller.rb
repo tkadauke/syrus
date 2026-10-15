@@ -6,21 +6,34 @@ module Api
           before_action :require_mysql_db_browser_enabled
 
           def index
-            render json: { mysql_connections: MysqlConnection.order(:label).map { |connection| connection_json(connection) } }
+            connections = MysqlConnection.order(:label).to_a
+            credentials_by_id = ::MysqlDbBrowser::CredentialMaterial.credentials_by_id_for(connections)
+            render json: {
+              mysql_connections: connections.map do |connection|
+                connection_json(connection, credential: credentials_by_id[connection.credential_store_credential_id])
+              end,
+              credential_scope_options: management_authorization.manageable_options
+            }
           end
 
           def create
             connection = MysqlConnection.new(connection_params)
             password = params.dig(:mysql_connection, :password).presence
 
-            if connection.save
-              ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user) if password
+            if connection.valid?
+              scope = requested_scope(default_type: "user", default_id: Current.user.id)
+              MysqlConnection.transaction do
+                connection.save!
+                ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user, **scope) if password
+              end
               render json: { mysql_connection: connection_json(connection) }, status: :created
             else
               render_error("validation_failed", connection.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
           rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable => e
             render_error("plugin_disabled", e.message, status: :not_found)
+          rescue ArgumentError, ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def update
@@ -28,11 +41,19 @@ module Api
             connection.assign_attributes(connection_params)
             password = params.dig(:mysql_connection, :password).presence
 
-            if connection.save
-              if password
-                ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user)
-              else
-                ::MysqlDbBrowser::CredentialMaterial.sync_metadata!(connection, user: Current.user)
+            if connection.valid?
+              credential = ::MysqlDbBrowser::CredentialMaterial.credential_for(connection)
+              scope = requested_scope(
+                default_type: credential&.scope_type || "user",
+                default_id: credential&.scope_id || Current.user.id
+              )
+              MysqlConnection.transaction do
+                connection.save!
+                if password
+                  ::MysqlDbBrowser::CredentialMaterial.store!(connection, password, user: Current.user, **scope)
+                else
+                  ::MysqlDbBrowser::CredentialMaterial.sync_metadata!(connection, user: Current.user, **scope)
+                end
               end
               render json: { mysql_connection: connection_json(connection) }
             else
@@ -40,6 +61,8 @@ module Api
             end
           rescue ::MysqlDbBrowser::CredentialMaterial::CredentialStoreUnavailable => e
             render_error("plugin_disabled", e.message, status: :not_found)
+          rescue ArgumentError, ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def destroy
@@ -98,7 +121,10 @@ module Api
           end
 
           def admin_credential_context
-            McpToolContext.new(surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user)
+            McpToolContext.new(
+              surface: MysqlConnection::ADMIN_SURFACE, role: nil, user: Current.user,
+              allowed_repository_ids: Repository.ids
+            )
           end
 
           def find_connection
@@ -109,7 +135,30 @@ module Api
             params.require(:mysql_connection).permit(:label, :host, :port, :username, :default_database, :agentic_access_enabled, :allow_writes)
           end
 
-          def connection_json(connection)
+          def requested_scope(default_type:, default_id:)
+            scope_type = params.dig(:mysql_connection, :credential_scope_type).presence || default_type
+            requested_id = params.dig(:mysql_connection, :credential_scope_id).presence
+            scope_id = if scope_type == "instance"
+              nil
+            elsif requested_id
+              requested_id
+            elsif scope_type == default_type
+              default_id
+            elsif scope_type == "user"
+              Current.user.id
+            end
+            unless management_authorization.can_manage_scope?(scope_type, scope_id)
+              raise ArgumentError, "credential scope is not manageable by the current user"
+            end
+
+            { scope_type: scope_type, scope_id: scope_id }
+          end
+
+          def management_authorization
+            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
+          end
+
+          def connection_json(connection, credential: ::MysqlDbBrowser::CredentialMaterial.credential_for(connection))
             {
               id: connection.id,
               label: connection.label,
@@ -120,6 +169,9 @@ module Api
               agentic_access_enabled: connection.agentic_access_enabled,
               allow_writes: connection.allow_writes,
               has_password: connection.has_password?,
+              credential_scope_type: credential&.scope_type,
+              credential_scope_id: credential&.scope_id,
+              legacy_credentials: connection.credential_store_credential_id.blank? && connection.password.present?,
               created_at: connection.created_at.iso8601,
               updated_at: connection.updated_at.iso8601
             }

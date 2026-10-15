@@ -16,7 +16,8 @@ module K8sCluster
     class << self
       def call(server_context:)
         Mcp::Tools.with_database_connection do
-          payload = { clusters: AgenticAccess.safe_cluster_metadata }
+          context = McpToolContext.from_server_context(server_context)
+          payload = { clusters: AgenticAccess.safe_cluster_metadata(context: context) }
           MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ])
         end
       rescue StandardError => e

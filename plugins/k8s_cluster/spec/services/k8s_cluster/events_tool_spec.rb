@@ -1,10 +1,12 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::EventsTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   let(:cluster) { Factories.kubernetes_cluster(agentic_access_enabled: true) }
 
   def call(cluster_id:, namespace: nil)
-    described_class.call(server_context: {}, cluster_id: cluster_id, namespace: namespace)
+    described_class.call(server_context: { chat_session: chat_session }, cluster_id: cluster_id, namespace: namespace)
   end
 
   it "lists events across all namespaces when none is given" do

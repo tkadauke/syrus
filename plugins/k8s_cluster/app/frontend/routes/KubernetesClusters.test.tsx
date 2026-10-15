@@ -15,7 +15,10 @@ function mockUseConfirm(confirmed: boolean) {
 }
 
 function encodeFilterTree(tree: Record<string, unknown>) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 function stagingCluster(overrides: Record<string, unknown> = {}) {
@@ -27,6 +30,9 @@ function stagingCluster(overrides: Record<string, unknown> = {}) {
     allow_writes: false,
     insecure_skip_tls_verify: false,
     credential_kind: "token",
+    credential_scope_type: "instance",
+    credential_scope_id: null,
+    legacy_credentials: false,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides
@@ -45,7 +51,22 @@ function setupFetchMock(initial = [stagingCluster()]) {
     calls.push({ body, method, url })
 
     if (url === "/api/v1/app/admin/kubernetes_clusters" && method === "GET") {
-      return Promise.resolve(jsonResponse({ kubernetes_clusters: clusters }))
+      return Promise.resolve(
+        jsonResponse({
+          kubernetes_clusters: clusters,
+          credential_scope_options: {
+            scopes: [
+              { value: "user", label: "User" },
+              { value: "repository", label: "Repository" },
+              { value: "team", label: "Team" },
+              { value: "instance", label: "Instance" }
+            ],
+            users: [{ id: 1, label: "Admin" }],
+            repositories: [{ id: 2, label: "acme/app" }],
+            teams: [{ id: 3, label: "Platform" }]
+          }
+        })
+      )
     }
     if (url === "/api/v1/app/admin/kubernetes_clusters" && method === "POST") {
       const created = { ...stagingCluster(), ...body?.kubernetes_cluster, id: nextId }
@@ -240,7 +261,7 @@ describe("KubernetesClusters", () => {
   })
 
   it("creates a cluster from the add form by pasting a kubeconfig", async () => {
-    setupFetchMock([])
+    const { calls } = setupFetchMock([])
     renderClusters()
 
     await screen.findByText("No clusters yet. Add one to get started.")
@@ -250,10 +271,15 @@ describe("KubernetesClusters", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add cluster" })
     fireEvent.change(within(dialog).getByLabelText("Label"), { target: { value: "Prod" } })
     fireEvent.change(within(dialog).getByLabelText("Kubeconfig"), { target: { value: "current-context: default" } })
+    fireEvent.change(within(dialog).getByLabelText("Who can use this cluster"), { target: { value: "repository" } })
+    fireEvent.change(within(dialog).getByLabelText("Scope target"), { target: { value: "2" } })
     fireEvent.click(within(dialog).getByRole("button", { name: "Add cluster" }))
 
     expect(await screen.findByText("Prod")).toBeInTheDocument()
     expect(await screen.findByText('Cluster "Prod" added.')).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST" && call.url === "/api/v1/app/admin/kubernetes_clusters")?.body).toMatchObject({
+      kubernetes_cluster: { credential_scope_type: "repository", credential_scope_id: 2 }
+    })
   })
 
   it("edits a cluster's label in a modal without requiring a new kubeconfig", async () => {

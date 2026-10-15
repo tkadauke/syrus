@@ -76,6 +76,15 @@ module Syrus
         record
       end
 
+      # A connection is visible whenever its backing credential is usable in
+      # the current agent context. Legacy inline credentials predate scoped
+      # credentials and remain deliberately admin-only.
+      def agentic_credential_usable_by?(credential_id, context, credential:)
+        return context&.user&.admin? if credential_id.blank?
+
+        credential.present? && context.present? && credential.scope_policy.usable_by?(credential, context)
+      end
+
       private
 
       def agentic_kind(resource_name)

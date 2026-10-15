@@ -31,8 +31,14 @@ module MysqlDbBrowser
       updated_at
     ].freeze
 
-    def self.safe_connection_metadata
-      MysqlConnection.order(:label, :id).map do |connection|
+    def self.safe_connection_metadata(context:)
+      connections = MysqlConnection.where(agentic_access_enabled: true).order(:label, :id).to_a
+      credentials_by_id = CredentialMaterial.credentials_by_id_for(connections)
+
+      connections.filter_map do |connection|
+        credential = credentials_by_id[connection.credential_store_credential_id]
+        next unless usable_by?(connection, context, credential: credential)
+
         {
           id: connection.id,
           label: connection.label,
@@ -45,7 +51,13 @@ module MysqlDbBrowser
       end
     end
 
-    def self.connection!(id)
+    def self.connection!(id, context:)
+      connection = MysqlConnection.find_by(id: id)
+      credential = CredentialMaterial.credential_for(connection) if connection
+      unless connection && usable_by?(connection, context, credential: credential)
+        raise ConnectionNotFound, "#{RESOURCE_NAME} #{id.inspect} was not found."
+      end
+
       find_agentic!(
         MysqlConnection, id,
         resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
@@ -62,6 +74,10 @@ module MysqlDbBrowser
         resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
         write_access_disabled_error: WriteAccessDisabled
       )
+    end
+
+    def self.usable_by?(connection, context, credential:)
+      agentic_credential_usable_by?(connection.credential_store_credential_id, context, credential: credential)
     end
   end
 end
