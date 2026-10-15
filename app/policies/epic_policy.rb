@@ -1,9 +1,16 @@
 # Wraps today's Epic access rules: the base visibility scope
 # (`Epic.accessible_to(user)`, from repository membership) plus the
-# existing per-action checks scattered through EpicsController — owner/admin
-# for unclaim, admin-only for reassigning via the `owner_user_id` param, and
-# the product-owner advancement block. Global admins bypass all of it.
+# repository write access plus owner/admin for unclaim, admin-only for
+# reassigning via the `owner_user_id` param, and the product-owner advancement
+# block. Global admins bypass all of it.
 class EpicPolicy < ApplicationPolicy
+  # Mutating an Epic requires effective write access to its repository.
+  # Repository#member_at_least? includes direct memberships, team grants,
+  # and the global-admin bypass.
+  def write?
+    record&.repository&.member_at_least?(user, "write") || false
+  end
+
   # Mirrors EpicsController#unclaim's existing guard: only the current
   # claimant or an admin may release a claim.
   def unclaim?
