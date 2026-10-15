@@ -23,7 +23,7 @@ module AgentInsights
           },
           page: {
             type: "integer",
-            description: "Page number, 1-based. Defaults to 1."
+            description: "Page number, 1-based. Defaults to 1, capped at 10,000."
           }
         }
       )
@@ -39,7 +39,7 @@ module AgentInsights
           repository = context_run.job.repository
           cutoff = parse_since(since) || default_cutoff(context_run)
           per_page = normalized_limit(limit)
-          page_num = normalized_page(page)
+          page_num = Mcp::Pagination.normalize_page(page)
 
           scope = ::Workflow
             .joins(:job)
@@ -99,10 +99,6 @@ module AgentInsights
         def normalized_limit(value)
           n = Integer(value.presence || DEFAULT_LIMIT, exception: false)
           n ? n.clamp(1, MAX_LIMIT) : DEFAULT_LIMIT
-        end
-
-        def normalized_page(value)
-          [ Integer(value.presence || 1, exception: false) || 1, 1 ].max
         end
 
         def total_pages(total, per)

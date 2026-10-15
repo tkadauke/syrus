@@ -11,7 +11,7 @@ module Mcp::Tools
         mode: { type: "string", enum: ChatSession::MODES, description: "Optional chat mode filter: planning, coding, or local. Planning includes chats with no stored mode." },
         job_id: { type: "integer", description: "Optional attached Syrus Job id filter." },
         has_attached_jobs: { type: "boolean", description: "Optional filter for chats that do or do not have attached Jobs." },
-        page: { type: "integer", description: "1-based page number. Defaults to 1." },
+        page: { type: "integer", description: "1-based page number. Defaults to 1, capped at 10,000." },
         per_page: { type: "integer", description: "Sessions per page. Defaults to 20, capped at 100." }
       }
     )
@@ -21,7 +21,7 @@ module Mcp::Tools
 
       def call(server_context:, page: 1, per_page: 20, mode: nil, job_id: nil, has_attached_jobs: nil)
         chat_session = server_context.fetch(:chat_session)
-        page = normalize_page(page)
+        page = Mcp::Pagination.normalize_page(page)
         per_page = normalize_per_page(per_page)
         scope = chat_session.user.accessible_chat_sessions
           .where(chat_participants: { hidden_at: nil })
@@ -56,10 +56,6 @@ module Mcp::Tools
       end
 
       private
-
-      def normalize_page(value)
-        [ value.to_i, 1 ].max
-      end
 
       def normalize_per_page(value)
         value.to_i.clamp(1, 100)
