@@ -9,7 +9,11 @@ import i18n from "./i18n"
 import { initErrorRingBuffer } from "./lib/errorRingBuffer"
 import { startBrowserPerformanceObservers } from "./lib/performanceTrace"
 import { markStartupMilestone } from "./lib/startupDiagnostics"
+import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
+import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 
+installStaleChunkRecovery()
+configureExcalidrawAssets()
 initErrorRingBuffer()
 startBrowserPerformanceObservers()
 markStartupMilestone("react_module_loaded")

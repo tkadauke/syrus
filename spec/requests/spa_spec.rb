@@ -248,38 +248,63 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('display-mode: standalone')
   end
 
-  it "loads the production SPA entrypoint from the published revisioned alias" do
+  # Regression: the entry was built as `spa.digested.js`, which Propshaft
+  # re-digested to `spa.digested-<sha>.js`, while lazy chunks kept importing
+  # `./spa.digested.js` and production loaded a `spa.js` copy. Lazy routes got
+  # the HTML shell instead of JavaScript. The page must load the entry under
+  # the exact name Vite gave it, because that is the name chunks import.
+  [ true, false ].each do |production|
+    it "loads the Vite entry under the exact content-hashed name chunks import (production: #{production})" do
+      allow(Rails.env).to receive(:test?).and_return(false)
+      allow(Rails.env).to receive(:production?).and_return(production)
+      allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
+      allow(Syrus::ViteEntrypoint).to receive(:current).and_return("spa-entry-SpEc_En-1.digested.js")
+      user = Factories.user
+      sign_in_as(user)
+
+      with_build_asset("spa-entry-SpEc_En-1.digested.js", "console.log('entrypoint')") do
+        get app_shell_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include('<script src="/assets/spa-entry-SpEc_En-1.digested.js" type="module"')
+
+        get "/assets/spa-entry-SpEc_En-1.digested.js"
+
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/javascript")
+        expect(response.body).to include("entrypoint")
+      end
+    end
+  end
+
+  it "renders the development shell without an entry before the first Vite build" do
     allow(Rails.env).to receive(:test?).and_return(false)
-    allow(Rails.env).to receive(:production?).and_return(true)
-    allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
+    allow(Syrus::ViteEntrypoint).to receive(:current).and_raise(Syrus::ViteEntrypoint::Missing, "no manifest")
     user = Factories.user
     sign_in_as(user)
 
     get app_shell_path
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include('<script src="/assets/spa.js?v=entrypoint-sha" type="module"></script>')
+    expect(response.body).not_to include('type="module"')
   end
 
-  it "loads the development SPA entrypoint from the Vite pre-digested build" do
-    allow(Rails.env).to receive(:test?).and_return(false)
-    allow(Rails.env).to receive(:production?).and_return(false)
-    allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
-    user = Factories.user
-    sign_in_as(user)
+  # A module request for a file the build does not have used to fall through
+  # to the SPA catch-all and come back as HTML (or a login redirect), which
+  # the browser reports only as a MIME type error.
+  it "returns a 404 for missing static files instead of the HTML shell or the login redirect" do
+    Factories.user
 
-    with_build_asset("spa.digested.js", "console.log('preview entrypoint')") do
-      get app_shell_path
+    [
+      "/assets/spa-Gone-AbCd_e-1.digested.js",
+      "/excalidraw-assets/0.0.0/fonts/Virgil/Virgil-Regular.woff2",
+      "/plugin-icons/does-not-exist.svg",
+      "/favicon.ico"
+    ].each do |path|
+      get path
 
-      expect(response).to have_http_status(:ok)
-      js_paths = response.body.scan(/<script[^>]+src="([^"]+)"[^>]*><\/script>/).flatten
-      entrypoint_path = js_paths.find { |path| path.include?("spa.digested") }
-      expect(entrypoint_path).to match(%r{\A/assets/spa\.digested-[0-9a-f]{8}\.js\z})
-
-      get entrypoint_path
-
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include("preview entrypoint")
+      expect(response).to have_http_status(:not_found), "expected #{path} to 404, got #{response.status}"
+      expect(response.body).not_to include('id="syrus-spa-root"')
     end
   end
 

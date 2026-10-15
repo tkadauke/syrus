@@ -1,6 +1,7 @@
 import { loadEnv } from "vite"
 import { defineConfig } from "vitest/config"
 import react from "@vitejs/plugin-react"
+import { excalidrawFonts } from "./config/vite/excalidrawFonts.mjs"
 
 // Repo root as a filesystem path (decode %20 etc. — this checkout's path
 // contains spaces). No node:path import: the root tsconfig typechecks this
@@ -33,7 +34,7 @@ export default defineConfig(({ mode }) => {
     // Vite uses this base for CSS and module dependencies preloaded by lazy
     // imports, while static chunk imports remain relative to their importer.
     base: "/assets/",
-    plugins: [react()],
+    plugins: [react(), excalidrawFonts({ rootDir })],
     resolve: {
       alias: {
         "@app": `${rootDir}app/frontend`,
@@ -44,13 +45,19 @@ export default defineConfig(({ mode }) => {
       outDir: "app/assets/builds",
       emptyOutDir: false,
       sourcemap: buildSourcemap,
+      // The entry is content-hashed like every chunk, so the layout learns its
+      // current name from .vite/manifest.json (Syrus::ViteEntrypoint).
+      manifest: true,
       rollupOptions: {
         input: "app/frontend/main.tsx",
         output: {
-          // Propshaft preserves files carrying its `.digested` marker. Without
-          // it, precompile adds a second digest while Vite's import graph still
-          // points at the original content-hashed filename.
-          entryFileNames: "spa.digested.js",
+          // Propshaft keeps a name as-is only when it ends in
+          // `-<hash>.digested.<ext>`; anything else gets a second digest while
+          // Vite's import graph still points at the original filename. That
+          // includes the entry: lazy chunks import shared code back from it,
+          // so it must be served under exactly the name Vite gave it, and the
+          // page must load that same URL or the entry runs twice.
+          entryFileNames: "spa-entry-[hash].digested.js",
           chunkFileNames: "spa-[name]-[hash].digested.js",
           assetFileNames: "spa-[name]-[hash].digested[extname]",
           manualChunks: manualVendorChunk

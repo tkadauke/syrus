@@ -158,8 +158,9 @@ proxy forwards them to the app's local Vite dev server.
 Rails apps that do not expose a `dev` script still need to boot whatever
 frontend pipeline their development layout expects. Syrus itself uses
 `bin/syrus-preview-dev` in `.syrus.yml`: it starts Tailwind and Vite build
-watchers, waits until `app/assets/builds/spa.digested.js` and
-`app/assets/builds/tailwind.css` exist, then starts Rails. That keeps visual
+watchers, waits until Vite has written its build manifest
+(`app/assets/builds/.vite/manifest.json`) and `app/assets/builds/tailwind.css`
+exists, then starts Rails. That keeps visual
 review from inspecting a healthy Rails shell before React and CSS have
 compiled.
 

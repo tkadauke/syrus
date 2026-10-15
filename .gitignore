@@ -78,3 +78,6 @@ tmp/mcp_repro/
 # Local agent memory (e.g. Muse project memories) -- operator-specific,
 # never product artifacts.
 /.agents/
+
+# Excalidraw fonts copied in by the Vite build (config/vite/excalidrawFonts.mjs)
+/public/excalidraw-assets

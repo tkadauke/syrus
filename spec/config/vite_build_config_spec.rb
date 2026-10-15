@@ -16,8 +16,14 @@ RSpec.describe "Vite build config" do
       const output = result.config.build.rollupOptions.output;
       const manualChunks = output.manualChunks;
 
+      const plugins = result.config.plugins.flat();
+      const fontsPlugin = plugins.find((plugin) => plugin && plugin.name === "syrus-excalidraw-fonts");
+      const fontsConfig = await fontsPlugin.config();
+
       console.log(JSON.stringify({
         base: result.config.base,
+        manifest: result.config.build.manifest,
+        excalidrawAssetPath: fontsConfig.define.__EXCALIDRAW_ASSET_PATH__,
         entryFileNames: output.entryFileNames,
         chunkFileNames: output.chunkFileNames,
         assetFileNames: output.assetFileNames,
@@ -44,11 +50,37 @@ RSpec.describe "Vite build config" do
     JSON.parse(stdout)
   end
 
-  it "keeps the Rails SPA entrypoint logical and marks Vite-hashed dependencies as pre-digested" do
+  it "content-hashes the entry like every chunk and records it in the build manifest" do
     expect(config.fetch("base")).to eq("/assets/")
-    expect(config.fetch("entryFileNames")).to eq("spa.digested.js")
+    expect(config.fetch("manifest")).to be(true)
+    expect(config.fetch("entryFileNames")).to eq("spa-entry-[hash].digested.js")
     expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].digested.js")
     expect(config.fetch("assetFileNames")).to eq("spa-[name]-[hash].digested[extname]")
+  end
+
+  # Regression: `spa.digested.js` carried the `.digested` marker but no
+  # `-<hash>`, so Propshaft published it as `spa.digested-<sha>.js` and every
+  # chunk importing `./spa.digested.js` got the HTML shell. Vite's import
+  # graph is only valid if Propshaft serves each file under the exact name
+  # Vite wrote. Vite hashes are base64url, so they may contain `-` and `_`.
+  it "names every Vite output so Propshaft publishes it unchanged" do
+    %w[entryFileNames chunkFileNames assetFileNames].each do |key|
+      [ "Ab-_9xYz", "DuQfn8Z1", "-_-_-_-_" ].each do |hash|
+        logical_path = config.fetch(key)
+          .gsub("[name]", "INSIGHT.InsightPreviewCard")
+          .gsub("[hash]", hash)
+          .gsub("[extname]", ".css")
+        asset = Propshaft::Asset.new(Pathname.new(logical_path), logical_path: logical_path, load_path: Rails.application.assets.load_path)
+
+        expect(asset.digested_path.to_s).to eq(logical_path), "#{key} with hash #{hash}: Propshaft would publish #{logical_path} as #{asset.digested_path}"
+      end
+    end
+  end
+
+  it "points Excalidraw at self-hosted fonts instead of the CDN the CSP blocks" do
+    version = JSON.parse(Rails.root.join("node_modules/@excalidraw/excalidraw/package.json").read).fetch("version")
+
+    expect(config.fetch("excalidrawAssetPath")).to eq(JSON.generate("/excalidraw-assets/#{version}/"))
   end
 
   it "splits heavyweight dependencies out of the startup bundle" do

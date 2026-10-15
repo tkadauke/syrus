@@ -64,3 +64,4 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
+/public/excalidraw-assets

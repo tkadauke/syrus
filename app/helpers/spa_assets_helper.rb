@@ -15,6 +15,18 @@ module SpaAssetsHelper
     append_spa_asset_version(tag)
   end
 
+  # Loads the content-hashed Vite entry by the exact name lazy chunks import
+  # it under (see Syrus::ViteEntrypoint). A development checkout that has not
+  # run the Vite build yet renders the shell without it, as before.
+  def spa_entry_javascript_tag
+    spa_javascript_include_tag(Syrus::ViteEntrypoint.current, type: "module")
+  rescue Syrus::ViteEntrypoint::Missing => error
+    raise if Rails.env.production?
+
+    Rails.logger.warn(error.message)
+    nil
+  end
+
   private
 
   def append_spa_asset_version(tags)

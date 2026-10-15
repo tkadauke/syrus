@@ -691,6 +691,10 @@ Rails.application.routes.draw do
   # `Rails.application.routes_reloader.paths`), so they land BEHIND this
   # wildcard in the final route set rather than in front of it -- without the
   # exclusion this route would swallow blob downloads and the mailbox health
-  # check instead of losing to them "by declaration order".
-  get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?("/api", "/rails") }, format: false
+  # check instead of losing to them "by declaration order". Static file paths
+  # are excluded so a missing file is a 404 rather than the HTML shell -- or,
+  # signed out, a redirect to the login page -- which a browser loading a
+  # module reports only as "'text/html' is not a valid JavaScript MIME type".
+  spa_excluded_prefixes = [ "/api", "/rails", "/assets/", "/excalidraw-assets/", "/plugin-icons/", "/favicon.ico" ].freeze
+  get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?(*spa_excluded_prefixes) }, format: false
 end
