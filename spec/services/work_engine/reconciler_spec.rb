@@ -3884,19 +3884,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
 
+    # A grader Step is not agentic, so worker death recovers it through a
+    # scheduled AutoRetryAttempt rather than the in-place replacement Run an
+    # agentic Step gets (Runs::LifecyclePropagation#scheduled_worker_died_step_retry?
+    # declines for agentic kinds and for the non-idempotent in-place kinds).
+    # The Step keeps its single failed Run and the retry arrives on the queue.
     result = nil
     expect {
       result = reconcile_and_execute(run_id: run.id)
-    }.not_to change { AutoRetryAttempt.count }
+    }.to change { AutoRetryAttempt.where(retry_kind: "failed_step").count }.by(1)
 
     repair_plan = plan(result, :mark_worker_died)
     expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
     expect(repair_plan.execution_steps).to eq([ "Run#fail!(agent_outcome: worker_died)" ])
     expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
-    replacement_run = step.runs.where.not(id: run.id).last
-    expect(replacement_run).to have_attributes(state: "queued")
-    expect(result.repair_executions.map(&:message)).to include("marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}")
-    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}/))
+    expect(step.reload.runs.pluck(:id)).to eq([ run.id ])
+    expect(AutoRetryAttempt.find_by!(retry_kind: "failed_step").run_id).to eq(run.id)
+    expect(result.repair_executions.map(&:action)).to include("mark_worker_died")
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked #{run.slug} worker_died/))
   end
 
   it "defers repair execution on transient database lock timeouts" do
@@ -3982,7 +3987,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
   end
 
-  it "reconciles a queued Step whose Run failed before the Step could start" do
+  it "retries a queued Step whose Run failed retryably before the Step could start" do
     next_step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 1)
     step.update!(kind: "auto_rebase", next_step: next_step)
     job.update_columns(state: "running", started_at: 30.minutes.ago)
@@ -4015,10 +4020,16 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "Step",
       target_id: step.id
     )
-    expect(step.reload).to be_failed
-    expect(workflow.reload).to be_failed
-    expect(job.reload).to be_failed
-    expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
+    # The Run's failure is classified retryable (database_lock), so the repair
+    # reconciles the Step forward rather than backwards: it queues a
+    # replacement Run and leaves the Workflow and Job running. Failing the Job
+    # over connection exhaustion is what this used to do, and it is the thing
+    # retry classification exists to avoid.
+    expect(step.reload).to be_queued
+    expect(step.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
+    expect(workflow.reload).to be_running
+    expect(job.reload).to be_running
+    expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to queued from #{run.slug}")
   end
 
   it "fails a running workflow that already has a failed step and a queued tail" do
@@ -4436,11 +4447,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow.update_columns(state: "running", started_at: agent_run.started_at)
     ensure_solid_queue_test_tables!
 
+# An agentic Step recovers from worker death as in-place replacement work:
+# the dead Run fails as worker_died and the dispatcher re-queues the Step
+# with a fresh Run. The repair finds that work already present and declines
+# to stack an AutoRetryAttempt on top of it ("worker_died failure already
+# created active replacement work"), so counting attempts no longer
+# describes the recovery. Non-agentic Steps still take the attempt path.
     expect {
       reconcile_and_execute(run_id: agent_run.id)
-    }.to change { AutoRetryAttempt.where(retry_kind: "resume_failed_step").count }.by(1)
+    }.to change { agent_step.runs.count }.by(1)
 
     expect(agent_run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+    expect(agent_step.reload).to be_queued
+    expect(agent_step.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
   end
 
   it "executes stale running workspace retry after marking worker_died" do
@@ -4459,11 +4478,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
 
+# An agentic Step recovers from worker death as in-place replacement work:
+# the dead Run fails as worker_died and the dispatcher re-queues the Step
+# with a fresh Run. The repair finds that work already present and declines
+# to stack an AutoRetryAttempt on top of it ("worker_died failure already
+# created active replacement work"), so counting attempts no longer
+# describes the recovery. Non-agentic Steps still take the attempt path.
     expect {
       reconcile_and_execute(run_id: agent_run.id)
-    }.to change { AutoRetryAttempt.where(retry_kind: "failed_step").count }.by(1)
+    }.to change { agent_step.runs.count }.by(1)
 
     expect(agent_run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+    expect(agent_step.reload).to be_queued
+    expect(agent_step.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
   end
 
   it "does not schedule a second resume_failed_step retry for repeated reconciler passes over the same worker-died agentic Run" do
@@ -4482,21 +4509,20 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     ensure_solid_queue_test_tables!
 
     reconcile_and_execute(run_id: agent_run.id)
-    first_attempt = AutoRetryAttempt.find_by!(run: agent_run, retry_kind: "resume_failed_step")
-    # Simulate AutoRetryJob already having consumed this attempt (as it would
-    # almost immediately, since worker_died retries are scheduled for "now"),
-    # the exact state in which the old auto_retry_blocker_for's
-    # workflow-wide `pending.exists?` check stopped protecting against a
-    # second mark_worker_died_and_resume_failed_step / resume_failed_step
-    # repair for this same Run.
-    first_attempt.update!(performed_at: Time.current)
+    expect(agent_step.reload.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
 
+    # The guard this example exists for: repeated reconciler passes over the
+    # same worker-died Run must not pile up more work. An agentic Step now
+    # recovers as in-place replacement work rather than an AutoRetryAttempt, so
+    # the thing that must not duplicate is the queued replacement Run. The
+    # original hazard is unchanged -- a repair that re-fires on every pass
+    # because its own evidence of "already handled" has been consumed.
     expect {
       3.times { reconcile_and_execute(run_id: agent_run.id) }
-    }.not_to change { AutoRetryAttempt.count }
+    }.not_to change { agent_step.reload.runs.count }
 
-    expect(AutoRetryAttempt.where(run: agent_run).count).to eq(1)
-    expect(first_attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+    expect(agent_step.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
+    expect(AutoRetryAttempt.count).to eq(0)
   end
 
   it "does not schedule a second failed_step retry for repeated reconciler passes over the same worker-died grader_fanout Run" do
