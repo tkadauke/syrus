@@ -1471,7 +1471,10 @@ credential and accepts only `get`, `describe`, `logs`, `top`, `events`,
 are rejected even if the deprecated risky-command input is supplied. Kubectl
 runs with only `KUBECONFIG`, `PATH`, and `HOME` in its environment, under a
 timeout with stdout and stderr bounded to 64 KiB each. Pod-log reads cap the
-requested tail at 1,000 lines and 64 KiB.
+requested tail at 1,000 lines and 64 KiB. When a credential belongs to a
+registered cluster, that cluster's agentic-access opt-in applies to every
+command. Workflow and chat agents cannot grant themselves the Secret-output
+override; it requires an operator-controlled caller.
 
 ## GitHub App And PAT Behavior
 

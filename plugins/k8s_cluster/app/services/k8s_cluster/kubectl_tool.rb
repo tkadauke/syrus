@@ -41,7 +41,7 @@ module K8sCluster
         },
         allow_secret_output: {
           type: "boolean",
-          description: "Explicitly allow commands likely to print Secret values, such as get secrets -o yaml or describe secret. Chat-surface calls cannot use this self-authorization flag."
+          description: "Operator-only allowance for commands likely to print Secret values, such as get secrets -o yaml or describe secret. Agent calls cannot use this self-authorization flag."
         }
       }
     )

@@ -328,10 +328,13 @@ plugins. Streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 Secret-value exposure patterns such as `get secrets -o yaml`,
 `get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
 API paths whose segments target `secrets`, unless explicit allowance is
-supplied on a non-chat surface. Chat calls cannot self-authorize secret-output
-allowance. The local runner also enforces a timeout and bounded output capture
-so a missed policy case cannot keep the temporary kubeconfig materialized or
-grow memory use indefinitely.
+ supplied by a non-agent caller. Chat and workflow agents cannot self-authorize
+ secret-output allowance. When the credential belongs to a registered cluster,
+ every command also requires that cluster's `agentic_access_enabled` opt-in.
+ Standalone Credential Store kubeconfigs remain governed by their explicit
+ scope, surface, tool, and target constraints. The local runner also enforces a
+ timeout and bounded output capture so a missed policy case cannot keep the
+ temporary kubeconfig materialized or grow memory use indefinitely.
 
 ## Cluster-browsing UI
 
