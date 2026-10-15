@@ -24,7 +24,7 @@ export function MysqlResultsGrid({
   storageKey
 }: {
   columns: string[]
-  rows: Array<Record<string, unknown>>
+  rows: unknown[][]
   sort?: MysqlGridSort | null
   onSort?: (column: string) => void
   storageKey: string
@@ -32,15 +32,15 @@ export function MysqlResultsGrid({
   const { t } = useT("mysql_db_browser")
   const { t: adminT } = useT("admin")
 
-  const dataTableColumns = useMemo<DataTableColumnDef<Record<string, unknown>>[]>(
+  const dataTableColumns = useMemo<DataTableColumnDef<unknown[]>[]>(
     () =>
-      columns.map((column) => ({
-        key: column,
+      columns.map((column, columnIndex) => ({
+        key: `${columnIndex}:${column}`,
         label: column,
         sortKey: column,
         cellClassName: "max-w-xs truncate font-mono text-gray-700 dark:text-gray-300",
         renderCell: (row) => {
-          const value = row[column]
+          const value = row[columnIndex]
           const formatted = formatMysqlCellValue(value)
           return value === null || value === undefined ? (
             <span className="italic text-gray-400 dark:text-gray-600">NULL</span>

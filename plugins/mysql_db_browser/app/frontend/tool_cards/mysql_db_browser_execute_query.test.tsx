@@ -16,7 +16,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 const selectResult = {
   available: true,
   columns: [ "id", "state" ],
-  rows: [ { id: 1, state: "queued" }, { id: 2, state: null } ],
+  rows: [ [ 1, "queued" ], [ 2, null ] ],
   row_count: 2,
   truncated: false,
   statement: "SELECT id, state FROM jobs LIMIT 2",
@@ -28,7 +28,7 @@ const selectResult = {
 const wideSelectResult = {
   available: true,
   columns: [ "a", "b", "c", "d", "e", "f", "g", "h" ],
-  rows: [ { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 } ],
+  rows: [ [ 1, 2, 3, 4, 5, 6, 7, 8 ] ],
   row_count: 1,
   truncated: false,
   statement: "SELECT * FROM wide_table",
@@ -84,6 +84,16 @@ describe("mysql_db_browser_execute_query tool card", () => {
     expect(screen.getByText("queued")).toBeInTheDocument()
     expect(screen.getByText("NULL")).toBeInTheDocument()
     expect(screen.getByText("Read-only")).toBeInTheDocument()
+  })
+
+  it("renders duplicate column names with their distinct positional values", () => {
+    const duplicateColumnsResult = { ...selectResult, columns: [ "id", "id" ], rows: [ [ 12, 34 ] ], row_count: 1 }
+
+    render(<>{executeQueryToolCard.renderExpanded(context({ parsedResult: duplicateColumnsResult }))}</>)
+
+    expect(screen.getAllByRole("columnheader", { name: "id" })).toHaveLength(2)
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("34")).toBeInTheDocument()
   })
 
   it("renders a wide result table with every column", () => {

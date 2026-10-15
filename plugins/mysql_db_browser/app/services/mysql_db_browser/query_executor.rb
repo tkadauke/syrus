@@ -356,7 +356,7 @@ module MysqlDbBrowser
     end
 
     def run_select(client, statement, limit)
-      result = client.query(mysql_timeout_hint(statement), stream: true, cache_rows: false, as: :hash)
+      result = client.query(mysql_timeout_hint(statement), stream: true, cache_rows: false, as: :array)
       columns = result.fields
       rows = []
       result_bytes = 0
@@ -377,7 +377,7 @@ module MysqlDbBrowser
 
       {
         available: true,
-        columns: columns.presence || rows.first&.keys || [],
+        columns: columns.presence || [],
         rows: rows,
         row_count: rows.length,
         truncated: truncated
@@ -419,7 +419,7 @@ module MysqlDbBrowser
     end
 
     def truncate_row(row)
-      row.transform_values { |value| truncate_value(value) }
+      row.map { |value| truncate_value(value) }
     end
 
     def truncate_value(value)
