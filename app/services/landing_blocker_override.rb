@@ -5,6 +5,7 @@ class LandingBlockerOverride
   # the landing-queue payload) may land it. `pr_checks_failing` -- a failure this
   # Job introduced -- stays non-overridable.
   NON_OVERRIDABLE_KEYS = %w[
+    approval_not_satisfied
     missing_pull_request
     pr_checks_failing
     pr_checks_pending
