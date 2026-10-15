@@ -48,18 +48,25 @@ class BaseRevisionRetry
 
     output = +""
     parsed = nil
+    timed_out = false
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
       git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
       begin
         @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)}: #{redacted_command(command)}")
-        run_command(command, checkout_path, output)
-        parsed = parse_result(output, checkout_path)
+        # nil means the command was killed at TIMEOUT_SECONDS. Parsing its
+        # partial output reports "not parseable", which reads as "this
+        # grader's output is in an unsupported format" -- a configuration
+        # problem -- when the fact is that the focused command never
+        # finished. The two call for different responses, so name them apart.
+        timed_out = run_command(command, checkout_path, output).nil?
+        parsed = parse_result(output, checkout_path) unless timed_out
       ensure
         git("worktree", "remove", "--force", checkout_path.to_s)
       end
     end
 
+    return skipped("base_retry_focused_command_timed_out", command: command, output: output) if timed_out
     return skipped("base_retry_output_not_parseable", command: command, output: output) unless parsed
 
     candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
@@ -284,8 +291,16 @@ class BaseRevisionRetry
     [ suite_name, name ].join(0.chr)
   end
 
+  # byteslice with a negative offset past the start of the string is nil, which
+  # safe_byteslice turns into "" -- so asking for the last 16 KiB of anything
+  # shorter than 16 KiB threw the whole thing away. Every retry output this
+  # records is well under that, which is how a declined retry came to be
+  # recorded with no output at all.
   def output_tail(output)
-    output.to_s.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES)
+    text = output.to_s
+    return text if text.bytesize <= OUTPUT_INLINE_BYTES
+
+    text.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES)
   end
 
   def full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited)

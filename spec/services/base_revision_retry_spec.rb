@@ -97,6 +97,43 @@ RSpec.describe BaseRevisionRetry do
     expect(result.base_failed_identities).to eq([ "spec/models/widget_spec.rb\0Widget fails" ])
   end
 
+  # A focused retry that never finishes used to be reported as
+  # base_retry_output_not_parseable, which names a grader-configuration problem
+  # and sent the diagnosis in the wrong direction: the retry installs
+  # dependencies, prepares a database and runs the failed files in a bare base
+  # worktree, so the thing most likely to go wrong is that it runs out of time.
+  it "reports a focused retry that never finishes as a timeout, not as unparseable output" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    # What run_command returns when it kills the command at TIMEOUT_SECONDS,
+    # which it is covered for separately.
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "some output\n[brr] timed out after 600s\n"
+      nil
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: false,
+      inherited: false,
+      reason: "base_retry_focused_command_timed_out",
+      command: "bin/rspec-fast spec/models/widget_spec.rb"
+    )
+    expect(result.output).to include("[brr] timed out")
+  end
+
   it "keeps the failure when the focused base run does not report the candidate failure" do
     provider = Class.new do
       def self.command_for(**)

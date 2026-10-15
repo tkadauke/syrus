@@ -1545,6 +1545,29 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         )
       end
 
+      # A base retry that declined before running records a result, so the
+      # payload's "a result exists, therefore it completed" fallback claimed a
+      # comparison the operator never got.
+      it "reports a base-revision retry that declined before running as unavailable" do
+        job = Factories.job_record(repository: repo)
+        failed_grader_run(job, details: {
+          "failures" => "allow_inherited",
+          "base_retry" => { "strategy" => "plugin" },
+          "base_retry_result" => {
+            "ran" => false,
+            "status" => "unavailable",
+            "reason" => "base_retry_focused_command_timed_out"
+          }
+        })
+        stub_test_evidence_provider(fake_test_evidence_provider(failed_test_cases: [
+          { "suite_name" => "spec/a_spec.rb", "name" => "fails", "identity" => "1" }
+        ]))
+
+        summary = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :test_failure_summary)
+
+        expect(summary).to include("base_retry_status" => "unavailable")
+      end
+
       it "is nil when no test_evidence provider has data for the run" do
         job = Factories.job_record(repository: repo)
         failed_grader_run(job)

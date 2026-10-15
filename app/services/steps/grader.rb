@@ -310,16 +310,28 @@ module Steps
       false
     end
 
+    # `status` is what the Job page reads, and it used to be absent, so the
+    # payload's fallback reported every base retry as "completed" -- including
+    # the ones that declined before running. "unavailable" is the vocabulary
+    # that surface already has for "configured, but produced no comparison",
+    # which is exactly what a decline is.
+    #
+    # The output goes with it: a decline like base_retry_output_not_parseable
+    # is only actionable next to what the command actually printed, and
+    # dropping it left the reason string as the whole record. Kept to the
+    # decline, since a retry that ran reports per-case identities instead.
     def record_base_retry_result!(result, base_sha:)
       step.update!(details: step.details.to_h.merge(
         "base_retry_result" => {
           "ran" => result.ran,
+          "status" => result.ran ? "completed" : "unavailable",
           "inherited" => result.inherited,
           "reason" => result.reason,
           "command" => result.command,
           "base_sha" => base_sha,
           "base_failed_identities" => result.base_failed_identities,
           "introduced_failed_identities" => result.introduced_failed_identities,
+          "output" => (result.output unless result.ran),
           "recorded_at" => Time.current.iso8601
         }.compact
       ))

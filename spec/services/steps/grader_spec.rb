@@ -449,6 +449,48 @@ RSpec.describe Steps::Grader, :ci_only do
     )
   end
 
+  # The Job page reads base_retry_result["status"], which was never written, so
+  # its fallback reported every base retry as "completed" -- including the ones
+  # that declined before running. And the output the decline was decided on was
+  # dropped, leaving an unactionable reason string as the whole record.
+  it "records a declined base-revision retry as unavailable and keeps what it printed" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "base123")
+    step.update!(details: step.details.merge(
+      "name" => "rspec",
+      "junit_output" => ".syrus/grade-output/rspec-junit.xml",
+      "failures" => "allow_inherited",
+      "base_retry" => { "strategy" => "plugin" }
+    ))
+    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )))
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).and_return(
+      [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails" } ]
+    )
+    allow(BaseRevisionRetry).to receive(:call).and_return(BaseRevisionRetry::Result.new(
+      ran: false,
+      inherited: false,
+      reason: "base_retry_focused_command_timed_out",
+      command: "bin/rspec-worker spec/models/widget_spec.rb",
+      base_failed_identities: [],
+      introduced_failed_identities: [],
+      output: "some output\n[brr] timed out after 600s\n"
+    ))
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
+
+    expect(step.reload.details["base_retry_result"]).to include(
+      "ran" => false,
+      "status" => "unavailable",
+      "reason" => "base_retry_focused_command_timed_out",
+      "output" => "some output\n[brr] timed out after 600s\n"
+    )
+    expect(step.details["accepted_failure"]).to be_nil
+  end
+
   it "still fails when base-revision retry finds candidate-introduced JUnit failures" do
     workflow.update!(trigger_kind: "auto_merge")
     job.update!(mergeability_base_sha: "base123")
