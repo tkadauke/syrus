@@ -83,6 +83,20 @@ RSpec.describe GitHistory::CommitAttributor do
       expect(result[:job]).to include(id: job.id, slug: job.slug)
     end
 
+    it "skips an orphaned LandedCommit row and continues to a valid candidate" do
+      sha = "6" + "f" * 39
+      orphaned_job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
+      local_job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
+      LandedCommit.create!(landable: orphaned_job, sha: sha, kind: "implementation", position: 0)
+      orphaned_job.destroy!
+      LandedCommit.create!(landable: local_job, sha: sha, kind: "implementation", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: local_job.id, slug: local_job.slug)
+    end
+
     it "classifies a commit with a LandedCommit(landable: Job, kind: implementation) row as syrus_landed" do
       sha = "5" + "a" * 39
       job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
