@@ -34,6 +34,17 @@ RSpec.describe Job, :ci_only do
       expect(job.discussion_chat).to eq(older_chat)
     end
 
+    it "skips soft-deleted chat sessions" do
+      job = Factories.job_record
+      deleted_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      active_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      job.chat_attachments.create!(chat_session: deleted_chat, attached_at: 1.hour.ago)
+      job.chat_attachments.create!(chat_session: active_chat)
+      deleted_chat.soft_delete_by!(job.user)
+
+      expect(job.discussion_chat).to eq(active_chat)
+    end
+
     it "is destroyed along with the job" do
       job = Factories.job_record
       chat = ChatSession.create!(user: job.user, repository: job.repository)

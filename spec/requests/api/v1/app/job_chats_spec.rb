@@ -145,6 +145,23 @@ RSpec.describe "App API job chats", type: :request do
       expect(job.reload.discussion_chat).to eq(chat)
     end
 
+    it "forbids a write-tier member from posting to another user's existing chat" do
+      existing_chat = ChatSession.create!(user: user, repository: repo)
+      job.chat_attachments.create!(chat_session: existing_chat)
+      writer = Factories.user(admin: false)
+      RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+      sign_in_as(writer)
+
+      expect {
+        post path(job), params: { message: "Run this in the owner's context." }, as: :json
+      }.not_to change(ChatMessage, :count)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(ChatTurnJob).not_to have_been_enqueued
+      expect(ChatTitleJob).not_to have_been_enqueued
+    end
+
     it "forbids a read-only member from starting the chat" do
       job # see note above
       reader = Factories.user(admin: false)

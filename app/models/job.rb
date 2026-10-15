@@ -498,9 +498,15 @@ class Job < ApplicationRecord
   # JobChatsController) -- distinct from linked_chat_id, which is Coding/Local
   # Mode's exclusive-ownership link. Earliest attachment wins so the link
   # stays stable once a discussion has started, even if the Job is later
-  # attached to additional chats as ordinary context elsewhere.
+  # attached to additional chats as ordinary context elsewhere. Soft-deleted
+  # chats are skipped so archiving a discussion permits a fresh one.
   def discussion_chat
-    chat_attachments.order(:attached_at, :id).first&.chat_session
+    chat_attachments
+      .joins(:chat_session)
+      .merge(ChatSession.active)
+      .order(:attached_at, :id)
+      .first
+      &.chat_session
   end
 
   # Returns an "issue-shaped" object (responds to #title, #body) for

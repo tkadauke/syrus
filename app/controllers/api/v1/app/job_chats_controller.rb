@@ -15,6 +15,14 @@ module Api
           return unless authorize_job_mutation!(job)
 
           chat_session = job.discussion_chat
+          if chat_session && !Current.user.accessible_chat_sessions.active.exists?(id: chat_session.id)
+            return render_error(
+              "forbidden",
+              "You must be a participant in the existing Job chat to continue it.",
+              status: :forbidden
+            )
+          end
+
           created_chat = false
           requested_message_text = requested_message(job)
           message_text = requested_message_text || reference_message(job)
