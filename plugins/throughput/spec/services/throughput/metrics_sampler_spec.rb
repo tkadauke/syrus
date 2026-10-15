@@ -123,9 +123,87 @@ RSpec.describe Throughput::MetricsSampler do
     end
 
     it "degrades one failing source without raising" do
+      t0 = Time.current.change(usec: 0)
+      travel_to(t0) { described_class.sample! }
+      failed_cursor = cache.read(described_class::CACHE_KEY).dig("cursor", "auto_merge_through")
       allow(Workflow).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "no such table")
-      travel_to(Time.current) { described_class.sample! } # bootstrap
-      travel_to(Time.current + 1.minute) { expect { described_class.sample! }.not_to raise_error }
+
+      travel_to(t0 + 1.minute) { expect { described_class.sample! }.not_to raise_error }
+
+      checkpoint = cache.read(described_class::CACHE_KEY)
+      expect(checkpoint.dig("cursor", "auto_merge_through")).to eq(failed_cursor)
+      expect(checkpoint.dig("cursor", "merge_train_through")).to eq((t0 + 1.minute).iso8601(6))
+    end
+
+    it "retries an auto_merge interval after its query recovers" do
+      t0 = Time.current.change(usec: 0)
+      travel_to(t0) { described_class.sample! }
+      travel_to(t0 + 1.minute) { auto_merge_workflow(Factories.job_record(repository: repository)) }
+      allow(Workflow).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "temporarily unavailable")
+      travel_to(t0 + 2.minutes) { described_class.sample! }
+
+      allow(Workflow).to receive(:where).and_call_original
+      travel_to(t0 + 3.minutes) { described_class.sample! }
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).to include('syrus_throughput_landing_units_total{unit_type="auto_merge"} 1')
+    end
+
+    it "leaves the merge_train cursor and totals untouched when its member query fails" do
+      t0 = Time.current.change(usec: 0)
+      travel_to(t0) { described_class.sample! }
+      travel_to(t0 + 1.minute) { succeeded_merge_train(member_count: 2) }
+      allow(MergeTrainMember).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "temporarily unavailable")
+
+      travel_to(t0 + 2.minutes) { described_class.sample! }
+
+      checkpoint = cache.read(described_class::CACHE_KEY)
+      expect(checkpoint.dig("cursor", "merge_train_through")).to eq(t0.iso8601(6))
+      expect(checkpoint.dig("totals", "landing_units_total")).to be_nil
+      expect(checkpoint.dig("totals", "jobs_landed_total")).to be_nil
+    end
+
+    it "persists cursor and totals in one versioned checkpoint write" do
+      t0 = Time.current.change(usec: 0)
+      travel_to(t0) { described_class.sample! }
+      travel_to(t0 + 1.minute) { auto_merge_workflow(Factories.job_record(repository: repository)) }
+      allow(cache).to receive(:write).and_call_original
+
+      travel_to(t0 + 2.minutes) { described_class.sample! }
+
+      expect(cache).to have_received(:write).once.with(
+        described_class::CACHE_KEY,
+        hash_including(
+          "version" => described_class::CHECKPOINT_VERSION,
+          "cursor" => hash_including("auto_merge_through" => (t0 + 2.minutes).iso8601(6)),
+          "totals" => hash_including("jobs_landed_total" => 1)
+        ),
+        expires_in: described_class::CURSOR_TTL
+      )
+    end
+
+    it "retries the interval without double-counting when the checkpoint write fails" do
+      t0 = Time.current.change(usec: 0)
+      travel_to(t0) { described_class.sample! }
+      travel_to(t0 + 1.minute) { auto_merge_workflow(Factories.job_record(repository: repository)) }
+      fail_write = true
+      allow(cache).to receive(:write).and_wrap_original do |method, key, *args, **kwargs|
+        raise "checkpoint unavailable" if fail_write && key == described_class::CACHE_KEY
+
+        method.call(key, *args, **kwargs)
+      end
+
+      travel_to(t0 + 2.minutes) do
+        expect { described_class.sample! }.to raise_error("checkpoint unavailable")
+      end
+      expect(cache.read(described_class::CACHE_KEY).dig("cursor", "auto_merge_through")).to eq(t0.iso8601(6))
+
+      fail_write = false
+      travel_to(t0 + 3.minutes) { described_class.sample! }
+      travel_to(t0 + 4.minutes) { described_class.sample! }
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).to include('syrus_throughput_landing_units_total{unit_type="auto_merge"} 1')
     end
   end
 
