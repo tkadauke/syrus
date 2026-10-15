@@ -26,6 +26,7 @@ module CredentialStore
           return unless uri.is_a?(URI::HTTP) && uri.host.present? && uri.userinfo.blank?
           return if !allow_query && uri.query.present?
           return if uri.fragment.present?
+          return if traversal_path?(uri.path)
 
           uri
         rescue URI::InvalidURIError
@@ -40,6 +41,13 @@ module CredentialStore
 
         def normalized_host(host)
           host.to_s.downcase.delete_suffix(".")
+        end
+
+        def traversal_path?(path)
+          return true if path.match?(/%25/i)
+
+          decoded_path = path.gsub(/%(?:2e|2f|5c)/i) { |encoded| encoded.delete_prefix("%").to_i(16).chr }
+          decoded_path.tr("\\", "/").split("/").intersect?([ ".", ".." ])
         end
 
         def path_prefix?(path, prefix)
