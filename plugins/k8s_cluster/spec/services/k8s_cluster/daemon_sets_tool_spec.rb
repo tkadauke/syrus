@@ -1,10 +1,12 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::DaemonSetsTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   let(:cluster) { Factories.kubernetes_cluster(agentic_access_enabled: true) }
 
   def call(cluster_id:, namespace: nil, name: nil)
-    described_class.call(server_context: {}, cluster_id: cluster_id, namespace: namespace, name: name)
+    described_class.call(server_context: { chat_session: chat_session }, cluster_id: cluster_id, namespace: namespace, name: name)
   end
 
   it "lists daemon sets" do

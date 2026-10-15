@@ -1,11 +1,13 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::PodLogsTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   let(:cluster) { Factories.kubernetes_cluster(agentic_access_enabled: true) }
 
   def call(cluster_id:, name: "web-1", namespace: "default", container: nil, tail_lines: nil, previous: false, timestamps: false)
     described_class.call(
-      server_context: {},
+      server_context: { chat_session: chat_session },
       cluster_id: cluster_id,
       name: name,
       namespace: namespace,

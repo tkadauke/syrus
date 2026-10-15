@@ -19,7 +19,8 @@ import {
   updateKubernetesCluster,
   type KubernetesClusterInput,
   type KubernetesClusterRow,
-  type KubernetesClusterTestResult
+  type KubernetesClusterTestResult,
+  type CredentialScopeOptions
 } from "../api/kubernetesClusters"
 import { ClusterBrowser } from "../components/ClusterBrowser"
 import { StatusBadge } from "../components/StatusBadge"
@@ -38,6 +39,7 @@ const EMPTY_FORM: KubernetesClusterInput = {
   agentic_access_enabled: false,
   allow_writes: false,
   insecure_skip_tls_verify: false,
+  credential_scope_type: "instance",
   kubeconfig: ""
 }
 
@@ -90,6 +92,7 @@ export function KubernetesClusters() {
             <ClusterConnectionModal
               key={connectionModal.mode === "edit" ? `edit-${connectionModal.cluster.id}` : "create"}
               modal={connectionModal}
+              scopeOptions={clusters.data.credential_scope_options}
               onClose={() => setConnectionModal(null)}
               onNotice={setNotice}
             />
@@ -103,11 +106,13 @@ export function KubernetesClusters() {
 function ClusterConnectionModal({
   modal,
   onClose,
-  onNotice
+  onNotice,
+  scopeOptions
 }: {
   modal: ConnectionModalState
   onClose: () => void
   onNotice: (message: string | null) => void
+  scopeOptions: CredentialScopeOptions
 }) {
   const { t } = useT("k8s_cluster")
   const queryClient = useQueryClient()
@@ -120,6 +125,8 @@ function ClusterConnectionModal({
           agentic_access_enabled: cluster.agentic_access_enabled,
           allow_writes: cluster.allow_writes,
           insecure_skip_tls_verify: cluster.insecure_skip_tls_verify,
+          credential_scope_type: cluster.credential_scope_type || "instance",
+          credential_scope_id: cluster.credential_scope_id || undefined,
           kubeconfig: ""
         }
       : EMPTY_FORM
@@ -168,6 +175,7 @@ function ClusterConnectionModal({
             kubeconfigHint={editing ? t("field_kubeconfig_hint_edit") : undefined}
             kubeconfigRequired={!editing}
             onChange={setValues}
+            scopeOptions={scopeOptions}
             values={values}
           />
           {error ? (
@@ -262,9 +270,36 @@ function clusterFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField
         { value: "none", label: t("credential_kind_none") }
       ]
     },
-    { field: "agentic_access_enabled", label: t("col_agentic_access"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("agentic_enabled") }, { value: "false", label: t("agentic_disabled") }] },
-    { field: "allow_writes", label: t("col_allow_writes"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("allow_writes_enabled") }, { value: "false", label: t("allow_writes_disabled") }] },
-    { field: "insecure_skip_tls_verify", label: t("col_insecure_skip_tls_verify"), bucket: "text", operators: ["is"], values: [{ value: "true", label: t("insecure_enabled") }, { value: "false", label: t("insecure_disabled") }] },
+    {
+      field: "agentic_access_enabled",
+      label: t("col_agentic_access"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("agentic_enabled") },
+        { value: "false", label: t("agentic_disabled") }
+      ]
+    },
+    {
+      field: "allow_writes",
+      label: t("col_allow_writes"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("allow_writes_enabled") },
+        { value: "false", label: t("allow_writes_disabled") }
+      ]
+    },
+    {
+      field: "insecure_skip_tls_verify",
+      label: t("col_insecure_skip_tls_verify"),
+      bucket: "text",
+      operators: ["is"],
+      values: [
+        { value: "true", label: t("insecure_enabled") },
+        { value: "false", label: t("insecure_disabled") }
+      ]
+    },
     { field: "created_at", label: t("col_created_at"), bucket: "date", operators: ["before", "after", "between"] },
     { field: "updated_at", label: t("col_updated_at"), bucket: "date", operators: ["before", "after", "between"] }
   ]
@@ -274,7 +309,7 @@ function clusterFilterTreeFromSearch(search: string, legacyQuery: string): Filte
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return filterTreeFromPayload(legacyQuery ? { and: [{ field: CLUSTER_SEARCH_FIELD, op: "contains", value: legacyQuery }] } : null)
   try {
-    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (encoded.length % 4)) % 4)}`
     const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
     return { and: topLevelNodes(parsed) }
@@ -512,13 +547,15 @@ function ClusterFieldsGrid({
   kubeconfigHint,
   kubeconfigRequired,
   onChange,
-  values
+  values,
+  scopeOptions
 }: {
   idPrefix: string
   kubeconfigHint?: string
   kubeconfigRequired?: boolean
   onChange: (values: KubernetesClusterInput) => void
   values: KubernetesClusterInput
+  scopeOptions: CredentialScopeOptions
 }) {
   const { t } = useT("k8s_cluster")
 
@@ -544,6 +581,48 @@ function ClusterFieldsGrid({
         />
         {kubeconfigHint ? <Form.HelpText>{kubeconfigHint}</Form.HelpText> : null}
       </Form.Field>
+      <Form.Field controlId={`${idPrefix}-credential-scope`}>
+        <Form.Label>{t("field_credential_scope")}</Form.Label>
+        <Form.Select
+          onChange={(event) =>
+            onChange({
+              ...values,
+              credential_scope_type: event.target.value as KubernetesClusterInput["credential_scope_type"],
+              credential_scope_id: undefined
+            })
+          }
+          value={values.credential_scope_type}
+        >
+          {scopeOptions.scopes.map((scope) => (
+            <option key={scope.value} value={scope.value}>
+              {scope.label}
+            </option>
+          ))}
+        </Form.Select>
+        <Form.HelpText>{t("field_credential_scope_hint")}</Form.HelpText>
+      </Form.Field>
+      {values.credential_scope_type !== "instance" ? (
+        <Form.Field controlId={`${idPrefix}-credential-scope-target`}>
+          <Form.Label>{t("field_credential_scope_target")}</Form.Label>
+          <Form.Select
+            onChange={(event) => set("credential_scope_id", Number(event.target.value))}
+            required={values.credential_scope_type !== "user"}
+            value={values.credential_scope_id || ""}
+          >
+            <option value="">{t("field_credential_scope_target_default")}</option>
+            {(values.credential_scope_type === "user"
+              ? scopeOptions.users
+              : values.credential_scope_type === "repository"
+                ? scopeOptions.repositories
+                : scopeOptions.teams
+            ).map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.label}
+              </option>
+            ))}
+          </Form.Select>
+        </Form.Field>
+      ) : null}
       <Form.Field controlId={`${idPrefix}-agentic-access`}>
         <Form.Checkbox
           checked={values.agentic_access_enabled}

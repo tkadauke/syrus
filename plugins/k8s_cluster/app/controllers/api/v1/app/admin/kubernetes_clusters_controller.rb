@@ -6,7 +6,12 @@ module Api
           before_action :require_k8s_cluster_enabled
 
           def index
-            render json: { kubernetes_clusters: KubernetesCluster.order(:label).map { |cluster| cluster_json(cluster) } }
+            clusters = KubernetesCluster.order(:label).to_a
+            credentials = K8sCluster::ClusterCredential.credentials_by_id_for(clusters)
+            render json: {
+              kubernetes_clusters: clusters.map { |cluster| cluster_json(cluster, credential: credentials[cluster.credential_store_credential_id]) },
+              credential_scope_options: management_authorization.manageable_options
+            }
           end
 
           def create
@@ -17,13 +22,13 @@ module Api
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
               cluster.save!
-              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user) if cluster.persisted? && pending_kubeconfig.present?
+              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **requested_scope) if cluster.persisted? && pending_kubeconfig.present?
               cluster.save!
             end
             render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
@@ -35,13 +40,19 @@ module Api
               apply_kubeconfig!(cluster, require_kubeconfig: false)
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
-              K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user) if pending_kubeconfig.present?
+              credential = K8sCluster::ClusterCredential.credential_for(cluster)
+              scope = requested_scope(default_type: credential&.scope_type || "instance", default_id: credential&.scope_id)
+              if pending_kubeconfig.present?
+                K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: pending_kubeconfig, user: Current.user, **scope)
+              elsif credential && (credential.scope_type != scope[:scope_type] || credential.scope_id != scope[:scope_id])
+                credential.update!(scope)
+              end
               cluster.save!
             end
             render json: { kubernetes_cluster: cluster_json(cluster) }
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
@@ -124,7 +135,7 @@ module Api
             params.require(:kubernetes_cluster).permit(:label, :agentic_access_enabled, :allow_writes, :insecure_skip_tls_verify)
           end
 
-          def cluster_json(cluster)
+          def cluster_json(cluster, credential: K8sCluster::ClusterCredential.credential_for(cluster))
             {
               id: cluster.id,
               label: cluster.label,
@@ -133,9 +144,33 @@ module Api
               allow_writes: cluster.allow_writes,
               insecure_skip_tls_verify: cluster.insecure_skip_tls_verify,
               credential_kind: cluster.credential_kind,
+              credential_scope_type: credential&.scope_type,
+              credential_scope_id: credential&.scope_id,
+              legacy_credentials: cluster.credential_store_credential_id.blank?,
               created_at: cluster.created_at.iso8601,
               updated_at: cluster.updated_at.iso8601
             }
+          end
+
+          def requested_scope(default_type: "instance", default_id: nil)
+            scope_type = params.dig(:kubernetes_cluster, :credential_scope_type).presence || default_type
+            requested_id = params.dig(:kubernetes_cluster, :credential_scope_id).presence
+            scope_id = if scope_type == "instance"
+              nil
+            elsif requested_id
+              requested_id
+            elsif scope_type == default_type
+              default_id
+            elsif scope_type == "user"
+              Current.user.id
+            end
+            raise ArgumentError, "credential scope is not manageable by the current user" unless management_authorization.can_manage_scope?(scope_type, scope_id)
+
+            { scope_type: scope_type, scope_id: scope_id }
+          end
+
+          def management_authorization
+            @management_authorization ||= ::CredentialStore::ManagementAuthorization.new(Current.user)
           end
 
           def admin_context
