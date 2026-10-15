@@ -139,6 +139,5 @@ module GitMirror
     def plugin_record
       @plugin_record ||= PluginRecord.find_or_create_by!(name: "git_mirror")
     end
-
   end
 end
