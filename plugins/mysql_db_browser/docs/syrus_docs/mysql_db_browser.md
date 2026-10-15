@@ -264,5 +264,5 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   to `MysqlQueryAudit` (`mysql_connection`, `user`, `statement`, `read_only`,
   `success`, `row_count`, `error_message`, `duration_ms`). A pending row is
   persisted before MySQL executes and then updated with the outcome. Audit
-  creation failures stop execution, and stored statements are safely bounded
-  to the audit column's 65,535-byte capacity.
+  creation failures stop execution, and stored statements and error messages
+  are safely bounded to their audit columns' 65,535-byte capacity.

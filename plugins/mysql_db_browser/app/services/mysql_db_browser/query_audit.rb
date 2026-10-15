@@ -1,6 +1,8 @@
 module MysqlDbBrowser
   class QueryAudit
-    MAX_STATEMENT_BYTES = 65_535
+    MAX_TEXT_BYTES = 65_535
+    MAX_STATEMENT_BYTES = MAX_TEXT_BYTES
+    MAX_ERROR_MESSAGE_BYTES = MAX_TEXT_BYTES
     PENDING_MESSAGE = "Execution pending".freeze
 
     def self.start!(connection:, user:, statement:, read_only: true)
@@ -21,13 +23,13 @@ module MysqlDbBrowser
     end
 
     def self.fail!(audit, error_message:, duration_ms: nil)
-      audit.update!(success: false, error_message: error_message.to_s, duration_ms: duration_ms)
+      audit.update!(success: false, error_message: truncate(error_message.to_s, MAX_ERROR_MESSAGE_BYTES), duration_ms: duration_ms)
     end
 
-    def self.truncate(statement)
-      return statement if statement.bytesize <= MAX_STATEMENT_BYTES
+    def self.truncate(value, max_bytes = MAX_STATEMENT_BYTES)
+      return value if value.bytesize <= max_bytes
 
-      statement.safe_byteslice(0, MAX_STATEMENT_BYTES)
+      value.safe_byteslice(0, max_bytes)
     end
     private_class_method :truncate
   end
