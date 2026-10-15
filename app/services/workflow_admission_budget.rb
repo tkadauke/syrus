@@ -95,6 +95,10 @@ class WorkflowAdmissionBudget
       return delay("landing_queue_capacity_reserved", pressure, details: details_payload(candidate, active, decision_basis: "landing_queue_capacity_reserved"))
     end
 
+    if in_flight_limit_reached?
+      return delay("in_flight_workflow_limit", pressure, details: details_payload(candidate, active, decision_basis: "in_flight_workflow_limit"))
+    end
+
     # Anti-stall backstop: keep at least one unit of work moving per healthy
     # worker even when the gate below says no. It used to carry 88% of all
     # admissions, which was the predictive gates refusing everything rather
@@ -459,6 +463,44 @@ class WorkflowAdmissionBudget
 
     minimum_progress_floor_capacity.positive? &&
       minimum_progress_floor_slots_used < minimum_progress_floor_capacity
+  end
+
+  # A work-in-progress limit on Job work: admit no more attempts once this many
+  # are already under way, so some finish before more start. Without it a burst
+  # of filed Jobs all reached a prepared workspace and then sat mid-pipeline --
+  # eighty-five of them at once, holding disk on the same hosts the work still
+  # needed, with none of them close to done.
+  #
+  # Deliberately only at first admission (`step.present?` is a phase boundary
+  # of a workflow that was already admitted): once an attempt is in flight,
+  # nothing about this limit may stand in its way again -- not its next phase,
+  # and not the graders it fans out across the fleet. The limit exists to pace
+  # starts, not to add friction to work in progress.
+  #
+  # Only running workflows count, so a terminal one stops counting the moment
+  # it finishes whatever is still on disk behind it. Like the global agent-run
+  # cap this is best-effort: a burst admitted inside the same moment can
+  # overshoot by a few before any of them reaches `running`.
+  def in_flight_limit_reached?
+    return false if step.present?
+    return false if urgent?
+    return false unless job_work_candidate?
+
+    limit = AppSetting.max_in_flight_workflows
+    return false unless limit.positive?
+
+    in_flight_job_workflow_count >= limit
+  end
+
+  def job_work_candidate?
+    WorkDefinitions.job_work_workflow_kinds.include?(workflow.trigger_kind)
+  end
+
+  def in_flight_job_workflow_count
+    Workflow
+      .where(state: "running", trigger_kind: WorkDefinitions.job_work_workflow_kinds)
+      .where.not(id: workflow.id)
+      .count
   end
 
   def landing_capacity_reserved_for_queue?

@@ -19,6 +19,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       signups_open: false,
       max_job_failures: 3,
       max_concurrent_agent_runs: 3,
+      max_in_flight_workflows: 0,
       repository_full_poll_interval_hours: 24,
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,
@@ -83,6 +84,27 @@ describe("AdminSettings numeric fields", () => {
       expect(patchCall).toBeDefined()
       const body = JSON.parse(String(patchCall?.[1]?.body))
       expect(body.app_setting).not.toHaveProperty("max_concurrent_agent_runs")
+    })
+  })
+
+  it("saves the in-flight workflow limit", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+    const input = await screen.findByLabelText("Max in-flight workflows")
+    fireEvent.change(input, { target: { value: "24" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"max_in_flight_workflows":24')
+      }))
     })
   })
 

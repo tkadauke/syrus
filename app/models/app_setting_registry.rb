@@ -298,6 +298,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :max_in_flight_workflows,
+      type: :integer,
+      default: 0,
+      min: 0,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Cap on how many Job workflows may be admitted and unfinished at once, so some finish before more start. Checked only when a workflow is first admitted; work already in flight is never held up by it, and infrastructure workflows (landing, main-branch health, repairs) are exempt.",
+      zero_means: "No limit on in-flight workflows; admission is bounded only by measured host capacity.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :repository_full_poll_interval_hours,
       type: :integer,
       default: 24,

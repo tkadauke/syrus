@@ -600,6 +600,8 @@
     "chat_coding_workspace_budget_help": "Instanzweites Plattenbudget für behaltene Coding-Mode-Checkouts. 0 deaktiviert die Größenobergrenze.",
     "max_concurrent_agent_runs_label": "Max. gleichzeitige Agent-Runs (global)",
     "max_concurrent_agent_runs_help": "Clusterweite Obergrenze, wie viele Agent-Runs gleichzeitig über alle Worker-Pods hinweg laufen. Standardmäßig 3, damit neue Instanzen geschützt sind. 0 = unbegrenzt (nur durch JOB_CONCURRENCY pro Pod begrenzt). Landing- und Main-Grader-Runs zählen nicht mit.",
+    "max_in_flight_workflows_label": "Max. laufende Workflows",
+    "max_in_flight_workflows_help": "Obergrenze dafür, wie viele Job-Versuche gleichzeitig zugelassen und unabgeschlossen sein dürfen, damit einige fertig werden, bevor weitere starten. Wird nur bei der ersten Zulassung geprüft — bereits laufende Arbeit wird davon nie aufgehalten, auch nicht die von ihr verteilten Grader. Landing-, Main-Branch-Health- und Repair-Workflows sind ausgenommen und zählen nicht mit. 0 = keine Begrenzung.",
     "proactive_rebase_commit_threshold_label": "Schwellenwert für proaktives Rebase (Commits)",
     "proactive_rebase_commit_threshold_help": "Anzahl der Commits, die ein PR hinter seinem Basisbranch liegen muss, bevor Syrus ihn proaktiv rebaset – auch wenn der GitHub-mergeable_state clean ist. Nützlich, wenn Branch-Protection nicht erfordert, dass Branches aktuell sind. Muss mindestens 1 sein.",
     "repository_full_poll_interval_hours_label": "Intervall für vollständige Repository-Polls (Stunden)",

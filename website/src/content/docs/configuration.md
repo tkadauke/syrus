@@ -551,7 +551,13 @@ provider failover is out of scope: this policy does not rewrite
 
 Syrus ships with a global concurrency cap for fresh instances:
 `AppSetting.max_concurrent_agent_runs` defaults to `3`, so autonomous agent
-work cannot scale linearly with worker pods. The per-user USD budget,
+work cannot scale linearly with worker pods. A second, separate limit paces how
+much work is started at all: `AppSetting.max_in_flight_workflows` (default `0`,
+unlimited) caps how many Job attempts may be admitted and unfinished at once,
+so some finish before more begin instead of a burst of Jobs each stopping
+half-way with a prepared workspace. It is checked only when an attempt is first
+admitted, never against work already in flight, and landing and main-branch
+health work is exempt. The per-user USD budget,
 `AppSetting.user_daily_spend_budget_usd`, defaults to `20` dollars per user per
 day. Set it to `0` for unlimited provider-reported spend. The gate defers
 queued work until the next day instead of failing Jobs once provider-reported

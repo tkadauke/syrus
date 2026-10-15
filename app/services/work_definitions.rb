@@ -53,6 +53,24 @@ module WorkDefinitions
       .freeze
   end
 
+  # Workflow trigger kinds that carry a Job's own work, as opposed to the work
+  # that runs the instance: landing (which drains the queue), main-branch
+  # health and repairs (which unblock it), and the child workflows of an
+  # attempt that is already under way. Derived from the same properties the
+  # rest of the policy layer uses, so a new kind lands on the right side of it
+  # without being named here.
+  #
+  # This is the set a work-in-progress limit may ration: holding back anything
+  # else would be throttling the machinery that lets Job work finish.
+  def job_work_workflow_kinds
+    @job_work_workflow_kinds ||= definitions_matching { |definition|
+      definition.first_class? && !definition.landing_lock? && !definition.agent_concurrency_exempt?
+    }.map(&:workflow_trigger_kind)
+      .compact
+      .uniq
+      .freeze
+  end
+
   def first_class_work_unit_kinds
     @first_class_work_unit_kinds ||= kinds_matching(&:first_class?)
   end

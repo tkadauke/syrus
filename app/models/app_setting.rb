@@ -105,6 +105,10 @@ class AppSetting < ApplicationRecord
     current.max_concurrent_agent_runs
   end
 
+  def self.max_in_flight_workflows
+    current.max_in_flight_workflows
+  end
+
   def self.repository_full_poll_interval_hours
     current.repository_full_poll_interval_hours
   end

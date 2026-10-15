@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_212030) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -201,6 +201,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_212030) do
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 3, null: false
+    t.integer "max_in_flight_workflows", default: 0, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.string "merge_train_failure_policy", default: "restart", null: false

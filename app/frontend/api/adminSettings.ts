@@ -34,6 +34,7 @@ export type AdminSettingsPayload = {
     video_storage_budget_mb: number
     telegram_bot_handle: string | null
     max_concurrent_agent_runs: number
+    max_in_flight_workflows: number
     repository_full_poll_interval_hours: number
     proactive_rebase_commit_threshold: number
     show_work_unit_debug: boolean
@@ -65,6 +66,7 @@ export type AdminSettingsUpdate = {
   video_storage_budget_mb?: number
   telegram_bot_handle?: string
   max_concurrent_agent_runs?: number
+  max_in_flight_workflows?: number
   repository_full_poll_interval_hours?: number
   proactive_rebase_commit_threshold?: number
   show_work_unit_debug?: boolean

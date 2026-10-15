@@ -178,6 +178,39 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
 
+### max_in_flight_workflows
+
+**Type:** integer · **Default:** 0 · `0` = unlimited
+
+Cap on how many Job workflow attempts may be admitted and unfinished at once,
+instance-wide. `WorkflowAdmissionBudget` checks it when an attempt is **first**
+admitted and answers `delay_until` with reason `in_flight_workflow_limit` once
+that many are already running; the attempt stays queued and is reconsidered
+after the soft delay.
+
+The limit paces starts so that some attempts finish before more begin. Without
+it a burst of filed Jobs can each reach a prepared workspace and then sit
+mid-pipeline, holding disk on the hosts the remaining steps still need.
+
+What it deliberately does **not** do:
+
+- It never applies to work already in flight. A phase boundary of an admitted
+  workflow, and every grader it fans out across the fleet, pass without
+  consulting it — the limit exists to pace starts, not to add friction to work
+  in progress.
+- Landing, main-branch health and repair workflows are exempt and do not count
+  toward it: those drain and unblock the queue the limit is protecting.
+- A workflow stops counting the moment it reaches a terminal state, whatever
+  workspace is still on disk behind it. Workspace retention is a separate
+  concern (`WorkflowWorkspacePruneJob`).
+- Urgent-priority Jobs are admitted past it.
+
+Like the global agent-run cap this is best-effort: a burst admitted inside the
+same moment can overshoot by a few before any of them reaches `running`. A
+reasonable starting point is a small multiple of the fleet's concurrent agent
+capacity — enough to keep every host fed and pipelined, not enough to leave
+dozens of half-finished attempts parked.
+
 ### user_daily_spend_budget_usd
 
 **Type:** integer · **Default:** 20 · `0` = unlimited

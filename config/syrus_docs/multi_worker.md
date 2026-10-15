@@ -511,7 +511,15 @@ workflows, and command-attributed `workflow_step_resource_profiles` for the
 narrow high-IO grader guard.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
-  Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
+  Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`, with one
+  exception: criticality that comes **only** from IO pressure no longer defers a
+  provider-bound agentic Run (every agentic Step except `visual_diff`). IO
+  pressure is produced by the disk-bound work on the host -- graders installing
+  dependencies, building assets and running suites -- while an agent turn spends
+  nearly all of its wall time waiting on a provider API, so deferring it on that
+  signal let grader fanout starve the work it was grading. Memory, disk space and
+  CPU criticality still defer every compute Run, and `visual_diff` keeps its IO
+  sensitivity because it drives a browser and a preview app of its own.
 - Agentic Steps are resource-guarded on sight. Their host limit is derived from
   80% of the container's effective cgroup CPU quota, with each agentic Run
   consuming two capacity units. `SYRUS_AGENTIC_CAPACITY_UNITS` can tune that
@@ -522,6 +530,13 @@ narrow high-IO grader guard.
   receives `SYRUS_PROCESS_PARALLELISM`, its share of the same CPU budget, so a
   tool such as `parallel_rspec` cannot create an unbounded second fanout layer.
   `SYRUS_GRADER_CAPACITY_UNITS` can tune the default one-unit grader weight.
+  Graders also leave one agent turn's worth of each host alone -- in capacity
+  units and in the memory budget alike -- so a wide fanout cannot occupy a host
+  so completely that the agent turns being graded have nowhere to start. The
+  reserve defaults to `SYRUS_AGENTIC_CAPACITY_UNITS` and is floored so a lone
+  grader stays admissible on a host too small to hold both;
+  `SYRUS_AGENTIC_RESERVED_UNITS` sets it explicitly, including `0` to turn it
+  off.
 - A grader with command-attributed evidence of at least 1 GiB of IO also uses
   a narrower IO lane. Its automatic width scales slowly with host compute;
   `SYRUS_IO_INTENSIVE_RUNS_PER_HOST` can state the storage system's real

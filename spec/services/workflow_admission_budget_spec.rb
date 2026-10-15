@@ -295,6 +295,104 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details.fetch("soft_pressure_gates_present")).to include("worker_host_pressure_high")
   end
 
+  describe "in-flight workflow limit" do
+    def running_job_workflow(issue_number:, trigger_kind: "initial")
+      job = Factories.job_record(user: user, repository: repository, state: "running", issue_number: issue_number)
+      workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
+      workflow.update!(state: "running", trigger_kind: trigger_kind)
+      workflow
+    end
+
+    it "admits freely while the limit is unset" do
+      2.times { |i| running_job_workflow(issue_number: 801 + i) }
+
+      decision = described_class.call(workflow: workflow_for)
+
+      expect(decision.action).to eq("admit_now")
+    end
+
+    it "delays a new attempt once that many are already under way" do
+      AppSetting.current.update!(max_in_flight_workflows: 2)
+      2.times { |i| running_job_workflow(issue_number: 811 + i) }
+
+      decision = described_class.call(workflow: workflow_for)
+
+      expect(decision.action).to eq("delay_until")
+      expect(decision.reason).to eq("in_flight_workflow_limit")
+      expect(decision.details).to include("decision_basis" => "in_flight_workflow_limit")
+    end
+
+    it "admits while fewer than the limit are under way" do
+      AppSetting.current.update!(max_in_flight_workflows: 3)
+      2.times { |i| running_job_workflow(issue_number: 821 + i) }
+
+      expect(described_class.call(workflow: workflow_for).action).to eq("admit_now")
+    end
+
+    # The limit paces starts. Once an attempt is admitted, its own later phases
+    # must not be held behind it -- that would strand prepared work rather than
+    # pace it.
+    it "does not hold up a phase boundary of a workflow already in flight" do
+      AppSetting.current.update!(max_in_flight_workflows: 1)
+      2.times { |i| running_job_workflow(issue_number: 831 + i) }
+      workflow = workflow_for(state: "running")
+
+      decision = described_class.call(workflow: workflow, step: workflow.steps.find_by!(kind: "implement"))
+
+      expect(decision.action).to eq("admit_now")
+    end
+
+    # A terminal workflow stops counting the moment it finishes, whatever is
+    # still on disk behind it: the limit is about work in progress, not about
+    # workspaces awaiting cleanup.
+    it "stops counting a workflow once it reaches a terminal state" do
+      AppSetting.current.update!(max_in_flight_workflows: 2)
+      2.times { |i| running_job_workflow(issue_number: 841 + i).update!(state: "failed") }
+
+      expect(described_class.call(workflow: workflow_for).action).to eq("admit_now")
+    end
+
+    # Landing drains the queue and main-branch repairs unblock it, so neither
+    # is paced by a limit on Job work, and neither consumes it.
+    it "neither counts nor paces landing work" do
+      AppSetting.current.update!(max_in_flight_workflows: 1)
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "landing",
+        issue_number: 851,
+        pr_number: 851,
+        branch_name: "syrus/issue-851"
+      )
+      landing = Workflows::AutoMerge.instantiate(job: landing_job, agent_provider: "codex")
+      landing.update!(state: "running")
+
+      expect(described_class.call(workflow: workflow_for).action).to eq("admit_now")
+
+      second_landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "landing",
+        issue_number: 852,
+        pr_number: 852,
+        branch_name: "syrus/issue-852"
+      )
+      second_landing = Workflows::AutoMerge.instantiate(job: second_landing_job, agent_provider: "codex")
+      running_job_workflow(issue_number: 853)
+
+      expect(described_class.call(workflow: second_landing).reason).not_to eq("in_flight_workflow_limit")
+    end
+
+    it "lets urgent work past the limit" do
+      AppSetting.current.update!(max_in_flight_workflows: 1)
+      running_job_workflow(issue_number: 861)
+
+      decision = described_class.call(workflow: workflow_for(priority: "urgent"))
+
+      expect(decision.reason).not_to eq("in_flight_workflow_limit")
+    end
+  end
+
   it "reserves the next admission slot for blocked landing work before medium initial work" do
     WorkerHostHealthSample.delete_all
     worker_sample(hostname: "worker-1")

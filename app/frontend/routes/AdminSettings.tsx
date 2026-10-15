@@ -127,6 +127,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
   const [telegramBotHandle, setTelegramBotHandle] = useState(payload.settings.telegram_bot_handle ?? "")
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
+  const [maxInFlightWorkflows, setMaxInFlightWorkflows] = useState(String(payload.settings.max_in_flight_workflows))
   const [repositoryFullPollIntervalHours, setRepositoryFullPollIntervalHours] = useState(String(payload.settings.repository_full_poll_interval_hours))
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
   const [showWorkUnitDebug, setShowWorkUnitDebug] = useState(payload.settings.show_work_unit_debug)
@@ -147,6 +148,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       video_storage_budget_mb: optionalNumber(videoBudgetMb),
       telegram_bot_handle: telegramBotHandle,
       max_concurrent_agent_runs: optionalNumber(maxConcurrentAgentRuns),
+      max_in_flight_workflows: optionalNumber(maxInFlightWorkflows),
       repository_full_poll_interval_hours: optionalNumber(repositoryFullPollIntervalHours),
       proactive_rebase_commit_threshold: optionalNumber(proactiveRebaseThreshold),
       show_work_unit_debug: showWorkUnitDebug,
@@ -173,6 +175,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
     setTelegramBotHandle(payload.settings.telegram_bot_handle ?? "")
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
+    setMaxInFlightWorkflows(String(payload.settings.max_in_flight_workflows))
     setRepositoryFullPollIntervalHours(String(payload.settings.repository_full_poll_interval_hours))
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
     setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
@@ -180,7 +183,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
-  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.repository_full_poll_interval_hours, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
+  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.max_in_flight_workflows, payload.settings.repository_full_poll_interval_hours, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -355,6 +358,20 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setMaxConcurrentAgentRuns(event.target.value)}
           type="number"
           value={maxConcurrentAgentRuns}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-in-flight-workflows">{t("settings.max_in_flight_workflows_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_in_flight_workflows_help")}</span>
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
+          id="admin-settings-max-in-flight-workflows"
+          min={0}
+          onChange={(event) => setMaxInFlightWorkflows(event.target.value)}
+          type="number"
+          value={maxInFlightWorkflows}
         />
       </div>
 
