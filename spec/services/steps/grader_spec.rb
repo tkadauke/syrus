@@ -222,6 +222,51 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(output).to include("Log tail")
   end
 
+  # Regression. Only a few matching lines become excerpts, and they used to be
+  # the earliest ones. A parallel test run prints a seed warning naming
+  # RuntimeError and one "N examples, 0 failures" per worker, all early and
+  # all matching the failure pattern, so the whole snippet budget was spent
+  # before the real failure -- and because workers keep printing after one of
+  # them fails, the 4KB log tail did not reach back to it either. A failing
+  # required grader therefore recorded six non-failures and no failure, which
+  # is the state an operator has to debug a stalled merge train from.
+  it "surfaces the real failure when benign matches crowd the start of the log" do
+    step.update!(details: step.details.merge("name" => "rspec", "command" => "bin/rspec"))
+    large_output = [
+      ("[seeds] skipping Agent Insights fixture: RuntimeError: Job::Kind has no agent_insight kind\n" * 40),
+      ("776 examples, 0 failures\n" * 40),
+      ("." * 4000 + "\n"),
+      "Failures:\n",
+      "\n",
+      "  1) WidgetReconciler releases a held widget\n",
+      "     Failure/Error: expect(widget.reload).to be_released\n",
+      "       the real failure line\n",
+      "\n",
+      # Other workers keep going after this one failed, so the end of the log
+      # is their output rather than the failure.
+      ("." * 4000 + "\n"),
+      ("812 examples, 0 failures\n" * 40),
+      ("." * 4000 + "\n")
+    ].join
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      large_output.scan(/.{1,4096}/m).each { |chunk| kwargs[:on_output_chunk]&.call(chunk) }
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
+
+    output = step.reload.details.fetch("output")
+    expect(output).to include("failure-focused excerpts")
+    expect(output).to include("the real failure line")
+    expect(output).to include("Failure/Error: expect(widget.reload).to be_released")
+  end
+
   it "offsets grader command spans after prepare dependency spans on the same Run" do
     CommandSpan.create!(
       job: job,

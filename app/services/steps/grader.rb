@@ -21,6 +21,22 @@ module Steps
     OUTPUT_CONTEXT_BEFORE_LINES = 8
     OUTPUT_CONTEXT_AFTER_LINES = 24
     OUTPUT_FAILURE_SNIPPET_LIMIT = 6
+    OUTPUT_FAILURE_HEAD_SNIPPETS = 2
+    # Lines that match FAILURE_OUTPUT_PATTERN while carrying no diagnostic
+    # weight. They matter because only a handful of matches become excerpts:
+    # a parallel rspec run prints one "N examples, 0 failures" per worker and
+    # a seed warning naming RuntimeError, all of them early and all of them
+    # matching, so the snippet budget was spent before reaching the failure.
+    # A failing required grader then reported six non-failures and no failure.
+    BENIGN_OUTPUT_PATTERN = /
+      (
+        \b\d+\s+examples?,\s+0\s+failures\b|
+        \b0\s+failures,\s+\d+\s+pending\b|
+        ^\s*\[seeds\]\s|
+        \bwarning:\s|
+        \bis\ deprecated\ and\ will\ be\ removed\b
+      )
+    /ix
     OUTPUT_FAILURE_FOCUSED_BYTES = 28 * 1024
     FAILURE_OUTPUT_PATTERN = /
       (
@@ -507,7 +523,7 @@ module Steps
       sections = []
       sections << "Output is #{output.bytesize} bytes; showing failure-focused excerpts. The full log may live in the grader checkout, so re-run the command if this is not enough.\n"
       sections << excerpt_section("Log head", output.safe_byteslice(0, 2.kilobytes))
-      matching_indexes.first(OUTPUT_FAILURE_SNIPPET_LIMIT).each_with_index do |line_index, snippet_index|
+      selected_failure_indexes(matching_indexes).each_with_index do |line_index, snippet_index|
         first = [ line_index - OUTPUT_CONTEXT_BEFORE_LINES, 0 ].max
         last = [ line_index + OUTPUT_CONTEXT_AFTER_LINES, lines.length - 1 ].min
         sections << excerpt_section("Failure context #{snippet_index + 1} around line #{line_index + 1}", lines[first..last].join)
@@ -523,10 +539,25 @@ module Steps
       lines.each_with_index do |line, index|
         next unless line.match?(FAILURE_OUTPUT_PATTERN)
         next if simulator_success_line?(line)
+        next if line.match?(BENIGN_OUTPUT_PATTERN)
 
         indexes << index
       end
       indexes
+    end
+
+    # Which matches become excerpts. Taking the earliest left the budget at
+    # the mercy of whatever a tool happens to print first, which for a
+    # multi-worker test run is thousands of lines of progress output before
+    # any failure. Keep both ends: the first couple, where a cascading root
+    # cause (a failed require, a compile error) appears, and the last few,
+    # where a run states its conclusions.
+    def selected_failure_indexes(indexes)
+      return indexes if indexes.size <= OUTPUT_FAILURE_SNIPPET_LIMIT
+
+      head = indexes.first(OUTPUT_FAILURE_HEAD_SNIPPETS)
+      tail = indexes.last(OUTPUT_FAILURE_SNIPPET_LIMIT - OUTPUT_FAILURE_HEAD_SNIPPETS)
+      (head + tail).uniq.sort
     end
 
     def simulator_success_line?(line)
