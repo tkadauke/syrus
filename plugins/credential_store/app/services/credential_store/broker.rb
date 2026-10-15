@@ -48,6 +48,7 @@ module CredentialStore
     def with_file
       credential = authorized_credential!
       lease = lease_for(credential)
+      record_event!(credential, result: "allowed", metadata: lease.metadata)
       tempfile = Tempfile.new(FILE_PREFIX, binmode: true)
       tempfile.write(credential.payload)
       tempfile.flush
@@ -62,6 +63,7 @@ module CredentialStore
     def with_env(env_key:)
       credential = authorized_credential!
       lease = lease_for(credential)
+      record_event!(credential, result: "allowed", metadata: lease.metadata)
       env = { env_key.to_s => credential.payload }
 
       yield_with_redaction(credential) { yield env, metadata_for(credential, lease) }
@@ -75,7 +77,15 @@ module CredentialStore
 
     def authorized_credential!
       credential = resolve_credential
-      raise NotFound, "credential not found" unless credential
+      unless credential
+        record_event!(nil, result: "denied", denial_reason: "credential not found", metadata: { credential_ref: credential_ref.to_s.truncate(120) })
+        raise NotFound, "credential not found"
+      end
+
+      unless credential.scope_policy.usable_by?(credential, context)
+        record_event!(credential, result: "denied", denial_reason: "credential scope not usable")
+        raise NotFound, "credential not found"
+      end
 
       denial_reason = denial_reason_for(credential)
       if denial_reason
@@ -83,7 +93,6 @@ module CredentialStore
         raise Denied, denial_reason
       end
 
-      record_event!(credential, result: "allowed")
       credential
     end
 
@@ -91,7 +100,7 @@ module CredentialStore
       relation = Credential.all
       relation = relation.where(id: credential_ref) if integer_ref?
       relation = relation.where(name: credential_ref.to_s) unless integer_ref?
-      relation.detect { |candidate| candidate.scope_policy.usable_by?(candidate, context) }
+      relation.first
     end
 
     def integer_ref?
@@ -132,6 +141,11 @@ module CredentialStore
       return unless credential_validator
 
       credential_validator.call(credential).presence
+    rescue StandardError => e
+      metadata = e.respond_to?(:audit_metadata) ? e.audit_metadata : {}
+      metadata = Redaction.scrub_object(metadata, credentials: [ credential ])
+      record_event!(credential, result: "denied", denial_reason: e.message.to_s.truncate(255), metadata: metadata)
+      raise
     end
 
     def lease_for(credential)
@@ -158,7 +172,7 @@ module CredentialStore
       lease.metadata.merge(safe_metadata: credential.safe_metadata, target_constraints: credential.target_constraints)
     end
 
-    def record_event!(credential, result:, denial_reason: nil)
+    def record_event!(credential, result:, denial_reason: nil, metadata: {})
       CredentialAccessEvent.record!(
         credential: credential,
         user: context.user,
@@ -172,7 +186,8 @@ module CredentialStore
         action: "lease",
         purpose: purpose,
         result: result,
-        denial_reason: denial_reason
+        denial_reason: denial_reason,
+        metadata: metadata
       )
     end
 

@@ -967,7 +967,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
   end
 
   create_table "credential_store_credential_access_events", force: :cascade do |t|
-    t.integer "credential_id", null: false
+    t.integer "credential_id"
     t.integer "user_id"
     t.integer "repository_id"
     t.integer "job_id"
