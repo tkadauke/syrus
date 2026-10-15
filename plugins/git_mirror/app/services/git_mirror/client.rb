@@ -46,6 +46,10 @@ module GitMirror
       stats.fetch("repositories")
     end
 
+    def list_page(cursor:, limit:)
+      json(request(Net::HTTP::Get, "/v1/repositories/page", query: { after: cursor, limit: }.compact))
+    end
+
     # Every mirrored repository with its size and fetch state, plus the data
     # volume's capacity: { "repositories" => [...], "disk" => {...} }.
     def stats
