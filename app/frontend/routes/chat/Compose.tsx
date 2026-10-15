@@ -2375,15 +2375,15 @@ function useChatDictation({
       onTranscript(result.transcript.text)
       setPhase("idle")
       setMessage(null)
+      cleanup()
     } catch (error) {
+      cleanup()
       if (capability.modes.browser.available && browserRecognitionAvailable()) {
         setMessage(t("dictation_browser_fallback"))
         await startBrowserRecognition()
         return
       }
       showError(error, t("dictation_error"))
-    } finally {
-      cleanup()
     }
   }
 
