@@ -646,7 +646,9 @@ conversation as deleted (recording who deleted it and when) and removes it
 from the sidebar, chat search, and the chat agent's own tools, while leaving
 the underlying conversation, messages, attachments, proposals, and whiteboard
 in place for audit. The chat's search-index entries and its workspace on disk
-are still cleaned up, and deletion is refused while a turn is still running. Major operational
+are still cleaned up. If an agent turn or workspace preparation is running,
+deletion requests that it stop and waits for termination before cleaning up
+local artifacts. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
 Scoped events can run through an isolated disposable evaluator before waking the

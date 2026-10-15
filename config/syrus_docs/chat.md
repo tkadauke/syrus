@@ -193,8 +193,10 @@ daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 (`list_chats`, `search_chats`, `read_chat_messages`) scope through
 `ChatSession.active`, so a deleted chat is invisible to both the operator
 and the agent — the same invisibility `ChatMessage.active` already gives
-soft-deleted messages after `/clear`. Deletion is still refused while a
-turn is in flight.
+soft-deleted messages after `/clear`. Deletion also requests termination of
+an active agent turn or workspace preparation. The cleanup job shares the
+per-chat execution lock, so local workspace and search artifacts are removed
+only after that background work has stopped.
 
 `read_chat_messages` and `search_chats` are admin-aware (via
 `AuthorizationSupport#admin?`): a non-admin caller never sees a trace of
