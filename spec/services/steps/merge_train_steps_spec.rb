@@ -2334,7 +2334,18 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.state).to eq("failed")
     end
 
-    it "preserves a train across a worker_died merge_train_reconcile failure so the step can resume in place" do
+    # Worker death on an agentic train step used to fail the workflow and wait
+    # for something else -- an operator, or RetryFailedStepEnqueuer -- to
+    # resume it. The dispatcher now recovers it directly: the dead Run is
+    # failed, a fresh queued Run is materialized on the same Step, and the
+    # workflow keeps running. "Resume in place" is therefore automatic, and
+    # asserting the old failed-then-manually-retried shape made this example
+    # depend on a mechanism that no longer runs.
+    #
+    # What has to stay true either way is the train: a worker dying must not
+    # terminalize it or release its members, because rebuilding the assembly
+    # is the expensive part.
+    it "resumes a worker_died merge_train_reconcile in place and preserves the train" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       workflow = Workflow.create!(
@@ -2351,27 +2362,15 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       run.fail!
       run.save!
 
-      expect(workflow.reload).to be_failed
-      expect(step.reload).to be_failed
+      expect(run.reload).to be_failed
+      # The Step is handed a fresh Run rather than being left failed.
+      expect(step.reload).to be_queued
+      expect(step.runs.order(:id).pluck(:state)).to eq([ "failed", "queued" ])
+      expect(workflow.reload).to be_running
+
       expect(train.reload).not_to be_terminal
       expect(train.state).to eq("building")
       expect(train.members.pluck(:state).uniq).to eq([ "included" ])
-      expect(a.reload).to be_landing
-
-      result = RetryFailedStepEnqueuer.call(
-        workflow: workflow,
-        parent_session_id: "sess_reconcile",
-        prompt: "resume reconciliation"
-      )
-
-      expect(result).to be_success
-      expect(result.workflow).to eq(workflow)
-      expect(result.step).to eq(step)
-      expect(result.run.parent_session_id).to eq("sess_reconcile")
-      expect(result.run.prompt).to eq("resume reconciliation")
-      expect(workflow.reload).to be_running
-      expect(step.reload).to be_queued
-      expect(train.reload).not_to be_terminal
       expect(a.reload).to be_landing
     end
 
