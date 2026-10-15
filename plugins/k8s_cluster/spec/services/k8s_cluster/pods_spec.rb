@@ -69,6 +69,12 @@ RSpec.describe K8sCluster::Pods do
 
       expect(payload[:pod]["metadata"]["name"]).to eq("web-1")
     end
+
+    it "rejects path traversal in resource identifiers before calling Kubernetes" do
+      expect {
+        described_class.new(cluster).describe("x", namespace: "default/secrets/mysecret?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /namespace/)
+    end
   end
 
   describe "#logs" do
@@ -107,6 +113,12 @@ RSpec.describe K8sCluster::Pods do
 
       expect { described_class.new(cluster).logs("web-1", namespace: "default") }.to raise_error(K8sCluster::ResourceService::Unavailable)
     end
+
+    it "rejects an invalid container name before calling Kubernetes" do
+      expect {
+        described_class.new(cluster).logs("web-1", namespace: "default", container: "sidecar/log?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /container/)
+    end
   end
 
   describe "#delete" do
@@ -130,6 +142,12 @@ RSpec.describe K8sCluster::Pods do
       expect {
         described_class.new(cluster).delete("missing", namespace: "default")
       }.to raise_error(K8sCluster::ResourceService::NotFound)
+    end
+
+    it "rejects a namespace path that could redirect pod deletion" do
+      expect {
+        described_class.new(cluster).delete("x", namespace: "victim?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /namespace/)
     end
   end
 end

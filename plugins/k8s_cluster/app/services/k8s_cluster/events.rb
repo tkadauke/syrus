@@ -5,6 +5,7 @@ module K8sCluster
     MAX_EVENTS = 500
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_events(namespace_scope(namespace)).fetch("items", [])
         sorted = items.sort_by { |item| timestamp(item) }.reverse

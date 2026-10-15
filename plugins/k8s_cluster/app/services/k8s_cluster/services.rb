@@ -5,6 +5,7 @@ module K8sCluster
     MAX_SERVICES = 1_000
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_services(namespace_scope(namespace)).fetch("items", [])
         endpoints_by_key = endpoints_by_key(client, namespace: namespace)
@@ -19,6 +20,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.core) do |client|
         { available: true, generated_at: Time.current.iso8601, service: client.get_service(name, namespace) }
       end
