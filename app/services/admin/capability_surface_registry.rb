@@ -61,6 +61,7 @@ module Admin
       admin_cleanup_workspace
       admin_clear_github_cache
       admin_kill_process
+      admin_mysql_kill_query
       admin_maintenance_task
       admin_pause_polling
       admin_pause_runs
