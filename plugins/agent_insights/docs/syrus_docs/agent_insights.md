@@ -105,9 +105,10 @@ explicit retired state/folder (or All, which includes retired rows) to inspect
 retired insights.
 
 Repository owners, direct repository members, and members of teams granted
-access to the repository share the same Insights tab actions. They can accept,
-dismiss, restore, discuss, and save suggested memories, and can view or update
-the repository's insight schedule.
+access can view insights, discuss them, and view the repository's insight
+schedule. Accepting, dismissing, restoring, or saving a suggested memory
+requires repository write access. Updating the repository-wide insight schedule
+requires repository admin access.
 
 A one-off cleanup path retires the pre-existing stale backlog — pending or
 dismissed legacy `revise_existing_insight` rows and pending or dismissed

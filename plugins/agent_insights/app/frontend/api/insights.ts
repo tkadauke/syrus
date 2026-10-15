@@ -78,6 +78,7 @@ export type InsightSuggestionsPayload = {
     slug: string
     repository_path: string
     insights_path: string
+    can_write: boolean
   }
   tabs: RepositoryTab[]
   counts: InsightSuggestionCounts
@@ -123,25 +124,27 @@ export type AdminInsightsPayload = {
 }
 
 export type InsightPreviewPayload = {
-  insight: ({
-    id: number
-    display_id: string
-    accessible: true
-    title: string
-    summary?: string | null
-    category: string
-    severity: InsightSuggestion["severity"]
-    confidence: number
-    state: InsightSuggestion["state"]
-    proposal_type: InsightSuggestion["proposal_type"]
-    repository: InsightSuggestionsPayload["repository"]
-    created_job?: InsightJobSummary | null
-    created_at: string
-    web_path: string
-  } | {
-    display_id: string
-    accessible: false
-  })
+  insight:
+    | {
+        id: number
+        display_id: string
+        accessible: true
+        title: string
+        summary?: string | null
+        category: string
+        severity: InsightSuggestion["severity"]
+        confidence: number
+        state: InsightSuggestion["state"]
+        proposal_type: InsightSuggestion["proposal_type"]
+        repository: InsightSuggestionsPayload["repository"]
+        created_job?: InsightJobSummary | null
+        created_at: string
+        web_path: string
+      }
+    | {
+        display_id: string
+        accessible: false
+      }
 }
 
 export function fetchInsightSuggestions(repositoryId: string | number, search = "", page = 1, perPage = 20) {
