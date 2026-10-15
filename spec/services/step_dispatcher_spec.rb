@@ -1919,6 +1919,7 @@ RSpec.describe StepDispatcher, :ci_only do
       loop_wf = workflow_with_loop(max_iterations: 3)
       implement = loop_wf.steps.find_by!(kind: "implement", iteration: 1)
       grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
+      competing_grade = Step.find(grade.id)
       summarize = loop_wf.steps.find_by!(kind: "summarize")
       run = implement.runs.create!(job: job, trigger_kind: "manual")
       ProviderSession.create!(run: run, session_id: "S-iter-1", transcript_jsonl: "{}\n")
@@ -1936,6 +1937,14 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(new_steps.last.next_step).to eq(summarize)
       expect(new_steps.first.runs.last.parent_session_id).to eq("S-iter-1")
       expect(new_steps.first.runs.last.iteration).to eq(2)
+
+      step_count = loop_wf.steps.count
+      run_count = Run.count
+
+      described_class.fail_from(competing_grade)
+
+      expect(loop_wf.steps.count).to eq(step_count)
+      expect(Run.count).to eq(run_count)
     end
 
     it "spends the loop budget before failing the workflow after repeated grade failures" do
@@ -2641,6 +2650,7 @@ RSpec.describe StepDispatcher, :ci_only do
       push = try_workflow.steps.find_by!(kind: "push")
       continuation = try_workflow.steps.find_by!(kind: "auto_merge")
       push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+      competing_push = Step.find(push.id)
 
       expect {
         described_class.fail_from(push)
@@ -2668,7 +2678,7 @@ RSpec.describe StepDispatcher, :ci_only do
       )
 
       expect {
-        described_class.fail_from(push.reload)
+        described_class.fail_from(competing_push)
       }.not_to change { try_workflow.steps.count }
     end
 
