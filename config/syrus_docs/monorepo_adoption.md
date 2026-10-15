@@ -293,10 +293,12 @@ root `.syrus.yml`:
   agents see them as `Target prepare options` and must request one with
   `run_target_prepare(label:, reason:)` when they need that project-specific
   environment.
-- **Checkout hooks**: root `hooks.post_checkout` always runs after `syrus
-  checkout`; nested hooks run only for affected projects, with an all-project
-  fallback when the CLI cannot compute the diff. Keep local-machine setup here,
-  not agent sandbox setup.
+- **Checkout hooks**: root `hooks.post_checkout` runs after trusted Syrus Job
+  and Epic checkouts; nested hooks run only for affected projects, with an
+  all-project fallback when the CLI cannot compute the diff. Hooks are skipped
+  for external-PR Jobs and plain branch names because those branches may be
+  controlled by outside contributors. Keep local-machine setup here, not agent
+  sandbox setup.
 - **Visual review and previews**: put each product's `preview:` and
   `visual_review:` next to the project that owns it. Operators and visual
   review agents should choose among affected preview-capable projects rather
