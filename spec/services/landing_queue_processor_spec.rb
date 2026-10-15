@@ -1651,6 +1651,26 @@ RSpec.describe LandingQueueProcessor, :ci_only do
 
       expect { processor.send(:land, non_urgent) }.not_to change { non_urgent.reload.state }
     end
+
+    it "does not let land()'s race-guard re-check use a stale urgent prerequisite closure" do
+      root_prerequisite = queue_job(issue_number: 1, approved_at: 3.minutes.ago)
+      direct_prerequisite = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
+      urgent = queue_job(issue_number: 3, approved_at: 1.minute.ago).tap { |job| job.update!(priority: "urgent") }
+      removed_dependency = JobDependency.create!(
+        job: direct_prerequisite,
+        depends_on_job: root_prerequisite,
+        source: "manual"
+      )
+      JobDependency.create!(job: urgent, depends_on_job: direct_prerequisite, source: "manual")
+      processor = described_class.new
+
+      snapshot = processor.entries(Job.where(id: root_prerequisite.id))
+      expect(snapshot.first.blocked_reason).to be_blank
+
+      removed_dependency.destroy!
+
+      expect { processor.send(:land, root_prerequisite) }.not_to change { root_prerequisite.reload.state }
+    end
   end
 
   describe "external_pr jobs" do
