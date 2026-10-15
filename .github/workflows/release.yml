@@ -130,8 +130,12 @@ jobs:
           fi
 
           if [ -n "$OVERRIDE" ] && [ -n "$latest_tag" ] && [ "$FORCE_LOWER" != "true" ]; then
-            newest="$(printf '%s\n%s\n' "$latest_tag" "$ver" | sort -V | tail -1)"
-            if [ "$newest" != "$ver" ] || [ "$ver" = "$latest_tag" ]; then
+            # Compare numeric cores because GNU sort -V incorrectly orders a
+            # prerelease such as 1.4.0-beta.1 after the stable 1.4.0. Under
+            # SemVer it is lower, so an equal core must also be rejected.
+            ver_core="${ver%%-*}"
+            newest_core="$(printf '%s\n%s\n' "$latest_tag" "$ver_core" | sort -V | tail -1)"
+            if [ "$newest_core" != "$ver_core" ] || [ "$ver_core" = "$latest_tag" ]; then
               echo "::error::explicit version '$ver' must be greater than latest stable tag '$latest_tag' (set force_lower only for an intentional emergency release)"; exit 1
             fi
           fi
