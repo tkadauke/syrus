@@ -1296,9 +1296,9 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
 
   return (
     <section className={`mt-2 rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-3 text-xs ${severityClass}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold">{warning.title}</div>
-        <SmallPill>{humanize(warning.kind)}</SmallPill>
+      <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 break-words font-semibold">{warning.title}</div>
+        <SmallPill className="max-w-full break-words" wrap>{humanize(warning.kind)}</SmallPill>
       </div>
       {warning.evidence != null ? (
         <CodeSurface code={stringify(warning.evidence)} className="mt-2" maxHeightClassName="max-h-48" />

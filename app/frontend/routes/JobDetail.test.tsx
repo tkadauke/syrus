@@ -2671,6 +2671,9 @@ describe("JobDetailView", () => {
     }), { activeTab: "workflows" })
 
     fireEvent.click(screen.getByRole("button", { name: /Post-implementation review/ }))
+    const warningTitle = screen.getByText("Post-implementation review did not produce notes")
+    expect(warningTitle.parentElement).toHaveClass("flex-col", "items-start", "sm:flex-row", "sm:items-center")
+    expect(screen.getByText("post implementation review failed").parentElement).toHaveClass("max-w-full", "break-words")
     expect(screen.getByRole("button", { name: "Retry review" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Acknowledge and skip" })).toBeInTheDocument()
 
