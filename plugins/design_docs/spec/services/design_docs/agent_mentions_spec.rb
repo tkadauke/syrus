@@ -59,6 +59,11 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     expect(DesignDocs::AgentMentionDetector.mentioned?("~~~text example~~~\n@syrus help")).to be(true)
   end
 
+  it "detects mentions after multiline fenced blocks" do
+    expect(DesignDocs::AgentMentionDetector.mentioned?("```text\nexample\n```\n@syrus help")).to be(true)
+    expect(DesignDocs::AgentMentionDetector.mentioned?("~~~text\nexample\n~~~\n@syrus help")).to be(true)
+  end
+
   it "does not let mixed fence styles close each other" do
     body = "```text\n~~~\n@syrus inside the backtick fence\n```"
 
