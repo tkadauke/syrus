@@ -149,6 +149,15 @@ class WorkUnit < ApplicationRecord
     end
   end
 
+  # A block can be projected after a Workflow has already started (for
+  # example, while admitting a later phase). Clearing that block must restore
+  # the runtime state instead of making the WorkUnit look startable again.
+  # mark_running! also restores any landing lock surrendered while the block
+  # was waiting on an external fleet/configuration change.
+  def resume_for_workflow!
+    Workflow.exists?(id: workflow_id, state: "running") ? mark_running! : unblock!
+  end
+
   def mark_running!
     transaction do
       reactivate_work_intent!

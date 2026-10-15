@@ -56,6 +56,19 @@ RSpec.describe JobManualPause do
     expect(unit.reload.pause_requested?).to be false
   end
 
+  it "restores a running unit after a mid-workflow manual pause" do
+    job = Factories.job_record(manual_paused: true, manual_paused_at: Time.current)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 2.minutes.ago)
+    unit = attach_work_unit(job, workflow, state: "running")
+    unit.request_pause!
+    unit.block!(reason: "manual_pause")
+    allow(WorkUnits::DeferredPhaseResume).to receive(:call)
+
+    described_class.unpause!(job)
+
+    expect(unit.reload).to have_attributes(state: "running", blocked_reason: nil, pause_requested: false)
+  end
+
   it "starts a WorkUnit-blocked workflow immediately after manual unpause" do
     job = Factories.job_record(manual_paused: true, manual_paused_at: Time.current)
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
