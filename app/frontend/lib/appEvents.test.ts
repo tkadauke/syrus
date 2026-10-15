@@ -242,6 +242,8 @@ describe("applyAppEvent", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const detailQueryKey = ["jobs", "42", "detail", "?page=2"]
+    queryClient.setQueryData(detailQueryKey, { job: { id: 42 } })
 
     applyAppEvent(queryClient, event("job", 42))
 
@@ -249,10 +251,12 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["job_run_artifacts", "42"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
+    expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(false)
 
-    vi.runOnlyPendingTimers()
+    vi.advanceTimersByTime(0)
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
+    expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(true)
   })
 
   it("does not fan out a job event to source diff or review comment queries under the jobs prefix", () => {
