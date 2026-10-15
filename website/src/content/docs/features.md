@@ -1262,8 +1262,9 @@ Each user owns their own profile, credentials, defaults, and preferences:
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation. Omitted target constraints
   are unrestricted, while present empty constraints deny access; URL prefixes
-  require the same HTTP(S) origin and a path-boundary match. Wrappers use
-  temporary process-local material, redaction, cleanup, and access audit events.
+  require the same HTTP(S) origin and a traversal-safe path-boundary match.
+  Wrappers use temporary process-local material, redaction, cleanup, and access
+  audit events.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing
