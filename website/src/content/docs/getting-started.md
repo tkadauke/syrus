@@ -340,6 +340,13 @@ health is warning-only and does not hold queued work or the landing queue by
 itself. Internal main-branch grader checks still start and dispatch ahead of
 urgent Jobs so the repository health signal stays current.
 
+If a main-branch grader check cannot reach its required graders — for example,
+because repository setup fails — Syrus records that commit as `inconclusive`
+instead of calling main broken. The failed check remains visible in health
+history, but scheduled polling does not repeatedly launch the same check for
+that commit. You can explicitly retry it, and a new main-branch commit is
+checked normally.
+
 For GitHub Actions, main-branch CI health includes checks from every workflow
 run triggered by a push to the checked default-branch commit, regardless of
 whether the workflow is named `CI`, `Tests`, `build`, or something else.

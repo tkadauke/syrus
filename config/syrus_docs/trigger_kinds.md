@@ -446,6 +446,14 @@ legacy shape: a repo-wide grader target with no file scope is affected by
 every incremental main update and can skip only when target health proves the
 same inputs already passed.
 
+If the workflow fails before any required grader can report a result — for
+example, because repository preparation fails — Syrus records the checked SHA
+as `inconclusive` and links the health-check history row to the failed
+workflow. The SHA is considered graded for scheduled polling, so a persistent
+setup problem does not create a new infrastructure Job on every poll. This is
+warning-only rather than evidence that main is broken; an explicit retry can
+still check the same SHA again, and a later main SHA receives its own check.
+
 Main-branch CI health counts GitHub Actions checks from every workflow run
 triggered by a `push` to the checked default-branch SHA; the workflow's display
 name is irrelevant. A failing workflow named `Tests`, `ci`, release, deploy, or
