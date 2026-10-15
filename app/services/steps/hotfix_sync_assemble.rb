@@ -42,8 +42,11 @@ module Steps
     def merge_clean?(source)
       GitRunner.new.run("merge", "--no-ff", "origin/#{source}", "-m", merge_commit_message(source), chdir: workspace.path.to_s)
       true
-    rescue GitRunner::GitError
-      false
+    rescue GitRunner::GitError => e
+      return false if merge_conflict?(e)
+
+      log("hotfix_sync_assemble: merge failed: #{e.message}")
+      raise StepFailed, "hotfix_sync_assemble: merge failed: #{e.message}"
     end
 
     def merge_commit_message(source)
@@ -52,8 +55,13 @@ module Steps
 
     def abort_merge!
       GitRunner.new.run("merge", "--abort", chdir: workspace.path.to_s)
-    rescue GitRunner::GitError
-      nil
+    rescue GitRunner::GitError => e
+      log("hotfix_sync_assemble: could not abort conflicted merge: #{e.message}")
+      raise StepFailed, "hotfix_sync_assemble: could not abort conflicted merge: #{e.message}"
+    end
+
+    def merge_conflict?(error)
+      error.exit_status == 1 && error.output.to_s.match?(/\bCONFLICT\b/)
     end
 
     # Searches forward by kind rather than checking step.next_step directly:
