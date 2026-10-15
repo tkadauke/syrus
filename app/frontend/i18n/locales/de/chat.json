@@ -552,5 +552,7 @@
   "card_preview_generating_title": "Titel wird generiert…",
   "card_preview_see_more": "Mehr anzeigen",
   "card_preview_pending_one": "{{count}} ausstehend",
-  "card_preview_pending_other": "{{count}} ausstehend"
+  "card_preview_pending_other": "{{count}} ausstehend",
+  "tool_card_diff_page_only_stats": "Die Änderungszahlen gelten nur für diese Seite.",
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs"
 }
