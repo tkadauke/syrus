@@ -1008,12 +1008,11 @@ class ChatWorkspace
   end
 
   def remote_wip_tag_exists?(repository)
-    out, status = Open3.capture2e(
-      @env, "git", "ls-remote", "--tags", authenticated_url(repository), "refs/tags/#{wip_tag}"
+    out = @git.run(
+      "ls-remote", "--tags", authenticated_url(repository), "refs/tags/#{wip_tag}",
+      env: @env
     )
-    status.success? && out.strip.present?
-  rescue StandardError
-    false
+    out.strip.present?
   end
 
   def git_count(path, *args)
