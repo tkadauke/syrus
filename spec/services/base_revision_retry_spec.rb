@@ -302,7 +302,19 @@ RSpec.describe BaseRevisionRetry do
   end
 
   it "kills a hung base command when the timeout expires" do
-    stub_const("#{described_class}::TIMEOUT_SECONDS", 0.2)
+    stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
+    child_pid_path = @workspace_path.join("child.pid")
+    grader_step.update!(details: grader_step.details.merge(
+      "command" => "printf 'started\\n'; sleep 5 & child=$!; printf '%s' \"$child\" > #{Shellwords.escape(child_pid_path.to_s)}; wait \"$child\"",
+      "base_retry" => { "strategy" => "full_command" }
+    ))
+    grader_run = Run.create!(
+      job: job,
+      step: grader_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "failed"
+    )
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,
@@ -310,16 +322,33 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: failed_cases,
       log: ->(_message) { }
     )
-    output = +""
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
 
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    status = retry_check.send(:run_command, "printf 'started\\n'; sleep 5", @workspace_path, output)
+    result = nil
+    expect do
+      result = retry_check.call
+    end.to change(SpawnedProcess, :count).by(1)
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
-    expect(status).to be_nil
-    expect(elapsed).to be < 1.5
-    expect(output).to include("started")
-    expect(output).to include("[brr] timed out")
+    expect(result).to have_attributes(ran: false, reason: "base_retry_full_command_timed_out")
+    expect(elapsed).to be < 2.5
+    expect(SpawnedProcess.order(:id).last).to have_attributes(
+      kind: "grader",
+      run: grader_run,
+      workflow: workflow,
+      outcome: "timed_out"
+    )
+    child_pid = child_pid_path.read.to_i
+    child_active = begin
+      File.read("/proc/#{child_pid}/stat").split.fetch(2) != "Z"
+    rescue Errno::ENOENT
+      false
+    end
+    expect(child_active).to be(false)
   end
 
   # Regression. A focused retry runs `bin/rspec-worker` directly instead of the

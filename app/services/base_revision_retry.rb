@@ -1,6 +1,5 @@
 require "digest"
 require "fileutils"
-require "open3"
 require "shellwords"
 require "tempfile"
 require "tmpdir"
@@ -53,8 +52,8 @@ class BaseRevisionRetry
       git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
       begin
         @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)}: #{redacted_command(command)}")
-        run_command(command, checkout_path, output)
-        parsed = parse_result(output, checkout_path)
+        status = run_command(command, checkout_path, output)
+        parsed = parse_result(output, checkout_path) if status
       ensure
         git("worktree", "remove", "--force", checkout_path.to_s)
       end
@@ -100,6 +99,8 @@ class BaseRevisionRetry
         git("worktree", "remove", "--force", checkout_path.to_s)
       end
     end
+
+    return skipped("base_retry_full_command_timed_out", command: command, output: output) unless status
 
     candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
     base_fingerprint = output_fingerprint(output)
@@ -180,36 +181,26 @@ class BaseRevisionRetry
   end
 
   def run_command(command, chdir, output)
-    result = nil
-    timed_out = false
-    Open3.popen2e(env, "bash", "-c", command, chdir: chdir.to_s, pgroup: true) do |stdin, stream, wait_thread|
-      stdin.close
-      reader = Thread.new do
-        stream.each { |chunk| output << chunk }
-      end
+    result = ProcessRunner.new(
+      env: env,
+      command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(chdir),
+      network: "grader",
+      timeout: TIMEOUT_SECONDS,
+      kind: "grader",
+      run: @grader_step.latest_run,
+      workflow: @workflow,
+      display_command: redacted_command(command),
+      on_output_chunk: ->(chunk) { output << chunk }
+    ).run
 
-      timed_out = wait_thread.join(TIMEOUT_SECONDS).nil?
-      if timed_out
-        kill_process_group(wait_thread.pid)
-        wait_thread.join
-      end
-
-      reader.join
-      result = wait_thread.value unless timed_out
-    end
-
-    if timed_out
+    if result.timed_out?
       output << "\n[brr] timed out after #{TIMEOUT_SECONDS.to_i}s\n"
       return nil
     end
+    return nil if result.operator_killed?
 
     result
-  end
-
-  def kill_process_group(pid)
-    Process.kill("KILL", -pid)
-  rescue Errno::ESRCH
-    nil
   end
 
   def parse_result(output, checkout_path)
