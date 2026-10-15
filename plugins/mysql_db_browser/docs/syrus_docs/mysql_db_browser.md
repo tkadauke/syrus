@@ -233,15 +233,19 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   a read query or safe diagnostic/metadata statement: `SELECT`, `SHOW`,
   `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans. A `WITH`
   statement is not automatically read-only: `QueryExecutor` parses past the
-  CTE definition(s) - quote-aware, balanced-paren matching, handling an
-  optional column list and `RECURSIVE` - to find the terminal statement after
-  them, and only treats it as read-only when that terminal statement is
+  CTE definition(s) - comment/quote-aware, balanced-paren matching, handling
+  MySQL block and line comments, an optional column list, and `RECURSIVE` - to
+  find the terminal statement after them, and only treats it as read-only when
+  that terminal statement is
   `SELECT`/`TABLE`; a MySQL 8 CTE like `WITH x AS (...) UPDATE ...`/
   `DELETE ...`/`INSERT ...` requires write access despite the leading `WITH`.
   A `WITH` statement Syrus can't parse is treated as **not** read-only,
   erring toward requiring write access rather than assuming safety.
   `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
-  the statement while collecting runtime plan data. Anything else is rejected
+  the statement while collecting runtime plan data, including applying the
+  terminal-statement check to `WITH` queries. Statements accepted as reads are
+  also executed inside `START TRANSACTION READ ONLY` and rolled back, providing
+  a server-side backstop for the classifier. Anything else is rejected
   with `403 write_not_allowed` unless the connection's `allow_writes` is
   `true`. The check runs before opening a connection, via an explicit
   `MysqlDbBrowser::AgenticAccess.connection_with_write_access!(connection)`

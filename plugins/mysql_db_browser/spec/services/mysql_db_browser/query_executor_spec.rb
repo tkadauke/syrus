@@ -115,7 +115,11 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
     it "degrades a query-time error into an available:false payload instead of raising, and audits the failure" do
       client = instance_double(Mysql2::Client, close: nil)
-      allow(client).to receive(:query).and_raise(Mysql2::Error, "You have an error in your SQL syntax")
+      allow(client).to receive(:query) do |statement|
+        next if [ "START TRANSACTION READ ONLY", "ROLLBACK" ].include?(statement)
+
+        raise Mysql2::Error, "You have an error in your SQL syntax"
+      end
       stub_client_factory(client)
 
       payload = described_class.new(connection).execute("SELECT * FROM", user: user)
@@ -126,6 +130,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       audit = MysqlQueryAudit.last
       expect(audit.success).to be(false)
       expect(audit.error_message).to include("syntax")
+      expect(client).to have_received(:query).with("ROLLBACK")
     end
 
     it "raises BlankStatement for an empty SQL string" do
@@ -312,6 +317,35 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       }.to raise_error(described_class::WriteNotAllowed)
     end
 
+    it "ignores quotes inside MySQL comments while classifying WITH ... DML" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      statements = [
+        "WITH a AS (SELECT 1 /* ' */) DELETE FROM t -- ' ) SELECT 1",
+        "WITH a AS (SELECT 1 /* ' */) UPDATE t SET x=1 # ' ) SELECT 1"
+      ]
+
+      statements.each do |statement|
+        expect {
+          described_class.new(connection).execute(statement, user: user)
+        }.to raise_error(described_class::WriteNotAllowed)
+      end
+
+      expect(MysqlQueryAudit.last(2).map(&:read_only)).to eq([ false, false ])
+    end
+
+    it "still treats comments containing unmatched parentheses and quotes inside a read-only CTE as read-only" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute(
+        "WITH a AS (SELECT 1 /* unmatched ) and ' */), b AS (SELECT 2 -- unmatched ) and '\n) SELECT * FROM a, b",
+        user: user
+      )
+
+      expect(payload[:read_only]).to be(true)
+    end
+
     it "rejects a WITH ... INSERT CTE on a read-only connection" do
       described_class.client_factory = ->(**) { raise "should not connect" }
 
@@ -373,6 +407,24 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect {
         described_class.new(connection).execute("EXPLAIN ANALYZE UPDATE users SET name = 'x'", user: user)
       }.to raise_error(described_class::WriteNotAllowed)
+
+      expect {
+        described_class.new(connection).execute(
+          "EXPLAIN ANALYZE WITH a AS (SELECT 1) DELETE users FROM users JOIN a",
+          user: user
+        )
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
+
+    it "executes classified reads inside a server-enforced read-only transaction" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      described_class.new(connection).execute("SELECT * FROM users", user: user)
+
+      expect(client).to have_received(:query).with("START TRANSACTION READ ONLY").ordered
+      expect(client).to have_received(:query).with(a_string_starting_with("SELECT /*+ MAX_EXECUTION_TIME("), any_args).ordered
+      expect(client).to have_received(:query).with("ROLLBACK").ordered
     end
 
     it "rejects SELECT ... INTO OUTFILE without opening a connection, even though it's otherwise a SELECT" do

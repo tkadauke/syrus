@@ -104,7 +104,7 @@ module MysqlDbBrowser
       audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
       started_at = monotonic_now
       begin
-        payload = read_only ? run_select(client, statement, clamp_limit(limit)) : run_write(client, statement)
+        payload = read_only ? run_read_only(client, statement, clamp_limit(limit)) : run_write(client, statement)
         duration_ms = elapsed_ms(started_at)
         QueryAudit.succeed!(audit, row_count: payload[:row_count], duration_ms: duration_ms)
         payload.merge(statement: statement, read_only: read_only, duration_ms: duration_ms, generated_at: Time.current.iso8601)
@@ -183,14 +183,17 @@ module MysqlDbBrowser
       analyze = rest.match?(/\AANALYZE\b/i)
       rest = rest.sub(/\AANALYZE\b/i, "").strip
       rest = rest.sub(/\AFORMAT\s*=\s*(?:TRADITIONAL|JSON|TREE)\b/i, "").strip
-      pattern = analyze ? /\A(SELECT|WITH|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
+      return read_only_with_statement?(rest) if analyze && rest.match?(/\AWITH\b/i)
+
+      pattern = analyze ? /\A(SELECT|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
       rest.match?(pattern)
     end
 
     # A `WITH ...` statement is only read-only when its terminal statement
     # (after every CTE definition) is a SELECT/TABLE - `WITH x AS (...)
     # UPDATE/DELETE/INSERT` mutates despite starting with the WITH keyword.
-    # Parses past the CTE definitions (quote-aware, balanced-paren matching)
+    # Parses past the CTE definitions (comment/quote-aware, balanced-paren
+    # matching)
     # to find that terminal keyword rather than keying off the leading WITH
     # alone. A CTE list Syrus can't parse is treated as NOT read-only,
     # erring toward requiring write access rather than assuming safety.
@@ -240,8 +243,9 @@ module MysqlDbBrowser
     end
 
     # Finds the index (within str) of the ")" matching the "(" at
-    # open_index, skipping over quoted string/identifier literals so a
-    # paren inside a CTE body's string values doesn't unbalance the count.
+    # open_index, skipping over comments and quoted string/identifier literals
+    # so their quotes/parens don't affect the count. Unterminated block comments
+    # make the CTE unparseable and therefore non-read-only.
     def matching_paren_index(str, open_index)
       depth = 0
       i = open_index
@@ -261,7 +265,10 @@ module MysqlDbBrowser
         when "'", "\"", "`"
           i = skip_quoted(str, i, char) + 1
         else
-          i += 1
+          comment_end = skip_comment(str, i)
+          return nil if comment_end == :unterminated
+
+          i = comment_end || i + 1
         end
       end
 
@@ -292,6 +299,22 @@ module MysqlDbBrowser
       end
 
       len - 1
+    end
+
+    def skip_comment(str, start_index)
+      if str[start_index, 2] == "/*"
+        close_index = str.index("*/", start_index + 2)
+        return :unterminated unless close_index
+
+        close_index + 2
+      elsif str[start_index] == "#" || mysql_dash_comment?(str, start_index)
+        newline_index = str.index("\n", start_index + 1)
+        newline_index || str.length
+      end
+    end
+
+    def mysql_dash_comment?(str, start_index)
+      str[start_index, 2] == "--" && str[start_index + 2]&.match?(/[[:space:]]/)
     end
 
     def build_client(password)
@@ -337,6 +360,14 @@ module MysqlDbBrowser
         row_count: rows.length,
         truncated: truncated
       }
+    end
+
+    def run_read_only(client, statement, limit)
+      client.query("START TRANSACTION READ ONLY")
+      transaction_started = true
+      run_select(client, statement, limit)
+    ensure
+      client.query("ROLLBACK") if transaction_started
     end
 
     def run_write(client, statement)
