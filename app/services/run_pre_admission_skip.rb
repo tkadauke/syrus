@@ -92,7 +92,7 @@ class RunPreAdmissionSkip
     def call
       patterns = configured_when_files_changed
       return pass if patterns.empty?
-      return pass if changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
+      return pass if changed_files.any? { |file| RepositoryContent::Glob.match?(patterns, file) }
 
       iterations = Array(workflow.artifact("visual_review_iterations"))
       review_iteration = {
