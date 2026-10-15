@@ -4,6 +4,8 @@ class MergeTrainMember < ApplicationRecord
   belongs_to :merge_train
   belongs_to :job
 
+  delegate :repository, :repository_id, to: :merge_train
+
   validates :state, inclusion: { in: STATES }
   validates :position, presence: true
   validates :job_id, uniqueness: { scope: :merge_train_id }
