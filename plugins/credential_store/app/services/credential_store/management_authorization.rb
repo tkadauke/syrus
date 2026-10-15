@@ -41,7 +41,7 @@ module CredentialStore
         scopes: manageable_scopes,
         users: manageable_users.map { |candidate| user_option(candidate) },
         repositories: manageable_repositories.map { |repository| repository_option(repository) },
-        teams: manageable_teams.map { |team| team_option(team) }
+        teams: manageable_teams.includes(:team_memberships).map { |team| team_option(team) }
       }
     end
 
@@ -127,7 +127,7 @@ module CredentialStore
       {
         id: team.id,
         label: team.name,
-        detail: "#{team.team_memberships.count} members"
+        detail: "#{team.team_memberships.size} members"
       }
     end
 
