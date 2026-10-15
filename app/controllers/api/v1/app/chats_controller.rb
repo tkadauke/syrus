@@ -375,7 +375,7 @@ module Api
         def stop
           chat_session = find_chat_session
           chat_session.update!(stop_requested_at: Time.current)
-          request_chat_agent_kill!(chat_session)
+          request_chat_process_kill!(chat_session, kinds: [ "agent" ])
           ChatStopReconciler.reconcile!(chat_session: chat_session)
           chat_session.reload.broadcast_controls if chat_session.stop_requested_at?
 
@@ -497,7 +497,7 @@ module Api
         def destroy
           chat_session = find_chat_session
           chat_session.soft_delete_by!(Current.user)
-          request_chat_agent_kill!(chat_session)
+          request_chat_process_kill!(chat_session, kinds: %w[agent chat_prepare])
 
           render json: { message: "Chat deleted." }
         end
@@ -1913,9 +1913,12 @@ module Api
           }
         end
 
-        def request_chat_agent_kill!(chat_session)
+        def request_chat_process_kill!(chat_session, kinds:)
           SpawnedProcess.running
-                        .where(kind: "agent", workdir: chat_session.workspace_root.to_s)
+                        .where(kind: kinds)
+                        .where("chat_session_id = :chat_id OR workdir = :workdir",
+                               chat_id: chat_session.id,
+                               workdir: chat_session.workspace_root.to_s)
                         .find_each { |process| process.request_kill!(user: Current.user) }
         end
 
