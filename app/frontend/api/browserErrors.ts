@@ -2,6 +2,9 @@ import { getRecentApiRequests, postJson } from "./client"
 import { readInitialBootstrap } from "./bootstrap"
 import { getRecentErrors } from "../lib/errorRingBuffer"
 
+const REDACTED = "[FILTERED]"
+const SENSITIVE_ROUTE_PARAM_KEYS = new Set(["token"])
+
 export type BrowserErrorPayload = {
   occurred_at: string
   app_revision: string | null
@@ -35,6 +38,7 @@ export function recordBrowserError(payload: BrowserErrorPayload) {
 export function buildBrowserErrorPayload(error: Error, options: { componentStack?: string; fingerprint: string; boundary: string }): BrowserErrorPayload {
   const bootstrap = readInitialBootstrap()
   const route = browserErrorRouteContext(window.location.pathname)
+  const safeLocation = browserErrorSafeLocation(window.location)
   return {
     occurred_at: new Date().toISOString(),
     app_revision: bootstrap?.app?.revision ?? null,
@@ -43,8 +47,8 @@ export function buildBrowserErrorPayload(error: Error, options: { componentStack
     message: error.message || "Unknown browser error",
     stack: error.stack,
     component_stack: options.componentStack,
-    url: window.location.href,
-    path: `${window.location.pathname}${window.location.search}`,
+    url: safeLocation.url,
+    path: safeLocation.path,
     route_id: route.route_id,
     route_params: route.route_params,
     user_agent: navigator.userAgent,
@@ -64,6 +68,20 @@ export function buildBrowserErrorPayload(error: Error, options: { componentStack
   }
 }
 
+function browserErrorSafeLocation(location: Location): { url: string; path: string } {
+  const path = scrubSensitivePathSegments(location.pathname)
+  return {
+    url: `${location.origin}${path}`,
+    path
+  }
+}
+
+function scrubSensitivePathSegments(path: string): string {
+  return path
+    .replace(/(\/passwords\/)[^/?#]+(\/edit\b)/g, `$1${REDACTED}$2`)
+    .replace(/(\/chats\/shared\/)[^/?#]+/g, `$1${REDACTED}`)
+}
+
 export function browserErrorRouteContext(pathname: string): { route_id?: string; route_params?: Record<string, string> } {
   const routes: Array<{ id: string; pattern: RegExp; keys: string[] }> = [
     { id: "admin.backend_exceptions", pattern: /^\/admin\/backend_exceptions\/?$/, keys: [] },
@@ -74,6 +92,7 @@ export function browserErrorRouteContext(pathname: string): { route_id?: string;
     { id: "admin.queue", pattern: /^\/admin\/queue(?:\/([^/]+))?\/?$/, keys: ["tab"] },
     { id: "chat.show", pattern: /^\/chats\/([^/]+)\/?$/, keys: ["id"] },
     { id: "chat.shared", pattern: /^\/chats\/shared\/([^/]+)\/?$/, keys: ["token"] },
+    { id: "password.reset", pattern: /^\/passwords\/([^/]+)\/edit\/?$/, keys: ["token"] },
     { id: "job.source", pattern: /^\/jobs\/([^/]+)\/source\/?$/, keys: ["id"] },
     { id: "job.show", pattern: /^\/jobs\/([^/]+)\/?$/, keys: ["id"] },
     { id: "epic.show", pattern: /^\/epics\/([^/]+)\/?$/, keys: ["id"] },
@@ -90,7 +109,7 @@ export function browserErrorRouteContext(pathname: string): { route_id?: string;
     if (!match) continue
     const route_params = route.keys.reduce<Record<string, string>>((params, key, index) => {
       const value = match[index + 1]
-      if (value) params[key] = decodeURIComponent(value)
+      if (value) params[key] = SENSITIVE_ROUTE_PARAM_KEYS.has(key) ? REDACTED : decodeURIComponent(value)
       return params
     }, {})
     return { route_id: route.id, route_params }

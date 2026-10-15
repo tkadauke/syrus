@@ -14,6 +14,7 @@ import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./cl
 // out-of-cache copy, regardless of where the proposal's message currently
 // scrolled to. See MessageStream in routes/Chat.tsx for the listener.
 export const PROPOSAL_UPDATED_EVENT = "syrus:proposal-updated"
+export const APP_EVENT_RECEIVED_EVENT = "syrus:app-event"
 
 export type ProposalUpdatedDetail = { chatSessionId: string; proposal: ChatProposal }
 
@@ -22,6 +23,21 @@ export function dispatchProposalUpdated(chatSessionId: string | number, proposal
   window.dispatchEvent(new CustomEvent<ProposalUpdatedDetail>(PROPOSAL_UPDATED_EVENT, {
     detail: { chatSessionId: String(chatSessionId), proposal }
   }))
+}
+
+export function addAppEventListener(listener: (event: AppEvent) => void) {
+  if (typeof window === "undefined") return () => {}
+
+  const handler = (event: Event) => {
+    listener((event as CustomEvent<AppEvent>).detail)
+  }
+  window.addEventListener(APP_EVENT_RECEIVED_EVENT, handler)
+  return () => window.removeEventListener(APP_EVENT_RECEIVED_EVENT, handler)
+}
+
+function dispatchAppEventReceived(event: AppEvent) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent<AppEvent>(APP_EVENT_RECEIVED_EVENT, { detail: event }))
 }
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -126,13 +142,13 @@ function applyAppEventToEntityStore(event: AppEvent) {
   if (!kind || event.id == null) return
 
   const fields = entityFieldsFromEventPayload(event.payload)
-  if (!fields && event.revision == null) return
+  if (!fields || Object.keys(fields).length === 0) return
 
   const before = readEntity(kind, event.id)
   const after = upsertEntity({
     kind,
     id: event.id,
-    fields: fields ?? {},
+    fields,
     completeness: "partial",
     revision: event.revision ?? null,
     source: "app_event"
@@ -264,6 +280,8 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   const sequenceOutcome = trackAppEventSequence(queryClient, event)
   if (sequenceOutcome === "duplicate") return
 
+  dispatchAppEventReceived(event)
+
   const patchedFields = entityFieldsFromEventPayload(event.payload)
   applyAppEventToEntityStore(event)
   if (patchedFields) patchJobResourceQueries(queryClient, event, patchedFields)
@@ -345,6 +363,11 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
       continue
     }
 
+    if (isJobPreviewQueryKey(queryKey)) {
+      invalidateAppQuery(queryClient, { queryKey, exact: true })
+      continue
+    }
+
     if (isChatDetailQueryKey(queryKey)) {
       scheduleChatDetailInvalidation(queryClient, queryKey)
       continue
@@ -362,7 +385,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
 // sweep recoverAppEventContinuity does on reconnect.
 function recoverEventResourceContinuity(queryClient: QueryClient, event: AppEvent) {
   for (const queryKey of queryKeysFor(event)) {
-    invalidateAppQuery(queryClient, { queryKey })
+    invalidateEventQuery(queryClient, queryKey)
   }
 }
 
@@ -386,12 +409,15 @@ export function recoverAppEventContinuity(queryClient: QueryClient) {
 // fetching in the background (see markHiddenInvalidation/flushHiddenInvalidations).
 export function recoverJobResourceContinuity(queryClient: QueryClient, jobId: string | number) {
   const id = String(jobId)
+  invalidateAppQuery(queryClient, { queryKey: [ "jobs", id ], exact: true })
   invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "detail" ] })
   invalidateAppQuery(queryClient, { queryKey: [ "jobs", id, "workflows" ] })
 }
 
 export function recoverChatResourceContinuity(queryClient: QueryClient, chatId: string | number) {
-  invalidateAppQuery(queryClient, { queryKey: [ "chats", String(chatId) ] })
+  const id = String(chatId)
+  invalidateAppQuery(queryClient, { queryKey: [ "chats", id ] })
+  invalidateAppQuery(queryClient, { queryKey: chatPinsQueryPrefix(id) })
 }
 
 function invalidateAppQuery(queryClient: QueryClient, target: InvalidationTarget) {
@@ -535,8 +561,9 @@ function jobQueryKeysFor(event: AppEvent): QueryKey[] {
   if (event.id == null) return [["dashboard"], ["jobs"], ["job_run_artifacts"]]
 
   const id = String(event.id)
+  const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], detailKey, ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ["job_run_artifacts", id]]
 }
 
 function workflowOnlyJobEvent(event: AppEvent) {
@@ -553,6 +580,12 @@ function isJobDetailQueryKey(queryKey: QueryKey) {
     queryKey[0] === "jobs" &&
     typeof queryKey[1] === "string" &&
     (queryKey[2] === "detail" || queryKey[2] === "workflows")
+}
+
+function isJobPreviewQueryKey(queryKey: QueryKey) {
+  return queryKey.length === 2 &&
+    queryKey[0] === "jobs" &&
+    typeof queryKey[1] === "string"
 }
 
 function isChatDetailQueryKey(queryKey: QueryKey) {
@@ -718,14 +751,26 @@ function continuityRecoveryQuery(query: { queryKey: QueryKey }) {
   if (queryKey.length === 1 && exactListRoots.has(String(root))) return true
   if (root === "bootstrap") return true
   if (root === "admin" && (queryKey[1] === "overview" || queryKey[1] === "stuck")) return true
+  if (root === "chat-pins" && queryKey.length >= 2) return true
   if (root === "chats" && queryKey.length >= 2) return true
   if (root === "epics" && queryKey.length >= 2) return true
   if (root === "repositories" && queryKey.length >= 2) return true
   if (root === "workflows" && queryKey.length >= 2) return true
   if (root !== "jobs") return false
 
+  if (isJobPreviewQueryKey(queryKey)) return true
+
   const jobQueryKind = queryKey[2]
   return jobQueryKind === "detail" || jobQueryKind === "workflows"
+}
+
+function invalidateEventQuery(queryClient: QueryClient, queryKey: QueryKey) {
+  if (isJobPreviewQueryKey(queryKey)) {
+    invalidateAppQuery(queryClient, { queryKey, exact: true })
+    return
+  }
+
+  invalidateAppQuery(queryClient, { queryKey })
 }
 
 function dashboardListQuery(query: { queryKey: QueryKey }) {
@@ -941,7 +986,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const updateProposal = chatUpdateProposalPayload(event.payload)
   if (updateProposal) {
-    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"], exact: true })
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
 
     if (updateProposal.job_status_proposal) {
       patchChatJobStatusPendingProposal(queryClient, event.id, updateProposal.job_status_proposal)

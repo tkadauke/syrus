@@ -208,6 +208,9 @@ la:
 
     admin_retention_settings:
       updated: "Res retentionis renovatae sunt."
+      retention_value_required: "Fenestra retentionis pro %{table} inscribe."
+      infinite_flag_required: "Retentionem infinitam pro %{table} aperte elige."
+      infinite_value_required: "Retentio infinita pro %{table} ut 0 servanda est."
 
     direct_jobs:
       repository_not_found: "Repositorium non inventum vel non activum."

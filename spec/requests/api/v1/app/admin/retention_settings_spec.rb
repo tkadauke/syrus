@@ -89,7 +89,19 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(parse_body["message"]).to eq("Retention settings updated.")
   end
 
-  it "permits 0 as the infinite-retention sentinel" do
+  it "permits 0 as the infinite-retention sentinel when the infinite flag is explicit" do
+    sign_in_as(admin)
+    AppSetting.current.update!(notification_retention_days: 30)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: { notification_retention_days: 0, notification_retention_days_infinite: true }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.notification_retention_days).to eq(0)
+  end
+
+  it "rejects a bare 0 retention value without persisting infinite retention" do
     sign_in_as(admin)
     AppSetting.current.update!(notification_retention_days: 30)
 
@@ -97,8 +109,24 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
       retention_settings: { notification_retention_days: 0 }
     }
 
-    expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.notification_retention_days).to eq(0)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("Choose infinite retention explicitly")
+    expect(AppSetting.current.reload.notification_retention_days).to eq(30)
+  end
+
+  it "rejects a blank retention value instead of dropping it as absent" do
+    sign_in_as(admin)
+    AppSetting.current.update!(notification_retention_days: 30)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: { notification_retention_days: "" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("Enter a retention window")
+    expect(AppSetting.current.reload.notification_retention_days).to eq(30)
   end
 
   it "rejects a negative retention value without persisting it" do

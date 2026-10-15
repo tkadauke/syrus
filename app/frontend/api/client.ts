@@ -47,6 +47,8 @@ function redirectToSignIn() {
 const REVISION_HEADER = "X-Syrus-Revision"
 const RELOAD_STORAGE_KEY = "syrus:revision-reload"
 const MAX_RECENT_API_REQUESTS = 20
+const REDACTED = "[FILTERED]"
+const REDACTED_QUERY = `?${REDACTED}`
 let embeddedRevision: string | null | undefined
 let writeEpoch = 0
 
@@ -265,13 +267,29 @@ function performanceNow(): number {
 
 function recordApiRequest(path: string, response: Response, durationMs: number | null): void {
   recentApiRequests.push({
-    path,
+    path: scrubApiRequestPath(path),
     requestId: response.headers.get("X-Request-Id") || response.headers.get("X-Request-ID"),
     status: response.status,
     durationMs: durationMs == null ? 0 : Math.round(durationMs * 10) / 10,
     at: new Date().toISOString()
   })
   if (recentApiRequests.length > MAX_RECENT_API_REQUESTS) recentApiRequests.shift()
+}
+
+function scrubApiRequestPath(path: string): string {
+  const [rawPath] = path.split("?", 1)
+  const scrubbedPath = scrubSensitivePathSegments(rawPath)
+  const queryIndex = path.indexOf("?")
+  if (queryIndex < 0) return scrubbedPath
+
+  return `${scrubbedPath}${REDACTED_QUERY}`
+}
+
+function scrubSensitivePathSegments(path: string): string {
+  return path
+    .replace(/(\/api\/v1\/app\/auth\/passwords\/)[^/?#]+/g, `$1${REDACTED}`)
+    .replace(/(\/passwords\/)[^/?#]+(\/edit\b)/g, `$1${REDACTED}$2`)
+    .replace(/(\/chats\/shared\/)[^/?#]+/g, `$1${REDACTED}`)
 }
 
 export function getRecentApiRequests(): RecentApiRequest[] {

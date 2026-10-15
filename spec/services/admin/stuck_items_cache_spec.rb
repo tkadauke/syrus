@@ -37,4 +37,15 @@ RSpec.describe Admin::StuckItemsCache do
       expect(snapshot.captured_at).to eq(refreshed_at)
     end
   end
+
+  describe ".clear!" do
+    it "removes the cached stuck snapshot so the next read starts empty" do
+      described_class.write(items: [ { "kind" => "stuck" } ], captured_at: Time.current, force: true)
+
+      described_class.clear!
+
+      expect(described_class.read.items).to eq([])
+      expect(described_class.read.captured_at).to be_nil
+    end
+  end
 end

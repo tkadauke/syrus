@@ -3,7 +3,7 @@ import type { ChatRecord, ChatsIndexPayload } from "../api/chats"
 import { chatGroupFor, chatGroupKey } from "./chatCache"
 
 export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: number | string, updates: Partial<ChatRecord>) {
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
     const existing = current.groups.flatMap((group) => group.chats).find((chat) => String(chat.id) === String(chatId))
@@ -27,7 +27,7 @@ export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: nu
 }
 
 export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: number | string, updates: Pick<ChatRecord, "turn_in_flight"> & Partial<Pick<ChatRecord, "agent_busy">>) {
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
     return {
@@ -43,7 +43,7 @@ export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: numb
 }
 
 export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId: number | string, scratchpadItemsCount: number) {
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+  queryClient.setQueriesData<ChatsIndexPayload>({ queryKey: ["chats", "recent"] }, (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
     return {

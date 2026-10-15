@@ -283,7 +283,14 @@ RSpec.describe Job, :ci_only do
           "type" => "job.updated",
           "resource" => "job",
           "id" => kind_of(Integer),
-          "changed" => include("job.created", "issue_number", "repository_id")
+          "changed" => include("job.created", "issue_number", "repository_id"),
+          "payload" => {
+            "fields" => hash_including(
+              "state" => "triaging",
+              "issue_title" => nil,
+              "title_pending" => false
+            )
+          }
         )
       )
 
@@ -300,7 +307,15 @@ RSpec.describe Job, :ci_only do
           "type" => "job.updated",
           "resource" => "job",
           "id" => job.id,
-          "changed" => include("job.updated", "state", "issue_title")
+          "changed" => include("job.updated", "state", "issue_title"),
+          "payload" => {
+            "fields" => hash_including(
+              "state" => "failed",
+              "issue_title" => "Repair the basilica",
+              "issue_body" => job.issue_body,
+              "entity_revision" => job.entity_revision + 1
+            )
+          }
         )
       )
 

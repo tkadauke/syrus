@@ -208,6 +208,9 @@ de:
 
     admin_retention_settings:
       updated: "Aufbewahrungseinstellungen aktualisiert."
+      retention_value_required: "Geben Sie ein Aufbewahrungsfenster für %{table} ein."
+      infinite_flag_required: "Wählen Sie die unbegrenzte Aufbewahrung für %{table} ausdrücklich aus."
+      infinite_value_required: "Unbegrenzte Aufbewahrung für %{table} muss als 0 gespeichert werden."
 
     direct_jobs:
       repository_not_found: "Repository nicht gefunden oder nicht aktiv."

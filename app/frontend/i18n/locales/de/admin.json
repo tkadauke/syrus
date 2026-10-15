@@ -645,6 +645,7 @@
     "settings_updated": "Aufbewahrungseinstellungen aktualisiert.",
     "infinite_label": "Unbegrenzte Aufbewahrung",
     "retention_value_label": "Aufbewahrungsfenster für {{table}}",
+    "retention_value_required": "Geben Sie ein Aufbewahrungsfenster von mindestens 1 ein.",
     "unit_days": "Tage",
     "unit_hours": "Stunden",
     "current_size_label": "Aktuelle Größe",

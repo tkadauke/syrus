@@ -1699,7 +1699,8 @@ class Job < ApplicationRecord
       resource: "job",
       id: id,
       changed: [ "job.#{action}", *previous_changes.keys.map(&:to_s) ].uniq,
-      revision: entity_revision
+      revision: entity_revision,
+      payload: { fields: App::JobEventFields.for(self) }
     )
   end
 

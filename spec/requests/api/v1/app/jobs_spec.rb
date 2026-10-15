@@ -1336,6 +1336,17 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
+  it "clears the admin stuck snapshot after app-admin force-fail" do
+    user.update!(global_role: "admin")
+    job.update!(state: "running")
+    allow(Admin::StuckItemsCache).to receive(:clear!).and_call_original
+
+    post "/api/v1/app/admin/jobs/#{job.id}/force_fail"
+
+    expect(response).to have_http_status(:ok)
+    expect(Admin::StuckItemsCache).to have_received(:clear!)
+  end
+
   it "rejects app-admin force-fail for non-admin users" do
     user.update!(global_role: "user")
     job.update!(state: "running")

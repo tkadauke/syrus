@@ -23,7 +23,8 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(id)],
     queryFn: async ({ signal }) => normalizeJobDetailPayload(await fetchJobDetail(String(id), "", { signal }), "job_preview"),
-    enabled: !hasPreviewFields,
+    initialData: hasPreviewFields && cachedJob ? previewInitialData(id, cachedJob) : undefined,
+    initialDataUpdatedAt: hasPreviewFields && cachedJob ? Date.now() : undefined,
     staleTime: 30_000,
   })
 
@@ -109,6 +110,13 @@ function previewFields(job: Partial<JobRecord> & { deployment_stages?: JobDetail
     issue_body: job.issue_body ?? null,
     deployment_stages: job.deployment_stages
   }
+}
+
+function previewInitialData(id: number, job: JobPreviewFields): JobDetailPayload {
+  return {
+    job: { id, ...job } as JobRecord,
+    deployment_stages: job.deployment_stages
+  } as JobDetailPayload
 }
 
 function shallowPreviewEqual(left: JobPreviewFields | null, right: JobPreviewFields | null) {

@@ -800,6 +800,7 @@
     "settings_updated": "Retention settings updated.",
     "infinite_label": "Infinite retention",
     "retention_value_label": "Retention window for {{table}}",
+    "retention_value_required": "Enter a retention window of at least 1.",
     "unit_days": "days",
     "unit_hours": "hours",
     "current_size_label": "Current size",

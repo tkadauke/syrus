@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
-import { mergeChatPayloadUpdate, updateChatUnread, updateRecentChatCache } from "./chatCache"
+import { mergeChatPayloadUpdate, recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "./chatCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
 describe("mergeChatPayloadUpdate", () => {
@@ -79,6 +79,67 @@ describe("updateRecentChatCache", () => {
 
     const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
     expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
+  })
+
+  it("updates non-default recent-chat sidebar caches", () => {
+    const queryClient = new QueryClient()
+    const sidebarKey = recentChatsQueryKey({ chat_types: ["agent", "group"] })
+    queryClient.setQueryData(sidebarKey, {
+      repositories: [],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            chatRecord({ id: 1, title: "Newer", lastMessageAt: "2026-06-25T11:00:00Z" }),
+            chatRecord({ id: 2, title: "Roadmap sync", lastMessageAt: "2026-06-24T11:00:00Z" })
+          ],
+          has_more: false
+        }
+      ]
+    })
+
+    updateRecentChatCache(queryClient, {
+      ...chatRecord({ id: 2, title: "Launch review", lastMessageAt: "2026-06-24T11:00:00Z" }),
+      title_pending: false
+    })
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(sidebarKey)
+    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
+  })
+
+  it("only prepends absent chats into recent-chat caches whose filters match", () => {
+    const queryClient = new QueryClient()
+    const defaultKey = recentChatsQueryKey()
+    const hiddenKey = recentChatsQueryKey({ status: "hidden" })
+    const groupKey = recentChatsQueryKey({ chat_types: ["group"] })
+    const agentKey = recentChatsQueryKey({ chat_types: ["agent"] })
+    for (const key of [defaultKey, hiddenKey, groupKey, agentKey]) {
+      queryClient.setQueryData(key, {
+        repositories: [],
+        groups: [
+          {
+            key: "general",
+            label: "General",
+            repository_id: null,
+            chats: [],
+            has_more: false
+          }
+        ]
+      })
+    }
+
+    updateRecentChatCache(queryClient, {
+      ...chatRecord({ id: 2, title: "Fresh direct chat", lastMessageAt: null }),
+      chat_type: "agent",
+      conversation_kind: "direct"
+    }, { prepend: true })
+
+    expect(queryClient.getQueryData<ChatsIndexPayload>(defaultKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(agentKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(hiddenKey)?.groups[0]?.chats).toEqual([])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(groupKey)?.groups[0]?.chats).toEqual([])
   })
 })
 

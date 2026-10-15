@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
+import { APP_EVENT_RECEIVED_EVENT } from "./appEvents"
 import { subscribeToAppEvents, subscribeToChatResourceEvents, subscribeToJobResourceEvents } from "./actionCable"
 
 describe("subscribeToAppEvents", () => {
@@ -36,6 +37,32 @@ describe("subscribeToAppEvents", () => {
 
     subscription.unsubscribe()
     expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  it("fans received app events out to browser listeners without adding another channel subscription", () => {
+    const queryClient = new QueryClient()
+    let received: ((data: unknown) => void) | undefined
+    const listener = vi.fn()
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          received = mixin.received
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    window.addEventListener(APP_EVENT_RECEIVED_EVENT, listener)
+    subscribeToAppEvents(queryClient, consumer)
+
+    received?.({ type: "codex_oauth.callback", payload: { code: "auto-code" } })
+
+    expect(consumer.subscriptions.create).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { type: "codex_oauth.callback", payload: { code: "auto-code" } }
+    }))
+
+    window.removeEventListener(APP_EVENT_RECEIVED_EVENT, listener)
   })
 
   it("runs scoped continuity recovery on reconnect but not initial connect", () => {
@@ -241,6 +268,7 @@ describe("subscribeToJobResourceEvents", () => {
     expect(invalidate).not.toHaveBeenCalled()
 
     connected?.() // reconnect
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42" ], exact: true })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "detail" ] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "jobs", "42", "workflows" ] })
   })

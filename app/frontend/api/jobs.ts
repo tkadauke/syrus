@@ -1737,6 +1737,7 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; limit?:
   const searchParams = new URLSearchParams()
   if (params.state) searchParams.set("state", params.state)
   if (params.repo) searchParams.set("repo", params.repo)
+  searchParams.set("include_active_work", "true")
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)
 }
