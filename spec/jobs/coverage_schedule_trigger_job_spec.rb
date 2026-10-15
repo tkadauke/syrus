@@ -41,6 +41,34 @@ RSpec.describe CoverageScheduleTriggerJob do
   end
 
   context "idempotency" do
+    it "holds the repository lock across each duplicate check and creation" do
+      lock_held = false
+      lock_entries = 0
+
+      allow_any_instance_of(Repository).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        lock_entries += 1
+        original.call(*args) do
+          lock_held = true
+          block.call
+        ensure
+          lock_held = false
+        end
+      end
+
+      allow_any_instance_of(described_class).to receive(:recent_coverage_job_exists?).and_wrap_original do |original, **args|
+        expect(lock_held).to be(true)
+        original.call(**args)
+      end
+
+      expect {
+        2.times { described_class.perform_now(workflow.id) }
+      }.to change { Job.where(kind: "direct", repository: repository).count }.by(1)
+
+      expect(lock_entries).to eq(2)
+      created = Job.where(kind: "direct", repository: repository).sole
+      expect(created.tags.pluck(:name)).to contain_exactly("coverage-improvement")
+    end
+
     it "does not create a second Job within 24 hours when the first is still open" do
       described_class.perform_now(workflow.id)
 
