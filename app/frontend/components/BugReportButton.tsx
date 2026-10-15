@@ -136,6 +136,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   // replaces only its `previewUrl` in place, and the still-displayed `originalPreviewUrl` must
   // survive that update so re-opening the annotator can keep editing from the pristine capture.
   const capturesRef = useRef<ScreenshotCaptures>({})
+  const dialogGenerationRef = useRef(0)
   useEffect(() => { capturesRef.current = captures }, [captures])
   useEffect(() => () => revokeCaptures(capturesRef.current), [])
 
@@ -177,6 +178,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   async function openDialog(options: BugReportOpenOptions = {}) {
     if (capturing || open) return
+    dialogGenerationRef.current += 1
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
     bugReportChat.reset()
@@ -220,6 +222,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
     if (choice !== "fullPage" || captures.fullPage || capturingFullPage) return
 
+    const generation = dialogGenerationRef.current
     setCaptureError(null)
     setCapturingFullPage(true)
 
@@ -227,23 +230,27 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       const html2canvas = await loadHtml2Canvas()
       const fullPageCanvas = await captureFullPage(html2canvas)
       const fullPage = await canvasToCapture(fullPageCanvas, "bug-report-full-page.png")
+      if (dialogGenerationRef.current !== generation) return
       setCaptures((current) => ({ ...current, fullPage }))
     } catch (error) {
       console.error(error)
+      if (dialogGenerationRef.current !== generation) return
       setScreenshotChoice(captures.viewport ? "viewport" : "none")
       setCaptureError(t("bug_report.full_page_failed"))
     } finally {
-      setCapturingFullPage(false)
+      if (dialogGenerationRef.current === generation) setCapturingFullPage(false)
     }
   }
 
   function closeDialog() {
+    dialogGenerationRef.current += 1
     bugReport.reset()
     bugReportChat.reset()
     revokeCaptures(captures)
     setCaptures({})
     setAnnotatingChoice(null)
     setCaptureError(null)
+    setCapturingFullPage(false)
     setAttachments([])
     setAttachmentError(null)
     setOptionalAttachments([])
@@ -254,6 +261,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   function resetDialogAfterSubmit() {
+    dialogGenerationRef.current += 1
     setOpen(false)
     setTitle("")
     setDescription("")
@@ -262,6 +270,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setAnnotatingChoice(null)
     setScreenshotChoice("viewport")
     setCaptureError(null)
+    setCapturingFullPage(false)
     setAttachments([])
     setAttachmentError(null)
     setBugContext(null)
@@ -378,13 +387,14 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
     if (formDisabled || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+    if (!event.currentTarget.contains(event.target as Node)) return
 
     event.preventDefault()
     event.currentTarget.requestSubmit()
   }
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
-  const formDisabled = bugReport.isPending || bugReportChat.isPending
+  const formDisabled = bugReport.isPending || bugReportChat.isPending || capturingFullPage
   const submitLabel = bugReport.isPending
     ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
     : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))

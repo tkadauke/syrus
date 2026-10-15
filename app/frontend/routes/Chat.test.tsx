@@ -187,6 +187,238 @@ describe("chat context find", () => {
 
     expect(screen.getByText("1/1")).toBeInTheDocument()
   })
+
+  it("keeps the selected match when chat messages update without changing find match ids", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the initial route." },
+          text: "Preview the initial route.",
+          bookmarkable: true
+        },
+        {
+          type: "message",
+          id: 10,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the alternate route." },
+          text: "Preview the alternate route.",
+          bookmarkable: true
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Preview the alternate route.")
+    const firstScroll = vi.fn()
+    const secondScroll = vi.fn()
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: firstScroll
+    })
+    Object.defineProperty(document.getElementById("message-10"), "scrollIntoView", {
+      configurable: true,
+      value: secondScroll
+    })
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
+
+    await waitFor(() => expect(firstScroll).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }))
+
+    await waitFor(() => expect(secondScroll).toHaveBeenCalledTimes(1))
+    expect(screen.getByText("2/2")).toBeInTheDocument()
+
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), {
+        ...payload,
+        messages: [
+          ...payload.messages,
+          {
+            type: "message",
+            id: 11,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "A fresh stream update arrives." },
+            text: "A fresh stream update arrives.",
+            bookmarkable: true
+          }
+        ]
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(await screen.findByText("A fresh stream update arrives.")).toBeInTheDocument()
+    expect(screen.getByText("2/2")).toBeInTheDocument()
+    expect(firstScroll).toHaveBeenCalledTimes(1)
+    expect(secondScroll).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears the chat find query on close so later message updates do not jump to a hidden match", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "assistant",
+          tool_name: null,
+          content: { text: "Preview the initial route." },
+          text: "Preview the initial route.",
+          bookmarkable: true
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Preview the initial route.")
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+    expect(screen.queryByRole("searchbox", { name: "Find" })).not.toBeInTheDocument()
+
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), {
+        ...payload,
+        messages: [
+          ...payload.messages,
+          {
+            type: "message",
+            id: 11,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "A fresh stream update arrives." },
+            text: "A fresh stream update arrives.",
+            bookmarkable: true
+          }
+        ]
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(await screen.findByText("A fresh stream update arrives.")).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    expect(screen.getByRole("searchbox", { name: "Find" })).toHaveValue("")
+  })
+
+  it("hides the desktop token overlay while the transcript find bar is open", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+
+    expect(screen.getByRole("searchbox", { name: "Find" })).toBeInTheDocument()
+    expect(screen.queryByText(/Tokens:/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+  })
+
+  it("hides the mobile token summary while the transcript find bar is open", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRouteWithMobileChromeContext({ topInset: 44 })
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Chat mobile tabs" })).toBeInTheDocument()
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+    expect(screen.getByTestId("chat-message-stream")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
+
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+
+    expect(screen.getByRole("searchbox", { name: "Find" })).toBeInTheDocument()
+    expect(screen.queryByText(/Tokens:/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("chat-context-find-bar")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
+    expect(screen.getByTestId("chat-message-stream")).not.toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+
+    expect(screen.getByText(/Tokens:/)).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-context-find-bar")).not.toBeInTheDocument()
+    expect(screen.getByTestId("chat-message-stream")).toHaveStyle({ paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" })
+  })
 })
 
 describe("workspaceTabLabel", () => {

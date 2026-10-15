@@ -41,6 +41,12 @@ const sampleMessages: ChatMessageItem[] = [
   { type: "message", id: 3, role: "tool_use", text: "", bookmarkable: false },
 ]
 
+function captureCanvas(text = "screenshot") {
+  return {
+    toBlob: (cb: (blob: Blob | null) => void) => cb(new Blob([text], { type: "image/png" }))
+  } as HTMLCanvasElement
+}
+
 function renderButton(props: {
   context?: string
   chatId?: number | null
@@ -448,6 +454,35 @@ describe("BugReportButton", () => {
 
     resolveReport({ message: "Bug report queued." })
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
+  it("blocks submit, chat, and shortcuts while full-page capture is in flight", async () => {
+    let resolveFullPageCapture: (canvas: HTMLCanvasElement) => void = () => {}
+    mockHtml2canvas
+      .mockResolvedValueOnce(captureCanvas("viewport"))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFullPageCapture = resolve }))
+
+    const ref = renderButton({ bugReportMode: "direct_job" })
+    await openDialog(ref)
+
+    fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).toBeDisabled())
+    expect(screen.getByRole("button", { name: "Discuss" })).toBeDisabled()
+    expect(screen.getByLabelText("Title")).toBeDisabled()
+
+    const form = screen.getByRole("dialog").querySelector("form")!
+    fireEvent.submit(form)
+    fireEvent.keyDown(form, { key: "Enter", ctrlKey: true })
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+
+    expect(mockCreateBugReport).not.toHaveBeenCalled()
+    expect(mockStartBugReportChat).not.toHaveBeenCalled()
+
+    resolveFullPageCapture(captureCanvas("full page"))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).not.toBeDisabled())
+    expect(screen.getByRole("button", { name: "Discuss" })).not.toBeDisabled()
   })
 
   describe("when opened without messages", () => {
@@ -980,6 +1015,23 @@ describe("BugReportButton", () => {
         const text = await (input.screenshot as File).text()
         expect(text).toBe("annotated")
       })
+    })
+
+    it("does not submit the bug report when Ctrl+Enter commits annotation text", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      await annotate()
+      fireEvent.click(screen.getByRole("button", { name: "Text" }))
+      fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+      const input = screen.getByPlaceholderText("Type, then press Enter")
+      fireEvent.change(input, { target: { value: "Needs label" } })
+      fireEvent.keyDown(input, { key: "Enter", ctrlKey: true })
+
+      expect(bugReportsApi.createBugReport).not.toHaveBeenCalled()
+      expect(screen.getByRole("dialog", { name: "Annotate bug-report-viewport.png" })).toBeInTheDocument()
+      expect(screen.getByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
     })
 
     it("supports annotating the full-page screenshot", async () => {

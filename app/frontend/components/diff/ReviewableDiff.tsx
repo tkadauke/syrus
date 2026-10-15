@@ -255,6 +255,7 @@ type FileCacheEntry = {
   collapsed: boolean
   contextState: FileContextState
   forceLoaded: boolean
+  patch: string | null
   tokensByHunk: Map<number, ThemedToken[][]>
 }
 
@@ -266,20 +267,20 @@ type ChangedFileTreeNode = {
   path: string
 }
 
-function createFileCacheEntry(): FileCacheEntry {
-  return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
+function createFileCacheEntry(patch: string | null): FileCacheEntry {
+  return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, patch, tokensByHunk: new Map() }
 }
 
 // Mutates the shared cache entry in place and forces a re-render, rather
 // than mirroring it into component state -- so the entry (and thus its
 // contents) has one persistent identity per file path regardless of how
 // many times its DiffFileSection mounts and unmounts.
-function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
-  if (!cache.has(path)) cache.set(path, createFileCacheEntry())
+function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string, patch: string | null): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
+  if (cache.get(path)?.patch !== patch) cache.set(path, createFileCacheEntry(patch))
   const entry = cache.get(path)!
   const [, forceUpdate] = useReducer((count: number) => count + 1, 0)
-  function update(patch: Partial<FileCacheEntry>) {
-    Object.assign(entry, patch)
+  function update(entryPatch: Partial<FileCacheEntry>) {
+    Object.assign(entry, entryPatch)
     forceUpdate()
   }
   return [entry, update]
@@ -1145,7 +1146,7 @@ function DiffFileSection({
   }, [file.patch])
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
-  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path)
+  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, file.patch)
   const forceLoaded = cacheEntry.forceLoaded
   const collapsed = cacheEntry.collapsed
   const contextState = cacheEntry.contextState
@@ -1997,11 +1998,12 @@ function isAddedFileDiff(file: ReviewableDiffFile) {
 
 export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
   const lines = hunk.replace(/\r\n/g, "\n").split("\n")
+  const parsedLines = parseUnifiedDiff(hunk)
   return (
     <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-800">
       {lines.map((line, index) => (
         <div
-          className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(hunkLineKind(line))} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
+          className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(parsedLines[index]?.kind ?? "context")} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
           key={index}
         >
           {line || " "}
@@ -2009,13 +2011,6 @@ export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: strin
       ))}
     </div>
   )
-}
-
-function hunkLineKind(line: string): DiffLineKind {
-  if (line.startsWith("@@")) return "hunk"
-  if (line.startsWith("+") && !line.startsWith("+++")) return "add"
-  if (line.startsWith("-") && !line.startsWith("---")) return "delete"
-  return "context"
 }
 
 // Renders one diff line's code cell. When Shiki tokens are available (see
@@ -2800,11 +2795,12 @@ export function filesFromUnifiedDiff(diff: string): ReviewableDiffFile[] {
   const rawFiles = normalized.split(/\n(?=diff --git )/)
   const files = rawFiles.map((patch, index) => {
     const path = pathFromPatch(patch) || (rawFiles.length === 1 ? "diff" : `diff-${index + 1}`)
+    const lines = parseUnifiedDiff(patch)
     return {
       path,
       patch,
-      additions: patch.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++")).length,
-      deletions: patch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")).length,
+      additions: lines.filter((line) => line.kind === "add").length,
+      deletions: lines.filter((line) => line.kind === "delete").length,
       status: statusFromPatch(patch)
     }
   })

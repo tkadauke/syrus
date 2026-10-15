@@ -234,7 +234,7 @@ export function ChatRoute() {
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_chat"))}</PanelMessage> : null}
-      {chat.isSuccess ? <ChatView chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
+      {chat.isSuccess ? <ChatView key={id} chatId={id} payload={chat.data} prefix={prefix} queryKey={queryKey} /> : null}
     </main>
   )
 }
@@ -450,6 +450,11 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
 type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
 type ContextFindOpener = () => boolean
 type ContextFindSurface = "chat" | "workspace"
+type OlderMessagesRequest = {
+  before: number
+  chatId: string
+  path: string
+}
 
 export function contextFindSurface({
   activeSurface,
@@ -495,7 +500,7 @@ function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: Ch
   return merged
 }
 
-function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
+function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, onFindOpenChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; onFindOpenChange?: (open: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
   const location = useLocation()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -521,6 +526,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
+  const lastAutoSelectedFindSignatureRef = useRef<string | null>(null)
   const displayedMessages = useMemo(() => mergeChatMessages(olderMessages, payload.messages), [olderMessages, payload.messages])
   const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
@@ -535,8 +541,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const visibleItemsSignature = chatStreamItemsSignature(streamItems)
   const retryTextMap = useMemo(() => retryTextByMessageId(displayedMessages), [displayedMessages])
   const loadOlder = useMutation({
-    mutationFn: (before: number) => fetchChatMessages(payload.paths.app_messages_path, before),
-    onSuccess: (page) => {
+    mutationFn: ({ before, path }: OlderMessagesRequest) => fetchChatMessages(path, before),
+    onSuccess: (page, request) => {
+      if (request.chatId !== String(streamChatIdRef.current)) return
+
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
@@ -552,6 +560,11 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   })
   const localFindMatches = useMemo(() => localChatFindMatches(displayedMessages, findQuery, { includeSystem: showSystemMessages }), [displayedMessages, findQuery, showSystemMessages])
   const findMatches = useMemo(() => mergeChatFindMatches(localFindMatches, findResults.data?.matches ?? []), [findResults.data?.matches, localFindMatches])
+  const normalizedFindQuery = findQuery.trim()
+  const findSelectionSignature = useMemo(() => {
+    if (!normalizedFindQuery) return ""
+    return `${normalizedFindQuery}\n${findMatches.map((match) => match.message_id).join("|")}`
+  }, [findMatches, normalizedFindQuery])
   const findCountLabel = findQuery.trim().length === 0
     ? t("context_find_ready")
     : findResults.isPending && findMatches.length === 0
@@ -618,9 +631,9 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       scrollHeight: stream.scrollHeight,
       scrollTop: stream.scrollTop
     } : null
-    loadOlder.mutate(oldestId)
+    loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
     return true
-  }, [hasMoreOlder, loadOlder, oldestId])
+  }, [hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path])
 
   useEffect(() => {
     if (!olderMessageRequesterRef) return
@@ -636,6 +649,13 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     return true
   }, [])
 
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery("")
+    setActiveFindIndex(0)
+    lastAutoSelectedFindSignatureRef.current = null
+  }, [])
+
   useEffect(() => {
     if (!contextFindOpenerRef) return
 
@@ -644,6 +664,11 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       if (contextFindOpenerRef.current === openFind) contextFindOpenerRef.current = null
     }
   }, [contextFindOpenerRef, openFind])
+
+  useEffect(() => {
+    onFindOpenChange?.(findOpen)
+    return () => onFindOpenChange?.(false)
+  }, [findOpen, onFindOpenChange])
 
   const selectFindMatch = useCallback((match: ChatSearchMatch | null) => {
     if (!match) return
@@ -661,9 +686,16 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   }, [findMatches, selectFindMatch])
 
   useEffect(() => {
+    if (!findOpen || !normalizedFindQuery) {
+      lastAutoSelectedFindSignatureRef.current = null
+      return
+    }
+    if (lastAutoSelectedFindSignatureRef.current === findSelectionSignature) return
+
+    lastAutoSelectedFindSignatureRef.current = findSelectionSignature
     setActiveFindIndex(0)
     if (findMatches.length > 0) selectFindMatch(findMatches[0])
-  }, [findMatches, selectFindMatch])
+  }, [findMatches, findOpen, findSelectionSignature, normalizedFindQuery, selectFindMatch])
 
   useEffect(() => {
     onCanLoadOlderChange?.(hasMoreOlder && oldestId != null && !loadOlder.isPending)
@@ -732,6 +764,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     setFindOpen(false)
     setFindQuery("")
     setActiveFindIndex(0)
+    setActiveBookmarkTarget(null)
+    loadOlder.reset()
+    bookmarkLoadBeforeRef.current = null
+    preserveScrollAfterOlderLoadRef.current = null
     atBottomRef.current = true
     lastScrollTopRef.current = 0
     lastUserScrollIntentAtRef.current = 0
@@ -821,8 +857,8 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     if (loadOlder.isPending || bookmarkLoadBeforeRef.current === oldestId) return
 
     bookmarkLoadBeforeRef.current = oldestId
-    loadOlder.mutate(oldestId)
-  }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
+    loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
+  }, [activeBookmarkTarget, hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path, visibleItemsSignature])
 
   if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
@@ -845,22 +881,27 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     )
   }
 
+  const mobileFindBarStyle = !isDesktop && findOpen ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined
+  const messageStreamStyle = !isDesktop && !findOpen ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined
+
   return (
-    <div className="relative h-full min-h-0">
+    <div className="relative flex h-full min-h-0 flex-col">
       {findOpen ? (
-        <ContextFindBar
-          closeLabel={t("context_find_close")}
-          countLabel={findCountLabel}
-          hasResults={findMatches.length > 0}
-          nextLabel={t("context_find_next")}
-          placeholder={t("context_find_placeholder_chat")}
-          previousLabel={t("context_find_previous")}
-          query={findQuery}
-          onClose={() => setFindOpen(false)}
-          onNext={() => goToFindIndex(activeFindIndex + 1)}
-          onPrevious={() => goToFindIndex(activeFindIndex - 1)}
-          onQueryChange={setFindQuery}
-        />
+        <div className="shrink-0" data-testid="chat-context-find-bar" style={mobileFindBarStyle}>
+          <ContextFindBar
+            closeLabel={t("context_find_close")}
+            countLabel={findCountLabel}
+            hasResults={findMatches.length > 0}
+            nextLabel={t("context_find_next")}
+            placeholder={t("context_find_placeholder_chat")}
+            previousLabel={t("context_find_previous")}
+            query={findQuery}
+            onClose={closeFind}
+            onNext={() => goToFindIndex(activeFindIndex + 1)}
+            onPrevious={() => goToFindIndex(activeFindIndex - 1)}
+            onQueryChange={setFindQuery}
+          />
+        </div>
       ) : null}
       {
         // pb-* used to be a static guess sized for the composer's default
@@ -873,12 +914,12 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
         // assumed) case unchanged.
       }
       <div
-        className={`min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${findOpen ? "h-[calc(100%-3.25rem)]" : "h-full"} ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
+        className={`h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))] ${isDesktop ? "pt-12 sm:pt-12" : ""}`}
         data-mobile-header-hidden={mobileHeader.hidden ? "true" : undefined}
         data-testid="chat-message-stream"
         onClick={handleStreamClick}
         onScroll={handleScroll}
-        style={!isDesktop ? { paddingTop: "var(--mobile-chat-stream-top-breathing-room,1rem)" } : undefined}
+        style={messageStreamStyle}
         onTouchMove={handleTouchMove}
         onWheel={handleWheel}
         ref={streamRef}
@@ -1042,6 +1083,7 @@ function ChatWorkspace({
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
   const [activeFindSurface, setActiveFindSurface] = useState<ContextFindSurface>("chat")
+  const [chatFindOpen, setChatFindOpen] = useState(false)
   const chatFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const filesFindOpenerRef = useRef<ContextFindOpener | null>(null)
   const bookmarkRequestIdRef = useRef(0)
@@ -1070,6 +1112,7 @@ function ChatWorkspace({
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
     setPendingJobsTabRequest(false)
+    setChatFindOpen(false)
     suppressNextComposerMediaSwitchRef.current = false
     revealHeader()
   }, [payload.chat.id, revealHeader])
@@ -1222,11 +1265,12 @@ function ChatWorkspace({
           autoHideActive={mobileTabsAutoHideActive}
           payload={payload}
           showMobileWorkspaceTabs={showMobileWorkspaceTabs}
+          usageOverlayHidden={chatFindOpen}
           onSelectMobileTab={selectMobileTab}
         />
         <div className="flex min-h-0 w-full flex-1" data-testid="mobile-chat-surface">
           {showMobileChatColumn ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onFindOpenChange={setChatFindOpen} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
           ) : (
             <div className="min-h-0 flex-1 overflow-hidden" data-testid="mobile-workspace-panel-shell" style={mobileWorkspacePanelStyle}>
               <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
@@ -1265,7 +1309,7 @@ function ChatWorkspace({
         transition: "grid-template-columns 150ms ease"
       }}
     >
-      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onComposerMessageSent={handleComposerMessageSent} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onComposerMessageSent={handleComposerMessageSent} onFindOpenChange={setChatFindOpen} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1329,6 +1373,7 @@ function MobileChatTopChrome({
   autoHideActive,
   payload,
   showMobileWorkspaceTabs,
+  usageOverlayHidden,
   onSelectMobileTab
 }: {
   activeMobileTab: MobileChatTab
@@ -1336,6 +1381,7 @@ function MobileChatTopChrome({
   autoHideActive: boolean
   payload: ChatPayload
   showMobileWorkspaceTabs: boolean
+  usageOverlayHidden: boolean
   onSelectMobileTab: (tab: MobileChatTab) => void
 }) {
   const { t } = useT("chat")
@@ -1386,7 +1432,7 @@ function MobileChatTopChrome({
         }))}
         onSelect={onSelectMobileTab}
       />
-      <UsageOverlay mobile payload={payload} />
+      {usageOverlayHidden ? null : <UsageOverlay mobile payload={payload} />}
     </div>
   )
 }
@@ -1542,10 +1588,11 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onComposerMessageSent, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onComposerMessageSent, onFindOpenChange, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void; onFindOpenChange?: (open: boolean) => void; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
+  const [contextFindOpen, setContextFindOpen] = useState(false)
   // Reported by Compose's own ResizeObserver on its floating form element —
   // exposed as a CSS variable so the message stream's bottom padding and the
   // "new messages" pill (both siblings, not descendants, of Compose) can
@@ -1563,6 +1610,15 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
     setHasSentFirstMessage(false)
     setCanLoadEarlierMessages(payload.has_more_older)
   }, [payload.chat.id, payload.has_more_older])
+
+  useEffect(() => {
+    setContextFindOpen(false)
+  }, [payload.chat.id])
+
+  const handleFindOpenChange = useCallback((open: boolean) => {
+    setContextFindOpen(open)
+    onFindOpenChange?.(open)
+  }, [onFindOpenChange])
 
   // Deliberately scoped to chat.id alone (not has_more_older, which this
   // same effect above tracks too): has_more_older can flip mid-session
@@ -1624,8 +1680,8 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
       {!landing ? <AttachedCodingJobStrip payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded-none border-0 border-gray-200 bg-white transition-all duration-500 ease-out xl:rounded-t xl:border xl:border-b-0 dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
-        <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
-        {showUsageOverlay ? <UsageOverlay payload={payload} /> : null}
+        <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onFindOpenChange={handleFindOpenChange} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
+        {showUsageOverlay && !contextFindOpen ? <UsageOverlay payload={payload} /> : null}
         {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} /> : null}
       </div>
       {landing ? (

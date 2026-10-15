@@ -337,6 +337,18 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
     expect(parse_body.dig("error", "code")).to eq("invalid_sql_explain_request")
   end
 
+  it "returns a 422 when the database cannot explain the SQL" do
+    sign_in_as(admin)
+    allow_any_instance_of(::SyrusDev::SqlExplain).to receive(:select_rows)
+      .and_raise(ActiveRecord::StatementInvalid, "Mysql2::Error: no such table")
+
+    post "/api/v1/app/admin/performance/explain", params: { sql: "SELECT * FROM missing_table" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(parse_body.dig("error", "code")).to eq("invalid_sql_explain_request")
+    expect(parse_body.dig("error", "message")).to include("stored sample SQL may be truncated")
+  end
+
   it "404s when the Syrus Dev plugin is disabled" do
     PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
     sign_in_as(admin)
