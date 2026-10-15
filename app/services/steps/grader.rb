@@ -161,7 +161,7 @@ module Steps
       # explain where a grader ran and whether its prepare cache hit were gone
       # by the time anyone read the Step. Same idiom as the other two detail
       # writes in this file.
-      step.update!(details: step.details.to_h.merge(
+      step.update!(details: step.reload.details.to_h.merge(
         "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
