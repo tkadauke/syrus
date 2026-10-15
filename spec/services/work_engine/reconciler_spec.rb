@@ -2557,6 +2557,47 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded")
   end
 
+  it "keeps a queued repair retry when only an unrelated later workflow succeeded" do
+    source = workflow
+    run.update_columns(state: "failed", agent_outcome: "worker_died", finished_at: 30.minutes.ago)
+    step.update_columns(state: "failed", finished_at: 30.minutes.ago)
+    source.update_columns(state: "failed", trigger_kind: "ci_failure", finished_at: 30.minutes.ago)
+
+    Workflow.create!(
+      job: job,
+      trigger_kind: "rebase",
+      state: "succeeded",
+      created_at: 25.minutes.ago,
+      started_at: 25.minutes.ago,
+      finished_at: 20.minutes.ago
+    )
+    attempt = AutoRetryAttempt.create!(
+      job: job,
+      workflow: source,
+      run: run,
+      agent_provider: "claude",
+      failure_classification: "worker_died",
+      retry_kind: "retry_workflow",
+      attempt_number: 1,
+      scheduled_at: 10.minutes.ago,
+      performed_at: 9.minutes.ago
+    )
+    retry_workflow = Workflows::Retry.instantiate(
+      job: job,
+      artifacts: { "auto_retry_attempt_id" => attempt.id },
+      agent_provider: "claude"
+    )
+    attach_work_unit(retry_workflow, state: "queued", kind: "retry")
+    retry_workflow.update_columns(created_at: 9.minutes.ago)
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :stale_auto_retry_workflow)).to be_nil
+    expect(plan(result, :cancel_stale_auto_retry_workflow)).to be_nil
+    expect(retry_workflow.reload).to be_queued
+    expect(attempt.reload.skipped_reason).to be_nil
+  end
+
   it "cancels stale queued auto-retry workflows when the source workflow itself later succeeded" do
     source = workflow
     source.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)

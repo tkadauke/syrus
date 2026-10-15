@@ -971,13 +971,7 @@ module WorkEngine
           return true if source.succeeded?
           return true if branch_divergence_recovered_by_current_pr_branch?(source)
 
-          cutoff = source.finished_at || source.created_at
-          return false unless cutoff
-
-          job.workflows
-             .where(state: "succeeded")
-             .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, source.id)
-             .exists?
+          Workflows::ValidationSupersession.superseded_by_successful_workflow?(source)
         end
 
         def retry_workflow_attempt?(workflow)

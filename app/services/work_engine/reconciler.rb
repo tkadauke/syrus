@@ -1572,7 +1572,7 @@ module WorkEngine
       return false unless job && source
 
       source.succeeded? ||
-        newer_successful_workflow?(job, source) ||
+        Workflows::ValidationSupersession.superseded_by_successful_workflow?(source) ||
         branch_divergence_recovered_by_current_pr_branch?(source)
     end
 
@@ -1905,16 +1905,6 @@ module WorkEngine
       return false unless intent.scope_type == "job"
 
       jobs.any? { |job| job.id == intent.scope_id.to_i && job.closed? }
-    end
-
-    def newer_successful_workflow?(job, source)
-      cutoff = source.finished_at || source.created_at
-      return false unless cutoff
-
-      job.workflows
-         .where(state: "succeeded")
-         .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, source.id)
-         .exists?
     end
 
     def classify_unambiguous_job_state_drift
