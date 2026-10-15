@@ -167,9 +167,18 @@ RSpec.describe AlertmanagerInvestigations::Poller do
       job: existing_job
     )
 
-    expect {
-      described_class.new(client: client, configuration: configuration).call
-    }.not_to change(Job, :count)
+    allow(AlertmanagerInvestigations::RunbookResolver).to receive(:call).and_call_original
+
+    2.times do
+      expect {
+        described_class.new(client: client, configuration: configuration).call
+      }.not_to change(Job, :count)
+    end
+
+    expect(AlertmanagerInvestigations::RunbookResolver).not_to have_received(:call)
+    deferred = AlertmanagerInvestigations::Investigation.find_by!(fingerprint: "abc123")
+    expect(deferred.resolution_status).to eq("deferred")
+    expect(deferred.repository).to eq(repository)
   end
 
   it "creates nothing for a second firing inside the rate-limit window" do
@@ -219,6 +228,29 @@ RSpec.describe AlertmanagerInvestigations::Poller do
       job: existing_job
     )
     alerts.first["labels"]["instance"] = "10.0.0.1:9100"
+
+    expect {
+      described_class.new(client: client, configuration: configuration).call
+    }.not_to change(Job, :count)
+  end
+
+  it "recognizes a port-bearing host stored before canonicalization" do
+    existing_job = Factories.job_record(
+      repository: repository,
+      user: user,
+      kind: "direct",
+      issue_number: nil,
+      investigation: true,
+      state: "running"
+    )
+    AlertmanagerInvestigations::Investigation.create!(
+      fingerprint: "other-fingerprint",
+      host: "10.0.0.1:9100",
+      runbook_url: runbook_url,
+      repository: repository,
+      job: existing_job
+    )
+    alerts.first["labels"]["instance"] = "10.0.0.1"
 
     expect {
       described_class.new(client: client, configuration: configuration).call

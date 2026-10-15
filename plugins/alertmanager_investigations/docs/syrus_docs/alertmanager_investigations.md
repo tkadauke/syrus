@@ -33,7 +33,7 @@ should escalate with one of the core reason codes (`needs_human_decision`,
 `lacks_authority`, `remediation_failed`, or `unsafe_to_proceed`) rather than
 performing the action.
 
-Two code-level guards limit noise and unsafe duplication:
+Code-level guards limit noise and unsafe duplication:
 
 - One investigation per Alertmanager fingerprint per rate-limit window
   (`rate_limit_minutes`, default 30).
@@ -43,4 +43,6 @@ Two code-level guards limit noise and unsafe duplication:
   without a trailing metrics port.
 - At most `max_jobs_per_tick` Jobs (default 5) are created by one poll, and no
   repository may have more than `max_open_jobs_per_repository` open alert
-  investigations (default 10).
+  investigations (default 10). Alerts deferred by the repository cap are
+  recorded for the fingerprint window without fetching the runbook content
+  again on each poll.
