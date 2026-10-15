@@ -9,6 +9,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
 
     @daemon_session = find_daemon_session
     return reject unless @daemon_session
+    @connection_id = SecureRandom.uuid
 
     stream_from "local_daemon_session_#{@daemon_session.id}_tool_calls"
 
@@ -18,7 +19,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
 
   def unsubscribed
     stop_threads
-    @daemon_session&.mark_disconnected!
+    @daemon_session&.mark_disconnected!(connection_id: @connection_id)
   end
 
   # Messages from the daemon CLI:
@@ -37,7 +38,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
     when "connect"
       handle_connect(data)
     when "pong"
-      @daemon_session.record_heartbeat!
+      @daemon_session.record_heartbeat! if current_connection?
     when "tool_result"
       handle_tool_result(data)
     end
@@ -80,12 +81,14 @@ class LocalTunnelChannel < ApplicationCable::Channel
   def handle_connect(data)
     repo   = data["repo"].to_s.strip
     branch = data["branch"].to_s.strip
-    @daemon_session.mark_connected!(repo: repo, branch: branch)
+    @daemon_session.mark_connected!(repo: repo, branch: branch, connection_id: @connection_id)
     transmit({ type: "connected" })
     drain_queued_tool_calls
   end
 
   def handle_tool_result(data)
+    return unless current_connection?
+
     tool_use_id = data["tool_use_id"].to_s
     content     = data["content"]
 
@@ -103,13 +106,17 @@ class LocalTunnelChannel < ApplicationCable::Channel
   end
 
   def dispatch_tool_call(tool_call)
-    tool_call.dispatch!
-    transmit({
-      type:        "tool_call",
-      tool_use_id: tool_call.tool_use_id,
-      tool:        tool_call.tool_name,
-      input:       tool_call.tool_input
-    })
+    @daemon_session.with_lock do
+      return unless @daemon_session.current_connection?(@connection_id)
+      return unless tool_call.dispatch!
+
+      transmit({
+        type:        "tool_call",
+        tool_use_id: tool_call.tool_use_id,
+        tool:        tool_call.tool_name,
+        input:       tool_call.tool_input
+      })
+    end
   rescue => e
     tool_call.fail!(error: e.message)
   end
@@ -122,6 +129,8 @@ class LocalTunnelChannel < ApplicationCable::Channel
   end
 
   def handle_cancel_broadcast(message)
+    return unless current_connection?
+
     tool_call = LocalToolCall.find_by(id: message["tool_call_id"])
     return unless tool_call&.state == "dispatched"
 
@@ -149,9 +158,10 @@ class LocalTunnelChannel < ApplicationCable::Channel
 
   def check_heartbeat_timeout
     @daemon_session.reload
+    return unless current_connection?
     return unless @daemon_session.heartbeat_stale?
 
-    @daemon_session.mark_disconnected!
+    @daemon_session.mark_disconnected!(connection_id: @connection_id)
     transmit({ type: "disconnected", reason: "heartbeat_timeout" })
   end
 
@@ -170,5 +180,9 @@ class LocalTunnelChannel < ApplicationCable::Channel
   def stop_threads
     @heartbeat_thread&.kill
     @dispatch_thread&.kill
+  end
+
+  def current_connection?
+    @daemon_session.reload.current_connection?(@connection_id)
   end
 end

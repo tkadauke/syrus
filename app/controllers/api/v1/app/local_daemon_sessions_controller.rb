@@ -17,6 +17,8 @@ module Api
         # Creates a new daemon session (or re-uses an existing one).
         # Returns the auth_token the CLI uses to authenticate the WebSocket.
         def create
+          return render_owner_required unless chat_owner?
+
           session = @chat_session.local_daemon_session
 
           if session.nil?
@@ -32,6 +34,8 @@ module Api
 
         # DELETE /api/v1/app/chats/:chat_id/local_daemon_session
         def destroy
+          return render_owner_required unless chat_owner?
+
           session = @chat_session.local_daemon_session
           session&.mark_disconnected!
           session&.destroy!
@@ -47,6 +51,14 @@ module Api
 
         def require_local_mode_feature
           render_error("local_mode_disabled", "Local Mode is not enabled.", status: :not_found) unless Feature.local_mode_enabled?
+        end
+
+        def chat_owner?
+          @chat_session.user_id == Current.user.id
+        end
+
+        def render_owner_required
+          render_error("forbidden", "Only the chat owner can manage its local daemon session.", status: :forbidden)
         end
 
         def render_not_found
