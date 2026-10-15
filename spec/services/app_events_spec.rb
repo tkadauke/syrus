@@ -97,34 +97,43 @@ RSpec.describe AppEvents do
   end
 
   describe ".broadcast_chat_resource" do
-    it "broadcasts a sequence-less event envelope to the chat-scoped stream, never to the user channel" do
+    it "broadcasts a sequence-less event envelope only to current participants' streams" do
+      owner = Factories.user
+      removed_user = Factories.user
+      chat = ChatSession.create!(user: owner, conversation_kind: "group")
+      removed_participant = chat.chat_participants.create!(user: removed_user, role: "member")
+      removed_participant.destroy!
       allow(ActionCable.server).to receive(:broadcast)
       allow(AppUserChannel).to receive(:broadcast_to)
 
       described_class.broadcast_chat_resource(
-        chat_session_id: 4,
+        chat_session_id: chat.id,
         type: "updated",
         resource: "chat",
-        id: 4,
+        id: chat.id,
         changed: %w[messages],
         payload: { action: "replace_tail" }
       )
 
       expect(ActionCable.server).to have_received(:broadcast).with(
-        "chat_resource:4",
+        ChatChannel.stream_name(chat.id, owner.id),
         hash_including(
           "type" => "updated",
           "resource" => "chat",
-          "id" => 4,
+          "id" => chat.id,
           "changed" => %w[messages],
           "payload" => { "action" => "replace_tail" }
         )
+      )
+      expect(ActionCable.server).not_to have_received(:broadcast).with(
+        ChatChannel.stream_name(chat.id, removed_user.id),
+        anything
       )
       expect(AppUserChannel).not_to have_received(:broadcast_to)
     end
 
     it "matches the stream ChatChannel subscribes to" do
-      expect(ChatChannel.stream_name(4)).to eq("chat_resource:4")
+      expect(ChatChannel.stream_name(4, 9)).to eq("chat_resource:4:user:9")
     end
   end
 

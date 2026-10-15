@@ -9,6 +9,7 @@ import { Compose } from "./chat/Compose"
 import { MobileChatHeaderContext, type MobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
+import { applyAppEvent } from "../lib/appEvents"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
@@ -6626,6 +6627,33 @@ describe("group chat participants and composer hint", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
     })
   })
+
+  it("leaves the group chat when another participant removes the current user", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mockChatRouteFetch(chatPayload({
+      chat: { current_user_id: 1, conversation_kind: "group", participants: groupParticipants() }
+    }))
+    renderRouteWithLocation(queryClient)
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    act(() => {
+      applyAppEvent(queryClient, {
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        changed: ["participants"],
+        payload: {
+          action: "update_participants",
+          conversation_kind: "group",
+          participants: [groupParticipants()[1]]
+        }
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+    })
+  })
 })
 
 function renderRoute() {
@@ -6756,9 +6784,9 @@ function mockDynamicViewport(initialDesktop: boolean) {
   }
 }
 
-function renderRouteWithLocation() {
+function renderRouteWithLocation(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>
