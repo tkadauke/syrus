@@ -221,13 +221,17 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans. A `WITH`
   statement is not automatically read-only: `QueryExecutor` parses past the
   CTE definition(s) - comment/quote-aware, balanced-paren matching, handling
-  MySQL block and line comments, an optional column list, and `RECURSIVE` - to
-  find the terminal statement after them, and only treats it as read-only when
-  that terminal statement is
-  `SELECT`/`TABLE`; a MySQL 8 CTE like `WITH x AS (...) UPDATE ...`/
+  ordinary MySQL block and line comments, an optional column list, and
+  `RECURSIVE` - to find the terminal statement after them, and only treats it
+  as read-only when that terminal statement is `SELECT`/`TABLE`; a MySQL 8 CTE
+  like `WITH x AS (...) UPDATE ...`/
   `DELETE ...`/`INSERT ...` requires write access despite the leading `WITH`.
   A `WITH` statement Syrus can't parse is treated as **not** read-only,
   erring toward requiring write access rather than assuming safety.
+  MySQL executable comments (`/*! ... */`) outside strings and inert comments
+  are likewise treated as potentially mutating and require write access;
+  their contents are SQL on matching server versions, not comments the
+  classifier can safely skip.
   `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
   the statement while collecting runtime plan data, including applying the
   terminal-statement check to `WITH` queries. Statements accepted as reads are
