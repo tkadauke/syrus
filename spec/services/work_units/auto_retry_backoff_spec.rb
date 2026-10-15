@@ -85,4 +85,15 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
     expect(unit.reload).to have_attributes(state: "failed", blocked_reason: nil)
     expect(unit.work_unit_locks.active).to be_empty
   end
+
+  it "restores the unit to running when a same-attempt retry starts" do
+    workflow.update!(work_unit: unit, state: "running", started_at: 2.minutes.ago)
+    attempt = attempt!(retry_kind: "resume_failed_step")
+    described_class.record!(attempt)
+
+    described_class.clear!(attempt, terminal_state: nil)
+
+    expect(unit.reload).to have_attributes(state: "running", blocked_reason: nil)
+    expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
+  end
 end
