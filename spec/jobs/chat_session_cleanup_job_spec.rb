@@ -27,7 +27,7 @@ RSpec.describe ChatSessionCleanupJob do
     chat = ChatSession.create!(user: user)
     message = chat.messages.create!(role: "user", content: { "text" => "Aqueduct feasibility" })
     ChatMessageSearchIndex.insert(message)
-    expect(ChatMessageSearchIndex.search("aqueduct", user_id: user.id)).not_to be_empty
+    expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ chat.id ])).not_to be_empty
 
     workspace = ChatWorkspace.ensure_root!(chat)
     agent_home = ChatWorkspace.agent_home_for(chat, "codex")
@@ -42,7 +42,7 @@ RSpec.describe ChatSessionCleanupJob do
 
     expect(workspace).not_to exist
     expect(data_root.join("agent_homes", "chats", id.to_s)).not_to exist
-    expect(ChatMessageSearchIndex.search("aqueduct", user_id: user.id)).to be_empty
+    expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ id ])).to be_empty
   end
 
   it "removes the workspace, the per-chat agent homes, and the FTS rows once the chat is soft-deleted" do
@@ -50,7 +50,7 @@ RSpec.describe ChatSessionCleanupJob do
     chat = ChatSession.create!(user: user)
     message = chat.messages.create!(role: "user", content: { "text" => "Aqueduct feasibility" })
     ChatMessageSearchIndex.insert(message)
-    expect(ChatMessageSearchIndex.search("aqueduct", user_id: user.id)).not_to be_empty
+    expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ chat.id ])).not_to be_empty
 
     workspace = ChatWorkspace.ensure_root!(chat)
     agent_home = ChatWorkspace.agent_home_for(chat, "codex")
@@ -64,7 +64,7 @@ RSpec.describe ChatSessionCleanupJob do
 
     expect(workspace).not_to exist
     expect(data_root.join("agent_homes", "chats", chat.id.to_s)).not_to exist
-    expect(ChatMessageSearchIndex.search("aqueduct", user_id: user.id)).to be_empty
+    expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ chat.id ])).to be_empty
     # The row itself survives — only its local checkout state and search
     # index rows are purged.
     expect(ChatSession.exists?(chat.id)).to be(true)
@@ -83,7 +83,7 @@ RSpec.describe ChatSessionCleanupJob do
 
     expect(workspace).to exist
     expect(agent_home).to exist
-    expect(ChatMessageSearchIndex.search("aqueduct", user_id: user.id)).not_to be_empty
+    expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ chat.id ])).not_to be_empty
   end
 
   it "ignores a recorded workspace path outside SYRUS_DATA_ROOT instead of rm_rf'ing it" do

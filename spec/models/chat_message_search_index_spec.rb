@@ -22,7 +22,7 @@ RSpec.describe ChatMessageSearchIndex do
 
     described_class.insert(message)
 
-    results = described_class.search("deploy", user_id: user.id)
+    results = described_class.search("deploy", chat_session_ids: [ session.id ])
 
     expect(results.length).to eq(1)
     expect(results.first).to include(
@@ -48,7 +48,7 @@ RSpec.describe ChatMessageSearchIndex do
 
     expect { described_class.insert(message) }.not_to raise_error
 
-    expect(described_class.search("deleted", user_id: user.id)).to be_empty
+    expect(described_class.search("deleted", chat_session_ids: [ session.id ])).to be_empty
   end
 
   it "skips inserting when the message's chat session is soft-deleted" do
@@ -61,10 +61,10 @@ RSpec.describe ChatMessageSearchIndex do
 
     expect { described_class.insert(message) }.not_to raise_error
 
-    expect(described_class.search("deleted", user_id: user.id)).to be_empty
+    expect(described_class.search("deleted", chat_session_ids: [ session.id ])).to be_empty
   end
 
-  it "scopes results to the requested user" do
+  it "scopes results to the requested chat sessions" do
     own_message = ChatMessage.create!(
       chat_session: session,
       role: "user",
@@ -78,7 +78,7 @@ RSpec.describe ChatMessageSearchIndex do
     described_class.insert(own_message)
     described_class.insert(other_message)
 
-    results = described_class.search("scope", user_id: user.id)
+    results = described_class.search("scope", chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to eq([ own_message.id ])
   end
@@ -102,6 +102,17 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.map { |row| row[:chat_message_id] }).to eq([ other_message.id ])
   end
 
+  it "returns no results without an explicit chat-session scope" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "unscoped private search" }
+    )
+    described_class.insert(message)
+
+    expect(described_class.search("unscoped")).to be_empty
+  end
+
   it "matches unquoted words as independent AND terms" do
     matching_message = ChatMessage.create!(
       chat_session: session,
@@ -116,7 +127,7 @@ RSpec.describe ChatMessageSearchIndex do
     described_class.insert(matching_message)
     described_class.insert(partial_message)
 
-    results = described_class.search("foo bar", user_id: user.id)
+    results = described_class.search("foo bar", chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to eq([ matching_message.id ])
   end
@@ -135,7 +146,7 @@ RSpec.describe ChatMessageSearchIndex do
     described_class.insert(phrase_message)
     described_class.insert(reordered_message)
 
-    results = described_class.search('"foo bar"', user_id: user.id)
+    results = described_class.search('"foo bar"', chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to eq([ phrase_message.id ])
   end
@@ -154,7 +165,7 @@ RSpec.describe ChatMessageSearchIndex do
     described_class.insert(matching_message)
     described_class.insert(scattered_message)
 
-    results = described_class.search('foo "bar baz"', user_id: user.id)
+    results = described_class.search('foo "bar baz"', chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to eq([ matching_message.id ])
   end
@@ -167,7 +178,7 @@ RSpec.describe ChatMessageSearchIndex do
     )
     described_class.insert(message)
 
-    results = described_class.search("JOB-1", user_id: user.id)
+    results = described_class.search("JOB-1", chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to eq([ message.id ])
   end
@@ -186,7 +197,7 @@ RSpec.describe ChatMessageSearchIndex do
     described_class.insert(weaker)
     described_class.insert(stronger)
 
-    results = described_class.search("needle", user_id: user.id)
+    results = described_class.search("needle", chat_session_ids: [ session.id ])
 
     expect(results.map { |row| row[:chat_message_id] }).to start_with(stronger.id, weaker.id)
     expect(results.first[:rank]).to be < results.second[:rank]

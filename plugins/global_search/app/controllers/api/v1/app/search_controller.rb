@@ -186,7 +186,11 @@ module Api
 
         def chat_search_rows(query, limit)
           rows = reject_unsearchable_chat_rows(
-            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+            ChatMessageSearchIndex.search(
+              query,
+              chat_session_ids: searchable_chat_messages.distinct.pluck(:chat_session_id),
+              limit: limit
+            )
           )
 
           apply_filter_to_rows(

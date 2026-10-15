@@ -263,6 +263,32 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
   end
 
+  it "returns chat matches to participants without exposing them to non-participants" do
+    owner = Factories.user
+    participant = Factories.user
+    stranger = Factories.user
+    shared_chat = ChatSession.create!(user: owner, title: "Shared launch")
+    shared_chat.chat_participants.create!(user: participant, role: "member")
+    message = ChatMessage.create!(
+      chat_session: shared_chat,
+      role: "user",
+      content: { "text" => "sharedneedle launch details" }
+    )
+    ChatMessageSearchIndex.insert(message)
+
+    sign_in_as(participant)
+    get "/api/v1/app/search", params: { query: "sharedneedle", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "chat", "id" => message.id))
+
+    sign_in_as(stranger)
+    get "/api/v1/app/search", params: { query: "sharedneedle", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+  end
+
   it "excludes soft-deleted chat messages from chat results" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     kept_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy kept" })

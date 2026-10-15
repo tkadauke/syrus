@@ -11,13 +11,14 @@ module ChatSearch
 
   SEARCH_PAGE_SIZE = 20
   SEARCH_TOP_MATCHES = 3
+  SEARCH_MATCH_LIMIT = 1_000
 
   def search_payload_for_query(scope, query, page)
     allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i).to_set
     grouped_matches = []
     matches_by_chat = {}
 
-    chat_search_rows(query).each do |row|
+    chat_search_rows(query, chat_session_ids: allowed_session_ids.to_a, limit: SEARCH_MATCH_LIMIT).each do |row|
       chat_session_id = row.fetch(:chat_session_id).to_i
       next unless allowed_session_ids.include?(chat_session_id)
 
@@ -110,12 +111,12 @@ module ChatSearch
     (page - 1) * SEARCH_PAGE_SIZE
   end
 
-  def chat_search_rows(query, chat_session_id: nil)
+  def chat_search_rows(query, chat_session_id: nil, chat_session_ids: nil, limit: nil)
     ChatMessageSearchIndex.search(
       query,
-      user_id: Current.user.id,
       chat_session_id: chat_session_id,
-      limit: nil,
+      chat_session_ids: chat_session_ids,
+      limit: limit,
       snippet_start: "<b>",
       snippet_end: "</b>",
       snippet_tokens: 50

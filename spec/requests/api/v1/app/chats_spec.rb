@@ -1098,6 +1098,34 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "returns a shared chat to a participant but not to a non-participant" do
+      owner = Factories.user
+      participant = Factories.user
+      stranger = Factories.user
+      shared_chat = ChatSession.create!(user: owner, title: "Shared planning")
+      shared_chat.chat_participants.create!(user: participant, role: "member")
+      message = create_indexed_message(shared_chat, text: "participantneedle shared details")
+
+      sign_in_as(participant)
+      get "/api/v1/app/chats/search", params: { q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => shared_chat.id, "best_match_message_id" => message.id)
+      )
+
+      get "/api/v1/app/chats/search/messages", params: { chat_session_id: shared_chat.id, q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["matches"]).to contain_exactly(include("message_id" => message.id))
+
+      sign_in_as(stranger)
+      get "/api/v1/app/chats/search", params: { q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("results" => [], "total" => 0)
+    end
   end
 
   it "marks a chat read for the signed-in user" do
@@ -1276,7 +1304,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       proposal = chat.proposals.create!(slug: "catapult-job", title: "Build catapult", body: "Do it.")
       whiteboard = chat.create_whiteboard!
       ChatMessageSearchIndex.insert(message)
-      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).not_to be_empty
+      expect(ChatMessageSearchIndex.search("catapult", chat_session_ids: [ chat.id ])).not_to be_empty
 
       original_data_root = ENV["SYRUS_DATA_ROOT"]
       Dir.mktmpdir("syrus-data-root") do |data_root|
@@ -1318,7 +1346,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(ChatProposal.exists?(proposal.id)).to be(true)
       expect(Whiteboard::Board.exists?(whiteboard.id)).to be(true)
       expect(ChatAttachment.where(chat_session_id: chat.id)).not_to be_empty
-      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).to be_empty
+      expect(ChatMessageSearchIndex.search("catapult", chat_session_ids: [ chat.id ])).to be_empty
 
       # A soft-deleted chat is invisible to both the operator and the agent.
       get "/api/v1/app/chats/#{chat.id}"
