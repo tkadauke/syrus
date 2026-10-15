@@ -119,7 +119,7 @@ class LocalMergeabilityCheck
         env: @env
       )
     end
-    @git.run("checkout", @job.branch_name, chdir: clone_path.to_s)
+    @git.run("switch", "--", @job.branch_name, chdir: clone_path.to_s)
   end
 
   def authenticated_git(operation_type, &block)

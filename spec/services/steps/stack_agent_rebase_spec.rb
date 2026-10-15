@@ -62,6 +62,7 @@ RSpec.describe Steps::StackAgentRebase do
     expect(git).to have_received(:run).with(
       "branch",
       "-f",
+      "--",
       job.branch_name,
       "refs/remotes/origin/#{job.branch_name}",
       chdir: "/tmp/workspace"
@@ -69,10 +70,11 @@ RSpec.describe Steps::StackAgentRebase do
     expect(git).to have_received(:run).with(
       "branch",
       "-f",
+      "--",
       child.branch_name,
       "refs/remotes/origin/#{child.branch_name}",
       chdir: "/tmp/workspace"
     )
-    expect(git).to have_received(:run).with("checkout", job.branch_name, chdir: "/tmp/workspace")
+    expect(git).to have_received(:run).with("switch", "--", job.branch_name, chdir: "/tmp/workspace")
   end
 end

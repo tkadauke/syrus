@@ -675,10 +675,10 @@ class ChatWorkspace
     default_branch = repository.default_branch
 
     if path.join(".git").directory?
-      @git.run("checkout", default_branch, chdir: path.to_s, env: @env) rescue nil
+      @git.run("switch", "--", default_branch, chdir: path.to_s, env: @env) rescue nil
 
       unless branch == default_branch
-        @git.run("branch", "-D", branch, chdir: path.to_s, env: @env) rescue nil
+        @git.run("branch", "-D", "--", branch, chdir: path.to_s, env: @env) rescue nil
         # Try to delete the remote branch (best-effort; may not have been pushed)
         begin
           @git.run(
@@ -1040,7 +1040,7 @@ class ChatWorkspace
       @git.run("fetch", authenticated_url(repository), refspec, "--prune", chdir: path.to_s, env: @env)
     end
 
-    @git.run("checkout", default_branch, chdir: path.to_s)
+    @git.run("switch", "--", default_branch, chdir: path.to_s)
     @git.run("merge", "--ff-only", "origin/#{default_branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
