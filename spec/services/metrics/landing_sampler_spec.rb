@@ -244,6 +244,33 @@ RSpec.describe Metrics::LandingSampler do
       expect(Syrus::Metrics.render).to include("syrus_queue_completed_total 7")
     end
 
+    it "does not advance cursor counters after a transient read failure" do
+      source = FakeLandingSource.new
+      t0 = Time.current
+      travel_to(t0) { sample!(source: source) } # bootstrap
+
+      source.finished_runs = ActiveRecord::StatementInvalid.new("timeout")
+      source.landed_jobs = ActiveRecord::StatementInvalid.new("timeout")
+      queue_source.completed_count_value = ActiveRecord::StatementInvalid.new("timeout")
+      travel_to(t0 + 2.minutes) { sample!(source: source) }
+
+      source.finished_runs = [
+        [ "succeeded", "initial", t0 + 30.seconds, t0 + 1.minute, "implement" ]
+      ]
+      source.landed_jobs = [
+        [ t0 - 1.hour, t0 + 1.minute ]
+      ]
+      queue_source.completed_count_value = 7
+      travel_to(t0 + 3.minutes) { sample!(source: source) }
+      refresh!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_runs_total{state="succeeded",trigger_kind="initial"} 1')
+      expect(rendered).to include('syrus_run_duration_seconds_count{step_kind="implement"} 1')
+      expect(rendered).to include("syrus_jobs_landed_total 1")
+      expect(rendered).to include("syrus_queue_completed_total 7")
+    end
+
     it "caches job_state, landing_queue_depth and queue_table_rows for the scrape path" do
       job_record(state: "approved")
       job_record(state: "running")
@@ -288,6 +315,30 @@ RSpec.describe Metrics::LandingSampler do
   end
 
   describe "#refresh_gauges!" do
+    it "clears tagged landing gauge series missing from the latest sample" do
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        job_state: { "approved" => 2, "running" => 1 },
+        landing_queue_depth: { "none" => 1, "waiting_github_mergeability" => 1 },
+        queue_table_rows: 10
+      })
+      refresh!
+
+      cache.write(described_class::CACHE_KEY, {
+        sampled_at: Time.current,
+        job_state: { "running" => 1 },
+        landing_queue_depth: {},
+        queue_table_rows: 3
+      })
+      refresh!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_job_state{state="running"} 1')
+      expect(rendered).not_to include('syrus_job_state{state="approved"}')
+      expect(rendered).not_to include("syrus_landing_queue_depth{")
+      expect(rendered).to include("syrus_queue_table_rows 3")
+    end
+
     it "reports nothing rather than zeroes when no sample has been taken" do
       expect(refresh!).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_job_state{")

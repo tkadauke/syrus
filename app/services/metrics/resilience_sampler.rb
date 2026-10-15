@@ -72,9 +72,13 @@ module Metrics
     # Called on the scrape path.
     def refresh_gauges!
       payload = Rails.cache.read(CACHE_KEY)
-      return false if payload.blank?
+      if payload.blank?
+        clear_sample_gauges!
+        return false
+      end
 
       circuit_gauge = Syrus::Metrics.gauge(:syrus_provider_circuit_state)
+      circuit_gauge.samples.each { |tags, _value| circuit_gauge.clear(tags: tags) }
       Hash(payload[:provider_circuit_state]).each do |provider, state|
         circuit_gauge.set(STATE_VALUES.fetch(state.to_sym, STATE_VALUES[:closed]), tags: { provider: provider })
       end
@@ -100,7 +104,23 @@ module Metrics
 
     def set_each(metric, values, tag)
       gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
       Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+    end
+
+    def clear_sample_gauges!
+      [
+        :syrus_provider_circuit_state,
+        :syrus_github_rate_limit_remaining,
+        :syrus_github_app_rate_limit_remaining_percent,
+        :syrus_github_app_api_blocked_count,
+        :syrus_repositories_main_branch_broken_count
+      ].each { |metric| clear_gauge!(metric) }
+    end
+
+    def clear_gauge!(metric)
+      gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
     end
 
     # One unreachable source costs its own gauge, not the whole sample.

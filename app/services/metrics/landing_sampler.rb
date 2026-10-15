@@ -57,6 +57,7 @@ module Metrics
     # A landed Job's lead time ranges from minutes to days once a blocked
     # approval is included, so this needs its own, wider exponential spread.
     TIME_TO_LAND_BUCKETS = [ 30, 60, 300, 900, 1800, 3600, 7200, 14_400, 28_800, 86_400, 259_200 ].freeze
+    FAILED_READ = Object.new.freeze
 
     def self.declare_metrics!
       Syrus::Metrics.declare do
@@ -127,12 +128,14 @@ module Metrics
     def refresh_gauges!
       payload = Rails.cache.read(CACHE_KEY)
       totals = read_totals
-      return false if payload.blank? && totals.blank?
 
       if payload.present?
         set_each(:syrus_job_state, payload[:job_state], :state)
         set_each(:syrus_landing_queue_depth, payload[:landing_queue_depth], :blocked_reason)
         Syrus::Metrics.gauge(:syrus_queue_table_rows).set(payload[:queue_table_rows].to_i)
+      else
+        clear_sample_gauges!
+        return false if totals.blank?
       end
 
       reconcile_totals!(totals) if totals.present?
@@ -146,7 +149,21 @@ module Metrics
 
     def set_each(metric, values, tag)
       gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
       Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+    end
+
+    def clear_sample_gauges!
+      [
+        :syrus_job_state,
+        :syrus_landing_queue_depth,
+        :syrus_queue_table_rows
+      ].each { |metric| clear_gauge!(metric) }
+    end
+
+    def clear_gauge!(metric)
+      gauge = Syrus::Metrics.gauge(metric)
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
     end
 
     # Bootstraps the cursor to "now" without instrumenting anything the first
@@ -157,7 +174,8 @@ module Metrics
       after = cursor["runs_through"]
       return cursor["runs_through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("finished runs", []) { source.finished_runs(after: Time.iso8601(after), through: now) }
+      rows = guard("finished runs") { source.finished_runs(after: Time.iso8601(after), through: now) }
+      return if failed_read?(rows)
 
       running_totals = (totals["runs_total"] ||= {})
       rows.each do |state, trigger_kind, *|
@@ -177,7 +195,8 @@ module Metrics
       after = cursor["jobs_through"]
       return cursor["jobs_through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("landed jobs", []) { source.landed_jobs(after: Time.iso8601(after), through: now) }
+      rows = guard("landed jobs") { source.landed_jobs(after: Time.iso8601(after), through: now) }
+      return if failed_read?(rows)
       totals["jobs_landed_total"] = (totals["jobs_landed_total"] || 0) + rows.size
 
       lead_times = rows.filter_map { |created_at, finished_at| [ {}, finished_at - created_at ] if created_at && finished_at }
@@ -190,9 +209,10 @@ module Metrics
       after = cursor["queue_completed_through"]
       return cursor["queue_completed_through"] = now.iso8601(6) if after.nil?
 
-      completed = guard("completed queue executions", 0) {
+      completed = guard("completed queue executions") {
         queue_source.completed_count(after: Time.iso8601(after), through: now)
       }
+      return if failed_read?(completed)
       totals["queue_completed_total"] = (totals["queue_completed_total"] || 0) + completed.to_i
 
       cursor["queue_completed_through"] = now.iso8601(6)
@@ -247,11 +267,15 @@ module Metrics
     end
 
     # One unreachable source costs its own gauge/counter, not the whole tick.
-    def guard(what, fallback)
+    def guard(what, fallback = FAILED_READ)
       yield
     rescue StandardError => e
       Rails.logger.warn("[Metrics::LandingSampler] could not sample #{what}: #{e.class}: #{e.message}")
       fallback
+    end
+
+    def failed_read?(value)
+      value.equal?(FAILED_READ)
     end
   end
 end

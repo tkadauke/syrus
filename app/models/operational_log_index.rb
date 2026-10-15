@@ -73,8 +73,8 @@ class OperationalLogIndex < SearchRecord
       )
     end
 
-    def search(query: nil, since: OperationalLogEvent.retention_floor, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0, sort: "time", direction: "desc")
-      return fallback_search(query: query, since: since, until_time: until_time, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset, sort: sort, direction: direction) unless available?
+    def search(query: nil, since: OperationalLogEvent.retention_floor, until_time: nil, time_filters: [], level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0, sort: "time", direction: "desc")
+      return fallback_search(query: query, since: since, until_time: until_time, time_filters: time_filters, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset, sort: sort, direction: direction) unless available?
 
       ensure_fresh!
 
@@ -86,22 +86,16 @@ class OperationalLogIndex < SearchRecord
         wheres << "occurred_at <= ?"
         binds << bind(until_time.iso8601(6))
       end
+      Array(time_filters).each do |filter|
+        append_time_filter!(wheres, binds, filter)
+      end
       if query.present?
         wheres << "operational_log_fts MATCH ?"
         binds << bind(parse_fts_query(query))
       end
-      if level.present?
-        wheres << "level = ?"
-        binds << bind(level)
-      end
-      if role.present?
-        wheres << "role = ?"
-        binds << bind(role)
-      end
-      if hostname.present?
-        wheres << "hostname = ?"
-        binds << bind(hostname)
-      end
+      append_enum_filter!(wheres, binds, "level", level)
+      append_enum_filter!(wheres, binds, "role", role)
+      append_text_filter!(wheres, binds, "hostname", hostname)
       if app_revision.present?
         wheres << "app_revision = ?"
         binds << bind(app_revision)
@@ -317,16 +311,122 @@ class OperationalLogIndex < SearchRecord
       end.join(", ")
     end
 
-    def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:, sort:, direction:)
+    def fallback_search(query:, since:, until_time:, time_filters:, level:, role:, hostname:, app_revision:, limit:, offset:, sort:, direction:)
       scope = OperationalLogEvent.where(occurred_at: since..)
       scope = scope.where(occurred_at: ..until_time) if until_time.present?
-      scope = scope.where(level: level) if level.present?
-      scope = scope.where(role: role) if role.present?
-      scope = scope.where(hostname: hostname) if hostname.present?
+      Array(time_filters).each { |filter| scope = apply_time_filter(scope, filter) }
+      scope = apply_enum_filter(scope, :level, level)
+      scope = apply_enum_filter(scope, :role, role)
+      scope = apply_text_filter(scope, :hostname, hostname)
       scope = scope.where(app_revision: app_revision) if app_revision.present?
       records = scope.order(fallback_order(sort: sort, direction: direction)).limit(fallback_scan_limit(limit, offset)).to_a
       records = filter_fallback_query(records, query) if query.present?
       records.drop([ offset.to_i, 0 ].max).first([[ limit.to_i, 1 ].max, MAX_LIMIT].min).map { |event| fallback_row(event) }
+    end
+
+    def append_enum_filter!(wheres, binds, column, filter)
+      op, value = normalized_filter(filter, default_op: "is")
+      values = Array(value).compact_blank
+      return if values.empty?
+
+      placeholders = Array.new(values.length, "?").join(", ")
+      wheres << if op == "is_not" || op == "is_none_of"
+        "#{column} NOT IN (#{placeholders})"
+      else
+        "#{column} IN (#{placeholders})"
+      end
+      values.each { |item| binds << bind(item) }
+    end
+
+    def append_text_filter!(wheres, binds, column, filter)
+      op, value = normalized_filter(filter, default_op: "is")
+      value = value.to_s
+      return if value.blank?
+
+      if op == "contains"
+        wheres << "#{column} LIKE ? ESCAPE ?"
+        binds << bind("%#{ActiveRecord::Base.sanitize_sql_like(value)}%")
+        binds << bind("\\")
+      elsif op == "is_not"
+        wheres << "#{column} != ?"
+        binds << bind(value)
+      else
+        wheres << "#{column} = ?"
+        binds << bind(value)
+      end
+    end
+
+    def append_time_filter!(wheres, binds, filter)
+      op, value = normalized_filter(filter, default_op: "after")
+      case op
+      when "within_last", "after"
+        wheres << "occurred_at >= ?"
+        binds << bind(time_filter_value(value).iso8601(6))
+      when "more_than_ago", "before"
+        wheres << "occurred_at <= ?"
+        binds << bind(time_filter_value(value).iso8601(6))
+      when "between"
+        range = Array(value)
+        wheres << "occurred_at BETWEEN ? AND ?"
+        binds << bind(time_filter_value(range.first).iso8601(6))
+        binds << bind(time_filter_value(range.last).iso8601(6))
+      end
+    end
+
+    def apply_enum_filter(scope, column, filter)
+      op, value = normalized_filter(filter, default_op: "is")
+      values = Array(value).compact_blank
+      return scope if values.empty?
+
+      op == "is_not" || op == "is_none_of" ? scope.where.not(column => values) : scope.where(column => values)
+    end
+
+    def apply_text_filter(scope, column, filter)
+      op, value = normalized_filter(filter, default_op: "is")
+      value = value.to_s
+      return scope if value.blank?
+
+      if op == "contains"
+        scope.where("#{scope.connection.quote_column_name(column)} LIKE ? ESCAPE ?", "%#{ActiveRecord::Base.sanitize_sql_like(value)}%", "\\")
+      elsif op == "is_not"
+        scope.where.not(column => value)
+      else
+        scope.where(column => value)
+      end
+    end
+
+    def apply_time_filter(scope, filter)
+      op, value = normalized_filter(filter, default_op: "after")
+      case op
+      when "within_last", "after"
+        scope.where(occurred_at: time_filter_value(value)..)
+      when "more_than_ago", "before"
+        scope.where(occurred_at: ..time_filter_value(value))
+      when "between"
+        range = Array(value)
+        scope.where(occurred_at: time_filter_value(range.first)..time_filter_value(range.last))
+      else
+        scope
+      end
+    end
+
+    def normalized_filter(filter, default_op:)
+      return [ default_op, filter ] unless filter.is_a?(Hash)
+
+      [ (filter[:op] || filter["op"] || default_op).to_s, filter[:value] || filter["value"] ]
+    end
+
+    def time_filter_value(value)
+      if value.is_a?(Hash)
+        amount = Integer(value["n"] || value[:n] || 0)
+        unit = (value["unit"] || value[:unit]).to_s
+        return amount.public_send(unit).ago
+      elsif (match = value.to_s.match(/\A(\d+)([mhd])\z/i))
+        amount = match[1].to_i
+        return amount.public_send({ "m" => :minutes, "h" => :hours, "d" => :days }.fetch(match[2].downcase)).ago
+      end
+
+      value.respond_to?(:iso8601) ? value : Time.zone.parse(value.to_s)
     end
 
     def fallback_order(sort:, direction:)

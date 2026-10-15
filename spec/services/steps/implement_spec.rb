@@ -144,6 +144,60 @@ RSpec.describe Steps::Implement do
       )
     end
 
+    it "raises no_changes when a Codex-style no-op run validates the existing fix" do
+      allow(handler).to receive(:diff_against_default).and_return("")
+      allow(handler).to receive(:run_agent) do
+        run.create_provider_session!(
+          provider: run.agent_provider,
+          session_id: "clean-noop",
+          transcript_jsonl: [
+            {
+              "type" => "assistant",
+              "message" => {
+                "content" => [
+                  {
+                    "type" => "tool_use",
+                    "name" => "Bash",
+                    "id" => "u1",
+                    "input" => { "command" => "git fetch origin main && git status --short" }
+                  }
+                ]
+              }
+            }.to_json,
+            {
+              "type" => "assistant",
+              "message" => {
+                "content" => [
+                  {
+                    "type" => "tool_use",
+                    "name" => "Bash",
+                    "id" => "u2",
+                    "input" => { "command" => "bundle exec rspec spec/services/chat_epic_proposal_materializer_spec.rb" }
+                  }
+                ]
+              }
+            }.to_json,
+            {
+              "type" => "assistant",
+              "message" => {
+                "content" => [
+                  {
+                    "type" => "text",
+                    "text" => "The requested fix and regression spec are already present. " \
+                      "The focused spec passes, ScheduleWakeup is not relevant for this workflow run, " \
+                      "and the repository tree is clean, so I made no changes."
+                  }
+                ]
+              }
+            }.to_json
+          ].join("\n")
+        )
+      end
+
+      expect { handler.call }.to raise_error(Steps::Base::NoChangesProduced, /agent produced no changes/)
+      expect(run.reload.agent_outcome).to eq("no_changes_produced")
+    end
+
     it "records an empty initial issue comment artifact when the issue has no comments" do
       handler.call
 

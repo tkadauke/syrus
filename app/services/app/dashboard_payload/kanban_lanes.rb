@@ -29,8 +29,7 @@ module App
         lane_defs = JOB_KANBAN_LANES.select { |lane| visible_lanes.include?(lane.fetch(:key)) }
         records_by_lane = lane_defs.to_h { |lane| [ lane.fetch(:key), [] ] }
         records = PerformanceLogging.phase("dashboard_kanban_jobs.query", lanes: visible_lanes.join(","), limit: kanban_limit) do
-          filtered_jobs_scope
-            .where(state: job_kanban_candidate_states(visible_lanes))
+          job_kanban_candidate_scope(visible_lanes)
             .preload(
               :repository,
               :user,
@@ -148,9 +147,32 @@ module App
         states << "running" if lanes.include?("running")
         states.concat(%w[implemented closed]) if lanes.include?("succeeded")
         states.concat(%w[approved landing]) if lanes.include?("landing")
-        states << "failed" if lanes.include?("failed")
+        states.concat(%w[failed closed]) if lanes.include?("failed")
         states.concat(%w[triaging blocked_by_epic queued running implemented failed approved landing]) if lanes.include?("blocked")
         states.uniq
+      end
+
+      def job_kanban_candidate_scope(lanes)
+        states = job_kanban_candidate_states(lanes)
+        return filtered_jobs_scope.none if states.empty?
+        return filtered_jobs_scope.where(state: states) unless states.include?("closed")
+
+        open_state_scope = filtered_jobs_scope.where(state: states - [ "closed" ])
+        closed_scope = job_kanban_closed_candidate_scope(lanes)
+        return closed_scope if (states - [ "closed" ]).empty?
+
+        open_state_scope.or(closed_scope)
+      end
+
+      def job_kanban_closed_candidate_scope(lanes)
+        scope = filtered_jobs_scope.where(state: "closed")
+        wants_succeeded = lanes.include?("succeeded")
+        wants_failed = lanes.include?("failed")
+        return scope if wants_succeeded == wants_failed
+        return scope.where(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS) if wants_succeeded
+
+        unsuccessful = scope.where.not(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
+        unsuccessful.or(scope.where(closure_reason: nil))
       end
 
       def job_kanban_lane_for(job, visible_lanes)

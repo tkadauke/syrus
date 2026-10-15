@@ -488,6 +488,21 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(lane_item_ids(body, "queued")).not_to include(blocked.id)
     end
 
+    it "surfaces unsuccessful closed jobs in the failed Kanban lane when succeeded is hidden" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[failed])
+      cancelled = Factories.job_record(repository: repo, owner_user: user, issue_number: 12, issue_title: "Cancel survey", state: "closed", closure_reason: "cancelled")
+      merged = Factories.job_record(repository: repo, owner_user: user, issue_number: 13, issue_title: "Merge road", state: "closed", closure_reason: "pr_merged")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      failed_lane = body.fetch("lanes").find { |lane| lane.fetch("key") == "failed" }
+      expect(failed_lane).to include("count" => 1, "total_count" => 1)
+      expect(lane_item_ids(body, "failed")).to eq([ cancelled.id ])
+      expect(lane_item_ids(body, "failed")).not_to include(merged.id)
+    end
+
     it "surfaces backlogged jobs in the backlog Kanban lane by default" do
       backlogged = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Plan arcade", state: "backlog")
       queued = Factories.job_record(repository: repo, owner_user: user, issue_number: 11, issue_title: "Catalog marble", state: "queued")

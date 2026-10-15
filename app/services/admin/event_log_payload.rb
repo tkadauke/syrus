@@ -21,7 +21,7 @@ module Admin
         filter_schema: filter_definition.schema,
         filter: filter_tree,
         filters: filters_payload.merge(sort: sort_column, direction: sort_direction),
-        timeline: Admin::EventTimeline.build(filtered_scope, since_time: since_time, until_time: until_time || Time.current),
+        timeline: Admin::EventTimeline.build(filtered_scope, since_time: timeline_since_time, until_time: timeline_until_time),
         pagination: {
           page: page,
           per_page: per_page,
@@ -76,19 +76,46 @@ module Admin
     end
 
     def since_time
-      time_filter(:since, default: 24.hours.ago)
+      time_bounds_for(:since).first
     end
 
     def until_time
-      time_filter(:until, default: nil)
+      time_bounds_for(:until).last
     end
 
-    def time_filter(key, default:)
-      value = filters_payload[key]
-      return default if value.blank?
+    def timeline_since_time
+      since_time || filtered_scope.minimum(:occurred_at) || 24.hours.ago
+    end
+
+    def timeline_until_time
+      until_time || Time.current
+    end
+
+    def time_bounds_for(key)
+      chip = filter_chips.find { |candidate| candidate.field == key.to_s }
+      return [ nil, nil ] unless chip
+
+      time_bounds(chip.op, chip.value)
+    end
+
+    def time_bounds(op, value)
+      case op.to_s
+      when "within_last", "after"
+        [ time_filter_value(value), nil ]
+      when "more_than_ago", "before"
+        [ nil, time_filter_value(value) ]
+      when "between"
+        range = Array(value)
+        [ time_filter_value(range.first), time_filter_value(range.last) ]
+      else
+        [ nil, nil ]
+      end
+    end
+
+    def time_filter_value(value)
       return duration_value(value).ago if value.is_a?(Hash)
 
-      Time.zone.parse(value.to_s) || default
+      Time.zone.parse(value.to_s)
     end
 
     def page
@@ -128,6 +155,10 @@ module Admin
 
     def filters_payload
       @filters_payload ||= filter_definition.flat_filters(params).symbolize_keys
+    end
+
+    def filter_chips
+      @filter_chips ||= filter_definition.chips(params)
     end
 
     def duration_value(value)

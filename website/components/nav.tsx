@@ -9,6 +9,7 @@ import { site } from "../lib/site";
 const links = [
   { href: "/#how", label: "How it works" },
   { href: "/#features", label: "Why Syrus" },
+  { href: "/control-plane", label: "Control plane" },
   { href: "/#entry-points", label: "Entry points" },
   { href: "/plugins", label: "Plugins" },
   { href: "/docs", label: "Docs" },
@@ -38,7 +39,7 @@ export function Nav() {
             <Logo />
           </a>
 
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             {links.map((l) => (
               <a
                 key={l.href}
@@ -55,11 +56,11 @@ export function Nav() {
               href={site.repositoryUrl}
               target="_blank"
               rel="noreferrer"
-              className="hidden rounded-full px-3.5 py-2 text-sm font-medium text-cream-dim transition-colors hover:bg-[color-mix(in_oklab,var(--color-cream)_6%,transparent)] hover:text-cream sm:inline-flex"
+              className="hidden rounded-full px-3.5 py-2 text-sm font-medium text-cream-dim transition-colors hover:bg-[color-mix(in_oklab,var(--color-cream)_6%,transparent)] hover:text-cream xl:inline-flex"
             >
               GitHub
             </a>
-            <span className="hidden sm:inline-flex">
+            <span className="hidden xl:inline-flex">
               <ButtonLink href="/#walkthrough-demo" variant="ghost" size="md">
                 Watch demo
               </ButtonLink>

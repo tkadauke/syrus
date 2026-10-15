@@ -40,6 +40,10 @@ class AgenticWaitingNoDiffDetector
     events.select { |event| event.kind == :tool_use }
   end
 
+  def tool_events
+    events.select { |event| event.kind.in?([ :tool_use, :tool_result ]) }
+  end
+
   def assistant_text
     @assistant_text ||= events
       .select { |event| event.kind == :assistant_text }
@@ -48,8 +52,7 @@ class AgenticWaitingNoDiffDetector
   end
 
   def schedule_wakeup_used?
-    tool_uses.any? { |event| event.data[:name].to_s.match?(/schedule_wakeup|ScheduleWakeup/i) } ||
-      assistant_text.match?(/schedule_wakeup|ScheduleWakeup/i)
+    tool_events.any? { |event| event.data[:name].to_s.match?(/schedule_wakeup|ScheduleWakeup/i) }
   end
 
   def background_command_used?

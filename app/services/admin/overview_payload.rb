@@ -419,14 +419,21 @@ module Admin
     end
 
     def stuck_filter_value(item, field)
-      item.with_indifferent_access[field]
+      row = item.with_indifferent_access
+      return row[:attention_state] if field.to_s == "status"
+
+      row[field]
     end
 
     def sorted_stuck_items(items)
       return items unless stuck_sort
 
-      sorted = items.sort_by { |item| stuck_sort_value(item, stuck_sort) }
-      stuck_direction == "desc" ? sorted.reverse : sorted
+      ranked_items = items.map { |item| [ item, stuck_sort_value(item, stuck_sort) ] }
+      present_items, blank_items = ranked_items.partition { |(_, value)| value.present? }
+      sorted_items = present_items.sort_by { |(_, value)| value }
+      sorted_items.reverse! if stuck_direction == "desc"
+
+      (sorted_items + blank_items).map(&:first)
     end
 
     def stuck_sort
@@ -443,10 +450,24 @@ module Admin
       value = case sort
       when "status" then row[:attention_state]
       when "context" then [ row[:run_id], row[:workflow_trigger_kind], row[:step_kind], row[:workflow_id] ].compact.join(" ")
-      when "age" then row[:age_label]
+      when "age" then stuck_age_sort_value(row)
       else row[sort]
       end
-      [ value.blank? ? 1 : 0, value.to_s ]
+      value.is_a?(Numeric) ? value : value.to_s
+    end
+
+    def stuck_age_sort_value(row)
+      seconds = row[:age_seconds]
+      return seconds if seconds.is_a?(Numeric)
+
+      parsed_seconds = Integer(seconds, exception: false)
+      return parsed_seconds if parsed_seconds
+
+      match = row[:age_label].to_s.match(/\A(\d+)([smhd])\z/)
+      return nil unless match
+
+      multiplier = { "s" => 1, "m" => 1.minute.to_i, "h" => 1.hour.to_i, "d" => 1.day.to_i }.fetch(match[2])
+      match[1].to_i * multiplier
     end
   end
 end

@@ -76,11 +76,12 @@ module Admin
         filters: filters_payload,
         search_params: {
           query: query,
-          since: since_time,
-          until_time: until_time,
-          level: level,
-          role: role,
-          hostname: hostname,
+          since: search_floor,
+          until_time: nil,
+          time_filters: time_filters,
+          level: enum_filter(:level, OperationalLogEvent::LEVELS),
+          role: enum_filter(:role, ROLES),
+          hostname: text_filter(:hostname, max_bytes: 255),
           sort: sort,
           direction: direction,
           app_revision: revision_scope == "current" ? current_revision : nil,
@@ -94,11 +95,11 @@ module Admin
       @filters_payload ||= filter_definition.flat_filters(params).symbolize_keys
       {
         query: query,
-        since: since_time.iso8601,
-        until: until_time&.iso8601,
-        level: level,
-        role: role,
-        hostname: hostname,
+        since: display_time(:since)&.iso8601,
+        until: display_time(:until)&.iso8601,
+        level: filter_value(:level),
+        role: filter_value(:role),
+        hostname: filter_value(:hostname),
         sort: sort,
         direction: direction
       }
@@ -108,51 +109,24 @@ module Admin
       text_value(:query)
     end
 
-    def level
-      value = text_value(:level)&.downcase
-      return nil unless value
-      raise ArgumentError, "level must be one of: #{OperationalLogEvent::LEVELS.join(', ')}" unless OperationalLogEvent::LEVELS.include?(value)
-
-      value
+    def search_floor
+      OperationalLogEvent.retention_floor
     end
 
-    def role
-      value = text_value(:role)&.downcase
-      return nil unless value
-      raise ArgumentError, "role must be one of: #{ROLES.join(', ')}" unless ROLES.include?(value)
+    def time_filters
+      filter_chips.filter_map do |chip|
+        next unless chip.field.in?(%w[since until])
 
-      value
-    end
-
-    def hostname
-      text_value(:hostname)&.safe_byteslice(0, 255)
-    end
-
-    def since_time
-      parsed_time(:since, default: 1.hour.ago, floor: OperationalLogEvent.retention_floor)
-    end
-
-    def until_time
-      parsed_time(:until, default: nil, floor: OperationalLogEvent.retention_floor)
-    end
-
-    def parsed_time(key, default:, floor:)
-      value = utf8_param(key)
-      value = raw_filter_value(key) if value.blank?
-      parsed = if value.blank?
-        default
-      elsif value.is_a?(Hash)
-        duration_value(value).ago
-      elsif (match = value.match(/\A(\d+)([mhd])\z/i))
-        amount = match[1].to_i
-        amount.public_send({ "m" => :minutes, "h" => :hours, "d" => :days }.fetch(match[2].downcase)).ago
-      else
-        Time.zone.parse(value)
+        { op: chip.op, value: chip.value }
       end
-      return nil if parsed.nil? && default.nil?
-      raise ArgumentError, "#{key} must be an ISO8601 timestamp or relative duration like 30m, 2h, or 1d" unless parsed
+    end
 
-      [ parsed, floor ].max
+    def display_time(key)
+      chip = filter_chip(key)
+      return nil unless chip
+
+      bounds = time_bounds(chip.op, chip.value)
+      key.to_sym == :since ? bounds.first : bounds.last
     end
 
     def page
@@ -223,6 +197,14 @@ module Admin
       @filter_tree ||= filter_definition.filter_tree(params)
     end
 
+    def filter_chips
+      @filter_chips ||= filter_definition.chips(params)
+    end
+
+    def filter_chip(key)
+      filter_chips.find { |chip| chip.field == key.to_s }
+    end
+
     def raw_filter_value(key)
       @raw_filter_values ||= filter_definition.flat_filters(params).symbolize_keys
       @raw_filter_values[key.to_sym]
@@ -230,6 +212,56 @@ module Admin
 
     def text_value(key)
       Mcp::Tools.utf8(raw_filter_value(key)).strip.safe_byteslice(0, 500).presence
+    end
+
+    def filter_value(key)
+      filter_chip(key)&.value
+    end
+
+    def enum_filter(key, allowed_values)
+      chip = filter_chip(key)
+      return nil unless chip
+
+      values = Array(chip.value).map { |value| Mcp::Tools.utf8(value).strip.downcase }.compact_blank
+      invalid_values = values - allowed_values
+      raise ArgumentError, "#{key} must be one of: #{allowed_values.join(', ')}" if invalid_values.any?
+
+      { op: chip.op, value: chip.op.in?(%w[is_one_of is_none_of]) ? values : values.first }
+    end
+
+    def text_filter(key, max_bytes:)
+      chip = filter_chip(key)
+      return nil unless chip
+
+      { op: chip.op, value: Mcp::Tools.utf8(chip.value).strip.safe_byteslice(0, max_bytes) }
+    end
+
+    def time_bounds(op, value)
+      case op.to_s
+      when "within_last", "after"
+        [ parsed_time_value(value), nil ]
+      when "more_than_ago", "before"
+        [ nil, parsed_time_value(value) ]
+      when "between"
+        range = Array(value)
+        [ parsed_time_value(range.first), parsed_time_value(range.last) ]
+      else
+        [ nil, nil ]
+      end
+    end
+
+    def parsed_time_value(value)
+      parsed = if value.is_a?(Hash)
+        duration_value(value).ago
+      elsif (match = value.to_s.match(/\A(\d+)([mhd])\z/i))
+        amount = match[1].to_i
+        amount.public_send({ "m" => :minutes, "h" => :hours, "d" => :days }.fetch(match[2].downcase)).ago
+      else
+        Time.zone.parse(value.to_s)
+      end
+      raise ArgumentError, "time filters must be ISO8601 timestamps or relative durations like 30m, 2h, or 1d" unless parsed
+
+      [ parsed, search_floor ].max
     end
 
     def duration_value(value)

@@ -23,6 +23,7 @@ module Metrics
     TOTALS_CACHE_KEY = "syrus:metrics:worker_sample:totals".freeze
     CACHE_TTL = 5.minutes
     CURSOR_TTL = 1.day
+    FAILED_READ = Object.new.freeze
 
     # Same spread as LandingSampler::RUN_DURATION_BUCKETS -- a Step's
     # wall-clock lives in the same seconds-to-hours range a Run's does.
@@ -115,7 +116,8 @@ module Metrics
       after = cursor["steps_through"]
       return cursor["steps_through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("finished steps", []) { source.finished_steps(after: Time.iso8601(after), through: now) }
+      rows = guard("finished steps") { source.finished_steps(after: Time.iso8601(after), through: now) }
+      return if failed_read?(rows)
 
       durations = rows.filter_map { |kind, started_at, finished_at|
         [ { kind: kind }, finished_at - started_at ] if started_at && finished_at && kind
@@ -158,11 +160,15 @@ module Metrics
     end
 
     # One unreachable source costs its own gauge/counter, not the whole tick.
-    def guard(what, fallback)
+    def guard(what, fallback = FAILED_READ)
       yield
     rescue StandardError => e
       Rails.logger.warn("[Metrics::WorkerSampler] could not sample #{what}: #{e.class}: #{e.message}")
       fallback
+    end
+
+    def failed_read?(value)
+      value.equal?(FAILED_READ)
     end
   end
 end

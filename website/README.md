@@ -61,6 +61,7 @@ The current static site is intentionally small:
 | Page/section           | Path                                     | Purpose                                                                                                                        |
 | ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Home                   | `src/app/page.tsx`                       | Marketing landing page assembled from hero, product video, workflow, feature, entry-point, and open-source onboarding sections |
+| Control plane          | `src/app/control-plane/page.tsx`         | Product-positioning page comparing raw agent sessions with the durable Syrus harness around agents                            |
 | Download               | `src/app/download/page.tsx`              | Desktop and CLI release downloads                                                                                              |
 | Docs                   | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files                                                                    |
 | Product video          | `components/product-media.tsx`           | Embedded screencast and screenshots for the homepage demo                                                                      |
