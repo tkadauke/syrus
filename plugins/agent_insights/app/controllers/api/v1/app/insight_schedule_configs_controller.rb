@@ -15,6 +15,7 @@ module Api
         def update
           repository = find_repository
           return unless repository
+          return unless authorize_repository_admin!(repository)
 
           config = AgentInsights::ScheduleConfig.for_repository(repository) || AgentInsights::ScheduleConfig.new(repository: repository)
 

@@ -140,9 +140,11 @@ RSpec.describe "App API insight schedule configs", type: :request do
       expect(config.max_jobs_since_last_run).to eq(6)
     end
 
-    it "allows a repository collaborator to update the config" do
-      collaborator = Factories.user(email_address: "schedule-collaborator@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "read")
+    it "allows an admin-tier team collaborator to update the config" do
+      collaborator = Factories.user(email_address: "schedule-admin@example.com")
+      team = Team.create!(name: "Insight schedule admins")
+      team.team_memberships.create!(user: collaborator, role: "member")
+      team.team_repositories.create!(repository: repository, role: "admin")
       sign_in_as(collaborator)
 
       patch "/api/v1/app/repositories/#{repository.id}/insight_schedule_config",
@@ -154,6 +156,20 @@ RSpec.describe "App API insight schedule configs", type: :request do
         min_jobs_since_last_run: 3,
         max_jobs_since_last_run: 7
       )
+    end
+
+    it "rejects a write-tier repository collaborator" do
+      collaborator = Factories.user(email_address: "schedule-writer@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
+      sign_in_as(collaborator)
+
+      expect {
+        patch "/api/v1/app/repositories/#{repository.id}/insight_schedule_config",
+              params: { enabled: true, min_jobs_since_last_run: 3, max_jobs_since_last_run: 7 }, as: :json
+      }.not_to change(AgentInsights::ScheduleConfig, :count)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
     end
 
     it "returns 422 when min >= max" do
