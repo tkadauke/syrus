@@ -54,6 +54,35 @@ RSpec.describe GitHistory::CommitAttributor do
   end
 
   describe "LandedCommit-based classification" do
+    it "ignores matching LandedCommit rows belonging to another repository" do
+      sha = "4" + "f" * 39
+      other_repository = Factories.repository
+      other_job = Factories.job_record(
+        repository: other_repository, user: other_repository.user, kind: "issue"
+      )
+      local_job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
+      LandedCommit.create!(landable: other_job, sha: sha, kind: "implementation", position: 0)
+      LandedCommit.create!(landable: local_job, sha: sha, kind: "implementation", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: local_job.id, slug: local_job.slug)
+    end
+
+    it "deterministically prefers an implementation row over another row for the same repository and sha" do
+      sha = "5" + "f" * 39
+      epic = Factories.epic(repository: repository, user: viewer)
+      job = Factories.job_record(repository: repository, user: viewer, kind: "issue", epic: epic)
+      LandedCommit.create!(landable: epic, sha: sha, kind: "integration_merge", position: 0)
+      LandedCommit.create!(landable: job, sha: sha, kind: "implementation", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: job.id, slug: job.slug)
+    end
+
     it "classifies a commit with a LandedCommit(landable: Job, kind: implementation) row as syrus_landed" do
       sha = "5" + "a" * 39
       job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
