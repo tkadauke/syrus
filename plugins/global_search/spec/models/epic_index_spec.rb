@@ -21,8 +21,8 @@ RSpec.describe GlobalSearch::EpicIndex do
 
     described_class.upsert(epic)
 
-    title_results = described_class.search("landing", user_id: user.id)
-    description_results = described_class.search("deployment", user_id: user.id)
+    title_results = described_class.search("landing")
+    description_results = described_class.search("deployment")
 
     expect(title_results.first).to include(epic_id: epic.id)
     expect(title_results.first[:snippet]).to include("<mark>landing</mark>")
@@ -42,19 +42,19 @@ RSpec.describe GlobalSearch::EpicIndex do
     epic.update!(title: "New searchable title", description: "New searchable description")
     described_class.upsert(epic)
 
-    expect(described_class.search("old", user_id: user.id)).to be_empty
-    expect(described_class.search("new", user_id: user.id).map { |row| row[:epic_id] }).to eq([ epic.id ])
+    expect(described_class.search("old")).to be_empty
+    expect(described_class.search("new").map { |row| row[:epic_id] }).to eq([ epic.id ])
   end
 
-  it "scopes results to the requested user" do
+  it "returns matching rows for authorization by the caller" do
     own_epic = Factories.epic(user: user, repository: repo, title: "wal search scope")
     other_epic = Factories.epic(user: other_user, repository: other_repo, title: "wal search scope")
     described_class.upsert(own_epic)
     described_class.upsert(other_epic)
 
-    results = described_class.search("scope", user_id: user.id)
+    results = described_class.search("scope")
 
-    expect(results.map { |row| row[:epic_id] }).to eq([ own_epic.id ])
+    expect(results.map { |row| row[:epic_id] }).to contain_exactly(own_epic.id, other_epic.id)
   end
 
   it "matches unquoted words as independent AND terms" do
@@ -63,7 +63,7 @@ RSpec.describe GlobalSearch::EpicIndex do
     described_class.upsert(matching_epic)
     described_class.upsert(partial_epic)
 
-    results = described_class.search("foo bar", user_id: user.id)
+    results = described_class.search("foo bar")
 
     expect(results.map { |row| row[:epic_id] }).to eq([ matching_epic.id ])
   end
@@ -74,7 +74,7 @@ RSpec.describe GlobalSearch::EpicIndex do
     described_class.upsert(phrase_epic)
     described_class.upsert(reordered_epic)
 
-    results = described_class.search('"foo bar"', user_id: user.id)
+    results = described_class.search('"foo bar"')
 
     expect(results.map { |row| row[:epic_id] }).to eq([ phrase_epic.id ])
   end
@@ -85,7 +85,7 @@ RSpec.describe GlobalSearch::EpicIndex do
     described_class.upsert(matching_epic)
     described_class.upsert(scattered_epic)
 
-    results = described_class.search('foo "bar baz"', user_id: user.id)
+    results = described_class.search('foo "bar baz"')
 
     expect(results.map { |row| row[:epic_id] }).to eq([ matching_epic.id ])
   end
@@ -94,7 +94,7 @@ RSpec.describe GlobalSearch::EpicIndex do
     epic = Factories.epic(user: user, repository: repo, title: "EPIC-126 global search")
     described_class.upsert(epic)
 
-    results = described_class.search("EPIC-126", user_id: user.id)
+    results = described_class.search("EPIC-126")
 
     expect(results.map { |row| row[:epic_id] }).to eq([ epic.id ])
   end
@@ -105,7 +105,7 @@ RSpec.describe GlobalSearch::EpicIndex do
     described_class.upsert(weaker)
     described_class.upsert(stronger)
 
-    results = described_class.search("needle", user_id: user.id)
+    results = described_class.search("needle")
 
     expect(results.map { |row| row[:epic_id] }).to start_with(stronger.id, weaker.id)
     expect(results.first[:rank]).to be < results.second[:rank]

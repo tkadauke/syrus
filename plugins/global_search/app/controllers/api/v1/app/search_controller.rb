@@ -139,7 +139,7 @@ module Api
 
         def job_search_rows(query, limit)
           rows = merge_slug_rows(
-            GlobalSearch::JobIndex.search(query, user_id: Current.user.id, limit: limit),
+            accessible_rows(GlobalSearch::JobIndex.search(query, limit: nil), Job, :job_id),
             job_slug_rows(query)
           )
           apply_filter_to_rows("job", rows, :job_id).first(limit)
@@ -147,7 +147,7 @@ module Api
 
         def epic_search_rows(query, limit)
           rows = merge_slug_rows(
-            GlobalSearch::EpicIndex.search(query, user_id: Current.user.id, limit: limit),
+            accessible_rows(GlobalSearch::EpicIndex.search(query, limit: nil), Epic, :epic_id),
             epic_slug_rows(query)
           )
           apply_filter_to_rows("epic", rows, :epic_id).first(limit)
@@ -171,6 +171,12 @@ module Api
           ids = rows.filter_map { |row| row[id_key]&.to_i }
           filtered_ids = filtered_scope(type, ids, tree).pluck(:id).to_set
           rows.select { |row| filtered_ids.include?(row[id_key].to_i) }
+        end
+
+        def accessible_rows(rows, model, id_key)
+          ids = rows.filter_map { |row| row[id_key]&.to_i }
+          accessible_ids = model.accessible_to(Current.user).where(id: ids).pluck(:id).to_set
+          rows.select { |row| accessible_ids.include?(row[id_key].to_i) }
         end
 
         def filtered_scope(type, ids, tree)
@@ -238,9 +244,10 @@ module Api
           exact_slug = query.to_s.strip
           return [] if job_ids.empty? && exact_slug.blank?
 
-          Current.user.jobs.where(id: job_ids)
-            .or(Current.user.jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
-            .or(Current.user.jobs.where(slug: exact_slug))
+          jobs = Job.accessible_to(Current.user)
+          jobs.where(id: job_ids)
+            .or(jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
+            .or(jobs.where(slug: exact_slug))
             .map do |job|
             {
               job_id: job.id,
@@ -254,7 +261,7 @@ module Api
           epic_numbers = query.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i).uniq
           return [] if epic_numbers.empty?
 
-          Current.user.epics.where(number: epic_numbers).map do |epic|
+          Epic.accessible_to(Current.user).where(number: epic_numbers).map do |epic|
             {
               epic_id: epic.id,
               rank: -1.0,
@@ -340,11 +347,11 @@ module Api
         end
 
         def jobs_by_id
-          @jobs_by_id ||= Current.user.jobs.includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
+          @jobs_by_id ||= Job.accessible_to(Current.user).includes(:repository).where(id: result_ids(:job_id)).index_by(&:id)
         end
 
         def epics_by_id
-          @epics_by_id ||= Current.user.epics.includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
+          @epics_by_id ||= Epic.accessible_to(Current.user).includes(:repository).where(id: result_ids(:epic_id)).index_by(&:id)
         end
 
         def chat_messages_by_id
@@ -428,14 +435,14 @@ module Api
         class JobSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:job_search_rows, query, limit)
           def row_id_key = :job_id
-          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(user.jobs.where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(Job.accessible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:job_result_json, row)
         end
 
         class EpicSearchSource < BuiltInSearchSource
           def search_rows(query:, user:, limit:) = controller.send(:epic_search_rows, query, limit)
           def row_id_key = :epic_id
-          def filtered_scope(ids:, tree:, user:) = Epics::Filter.from_tree(tree, user: user).apply(user.epics.where(id: ids))
+          def filtered_scope(ids:, tree:, user:) = Epics::Filter.from_tree(tree, user: user).apply(Epic.accessible_to(user).where(id: ids))
           def result_json(row:, user:) = controller.send(:epic_result_json, row)
         end
 
