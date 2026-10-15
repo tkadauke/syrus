@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { CardShell, displayValue, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
@@ -14,6 +15,7 @@ type DiffCard = {
   totalPages: number | null
   totalBytes: number | null
   hasNextPage: boolean
+  pageOutOfRange: boolean
 }
 
 function parseDiffCard(context: ToolCardContext): DiffCard | null {
@@ -26,19 +28,21 @@ function parseDiffCard(context: ToolCardContext): DiffCard | null {
   return {
     jobId,
     runId: displayValue(parsed.run_id),
-    diff: typeof parsed.diff === "string" && parsed.diff.length > 0 ? parsed.diff : null,
+    diff: typeof parsed.diff === "string" ? parsed.diff : null,
     message: displayValue(parsed.message),
     page: numberValue(parsed.page),
     totalPages: numberValue(parsed.total_pages),
     totalBytes: numberValue(parsed.total_bytes),
-    hasNextPage: parsed.has_next_page === true
+    hasNextPage: parsed.has_next_page === true,
+    pageOutOfRange: parsed.page_out_of_range === true
   }
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const card = parseDiffCard(context)
   if (!card) return null
-  if (!card.diff) return `JOB-${card.jobId}: no stored diff`
+  if (card.pageOutOfRange) return i18n.t("chat:tool_card_diff_page_out_of_range", { jobId: card.jobId, page: card.page ?? "?" })
+  if (card.diff === null) return `JOB-${card.jobId}: no stored diff`
   return `JOB-${card.jobId} diff (page ${card.page ?? 1} of ${card.totalPages ?? 1})`
 }
 
@@ -46,7 +50,7 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseDiffCard(context)
   if (!card) return null
 
-  if (!card.diff) {
+  if (card.diff === null || card.pageOutOfRange) {
     return (
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
@@ -66,6 +70,7 @@ function renderExpanded(context: ToolCardContext) {
         {card.runId ? <span className="font-mono text-gray-500 dark:text-gray-400">RUN-{card.runId}</span> : null}
       </div>
       <DiffStatBadges stats={stats} />
+      {(card.page ?? 1) > 1 || card.hasNextPage ? <div className="text-text-secondary text-xs">{i18n.t("chat:tool_card_diff_page_only_stats")}</div> : null}
       {card.page != null && card.totalPages != null ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           <Row label="Page" value={`${card.page} of ${card.totalPages}${card.hasNextPage ? " (more available)" : ""}`} />

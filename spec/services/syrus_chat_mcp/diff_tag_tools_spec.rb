@@ -78,6 +78,22 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
     expect(body[:diff]).to eq("abcdef")
   end
 
+  it "distinguishes an out-of-range page from a job with no stored diff" do
+    job = Factories.job(repository: repository)
+    run = job.latest_workflow.runs.order(:id).last
+    run.update!(agent_diff: "abcdef")
+
+    body = payload(call_tool("get_job_diff", job_id: job.id, page: 2))
+
+    expect(body).to include(
+      diff: "",
+      page: 2,
+      total_pages: 1,
+      page_out_of_range: true,
+      message: "Page 2 is out of range for this 1-page diff."
+    )
+  end
+
   it "returns a clear message when a job has no stored diff" do
     job = Factories.job(repository: repository)
 

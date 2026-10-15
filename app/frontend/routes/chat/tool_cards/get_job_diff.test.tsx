@@ -24,12 +24,30 @@ describe("get_job_diff tool card", () => {
   })
 
   it("summarizes the collapsed row when there is no stored diff", () => {
-    const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
+    const parsedResult = {
+      job_id: 4221,
+      run_id: null,
+      diff: null,
+      page: 1,
+      total_pages: 0,
+      total_bytes: 0,
+      has_next_page: false,
+      message: "No stored diff is available for this Job yet."
+    }
     expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221: no stored diff")
   })
 
   it("renders the no-diff message when diff is null", () => {
-    const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
+    const parsedResult = {
+      job_id: 4221,
+      run_id: null,
+      diff: null,
+      page: 1,
+      total_pages: 0,
+      total_bytes: 0,
+      has_next_page: false,
+      message: "No stored diff is available for this Job yet."
+    }
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("JOB-4221")).toBeInTheDocument()
@@ -58,6 +76,47 @@ describe("get_job_diff tool card", () => {
     expect(screen.getByText("-1")).toBeInTheDocument()
     expect(screen.getByText("1 of 13 (more available)")).toBeInTheDocument()
     expect(screen.getByText("640020")).toBeInTheDocument()
+    expect(screen.getByText("Change counts are for this page only.")).toBeInTheDocument()
+  })
+
+  it("counts and colours a page-two chunk that starts in the middle of a hunk", () => {
+    const parsedResult = {
+      job_id: 4221,
+      run_id: 9,
+      diff: "partial line from a byte boundary\n-removed\n+added",
+      page: 2,
+      total_pages: 3,
+      has_next_page: true
+    }
+
+    const { container } = render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("+1")).toBeInTheDocument()
+    expect(screen.getByText("-1")).toBeInTheDocument()
+    expect(screen.getByText("Change counts are for this page only.")).toBeInTheDocument()
+    expect(screen.getByText("added").closest("span.flex")).toHaveClass("bg-green-50")
+    expect(screen.getByText("removed").closest("span.flex")).toHaveClass("bg-red-50")
+    expect(container).toHaveTextContent("partial line from a byte boundary")
+  })
+
+  it("renders an out-of-range page without claiming the job has no diff", () => {
+    const parsedResult = {
+      job_id: 4221,
+      run_id: 9,
+      diff: "",
+      page: 14,
+      total_pages: 13,
+      total_bytes: 640020,
+      has_next_page: false,
+      page_out_of_range: true,
+      message: "Page 14 is out of range for this 13-page diff."
+    }
+
+    expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221: diff page 14 out of range")
+    render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("Page 14 is out of range for this 13-page diff.")).toBeInTheDocument()
+    expect(screen.queryByText(/No stored diff/)).not.toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (missing job_id)", () => {
