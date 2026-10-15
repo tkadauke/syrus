@@ -71,6 +71,7 @@ class ChatSession < ApplicationRecord
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
   has_many :turn_auto_retry_attempts, class_name: "ChatTurnAutoRetryAttempt", dependent: :destroy
   has_many :chat_goals, dependent: :destroy
+  has_many :chat_spend_entries, dependent: :destroy
   has_one :agent, as: :resumable, dependent: :destroy
   has_one :active_goal,
           -> { non_terminal.order(created_at: :desc, id: :desc) },
@@ -397,7 +398,17 @@ class ChatSession < ApplicationRecord
       updates[:daily_cost_date] = today
       updates[:daily_cost_usd] = daily_cost_date == today ? daily_cost + cost : cost
     end
-    update!(updates) if updates.any?
+    transaction do
+      update!(updates) if updates.any?
+      if result.cost_usd.to_d.positive?
+        chat_spend_entries.create!(
+          user: user,
+          incurred_at: at,
+          cost_usd: result.cost_usd,
+          agent_provider: effective_chat_provider
+        )
+      end
+    end
   end
 
   def broadcast_header

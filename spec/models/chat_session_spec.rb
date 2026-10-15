@@ -222,6 +222,12 @@ RSpec.describe ChatSession do
     expect(session.cumulative_cost).to eq(BigDecimal("0.014321"))
     expect(session.daily_cost).to eq(BigDecimal("0.004321"))
     expect(session.daily_cost_date).to eq(Date.current)
+    expect(session.chat_spend_entries.sole).to have_attributes(
+      user: repo.user,
+      cost_usd: BigDecimal("0.004321"),
+      incurred_at: be_within(1.second).of(Time.current),
+      agent_provider: session.effective_chat_provider
+    )
   end
 
   it "resets daily cost tracking when a charged turn lands on a new day" do
@@ -304,6 +310,7 @@ RSpec.describe ChatSession do
     expect(session.reload.cumulative_input_tokens).to eq(12)
     expect(session.cumulative_output_tokens).to eq(34)
     expect(session.cumulative_cost).to eq(BigDecimal("0.05"))
+    expect(session.chat_spend_entries).to be_empty
   end
 
   it "ignores nil usage fields" do

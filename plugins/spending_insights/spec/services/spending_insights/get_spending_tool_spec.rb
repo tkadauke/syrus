@@ -33,13 +33,14 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
-  def set_run_usage(run, cost, input_tokens:, output_tokens:, created_at:)
+  def set_run_usage(run, cost, input_tokens:, output_tokens:, created_at:, finished_at: created_at)
     run.update_columns(
       cost_usd: cost,
       input_tokens: input_tokens,
       output_tokens: output_tokens,
       created_at: created_at,
-      updated_at: created_at
+      finished_at: finished_at,
+      updated_at: finished_at
     )
   end
 
@@ -51,7 +52,14 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
       other_repo_job = Factories.job(repository: other_repo, issue_number: 103, issue_title: "Other repo")
       other_user_job = Factories.job(repository: Factories.repository(user: Factories.user), issue_number: 104, issue_title: "Not mine")
 
-      set_run_usage(mine.initial_run, 1.25, input_tokens: 100, output_tokens: 20, created_at: Time.zone.parse("2026-06-23 12:00:00"))
+      set_run_usage(
+        mine.initial_run,
+        1.25,
+        input_tokens: 100,
+        output_tokens: 20,
+        created_at: Time.zone.parse("2026-05-01 12:00:00"),
+        finished_at: Time.zone.parse("2026-06-23 12:00:00")
+      )
       set_run_usage(older.initial_run, 8.00, input_tokens: 800, output_tokens: 80, created_at: Time.zone.parse("2026-05-01 12:00:00"))
       set_run_usage(other_repo_job.initial_run, 2.50, input_tokens: 200, output_tokens: 40, created_at: Time.zone.parse("2026-06-23 12:00:00"))
       set_run_usage(other_user_job.initial_run, 9.99, input_tokens: 900, output_tokens: 90, created_at: Time.zone.parse("2026-06-23 12:00:00"))

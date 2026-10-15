@@ -54,7 +54,7 @@ module SpendingInsights
       def windowed_runs(user, params)
         start_date = Date.iso8601(params.fetch(:start_date))
         end_date = Date.iso8601(params.fetch(:end_date))
-        relation = Run.where(created_at: start_date.beginning_of_day..end_date.end_of_day)
+        relation = Run.where(finished_at: start_date.beginning_of_day..end_date.end_of_day)
         relation = relation.joins(:job).where(jobs: { repository_id: params[:repository_id] }) if params[:repository_id].present?
         relation = relation.joins(:job).where(jobs: { epic_id: params[:epic_id] }) if params[:epic_id].present?
         return relation if user.admin?
