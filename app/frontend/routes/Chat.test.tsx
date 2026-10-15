@@ -4926,6 +4926,58 @@ describe("scratchpad stash button", () => {
     })
   })
 
+  it("stashes composer attachments supplied with the /scratch command", async () => {
+    const updatedPayload = {
+      ...chatPayload({
+        scratchpad_items: [{
+          id: 1,
+          content: "Command note",
+          text: "Command note",
+          attachments: [{ name: "command.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        }]
+      }),
+      agent_busy: true
+    }
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "command.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove command.png" })
+    fireEvent.change(textarea, { target: { value: "/scratch Command note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enqueue message" }))
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("")
+      expect(screen.queryByRole("button", { name: "Remove command.png" })).not.toBeInTheDocument()
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(stashCalls).toHaveLength(1)
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: {
+        content: "Command note",
+        attachments: [{ name: "command.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+      }
+    })
+  })
+
   it("stashes attachment-only composer drafts", async () => {
     const updatedPayload = {
       ...chatPayload({
