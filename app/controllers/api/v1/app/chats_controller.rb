@@ -505,7 +505,14 @@ module Api
             return
           end
 
-          chat_session.soft_delete_by!(Current.user)
+          unless chat_session.soft_delete_by!(Current.user)
+            render_error(
+              "turn_in_flight",
+              "Cannot delete this chat while a turn is in progress. Stop the turn first.",
+              status: :conflict
+            )
+            return
+          end
 
           render json: { message: "Chat deleted." }
         end

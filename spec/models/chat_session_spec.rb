@@ -413,6 +413,16 @@ RSpec.describe ChatSession do
     expect(session.current_turn_message_id).to be_nil
   end
 
+  it "does not claim a turn when deletion won the row lock" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    user_message = session.messages.create!(role: "user", content: { "text" => "Ave" }, skip_turn_trigger: true)
+    stale_turn_session = described_class.find(session.id)
+    session.soft_delete_by!(repo.user)
+
+    expect(stale_turn_session.begin_turn_for!(user_message)).to be(false)
+    expect(session.reload).not_to be_turn_in_flight
+  end
+
   it "does not let an older turn clear a newer turn claim" do
     session = described_class.create!(repository: repo, user: repo.user)
     older = session.messages.create!(role: "user", content: { "text" => "Ave" })
@@ -838,6 +848,16 @@ RSpec.describe ChatSession do
 
         expect(pending.reload).to be_cancelled
         expect(fired.reload).to be_fired
+      end
+
+      it "does not delete when a turn claim won the row lock" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        stale_delete_session = described_class.find(session.id)
+        message = session.messages.create!(role: "user", content: { "text" => "Started" }, skip_turn_trigger: true)
+        session.begin_turn_for!(message)
+
+        expect(stale_delete_session.soft_delete_by!(actor)).to be(false)
+        expect(session.reload).not_to be_deleted
       end
 
       it "enqueues the workspace/search cleanup job post-commit, same as a hard destroy" do
