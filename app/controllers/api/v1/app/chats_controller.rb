@@ -492,29 +492,14 @@ module Api
         # search-index rows, workspace directory, and per-chat agent
         # homes (local checkout state, not audit history) are still
         # cleaned up post-commit by ChatSessionCleanupJob on the worker
-        # (the web pod doesn't mount the workspace PVC). Refused while a
-        # turn is actively running.
+        # (the web pod doesn't mount the workspace PVC). Soft deletion also
+        # requests termination of any active agent before cleanup can run.
         def destroy
           chat_session = find_chat_session
           return unless require_chat_owner(chat_session, action: "delete")
 
-          if chat_session.turn_in_flight? || chat_session.agent_busy?
-            render_error(
-              "turn_in_flight",
-              "Cannot delete this chat while a turn is in progress. Stop the turn first.",
-              status: :conflict
-            )
-            return
-          end
-
-          unless chat_session.soft_delete_by!(Current.user)
-            render_error(
-              "turn_in_flight",
-              "Cannot delete this chat while a turn is in progress. Stop the turn first.",
-              status: :conflict
-            )
-            return
-          end
+          chat_session.soft_delete_by!(Current.user)
+          request_chat_agent_kill!(chat_session)
 
           render json: { message: "Chat deleted." }
         end

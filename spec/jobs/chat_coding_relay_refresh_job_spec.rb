@@ -19,6 +19,14 @@ RSpec.describe ChatCodingRelayRefreshJob do
     expect(described_class.new.queue_name).to eq("chat")
   end
 
+  it "does not inspect or mutate a soft-deleted chat workspace" do
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    chat_session.soft_delete_by!(user)
+    expect(ChatWorkspace).not_to receive(:repo_path_for)
+
+    described_class.perform_now(chat_session.id)
+  end
+
   it "no-ops when the chat has no repository" do
     chat_session = ChatSession.create!(user: user)
 

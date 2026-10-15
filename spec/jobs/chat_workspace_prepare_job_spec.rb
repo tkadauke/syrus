@@ -48,6 +48,15 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(described_class.new.queue_name).to eq("chat")
   end
 
+  it "does not inspect or mutate a soft-deleted chat workspace" do
+    chat_session.soft_delete_by!(user)
+    expect(RepoPrepPlan).not_to receive(:for)
+
+    described_class.perform_now(chat_session.id, repository.id)
+
+    expect(chat_session.reload.coding_checkout_prepare_status).to be_nil
+  end
+
   it "no-ops when the checkout directory does not exist" do
     expect(RepoPrepPlan).not_to receive(:for)
     expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error

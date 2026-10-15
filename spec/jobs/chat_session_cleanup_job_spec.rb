@@ -22,6 +22,11 @@ RSpec.describe ChatSessionCleanupJob do
     expect(described_class.new.queue_name).to eq("chat")
   end
 
+  it "shares the chat turn concurrency lock so cleanup waits for termination" do
+    expect(described_class.concurrency_key.call(42, nil)).to eq("chat:42")
+    expect(described_class.concurrency_group).to eq(ChatTurnJob::CONCURRENCY_GROUP)
+  end
+
   it "removes the workspace, the per-chat agent homes, and the FTS rows once the chat row is gone" do
     prepare_search_tables
     chat = ChatSession.create!(user: user)

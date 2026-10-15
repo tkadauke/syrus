@@ -203,13 +203,16 @@ class ChatSession < ApplicationRecord
   def soft_delete_by!(actor)
     transaction do
       lock!
-      return false if current_turn_message_id.present?
-
-      update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
-      wakeups.pending.update_all(state: "cancelled", updated_at: Time.current)
+      now = Time.current
+      update!(
+        deleted_at: now,
+        deleted_by_user: actor.is_a?(User) ? actor : nil,
+        stop_requested_at: now,
+        current_turn_message_id: nil,
+        turn_in_flight: false
+      )
+      wakeups.pending.update_all(state: "cancelled", updated_at: now)
     end
-
-    true
   end
 
   def ensure_agent_record!

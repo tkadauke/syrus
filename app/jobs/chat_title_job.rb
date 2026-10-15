@@ -10,6 +10,8 @@ class ChatTitleJob < ApplicationJob
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     seed_source = message_text.nil? ? "message_id" : "message_text"
     chat_session = ChatSession.includes(:user, :attached_repositories).find(chat_session_id)
+    return if chat_session.deleted?
+
     chat_provider = chat_session.effective_chat_provider
 
     if real_title?(chat_session)
@@ -28,6 +30,8 @@ class ChatTitleJob < ApplicationJob
     user_message = chat_session.active_messages.where(role: "user").find(user_message_id) if user_message_id
     message_text ||= user_message.content["text"]
     chat_provider = chat_session.pin_chat_provider!(broadcast: false)
+    return if chat_session.reload.deleted?
+
     generated = ChatTitleGenerator.new(
       chat_session: chat_session,
       message_text: message_text,
@@ -37,6 +41,8 @@ class ChatTitleJob < ApplicationJob
 
     if generated.success?
       outcome_chat, status, title_write = write_generated_title(chat_session.id, generated.title)
+      return unless outcome_chat
+
       record_outcome(
         chat_session: outcome_chat,
         user_message_id: user_message_id,
@@ -48,6 +54,8 @@ class ChatTitleJob < ApplicationJob
       )
     else
       outcome_chat, status, title_write = write_fallback_title(chat_session.id)
+      return unless outcome_chat
+
       record_outcome(
         chat_session: outcome_chat,
         user_message_id: user_message_id,
@@ -86,7 +94,9 @@ class ChatTitleJob < ApplicationJob
     outcome = nil
     ChatSession.transaction do
       chat_session = ChatSession.lock.find(chat_session_id)
-      outcome = if real_title?(chat_session)
+      outcome = if chat_session.deleted?
+        nil
+      elsif real_title?(chat_session)
         [ chat_session, "skipped", "existing_title" ]
       else
         yield chat_session
