@@ -209,6 +209,32 @@ RSpec.describe LandingBundleAssembler do
       expect(result).not_to be_ready
     end
 
+    it "excludes manually paused Jobs" do
+      paused = approved(issue_number: 1)
+      ready_a = approved(issue_number: 2)
+      ready_b = approved(issue_number: 3)
+      paused.update!(manual_paused: true)
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to contain_exactly(ready_a.id, ready_b.id)
+      expect(described_class.ready_for_job?(paused)).to be false
+    end
+
+    it "excludes Jobs with requested-changes attention" do
+      held = approved(issue_number: 1)
+      ready_a = approved(issue_number: 2)
+      ready_b = approved(issue_number: 3)
+      held.update!(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to contain_exactly(ready_a.id, ready_b.id)
+      expect(described_class.ready_for_job?(held)).to be false
+    end
+
     it "excludes approved Jobs that already have active work" do
       busy = approved(issue_number: 1)
       ready_a = approved(issue_number: 2)
@@ -482,6 +508,30 @@ RSpec.describe LandingBundleAssembler do
 
       expect(result).not_to be_ready
       expect(result.reason).to match(/not yet approved/)
+    end
+
+    it "is not ready when an approved child is manually paused" do
+      child(issue_number: 1)
+      paused = child(issue_number: 2)
+      paused.update!(manual_paused: true)
+
+      result = described_class.for_epic(epic)
+
+      expect(result).not_to be_ready
+      expect(result.reason).to eq("child Jobs manually paused: #{paused.slug}")
+      expect(result.members).to be_empty
+    end
+
+    it "is not ready when an approved child has requested-changes attention" do
+      child(issue_number: 1)
+      held = child(issue_number: 2)
+      held.update!(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+
+      result = described_class.for_epic(epic)
+
+      expect(result).not_to be_ready
+      expect(result.reason).to eq("child Jobs with requested changes: #{held.slug}")
+      expect(result.members).to be_empty
     end
 
     it "is not ready when a child has no PR" do
