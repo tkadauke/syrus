@@ -230,9 +230,9 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # The near-atomic go-live. Only reached when the whole build spine succeeded
-  # (skipped on a dry run). Builds the release as an invisible DRAFT, moves
-  # :latest, then flips the draft to published as the final tiny action — and
-  # rolls the whole thing back if anything fails. See the step comments.
+  # (skipped on a dry run). Builds the release as an invisible DRAFT, publishes
+  # it, then moves :latest for stable releases — and rolls the whole thing back
+  # if anything fails. See the step comments.
   # ---------------------------------------------------------------------------
   publish:
     needs: [prepare, build, plugin-images]
@@ -250,13 +250,13 @@ jobs:
           pattern: staged-*
           merge-multiple: true
 
-      # Near-atomic publish. The ONLY visible go-live is the final tiny "flip
-      # the draft to published" call — everything before it is either invisible
-      # (a DRAFT release nobody can see) or reversible (:latest can be pointed
-      # back). If any step fails, the failure-cleanup step below deletes the
-      # draft + tag and reverts :latest, so a failed run leaves NO half-published
-      # state. (The one residue is the versioned image the build spine already
-      # pushed — a tested, unreferenced tag, overwritten on the next attempt.)
+      # Near-atomic publish. The release remains an invisible draft until the
+      # publish call. Stable releases then move :latest; prereleases keep only
+      # their versioned tags, and notes-review runs leave all public pointers
+      # untouched. If any step fails, cleanup deletes the release + tag and
+      # reverts :latest, so a failed run leaves NO half-published state. (The
+      # one residue is the versioned image the build spine already pushed — a
+      # tested, unreferenced tag, overwritten on the next attempt.)
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -325,9 +325,22 @@ jobs:
           } > "$RUNNER_TEMP/notes.md"
           gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
 
-      # Move :latest to the released image (imagetools copies the manifest — no
-      # rebuild). Reversible by cleanup below.
+      # THE go-live: flip the fully-built draft to published. Skipped when
+      # review_notes is set — the release stays a draft for a human to read the
+      # notes and click Publish, and no public image pointer moves ahead of it.
+      - name: Publish the release
+        if: needs.prepare.outputs.review_notes != 'true'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG" --draft=false
+
+      # Move :latest to the published stable image (imagetools copies the
+      # manifest — no rebuild). Prereleases retain only their versioned tag,
+      # and notes-review runs wait for the human publish without moving latest.
+      # Reversible by cleanup below if a subsequent promotion step fails.
       - name: Move image :latest to the released version
+        if: needs.prepare.outputs.prerelease != 'true' && needs.prepare.outputs.review_notes != 'true'
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -336,8 +349,9 @@ jobs:
           docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
 
       # The plugin service images follow the backend's :latest. Their previous
-      # :latest is snapshotted first so a failed publish can put it back.
+      # :latest is snapshotted first so a failed promotion can put it back.
       - name: Move plugin images :latest to the released version
+        if: needs.prepare.outputs.prerelease != 'true' && needs.prepare.outputs.review_notes != 'true'
         id: plugin_latest
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -350,18 +364,6 @@ jobs:
             echo "$IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"
             docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
           done < <(syrus_plugin_images ghcr.io/tkadauke)
-
-      # THE go-live: flip the fully-built draft to published. One tiny API call,
-      # the last irreversible action. Everything above is now proven good.
-      # Skipped when review_notes is set — the release stays a draft for a human
-      # to read the notes and click Publish. (:latest already moved above; that's
-      # the backend image, independent of the release's visibility.)
-      - name: Publish the release
-        if: needs.prepare.outputs.review_notes != 'true'
-        env:
-          TAG: ${{ needs.prepare.outputs.tag }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$TAG" --draft=false
 
       - name: Advance 'release' deployment tag
         if: ${{ !inputs.dry_run }}
