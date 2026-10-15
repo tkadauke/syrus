@@ -13,7 +13,8 @@ RSpec.describe AlertmanagerInvestigations::Engine do
       "rate_limit_minutes",
       "host_label",
       "max_jobs_per_tick",
-      "max_open_jobs_per_repository"
+      "max_open_jobs_per_repository",
+      "allowed_runbooks"
     )
   end
 end

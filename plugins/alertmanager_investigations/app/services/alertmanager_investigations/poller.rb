@@ -33,7 +33,7 @@ module AlertmanagerInvestigations
       repository = RunbookResolver.repository_for(alert.runbook_url)
       return if repository && defer_for_repository_limit(alert, repository)
 
-      runbook = RunbookResolver.call(alert.runbook_url)
+      runbook = RunbookResolver.call(alert.runbook_url, configuration: @configuration)
       return record_resolution_failure(alert) unless runbook
       return record_resolution_failure(alert, "runbook repository has no owner") unless runbook.repository.user
 
