@@ -4,7 +4,11 @@ module Api
       class JobTestResultsController < BaseController
         def index
           job = find_job
-          render json: TestInsights::RunResults.for_job(job: job, include_suites: true)
+          render json: TestInsights::RunResults.for_job(
+            job: job,
+            include_suites: true,
+            case_limit: params[:case_limit]
+          )
         end
 
         private
