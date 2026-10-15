@@ -86,6 +86,29 @@ def load_schema_from_tag!(tag, data_root, env)
   run!("bin/rails", "runner", "load #{schema_path.to_json}", env: env)
 end
 
+def primary_migration_versions_at(tag)
+  tree = run!("git", "ls-tree", "-r", "--name-only", tag, env: {})
+
+  tree.lines.filter_map do |path|
+    path = path.chomp
+    next unless path.match?(%r{(?:\A|/)db/migrate/[^/]+\.rb\z})
+
+    File.basename(path)[/\A(\d+)_/, 1]
+  end.uniq
+end
+
+def restore_unapplied_migrations_from_tag!(tag, env)
+  tag_versions = primary_migration_versions_at(tag)
+  runner_env = env.merge("SYRUS_BASELINE_MIGRATION_VERSIONS" => JSON.generate(tag_versions))
+  code = <<~'RUBY'
+    tag_versions = JSON.parse(ENV.fetch("SYRUS_BASELINE_MIGRATION_VERSIONS"))
+    schema_migration = ActiveRecord::Base.connection_pool.schema_migration
+    (schema_migration.versions - tag_versions).each { |version| schema_migration.delete_version(version) }
+  RUBY
+
+  run!("bin/rails", "runner", code, env: runner_env)
+end
+
 def check_scratch!
   puts "[migration-baselines] checking scratch primary migration path"
 
@@ -105,6 +128,7 @@ def check_tag!(tag)
 
     create_isolated_primary_database!(env)
     load_schema_from_tag!(tag, data_root, env)
+    restore_unapplied_migrations_from_tag!(tag, env)
     migrate_isolated_primary_database!(env)
   end
 end
