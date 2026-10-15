@@ -39,6 +39,56 @@ RSpec.describe WorkEngine::RepairExecutor do
     expect(workflow.reload).to be_failed
   end
 
+  it "uses normal completion guards when terminal descendants appear successful" do
+    workflow.steps.update_all(state: "succeeded", finished_at: 4.minutes.ago)
+    workflow.steps.find_by!(kind: "pr_open").update_columns(state: "cancelled")
+    Step.create!(
+      workflow: workflow,
+      kind: "summarize",
+      position: workflow.steps.maximum(:position) + 1,
+      state: "succeeded",
+      finished_at: 3.minutes.ago
+    )
+    workflow.runs.update_all(state: "succeeded", finished_at: 4.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+
+    result = described_class.call(
+      result: RepairResult.new([
+        repair_plan(action: "finish_workflow_from_terminal_descendants", target: workflow)
+      ])
+    )
+
+    expect(result.first).to have_attributes(status: "applied")
+    expect(workflow.reload).to be_failed
+    expect(workflow.failure_reason).to eq("pr_publication_missing_after_success")
+  end
+
+  it "requires operator review when the final Step has no success or failure outcome" do
+    workflow.steps.update_all(state: "blocked", finished_at: 4.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+
+    issue = WorkEngine::Reconciler::Issue.new(
+      kind: "running_workflow_without_active_descendants",
+      severity: "error",
+      evidence: {},
+      affected_ids: { job_ids: [ job.id ], workflow_ids: [ workflow.id ] },
+      safe_to_auto_repair: true,
+      recommended_repair_action: "finish_workflow_from_terminal_descendants",
+      explanation: "test"
+    )
+    result = WorkEngine::Reconciler::Result.new("spec", Time.current, nil, [ issue ], [], [])
+
+    plan = WorkEngine::RepairPlanner.call(result: result).first
+
+    expect(plan).to have_attributes(
+      action: "operator_review_terminal_workflow_outcome",
+      auto_executable: false,
+      target_type: "Workflow",
+      target_id: workflow.id
+    )
+    expect(workflow.reload).to be_running
+  end
+
   it "cancels an obsolete requested WorkIntent instead of launching it after its Job closes" do
     target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 501)
     intent = WorkIntent.create!(
