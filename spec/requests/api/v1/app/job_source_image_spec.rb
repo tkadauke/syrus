@@ -16,7 +16,20 @@ RSpec.describe "App API job source image", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.content_type).to eq("image/png")
+    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body.b).to eq(png_bytes)
+  end
+
+  it "downloads repository HTML instead of serving it inline" do
+    stub_repository_content(repo, ref: "syrus/issue-42", files: { "page.html" => "<script src='payload.js'></script>" })
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "page.html", ref: "syrus/issue-42" }
+
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
   end
 
   it "returns 404 when the file does not exist at that ref" do
