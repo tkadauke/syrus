@@ -23,7 +23,7 @@ module Steps
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push", log: method(:log)) do |push_url|
-        git.run("push", force_with_lease_arg, push_url,
+        git.run("push", force_with_lease_arg(git, push_url), push_url,
                 "HEAD:refs/heads/#{workspace.branch_name}",
                 chdir: workspace.path.to_s)
       end
@@ -163,11 +163,17 @@ module Steps
       result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
     end
 
-    def force_with_lease_arg
-      expected_sha = expected_remote_sha
-      return "--force-with-lease=refs/heads/#{workspace.branch_name}:#{expected_sha}" if expected_sha
+    def force_with_lease_arg(git, push_url)
+      expected_sha = expected_remote_sha || current_remote_sha(git, push_url)
+      "--force-with-lease=refs/heads/#{workspace.branch_name}:#{expected_sha}"
+    end
 
-      "--force-with-lease"
+    def current_remote_sha(git, push_url)
+      output = git.run(
+        "ls-remote", "--heads", push_url, "refs/heads/#{workspace.branch_name}",
+        chdir: workspace.path.to_s
+      )
+      output.to_s.split(/\s+/).first.to_s
     end
 
     def expected_remote_sha
