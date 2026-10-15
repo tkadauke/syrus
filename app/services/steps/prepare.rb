@@ -142,14 +142,13 @@ module Steps
     # from a prior Run never outlives it; a fresh failure this attempt
     # re-records them.
     def clear_stale_failure_details!
-      if step.details.is_a?(Hash) && STALE_FAILURE_KEYS.any? { |key| step.details.key?(key) }
-        step.update!(details: step.details.except(*STALE_FAILURE_KEYS))
+      step.with_lock do
+        if step.details.is_a?(Hash) && STALE_FAILURE_KEYS.any? { |key| step.details.key?(key) }
+          step.update!(details: step.details.except(*STALE_FAILURE_KEYS))
+        end
       end
 
-      workflow_artifacts = workflow.artifacts
-      return unless workflow_artifacts.is_a?(Hash) && STALE_FAILURE_KEYS.any? { |key| workflow_artifacts.key?(key) }
-
-      workflow.update!(artifacts: workflow_artifacts.except(*STALE_FAILURE_KEYS))
+      workflow.delete_artifacts!(*STALE_FAILURE_KEYS)
     end
 
     def record_prepared_workspace!(plan)
