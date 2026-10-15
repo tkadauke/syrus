@@ -113,6 +113,8 @@ class PreviewProxyMiddleware
       proxy_resp.each_header do |name, value|
         headers[name] = value unless HOP_BY_HOP_HEADERS.include?(name.downcase)
       end
+      set_cookies = proxy_resp.get_fields("set-cookie")
+      headers["set-cookie"] = set_cookies if set_cookies.present?
       body = rewrite_browser_localhost_origins(proxy_resp.body || "", headers)
       apply_preview_headers!(headers)
       [status, headers, [body]]
