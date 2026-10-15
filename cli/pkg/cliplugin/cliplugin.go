@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/tkadauke/syrus/cli/internal/config"
 	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/gitremote"
 )
 
 // LoginMessage is what the CLI tells a user with no usable credentials.
@@ -66,18 +66,8 @@ func currentRepoSlug() string {
 	if err != nil {
 		return ""
 	}
-	return parseGitHubSlug(strings.TrimSpace(string(out)))
+	return gitremote.GitHubSlug(strings.TrimSpace(string(out)))
 }
-
-func parseGitHubSlug(remote string) string {
-	match := gitHubRemote.FindStringSubmatch(remote)
-	if len(match) == 3 {
-		return match[1] + "/" + match[2]
-	}
-	return ""
-}
-
-var gitHubRemote = regexp.MustCompile(`github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$`)
 
 // Client returns an authenticated client for the configured instance.
 func Client() (*api.Client, error) {
