@@ -839,16 +839,54 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "includes empty sidebar groups when no chats match the first group page" do
     sign_in_as(user)
     repository
+    member_repository = Factories.repository(user: Factories.user, owner: "shared", name: "widgets")
+    RepositoryMembership.create!(repository: member_repository, user: user, role: "read")
 
     get "/api/v1/app/chats", params: { group_by: "repository", show_empty_groups: "1" }
 
     expect(response).to have_http_status(:ok)
     groups = parse_body["groups"].index_by { |group| group["key"] }
-    expect(groups.keys).to include("general", "repository-#{repository.id}")
+    expect(groups.keys).to include("general", "repository-#{repository.id}", "repository-#{member_repository.id}")
     expect(groups.fetch("general")["chats"]).to eq([])
     expect(groups.fetch("repository-#{repository.id}")["chats"]).to eq([])
+    expect(groups.fetch("repository-#{member_repository.id}")).to include("label" => member_repository.slug, "chats" => [])
     expect(parse_body["groups_has_more"]).to eq(false)
     expect(parse_body["groups_next_offset"]).to be_nil
+  end
+
+  it "keeps repository groups for accessible chats attached to repositories owned by another user" do
+    owner = Factories.user
+    member_repository = Factories.repository(user: owner, owner: "shared", name: "member-repo")
+    participant_repository = Factories.repository(user: owner, owner: "shared", name: "participant-repo")
+    RepositoryMembership.create!(repository: member_repository, user: user, role: "write")
+    member_chat = ChatSession.create!(
+      user: user,
+      repository: member_repository,
+      title: "Member repository chat",
+      last_message_at: 2.minutes.ago
+    )
+    participant_chat = ChatSession.create!(
+      user: owner,
+      repository: participant_repository,
+      title: "Participant repository chat",
+      conversation_kind: "group",
+      last_message_at: 1.minute.ago
+    )
+    participant_chat.chat_participants.create!(user: user, role: "member")
+    sign_in_as(user)
+
+    get "/api/v1/app/chats", params: { group_by: "repository" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.fetch("repository-#{member_repository.id}")).to include(
+      "label" => member_repository.slug,
+      "chats" => [ include("id" => member_chat.id) ]
+    )
+    expect(groups.fetch("repository-#{participant_repository.id}")).to include(
+      "label" => participant_repository.slug,
+      "chats" => [ include("id" => participant_chat.id) ]
+    )
   end
 
   it "puts unread sidebar chats in a separate status group before active and hidden groups" do
