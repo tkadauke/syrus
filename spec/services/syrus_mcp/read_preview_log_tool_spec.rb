@@ -21,8 +21,11 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
   end
 
   before do
+    FileUtils.mkdir_p(File.join(workspace_path, "log"))
     allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
   end
+
+  after { FileUtils.rm_rf(File.join(workspace_path, "log")) }
 
   it "exposes the expected tool name" do
     expect(described_class.tool_name).to eq("read_preview_log")
@@ -32,10 +35,7 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
     let(:log_path) { File.join(workspace_path, "log/development.log") }
 
     before do
-      allow(File).to receive(:exist?).and_call_original
-      allow(File).to receive(:exist?).with(log_path).and_return(true)
-      allow(File).to receive(:readlines).with(log_path, chomp: true)
-                                        .and_return((1..200).map { |i| "line #{i}" })
+      File.write(log_path, (1..200).map { |i| "line #{i}" }.join("\n"))
     end
 
     it "returns the last 100 lines by default" do
@@ -64,10 +64,7 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
     let(:custom_log_path) { File.join(workspace_path, "log/sidekiq.log") }
 
     before do
-      allow(File).to receive(:exist?).and_call_original
-      allow(File).to receive(:exist?).with(custom_log_path).and_return(true)
-      allow(File).to receive(:readlines).with(custom_log_path, chomp: true)
-                                        .and_return([ "sidekiq started" ])
+      File.write(custom_log_path, "sidekiq started\n")
     end
 
     it "reads from the specified path" do
@@ -111,6 +108,20 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
       response = call(path: "/etc/passwd")
       expect(response).to be_error
     end
+
+    it "returns an error for a path symlinked outside the workspace" do
+      FileUtils.mkdir_p(File.join(workspace_path, "log"))
+      outside_path = File.join(Dir.tmpdir, "read-preview-log-symlink-target.log")
+      File.write(outside_path, "outside\n")
+      FileUtils.ln_s(outside_path, File.join(workspace_path, "log/escaped.log"))
+
+      response = call(path: "log/escaped.log")
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("no log path")
+    ensure
+      FileUtils.rm_f(outside_path) if outside_path
+    end
   end
 
   context "when no log path is configured and none is supplied" do
@@ -144,11 +155,6 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
   end
 
   context "when the log file does not exist" do
-    before do
-      allow(File).to receive(:exist?).and_call_original
-      allow(File).to receive(:exist?).with(File.join(workspace_path, "log/development.log")).and_return(false)
-    end
-
     it "returns an error" do
       response = call
       expect(response).to be_error
@@ -159,11 +165,7 @@ RSpec.describe Mcp::Tools::ReadPreviewLogTool do
   context "when lines is above MAX_LINES" do
     let(:log_path) { File.join(workspace_path, "log/development.log") }
 
-    before do
-      allow(File).to receive(:exist?).and_call_original
-      allow(File).to receive(:exist?).with(log_path).and_return(true)
-      allow(File).to receive(:readlines).with(log_path, chomp: true).and_return([])
-    end
+    before { File.write(log_path, "") }
 
     it "clamps to MAX_LINES" do
       response = call(lines: 99_999)

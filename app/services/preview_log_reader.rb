@@ -37,11 +37,12 @@ class PreviewLogReader
   end
 
   def resolve_path(path)
-    absolute = Pathname.new(path).absolute? ? File.expand_path(path) : File.expand_path(path, preview_workdir)
-    root = File.expand_path(@workspace_path)
-    return unless absolute == root || absolute.start_with?("#{root}/")
-
-    absolute
+    PreviewLogPath.resolve(
+      @workspace_path,
+      path,
+      base_path: preview_workdir,
+      allow_missing: true
+    )
   end
 
   def preview_workdir
@@ -64,7 +65,9 @@ class PreviewLogReader
   end
 
   def display_path(path)
-    path.delete_prefix("#{File.expand_path(@workspace_path)}/")
+    Pathname.new(path).relative_path_from(Pathname.new(File.realpath(@workspace_path))).to_s
+  rescue ArgumentError
+    path
   end
 
   def tail_file(path)
