@@ -98,7 +98,8 @@ target hash such as `host`, `url`, `kube_context`, `kube_cluster`, and
 payload material. Omitting a constraint leaves that dimension unrestricted;
 configuring it with an empty or blank-only array denies every target. URL
 prefixes match only HTTP(S) URLs with the same scheme, host, and effective port,
-and paths must match at a slash boundary.
+paths must match at a slash boundary, and literal or percent-encoded dot-segment
+traversal is rejected.
 
 Broker return values and broker-wrapped exceptions are scrubbed with
 `CredentialStore::Redaction`, which removes the known credential payload and

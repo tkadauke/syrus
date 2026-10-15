@@ -29,6 +29,19 @@ RSpec.describe CredentialStore::Broker::TargetConstraint do
       expect(constraint).not_to be_satisfied(url: "https://api.example.com/v1evil")
     end
 
+    it "denies paths containing literal or encoded traversal segments" do
+      expect(constraint).not_to be_satisfied(url: "https://api.example.com/v1/../admin")
+      expect(constraint).not_to be_satisfied(url: "https://api.example.com/v1/%2e%2e/admin")
+      expect(constraint).not_to be_satisfied(url: "https://api.example.com/v1/%2E%2E%2Fadmin")
+      expect(constraint).not_to be_satisfied(url: "https://api.example.com/v1/%252e%252e/admin")
+    end
+
+    it "allows non-traversal dots and percent encoding" do
+      expect(constraint).to be_satisfied(url: "https://api.example.com/v1/releases/1.2.3")
+      expect(constraint).to be_satisfied(url: "https://api.example.com/v1/release%20notes")
+      expect(constraint).to be_satisfied(url: "https://api.example.com/v1/%FF")
+    end
+
     it "denies malformed URLs and explicitly empty constraints" do
       expect(constraint).not_to be_satisfied(url: "not a URL")
       expect(described_class.new([ "https://api.example.com/v1?token=expected" ])).not_to be_satisfied(url: "https://api.example.com/v1?token=expected")
