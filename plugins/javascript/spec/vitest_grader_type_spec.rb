@@ -97,6 +97,7 @@ RSpec.describe JavaScript::VitestGraderType do
     expect(steps.second.run).to include("plugins/example")
     expect(steps.second.junit_output).to eq(".syrus/grade-output/plugins-example-vitest-focused-junit.xml")
     expect(steps.first.when_files_changed).to include("**/*.ts", "package.json")
+    expect(steps).to all(satisfy { |step| step.metadata["project_path"] == "plugins/example" })
   end
 
   it "uses configured test paths for full and ci modes" do

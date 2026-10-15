@@ -383,7 +383,8 @@ class MergeTrainMultisect
           grader_name: context.name,
           grader_command: context.step.details.to_h["command"],
           failed_cases: context.failed_cases,
-          base_retry: config
+          base_retry: config,
+          project_path: context.step.details.to_h["project_path"]
         )
         return command.to_s.strip if command.to_s.strip.present?
       rescue StandardError => e
