@@ -476,17 +476,45 @@ module Steps
       transcript = run.reload.provider_session&.transcript_jsonl.to_s
       summary = ClaudeTranscript.new(transcript).summary
       available = Array(summary.available_tools_at_init).map(&:to_s)
-      called = required_tools.select { |tool| mcp_tool_called?(summary.tool_call_counts.keys, tool) }
+      recorded = recorded_mcp_tool_names
+      called = required_tools.select do |tool|
+        mcp_tool_called?(summary.tool_call_counts.keys, tool) || mcp_tool_called?(recorded, tool)
+      end
       missing = required_tools - called
       status = missing.empty? ? "ok" : "missing"
       log(
-        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",
+        "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} " \
+        "missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} " \
+        "mcp_tool_called=#{summary.mcp_tool_called?} recorded=#{recorded.join(',')} " \
+        "session_id=#{summary.session_id || '(none)'}",
         kind: "system"
       )
       missing
     rescue StandardError => e
-      log("[mcp_required_health] failed to inspect transcript: #{e.class}: #{e.message}", kind: "system")
-      required_tools
+      # Fail open. This is a detector, not the work: if it cannot read the
+      # transcript it knows nothing about what the agent did, and reporting
+      # every required tool as missing turns an unreadable transcript into a
+      # failed step for work that very likely succeeded.
+      log("[mcp_required_health] failed to inspect transcript: #{e.class}: #{e.message} " \
+          "-- treating required tools as satisfied", kind: "system")
+      []
+    end
+
+    # Tool calls Syrus itself recorded for this Run, which is a first-hand
+    # fact rather than an inference from a provider's transcript format.
+    #
+    # The transcript parse is still consulted first because it is the older,
+    # broader signal, but it cannot be the only one: a provider that changes
+    # its rollout format silently stops reporting tool calls, and the check
+    # then fails every run of a step whose work actually completed. That is
+    # exactly what happened when the Codex default model moved to a newer
+    # release -- `post_implementation_review` failed 56 times in eight hours
+    # with `submit_review_notes` recorded as called in the same Run.
+    def recorded_mcp_tool_names
+      McpToolUsage.where(run_id: run.id).distinct.pluck(:tool_name).compact.map(&:to_s)
+    rescue StandardError => e
+      Rails.logger.warn("[Steps::Base] recorded MCP tool lookup failed for Run ##{run.id}: #{e.class}: #{e.message}")
+      []
     end
 
     def mcp_tool_available?(available_tools, required_tool)

@@ -394,6 +394,71 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
     end
 
+    # Regression: the check read tool calls only out of the provider
+    # transcript. When the Codex default model moved to a newer release its
+    # rollout format stopped yielding tool calls to the parser, and
+    # post_implementation_review failed 56 times in eight hours -- every run --
+    # while `submit_review_notes` was recorded as called in that same Run and
+    # the notes were persisted. Syrus's own record of the call is first-hand
+    # evidence and outranks an inference from a format it does not control.
+    it "accepts a required MCP tool that Syrus recorded even when the transcript does not show it" do
+      result = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "sid-rec"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run, provider: "codex", session_id: "sid-rec",
+          transcript_jsonl: { type: "system", subtype: "init", session_id: "sid-rec", tools: [] }.to_json + "\n"
+        )
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+      McpToolUsage.create!(
+        surface: "workflow", run: run, job: run.job, tool_name: "submit_review_notes",
+        raw_tool_name: "syrus-mcp-sidecar.submit_review_notes",
+        normalized_tool_name: "submit_review_notes",
+        status: "completed", sidecar_mode: "persistent"
+      )
+
+      expect {
+        handler.send(:run_agent, prompt: "review",
+                     required_mcp_tools: %w[submit_review_notes],
+                     enforce_required_mcp_tools: true)
+      }.not_to raise_error
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*recorded=submit_review_notes/))
+    end
+
+    # A detector that cannot read the transcript knows nothing about what the
+    # agent did. Reporting everything as missing turns an unreadable
+    # transcript into a failed step for work that probably succeeded.
+    it "treats required tools as satisfied when the transcript cannot be inspected" do
+      result = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "sid-boom"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) { result }
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+      allow(ClaudeTranscript).to receive(:new).and_raise(JSON::ParserError, "unreadable")
+
+      expect {
+        handler.send(:run_agent, prompt: "review",
+                     required_mcp_tools: %w[submit_review_notes],
+                     enforce_required_mcp_tools: true)
+      }.not_to raise_error
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/treating required tools as satisfied/))
+    end
+
     it "declares unavailable provider resume as a retryable problem" do
       result = AgentInvocation::Result.new(
         turns: 0,
