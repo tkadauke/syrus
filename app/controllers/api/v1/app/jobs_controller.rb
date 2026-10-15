@@ -342,6 +342,11 @@ module Api
             pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
+          # This filter backs compact clients that select rows by the
+          # `pr_url` serialized below. External-PR-only Jobs deliberately have
+          # a separate URL representation and serialize `pr_url: nil` here,
+          # so including them would let invisible rows consume the limit.
+          scope = scope.where.not(pr_number: nil) if ActiveModel::Type::Boolean.new.cast(params[:with_pr])
           scope
         end
 

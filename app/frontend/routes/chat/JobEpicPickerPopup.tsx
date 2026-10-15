@@ -5,6 +5,8 @@ import { fetchPickerJobs, type PickerJobRecord } from "../../api/jobs"
 import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 
+const SEARCH_DEBOUNCE_MS = 200
+
 type PickerItem = {
   id: number
   label: string
@@ -45,12 +47,25 @@ export function JobEpicPickerPopup({
 }) {
   const { t } = useT("chat")
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [query])
+
   const jobsQuery = useQuery({
-    queryKey: ["picker-jobs", repositorySlug, jobState],
-    queryFn: () => fetchPickerJobs({ ...(jobState ? { state: jobState } : {}), repo: repositorySlug ?? undefined, limit: 50 }),
+    queryKey: ["picker-jobs", repositorySlug, jobState, filterByPr, debouncedQuery],
+    queryFn: () =>
+      fetchPickerJobs({
+        ...(jobState ? { state: jobState } : {}),
+        repo: repositorySlug ?? undefined,
+        q: debouncedQuery || undefined,
+        withPr: filterByPr,
+        limit: 50
+      }),
     enabled: kind === "job",
     staleTime: 30_000
   })
@@ -76,9 +91,7 @@ export function JobEpicPickerPopup({
   const filteredItems = useMemo<PickerItem[]>(() => {
     if (!query.trim()) return allItems
     const lower = query.toLowerCase()
-    return allItems.filter(
-      (item) => item.title.toLowerCase().includes(lower) || item.label.toLowerCase().includes(lower)
-    )
+    return allItems.filter((item) => item.title.toLowerCase().includes(lower) || item.label.toLowerCase().includes(lower))
   }, [allItems, query])
 
   useEffect(() => {
@@ -111,9 +124,7 @@ export function JobEpicPickerPopup({
   }
 
   const searchPlaceholder = kind === "job" ? t("picker_search_jobs") : t("picker_search_epics")
-  const emptyLabel = kind === "job"
-    ? (filterByPr ? t("picker_no_jobs_with_pr") : t("picker_no_jobs"))
-    : t("picker_no_epics")
+  const emptyLabel = kind === "job" ? (filterByPr ? t("picker_no_jobs_with_pr") : t("picker_no_jobs")) : t("picker_no_epics")
 
   return (
     <div
@@ -136,19 +147,11 @@ export function JobEpicPickerPopup({
           value={query}
         />
       </div>
-      <div
-        className="max-h-60 overflow-y-auto overscroll-contain"
-        id="chat-job-epic-picker-list"
-        role="listbox"
-      >
+      <div className="max-h-60 overflow-y-auto overscroll-contain" id="chat-job-epic-picker-list" role="listbox">
         {isLoading ? (
-          <div className="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
-            {t("picker_loading")}
-          </div>
+          <div className="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">{t("picker_loading")}</div>
         ) : filteredItems.length === 0 ? (
-          <div className="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
-            {emptyLabel}
-          </div>
+          <div className="px-3 py-4 text-center text-sm text-gray-400 dark:text-gray-500">{emptyLabel}</div>
         ) : (
           filteredItems.map((item, index) => {
             const active = index === activeIndex
@@ -163,9 +166,7 @@ export function JobEpicPickerPopup({
                 role="option"
                 type="button"
               >
-                <span className="shrink-0 font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  {item.label}
-                </span>
+                <span className="shrink-0 font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">{item.label}</span>
                 <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">{item.title}</span>
               </button>
             )
