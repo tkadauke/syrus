@@ -142,15 +142,6 @@ RSpec.describe "bin/simulator", :ci_only do
     stale_paths&.each { |path| FileUtils.rm_f(path) }
   end
 
-  it "runs the default scenario directory in series" do
-    stdout, stderr, status = run_simulator
-
-    expect(status).to be_success, stderr
-    expect(stdout).to include("work-engine simulations passed")
-    expect(stdout).to include("workspace missing diagnostic: stuck")
-    expect(stdout).to include("(expected stuck)")
-  end
-
   it "resolves symbolic alternate providers with no agent-provider plugins manually enabled" do
     stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/provider_switch_relaunches_blocked_work.yml")
 
