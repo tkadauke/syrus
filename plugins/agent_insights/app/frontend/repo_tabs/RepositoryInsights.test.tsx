@@ -62,9 +62,14 @@ function makeCounts(suggestions: unknown[]) {
   return counts
 }
 
-function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length }), counts = makeCounts(suggestions)) {
+function payload(
+  suggestions: unknown[] = [makeSuggestion()],
+  meta = makeMeta({ total: suggestions.length }),
+  counts = makeCounts(suggestions),
+  canWrite = true
+) {
   return {
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights", can_write: canWrite },
     tabs: [],
     counts,
     suggestions,
@@ -234,6 +239,17 @@ describe("RepositoryInsightsRoute", () => {
     vi.useRealTimers()
     await i18n.changeLanguage("en")
     vi.restoreAllMocks()
+  })
+
+  it("keeps discussion available but hides mutation actions for read-only collaborators", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion()], undefined, undefined, false)))
+
+    renderRepositoryInsightsRoute()
+
+    expect(await screen.findByRole("button", { name: "Discuss in new chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save as memory" })).not.toBeInTheDocument()
   })
 
   it("shows insight age next to confidence in suggestion headers", async () => {
